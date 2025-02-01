@@ -35,23 +35,27 @@ defmodule BlogWeb.PostLive do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto px-4 py-8 font-mono text-gray-700">
-      <div class="mb-12 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
-        <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Table of Contents</h2>
-        <ul class="space-y-2">
-          <%= for {text, level} <- @headers do %>
-            <li class={[
-              "hover:text-blue-600 transition-colors",
-              level_to_padding(level)
-            ]}>
-              <a href={"##{generate_id(text)}"}><%= text %></a>
-            </li>
-          <% end %>
-        </ul>
-      </div>
+    <div class="px-8 py-12 font-mono text-gray-700">
+      <div class="max-w-7xl mx-auto">
+        <div class="mb-12 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
+          <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Table of Contents</h2>
+          <ul class="space-y-2">
+            <%= for {text, level} <- @headers do %>
+              <li class={[
+                "hover:text-blue-600 transition-colors",
+                level_to_padding(level)
+              ]}>
+                <a href={"##{generate_id(text)}"}><%= text %></a>
+              </li>
+            <% end %>
+          </ul>
+        </div>
 
-      <div class="prose prose-lg max-w-none p-6 bg-white rounded-lg border-2 border-gray-200">
-        <%= raw(@html) %>
+        <article class="p-8 bg-white rounded-lg border-2 border-gray-200">
+          <div class="prose prose-lg prose-headings:font-mono prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl max-w-none">
+            <%= raw(@html) %>
+          </div>
+        </article>
       </div>
     </div>
     """
