@@ -1,17 +1,47 @@
 <!DOCTYPE html>
-<html lang="en" class="[scrollbar-gutter:stable]">
+<html lang="en" class="h-full">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Blog" suffix=" · Phoenix Framework">
-      {assigns[:page_title]}
+    <.live_title suffix=" · Phoenix Framework">
+      <%= assigns[:page_title] || "Blog" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
-  <body class="bg-white">
-    {@inner_content}
+  <body class="h-full bg-gray-50">
+    <div class="flex h-full">
+      <!-- Sidebar -->
+      <div class="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-gray-900 mb-4">My Blog</h1>
+          <div class="space-y-1">
+            <a href="/" class="text-gray-600 hover:text-gray-900 block">Home</a>
+            <a href="/about" class="text-gray-600 hover:text-gray-900 block">About</a>
+          </div>
+        </div>
+        
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Posts</h2>
+          <div class="space-y-4">
+            <%= for {title, date} <- recent_posts() do %>
+              <div class="border-b border-gray-100 pb-4 last:border-0">
+                <a href="/post" class="block">
+                  <h3 class="text-sm font-medium text-gray-900 hover:text-blue-600"><%= title %></h3>
+                  <p class="text-xs text-gray-500 mt-1"><%= date %></p>
+                </a>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <main class="flex-1">
+        <%= @inner_content %>
+      </main>
+    </div>
   </body>
 </html>
