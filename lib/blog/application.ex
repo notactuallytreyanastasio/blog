@@ -10,6 +10,7 @@ defmodule Blog.Application do
     children = [
       BlogWeb.Telemetry,
       {Phoenix.PubSub, name: Blog.PubSub},
+      BlogWeb.Presence,
       {Finch, name: Blog.Finch},
       # Start the Endpoint (http/https)
       BlogWeb.Endpoint

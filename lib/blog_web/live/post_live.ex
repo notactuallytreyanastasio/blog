@@ -1,7 +1,24 @@
 defmodule BlogWeb.PostLive do
   use BlogWeb, :live_view
+  alias BlogWeb.Presence
+
+  @presence_topic "blog_presence"
 
   def mount(%{"slug" => slug}, _session, socket) do
+    if connected?(socket) do
+      # Generate a unique ID for this reader
+      reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
+
+      # Track this reader
+      {:ok, _} = Presence.track(self(), @presence_topic, reader_id, %{
+        slug: slug,
+        joined_at: DateTime.utc_now()
+      })
+
+      # Subscribe to presence changes
+      Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
+    end
+
     require Logger
     Logger.debug("Mounting PostLive with slug: #{slug}")
 
@@ -18,7 +35,8 @@ defmodule BlogWeb.PostLive do
             socket = assign(socket,
               html: html,
               headers: headers,
-              post: post
+              post: post,
+              reader_count: get_reader_count(slug)
             )
             {:ok, socket}
 
@@ -36,10 +54,29 @@ defmodule BlogWeb.PostLive do
     end
   end
 
+  def handle_info(%{event: "presence_diff"} = _diff, socket) do
+    socket = assign(socket,
+      reader_count: get_reader_count(socket.assigns.post.slug)
+    )
+    {:noreply, socket}
+  end
+
+  defp get_reader_count(slug) do
+    Presence.list(@presence_topic)
+    |> Enum.count(fn {_key, %{metas: [meta | _]}} ->
+      meta.slug == slug
+    end)
+  end
+
   def render(assigns) do
     ~H"""
     <div class="px-8 py-12 font-mono text-gray-700">
       <div class="max-w-7xl mx-auto">
+        <div class="mb-4 text-sm text-gray-500">
+          <%= if @reader_count > 1 do %>
+            <%= @reader_count - 1 %> other <%= if @reader_count == 2, do: "person", else: "people" %> reading this post
+          <% end %>
+        </div>
         <div class="mb-12 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
           <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Table of Contents</h2>
           <ul class="space-y-2">

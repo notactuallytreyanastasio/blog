@@ -9,6 +9,7 @@ defmodule BlogWeb.Layouts do
   `use BlogWeb, :live_view`.
   """
   use BlogWeb, :html
+  alias BlogWeb.Presence
 
   embed_templates "layouts/*"
 
@@ -29,6 +30,10 @@ defmodule BlogWeb.Layouts do
       fn {_, post_info} -> post_info end
     )
     |> Enum.map(fn {tag_name, posts} -> {tag_name, Enum.take(posts, 2)} end)
+  end
+
+  def total_readers do
+    Presence.list("blog_presence") |> map_size()
   end
 
   defp format_date(datetime) do
