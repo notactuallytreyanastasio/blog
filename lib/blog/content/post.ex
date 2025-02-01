@@ -8,7 +8,6 @@ defmodule Blog.Content.Post do
     |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
   end
 
-  @spec get_by_slug(any()) :: any()
   def get_by_slug(slug) do
     all()
     |> Enum.find(&(&1.slug == slug))
@@ -39,7 +38,7 @@ defmodule Blog.Content.Post do
       String.to_integer(minute),
       String.to_integer(second)
     )
-    datetime
+    IO.inspect(datetime, label: "parsed datetime for post")
   end
 
   defp humanize_title(slug) do
