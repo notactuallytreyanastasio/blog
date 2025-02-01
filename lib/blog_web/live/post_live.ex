@@ -12,7 +12,7 @@ defmodule BlogWeb.PostLive do
 
       post ->
         Logger.debug("Found post: #{inspect(post, pretty: true)}")
-        case Earmark.as_html(post.body) do
+        case Earmark.as_html(post.body, code_class_prefix: "language-") do
           {:ok, html, _} ->
             headers = extract_headers(post.body)
             socket = assign(socket,
@@ -55,7 +55,7 @@ defmodule BlogWeb.PostLive do
         </div>
 
         <article class="p-8 bg-white rounded-lg border-2 border-gray-200">
-          <div class="prose prose-lg prose-headings:font-mono prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl max-w-none">
+          <div id="post-content" phx-hook="Highlight" class="prose prose-lg prose-headings:font-mono prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl max-w-none">
             <%= raw(@html) %>
           </div>
         </article>

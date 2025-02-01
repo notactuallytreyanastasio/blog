@@ -3,3 +3,24 @@
 @import "tailwindcss/utilities";
 
 /* This file is for your main application CSS */
+
+/* Code block styling */
+pre {
+  margin: 1em 0;
+  padding: 1em;
+  border-radius: 0.5em;
+  background: #282c34;
+  overflow-x: auto;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9em;
+}
+
+/* Inline code styling */
+:not(pre) > code {
+  padding: 0.2em 0.4em;
+  background: #f1f5f9;
+  border-radius: 0.25em;
+}
