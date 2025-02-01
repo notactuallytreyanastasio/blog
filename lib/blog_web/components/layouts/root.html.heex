@@ -20,11 +20,11 @@
             Tidbits, Thoughts
           </h1>
           <div class="space-y-2">
-            <a href="/" class="block px-3 py-2 rounded hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-colors">
-              The Posts
-            </a>
             <a href="/about" class="block px-3 py-2 rounded hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-colors">
               What's My Schtick? Who is this guy?
+            </a>
+            <a href="/" class="block px-3 py-2 rounded hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-colors">
+              The Posts
             </a>
           </div>
         </div>
@@ -47,6 +47,32 @@
               </div>
             <% end %>
           </div>
+        </div>
+        <div>
+          <h2 class="mt-4 text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">
+            Posts by Tag
+          </h2>
+          <%= for {tag, posts} <- posts_by_tag() do %>
+            
+            <div class="space-y-6">
+              <div class="group">
+                <a href={~p"/post/#{tag}"} class="block">
+                  <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                    <%= tag %>
+                  </h3>
+                  <p class="text-xs text-gray-500 mt-1 font-normal">
+                    <%= for {title, slug} <- posts do %>
+                      <a href={~p"/post/#{slug}"} class="block">
+                        <h6 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                            <%= title %>
+                        </h6>
+                      </a>
+                    <% end %>
+                  </p>
+                </a>
+              </div>
+            </div>
+          <% end %>
         </div>
       </div>
 

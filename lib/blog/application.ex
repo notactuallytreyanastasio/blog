@@ -9,14 +9,9 @@ defmodule Blog.Application do
   def start(_type, _args) do
     children = [
       BlogWeb.Telemetry,
-      Blog.Repo,
-      {DNSCluster, query: Application.get_env(:blog, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Blog.PubSub},
-      # Start the Finch HTTP client for sending emails
       {Finch, name: Blog.Finch},
-      # Start a worker by calling: Blog.Worker.start_link(arg)
-      # {Blog.Worker, arg},
-      # Start to serve requests, typically the last entry
+      # Start the Endpoint (http/https)
       BlogWeb.Endpoint
     ]
 

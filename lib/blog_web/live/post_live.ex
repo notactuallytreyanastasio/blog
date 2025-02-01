@@ -7,16 +7,22 @@ defmodule BlogWeb.PostLive do
         {:ok, push_navigate(socket, to: "/")}
 
       post ->
-        {:ok, html, _} = Earmark.as_html(post.body)
-        headers = extract_headers(post.body)
+        case Earmark.as_html(post.body) do
+          {:ok, html, _} ->
+            headers = extract_headers(post.body)
+            socket = assign(socket,
+              html: html,
+              headers: headers,
+              post: post
+            )
+            {:ok, socket}
 
-        socket = assign(socket,
-          html: html,
-          headers: headers,
-          post: post
-        )
-
-        {:ok, socket}
+          {:error, _html, errors} ->
+            # Log the error and show a friendly message
+            require Logger
+            Logger.error("Failed to parse markdown: #{inspect(errors)}")
+            {:ok, push_navigate(socket, to: "/")}
+        end
     end
   end
 

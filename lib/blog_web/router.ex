@@ -17,6 +17,7 @@ defmodule BlogWeb.Router do
   scope "/", BlogWeb do
     pipe_through :browser
 
+    live "/", PostLive.Index
     live "/post/:slug", PostLive
   end
 
