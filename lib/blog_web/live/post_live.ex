@@ -2,11 +2,16 @@ defmodule BlogWeb.PostLive do
   use BlogWeb, :live_view
 
   def mount(%{"slug" => slug}, _session, socket) do
+    require Logger
+    Logger.debug("Mounting PostLive with slug: #{slug}")
+
     case Blog.Content.Post.get_by_slug(slug) do
       nil ->
+        Logger.debug("No post found for slug: #{slug}")
         {:ok, push_navigate(socket, to: "/")}
 
       post ->
+        Logger.debug("Found post: #{inspect(post, pretty: true)}")
         case Earmark.as_html(post.body) do
           {:ok, html, _} ->
             headers = extract_headers(post.body)
@@ -17,11 +22,16 @@ defmodule BlogWeb.PostLive do
             )
             {:ok, socket}
 
-          {:error, _html, errors} ->
-            # Log the error and show a friendly message
-            require Logger
-            Logger.error("Failed to parse markdown: #{inspect(errors)}")
-            {:ok, push_navigate(socket, to: "/")}
+          {:error, html, errors} ->
+            # Still show the content even if there are markdown errors
+            Logger.error("Markdown parsing warnings: #{inspect(errors)}")
+            headers = extract_headers(post.body)
+            socket = assign(socket,
+              html: html,
+              headers: headers,
+              post: post
+            )
+            {:ok, socket}
         end
     end
   end

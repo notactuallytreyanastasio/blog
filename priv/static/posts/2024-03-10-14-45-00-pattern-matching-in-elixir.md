@@ -79,4 +79,4 @@ If it does later, I can adapt.
 
 Posts are routed by slug, which is implicit by title in filename.
 
-For example, `priv/static/posts/2024-03-10-14-45-00-pattern-matching-in-elixir.md` would be `pattern
+For example, `priv/static/posts/2024-03-10-14-45-00-pattern-matching-in-elixir.md` would be routed as `/post/pattern-matching-in-elixir`.

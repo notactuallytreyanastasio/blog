@@ -2,23 +2,32 @@ defmodule Blog.Content.Post do
   defstruct [:body, :title, :written_on, :tags, :slug]
 
   def all do
-    "priv/posts/*.md"
+    "priv/static/posts/*.md"
     |> Path.wildcard()
     |> Enum.map(&parse_post_file/1)
     |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
   end
 
   def get_by_slug(slug) do
-    all()
-    |> Enum.find(&(&1.slug == slug))
+    require Logger
+    all_posts = all()
+    Logger.debug("Looking for slug: #{slug}")
+    Logger.debug("Available slugs: #{inspect(Enum.map(all_posts, & &1.slug))}")
+    Logger.debug("First post for debugging: #{inspect(List.first(all_posts), pretty: true)}")
+
+    found = Enum.find(all_posts, &(&1.slug == slug))
+    Logger.debug("Found post?: #{inspect(found != nil)}")
+    found
   end
 
   defp parse_post_file(file) do
+    require Logger
     filename = Path.basename(file, ".md")
+    Logger.debug("Parsing file: #{filename}")
     [year, month, day, hour, minute, second | title_words] = String.split(filename, "-")
-    _title = Enum.join(title_words, " ")
     datetime = parse_datetime(year, month, day, hour, minute, second)
     slug = Enum.join(title_words, "-")
+    Logger.debug("Generated slug: #{slug}")
 
     %__MODULE__{
       body: File.read!(file),
@@ -38,7 +47,7 @@ defmodule Blog.Content.Post do
       String.to_integer(minute),
       String.to_integer(second)
     )
-    IO.inspect(datetime, label: "parsed datetime for post")
+    datetime  # Make sure we're returning the datetime
   end
 
   defp humanize_title(slug) do

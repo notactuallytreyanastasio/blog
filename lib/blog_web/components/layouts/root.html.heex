@@ -53,22 +53,12 @@
             Posts by Tag
           </h2>
           <%= for {tag, posts} <- posts_by_tag() do %>
-            
             <div class="space-y-6">
               <div class="group">
                 <a href={~p"/post/#{tag}"} class="block">
                   <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                     <%= tag %>
                   </h3>
-                  <p class="text-xs text-gray-500 mt-1 font-normal">
-                    <%= for {title, slug} <- posts do %>
-                      <a href={~p"/post/#{slug}"} class="block">
-                        <h6 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                            <%= title %>
-                        </h6>
-                      </a>
-                    <% end %>
-                  </p>
                 </a>
               </div>
             </div>

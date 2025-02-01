@@ -22,15 +22,14 @@ defmodule BlogWeb.Layouts do
   def posts_by_tag do
     Blog.Content.Post.all()
     |> Enum.flat_map(fn post ->
-      Enum.map(post.tags, fn tag -> {tag.name, {post.title, format_date(post.written_on), post.slug}} end)
+      Enum.map(post.tags, fn tag -> {tag.name, {post.title, post.slug}} end)
     end)
     |> Enum.group_by(
-      fn {tag_name, _post} -> tag_name end,
-      fn {_tag_name, post} -> post end
+      fn {tag_name, _} -> tag_name end,
+      fn {_, post_info} -> post_info end
     )
     |> Enum.map(fn {tag_name, posts} -> {tag_name, Enum.take(posts, 2)} end)
   end
-
 
   defp format_date(datetime) do
     Calendar.strftime(datetime, "%B %d, %Y")
