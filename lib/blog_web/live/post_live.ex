@@ -6,16 +6,17 @@ defmodule BlogWeb.PostLive do
 
   def mount(%{"slug" => slug}, _session, socket) do
     if connected?(socket) do
-      # Generate a unique ID for this reader
+      # Generate a random name for anonymous users
+      random_name = "Reader-#{:rand.uniform(999)}"
       reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
-      # Track this reader
       {:ok, _} = Presence.track(self(), @presence_topic, reader_id, %{
         slug: slug,
+        name: random_name,
+        anonymous: true,
         joined_at: DateTime.utc_now()
       })
 
-      # Subscribe to presence changes
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
     end
 
@@ -64,7 +65,8 @@ defmodule BlogWeb.PostLive do
   defp get_reader_count(slug) do
     Presence.list(@presence_topic)
     |> Enum.count(fn {_key, %{metas: [meta | _]}} ->
-      meta.slug == slug
+      # Only count readers that have a slug and are reading this post
+      Map.get(meta, :slug) == slug
     end)
   end
 
