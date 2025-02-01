@@ -13,12 +13,13 @@ defmodule BlogWeb.Layouts do
   embed_templates "layouts/*"
 
   def recent_posts do
-    [
-      {"Building a Blog with Phoenix LiveView", "March 15, 2024"},
-      {"The Power of Pattern Matching in Elixir", "March 10, 2024"},
-      {"Understanding Phoenix Contexts", "March 5, 2024"},
-      {"Functional Programming Basics", "February 28, 2024"},
-      {"Getting Started with Elixir", "February 20, 2024"}
-    ]
+    Blog.Content.Post.all()
+    |> Enum.map(fn post ->
+      {post.title, format_date(post.written_on), post.slug}
+    end)
+  end
+
+  defp format_date(datetime) do
+    Calendar.strftime(datetime, "%B %d, %Y")
   end
 end

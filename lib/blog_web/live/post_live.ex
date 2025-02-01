@@ -1,36 +1,23 @@
 defmodule BlogWeb.PostLive do
   use BlogWeb, :live_view
 
-  def mount(_params, _session, socket) do
-    # This is example markdown - you'll want to load this from a file or database
-    markdown = """
-    # My Amazing Blog Post
+  def mount(%{"slug" => slug}, _session, socket) do
+    case Blog.Content.Post.get_by_slug(slug) do
+      nil ->
+        {:ok, push_navigate(socket, to: "/")}
 
-    ## Introduction
-    This is a sample blog post written in markdown.
+      post ->
+        {:ok, html, _} = Earmark.as_html(post.body)
+        headers = extract_headers(post.body)
 
-    ## Main Ideas
-    Here are some key points to consider:
+        socket = assign(socket,
+          html: html,
+          headers: headers,
+          post: post
+        )
 
-    ### First Point
-    This is an important consideration.
-
-    ### Second Point
-    Another crucial element to discuss.
-
-    ## Conclusion
-    That wraps up our main points.
-    """
-
-    {:ok, html, _} = Earmark.as_html(markdown)
-    headers = extract_headers(markdown)
-
-    socket = assign(socket,
-      html: html,
-      headers: headers
-    )
-
-    {:ok, socket}
+        {:ok, socket}
+    end
   end
 
   def render(assigns) do

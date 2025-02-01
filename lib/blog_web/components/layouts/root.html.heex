@@ -17,14 +17,14 @@
       <div class="w-72 bg-white border-r-2 border-gray-200 p-6 overflow-y-auto">
         <div class="mb-12">
           <h1 class="text-2xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-gray-200">
-            My Blog
+            Tidbits, Thoughts
           </h1>
           <div class="space-y-2">
             <a href="/" class="block px-3 py-2 rounded hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-colors">
-              Home
+              The Posts
             </a>
             <a href="/about" class="block px-3 py-2 rounded hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-colors">
-              About
+              What's My Schtick? Who is this guy?
             </a>
           </div>
         </div>
@@ -34,9 +34,9 @@
             Recent Posts
           </h2>
           <div class="space-y-6">
-            <%= for {title, date} <- recent_posts() do %>
+            <%= for {title, date, slug} <- recent_posts() do %>
               <div class="group">
-                <a href="/post" class="block">
+                <a href={~p"/post/#{slug}"} class="block">
                   <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                     <%= title %>
                   </h3>
