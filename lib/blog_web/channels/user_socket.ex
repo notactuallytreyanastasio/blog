@@ -1,7 +1,7 @@
 defmodule BlogWeb.UserSocket do
   use Phoenix.Socket
 
-  channel "chat:*", BlogWeb.ChatChannel
+  channel "skeet:*", BlogWeb.SkeetChannel
 
   @impl true
   def connect(_params, socket, _connect_info) do

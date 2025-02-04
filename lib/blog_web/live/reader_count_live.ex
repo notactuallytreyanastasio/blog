@@ -11,27 +11,17 @@ defmodule BlogWeb.ReaderCountLive do
     if connected?(socket) do
       Logger.debug("ReaderCountLive connected")
 
-      # Subscribe to presence changes
-      Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
-
-      # Generate a unique ID for this connection
+      # Generate a random name for anonymous users
+      random_name = "Reader-#{:rand.uniform(999)}"
       reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
-      # Track presence with process monitoring
-      {:ok, _} = Presence.track(
-        self(),
-        @presence_topic,
-        reader_id,
-        %{
-          name: "Reader-#{:rand.uniform(999)}",
-          anonymous: true,
-          joined_at: DateTime.utc_now(),
-          phx_ref: socket.assigns.myself.phx_ref
-        }
-      )
+      {:ok, _} = Presence.track(self(), @presence_topic, reader_id, %{
+        name: random_name,
+        anonymous: true,
+        joined_at: DateTime.utc_now()
+      })
 
-      Logger.debug("Presence tracked for #{reader_id}")
-      socket = assign(socket, :reader_id, reader_id)
+      Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
     end
 
     {:ok, assign(socket,
@@ -60,8 +50,8 @@ defmodule BlogWeb.ReaderCountLive do
     if connected?(socket) do
       current_presence =
         Presence.list(@presence_topic)
-        |> Enum.find(fn {id, %{metas: [meta | _]}} ->
-          meta.phx_ref == socket.assigns.myself.phx_ref
+        |> Enum.find(fn {_id, %{metas: [meta | _]}} ->
+          meta.phx_ref == socket.assigns[:myself][:phx_ref]
         end)
 
       case current_presence do

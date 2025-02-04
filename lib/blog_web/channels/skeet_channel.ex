@@ -1,12 +1,12 @@
-defmodule BlogWeb.ChatChannel do
+defmodule BlogWeb.SkeetChannel do
   use Phoenix.Channel
   require Logger
 
   @max_body_length 250
   @max_handle_length 16
-  @table_name :chat_messages
+  @table_name :skeet_messages
 
-  def join("chat:lobby", _params, socket) do
+  def join("skeet:lobby", _params, socket) do
     # Create ETS table if it doesn't exist
     :ets.new(@table_name, [:set, :public, :named_table, read_concurrency: true])
     {:ok, socket}
