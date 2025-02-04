@@ -4,7 +4,7 @@ defmodule Blog.Content.Post do
   def all do
     case System.get_env("ENVIRONMENT") do
       nil ->
-        "priv/static/posts/*.md"
+        (:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md"
         |> Path.wildcard()
         |> Enum.map(&parse_post_file/1)
         |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
