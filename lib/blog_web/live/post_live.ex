@@ -6,17 +6,8 @@ defmodule BlogWeb.PostLive do
 
   def mount(%{"slug" => slug}, _session, socket) do
     if connected?(socket) do
-      # Generate a random name for anonymous users
-      random_name = "Reader-#{:rand.uniform(999)}"
-      reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
-
-      {:ok, _} = Presence.track(self(), @presence_topic, reader_id, %{
-        slug: slug,
-        name: random_name,
-        anonymous: true,
-        joined_at: DateTime.utc_now()
-      })
-
+      # Wait a brief moment for ReaderCountLive to establish presence
+      Process.send_after(self(), {:update_slug, slug}, 100)
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
     end
 
@@ -53,6 +44,25 @@ defmodule BlogWeb.PostLive do
             {:ok, socket}
         end
     end
+  end
+
+  def handle_info({:update_slug, slug}, socket) do
+    current_presence =
+      Presence.list(@presence_topic)
+      |> Enum.find(fn {_id, %{metas: [meta | _]}} ->
+        meta.phx_ref == socket.assigns.myself.phx_ref
+      end)
+
+    case current_presence do
+      {reader_id, %{metas: [meta | _]}} ->
+        # Update existing presence with the current slug
+        {:ok, _} = Presence.update(self(), @presence_topic, reader_id, Map.put(meta, :slug, slug))
+      nil ->
+        # Do nothing - let ReaderCountLive handle the presence tracking
+        :ok
+    end
+
+    {:noreply, socket}
   end
 
   def handle_info(%{event: "presence_diff"} = _diff, socket) do

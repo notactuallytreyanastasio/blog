@@ -1,22 +1,37 @@
 defmodule BlogWeb.ReaderCountLive do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
+  require Logger
 
   @presence_topic "blog_presence"
 
   def mount(_params, _session, socket) do
+    Logger.debug("Mounting ReaderCountLive")
+
     if connected?(socket) do
-      # Generate a random name for anonymous users
-      random_name = "Reader-#{:rand.uniform(999)}"
+      Logger.debug("ReaderCountLive connected")
+
+      # Subscribe to presence changes
+      Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
+
+      # Generate a unique ID for this connection
       reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
-      {:ok, _} = Presence.track(self(), @presence_topic, reader_id, %{
-        name: random_name,
-        anonymous: true,
-        joined_at: DateTime.utc_now()
-      })
+      # Track presence with process monitoring
+      {:ok, _} = Presence.track(
+        self(),
+        @presence_topic,
+        reader_id,
+        %{
+          name: "Reader-#{:rand.uniform(999)}",
+          anonymous: true,
+          joined_at: DateTime.utc_now(),
+          phx_ref: socket.assigns.myself.phx_ref
+        }
+      )
 
-      Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
+      Logger.debug("Presence tracked for #{reader_id}")
+      socket = assign(socket, :reader_id, reader_id)
     end
 
     {:ok, assign(socket,
@@ -28,7 +43,9 @@ defmodule BlogWeb.ReaderCountLive do
     )}
   end
 
-  def handle_info(%{event: "presence_diff"}, socket) do
+  def handle_info(%{event: "presence_diff", payload: %{joins: joins, leaves: leaves}}, socket) do
+    Logger.debug("Presence diff - Joins: #{map_size(joins)}, Leaves: #{map_size(leaves)}")
+
     {:noreply, assign(socket,
       total_readers: presence_count(),
       presence_list: presence_list()
@@ -71,7 +88,9 @@ defmodule BlogWeb.ReaderCountLive do
   end
 
   defp presence_count do
-    Presence.list(@presence_topic) |> map_size()
+    count = Presence.list(@presence_topic) |> map_size()
+    Logger.debug("Current presence count: #{count}")
+    count
   end
 
   defp presence_list do

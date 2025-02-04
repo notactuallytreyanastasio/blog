@@ -19,7 +19,6 @@ defmodule BlogWeb.Router do
 
     live "/", PostLive.Index
     live "/post/:slug", PostLive
-    live "/reader-count", ReaderCountLive
   end
 
   # Other scopes may use custom stacks.
