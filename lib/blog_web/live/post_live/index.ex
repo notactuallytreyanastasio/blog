@@ -35,7 +35,12 @@ defmodule BlogWeb.PostLive.Index do
         <div class="mb-4 text-sm text-gray-500">
           <%= @total_readers %> <%= if @total_readers == 1, do: "person", else: "people" %> browsing the blog
         </div>
-        <!-- Rest of your template... -->
+        <div :for={post <- @posts} class="mb-8">
+          <.link navigate={~p"/post/#{post.slug}"}>
+            <h2 class="text-2xl font-bold"><%= post.title %></h2>
+            <h3 class="text-small font-bold"><%= post.tags |> Enum.map(& &1.name) |> Enum.join(", ") %></h3>
+          </.link>
+        </div>
       </div>
     </div>
     """
