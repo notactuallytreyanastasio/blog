@@ -31,6 +31,9 @@ defmodule BlogWeb.PostLive do
         {:ok, push_navigate(socket, to: "/")}
 
       post ->
+        # Add this line to put the post in the layout assigns
+        socket = put_root_layout(socket, {BlogWeb.Layouts, :root, post: post})
+
         Logger.debug("Found post: #{inspect(post, pretty: true)}")
         case Earmark.as_html(post.body, code_class_prefix: "language-") do
           {:ok, html, _} ->
