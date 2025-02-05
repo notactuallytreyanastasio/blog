@@ -147,7 +147,7 @@ defmodule BlogWeb.PostLive do
   defp assign_meta_tags(socket, post) do
     description = get_preview(post.body)
     image_path = Blog.Content.ImageGenerator.ensure_post_image(post.slug)
-    image_url = url(socket, image_path)
+    image_url = BlogWeb.Endpoint.url() <> image_path
 
     assign(socket,
       page_title: post.title,
