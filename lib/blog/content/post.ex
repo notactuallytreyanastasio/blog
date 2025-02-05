@@ -5,8 +5,8 @@ defmodule Blog.Content.Post do
     (:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md"
     |> Path.wildcard()
     |> Enum.reject(fn(file) ->
-      case String.split(file, "-") |> List.last |> String.length do
-        32 -> true
+      case file |> String.split("-") |> List.last |> String.length do
+        35 -> true
         _ -> false
       end
     end)
