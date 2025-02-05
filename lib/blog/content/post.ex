@@ -2,18 +2,16 @@ defmodule Blog.Content.Post do
   defstruct [:body, :title, :written_on, :tags, :slug]
 
   def all do
-    case System.get_env("ENVIRONMENT") do
-      nil ->
-        (:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md"
-        |> Path.wildcard()
-        |> Enum.map(&parse_post_file/1)
-        |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
-      value ->
-        (:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md"
-        |> Path.wildcard()
-        |> Enum.map(&parse_post_file/1)
-        |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
-    end
+    (:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md"
+    |> Path.wildcard()
+    |> Enum.reject(fn(file) ->
+      case String.split(file, "-") |> List.last |> String.length do
+        32 -> true
+        _ -> false
+      end
+    end)
+    |> Enum.map(&parse_post_file/1)
+    |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
   end
 
   @spec get_by_slug(any()) :: any()
