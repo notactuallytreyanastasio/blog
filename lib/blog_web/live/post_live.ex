@@ -146,27 +146,39 @@ defmodule BlogWeb.PostLive do
 
   defp assign_meta_tags(socket, post) do
     description = get_preview(post.body)
-    image_path = Blog.Content.ImageGenerator.ensure_post_image(post.slug)
-    image_url = BlogWeb.Endpoint.url() <> image_path
 
-    assign(socket,
-      page_title: post.title,
-      meta_tags: [
-        %{name: "description", content: description},
-        %{property: "og:title", content: post.title},
-        %{property: "og:description", content: description},
-        %{property: "og:type", content: "article"},
-        %{property: "og:site_name", content: "Thoughts and Tidbits"},
+    # Get image path, fallback to nil if generation fails
+    image_path = Blog.Content.ImageGenerator.ensure_post_image(post.slug)
+    image_url = if image_path, do: BlogWeb.Endpoint.url() <> image_path
+
+    meta_tags = [
+      %{name: "description", content: description},
+      %{property: "og:title", content: post.title},
+      %{property: "og:description", content: description},
+      %{property: "og:type", content: "article"},
+      %{property: "og:site_name", content: "Thoughts and Tidbits"},
+      %{property: "article:published_time",
+        content: DateTime.from_naive!(post.written_on, "Etc/UTC") |> DateTime.to_iso8601()},
+      %{name: "twitter:card", content: "summary_large_image"},
+      %{name: "twitter:title", content: post.title},
+      %{name: "twitter:description", content: description}
+    ]
+
+    # Add image tags only if we have an image
+    meta_tags = if image_url do
+      meta_tags ++ [
         %{property: "og:image", content: image_url},
         %{property: "og:image:width", content: "1200"},
         %{property: "og:image:height", content: "630"},
-        %{property: "article:published_time",
-          content: DateTime.from_naive!(post.written_on, "Etc/UTC") |> DateTime.to_iso8601()},
-        %{name: "twitter:card", content: "summary_large_image"},
-        %{name: "twitter:title", content: post.title},
-        %{name: "twitter:description", content: description},
         %{name: "twitter:image", content: image_url}
-      ] ++ tag_meta_tags(post.tags)
+      ]
+    else
+      meta_tags
+    end
+
+    assign(socket,
+      page_title: post.title,
+      meta_tags: meta_tags ++ tag_meta_tags(post.tags)
     )
   end
 
