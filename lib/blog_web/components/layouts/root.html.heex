@@ -4,9 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title suffix=" · Phoenix Framework">
-      <%= assigns[:page_title] || "Blog" %>
-    </.live_title>
+
+    <title><%= assigns[:page_title] || "Thoughts and Tidbits" %></title>
+
+    <%= for meta <- assigns[:meta_tags] || [] do %>
+      <meta {meta} />
+    <% end %>
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
@@ -34,7 +38,7 @@
             </a>
           </div>
         </div>
-        
+
         <div>
           <h2 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">
             Recent Posts

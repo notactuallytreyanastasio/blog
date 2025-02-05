@@ -31,6 +31,12 @@ defmodule BlogWeb.PostLive do
         {:ok, push_navigate(socket, to: "/")}
 
       post ->
+        # Set meta tags for the page
+        socket =
+          socket
+          |> assign_meta_tags(post)
+          |> assign(:post, post)
+
         Logger.debug("Found post: #{inspect(post, pretty: true)}")
         case Earmark.as_html(post.body, code_class_prefix: "language-") do
           {:ok, html, _} ->
@@ -38,7 +44,6 @@ defmodule BlogWeb.PostLive do
             socket = assign(socket,
               html: html,
               headers: headers,
-              post: post,
               reader_count: get_reader_count(slug)
             )
             {:ok, socket}
@@ -138,4 +143,42 @@ defmodule BlogWeb.PostLive do
   defp level_to_padding(3), do: "pl-8"
   defp level_to_padding(4), do: "pl-12"
   defp level_to_padding(_), do: "pl-16"
+
+  defp assign_meta_tags(socket, post) do
+    description = get_preview(post.body)
+
+    assign(socket,
+      page_title: post.title,
+      meta_tags: [
+        %{name: "description", content: description},
+        %{property: "og:title", content: post.title},
+        %{property: "og:description", content: description},
+        %{property: "og:type", content: "article"},
+        %{property: "og:site_name", content: "Thoughts and Tidbits"},
+        %{property: "article:published_time",
+          content: DateTime.from_naive!(post.written_on, "Etc/UTC") |> DateTime.to_iso8601()},
+        %{name: "twitter:card", content: "summary"},
+        %{name: "twitter:title", content: post.title},
+        %{name: "twitter:description", content: description}
+      ] ++ tag_meta_tags(post.tags)
+    )
+  end
+
+  defp tag_meta_tags(tags) do
+    Enum.map(tags, fn tag ->
+      %{property: "article:tag", content: tag.name}
+    end)
+  end
+
+  defp get_preview(content, max_length \\ 200) do
+    content
+    |> String.split("\n")
+    |> Enum.reject(&String.starts_with?(&1, "tags:"))
+    |> Enum.join(" ")
+    |> String.replace(~r/[#*`]/, "")
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> String.slice(0, max_length)
+    |> Kernel.<>("...")
+  end
 end
