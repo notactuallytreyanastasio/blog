@@ -24,3 +24,25 @@ code {
   background: #f1f5f9;
   border-radius: 0.25em;
 }
+
+/* Add these to your existing CSS */
+input[type="checkbox"] {
+  appearance: none;
+  background-color: white;
+  margin: 0;
+  font: inherit;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #ddd;
+  display: grid;
+  place-content: center;
+}
+
+input[type="checkbox"]:checked {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+input[type="checkbox"]:hover {
+  border-color: #93c5fd;
+}

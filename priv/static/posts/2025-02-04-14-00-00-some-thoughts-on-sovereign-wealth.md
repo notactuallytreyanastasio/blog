@@ -1,6 +1,6 @@
 tags: economics, government, not-tech
 
-# On the United States and Sovereign Wealth Funds, Byrne Hobart
+# On the United States and Sovereign Wealth Funds
 
 > [...] the US already has a sovereign wealth fund; it owns a special class of perpetual preferred that is entitled to 21% of any company's income, with payments held back if the company's cumulative earnings are below their high-water mark. Granted, that makes corporate income taxes a diversified index fund rather than a more concentrated bet
 
@@ -21,4 +21,5 @@ But you could _just raise taxes to get the money_ lol
 ### Notes from "The Diff", 2025-02-04, Byrne Hobart
 ### This comes the day after Donald Trump announced the US will have a sovereign wealth fund
 ### We kind of already do man, its called social security
-
+### This doesnt work as a format, I should implement footnotes I guess?
+Does markdown have footnotes?
