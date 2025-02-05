@@ -72,19 +72,4 @@ defmodule Blog.Content.Post do
         |> Enum.map(&%Blog.Content.Tag{name: &1})
     end
   end
-
-  @doc """
-  Gets a preview of the post content, stripping markdown and limiting length
-  """
-  def get_preview(content, max_length \\ 200) do
-    content
-    |> String.split("\n")
-    |> Enum.reject(&String.starts_with?(&1, "tags:"))  # Skip tags line
-    |> Enum.join(" ")
-    |> String.replace(~r/[#*`]/, "")  # Remove markdown symbols
-    |> String.replace(~r/\s+/, " ")   # Normalize whitespace
-    |> String.trim()
-    |> String.slice(0, max_length)
-    |> Kernel.<>("...")
-  end
 end
