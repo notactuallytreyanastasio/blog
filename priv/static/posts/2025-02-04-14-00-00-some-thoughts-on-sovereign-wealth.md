@@ -14,7 +14,7 @@ Because question 0 of the fund is “where does the money come from lol”.
 
 For it to accumulate foeign assets we’d need a rise in export or reduction in consumption of import (which is what Saudi Arabias PIF fund does) they dont want a boom and drop, so it suppresses domestic activity to keep a level curve
 
-It could work for strategic purpose assets or whatever, like buying tin Tok? Or manufacture restoring?
+It could work for strategic purpose assets or whatever, like buying tin Tok? Or manufacturer restoring?
 
 But you could _just raise taxes to get the money_ lol
 
