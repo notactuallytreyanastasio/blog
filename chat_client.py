@@ -3,6 +3,7 @@ import json
 import websockets
 import time
 import threading
+from asyncio import Queue
 
 class PhoenixClient:
     def __init__(self, uri="wss://thoughts-and-tidbits.fly.dev/socket/websocket"):
@@ -10,10 +11,14 @@ class PhoenixClient:
         self.ref = 0
         self.running = False
         self.receive_lock = asyncio.Lock()
+        self.message_queue = Queue()
+        self.response_queues = {}
 
     def _get_ref(self):
         self.ref += 1
-        return str(self.ref)
+        ref = str(self.ref)
+        self.response_queues[ref] = Queue()
+        return ref
 
     def _create_message(self, event_type, topic, payload=None):
         return json.dumps({
@@ -33,17 +38,49 @@ class PhoenixClient:
                 ping_timeout=10
             )
 
+            # Start the message processor
+            self.running = True
+            asyncio.create_task(self._process_messages())
+
             # Join the skeet channel
             join_message = self._create_message("phx_join", "skeet:lobby")
-            async with self.receive_lock:
-                await self.websocket.send(join_message)
-                response = await self.websocket.recv()
+            await self.websocket.send(join_message)
+            response = await self.response_queues[join_message["ref"]].get()
             print(f"Join response: {response}")
-            self.running = True
             return True
         except Exception as e:
             print(f"Connection error: {e}")
             return False
+
+    async def _process_messages(self):
+        try:
+            while self.running:
+                try:
+                    message = await self.websocket.recv()
+                    data = json.loads(message)
+
+                    if "ref" in data:
+                        # This is a response to a sent message
+                        queue = self.response_queues.get(data["ref"])
+                        if queue:
+                            await queue.put(data)
+                            if data["event"] != "phx_reply":  # Keep queue for ongoing subscriptions
+                                del self.response_queues[data["ref"]]
+
+                    # Handle broadcasts
+                    if data.get("event") == "new_message" and "ref" not in data:
+                        payload = data.get("payload", {})
+                        print(f"\n📨 New message from {payload.get('user')}:")
+                        print(f"   {payload.get('body')}")
+                        if payload.get('reply_to'):
+                            print(f"   ↳ Reply to: {payload.get('reply_to')}")
+                        print("\nEnter message (or 'quit' to exit): ", end='', flush=True)
+                except websockets.exceptions.ConnectionClosed:
+                    break
+                except Exception as e:
+                    print(f"Error processing message: {e}")
+        finally:
+            self.running = False
 
     async def send_message(self, body, user, reply_to=None):
         message = self._create_message(
@@ -55,35 +92,10 @@ class PhoenixClient:
                 "reply_to": reply_to
             }
         )
-        async with self.receive_lock:
-            await self.websocket.send(message)
-            response = await self.websocket.recv()
-            return json.loads(response)
-
-    async def listen_for_messages(self):
-        try:
-            while self.running:
-                async with self.receive_lock:
-                    try:
-                        message = await asyncio.wait_for(
-                            self.websocket.recv(),
-                            timeout=0.1  # Short timeout to allow checking running state
-                        )
-                        data = json.loads(message)
-
-                        # Only show broadcast messages
-                        if data.get("event") == "new_message":
-                            payload = data.get("payload", {})
-                            print(f"\n📨 New message from {payload.get('user')}:")
-                            print(f"   {payload.get('body')}")
-                            if payload.get('reply_to'):
-                                print(f"   ↳ Reply to: {payload.get('reply_to')}")
-                            print("\nEnter message (or 'quit' to exit): ", end='', flush=True)
-                    except asyncio.TimeoutError:
-                        continue
-        except Exception as e:
-            if self.running:
-                print(f"\nListener error: {e}")
+        ref = json.loads(message)["ref"]
+        await self.websocket.send(message)
+        response = await self.response_queues[ref].get()
+        return response
 
     async def close(self):
         self.running = False
