@@ -1,3 +1,55 @@
-<div class="app-container">
-  {@inner_content}
+<div class="min-h-screen font-mono">
+  <%!-- Header with better mobile responsiveness --%>
+  <header class="px-4 sm:px-6 py-3 bg-white border-b">
+    <div class="max-w-7xl mx-auto">
+      <%!-- Title and reader count --%>
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold">
+            <.link navigate="/" class="hover:text-blue-600 transition-colors">
+              Thoughts and Tidbits
+            </.link>
+          </h1>
+          <div class="text-sm text-gray-500">
+            <%= total_readers() %> <%= if total_readers() == 1, do: "person", else: "people" %> online
+          </div>
+        </div>
+
+        <%!-- Navigation --%>
+        <nav class="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-4 sm:gap-6 text-sm">
+          <.link navigate="/post/who-is-this-guy" class="hover:text-blue-600 transition-colors">
+            Who is this guy?
+          </.link>
+          <.link navigate="/post/whats-my-schtick" class="hover:text-blue-600 transition-colors">
+            What's My Schtick?
+          </.link>
+          <.link navigate="/posts" class="hover:text-blue-600 transition-colors">
+            The Posts
+          </.link>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <%!-- Main content --%>
+  <main class="px-4 py-6 sm:px-6">
+    <div class="max-w-7xl mx-auto">
+      <%= @inner_content %>
+    </div>
+  </main>
+
+  <%!-- Mobile-only random posts section --%>
+  <div class="block sm:hidden px-4 py-6 bg-gray-50 border-t mt-8">
+    <div class="max-w-7xl mx-auto">
+      <h2 class="text-lg font-bold mb-4">You Might Also Like</h2>
+      <div class="space-y-4">
+        <%= for {title, date, slug} <- random_posts(3) do %>
+          <.link navigate={~p"/post/#{slug}"} class="block bg-white p-4 rounded-lg shadow-sm border hover:border-blue-300 transition-colors">
+            <h3 class="font-bold"><%= title %></h3>
+            <div class="text-sm text-gray-500 mt-1"><%= date %></div>
+          </.link>
+        <% end %>
+      </div>
+    </div>
+  </div>
 </div>
