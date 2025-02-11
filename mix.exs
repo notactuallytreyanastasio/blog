@@ -49,7 +49,9 @@ defmodule Blog.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:earmark, "~> 1.4"},
-      {:websockex, "0.4.3"}
+      {:websockex, "~> 0.4.3"},
+      {:ecto_sql, "~> 3.10"},
+      {:postgrex, ">= 0.0.0"}
     ]
   end
 
@@ -61,7 +63,10 @@ defmodule Blog.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "assets.setup", "assets.build"],
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind blog", "esbuild blog"],
       "assets.deploy": ["tailwind blog --minify", "esbuild blog --minify", "phx.digest"]

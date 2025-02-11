@@ -8,6 +8,7 @@ defmodule Blog.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      Blog.Repo,
       BlogWeb.Telemetry,
       {Phoenix.PubSub, name: Blog.PubSub},
       BlogWeb.Presence,
