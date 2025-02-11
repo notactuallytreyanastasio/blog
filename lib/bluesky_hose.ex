@@ -1,6 +1,8 @@
 defmodule BlueskyHose do
   use WebSockex
   require Logger
+  alias Blog.Social.Skeet
+  alias Blog.Repo
 
   def start_link(opts \\ []) do
     WebSockex.start_link("wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post", __MODULE__, :fake_state, opts)
@@ -19,6 +21,13 @@ defmodule BlueskyHose do
         case String.contains?(skeet, "muenster") do
           true ->
             IO.puts("Got cheese skeet\n\n\n\n#{skeet}")
+
+            # Persist the skeet
+            %Skeet{}
+            |> Skeet.changeset(%{skeet: skeet})
+            |> Repo.insert()
+
+            # Broadcast to PubSub
             Phoenix.PubSub.broadcast(
               Blog.PubSub,
               "muenster_posts",

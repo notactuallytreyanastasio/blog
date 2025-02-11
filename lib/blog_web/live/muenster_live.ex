@@ -2,16 +2,17 @@ defmodule BlogWeb.MuensterLive do
   use BlogWeb, :live_view
   require Logger
 
-  @max_posts 50
+  @max_posts 500
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Blog.PubSub, "muenster_posts")
     end
-
+    posts = Blog.Repo.all(Blog.Social.Skeet) |> Enum.map(fn(skeet) -> %{text: skeet.skeet, timestamp: skeet.inserted_at} end)
+    # get the most recent ten muenster skeets from the database
     {:ok, assign(socket,
-      posts: [],
-      total_count: 0
+      posts: posts,
+      total_count: Enum.count(posts)
     )}
   end
 
