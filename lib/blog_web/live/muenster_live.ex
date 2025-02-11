@@ -1,8 +1,6 @@
 defmodule BlogWeb.MuensterLive do
   use BlogWeb, :live_view
   require Logger
-  alias Blog.Social.Skeet
-  alias Blog.Repo
 
   @max_posts 500
 
@@ -10,10 +8,8 @@ defmodule BlogWeb.MuensterLive do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Blog.PubSub, "muenster_posts")
     end
-
-    posts = Repo.all(from s in Skeet, order_by: [desc: s.inserted_at])
-            |> Enum.map(fn skeet -> %{text: skeet.skeet, timestamp: skeet.inserted_at} end)
-
+    posts = Blog.Repo.all(Blog.Social.Skeet) |> Enum.map(fn(skeet) -> %{text: skeet.skeet, timestamp: skeet.inserted_at} end)
+    # get the most recent ten muenster skeets from the database
     {:ok, assign(socket,
       posts: posts,
       total_count: Enum.count(posts)
@@ -21,15 +17,10 @@ defmodule BlogWeb.MuensterLive do
   end
 
   def handle_info({:new_post, skeet}, socket) do
-    # Don't update the UI here - the database insert will trigger a new DB query
-    # This prevents double-display of posts
-    {:noreply, socket}
-  end
-
-  # Handle the successful database insert
-  def handle_info({:skeet_saved, skeet, timestamp}, socket) do
-    posts = [%{text: skeet, timestamp: timestamp} | socket.assigns.posts]
-            |> Enum.take(@max_posts)
+    posts = [%{
+      text: skeet,
+      timestamp: NaiveDateTime.local_now()
+    } | socket.assigns.posts] |> Enum.take(@max_posts)
 
     {:noreply, assign(socket,
       posts: posts,
