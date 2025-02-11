@@ -48,7 +48,8 @@ defmodule Blog.MixProject do
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      {:earmark, "~> 1.4"}
+      {:earmark, "~> 1.4"},
+      {:websockex, "0.4.3"}
     ]
   end
 

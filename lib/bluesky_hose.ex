@@ -16,14 +16,17 @@ defmodule BlueskyHose do
     msg = Jason.decode!(msg)
     case msg do
       %{"commit" => %{"record" => %{"text" => skeet}}} = msg ->
-
         case String.contains?(skeet, "muenster") do
-          true -> 
+          true ->
             IO.puts("Got cheese skeet\n\n\n\n#{skeet}")
-            :pubsub_broadcast
+            Phoenix.PubSub.broadcast(
+              Blog.PubSub,
+              "muenster_posts",
+              {:new_post, skeet}
+            )
           false -> :do_nothing
         end
-      _ -> 
+      _ ->
         nil
     end
     {:ok, state + 1}
@@ -33,7 +36,7 @@ defmodule BlueskyHose do
     Logger.info("Local close with reason: #{inspect reason}")
     {:ok, state}
   end
-  
+
   def handle_disconnect(disconnect_map, state) do
     super(disconnect_map, state)
   end

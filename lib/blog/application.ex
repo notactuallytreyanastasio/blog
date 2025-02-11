@@ -13,7 +13,8 @@ defmodule Blog.Application do
       BlogWeb.Presence,
       {Finch, name: Blog.Finch},
       # Start the Endpoint (http/https)
-      BlogWeb.Endpoint
+      BlogWeb.Endpoint,
+      BlueskyHose
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
