@@ -22,17 +22,20 @@ defmodule BlueskyHose do
           true ->
             IO.puts("Got cheese skeet\n\n\n\n#{skeet}")
 
-            # Persist the skeet
-            %Skeet{}
-            |> Skeet.changeset(%{skeet: skeet})
-            |> Repo.insert()
+            # Persist the skeet and broadcast only on successful save
+            case %Skeet{}
+                 |> Skeet.changeset(%{skeet: skeet})
+                 |> Repo.insert() do
+              {:ok, saved_skeet} ->
+                Phoenix.PubSub.broadcast(
+                  Blog.PubSub,
+                  "muenster_posts",
+                  {:skeet_saved, saved_skeet.skeet, saved_skeet.inserted_at}
+                )
+              {:error, _changeset} ->
+                Logger.error("Failed to save skeet")
+            end
 
-            # Broadcast to PubSub
-            Phoenix.PubSub.broadcast(
-              Blog.PubSub,
-              "muenster_posts",
-              {:new_post, skeet}
-            )
           false -> :do_nothing
         end
       _ ->
