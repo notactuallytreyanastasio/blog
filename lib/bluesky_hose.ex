@@ -18,7 +18,7 @@ defmodule BlueskyHose do
     msg = Jason.decode!(msg)
     case msg do
       %{"commit" => %{"record" => %{"text" => skeet}}} = msg ->
-        case String.contains?(skeet, "muenster") do
+        case String.contains?(String.downcase(skeet), "muenster") do
           true ->
             IO.puts("Got cheese skeet\n\n\n\n#{skeet}")
 
