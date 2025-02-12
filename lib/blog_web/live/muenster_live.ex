@@ -8,7 +8,7 @@ defmodule BlogWeb.MuensterLive do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Blog.PubSub, "muenster_posts")
     end
-    posts = Blog.Repo.all(Blog.Social.Skeet) |> Enum.map(fn(skeet) -> %{text: skeet.skeet, timestamp: skeet.inserted_at} end)
+    posts = Blog.Repo.all(Blog.Social.Skeet) |> Enum.map(fn(skeet) -> %{text: skeet.skeet, timestamp: skeet.inserted_at} end) |> Enum.take(3)
     # get the most recent ten muenster skeets from the database
     {:ok, assign(socket,
       posts: posts,

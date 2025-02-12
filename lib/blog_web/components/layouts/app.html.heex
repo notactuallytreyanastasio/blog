@@ -39,17 +39,4 @@
   </main>
 
   <%!-- Mobile-only random posts section --%>
-  <div class="block sm:hidden px-4 py-6 bg-gray-50 border-t mt-8">
-    <div class="max-w-7xl mx-auto">
-      <h2 class="text-lg font-bold mb-4">You Might Also Like</h2>
-      <div class="space-y-4">
-        <%= for {title, date, slug} <- random_posts(3) do %>
-          <.link navigate={~p"/post/#{slug}"} class="block bg-white p-4 rounded-lg shadow-sm border hover:border-blue-300 transition-colors">
-            <h3 class="font-bold"><%= title %></h3>
-            <div class="text-sm text-gray-500 mt-1"><%= date %></div>
-          </.link>
-        <% end %>
-      </div>
-    </div>
-  </div>
 </div>
