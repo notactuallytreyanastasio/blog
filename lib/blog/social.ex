@@ -102,6 +102,82 @@ defmodule Blog.Social do
     end
   end
 
+  @doc """
+  Generates a tweet using a Markov chain built from existing sparkles.
+  Uses pure SQL for performance with large datasets.
+  """
+  def generate_markov_tweet do
+    query = """
+    WITH RECURSIVE
+    words AS (
+      SELECT
+        word_array[i] as word1,
+        word_array[i+1] as word2
+      FROM (
+        SELECT regexp_split_to_array(lower(content), '\\s+') as word_array,
+               generate_series(1, array_length(regexp_split_to_array(content, '\\s+'), 1) - 1) as i
+        FROM sparkles TABLESAMPLE SYSTEM (1)
+        WHERE content IS NOT NULL
+        LIMIT 1000
+      ) split
+    ),
+    transitions AS (
+      SELECT
+        word1,
+        word2,
+        count(*) as freq,
+        row_number() OVER (PARTITION BY word1 ORDER BY random()) as rn
+      FROM words
+      GROUP BY word1, word2
+    ),
+    chain(word, text, words) AS (
+      SELECT
+        word1,
+        word1 || ' ' || word2,
+        2
+      FROM transitions
+      WHERE rn = 1
+      AND length(word1) > 2
+
+      UNION ALL
+
+      SELECT
+        t.word2,
+        c.text || ' ' || t.word2,
+        c.words + 1
+      FROM chain c
+      JOIN transitions t ON t.word1 = c.word
+      WHERE c.words < 30
+      AND NOT (c.text ~ '\\.\\s*$')
+      AND t.rn = 1
+    )
+    SELECT text
+    FROM chain
+    WHERE text ~ '\\.\\s*$'
+    AND char_length(text) <= 250
+    ORDER BY words DESC, random()
+    LIMIT 1;
+    """
+
+    case Repo.query(query) do
+      {:ok, %{rows: [[content]]}} when not is_nil(content) ->
+        # Clean up the generated text
+        content
+        |> String.trim()
+        |> String.replace(~r/\s+/, " ")
+        |> capitalize_sentences()
+      _ ->
+        "Failed to generate tweet"
+    end
+  end
+
+  defp capitalize_sentences(text) do
+    text
+    |> String.split(~r/([.!?])\s*/)
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(". ")
+  end
+
   defp filter_sparkles(query, opts) do
     Enum.reduce(opts, query, fn
       {:author, author}, query ->

@@ -21,6 +21,7 @@ defmodule BlogWeb.Router do
     live "/post/:slug", PostLive
     live "/grid", GridLive, :index
     live "/muenster", MuensterLive
+    live "/faketweets", FakeTweetsLive
   end
 
   # Other scopes may use custom stacks.
