@@ -1,6 +1,7 @@
 defmodule BlogWeb.PostLive.Index do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
+  alias Blog.Content
 
   @presence_topic "blog_presence"
 
@@ -17,9 +18,14 @@ defmodule BlogWeb.PostLive.Index do
     end
 
     posts = Blog.Content.Post.all()
+    %{tech: tech_posts, non_tech: non_tech_posts} = Content.categorize_posts(posts)
     total_readers = Presence.list(@presence_topic) |> map_size()
 
-    {:ok, assign(socket, posts: posts, total_readers: total_readers)}
+    {:ok, assign(socket,
+      tech_posts: tech_posts,
+      non_tech_posts: non_tech_posts,
+      total_readers: total_readers
+    )}
   end
 
   def handle_info(%{event: "presence_diff"}, socket) do
@@ -27,7 +33,6 @@ defmodule BlogWeb.PostLive.Index do
     {:noreply, assign(socket, total_readers: total_readers)}
   end
 
-  # Add this to your index template:
   def render(assigns) do
     ~H"""
     <div class="px-8 py-12">
@@ -35,11 +40,37 @@ defmodule BlogWeb.PostLive.Index do
         <div class="mb-4 text-sm text-gray-500">
           <%= @total_readers %> <%= if @total_readers == 1, do: "person", else: "people" %> browsing the blog
         </div>
-        <div :for={post <- @posts} class="mb-8">
-          <.link navigate={~p"/post/#{post.slug}"}>
-            <h2 class="text-2xl font-bold"><%= post.title %></h2>
-            <h3 class="text-small font-bold"><%= post.tags |> Enum.map(& &1.name) |> Enum.join(", ") %></h3>
-          </.link>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <%!-- Tech Posts Column --%>
+          <div>
+            <h2 class="text-2xl font-bold mb-6 pb-2 border-b">Tech & Programming</h2>
+            <div class="space-y-6">
+              <div :for={post <- @tech_posts} class="mb-8">
+                <.link navigate={~p"/post/#{post.slug}"}>
+                  <h3 class="text-xl font-bold hover:text-blue-600 transition-colors"><%= post.title %></h3>
+                  <p class="text-sm text-gray-600 mt-1">
+                    <%= post.tags |> Enum.map(& &1.name) |> Enum.join(", ") %>
+                  </p>
+                </.link>
+              </div>
+            </div>
+          </div>
+
+          <%!-- Non-Tech Posts Column --%>
+          <div>
+            <h2 class="text-2xl font-bold mb-6 pb-2 border-b">Life & Everything Else</h2>
+            <div class="space-y-6">
+              <div :for={post <- @non_tech_posts} class="mb-8">
+                <.link navigate={~p"/post/#{post.slug}"}>
+                  <h3 class="text-xl font-bold hover:text-blue-600 transition-colors"><%= post.title %></h3>
+                  <p class="text-sm text-gray-600 mt-1">
+                    <%= post.tags |> Enum.map(& &1.name) |> Enum.join(", ") %>
+                  </p>
+                </.link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
