@@ -77,6 +77,31 @@ defmodule Blog.Social do
     Repo.delete(sparkle)
   end
 
+  @doc """
+  Gets 10 random sparkles and concatenates their content into a single string.
+  Uses TABLESAMPLE for efficient random selection on large tables.
+  """
+  def random_sparkle_content do
+    # Using TABLESAMPLE SYSTEM to efficiently sample large tables
+    query = """
+    WITH random_sparkles AS (
+      SELECT content
+      FROM sparkles TABLESAMPLE SYSTEM (1)
+      WHERE content IS NOT NULL
+      LIMIT 100
+    )
+    SELECT string_agg(content, ' ') as combined_content
+    FROM random_sparkles
+    """
+
+    case Repo.query(query) do
+      {:ok, %{rows: [[content]]}} when not is_nil(content) ->
+        content
+      _ ->
+        "" # Return empty string if no results or error
+    end
+  end
+
   defp filter_sparkles(query, opts) do
     Enum.reduce(opts, query, fn
       {:author, author}, query ->
