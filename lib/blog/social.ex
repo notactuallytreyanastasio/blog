@@ -118,7 +118,6 @@ defmodule Blog.Social do
                generate_series(1, array_length(regexp_split_to_array(content, '\\s+'), 1) - 1) as i
         FROM sparkles TABLESAMPLE SYSTEM (1)
         WHERE content IS NOT NULL
-        LIMIT 1000
       ) split
     ),
     transitions AS (
@@ -159,7 +158,7 @@ defmodule Blog.Social do
     LIMIT 1;
     """
 
-    case Repo.query(query) do
+    case Repo.query(query, [], [timeout: 30_000]) do
       {:ok, %{rows: [[content]]}} when not is_nil(content) ->
         # Clean up the generated text
         content
