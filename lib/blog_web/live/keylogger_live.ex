@@ -84,44 +84,39 @@ defmodule BlogWeb.KeyloggerLive do
         animation: fadeIn 0.1s ease-out forwards;
       }
 
+      /* Hide print-only content during normal viewing */
+      .print-only {
+        display: none;
+      }
+
       @media print {
-        /* Hide everything by default */
+        /* Hide everything except print content */
         body * {
           visibility: hidden;
         }
 
-        /* Only show the content we want to print */
-        #content-of-letter,
-        #content-of-letter * {
-          visibility: visible;
-        }
-
-        /* Position the content at the top of the page */
-        #content-of-letter {
+        /* Show only our print content */
+        .print-only {
+          display: block !important;
+          visibility: visible !important;
           position: absolute;
           left: 0;
           top: 0;
           width: 100%;
-          text-align: left;
-          white-space: pre-wrap;
+          padding: 2rem;
           font-family: "Courier New", Courier, monospace;
           font-size: 14px;
           line-height: 1.5;
-          color: #333;
-          padding: 2rem;
+          white-space: pre-wrap;
+          color: black;
         }
       }
-
-      .cursor {
-        display: inline-block;
-        width: 2px;
-        height: 1em;
-        background-color: #333;
-        margin-left: 1px;
-        animation: blink 1s step-end infinite;
-      }
     </style>
+    <div class="print-only">
+      THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
 
+      <%= @pressed_keys %>
+    </div>
     <.head_tags meta_attrs={@meta_attrs} page_title={@page_title} />
     <h1 class="text-[75px]">Pressing: <%= @pressed_key %></h1>
     <%= if @show_modal do %>
@@ -154,9 +149,10 @@ defmodule BlogWeb.KeyloggerLive do
     <div id="content-of-letter" class="mt-4 text-gray-500" phx-window-keydown="keydown">
       <div class="mb-4">
         THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
+        <div class="text-container"><%= for {char, index} <- String.split(@pressed_keys, "") |> Enum.with_index() do %><span class="letter-animate" style={"animation-delay: #{index * 0.005}s"}><%= char %></span><% end %></div>
       </div>
-      <div class="text-container"><%= for {char, index} <- String.split(@pressed_keys, "") |> Enum.with_index() do %><span class="letter-animate" style={"animation-delay: #{index * 0.005}s"}><%= char %></span><% end %></div>
     </div>
+
     """
   end
 
