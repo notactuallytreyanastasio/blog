@@ -23,6 +23,7 @@ defmodule BlogWeb.Router do
     live "/muenster", MuensterLive
     live "/faketweets", FakeTweetsLive
     live "/vim", VimTweetsLive
+    live "/keylogger", KeyloggerLive
   end
 
   # Other scopes may use custom stacks.
