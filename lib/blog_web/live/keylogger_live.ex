@@ -54,6 +54,7 @@ defmodule BlogWeb.KeyloggerLive do
   def handle_event("toggle_modal", %{"value" => _}, socket) do
     {:noreply, assign(socket, show_modal: !socket.assigns.show_modal)}
   end
+
   def handle_event("toggle_modal", _, socket) do
     {:noreply, assign(socket, show_modal: !socket.assigns.show_modal)}
   end
@@ -124,13 +125,19 @@ defmodule BlogWeb.KeyloggerLive do
         <div class="bg-white p-8 rounded-lg shadow-lg max-w-lg" phx-click-away="toggle_modal">
           <div class="prose">
             <p class="font-mono text-gray-800">
+
+            Write a truly from-the-heart, manual Valentine's letter to your love.
+              <br>
             This is met to simulate a typewriter. You can type a message out.
 
+              <br>
             Backspace is supported to fix text. As are newlines.
 
             Otherwise you must type deliberately and precisely.
 
             If you print preview the page with ctrl/cmd + p, you get a nice format of document to print this and mail it like a letter.
+              <br>
+              <br>
 
             It comes with a guarantee from me that you manually typed it on this website character by character, doing the real work.
             </p>
