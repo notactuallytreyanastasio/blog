@@ -8,7 +8,7 @@ defmodule BlueskyHose do
     WebSockex.start_link("wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post", __MODULE__, :fake_state, opts)
   end
 
-  def handle_connect(_conn, state) do
+  def handle_connect(_conn, _state) do
     Logger.info("Connected!")
     IO.puts("#{DateTime.utc_now}")
     {:ok, 0}
@@ -18,11 +18,20 @@ defmodule BlueskyHose do
     msg = Jason.decode!(msg)
     case msg do
       %{"commit" => %{"record" => %{"text" => skeet}}} = msg ->
+        # IO.puts(skeet)
+
+        if rem(state, 1200) == 0 do
+          # save every 3600th message
+          Logger.info("Saving skeet #{state}")
+          %Skeet{}
+          |> Skeet.changeset(%{skeet: skeet})
+          |> Repo.insert()
+        end
         case String.contains?(String.downcase(skeet), "muenster") do
           true ->
             IO.puts("Got cheese skeet\n\n\n\n#{skeet}")
 
-            # Persist the skeet
+            # Persist the skeet, it doesnt matter if its a duplicate cuz we have a unique constraint
             %Skeet{}
             |> Skeet.changeset(%{skeet: skeet})
             |> Repo.insert()

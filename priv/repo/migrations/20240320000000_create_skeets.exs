@@ -8,4 +8,4 @@ defmodule Blog.Repo.Migrations.CreateSkeets do
       timestamps()
     end
   end
-end 
+end

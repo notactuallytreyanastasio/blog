@@ -9,6 +9,7 @@ defmodule Blog.Content do
   def list_posts do
     File.ls!(@posts_dir)
     |> Enum.map(&parse_post/1)
+    |> Enum.sort_by(& &1.written_on, {:desc, Date})
   end
 
   defp parse_post(filename) do
@@ -16,8 +17,21 @@ defmodule Blog.Content do
     %{
       title: parse_title(content),
       tags: parse_tags(content),
-      content: content
+      content: content,
+      written_on: parse_date_from_filename(filename),
+      slug: Path.basename(filename, ".md")
     }
+  end
+
+  defp parse_date_from_filename(filename) do
+    case Regex.run(~r/(\d{4}-\d{2}-\d{2})/, filename) do
+      [_, date] ->
+        {:ok, date} = Date.from_iso8601(date)
+        date
+      nil ->
+        {:ok, stat} = File.stat(@posts_dir <> filename)
+        NaiveDateTime.to_date(stat.mtime)
+    end
   end
 
   defp parse_title(content) do
