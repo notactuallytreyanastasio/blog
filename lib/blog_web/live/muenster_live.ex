@@ -1,5 +1,6 @@
 defmodule BlogWeb.MuensterLive do
   use BlogWeb, :live_view
+  import BlogWeb.CoreComponents
   require Logger
 
   @max_posts 500
@@ -66,20 +67,6 @@ defmodule BlogWeb.MuensterLive do
         <% end %>
       </div>
     </div>
-    """
-  end
-
-  def head_tags(assigns) do
-    ~H"""
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <%= for meta <- @meta_attrs do %>
-      <%= if Map.has_key?(meta, :name) do %>
-        <meta name={meta.name} content={meta.content}/>
-      <% else %>
-        <meta property={meta.property} content={meta.content}/>
-      <% end %>
-    <% end %>
-    <title><%= @page_title %></title>
     """
   end
 end

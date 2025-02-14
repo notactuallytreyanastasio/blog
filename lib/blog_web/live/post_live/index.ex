@@ -5,6 +5,7 @@ defmodule BlogWeb.PostLive.Index do
 
   @presence_topic "blog_presence"
 
+  # TODO add meta tags
   def mount(_params, _session, socket) do
     if connected?(socket) do
       reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"

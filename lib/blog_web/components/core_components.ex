@@ -41,6 +41,22 @@ defmodule BlogWeb.CoreComponents do
   attr :on_cancel, JS, default: %JS{}
   slot :inner_block, required: true
 
+  attr :meta_attrs, :list, required: true
+  attr :page_title, :string, required: true
+  def head_tags(assigns) do
+    ~H"""
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <%= for meta <- @meta_attrs do %>
+      <%= if Map.has_key?(meta, :name) do %>
+        <meta name={meta.name} content={meta.content}/>
+      <% else %>
+        <meta property={meta.property} content={meta.content}/>
+      <% end %>
+    <% end %>
+    <title><%= @page_title %></title>
+    """
+  end
+
   def modal(assigns) do
     ~H"""
     <div
