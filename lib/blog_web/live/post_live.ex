@@ -32,11 +32,21 @@ defmodule BlogWeb.PostLive do
 
       post ->
         # Set meta tags for the page
+        meta_attrs = [
+          %{name: "title", content: post.title},
+          %{name: "description", content: truncated_post(post.body)},
+          %{property: "og:title", content: post.title},
+          %{property: "og:description", content: truncated_post(post.body)},
+          %{property: "og:type", content: "website"}
+        ]
         socket =
           socket
           |> assign_meta_tags(post)
           |> assign(:post, post)
+          |> assign(meta_attrs: meta_attrs)
+          |> assign(page_title: post.title)
 
+        # require IEx; IEx.pry
         Logger.debug("Found post: #{inspect(post, pretty: true)}")
         case Earmark.as_html(post.body, code_class_prefix: "language-") do
           {:ok, html, _} ->
@@ -60,6 +70,10 @@ defmodule BlogWeb.PostLive do
             {:ok, socket}
         end
     end
+  end
+
+  defp truncated_post(body) do
+    String.slice(body, 0, 250) <> "..."
   end
 
   def handle_info(%{event: "presence_diff"} = _diff, socket) do
