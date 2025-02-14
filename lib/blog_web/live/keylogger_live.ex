@@ -25,6 +25,24 @@ defmodule BlogWeb.KeyloggerLive do
     Logger.info("Key pressed: #{key}")
     pressed_keys =
       case key do
+        "Backspace" ->
+          # first we reverse the string, and take the firts character
+          <<_last_character::binary-size(1), rest::binary>> = String.reverse(socket.assigns.pressed_keys)
+          # then since its reversed, and just that one sliced off, we have
+          # effectively "backspaced" and we can now reverse the list again, and
+          # we have the copy that the user desires, successfuly having reached their
+          # backspace escape hatch
+          String.reverse(rest)
+        "Meta" ->
+          # If it is the meta key, they aren't going to be able to
+          # type a character, so we just skip it too
+          socket.assigns.pressed_keys
+        "Shift" ->
+          # if its shift, we skip because the character that shift creates comes next,
+          # e.g, shift + A comes along when shift and a are pressed but we just want the A
+          # so, since we know its coming here, we skip the key itself and
+          # trust that the next event will come
+          socket.assigns.pressed_keys
         "Enter" ->
           socket.assigns.pressed_keys <> "\r\n"
         _ -> socket.assigns.pressed_keys <> key
