@@ -9,7 +9,7 @@ defmodule BlogWeb.VimTweetsLive do
         %{property: "og:type", content: "website"}
       ]
 
-  @window_size 25
+  @window_size 12
   def mount(_params, _session, socket) do
     tweets = Blog.Skeets.Sampler.sample(100) |> Enum.map(& &1.skeet)
 
