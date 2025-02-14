@@ -81,7 +81,7 @@ defmodule BlogWeb.KeyloggerLive do
       .letter-animate {
         display: inline;
         opacity: 0;
-        animation: fadeIn 0.2s ease-out forwards;
+        animation: fadeIn 0.1s ease-out forwards;
       }
 
       @media print {
