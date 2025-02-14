@@ -128,7 +128,9 @@ defmodule BlogWeb.KeyloggerLive do
 
             Write a truly from-the-heart, manual Valentine's letter to your love.
               <br>
-            This is met to simulate a typewriter. You can type a message out.
+                This is met to simulate a typewriter. You can type a message out.
+                <br>
+                  It Even prints like one, try pressing ctrl/cmd + P, then printing the letter for your love.
 
               <br>
             Backspace is supported to fix text. As are newlines.
