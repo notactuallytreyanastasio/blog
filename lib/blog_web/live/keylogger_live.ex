@@ -2,6 +2,7 @@ defmodule BlogWeb.KeyloggerLive do
   use BlogWeb, :live_view
   import BlogWeb.CoreComponents
   require Logger
+  alias Phoenix.LiveView.JS
   @meta_attrs [
          %{name: "title", content: "See what key you are pressing, and have it remembered"},
          %{name: "description", content: "See what key you are pressing. It also will keep what you type on hand to print if you want"},
@@ -60,6 +61,29 @@ defmodule BlogWeb.KeyloggerLive do
   def render(assigns) do
     ~H"""
     <style>
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      #content-of-letter {
+        font-family: "Courier New", Courier, monospace;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      .text-container {
+        white-space: pre-wrap;
+        font-family: monospace;
+      }
+
+      .letter-animate {
+        display: inline;
+        opacity: 0;
+        animation: fadeIn 0.2s ease-out forwards;
+      }
+
       @media print {
         /* Hide everything by default */
         body * {
@@ -105,7 +129,15 @@ defmodule BlogWeb.KeyloggerLive do
         <div class="bg-white p-8 rounded-lg shadow-lg max-w-lg" phx-click-away="toggle_modal">
           <div class="prose">
             <p class="font-mono text-gray-800">
-              Simulate a typewriter. We server this up so that when you type out a letter its as if it were on a typewriter, and we package it up to print for whoever you would like if you press the right key shortcut or button
+            This is met to simulate a typewriter. You can type a message out.
+
+            Backspace is supported to fix text. As are newlines.
+
+            Otherwise you must type deliberately and precisely.
+
+            If you print preview the page with ctrl/cmd + p, you get a nice format of document to print this and mail it like a letter.
+
+            It comes with a guarantee from me that you manually typed it on this website character by character, doing the real work.
             </p>
           </div>
           <div class="mt-6 flex justify-end">
@@ -120,11 +152,18 @@ defmodule BlogWeb.KeyloggerLive do
       </div>
     <% end %>
     <div id="content-of-letter" class="mt-4 text-gray-500" phx-window-keydown="keydown">
-    THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
-        <br>
-      <div class="whitespace-pre-wrap"><%= @pressed_keys %></div>
+      <div class="mb-4">
+        THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
+      </div>
+      <div class="text-container"><%= for {char, index} <- String.split(@pressed_keys, "") |> Enum.with_index() do %><span class="letter-animate" style={"animation-delay: #{index * 0.005}s"}><%= char %></span><% end %></div>
     </div>
     """
   end
 
+  def fade_in(js \\ %JS{}) do
+    JS.transition(js,
+      {"transition-all transform ease-out duration-200",
+       "opacity-0 translate-y-2",
+       "opacity-100 translate-y-0"})
+  end
 end
