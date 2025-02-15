@@ -18,3 +18,7 @@ config :logger, level: :info
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.
+
+config :blog, BlogWeb.Endpoint,
+  url: [scheme: "https", host: "bobbby.online", port: 443],
+  force_ssl: [rewrite_on: [:x_forwarded_proto]]
