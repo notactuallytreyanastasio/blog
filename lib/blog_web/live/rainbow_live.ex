@@ -31,10 +31,6 @@ defmodule BlogWeb.RainbowLive do
   @exhaust_emit_interval 2  # Emit particles every N frames
   @exhaust_drift_speed 1.5
 
-  # Add these module attributes
-  @max_fractal_depth 7
-  @fractal_draw_interval 100  # How many frames between adding new points
-
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Process.send_after(self(), :animate, @frame_interval)
@@ -62,10 +58,7 @@ defmodule BlogWeb.RainbowLive do
        page_title: "lol start typing and see what happens",
        mouse_pos: %{x: 0, y: 0},
        exhaust_particles: [],
-       frame_count: 0,  # For controlling particle emission rate
-       colors_inverted: false,
-       fractal_depth: 0,
-       fractal_points: initial_fractal_points()
+       frame_count: 0  # For controlling particle emission rate
      )}
   end
 
@@ -130,10 +123,6 @@ defmodule BlogWeb.RainbowLive do
     svg_y = (y / socket.assigns.window_height * 400) - 200
 
     {:noreply, assign(socket, mouse_pos: %{x: svg_x, y: svg_y})}
-  end
-
-  def handle_event("click", _params, socket) do
-    {:noreply, assign(socket, colors_inverted: !socket.assigns.colors_inverted)}
   end
 
   def handle_info(:animate, socket) do
@@ -211,26 +200,13 @@ defmodule BlogWeb.RainbowLive do
       particle.frame >= @exhaust_particle_lifetime
     end)
 
-    # Update fractal every @fractal_draw_interval frames
-    {new_depth, new_points} = if rem(socket.assigns.frame_count, @fractal_draw_interval) == 0
-      and socket.assigns.fractal_depth < @max_fractal_depth do
-      {
-        socket.assigns.fractal_depth + 1,
-        generate_next_fractal_points(socket.assigns.fractal_points)
-      }
-    else
-      {socket.assigns.fractal_depth, socket.assigns.fractal_points}
-    end
-
     {:noreply, assign(socket,
       rainbows: updated_rainbows,
       letters: updated_letters,
       particles: updated_particles,
       dvd_pos: dvd_pos,
       exhaust_particles: updated_exhaust,
-      frame_count: frame_count,
-      fractal_depth: new_depth,
-      fractal_points: new_points
+      frame_count: frame_count
     )}
   end
 
@@ -290,38 +266,14 @@ defmodule BlogWeb.RainbowLive do
     }
   end
 
-  defp initial_fractal_points do
-    # Start with the outer triangle
-    [
-      {0, -150},      # Top
-      {-130, 75},     # Bottom left
-      {130, 75}       # Bottom right
-    ]
-  end
-
-  defp generate_next_fractal_points(points) do
-    new_points = for i <- 0..(length(points) - 2), j <- (i + 1)..(length(points) - 1) do
-      {x1, y1} = Enum.at(points, i)
-      {x2, y2} = Enum.at(points, j)
-      {
-        (x1 + x2) / 2,
-        (y1 + y2) / 2
-      }
-    end
-
-    points ++ new_points
-  end
-
   def render(assigns) do
     ~H"""
     <div class="flex justify-center items-center min-h-screen bg-gray-900"
       id="rainbow-container"
       phx-window-keydown="keydown"
       phx-mousemove="mousemove"
-      phx-click="click"
       phx-hook="WindowSize">
-      <svg width="100%" height="100vh" viewBox="-300 -200 600 400"
-        style={"filter: #{if @colors_inverted, do: "invert(1)", else: "none"}"}>
+      <svg width="100%" height="100vh" viewBox="-300 -200 600 400">
         <%!-- Exhaust particles --%>
         <%= for particle <- @exhaust_particles do %>
           <circle
@@ -406,30 +358,7 @@ defmodule BlogWeb.RainbowLive do
             <%= letter.char %>
           </text>
         <% end %>
-
-        <%!-- Sierpinski Fractal --%>
-        <%= for {x, y} <- @fractal_points do %>
-          <circle
-            cx={x}
-            cy={y}
-            r="1"
-            fill={"hsla(#{rem(@fractal_depth * 60, 360)}, 70%, 70%, 0.3)"}
-          />
-        <% end %>
       </svg>
-
-      <style>
-        @keyframes shift {
-          from {
-            filter: url(#noise) hue-rotate(0deg) <%= if @colors_inverted, do: "invert(1)" %>;
-            opacity: 0.3;
-          }
-          to {
-            filter: url(#noise) hue-rotate(360deg) <%= if @colors_inverted, do: "invert(1)" %>;
-            opacity: 0.4;
-          }
-        }
-      </style>
     </div>
     """
   end
