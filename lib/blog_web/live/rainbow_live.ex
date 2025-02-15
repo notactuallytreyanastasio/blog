@@ -26,6 +26,11 @@ defmodule BlogWeb.RainbowLive do
   @particle_count 12  # Number of particles per explosion
   @particle_lifetime 80  # How long particles live
 
+  # Add new module attributes
+  @exhaust_particle_lifetime 40
+  @exhaust_emit_interval 2  # Emit particles every N frames
+  @exhaust_drift_speed 1.5
+
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Process.send_after(self(), :animate, @frame_interval)
@@ -50,7 +55,10 @@ defmodule BlogWeb.RainbowLive do
          %{property: "og:description", content: "Bobby got high and made it so it looks wild when you press keys, theres web audio too but its broken."},
          %{property: "og:type", content: "website"}
        ],
-       page_title: "lol start typing and see what happens"
+       page_title: "lol start typing and see what happens",
+       mouse_pos: %{x: 0, y: 0},
+       exhaust_particles: [],
+       frame_count: 0  # For controlling particle emission rate
      )}
   end
 
@@ -100,11 +108,22 @@ defmodule BlogWeb.RainbowLive do
      assign(socket,
        rainbows: [new_rainbow | socket.assigns.rainbows],
        letters: [new_letter | socket.assigns.letters],
-       particles: new_particles ++ (socket.assigns[:particles] || [])
+       particles: new_particles ++ (socket.assigns[:particles] || []),
+       mouse_pos: %{x: 0, y: 0},
+       exhaust_particles: [],
+       frame_count: 0
      )}
   end
 
   def handle_event("keydown", _key, socket), do: {:noreply, socket}
+
+  def handle_event("mousemove", %{"offsetX" => x, "offsetY" => y}, socket) do
+    # Convert screen coordinates to SVG viewBox coordinates
+    svg_x = (x / socket.assigns.window_width * 600) - 300
+    svg_y = (y / socket.assigns.window_height * 400) - 200
+
+    {:noreply, assign(socket, mouse_pos: %{x: svg_x, y: svg_y})}
+  end
 
   def handle_info(:animate, socket) do
     Process.send_after(self(), :animate, @frame_interval)
@@ -149,11 +168,45 @@ defmodule BlogWeb.RainbowLive do
       particle.frame >= @particle_lifetime
     end)
 
+    # Create new exhaust particles periodically
+    {new_exhaust, frame_count} = if rem(socket.assigns.frame_count, @exhaust_emit_interval) == 0 do
+      new_particles = for _i <- 1..3 do
+        %{
+          x: socket.assigns.mouse_pos.x,
+          y: socket.assigns.mouse_pos.y,
+          dx: :rand.normal() * @exhaust_drift_speed,
+          dy: :rand.normal() * @exhaust_drift_speed,
+          size: Enum.random(3..8),
+          frame: 0,
+          hue: Enum.random(200..240)  # Blue-ish colors
+        }
+      end
+      {new_particles, socket.assigns.frame_count + 1}
+    else
+      {[], socket.assigns.frame_count + 1}
+    end
+
+    # Update existing exhaust particles
+    updated_exhaust = (socket.assigns.exhaust_particles ++ new_exhaust)
+    |> Enum.map(fn particle ->
+      %{particle |
+        frame: particle.frame + 1,
+        x: particle.x + particle.dx,
+        y: particle.y + particle.dy,
+        size: particle.size * 1.02  # Slowly grow
+      }
+    end)
+    |> Enum.reject(fn particle ->
+      particle.frame >= @exhaust_particle_lifetime
+    end)
+
     {:noreply, assign(socket,
       rainbows: updated_rainbows,
       letters: updated_letters,
       particles: updated_particles,
-      dvd_pos: dvd_pos
+      dvd_pos: dvd_pos,
+      exhaust_particles: updated_exhaust,
+      frame_count: frame_count
     )}
   end
 
@@ -215,12 +268,34 @@ defmodule BlogWeb.RainbowLive do
 
   def render(assigns) do
     ~H"""
-    <div class="flex justify-center items-center min-h-screen bg-gray-900" phx-window-keydown="keydown">
+    <div class="flex justify-center items-center min-h-screen bg-gray-900"
+      id="rainbow-container"
+      phx-window-keydown="keydown"
+      phx-mousemove="mousemove"
+      phx-hook="WindowSize">
       <svg width="100%" height="100vh" viewBox="-300 -200 600 400">
+        <%!-- Exhaust particles --%>
+        <%= for particle <- @exhaust_particles do %>
+          <circle
+            cx={particle.x}
+            cy={particle.y}
+            r={particle.size}
+            fill={"hsla(#{particle.hue}, 70%, 50%, #{calculate_exhaust_opacity(particle.frame)})"}
+            filter="url(#blur)"
+          />
+        <% end %>
+
+        <%!-- Add blur filter for smoother particles --%>
+        <defs>
+          <filter id="blur">
+            <feGaussianBlur stdDeviation="2" />
+          </filter>
+        </defs>
+
         <%!-- DVD Logo --%>
         <g transform={"translate(#{@dvd_pos.x}, #{@dvd_pos.y})"}>
           <path
-            d="M-50,-25 h100 v50 h-100 z M-30,-15 L-10,15 H10 L30,-15 H-30 Z M-20,0 h40 M-25,-10 h50"
+            d="M-50,-25 h100 v50 h-100 z"
             fill={"hsl(#{@dvd_pos.hue}, 100%, 70%)"}
             style="transform-origin: center; transform: scale(0.8);"
           >
@@ -233,11 +308,13 @@ defmodule BlogWeb.RainbowLive do
           </path>
           <text
             x="0"
-            y="5"
+            y="0"
             text-anchor="middle"
+            dominant-baseline="middle"
             fill="white"
             font-family="Arial Black"
-            font-size="20"
+            font-size="30"
+            style="font-weight: bold;"
           >DVD</text>
         </g>
 
@@ -292,5 +369,10 @@ defmodule BlogWeb.RainbowLive do
 
   defp calculate_particle_opacity(frame) do
     1 - (frame / @particle_lifetime)
+  end
+
+  defp calculate_exhaust_opacity(frame) do
+    opacity = 1 - (frame / @exhaust_particle_lifetime)
+    opacity * 0.6  # Make them semi-transparent
   end
 end
