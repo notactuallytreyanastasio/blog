@@ -24,6 +24,7 @@ defmodule BlogWeb.Router do
     live "/faketweets", FakeTweetsLive
     live "/vim", VimTweetsLive
     live "/keylogger", KeyloggerLive
+    live "/rainbow", RainbowLive, :index
   end
 
   # Other scopes may use custom stacks.
