@@ -15,6 +15,13 @@ defmodule BlogWeb.RainbowLive do
   @max_radius 300
   @animation_steps 60
 
+  # Add DVD animation configuration
+  @dvd_speed 2
+  @viewport_width 600
+  @viewport_height 400
+  @logo_width 100
+  @logo_height 50
+
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Process.send_after(self(), :animate, @frame_interval)
@@ -23,6 +30,13 @@ defmodule BlogWeb.RainbowLive do
     {:ok,
      assign(socket,
        rainbows: [],  # List of rainbow states
+       dvd_pos: %{  # Add DVD position state
+         x: Enum.random(-300..300),  # Use integers instead of float division
+         y: Enum.random(-200..200),  # Match the SVG viewBox dimensions
+         dx: @dvd_speed,
+         dy: @dvd_speed,
+         hue: 0
+       },
        meta_attrs: [
          %{name: "title", content: "Type shit and hear sounds and see wild shit or whatever"},
          %{name: "description", content: "Bobby got high and made it so it looks wild when you press keys, theres web audio too but its broken."},
@@ -51,7 +65,10 @@ defmodule BlogWeb.RainbowLive do
   def handle_info(:animate, socket) do
     Process.send_after(self(), :animate, @frame_interval)
 
-    # Update each rainbow's frame and remove completed ones
+    # Update DVD position and handle bouncing
+    dvd_pos = update_dvd_position(socket.assigns.dvd_pos)
+
+    # Update rainbows (keep existing rainbow update logic)
     updated_rainbows = socket.assigns.rainbows
     |> Enum.map(fn rainbow ->
       %{rainbow | frame: rainbow.frame + 1}
@@ -60,7 +77,36 @@ defmodule BlogWeb.RainbowLive do
       rainbow.frame >= @animation_steps
     end)
 
-    {:noreply, assign(socket, rainbows: updated_rainbows)}
+    {:noreply, assign(socket,
+      rainbows: updated_rainbows,
+      dvd_pos: dvd_pos
+    )}
+  end
+
+  # Add DVD position update logic
+  defp update_dvd_position(pos) do
+    new_x = pos.x + pos.dx
+    new_y = pos.y + pos.dy
+
+    {dx, new_hue} = if new_x <= -(@viewport_width/2) + @logo_width or new_x >= (@viewport_width/2) - @logo_width do
+      {-pos.dx, rem(pos.hue + 60, 360)}
+    else
+      {pos.dx, pos.hue}
+    end
+
+    {dy, final_hue} = if new_y <= -(@viewport_height/2) + @logo_height or new_y >= (@viewport_height/2) - @logo_height do
+      {-pos.dy, rem(new_hue + 60, 360)}
+    else
+      {pos.dy, new_hue}
+    end
+
+    %{
+      x: new_x,
+      y: new_y,
+      dx: dx,
+      dy: dy,
+      hue: final_hue
+    }
   end
 
   defp calculate_arcs(frame) do
@@ -97,6 +143,31 @@ defmodule BlogWeb.RainbowLive do
     ~H"""
     <div class="flex justify-center items-center min-h-screen bg-gray-900" phx-window-keydown="keydown">
       <svg width="100%" height="100vh" viewBox="-300 -200 600 400">
+        <%!-- DVD Logo --%>
+        <g transform={"translate(#{@dvd_pos.x}, #{@dvd_pos.y})"}>
+          <path
+            d="M-50,-25 h100 v50 h-100 z M-30,-15 L-10,15 H10 L30,-15 H-30 Z M-20,0 h40 M-25,-10 h50"
+            fill={"hsl(#{@dvd_pos.hue}, 100%, 70%)"}
+            style="transform-origin: center; transform: scale(0.8);"
+          >
+            <animate
+              attributeName="opacity"
+              values="0.8;1;0.8"
+              dur="2s"
+              repeatCount="indefinite"
+            />
+          </path>
+          <text
+            x="0"
+            y="5"
+            text-anchor="middle"
+            fill="white"
+            font-family="Arial Black"
+            font-size="20"
+          >DVD</text>
+        </g>
+
+        <%!-- Keep existing rainbow rendering --%>
         <%= for rainbow <- @rainbows do %>
           <g transform={"translate(#{rainbow.x}, #{rainbow.y})"}>
             <%= for arc <- calculate_arcs(rainbow.frame) do %>
