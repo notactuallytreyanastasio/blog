@@ -1,4 +1,4 @@
-tags: economics, government, not-tech
+tags: economics, government
 
 # On the United States and Sovereign Wealth Funds
 
