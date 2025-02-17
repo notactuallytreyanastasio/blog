@@ -38,6 +38,7 @@ defmodule Blog.MixProject do
       {:phoenix_live_view, "~> 1.0.0"},
       {:phoenix_pubsub, "~> 2.0"},
       {:floki, ">= 0.30.0", only: :test},
+      {:req, "~> 0.5.0"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},

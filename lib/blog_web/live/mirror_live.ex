@@ -47,13 +47,7 @@ defmodule BlogWeb.MirrorLive do
   end
 
   defp fetch_source_code do
-    case :httpc.request(:get, {@source_url, []}, [], []) do
-      {:ok, {{_, 200, _}, _, body}} ->
-        to_string(body)
-      error ->
-        Logger.error("Failed to fetch source code: #{inspect(error)}")
-        "// Failed to load source code"
-    end
+    Req.get!("https://raw.githubusercontent.com/notactuallytreyanastasio/blog/main/lib/blog_web/live/mirror_live.ex") |> Map.get(:body)
   end
 
   def render(assigns) do
