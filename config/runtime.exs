@@ -36,8 +36,7 @@ if config_env() == :prod do
     check_origin: [
       "https://bobbby.online",
       "https://www.bobbby.online",
-      "//bobbby.online",
-      "//www.bobbby.online"
+      "https://salmon-unselfish-aphid.gigalixirapp.com"  # Add your Gigalixir app URL
     ],
     http: [
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
