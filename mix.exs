@@ -9,7 +9,8 @@ defmodule Blog.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      compile_options: [:debug_info]
     ]
   end
 
