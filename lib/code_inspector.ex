@@ -92,6 +92,14 @@ defmodule CodeDecompiler do
     end
   end
 
+  # Add binary pattern support
+  defp pattern_to_quoted({:bin, line, elements}) do
+    quoted_elements = Enum.map(elements, &binary_element_to_quoted/1)
+    quote line: normalize_line(line) do
+      <<unquote_splicing(quoted_elements)>>
+    end
+  end
+
   defp pattern_to_quoted({:var, line, name}) do
     quote line: normalize_line(line) do
       unquote(Macro.var(name, nil))
@@ -130,8 +138,13 @@ defmodule CodeDecompiler do
   end
   
   defp pattern_to_quoted({:map, line, pairs}) do
-    quoted_pairs = Enum.map(pairs, fn {op, k, v} -> 
-      {map_op_to_quoted(op), pattern_to_quoted(k), pattern_to_quoted(v)}
+    quoted_pairs = Enum.map(pairs, fn 
+      {:map_field_assoc, _, key, value} -> 
+        {:%{}, [], [{pattern_to_quoted(key), pattern_to_quoted(value)}]}
+      {:map_field_exact, _, key, value} ->
+        {pattern_to_quoted(key), pattern_to_quoted(value)}
+      {op, k, v} -> 
+        {map_op_to_quoted(op), pattern_to_quoted(k), pattern_to_quoted(v)}
     end)
     quote line: normalize_line(line) do
       %{unquote_splicing(quoted_pairs)}
@@ -139,19 +152,41 @@ defmodule CodeDecompiler do
   end
 
   # Guards
-  defp guard_to_quoted({:call, line, {:remote, _, {:atom, _, module}, {:atom, _, fun}}, args}) do
+  defp guard_to_quoted(guards) when is_list(guards) do
+    Enum.map(guards, fn guard -> guard_to_quoted_expr(guard) end)
+  end
+
+  defp guard_to_quoted(guard), do: guard_to_quoted_expr(guard)
+
+  # Guard expressions
+  defp guard_to_quoted_expr({:op, line, operator, left, right}) do
+    quote line: normalize_line(line) do
+      unquote({operator, [], [expression_to_quoted(left), expression_to_quoted(right)]})
+    end
+  end
+
+  defp guard_to_quoted_expr({:op, line, operator, operand}) do
+    quote line: normalize_line(line) do
+      unquote({operator, [], [expression_to_quoted(operand)]})
+    end
+  end
+
+  defp guard_to_quoted_expr({:call, line, {:remote, _, {:atom, _, module}, {:atom, _, fun}}, args}) do
     quoted_args = Enum.map(args, &expression_to_quoted/1)
     quote line: normalize_line(line) do
       unquote(module).unquote(fun)(unquote_splicing(quoted_args))
     end
   end
   
-  defp guard_to_quoted({:call, line, {:atom, _, fun}, args}) do
+  defp guard_to_quoted_expr({:call, line, {:atom, _, fun}, args}) do
     quoted_args = Enum.map(args, &expression_to_quoted/1)
     quote line: normalize_line(line) do
       unquote(fun)(unquote_splicing(quoted_args))
     end
   end
+
+  # Add support for variables and other basic terms in guards
+  defp guard_to_quoted_expr(expr), do: expression_to_quoted(expr)
 
   # Expressions (function bodies)
   # Binary expressions need to come before general constructs
