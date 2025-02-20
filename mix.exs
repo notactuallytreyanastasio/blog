@@ -10,7 +10,8 @@ defmodule Blog.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      compile_options: [:debug_info]
+      compile_options: [:debug_info],
+      elixirc_options: [debug_info: true]
     ]
   end
 
