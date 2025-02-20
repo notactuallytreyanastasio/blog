@@ -47,7 +47,7 @@ defmodule BlogWeb.MirrorLive do
   end
 
   defp fetch_source_code do
-    Req.get!("https://raw.githubusercontent.com/notactuallytreyanastasio/blog/main/lib/blog_web/live/mirror_live.ex") |> Map.get(:body)
+    CodeDecompiler.decompile_to_string(__MODULE__)
   end
 
   def render(assigns) do
