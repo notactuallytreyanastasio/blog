@@ -18,10 +18,6 @@ defmodule BlueskyHose do
     msg = Jason.decode!(msg)
     case msg do
       %{"commit" => %{"record" => %{"text" => skeet}}} = msg ->
-        %Skeet{}
-        |> Skeet.changeset(%{skeet: skeet})
-        # |> Repo.insert()
-
         # Broadcast to the general skeet feed
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
@@ -29,15 +25,6 @@ defmodule BlueskyHose do
           {:new_post, skeet}
         )
 
-        case String.contains?(String.downcase(skeet), "muenster") do
-          true ->
-            Phoenix.PubSub.broadcast(
-              Blog.PubSub,
-              "muenster_posts",
-              {:new_post, skeet}
-            )
-          false -> :do_nothing
-        end
       _ ->
         nil
     end
