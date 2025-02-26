@@ -19,15 +19,11 @@ defmodule BlogWeb.Router do
 
     live "/", PostLive.Index
     live "/post/:slug", PostLive
-    live "/grid", GridLive, :index
-    live "/muenster", MuensterLive
     live "/faketweets", FakeTweetsLive
     live "/vim", VimTweetsLive
     live "/keylogger", KeyloggerLive
     live "/gay_chaos", RainbowLive, :index
     live "/mirror", MirrorLive, :index
-    live "/swear-stream", SwearStreamLive, :index
-    live "/emoji", ThinkerStreamLive, :index
   end
 
   # Other scopes may use custom stacks.
