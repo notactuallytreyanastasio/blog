@@ -52,9 +52,7 @@ defmodule Blog.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:earmark, "~> 1.4"},
-      {:websockex, "~> 0.4.3"},
-      {:ecto_sql, "~> 3.10"},
-      {:postgrex, ">= 0.0.0"}
+      {:websockex, "~> 0.4.3"}
     ]
   end
 

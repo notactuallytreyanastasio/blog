@@ -7,10 +7,6 @@
 # General application configuration
 import Config
 
-config :blog,
-  ecto_repos: [Blog.Repo],
-  generators: [timestamp_type: :utc_datetime]
-
 # Configures the endpoint
 config :blog, BlogWeb.Endpoint,
   url: [host: "localhost"],

@@ -1,8 +1,8 @@
 defmodule BlueskyHose do
   use WebSockex
   require Logger
-  alias Blog.Social.Skeet
-  alias Blog.Repo
+  # alias Blog.Social.Skeet
+  # alias Blog.Repo
 
   def start_link(opts \\ []) do
     WebSockex.start_link("wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post", __MODULE__, :fake_state, opts)
@@ -22,9 +22,9 @@ defmodule BlueskyHose do
 
         if rem(state, 1200) == 0 do
           # save every 3600th message
-          Logger.info("Saving skeet #{state}")
-          %Skeet{}
-          |> Skeet.changeset(%{skeet: skeet})
+          # Logger.info("Saving skeet #{state}")
+          # %Skeet{}
+          # |> Skeet.changeset(%{skeet: skeet})
           # |> Repo.insert()
         end
         case String.contains?(String.downcase(skeet), "muenster") do
@@ -32,9 +32,9 @@ defmodule BlueskyHose do
             IO.puts("Got cheese skeet\n\n\n\n#{skeet}")
 
             # Persist the skeet, it doesnt matter if its a duplicate cuz we have a unique constraint
-            %Skeet{}
-            |> Skeet.changeset(%{skeet: skeet})
-            |> Repo.insert()
+            # %Skeet{}
+            # |> Skeet.changeset(%{skeet: skeet})
+            # |> Repo.insert()
 
             # Broadcast to PubSub
             Phoenix.PubSub.broadcast(
