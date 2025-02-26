@@ -25,7 +25,7 @@ defmodule BlueskyHose do
           Logger.info("Saving skeet #{state}")
           %Skeet{}
           |> Skeet.changeset(%{skeet: skeet})
-          |> Repo.insert()
+          # |> Repo.insert()
         end
         case String.contains?(String.downcase(skeet), "muenster") do
           true ->
