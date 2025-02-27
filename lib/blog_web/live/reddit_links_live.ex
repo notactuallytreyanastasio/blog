@@ -37,7 +37,6 @@ defmodule BlogWeb.RedditLinksLive do
     {:noreply, assign(socket, skeets: updated_skeets)}
   end
 
-
   def render(assigns) do
     ~H"""
     <div class="max-w-4xl mx-auto py-8">
@@ -57,7 +56,18 @@ defmodule BlogWeb.RedditLinksLive do
         <% end %>
 
         <%= for skeet <- @skeets do %>
-          <%= skeet.text %>
+          <div class="p-4 bg-white rounded-lg shadow-md border border-gray-200 transition-all hover:shadow-lg">
+            <div class="prose prose-sm max-w-none">
+              <div class="text-sm text-gray-600 mb-2 italic">Original post: <%= String.slice(skeet.original_text, 0, 300) %><%= if String.length(skeet.original_text) > 300, do: "...", else: "" %></div>
+              <ul class="list-disc pl-5">
+                <%= for link <- skeet.links do %>
+                  <li class="mb-1">
+                    <a href={link} class="text-blue-600 hover:underline break-all" target="_blank"><%= link %></a>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+          </div>
         <% end %>
       </div>
     </div>

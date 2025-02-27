@@ -27,7 +27,6 @@ defmodule BlueskyHose do
     case msg do
       %{"commit" => %{"record" => %{"text" => skeet}}} = msg ->
         # Broadcast to the general skeet feed
-        # Logger.info("New post: #{inspect(msg)}")
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
           "skeet_feed",
@@ -35,34 +34,32 @@ defmodule BlueskyHose do
         )
 
         if contains_reddit_link?(skeet) do
-          # require IEx; IEx.pry
           Logger.info("Reddit link found in skeet: #{skeet}")
 
           # Create a skeet record with timestamp
           timestamp = DateTime.utc_now()
 
-          # Extract Reddit link from skeet text
-          reddit_link = case Regex.run(~r/(https?:\/\/)?(www\.)?(reddit\.com|redd\.it)\/[^\s]+/, skeet) do
-            [match | _] -> match
-            nil -> nil
-          end
-          skeet_record = %{
-            text: reddit_link,
-            time: timestamp,
-            id: generate_id()
-          }
-          # Update skeet record with extracted link
-          # skeet_record = Map.put(skeet_record, :reddit_link, reddit_link)
-          # require IEx; IEx.pry
-          # Store in ETS with timestamp as key (negative for reverse chronological order)
-          :ets.insert(@table_name, {{-DateTime.to_unix(timestamp)}, skeet_record})
+          # Extract all Reddit links from skeet text
+          reddit_links = extract_reddit_links(skeet)
 
-          # Broadcast to subscribers
-          Phoenix.PubSub.broadcast(
-            Blog.PubSub,
-            "reddit_links",
-            {:reddit_link, skeet_record}
-          )
+          if length(reddit_links) > 0 do
+            skeet_record = %{
+              original_text: skeet,
+              links: reddit_links,
+              time: timestamp,
+              id: generate_id()
+            }
+
+            # Store in ETS with timestamp as key (negative for reverse chronological order)
+            :ets.insert(@table_name, {{-DateTime.to_unix(timestamp)}, skeet_record})
+
+            # Broadcast to subscribers
+            Phoenix.PubSub.broadcast(
+              Blog.PubSub,
+              "reddit_links",
+              {:reddit_link, skeet_record}
+            )
+          end
         end
       _ ->
         nil
@@ -75,6 +72,27 @@ defmodule BlueskyHose do
   end
 
   defp contains_reddit_link?(_), do: false
+
+  defp extract_reddit_links(text) do
+    # More comprehensive regex to capture full Reddit URLs
+    # This pattern is designed to capture the entire URL including query parameters
+    regex = ~r/(https?:\/\/)?(www\.)?(reddit\.com|redd\.it)\/[^\s"'<>()\[\]{}]+/i
+
+    # Find all matches
+    Regex.scan(regex, text)
+    |> Enum.map(fn [full_match | _] ->
+      # Clean up the URL - remove trailing punctuation that might have been captured
+      clean_url = Regex.replace(~r/[.,;:!?]+$/, full_match, "")
+
+      # Ensure URL has http prefix
+      if String.starts_with?(clean_url, "http") do
+        clean_url
+      else
+        "https://#{clean_url}"
+      end
+    end)
+    |> Enum.uniq()
+  end
 
   defp generate_id do
     :crypto.strong_rand_bytes(10) |> Base.encode16(case: :lower)
