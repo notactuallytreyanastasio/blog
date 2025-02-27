@@ -20,9 +20,9 @@ defmodule BlogWeb.CursorTrackerLive do
       next_clear: calculate_next_clear(),
       page_title: "Cursor Tracker",
       meta_attrs: [
-        %{name: "description", content: "Retro hacker-style cursor position tracker"},
-        %{property: "og:title", content: "Cursor Tracker"},
-        %{property: "og:description", content: "Retro hacker-style cursor position tracker"},
+        %{name: "description", content: "Track cursor positions, draw points on a canvas"},
+        %{property: "og:title", content: "Cursor Tracker - Live Shared and here to draw"},
+        %{property: "og:description", content: "Track cursor positions, draw points on a canvas"},
         %{property: "og:type", content: "website"}
       ]
     )
@@ -359,6 +359,7 @@ defmodule BlogWeb.CursorTrackerLive do
 
         <div class="mb-8 border border-green-500 p-4">
           <h1 class="text-3xl mb-2 glitch-text">CURSOR POSITION TRACKER</h1>
+          <div class="text-2xl glitch-text mb-2"><h1>// ACTIVE USERS: <%= map_size(@other_users) + 1 %></h1></div>
           <div class="grid grid-cols-2 gap-4 mb-8">
             <div class="border border-green-500 p-4">
               <div class="text-xs mb-1 opacity-70">X-COORDINATE</div>
@@ -371,7 +372,6 @@ defmodule BlogWeb.CursorTrackerLive do
           </div>
 
           <div class="border-t border-green-500 pt-4">
-            <div class="text-xs opacity-70 mb-2">// ACTIVE USERS: <%= map_size(@other_users) + 1 %></div>
             <div class="flex flex-wrap gap-2">
               <div class="flex items-center">
                 <div class="w-4 h-4 rounded-full mr-1" style={"background-color: #{@user_color || 'rgb(100, 255, 100)'}"}></div>
