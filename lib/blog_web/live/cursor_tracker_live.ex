@@ -360,6 +360,7 @@ defmodule BlogWeb.CursorTrackerLive do
         <div class="mb-8 border border-green-500 p-4">
           <h1 class="text-3xl mb-2 glitch-text">CURSOR POSITION TRACKER</h1>
           <div class="text-2xl glitch-text mb-2"><h1>// ACTIVE USERS: <%= map_size(@other_users) + 1 %></h1></div>
+          <div class="text-2xl glitch-text mb-2"><h1>Click to draw a point</h1></div>
           <div class="grid grid-cols-2 gap-4 mb-8">
             <div class="border border-green-500 p-4">
               <div class="text-xs mb-1 opacity-70">X-COORDINATE</div>
