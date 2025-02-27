@@ -135,9 +135,7 @@ defmodule BlogWeb.KeyloggerLive do
     <div class="print-only">
       THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND {@pressed_keys}
     </div>
-    <.head_tags id="keylogger-head-tags" meta_attrs={@meta_attrs} page_title={@page_title}>
-      <title>{@page_title}</title>
-    </.head_tags>
+    <.head_tags meta_attrs={@meta_attrs} page_title={@page_title} />
     <h1 class="text-[75px]">Pressing: {@pressed_key}</h1>
     <%= if @show_modal do %>
       <div
