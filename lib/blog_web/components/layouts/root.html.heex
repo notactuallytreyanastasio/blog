@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
 
-    <title><%= assigns[:page_title] || "Thoughts and Tidbits" %></title>
+    <title>{assigns[:page_title] || "Thoughts and Tidbits"}</title>
 
     <%= for meta <- assigns[:meta_tags] || [] do %>
       <meta {meta} />
@@ -14,11 +14,19 @@
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js">
+    </script>
     <!-- Add Elixir language support -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/elixir.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/heex.min.js"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/elixir.min.js"
+    >
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/heex.min.js">
+    </script>
   </head>
   <body class="h-full bg-gray-50 font-mono">
     <div class="flex h-full">
@@ -28,8 +36,7 @@
           <h1 class="text-2xl font-bold text-gray-900 mb-2 pb-2 border-b-2 border-gray-200">
             Tidbits, Thoughts
           </h1>
-          <div class="space-y-2">
-          </div>
+          <div class="space-y-2"></div>
         </div>
 
         <div>
@@ -41,10 +48,10 @@
               <div class="group">
                 <a href={~p"/post/#{slug}"} class="block">
                   <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                    <%= title %>
+                    {title}
                   </h3>
                   <p class="text-xs text-gray-500 mt-1 font-normal">
-                    <%= date %>
+                    {date}
                   </p>
                 </a>
               </div>
@@ -60,7 +67,7 @@
               <div class="group">
                 <a href={~p"/post/#{tag}"} class="block">
                   <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                    <%= tag %>
+                    {tag}
                   </h3>
                 </a>
               </div>
@@ -68,10 +75,10 @@
           <% end %>
         </div>
       </div>
-
-      <!-- Main content -->
+      
+<!-- Main content -->
       <main class="flex-1 overflow-y-auto bg-gray-50">
-        <%= @inner_content %>
+        {@inner_content}
       </main>
     </div>
     <script>

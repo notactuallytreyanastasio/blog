@@ -4,28 +4,33 @@ defmodule BlogWeb.CursorTrackerLive do
   alias Blog.CursorPoints
 
   @topic "cursor_tracker"
-  @clear_interval 60 * 60  # 60 minutes in seconds
+  # 60 minutes in seconds
+  @clear_interval 60 * 60
 
   def mount(_params, _session, socket) do
-    socket = assign(socket,
-      x_pos: 0,
-      y_pos: 0,
-      relative_x: 0,
-      relative_y: 0,
-      in_visualization: false,
-      favorite_points: [],
-      other_users: %{},
-      user_id: nil,
-      user_color: nil,
-      next_clear: calculate_next_clear(),
-      page_title: "Cursor Tracker",
-      meta_attrs: [
-        %{name: "description", content: "Track cursor positions, draw points on a canvas"},
-        %{property: "og:title", content: "Cursor Tracker - Live Shared and here to draw"},
-        %{property: "og:description", content: "Track cursor positions, draw points on a canvas"},
-        %{property: "og:type", content: "website"}
-      ]
-    )
+    socket =
+      assign(socket,
+        x_pos: 0,
+        y_pos: 0,
+        relative_x: 0,
+        relative_y: 0,
+        in_visualization: false,
+        favorite_points: [],
+        other_users: %{},
+        user_id: nil,
+        user_color: nil,
+        next_clear: calculate_next_clear(),
+        page_title: "Cursor Tracker",
+        meta_attrs: [
+          %{name: "description", content: "Track cursor positions, draw points on a canvas"},
+          %{property: "og:title", content: "Cursor Tracker - Live Shared and here to draw"},
+          %{
+            property: "og:description",
+            content: "Track cursor positions, draw points on a canvas"
+          },
+          %{property: "og:type", content: "website"}
+        ]
+      )
 
     if connected?(socket) do
       # Generate a unique user ID and color
@@ -39,16 +44,17 @@ defmodule BlogWeb.CursorTrackerLive do
       Phoenix.PubSub.subscribe(Blog.PubSub, "presence:" <> @topic)
 
       # Track presence
-      {:ok, _} = BlogWeb.Presence.track(
-        self(),
-        @topic,
-        user_id,
-        %{
-          color: user_color,
-          joined_at: DateTime.utc_now(),
-          cursor: %{x: 0, y: 0, in_viz: false}
-        }
-      )
+      {:ok, _} =
+        BlogWeb.Presence.track(
+          self(),
+          @topic,
+          user_id,
+          %{
+            color: user_color,
+            joined_at: DateTime.utc_now(),
+            cursor: %{x: 0, y: 0, in_viz: false}
+          }
+        )
 
       # Get current users
       other_users = list_present_users(user_id)
@@ -61,12 +67,13 @@ defmodule BlogWeb.CursorTrackerLive do
 
       Process.send_after(self(), :tick, 1000)
 
-      {:ok, assign(socket,
-        user_id: user_id,
-        user_color: user_color,
-        other_users: other_users,
-        favorite_points: shared_points
-      )}
+      {:ok,
+       assign(socket,
+         user_id: user_id,
+         user_color: user_color,
+         other_users: other_users,
+         favorite_points: shared_points
+       )}
     else
       {:ok, socket}
     end
@@ -108,13 +115,14 @@ defmodule BlogWeb.CursorTrackerLive do
       )
     end
 
-    {:noreply, assign(socket,
-      x_pos: x,
-      y_pos: y,
-      relative_x: relative_x,
-      relative_y: relative_y,
-      in_visualization: in_visualization
-    )}
+    {:noreply,
+     assign(socket,
+       x_pos: x,
+       y_pos: y,
+       relative_x: relative_x,
+       relative_y: relative_y,
+       in_visualization: in_visualization
+     )}
   end
 
   def handle_event("save_point", _params, socket) do
@@ -158,18 +166,22 @@ defmodule BlogWeb.CursorTrackerLive do
     end
   end
 
-  def handle_info({:cursor_position, user_id, color, x, y, relative_x, relative_y, in_viz}, socket) do
+  def handle_info(
+        {:cursor_position, user_id, color, x, y, relative_x, relative_y, in_viz},
+        socket
+      ) do
     # Skip our own cursor updates
     if user_id != socket.assigns.user_id do
       # Update the other user's cursor position
-      other_users = Map.put(socket.assigns.other_users, user_id, %{
-        color: color,
-        x: x,
-        y: y,
-        relative_x: relative_x,
-        relative_y: relative_y,
-        in_viz: in_viz
-      })
+      other_users =
+        Map.put(socket.assigns.other_users, user_id, %{
+          color: color,
+          x: x,
+          y: y,
+          relative_x: relative_x,
+          relative_y: relative_y,
+          in_viz: in_viz
+        })
 
       {:noreply, assign(socket, other_users: other_users)}
     else
@@ -199,14 +211,15 @@ defmodule BlogWeb.CursorTrackerLive do
     # Skip our own join messages
     if user_id != socket.assigns.user_id do
       # Add the new user to our list of other users
-      other_users = Map.put(socket.assigns.other_users, user_id, %{
-        color: color,
-        x: 0,
-        y: 0,
-        relative_x: 0,
-        relative_y: 0,
-        in_viz: false
-      })
+      other_users =
+        Map.put(socket.assigns.other_users, user_id, %{
+          color: color,
+          x: 0,
+          y: 0,
+          relative_x: 0,
+          relative_y: 0,
+          in_viz: false
+        })
 
       {:noreply, assign(socket, other_users: other_users)}
     else
@@ -226,27 +239,6 @@ defmodule BlogWeb.CursorTrackerLive do
     {:noreply, assign(socket, next_clear: next_clear)}
   end
 
-  def handle_info({:clear_points, user_id}, socket) do
-    # Update the next clear time when points are cleared
-    next_clear = calculate_next_clear()
-
-    # Add a message to the log about who cleared the points
-    message = if user_id == "SYSTEM" do
-      "Points automatically cleared by system"
-    else
-      if user_id == socket.assigns.user_id do
-        "You cleared all points"
-      else
-        "Points cleared by #{String.slice(user_id, 0, 6)}"
-      end
-    end
-
-    # Flash a message about the clearing
-    socket = put_flash(socket, :info, message)
-
-    {:noreply, assign(socket, favorite_points: [], next_clear: next_clear)}
-  end
-
   defp generate_user_id do
     :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
   end
@@ -263,26 +255,21 @@ defmodule BlogWeb.CursorTrackerLive do
     "rgb(#{r}, #{g}, #{b})"
   end
 
-  defp generate_random_color do
-    # Generate bright, neon-like colors for the retro hacker aesthetic
-    hue = :rand.uniform(360)
-    "hsl(#{hue}, 100%, 70%)"
-  end
-
   defp list_present_users(current_user_id) do
     BlogWeb.Presence.list(@topic)
     |> Enum.filter(fn {user_id, _} -> user_id != current_user_id end)
     |> Enum.map(fn {user_id, %{metas: [meta | _]}} ->
       cursor = Map.get(meta, :cursor, %{x: 0, y: 0, in_viz: false})
 
-      {user_id, %{
-        color: meta.color,
-        x: Map.get(cursor, :x, 0),
-        y: Map.get(cursor, :y, 0),
-        relative_x: Map.get(cursor, :relative_x, 0),
-        relative_y: Map.get(cursor, :relative_y, 0),
-        in_viz: Map.get(cursor, :in_viz, false)
-      }}
+      {user_id,
+       %{
+         color: meta.color,
+         x: Map.get(cursor, :x, 0),
+         y: Map.get(cursor, :y, 0),
+         relative_x: Map.get(cursor, :relative_x, 0),
+         relative_y: Map.get(cursor, :relative_y, 0),
+         in_viz: Map.get(cursor, :in_viz, false)
+       }}
     end)
     |> Enum.into(%{})
   end
@@ -346,40 +333,53 @@ defmodule BlogWeb.CursorTrackerLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-black text-green-500 font-mono p-4" phx-hook="CursorTracker" id="cursor-tracker">
+    <div
+      class="min-h-screen bg-black text-green-500 font-mono p-4"
+      phx-hook="CursorTracker"
+      id="cursor-tracker"
+    >
       <div class="max-w-4xl mx-auto">
-        <%= if flash = live_flash(@flash, :info) do %>
+        <%= if flash = Phoenix.Flash.get(@flash, :info) do %>
           <div class="mb-4 border border-green-500 bg-green-900 bg-opacity-30 p-3 text-green-300">
-            <%= flash %>
+            {flash}
           </div>
         <% end %>
 
         <div class="mb-8 border border-green-500 p-4">
           <h1 class="text-3xl mb-2 glitch-text">CURSOR POSITION TRACKER</h1>
-          <div class="text-2xl glitch-text mb-2"><h1>// ACTIVE USERS: <%= map_size(@other_users) + 1 %></h1></div>
-          <div class="text-2xl glitch-text mb-2"><h1>Click to draw a point</h1></div>
+          <div class="text-2xl glitch-text mb-2">
+            <h1>// ACTIVE USERS: {map_size(@other_users) + 1}</h1>
+          </div>
+          <div class="text-2xl glitch-text mb-2">
+            <h1>Click to draw a point</h1>
+          </div>
           <div class="grid grid-cols-2 gap-4 mb-8">
             <div class="border border-green-500 p-4">
               <div class="text-xs mb-1 opacity-70">X-COORDINATE</div>
-              <div class="text-2xl font-bold tracking-wider"><%= @x_pos %></div>
+              <div class="text-2xl font-bold tracking-wider">{@x_pos}</div>
             </div>
             <div class="border border-green-500 p-4">
               <div class="text-xs mb-1 opacity-70">Y-COORDINATE</div>
-              <div class="text-2xl font-bold tracking-wider"><%= @y_pos %></div>
+              <div class="text-2xl font-bold tracking-wider">{@y_pos}</div>
             </div>
           </div>
 
           <div class="border-t border-green-500 pt-4">
             <div class="flex flex-wrap gap-2">
               <div class="flex items-center">
-                <div class="w-4 h-4 rounded-full mr-1" style={"background-color: #{@user_color || 'rgb(100, 255, 100)'}"}></div>
+                <div
+                  class="w-4 h-4 rounded-full mr-1"
+                  style={"background-color: #{@user_color || "rgb(100, 255, 100)"}"}
+                >
+                </div>
                 <span class="text-xs">YOU</span>
               </div>
 
               <%= for {user_id, user} <- @other_users do %>
                 <div class="flex items-center">
-                  <div class="w-4 h-4 rounded-full mr-1" style={"background-color: #{user.color}"}></div>
-                  <span class="text-xs"><%= String.slice(user_id, 0, 6) %></span>
+                  <div class="w-4 h-4 rounded-full mr-1" style={"background-color: #{user.color}"}>
+                  </div>
+                  <span class="text-xs">{String.slice(user_id, 0, 6)}</span>
                 </div>
               <% end %>
             </div>
@@ -392,7 +392,13 @@ defmodule BlogWeb.CursorTrackerLive do
             <div class="flex items-center gap-4">
               <div class="text-xs opacity-70">
                 AUTO-CLEAR IN:
-                <span class="font-mono"><%= String.pad_leading("#{@next_clear.hours}", 2, "0") %>:<%= String.pad_leading("#{@next_clear.minutes}", 2, "0") %>:<%= String.pad_leading("#{@next_clear.seconds}", 2, "0") %></span>
+                <span class="font-mono">
+                  {String.pad_leading("#{@next_clear.hours}", 2, "0")}:{String.pad_leading(
+                    "#{@next_clear.minutes}",
+                    2,
+                    "0"
+                  )}:{String.pad_leading("#{@next_clear.seconds}", 2, "0")}
+                </span>
               </div>
               <button
                 phx-click="clear_points"
@@ -408,14 +414,28 @@ defmodule BlogWeb.CursorTrackerLive do
             phx-click="save_point"
           >
             <%= if @in_visualization do %>
-              <div class="absolute w-4 h-4 opacity-70" style={"left: calc(#{@relative_x}px - 8px); top: calc(#{@relative_y}px - 8px);"}>
+              <div
+                class="absolute w-4 h-4 opacity-70"
+                style={"left: calc(#{@relative_x}px - 8px); top: calc(#{@relative_y}px - 8px);"}
+              >
                 <div class="w-full h-full border border-green-500 animate-pulse"></div>
               </div>
-              <div class="absolute w-1 h-full bg-green-500 opacity-20" style={"left: #{@relative_x}px;"}></div>
-              <div class="absolute w-full h-1 bg-green-500 opacity-20" style={"top: #{@relative_y}px;"}></div>
+              <div
+                class="absolute w-1 h-full bg-green-500 opacity-20"
+                style={"left: #{@relative_x}px;"}
+              >
+              </div>
+              <div
+                class="absolute w-full h-1 bg-green-500 opacity-20"
+                style={"top: #{@relative_y}px;"}
+              >
+              </div>
 
-              <div class="absolute text-xs opacity-70" style={"left: calc(#{@relative_x}px + 12px); top: calc(#{@relative_y}px - 12px);"}>
-                X: <%= @relative_x |> trunc() %>, Y: <%= @relative_y |> trunc() %>
+              <div
+                class="absolute text-xs opacity-70"
+                style={"left: calc(#{@relative_x}px + 12px); top: calc(#{@relative_y}px - 12px);"}
+              >
+                X: {@relative_x |> trunc()}, Y: {@relative_y |> trunc()}
               </div>
             <% else %>
               <div class="flex items-center justify-center h-full text-sm opacity-50">
@@ -425,11 +445,17 @@ defmodule BlogWeb.CursorTrackerLive do
 
             <%= for {user_id, user} <- @other_users do %>
               <%= if user.in_viz do %>
-                <div class="absolute w-4 h-4 opacity-50" style={"left: calc(#{user.relative_x}px - 8px); top: calc(#{user.relative_y}px - 8px);"}>
+                <div
+                  class="absolute w-4 h-4 opacity-50"
+                  style={"left: calc(#{user.relative_x}px - 8px); top: calc(#{user.relative_y}px - 8px);"}
+                >
                   <div class="w-full h-full border-2" style={"border-color: #{user.color}"}></div>
                 </div>
-                <div class="absolute text-xs opacity-50" style={"color: #{user.color}; left: calc(#{user.relative_x}px + 12px); top: calc(#{user.relative_y}px - 12px);"}>
-                  <%= String.slice(user_id, 0, 6) %>
+                <div
+                  class="absolute text-xs opacity-50"
+                  style={"color: #{user.color}; left: calc(#{user.relative_x}px + 12px); top: calc(#{user.relative_y}px - 12px);"}
+                >
+                  {String.slice(user_id, 0, 6)}
                 </div>
               <% end %>
             <% end %>
@@ -452,23 +478,38 @@ defmodule BlogWeb.CursorTrackerLive do
         <div class="border border-green-500 p-4">
           <div class="text-xs mb-2 opacity-70">// SYSTEM LOG</div>
           <div class="h-32 overflow-y-auto font-mono text-xs leading-relaxed">
-            <div>> Current position: X:<%= @x_pos %> Y:<%= @y_pos %></div>
+            <div>> Current position: X:{@x_pos} Y:{@y_pos}</div>
             <%= if @in_visualization do %>
-              <div>> Cursor in visualization area: X:<%= @relative_x |> trunc() %> Y:<%= @relative_y |> trunc() %></div>
+              <div>
+                > Cursor in visualization area: X:{@relative_x |> trunc()} Y:{@relative_y |> trunc()}
+              </div>
             <% end %>
             <%= if length(@favorite_points) > 0 do %>
-              <div>> Saved points: <%= length(@favorite_points) %></div>
+              <div>> Saved points: {length(@favorite_points)}</div>
               <%= for {point, index} <- Enum.with_index(Enum.take(@favorite_points, 5)) do %>
-                <div>> Point <%= index + 1 %>: X:<%= point.x |> trunc() %> Y:<%= point.y |> trunc() %> by <%= if point.user_id == @user_id, do: "you", else: String.slice(point.user_id || "", 0, 6) %></div>
+                <div>
+                  > Point {index + 1}: X:{point.x |> trunc()} Y:{point.y |> trunc()} by {if point.user_id ==
+                                                                                              @user_id,
+                                                                                            do: "you",
+                                                                                            else:
+                                                                                              String.slice(
+                                                                                                point.user_id ||
+                                                                                                  "",
+                                                                                                0,
+                                                                                                6
+                                                                                              )}
+                </div>
               <% end %>
               <%= if length(@favorite_points) > 5 do %>
-                <div>> ... and <%= length(@favorite_points) - 5 %> more points</div>
+                <div>> ... and {length(@favorite_points) - 5} more points</div>
               <% end %>
             <% end %>
             <%= if map_size(@other_users) > 0 do %>
-              <div>> Other users online: <%= map_size(@other_users) %></div>
+              <div>> Other users online: {map_size(@other_users)}</div>
             <% end %>
-            <div>> Auto-clear scheduled in <%= @next_clear.hours %>h <%= @next_clear.minutes %>m <%= @next_clear.seconds %>s</div>
+            <div>
+              > Auto-clear scheduled in {@next_clear.hours}h {@next_clear.minutes}m {@next_clear.seconds}s
+            </div>
           </div>
         </div>
       </div>

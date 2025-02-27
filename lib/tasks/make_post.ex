@@ -2,7 +2,7 @@ defmodule Mix.Tasks.MakePost do
   use Mix.Task
 
   def run(args) do
-    [title, tags] =  args
+    [title, tags] = args
     [date, time] = "#{DateTime.utc_now()}" |> String.split(" ")
     [time | _] = time |> String.replace(":", "-") |> String.split(".")
     fname = date <> "-" <> time

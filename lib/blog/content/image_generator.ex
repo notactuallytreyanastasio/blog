@@ -20,35 +20,53 @@ defmodule Blog.Content.ImageGenerator do
   defp generate_image(path) do
     # Generate a 1200x630 image (optimal for OpenGraph)
     commands = [
-      "-size", "1200x630",
-      "xc:white",  # Start with white background
+      "-size",
+      "1200x630",
+      # Start with white background
+      "xc:white",
       # Add some random splatter effects
-      "-seed", "#{:rand.uniform(999999)}",
+      "-seed",
+      "#{:rand.uniform(999_999)}",
       # Create multiple layers of colored circles
       "(",
-        "-size", "1200x630",
-        "xc:transparent",
-        "-draw", random_circles(20, "rgba(59,130,246,0.6)"),  # Blue
+      "-size",
+      "1200x630",
+      "xc:transparent",
+      # Blue
+      "-draw",
+      random_circles(20, "rgba(59,130,246,0.6)"),
       ")",
       "(",
-        "-size", "1200x630",
-        "xc:transparent",
-        "-draw", random_circles(20, "rgba(99,102,241,0.6)"),  # Indigo
+      "-size",
+      "1200x630",
+      "xc:transparent",
+      # Indigo
+      "-draw",
+      random_circles(20, "rgba(99,102,241,0.6)"),
       ")",
       "(",
-        "-size", "1200x630",
-        "xc:transparent",
-        "-draw", random_circles(20, "rgba(139,92,246,0.6)"),  # Violet
+      "-size",
+      "1200x630",
+      "xc:transparent",
+      # Violet
+      "-draw",
+      random_circles(20, "rgba(139,92,246,0.6)"),
       ")",
       "-composite",
       "-composite",
       # Add some noise for texture
-      "-operator", "all", "Add", "2%", "gaussian-noise",
+      "-operator",
+      "all",
+      "Add",
+      "2%",
+      "gaussian-noise",
       path
     ]
 
     case System.cmd("convert", commands) do
-      {_, 0} -> {:ok, path}
+      {_, 0} ->
+        {:ok, path}
+
       {error, _} ->
         Logger.error("Failed to generate image: #{error}")
         {:error, "Failed to generate image"}

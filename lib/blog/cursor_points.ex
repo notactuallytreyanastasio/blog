@@ -3,8 +3,10 @@ defmodule Blog.CursorPoints do
   require Logger
 
   @table_name :cursor_favorite_points
-  @max_points 1000  # Limit the number of points to prevent unbounded growth
-  @clear_interval 60 * 60 * 1000  # 60 minutes in milliseconds
+  # Limit the number of points to prevent unbounded growth
+  @max_points 1000
+  # 60 minutes in milliseconds
+  @clear_interval 60 * 60 * 1000
 
   # Client API
 
@@ -90,9 +92,14 @@ defmodule Blog.CursorPoints do
       all_points = :ets.tab2list(@table_name)
 
       # Sort by timestamp (newest first)
-      sorted_points = Enum.sort_by(all_points, fn {_, point} ->
-        DateTime.to_unix(point.timestamp)
-      end, :desc)
+      sorted_points =
+        Enum.sort_by(
+          all_points,
+          fn {_, point} ->
+            DateTime.to_unix(point.timestamp)
+          end,
+          :desc
+        )
 
       # Keep only the newest @max_points
       {to_keep, to_delete} = Enum.split(sorted_points, @max_points)

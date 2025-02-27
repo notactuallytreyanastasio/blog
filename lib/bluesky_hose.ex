@@ -1,31 +1,41 @@
 defmodule BlueskyHose do
   use WebSockex
   require Logger
-  alias Blog.Social.Skeet
-  alias Blog.Repo
 
   @table_name :reddit_links
 
   def start_link(opts \\ []) do
     # Create ETS table if it doesn't exist
     :ets.new(@table_name, [:named_table, :ordered_set, :public, read_concurrency: true])
-    WebSockex.start_link("wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post", __MODULE__, :fake_state, opts)
+
+    WebSockex.start_link(
+      "wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post",
+      __MODULE__,
+      :fake_state,
+      opts
+    )
   rescue
     ArgumentError ->
       # Table already exists
-      WebSockex.start_link("wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post", __MODULE__, :fake_state, opts)
+      WebSockex.start_link(
+        "wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post",
+        __MODULE__,
+        :fake_state,
+        opts
+      )
   end
 
   def handle_connect(_conn, _state) do
     Logger.info("Connected!")
-    IO.puts("#{DateTime.utc_now}")
+    IO.puts("#{DateTime.utc_now()}")
     {:ok, 0}
   end
 
   def handle_frame({:text, msg}, state) do
     msg = Jason.decode!(msg)
+
     case msg do
-      %{"commit" => %{"record" => %{"text" => skeet}}} = msg ->
+      %{"commit" => %{"record" => %{"text" => skeet}}} = _msg ->
         # Broadcast to the general skeet feed
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
@@ -61,9 +71,11 @@ defmodule BlueskyHose do
             )
           end
         end
+
       _ ->
         nil
     end
+
     {:ok, state + 1}
   end
 
@@ -99,7 +111,7 @@ defmodule BlueskyHose do
   end
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do
-    Logger.info("Local close with reason: #{inspect reason}")
+    Logger.info("Local close with reason: #{inspect(reason)}")
     {:ok, state}
   end
 
@@ -110,10 +122,13 @@ defmodule BlueskyHose do
   # Function to get all stored Reddit links
   def get_reddit_links(limit \\ 50) do
     case :ets.info(@table_name) do
-      :undefined -> []
+      :undefined ->
+        []
+
       _ ->
         :ets.tab2list(@table_name)
-        |> Enum.sort() # Already sorted by key, but just to be sure
+        # Already sorted by key, but just to be sure
+        |> Enum.sort()
         |> Enum.take(limit)
         |> Enum.map(fn {_key, value} -> value end)
     end

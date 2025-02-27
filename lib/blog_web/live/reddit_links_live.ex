@@ -107,18 +107,28 @@ defmodule BlogWeb.RedditLinksLive do
         <%= if Enum.empty?(@filtered_skeets) do %>
           <div class="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
             <p class="text-gray-500">Waiting for posts with Reddit links to appear...</p>
-            <p class="text-sm text-gray-400 mt-2">This could take some time depending on Bluesky activity.</p>
+            <p class="text-sm text-gray-400 mt-2">
+              This could take some time depending on Bluesky activity.
+            </p>
           </div>
         <% end %>
 
         <%= for skeet <- @filtered_skeets do %>
           <div class="p-4 bg-white rounded-lg shadow-md border border-gray-200 transition-all hover:shadow-lg">
             <div class="prose prose-sm max-w-none">
-              <div class="text-sm text-gray-600 mb-2 italic">Original post: <%= String.slice(skeet.original_text, 0, 300) %><%= if String.length(skeet.original_text) > 300, do: "...", else: "" %></div>
+              <div class="text-sm text-gray-600 mb-2 italic">
+                Original post: {String.slice(skeet.original_text, 0, 300)}{if String.length(
+                                                                                skeet.original_text
+                                                                              ) > 300,
+                                                                              do: "...",
+                                                                              else: ""}
+              </div>
               <ul class="list-disc pl-5">
                 <%= for link <- skeet.links do %>
                   <li class="mb-1">
-                    <a href={link} class="text-blue-600 hover:underline break-all" target="_blank"><%= link %></a>
+                    <a href={link} class="text-blue-600 hover:underline break-all" target="_blank">
+                      {link}
+                    </a>
                   </li>
                 <% end %>
               </ul>

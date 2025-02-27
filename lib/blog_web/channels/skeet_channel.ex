@@ -20,7 +20,6 @@ defmodule BlogWeb.SkeetChannel do
     with {:ok, body} <- validate_body(body),
          {:ok, user} <- validate_user(user),
          {:ok, reply_to} <- validate_reply_to(reply_to) do
-
       message = %{
         id: generate_sha(),
         body: body,
@@ -46,6 +45,7 @@ defmodule BlogWeb.SkeetChannel do
       {:error, "Body exceeds maximum length of #{@max_body_length} characters"}
     end
   end
+
   defp validate_body(_), do: {:error, "Body must be a string"}
 
   defp validate_user(user) when is_binary(user) do
@@ -55,6 +55,7 @@ defmodule BlogWeb.SkeetChannel do
       {:error, "User handle exceeds maximum length of #{@max_handle_length} characters"}
     end
   end
+
   defp validate_user(_), do: {:error, "User handle must be a string"}
 
   defp validate_reply_to(nil), do: {:ok, nil}

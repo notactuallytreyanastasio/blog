@@ -2,10 +2,10 @@ defmodule Blog.Content.Post do
   defstruct [:body, :title, :written_on, :tags, :slug]
 
   def all do
-    (:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md"
+    ((:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md")
     |> Path.wildcard()
-    |> Enum.reject(fn(file) ->
-      case file |> String.split("-") |> List.last |> String.length do
+    |> Enum.reject(fn file ->
+      case file |> String.split("-") |> List.last() |> String.length() do
         35 -> true
         _ -> false
       end
@@ -37,14 +37,16 @@ defmodule Blog.Content.Post do
   end
 
   defp parse_datetime(year, month, day, hour, minute, second) do
-    {:ok, datetime} = NaiveDateTime.new(
-      String.to_integer(year),
-      String.to_integer(month),
-      String.to_integer(day),
-      String.to_integer(hour),
-      String.to_integer(minute),
-      String.to_integer(second)
-    )
+    {:ok, datetime} =
+      NaiveDateTime.new(
+        String.to_integer(year),
+        String.to_integer(month),
+        String.to_integer(day),
+        String.to_integer(hour),
+        String.to_integer(minute),
+        String.to_integer(second)
+      )
+
     datetime
   end
 
@@ -62,7 +64,9 @@ defmodule Blog.Content.Post do
     |> String.split("\n")
     |> Enum.find(fn line -> String.starts_with?(line, "tags:") end)
     |> case do
-      nil -> []
+      nil ->
+        []
+
       tags_line ->
         tags_line
         |> String.replace("tags:", "")

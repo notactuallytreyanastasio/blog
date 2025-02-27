@@ -14,12 +14,13 @@ defmodule BlogWeb.PostLive do
       reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
       # Track presence with the slug
-      {:ok, _} = Presence.track(self(), @presence_topic, reader_id, %{
-        name: "Reader-#{:rand.uniform(999)}",
-        anonymous: true,
-        joined_at: DateTime.utc_now(),
-        slug: slug
-      })
+      {:ok, _} =
+        Presence.track(self(), @presence_topic, reader_id, %{
+          name: "Reader-#{:rand.uniform(999)}",
+          anonymous: true,
+          joined_at: DateTime.utc_now(),
+          slug: slug
+        })
     end
 
     require Logger
@@ -39,6 +40,7 @@ defmodule BlogWeb.PostLive do
           %{property: "og:description", content: truncated_post(post.body)},
           %{property: "og:type", content: "website"}
         ]
+
         socket =
           socket
           |> assign_meta_tags(post)
@@ -48,25 +50,32 @@ defmodule BlogWeb.PostLive do
 
         # require IEx; IEx.pry
         Logger.debug("Found post: #{inspect(post, pretty: true)}")
+
         case Earmark.as_html(post.body, code_class_prefix: "language-") do
           {:ok, html, _} ->
             headers = extract_headers(post.body)
-            socket = assign(socket,
-              html: html,
-              headers: headers,
-              reader_count: get_reader_count(slug)
-            )
+
+            socket =
+              assign(socket,
+                html: html,
+                headers: headers,
+                reader_count: get_reader_count(slug)
+              )
+
             {:ok, socket}
 
           {:error, html, errors} ->
             # Still show the content even if there are markdown errors
             Logger.error("Markdown parsing warnings: #{inspect(errors)}")
             headers = extract_headers(post.body)
-            socket = assign(socket,
-              html: html,
-              headers: headers,
-              post: post
-            )
+
+            socket =
+              assign(socket,
+                html: html,
+                headers: headers,
+                post: post
+              )
+
             {:ok, socket}
         end
     end
@@ -77,9 +86,11 @@ defmodule BlogWeb.PostLive do
   end
 
   def handle_info(%{event: "presence_diff"} = _diff, socket) do
-    socket = assign(socket,
-      reader_count: get_reader_count(socket.assigns.post.slug)
-    )
+    socket =
+      assign(socket,
+        reader_count: get_reader_count(socket.assigns.post.slug)
+      )
+
     {:noreply, socket}
   end
 
@@ -97,7 +108,7 @@ defmodule BlogWeb.PostLive do
       <div class="max-w-7xl mx-auto">
         <div class="mb-4 text-sm text-gray-500">
           <%= if @reader_count > 1 do %>
-            <%= @reader_count - 1 %> other <%= if @reader_count == 2, do: "person", else: "people" %> reading this post
+            {@reader_count - 1} other {if @reader_count == 2, do: "person", else: "people"} reading this post
           <% end %>
         </div>
         <div class="mb-12 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
@@ -108,15 +119,19 @@ defmodule BlogWeb.PostLive do
                 "hover:text-blue-600 transition-colors",
                 level_to_padding(level)
               ]}>
-                <a href={"##{generate_id(text)}"}><%= text %></a>
+                <a href={"##{generate_id(text)}"}>{text}</a>
               </li>
             <% end %>
           </ul>
         </div>
 
         <article class="p-8 bg-white rounded-lg border-2 border-gray-200">
-          <div id="post-content" phx-hook="Highlight" class="prose prose-lg prose-headings:font-mono prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl max-w-none">
-            <%= raw(@html) %>
+          <div
+            id="post-content"
+            phx-hook="Highlight"
+            class="prose prose-lg prose-headings:font-mono prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl max-w-none"
+          >
+            {raw(@html)}
           </div>
         </article>
       </div>
@@ -171,24 +186,28 @@ defmodule BlogWeb.PostLive do
       %{property: "og:description", content: description},
       %{property: "og:type", content: "article"},
       %{property: "og:site_name", content: "Thoughts and Tidbits"},
-      %{property: "article:published_time",
-        content: DateTime.from_naive!(post.written_on, "Etc/UTC") |> DateTime.to_iso8601()},
+      %{
+        property: "article:published_time",
+        content: DateTime.from_naive!(post.written_on, "Etc/UTC") |> DateTime.to_iso8601()
+      },
       %{name: "twitter:card", content: "summary_large_image"},
       %{name: "twitter:title", content: post.title},
       %{name: "twitter:description", content: description}
     ]
 
     # Add image tags only if we have an image
-    meta_tags = if image_url do
-      meta_tags ++ [
-        %{property: "og:image", content: image_url},
-        %{property: "og:image:width", content: "1200"},
-        %{property: "og:image:height", content: "630"},
-        %{name: "twitter:image", content: image_url}
-      ]
-    else
-      meta_tags
-    end
+    meta_tags =
+      if image_url do
+        meta_tags ++
+          [
+            %{property: "og:image", content: image_url},
+            %{property: "og:image:width", content: "1200"},
+            %{property: "og:image:height", content: "630"},
+            %{name: "twitter:image", content: image_url}
+          ]
+      else
+        meta_tags
+      end
 
     assign(socket,
       page_title: post.title,

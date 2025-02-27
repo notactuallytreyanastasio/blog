@@ -3,13 +3,22 @@ defmodule BlogWeb.KeyloggerLive do
   import BlogWeb.CoreComponents
   require Logger
   alias Phoenix.LiveView.JS
+
   @meta_attrs [
-         %{name: "title", content: "See what key you are pressing, and have it remembered"},
-         %{name: "description", content: "See what key you are pressing. It also will keep what you type on hand to print if you want"},
-         %{property: "og:title", content: "See what key you are pressing, and have it remembered"},
-         %{property: "og:description", content: "See what key you are pressing. It also will keep what you type on hand to print if you want"},
-         %{property: "og:type", content: "website"}
-       ]
+    %{name: "title", content: "See what key you are pressing, and have it remembered"},
+    %{
+      name: "description",
+      content:
+        "See what key you are pressing. It also will keep what you type on hand to print if you want"
+    },
+    %{property: "og:title", content: "See what key you are pressing, and have it remembered"},
+    %{
+      property: "og:description",
+      content:
+        "See what key you are pressing. It also will keep what you type on hand to print if you want"
+    },
+    %{property: "og:type", content: "website"}
+  ]
 
   def mount(_params, _session, socket) do
     {:ok,
@@ -24,31 +33,41 @@ defmodule BlogWeb.KeyloggerLive do
 
   def handle_event("keydown", %{"key" => key}, socket) do
     Logger.info("Key pressed: #{key}")
+
     pressed_keys =
       case key do
         "Backspace" ->
           # first we reverse the string, and take the firts character
-          <<_last_character::binary-size(1), rest::binary>> = String.reverse(socket.assigns.pressed_keys)
+          <<_last_character::binary-size(1), rest::binary>> =
+            String.reverse(socket.assigns.pressed_keys)
+
           # then since its reversed, and just that one sliced off, we have
           # effectively "backspaced" and we can now reverse the list again, and
           # we have the copy that the user desires, successfuly having reached their
           # backspace escape hatch
           String.reverse(rest)
+
         "Meta" ->
           # If it is the meta key, they aren't going to be able to
           # type a character, so we just skip it too
           socket.assigns.pressed_keys
+
         "Shift" ->
           # if its shift, we skip because the character that shift creates comes next,
           # e.g, shift + A comes along when shift and a are pressed but we just want the A
           # so, since we know its coming here, we skip the key itself and
           # trust that the next event will come
           socket.assigns.pressed_keys
+
         "Enter" ->
           socket.assigns.pressed_keys <> "\r\n"
-        _ -> socket.assigns.pressed_keys <> key
+
+        _ ->
+          socket.assigns.pressed_keys <> key
       end
-    {:noreply, assign(socket, pressed_key: key, pressed_keys: pressed_keys) |> assign(show_modal: false)}
+
+    {:noreply,
+     assign(socket, pressed_key: key, pressed_keys: pressed_keys) |> assign(show_modal: false)}
   end
 
   def handle_event("toggle_modal", %{"value" => _}, socket) do
@@ -114,34 +133,31 @@ defmodule BlogWeb.KeyloggerLive do
       }
     </style>
     <div class="print-only">
-      THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
-
-      <%= @pressed_keys %>
+      THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND {@pressed_keys}
     </div>
-    <.head_tags meta_attrs={@meta_attrs} page_title={@page_title} />
-    <h1 class="text-[75px]">Pressing: <%= @pressed_key %></h1>
+    <.head_tags id="keylogger-head-tags" meta_attrs={@meta_attrs} page_title={@page_title}>
+      <title>{@page_title}</title>
+    </.head_tags>
+    <h1 class="text-[75px]">Pressing: {@pressed_key}</h1>
     <%= if @show_modal do %>
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" phx-click="toggle_modal">
+      <div
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+        phx-click="toggle_modal"
+      >
         <div class="bg-white p-8 rounded-lg shadow-lg max-w-lg" phx-click-away="toggle_modal">
           <div class="prose">
             <p class="font-mono text-gray-800">
+              Write a truly from-the-heart, manual Valentine's letter to your love. <br />
+              This is met to simulate a typewriter. You can type a message out. <br />
+              It Even prints like one, try pressing ctrl/cmd + P, then printing the letter for your love.
+              <br /> Backspace is supported to fix text. As are newlines.
 
-            Write a truly from-the-heart, manual Valentine's letter to your love.
-              <br>
-                This is met to simulate a typewriter. You can type a message out.
-                <br>
-                  It Even prints like one, try pressing ctrl/cmd + P, then printing the letter for your love.
+              Otherwise you must type deliberately and precisely.
 
-              <br>
-            Backspace is supported to fix text. As are newlines.
-
-            Otherwise you must type deliberately and precisely.
-
-            If you print preview the page with ctrl/cmd + p, you get a nice format of document to print this and mail it like a letter.
-              <br>
-              <br>
-
-            It comes with a guarantee from me that you manually typed it on this website character by character, doing the real work.
+              If you print preview the page with ctrl/cmd + p, you get a nice format of document to print this and mail it like a letter.
+              <br />
+              <br />
+              It comes with a guarantee from me that you manually typed it on this website character by character, doing the real work.
             </p>
           </div>
           <div class="mt-6 flex justify-end">
@@ -158,17 +174,21 @@ defmodule BlogWeb.KeyloggerLive do
     <div id="content-of-letter" class="mt-4 text-gray-500" phx-window-keydown="keydown">
       <div class="mb-4">
         THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
-        <div class="text-container"><%= for {char, index} <- String.split(@pressed_keys, "") |> Enum.with_index() do %><span class="letter-animate" style={"animation-delay: #{index * 0.005}s"}><%= char %></span><% end %></div>
+        <div class="text-container">
+          <%= for {char, index} <- String.split(@pressed_keys, "") |> Enum.with_index() do %>
+            <span class="letter-animate" style={"animation-delay: #{index * 0.005}s"}>{char}</span>
+          <% end %>
+        </div>
       </div>
     </div>
-
     """
   end
 
   def fade_in(js \\ %JS{}) do
-    JS.transition(js,
-      {"transition-all transform ease-out duration-200",
-       "opacity-0 translate-y-2",
-       "opacity-100 translate-y-0"})
+    JS.transition(
+      js,
+      {"transition-all transform ease-out duration-200", "opacity-0 translate-y-2",
+       "opacity-100 translate-y-0"}
+    )
   end
 end

@@ -1,26 +1,28 @@
 defmodule BlogWeb.VimTweetsLive do
   use BlogWeb, :live_view
   import BlogWeb.CoreComponents
+
   @meta_attrs [
-        %{name: "title", content: "Browse Bluesky: In Vim Mode!"},
-        %{name: "description", content: "Use j and k to navigate skeets"},
-        %{property: "og:title", content: "Browse Bluesky: In Vim Mode!"},
-        %{property: "og:description", content: "Use j and k to navigate skeets"},
-        %{property: "og:type", content: "website"}
-      ]
+    %{name: "title", content: "Browse Bluesky: In Vim Mode!"},
+    %{name: "description", content: "Use j and k to navigate skeets"},
+    %{property: "og:title", content: "Browse Bluesky: In Vim Mode!"},
+    %{property: "og:description", content: "Use j and k to navigate skeets"},
+    %{property: "og:type", content: "website"}
+  ]
 
   @window_size 12
   def mount(_params, _session, socket) do
-    tweets = Blog.Skeets.Sampler.sample(100) |> Enum.map(& &1.skeet)
+    tweets = ["Sample tweet 1", "Sample tweet 2", "Sample tweet 3"]
 
-    socket = socket
-    |> assign(
-      cursor: 0,
-      tweets: tweets,
-      visible_tweets: Enum.take(tweets, @window_size),
-      page_title: "Thoughts and Tidbits Blog: Bobby Experiment - vim navigation",
-      meta_attrs: @meta_attrs
-    )
+    socket =
+      socket
+      |> assign(
+        cursor: 0,
+        tweets: tweets,
+        visible_tweets: Enum.take(tweets, @window_size),
+        page_title: "Thoughts and Tidbits Blog: Bobby Experiment - vim navigation",
+        meta_attrs: @meta_attrs
+      )
 
     {:ok, socket}
   end
@@ -46,19 +48,28 @@ defmodule BlogWeb.VimTweetsLive do
 
   def render(assigns) do
     ~H"""
-    <.head_tags meta_attrs={@meta_attrs} page_title={@page_title} />
+    <.head_tags id="vim-tweets-head-tags" meta_attrs={@meta_attrs} page_title={@page_title}>
+      <title>{@page_title}</title>
+    </.head_tags>
     <div class="mt-4 text-gray-500">
-      Cursor position: <%= @cursor %>
+      Cursor position: {@cursor}
     </div>
     <div class="p-4" phx-window-keydown="keydown">
       <div class="space-y-4">
         <%= for {tweet, index} <- Enum.with_index(@visible_tweets) do %>
-          <div class={"p-4 border rounded #{if index == 2, do: 'bg-blue-100'}"}>
-            <%= tweet %>
+          <div class={"p-4 border rounded #{if index == 2, do: "bg-blue-100"}"}>
+            {tweet}
           </div>
         <% end %>
       </div>
     </div>
     """
+  end
+end
+
+defmodule Blog.Skeets.Sampler do
+  def sample(_count) do
+    # Return some dummy data
+    [%{skeet: "Sample tweet 1"}, %{skeet: "Sample tweet 2"}, %{skeet: "Sample tweet 3"}]
   end
 end

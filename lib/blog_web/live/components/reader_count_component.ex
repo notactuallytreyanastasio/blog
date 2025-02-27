@@ -19,7 +19,7 @@ defmodule BlogWeb.ReaderCountComponent do
   def render(assigns) do
     ~H"""
     <div class="text-sm text-gray-500 mb-6">
-      <%= @total_readers %> <%= if @total_readers == 1, do: "person", else: "people" %> online
+      {@total_readers} {if @total_readers == 1, do: "person", else: "people"} online
     </div>
     """
   end
