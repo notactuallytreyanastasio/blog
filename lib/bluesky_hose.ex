@@ -39,8 +39,8 @@ defmodule BlueskyHose do
         # Broadcast to the general skeet feed
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
-          "skeet_feed",
-          {:new_post, skeet}
+          "bluesky:skeet",
+          {:new_skeet, skeet}
         )
 
         if contains_reddit_link?(skeet) do
