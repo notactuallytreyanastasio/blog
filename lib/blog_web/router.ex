@@ -25,6 +25,7 @@ defmodule BlogWeb.Router do
     live "/gay_chaos", RainbowLive, :index
     live "/mirror", MirrorLive, :index
     live "/reddit-links", RedditLinksLive, :index
+    live "/cursor-tracker", CursorTrackerLive, :index
   end
 
   # Other scopes may use custom stacks.
