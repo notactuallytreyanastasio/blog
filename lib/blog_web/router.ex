@@ -24,6 +24,7 @@ defmodule BlogWeb.Router do
     live "/keylogger", KeyloggerLive
     live "/gay_chaos", RainbowLive, :index
     live "/mirror", MirrorLive, :index
+    live "/reddit-links", RedditLinksLive, :index
   end
 
   # Other scopes may use custom stacks.
