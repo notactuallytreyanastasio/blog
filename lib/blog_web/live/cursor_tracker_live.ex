@@ -59,10 +59,7 @@ defmodule BlogWeb.CursorTrackerLive do
       # Load shared points
       shared_points = get_shared_points()
 
-      # Start timer to update the countdown
-      if connected?(socket) do
-        Process.send_after(self(), :tick, 1000)
-      end
+      Process.send_after(self(), :tick, 1000)
 
       {:ok, assign(socket,
         user_id: user_id,

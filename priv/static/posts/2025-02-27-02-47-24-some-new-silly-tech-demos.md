@@ -539,4 +539,23 @@ The UI includes:
 5. A button to manually clear all points
 6. A system log showing recent activity
 
-So with that, we have a pretty fun little demo in about 50 lines of JS and 100 lines of Elixir.
+The point drawing system works through several coordinated pieces:
+
+1. When a user clicks in the visualization area, the `phx-click="save_point"` event handler captures the click coordinates relative to the container.
+
+2. The LiveView handles this event by adding a new point to the `@favorite_points` list with:
+   - The x/y coordinates from the click
+   - The user's unique color
+   - Their user ID
+   - A timestamp
+
+3. The points are rendered as absolutely positioned divs within the visualization container:
+
+```
+              <div
+                class="absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2"
+                style={"background-color: #{point.color}; left: #{point.x}px; top: #{point.y}px;"}
+                title={"Point by #{String.slice(point.user_id || "", 0, 6)} at X: #{trunc(point.x)}, Y: #{trunc(point.y)}"}
+              >
+              </div>
+```
