@@ -16,6 +16,8 @@ defmodule Blog.Application do
       {Phoenix.PubSub, name: Blog.PubSub},
       BlogWeb.Presence,
       {Finch, name: Blog.Finch},
+      # Start the cursor points manager
+      Blog.CursorPoints,
       # Start the Endpoint (http/https)
       BlogWeb.Endpoint,
       BlueskyHose
@@ -34,6 +36,8 @@ defmodule Blog.Application do
         {Phoenix.PubSub, name: Blog.PubSub},
         BlogWeb.Presence,
         {Finch, name: Blog.Finch},
+        # Start the cursor points manager
+        Blog.CursorPoints,
         # Start the Endpoint (http/https)
         BlogWeb.Endpoint,
         BlueskyHose

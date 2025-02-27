@@ -1,8 +1,10 @@
 defmodule BlogWeb.CursorTrackerLive do
   use BlogWeb, :live_view
   require Logger
+  alias Blog.CursorPoints
 
   @topic "cursor_tracker"
+  @clear_interval 60 * 60  # 60 minutes in seconds
 
   def mount(_params, _session, socket) do
     socket = assign(socket,
@@ -15,6 +17,7 @@ defmodule BlogWeb.CursorTrackerLive do
       other_users: %{},
       user_id: nil,
       user_color: nil,
+      next_clear: calculate_next_clear(),
       page_title: "Cursor Tracker",
       meta_attrs: [
         %{name: "description", content: "Retro hacker-style cursor position tracker"},
@@ -55,6 +58,11 @@ defmodule BlogWeb.CursorTrackerLive do
 
       # Load shared points
       shared_points = get_shared_points()
+
+      # Start timer to update the countdown
+      if connected?(socket) do
+        Process.send_after(self(), :tick, 1000)
+      end
 
       {:ok, assign(socket,
         user_id: user_id,
@@ -126,6 +134,9 @@ defmodule BlogWeb.CursorTrackerLive do
       # Add the new point to the list of favorite points
       updated_points = [new_point | socket.assigns.favorite_points]
 
+      # Store the point in the ETS table
+      CursorPoints.add_point(new_point)
+
       # Broadcast the new point to all users
       broadcast_new_point(new_point)
 
@@ -138,6 +149,9 @@ defmodule BlogWeb.CursorTrackerLive do
   def handle_event("clear_points", _params, socket) do
     # Only allow clearing if we have a user_id (connected)
     if socket.assigns.user_id do
+      # Clear the ETS table
+      CursorPoints.clear_points()
+
       # Broadcast clear points to all users
       broadcast_clear_points(socket.assigns.user_id)
 
@@ -201,6 +215,39 @@ defmodule BlogWeb.CursorTrackerLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info(:tick, socket) do
+    # Update the next clear time
+    next_clear = calculate_next_clear()
+
+    # Schedule the next tick
+    if connected?(socket) do
+      Process.send_after(self(), :tick, 1000)
+    end
+
+    {:noreply, assign(socket, next_clear: next_clear)}
+  end
+
+  def handle_info({:clear_points, user_id}, socket) do
+    # Update the next clear time when points are cleared
+    next_clear = calculate_next_clear()
+
+    # Add a message to the log about who cleared the points
+    message = if user_id == "SYSTEM" do
+      "Points automatically cleared by system"
+    else
+      if user_id == socket.assigns.user_id do
+        "You cleared all points"
+      else
+        "Points cleared by #{String.slice(user_id, 0, 6)}"
+      end
+    end
+
+    # Flash a message about the clearing
+    socket = put_flash(socket, :info, message)
+
+    {:noreply, assign(socket, favorite_points: [], next_clear: next_clear)}
   end
 
   defp generate_user_id do
@@ -275,16 +322,41 @@ defmodule BlogWeb.CursorTrackerLive do
     )
   end
 
-  # This would be replaced with a real persistence mechanism in a production app
+  # Update the get_shared_points function to load from ETS
   defp get_shared_points do
-    # For now, just return an empty list
-    []
+    CursorPoints.get_points()
+  end
+
+  defp calculate_next_clear do
+    # Calculate time until next scheduled clear
+    # This is a simplification - in a real app you'd want to sync with the actual schedule
+    now = DateTime.utc_now() |> DateTime.to_unix()
+    elapsed = rem(now, @clear_interval)
+    remaining = @clear_interval - elapsed
+
+    # Format the remaining time
+    hours = div(remaining, 3600)
+    minutes = div(rem(remaining, 3600), 60)
+    seconds = rem(remaining, 60)
+
+    %{
+      hours: hours,
+      minutes: minutes,
+      seconds: seconds,
+      total_seconds: remaining
+    }
   end
 
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-black text-green-500 font-mono p-4" phx-hook="CursorTracker" id="cursor-tracker">
       <div class="max-w-4xl mx-auto">
+        <%= if flash = live_flash(@flash, :info) do %>
+          <div class="mb-4 border border-green-500 bg-green-900 bg-opacity-30 p-3 text-green-300">
+            <%= flash %>
+          </div>
+        <% end %>
+
         <div class="mb-8 border border-green-500 p-4">
           <h1 class="text-3xl mb-2 glitch-text">CURSOR POSITION TRACKER</h1>
           <div class="grid grid-cols-2 gap-4 mb-8">
@@ -319,7 +391,11 @@ defmodule BlogWeb.CursorTrackerLive do
         <div class="border border-green-500 p-4 mb-8">
           <div class="flex justify-between items-center mb-2">
             <div class="text-xs opacity-70">// CURSOR VISUALIZATION</div>
-            <div>
+            <div class="flex items-center gap-4">
+              <div class="text-xs opacity-70">
+                AUTO-CLEAR IN:
+                <span class="font-mono"><%= String.pad_leading("#{@next_clear.hours}", 2, "0") %>:<%= String.pad_leading("#{@next_clear.minutes}", 2, "0") %>:<%= String.pad_leading("#{@next_clear.seconds}", 2, "0") %></span>
+              </div>
               <button
                 phx-click="clear_points"
                 class="text-xs border border-green-500 px-2 py-1 hover:bg-green-900 transition-colors"
@@ -394,6 +470,7 @@ defmodule BlogWeb.CursorTrackerLive do
             <%= if map_size(@other_users) > 0 do %>
               <div>> Other users online: <%= map_size(@other_users) %></div>
             <% end %>
+            <div>> Auto-clear scheduled in <%= @next_clear.hours %>h <%= @next_clear.minutes %>m <%= @next_clear.seconds %>s</div>
           </div>
         </div>
       </div>
