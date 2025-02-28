@@ -22,9 +22,9 @@ defmodule BlogWeb.RedditLinksLive do
        filtered_skeets: initial_skeets,
        max_skeets: @max_skeets,
        meta_attrs: [
-         %{name: "description", content: "Bluesky posts containing Reddit links"},
-         %{property: "og:title", content: "Reddit Links from Bluesky"},
-         %{property: "og:description", content: "Bluesky posts containing Reddit links"},
+         %{name: "description", content: "Bluesky posts containing Youtube links"},
+         %{property: "og:title", content: "Youtube Links from Bluesky"},
+         %{property: "og:description", content: "Bluesky posts containing Youtube links"},
          %{property: "og:type", content: "website"}
        ]
      )}
