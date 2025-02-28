@@ -10,6 +10,9 @@ defmodule Blog.Application do
     # Create the ETS table for Reddit links
     :ets.new(:reddit_links, [:named_table, :ordered_set, :public, read_concurrency: true])
 
+    # Initialize the chat message store
+    Blog.Chat.MessageStore.init()
+
     children = [
       # Blog.Repo,
       BlogWeb.Telemetry,
@@ -30,6 +33,10 @@ defmodule Blog.Application do
   rescue
     ArgumentError ->
       # Table already exists, continue with startup
+
+      # Initialize the chat message store (we still try this as it checks if tables exist)
+      Blog.Chat.MessageStore.init()
+
       children = [
         # Blog.Repo,
         BlogWeb.Telemetry,

@@ -8,6 +8,7 @@ defmodule BlogWeb.Router do
     plug :put_root_layout, html: {BlogWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.EnsureUserId
   end
 
   pipeline :api do
@@ -27,6 +28,9 @@ defmodule BlogWeb.Router do
     live "/reddit-links", RedditLinksLive, :index
     live "/cursor-tracker", CursorTrackerLive, :index
     live "/emoji-skeets", EmojiSkeetsLive, :index
+    live "/element-craft", ElementCraftLive, :index
+    live "/messages-from-space", SpaceMessagesLive, :index
+    live "/allowed-chats", AllowedChatsLive, :index
   end
 
   # Other scopes may use custom stacks.
