@@ -19,6 +19,8 @@ defmodule Blog.Application do
       {Phoenix.PubSub, name: Blog.PubSub},
       BlogWeb.Presence,
       {Finch, name: Blog.Finch},
+      # Start the presence tracker for chat
+      Blog.Chat.Presence,
       # Start the cursor points manager
       Blog.CursorPoints,
       # Start the Endpoint (http/https)
@@ -43,6 +45,8 @@ defmodule Blog.Application do
         {Phoenix.PubSub, name: Blog.PubSub},
         BlogWeb.Presence,
         {Finch, name: Blog.Finch},
+        # Start the presence tracker for chat
+        Blog.Chat.Presence,
         # Start the cursor points manager
         Blog.CursorPoints,
         # Start the Endpoint (http/https)

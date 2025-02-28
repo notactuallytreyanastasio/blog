@@ -10,8 +10,6 @@ defmodule Blog.Chat.Presence do
     otp_app: :blog,
     pubsub_server: Blog.PubSub
 
-  alias Blog.Chat.Presence
-
   @presence_topic "allowed_chat:presence"
 
   @doc """
@@ -23,30 +21,36 @@ defmodule Blog.Chat.Presence do
   Tracks a user's presence when they connect to the chat.
   """
   def track_user(user_id) do
-    Presence.track(
+    __MODULE__.track(
       self(),
       @presence_topic,
       user_id,
       %{
-        online_at: DateTime.utc_now(),
+        online_at: DateTime.utc_now() |> DateTime.to_iso8601(),
         status: "online"
       }
     )
   end
 
   @doc """
-  Gets the current count of online users.
+  Gets the list of online users with their metadata.
   """
   def list_online_users do
-    Presence.list(@presence_topic)
+    __MODULE__.list(@presence_topic)
   end
 
   @doc """
   Returns the count of online users.
+
+  Safely handles the case where the presence tracker is not yet initialized.
   """
   def count_online_users do
-    @presence_topic
-    |> Presence.list()
-    |> map_size()
+    try do
+      @presence_topic
+      |> __MODULE__.list()
+      |> map_size()
+    rescue
+      ArgumentError -> 0  # Return 0 if the presence tracker is not initialized
+    end
   end
 end

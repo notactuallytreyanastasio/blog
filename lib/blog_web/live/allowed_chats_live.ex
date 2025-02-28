@@ -3,6 +3,7 @@ defmodule BlogWeb.AllowedChatsLive do
   require Logger
 
   alias Blog.Chat.MessageStore
+  alias Blog.Chat.Presence
 
   @impl true
   def mount(_params, session, socket) do
@@ -15,9 +16,21 @@ defmodule BlogWeb.AllowedChatsLive do
     # Load recent messages from ETS
     messages = MessageStore.get_recent_messages()
 
+    # Get initial online users count (safely)
+    online_count = get_online_count()
+
     if connected?(socket) do
       # Subscribe to the chat topic for real-time updates
       Phoenix.PubSub.subscribe(Blog.PubSub, MessageStore.topic())
+
+      # Subscribe to the presence topic for user presence updates
+      Phoenix.PubSub.subscribe(Blog.PubSub, Presence.topic())
+
+      # Track this user's presence (safely)
+      track_user_presence(user_id)
+
+      # Get an updated count after tracking
+      online_count = get_online_count()
     end
 
     {:ok,
@@ -34,7 +47,8 @@ defmodule BlogWeb.AllowedChatsLive do
      |> assign(:allowed_words, allowed_words)
      |> assign(:messages, calculate_message_visibility(messages, allowed_words))
      |> assign(:add_word_form, to_form(%{"word" => ""}))
-     |> assign(:message_form, to_form(%{"content" => ""}))}
+     |> assign(:message_form, to_form(%{"content" => ""}))
+     |> assign(:online_count, online_count)}
   end
 
   @impl true
@@ -143,6 +157,13 @@ defmodule BlogWeb.AllowedChatsLive do
     end
   end
 
+  @impl true
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+    # Update the online count when presence changes
+    online_count = get_online_count()
+    {:noreply, assign(socket, :online_count, online_count)}
+  end
+
   # Helper function to calculate visibility for a list of messages
   defp calculate_message_visibility(messages, allowed_words) do
     Enum.map(messages, fn message ->
@@ -190,12 +211,40 @@ defmodule BlogWeb.AllowedChatsLive do
     System.unique_integer([:positive]) |> to_string()
   end
 
+  # Helper functions for presence
+  defp track_user_presence(user_id) do
+    try do
+      Presence.track_user(user_id)
+    rescue
+      _ ->
+        # If tracking fails, log it but continue
+        Logger.warn("Failed to track user presence for user: #{user_id}")
+        :error
+    end
+  end
+
+  defp get_online_count do
+    try do
+      Presence.count_online_users()
+    rescue
+      _ ->
+        # If presence counting fails, return 1 (at least this user)
+        1
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-gray-100 p-6">
       <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold mb-6">Allowed Chats</h1>
+        <div class="flex justify-between items-center mb-6">
+          <h1 class="text-3xl font-bold">Chat, but only with words you allow</h1>
+          <div class="bg-white rounded-full px-4 py-2 shadow flex items-center">
+            <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+            <span class="text-sm font-medium"><%= @online_count %> online</span>
+          </div>
+        </div>
         <div class="text-sm text-gray-500 mb-6">Your session ID: <%= @user_id %></div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -267,14 +316,29 @@ defmodule BlogWeb.AllowedChatsLive do
                         <div class="flex-1">
                           <%= if message.is_visible do %>
                             <p class="text-gray-800"><%= message.content %></p>
+                            <%= if message[:matching_words] && length(message.matching_words) > 0 do %>
+                              <p class="text-xs text-green-600 mt-1">
+                                Allowed by:
+                                <%= for {word, i} <- Enum.with_index(message.matching_words) do %>
+                                  <span class="font-semibold"><%= word %></span><%= if i < length(message.matching_words) - 1, do: ", " %>
+                                <% end %>
+                              </p>
+                            <% end %>
                           <% else %>
                             <p class="text-gray-400 italic">This message is hidden (no allowed words found)</p>
                           <% end %>
+                          <p class="text-xs text-gray-500 mt-1">
+                            <%= Calendar.strftime(message.timestamp, "%B %d, %Y at %I:%M %p") %>
+                            <%= if Map.get(message, :user_id) == @user_id do %>
+                              <span class="ml-2 text-blue-500">(You)</span>
+                            <% end %>
+                          </p>
                         </div>
                         <span class={[
                           "text-xs px-2 py-1 rounded-full",
                           if(message.is_visible, do: "bg-green-200 text-green-800", else: "bg-red-200 text-red-800")
                         ]}>
+                          <%= if message.is_visible, do: "Visible", else: "Hidden" %>
                         </span>
                       </div>
                     </div>
