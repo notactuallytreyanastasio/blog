@@ -28,8 +28,6 @@ defmodule BlogWeb.Router do
     live "/reddit-links", RedditLinksLive, :index
     live "/cursor-tracker", CursorTrackerLive, :index
     live "/emoji-skeets", EmojiSkeetsLive, :index
-    live "/element-craft", ElementCraftLive, :index
-    live "/messages-from-space", SpaceMessagesLive, :index
     live "/allowed-chats", AllowedChatsLive, :index
   end
 

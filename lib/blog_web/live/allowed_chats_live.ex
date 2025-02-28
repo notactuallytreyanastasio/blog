@@ -32,7 +32,7 @@ defmodule BlogWeb.AllowedChatsLive do
      ])
      |> assign(:user_id, user_id)
      |> assign(:allowed_words, allowed_words)
-     |> assign(:messages, messages)
+     |> assign(:messages, calculate_message_visibility(messages, allowed_words))
      |> assign(:add_word_form, to_form(%{"word" => ""}))
      |> assign(:message_form, to_form(%{"content" => ""}))}
   end
@@ -40,15 +40,20 @@ defmodule BlogWeb.AllowedChatsLive do
   @impl true
   def handle_event("add_word", %{"word" => word}, socket) when is_binary(word) and word != "" do
     # Add the word to the allowed_words set
-    new_allowed_words = MapSet.put(socket.assigns.allowed_words, String.downcase(String.trim(word)))
+    word = String.downcase(String.trim(word))
+    new_allowed_words = MapSet.put(socket.assigns.allowed_words, word)
 
     # Store the updated allowed words in ETS
     MessageStore.store_allowed_words(socket.assigns.user_id, new_allowed_words)
 
-    # Update the socket with the new allowed_words
+    # Recalculate message visibility with the new allowed words
+    messages = calculate_message_visibility(socket.assigns.messages, new_allowed_words)
+
+    # Update the socket with the new allowed_words and messages
     {:noreply,
      socket
      |> assign(:allowed_words, new_allowed_words)
+     |> assign(:messages, messages)
      |> assign(:add_word_form, to_form(%{"word" => ""}))}
   end
 
@@ -60,23 +65,27 @@ defmodule BlogWeb.AllowedChatsLive do
     # Store the updated allowed words in ETS
     MessageStore.store_allowed_words(socket.assigns.user_id, new_allowed_words)
 
-    # Update the socket with the new allowed_words
-    {:noreply, assign(socket, :allowed_words, new_allowed_words)}
+    # Recalculate message visibility with the updated allowed words
+    messages = calculate_message_visibility(socket.assigns.messages, new_allowed_words)
+
+    # Update the socket with the new allowed_words and messages
+    {:noreply,
+     socket
+     |> assign(:allowed_words, new_allowed_words)
+     |> assign(:messages, messages)}
   end
 
   @impl true
   def handle_event("send_message", %{"content" => content}, socket) when is_binary(content) and content != "" do
-    # Check message visibility and get matching allowed words
-    {is_visible, matching_words} = message_visible_with_words(content, socket.assigns.allowed_words)
+    user_id = socket.assigns.user_id
+    allowed_words = socket.assigns.allowed_words
 
-    # Create a new message map
+    # Create a new message map (without is_visible - we'll calculate it dynamically)
     new_message = %{
       id: System.unique_integer([:positive]),
       content: content,
       timestamp: DateTime.utc_now(),
-      user_id: socket.assigns.user_id,
-      is_visible: is_visible,
-      matching_words: matching_words
+      user_id: user_id
     }
 
     # Store the message in ETS
@@ -85,10 +94,13 @@ defmodule BlogWeb.AllowedChatsLive do
     # Get updated message list
     messages = MessageStore.get_recent_messages()
 
-    # Add the new message to the list of messages
+    # Calculate visibility for all messages based on current allowed words
+    messages_with_visibility = calculate_message_visibility(messages, allowed_words)
+
+    # Update the socket with the messages and reset the message form
     {:noreply,
      socket
-     |> assign(:messages, messages)
+     |> assign(:messages, messages_with_visibility)
      |> assign(:message_form, to_form(%{"content" => ""}))}
   end
 
@@ -106,7 +118,11 @@ defmodule BlogWeb.AllowedChatsLive do
   def handle_info({:new_message, _message}, socket) do
     # When a new message is broadcast, update the messages list
     messages = MessageStore.get_recent_messages()
-    {:noreply, assign(socket, :messages, messages)}
+
+    # Calculate visibility for each message based on the current user's allowed words
+    messages_with_visibility = calculate_message_visibility(messages, socket.assigns.allowed_words)
+
+    {:noreply, assign(socket, :messages, messages_with_visibility)}
   end
 
   @impl true
@@ -114,10 +130,30 @@ defmodule BlogWeb.AllowedChatsLive do
     # Only update if it's the current user's allowed words that changed
     if user_id == socket.assigns.user_id do
       allowed_words = MessageStore.get_allowed_words(user_id)
-      {:noreply, assign(socket, :allowed_words, allowed_words)}
+
+      # Recalculate message visibility with the updated allowed words
+      messages = calculate_message_visibility(socket.assigns.messages, allowed_words)
+
+      {:noreply,
+       socket
+       |> assign(:allowed_words, allowed_words)
+       |> assign(:messages, messages)}
     else
       {:noreply, socket}
     end
+  end
+
+  # Helper function to calculate visibility for a list of messages
+  defp calculate_message_visibility(messages, allowed_words) do
+    Enum.map(messages, fn message ->
+      {is_visible, matching_words} = message_visible_with_words(message.content, allowed_words)
+
+      # Create a new message map with visibility information
+      Map.merge(message, %{
+        is_visible: is_visible,
+        matching_words: matching_words
+      })
+    end)
   end
 
   # Enhanced helper function to check if a message is visible based on the allowed words
@@ -231,29 +267,14 @@ defmodule BlogWeb.AllowedChatsLive do
                         <div class="flex-1">
                           <%= if message.is_visible do %>
                             <p class="text-gray-800"><%= message.content %></p>
-                            <%= if message[:matching_words] && length(message.matching_words) > 0 do %>
-                              <p class="text-xs text-green-600 mt-1">
-                                Allowed by:
-                                <%= for {word, i} <- Enum.with_index(message.matching_words) do %>
-                                  <span class="font-semibold"><%= word %></span><%= if i < length(message.matching_words) - 1, do: ", " %>
-                                <% end %>
-                              </p>
-                            <% end %>
                           <% else %>
                             <p class="text-gray-400 italic">This message is hidden (no allowed words found)</p>
                           <% end %>
-                          <p class="text-xs text-gray-500 mt-1">
-                            <%= Calendar.strftime(message.timestamp, "%B %d, %Y at %I:%M %p") %>
-                            <%= if Map.get(message, :user_id) == @user_id do %>
-                              <span class="ml-2 text-blue-500">(You)</span>
-                            <% end %>
-                          </p>
                         </div>
                         <span class={[
                           "text-xs px-2 py-1 rounded-full",
                           if(message.is_visible, do: "bg-green-200 text-green-800", else: "bg-red-200 text-red-800")
                         ]}>
-                          <%= if message.is_visible, do: "Visible", else: "Hidden" %>
                         </span>
                       </div>
                     </div>
