@@ -3,6 +3,7 @@ defmodule BlogWeb.RedditLinksLive do
   require Logger
 
   @max_skeets 50
+  # Extract YouTube video ID from various YouTube URL formats
 
   def mount(_params, _session, socket) do
     # Load existing skeets from ETS
@@ -18,9 +19,8 @@ defmodule BlogWeb.RedditLinksLive do
      assign(socket,
        page_title: "Reddit Links from Bluesky",
        skeets: initial_skeets,
-       filtered_skeets: filter_nsfw_skeets(initial_skeets, true),
+       filtered_skeets: initial_skeets,
        max_skeets: @max_skeets,
-       filter_nsfw: true,
        meta_attrs: [
          %{name: "description", content: "Bluesky posts containing Reddit links"},
          %{property: "og:title", content: "Reddit Links from Bluesky"},
@@ -36,75 +36,23 @@ defmodule BlogWeb.RedditLinksLive do
       [skeet | socket.assigns.skeets]
       |> Enum.take(socket.assigns.max_skeets)
 
-    # Apply NSFW filter if enabled
-    filtered_skeets = filter_nsfw_skeets(updated_skeets, socket.assigns.filter_nsfw)
-
-    {:noreply, assign(socket, skeets: updated_skeets, filtered_skeets: filtered_skeets)}
+    {:noreply, assign(socket, skeets: updated_skeets)}
   end
 
-  def handle_event("toggle_nsfw_filter", _params, socket) do
-    # Toggle the filter state
-    filter_nsfw = !socket.assigns.filter_nsfw
-
-    # Apply the filter to the current skeets
-    filtered_skeets = filter_nsfw_skeets(socket.assigns.skeets, filter_nsfw)
-
-    {:noreply, assign(socket, filter_nsfw: filter_nsfw, filtered_skeets: filtered_skeets)}
-  end
-
-  # Filter out NSFW skeets if the filter is enabled
-  defp filter_nsfw_skeets(skeets, true) do
-    Enum.reject(skeets, fn skeet ->
-      is_nsfw?(skeet.original_text)
-    end)
-  end
-
-  # Return all skeets if the filter is disabled
-  defp filter_nsfw_skeets(skeets, false), do: skeets
-
-  # Check if a skeet contains NSFW indicators
-  defp is_nsfw?(text) when is_binary(text) do
-    nsfw_patterns = [
-      ~r/\bNSFW\b/i,
-      ~r/\bNSFL\b/i,
-      ~r/\b18\+\b/,
-      ~r/\bXXX\b/i
-    ]
-
-    Enum.any?(nsfw_patterns, fn pattern ->
-      Regex.match?(pattern, text)
-    end)
-  end
-
-  defp is_nsfw?(_), do: false
 
   def render(assigns) do
     ~H"""
     <div class="max-w-4xl mx-auto py-8">
-      <h1 class="text-3xl font-bold mb-6">Reddit Links from Bluesky</h1>
-
-      <div class="mb-4 flex items-center">
-        <div class="form-control">
-          <label class="cursor-pointer flex items-center">
-            <input
-              type="checkbox"
-              checked={@filter_nsfw}
-              class="checkbox checkbox-primary mr-2"
-              phx-click="toggle_nsfw_filter"
-            />
-            <span class="label-text text-gray-700">Filter NSFW content</span>
-          </label>
-        </div>
-      </div>
+      <h1 class="text-3xl font-bold mb-6">Youtube Links from Bluesky</h1>
 
       <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <p class="text-blue-800">
-          This page shows Bluesky posts that contain Reddit links. New posts will appear automatically.
+          This page shows Bluesky posts that contain youtube links. New posts will appear automatically.
         </p>
       </div>
 
       <div class="space-y-6">
-        <%= if Enum.empty?(@filtered_skeets) do %>
+        <%= if Enum.empty?(@skeets) do %>
           <div class="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
             <p class="text-gray-500">Waiting for posts with Reddit links to appear...</p>
             <p class="text-sm text-gray-400 mt-2">
@@ -113,25 +61,23 @@ defmodule BlogWeb.RedditLinksLive do
           </div>
         <% end %>
 
-        <%= for skeet <- @filtered_skeets do %>
+        <%= for skeet <- @skeets do %>
           <div class="p-4 bg-white rounded-lg shadow-md border border-gray-200 transition-all hover:shadow-lg">
             <div class="prose prose-sm max-w-none">
-              <div class="text-sm text-gray-600 mb-2 italic">
-                Original post: {String.slice(skeet.original_text, 0, 300)}{if String.length(
-                                                                                skeet.original_text
-                                                                              ) > 300,
-                                                                              do: "...",
-                                                                              else: ""}
-              </div>
-              <ul class="list-disc pl-5">
-                <%= for link <- skeet.links do %>
-                  <li class="mb-1">
-                    <a href={link} class="text-blue-600 hover:underline break-all" target="_blank">
-                      {link}
-                    </a>
-                  </li>
+                <%= if youtube_id = extract_youtube_id(skeet) do %>
+                  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div class="aspect-w-16 aspect-h-9 w-full">
+                      <iframe
+                        src={"https://www.youtube.com/embed/#{youtube_id}"}
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                        class="w-full h-full rounded-lg"
+                      >
+                      </iframe>
+                    </div>
+                  </div>
                 <% end %>
-              </ul>
             </div>
           </div>
         <% end %>
@@ -139,4 +85,32 @@ defmodule BlogWeb.RedditLinksLive do
     </div>
     """
   end
+
+  defp extract_youtube_id(url) do
+    cond do
+      # youtu.be format
+      String.match?(url, ~r/youtu\.be\/([a-zA-Z0-9_-]+)/) ->
+        [[_, id]] = Regex.scan(~r/youtu\.be\/([a-zA-Z0-9_-]+)/, url)
+        id
+
+      # youtube.com/watch?v= format
+      String.match?(url, ~r/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/) ->
+        [[_, id]] = Regex.scan(~r/v=([a-zA-Z0-9_-]+)/, url)
+        id
+
+      # youtube.com/v/ format
+      String.match?(url, ~r/youtube\.com\/v\/([a-zA-Z0-9_-]+)/) ->
+        [[_, id]] = Regex.scan(~r/youtube\.com\/v\/([a-zA-Z0-9_-]+)/, url)
+        id
+
+      # youtube.com/embed/ format
+      String.match?(url, ~r/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/) ->
+        [[_, id]] = Regex.scan(~r/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/, url)
+        id
+
+      true ->
+        nil
+    end
+  end
+
 end
