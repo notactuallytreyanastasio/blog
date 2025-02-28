@@ -10,8 +10,8 @@ defmodule BlogWeb.AllowedChatsLive do
     # Generate a unique user ID for this session if not present
     user_id = Map.get(session, "user_id", generate_user_id())
 
-    # Load the user's allowed words from ETS
-    allowed_words = MessageStore.get_allowed_words(user_id)
+    # Load the global allowed words from ETS
+    allowed_words = MessageStore.get_allowed_words()
 
     # Load recent messages from ETS
     messages = MessageStore.get_recent_messages()
@@ -35,12 +35,12 @@ defmodule BlogWeb.AllowedChatsLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "Allowed Chats")
+     |> assign(:page_title, "Community Allowed Chats")
      |> assign(:meta_attrs, [
-       %{name: "title", content: "Allowed Chats"},
-       %{name: "description", content: "Chat with allowed words filtering"},
-       %{property: "og:title", content: "Allowed Chats"},
-       %{property: "og:description", content: "Chat with allowed words filtering"},
+       %{name: "title", content: "Community Allowed Chats"},
+       %{name: "description", content: "Chat with community-managed allowed words filtering"},
+       %{property: "og:title", content: "Community Allowed Chats"},
+       %{property: "og:description", content: "Chat with community-managed allowed words filtering"},
        %{property: "og:type", content: "website"}
      ])
      |> assign(:user_id, user_id)
@@ -53,46 +53,27 @@ defmodule BlogWeb.AllowedChatsLive do
 
   @impl true
   def handle_event("add_word", %{"word" => word}, socket) when is_binary(word) and word != "" do
-    # Add the word to the allowed_words set
+    # Add the word to the global allowed_words set
     word = String.downcase(String.trim(word))
-    new_allowed_words = MapSet.put(socket.assigns.allowed_words, word)
+    # Use the new function for global word addition
+    MessageStore.add_allowed_word(word)
 
-    # Store the updated allowed words in ETS
-    MessageStore.store_allowed_words(socket.assigns.user_id, new_allowed_words)
-
-    # Recalculate message visibility with the new allowed words
-    messages = calculate_message_visibility(socket.assigns.messages, new_allowed_words)
-
-    # Update the socket with the new allowed_words and messages
-    {:noreply,
-     socket
-     |> assign(:allowed_words, new_allowed_words)
-     |> assign(:messages, messages)
-     |> assign(:add_word_form, to_form(%{"word" => ""}))}
+    # We'll get updated words through the PubSub broadcast
+    {:noreply, assign(socket, :add_word_form, to_form(%{"word" => ""}))}
   end
 
   @impl true
   def handle_event("remove_word", %{"word" => word}, socket) do
-    # Remove the word from the allowed_words set
-    new_allowed_words = MapSet.delete(socket.assigns.allowed_words, word)
+    # Remove the word from the global allowed_words set
+    MessageStore.remove_allowed_word(word)
 
-    # Store the updated allowed words in ETS
-    MessageStore.store_allowed_words(socket.assigns.user_id, new_allowed_words)
-
-    # Recalculate message visibility with the updated allowed words
-    messages = calculate_message_visibility(socket.assigns.messages, new_allowed_words)
-
-    # Update the socket with the new allowed_words and messages
-    {:noreply,
-     socket
-     |> assign(:allowed_words, new_allowed_words)
-     |> assign(:messages, messages)}
+    # We'll get updated words through the PubSub broadcast
+    {:noreply, socket}
   end
 
   @impl true
   def handle_event("send_message", %{"content" => content}, socket) when is_binary(content) and content != "" do
     user_id = socket.assigns.user_id
-    allowed_words = socket.assigns.allowed_words
 
     # Create a new message map (without is_visible - we'll calculate it dynamically)
     new_message = %{
@@ -105,17 +86,8 @@ defmodule BlogWeb.AllowedChatsLive do
     # Store the message in ETS
     MessageStore.store_message(new_message)
 
-    # Get updated message list
-    messages = MessageStore.get_recent_messages()
-
-    # Calculate visibility for all messages based on current allowed words
-    messages_with_visibility = calculate_message_visibility(messages, allowed_words)
-
-    # Update the socket with the messages and reset the message form
-    {:noreply,
-     socket
-     |> assign(:messages, messages_with_visibility)
-     |> assign(:message_form, to_form(%{"content" => ""}))}
+    # Updates will come through the PubSub channel
+    {:noreply, assign(socket, :message_form, to_form(%{"content" => ""}))}
   end
 
   @impl true
@@ -133,28 +105,22 @@ defmodule BlogWeb.AllowedChatsLive do
     # When a new message is broadcast, update the messages list
     messages = MessageStore.get_recent_messages()
 
-    # Calculate visibility for each message based on the current user's allowed words
+    # Calculate visibility for each message based on the current allowed words
     messages_with_visibility = calculate_message_visibility(messages, socket.assigns.allowed_words)
 
     {:noreply, assign(socket, :messages, messages_with_visibility)}
   end
 
   @impl true
-  def handle_info({:allowed_words_updated, user_id}, socket) do
-    # Only update if it's the current user's allowed words that changed
-    if user_id == socket.assigns.user_id do
-      allowed_words = MessageStore.get_allowed_words(user_id)
+  def handle_info({:allowed_words_updated, updated_words}, socket) do
+    # With shared words, we update for all users regardless of user_id
+    # Recalculate message visibility with the updated allowed words
+    messages = calculate_message_visibility(socket.assigns.messages, updated_words)
 
-      # Recalculate message visibility with the updated allowed words
-      messages = calculate_message_visibility(socket.assigns.messages, allowed_words)
-
-      {:noreply,
-       socket
-       |> assign(:allowed_words, allowed_words)
-       |> assign(:messages, messages)}
-    else
-      {:noreply, socket}
-    end
+    {:noreply,
+     socket
+     |> assign(:allowed_words, updated_words)
+     |> assign(:messages, messages)}
   end
 
   @impl true
@@ -239,7 +205,7 @@ defmodule BlogWeb.AllowedChatsLive do
     <div class="min-h-screen bg-gray-100 p-6">
       <div class="max-w-4xl mx-auto">
         <div class="flex justify-between items-center mb-6">
-          <h1 class="text-3xl font-bold">Chat, but only with words you allow</h1>
+          <h1 class="text-3xl font-bold">Community Chat</h1>
           <div class="bg-white rounded-full px-4 py-2 shadow flex items-center">
             <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
             <span class="text-sm font-medium"><%= @online_count %> online</span>
@@ -251,7 +217,8 @@ defmodule BlogWeb.AllowedChatsLive do
           <!-- Left sidebar: Allowed words -->
           <div class="md:col-span-1">
             <div class="bg-white rounded-lg shadow p-4">
-              <h2 class="text-xl font-semibold mb-4">Allowed Words</h2>
+              <h2 class="text-xl font-semibold mb-4">Community Allowed Words</h2>
+              <p class="text-sm text-gray-600 mb-4">These words are shared by all users. Any message containing these words will be visible to everyone.</p>
 
               <.form for={@add_word_form} phx-submit="add_word" phx-change="validate_add_word" class="mb-4">
                 <div class="flex gap-2">
@@ -279,7 +246,7 @@ defmodule BlogWeb.AllowedChatsLive do
                   <% end %>
                 </div>
                 <%= if Enum.empty?(@allowed_words) do %>
-                  <p class="text-gray-500 text-sm italic">No allowed words yet. Add some!</p>
+                  <p class="text-gray-500 text-sm italic">No community allowed words yet. Add some!</p>
                 <% end %>
               </div>
             </div>

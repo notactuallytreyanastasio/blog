@@ -9,6 +9,7 @@ defmodule Blog.Chat.MessageStore do
 
   @table_name :allowed_chat_messages
   @allowed_words_table :allowed_chat_words
+  @global_words_key :global_allowed_words
   @max_messages 100
   @topic "allowed_chat"
 
@@ -26,6 +27,11 @@ defmodule Blog.Chat.MessageStore do
     # Create ETS table for allowed words if it doesn't exist
     if :ets.info(@allowed_words_table) == :undefined do
       :ets.new(@allowed_words_table, [:named_table, :set, :public])
+
+      # Initialize the global allowed words set if it doesn't exist
+      if :ets.lookup(@allowed_words_table, @global_words_key) == [] do
+        :ets.insert(@allowed_words_table, {@global_words_key, MapSet.new()})
+      end
     end
 
     :ok
@@ -73,28 +79,63 @@ defmodule Blog.Chat.MessageStore do
   end
 
   @doc """
-  Stores a user's allowed words in the ETS table.
+  Adds a word to the global allowed words list.
   """
-  def store_allowed_words(user_id, allowed_words) do
-    :ets.insert(@allowed_words_table, {user_id, allowed_words})
+  def add_allowed_word(word) do
+    current_words = get_allowed_words()
+    new_words = MapSet.put(current_words, word)
+    :ets.insert(@allowed_words_table, {@global_words_key, new_words})
 
-    # Broadcast allowed words update
-    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:allowed_words_updated, user_id})
+    # Broadcast allowed words update to all users
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:allowed_words_updated, new_words})
 
     :ok
   end
 
   @doc """
-  Retrieves a user's allowed words from the ETS table.
-
-  Returns a MapSet of allowed words. If no words are found for the user,
-  returns an empty MapSet.
+  Removes a word from the global allowed words list.
   """
-  def get_allowed_words(user_id) do
-    case :ets.lookup(@allowed_words_table, user_id) do
-      [{^user_id, allowed_words}] -> allowed_words
-      [] -> MapSet.new()
+  def remove_allowed_word(word) do
+    current_words = get_allowed_words()
+    new_words = MapSet.delete(current_words, word)
+    :ets.insert(@allowed_words_table, {@global_words_key, new_words})
+
+    # Broadcast allowed words update to all users
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:allowed_words_updated, new_words})
+
+    :ok
+  end
+
+  @doc """
+  Retrieves the global allowed words list.
+
+  Returns a MapSet of allowed words. If no global list exists,
+  returns an empty MapSet and initializes one.
+  """
+  def get_allowed_words do
+    case :ets.lookup(@allowed_words_table, @global_words_key) do
+      [{@global_words_key, allowed_words}] -> allowed_words
+      [] ->
+        # If no global list exists, initialize an empty one
+        empty_set = MapSet.new()
+        :ets.insert(@allowed_words_table, {@global_words_key, empty_set})
+        empty_set
     end
+  end
+
+  # For backwards compatibility - will get the global list
+  def get_allowed_words(_user_id) do
+    get_allowed_words()
+  end
+
+  # For backwards compatibility - will update the global list
+  def store_allowed_words(_user_id, allowed_words) do
+    :ets.insert(@allowed_words_table, {@global_words_key, allowed_words})
+
+    # Broadcast allowed words update
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:allowed_words_updated, allowed_words})
+
+    :ok
   end
 
   # Private helper to prune old messages
