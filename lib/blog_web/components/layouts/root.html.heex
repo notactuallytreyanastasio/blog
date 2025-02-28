@@ -28,26 +28,46 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/heex.min.js">
     </script>
   </head>
-  <body class="h-full bg-gray-50 font-mono">
+  <body class="h-full font-mono bg-gradient-to-br from-cyan-50 to-indigo-50">
+    <!-- Sidebar Toggle Button -->
+    <button id="sidebar-toggle" class="fixed top-4 left-4 z-50 p-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+
     <div class="flex h-full">
-      <!-- Sidebar -->
-      <div class="w-72 bg-white border-r-2 border-gray-200 p-6 overflow-y-auto">
-        <div class="mb-12">
-          <h1 class="text-2xl font-bold text-gray-900 mb-2 pb-2 border-b-2 border-gray-200">
+      <!-- Sidebar - Hidden by default -->
+      <div id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-gradient-to-b from-fuchsia-100 to-cyan-100 border-r-2 border-fuchsia-300 p-6 overflow-y-auto transform -translate-x-full transition-transform duration-300 ease-in-out z-40 shadow-2xl">
+        <button id="sidebar-close" class="absolute top-4 right-4 text-gray-700 hover:text-fuchsia-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div class="mb-12 pt-8">
+          <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-cyan-600 mb-2 pb-2 border-b-2 border-fuchsia-200">
             Tidbits, Thoughts
           </h1>
-          <div class="space-y-2"></div>
+          <div class="text-sm text-gray-600 mt-2">
+            <div class="inline-flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-fuchsia-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span><%= total_readers() %> <%= if total_readers() == 1, do: "reader", else: "readers" %> online</span>
+            </div>
+          </div>
         </div>
 
         <div>
-          <h2 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">
+          <h2 class="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-cyan-600 mb-4 pb-2 border-b-2 border-fuchsia-200">
             Recent Posts
           </h2>
           <div class="space-y-6">
             <%= for {title, date, slug} <- recent_posts() do %>
               <div class="group">
                 <a href={~p"/post/#{slug}"} class="block">
-                  <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                  <h3 class="text-sm font-medium text-gray-800 group-hover:text-fuchsia-600 transition-colors">
                     {title}
                   </h3>
                   <p class="text-xs text-gray-500 mt-1 font-normal">
@@ -59,32 +79,50 @@
           </div>
         </div>
         <div>
-          <h2 class="mt-4 text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">
+          <h2 class="mt-8 text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-cyan-600 mb-4 pb-2 border-b-2 border-fuchsia-200">
             Posts by Tag
           </h2>
-          <%= for {tag, _posts} <- posts_by_tag() do %>
-            <div class="space-y-6">
-              <div class="group">
-                <a href={~p"/post/#{tag}"} class="block">
-                  <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                    {tag}
-                  </h3>
-                </a>
-              </div>
-            </div>
-          <% end %>
+          <div class="flex flex-wrap gap-2">
+            <%= for {tag, _posts} <- posts_by_tag() do %>
+              <a href={~p"/post/#{tag}"} class="inline-block px-3 py-1 bg-gradient-to-r from-fuchsia-200 to-cyan-200 rounded-full text-xs font-medium text-gray-800 hover:from-fuchsia-300 hover:to-cyan-300 transition-colors">
+                {tag}
+              </a>
+            <% end %>
+          </div>
         </div>
       </div>
-      
-<!-- Main content -->
-      <main class="flex-1 overflow-y-auto bg-gray-50">
+
+      <!-- Main content -->
+      <main class="flex-1 overflow-y-auto px-4">
         {@inner_content}
       </main>
     </div>
+
     <script>
       document.addEventListener('DOMContentLoaded', (event) => {
+        // Highlight.js initialization
         document.querySelectorAll('pre code').forEach((block) => {
           hljs.highlightBlock(block);
+        });
+
+        // Sidebar toggle functionality
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarClose = document.getElementById('sidebar-close');
+
+        sidebarToggle.addEventListener('click', () => {
+          sidebar.classList.toggle('-translate-x-full');
+        });
+
+        sidebarClose.addEventListener('click', () => {
+          sidebar.classList.add('-translate-x-full');
+        });
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', (event) => {
+          if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
+            sidebar.classList.add('-translate-x-full');
+          }
         });
       });
     </script>
