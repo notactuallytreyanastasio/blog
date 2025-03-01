@@ -28,7 +28,8 @@ defmodule BlogWeb.PostLive.Index do
        tech_posts: tech_posts,
        non_tech_posts: non_tech_posts,
        total_readers: total_readers,
-       page_title: "Tidbits & Thoughts - A Retro Hacker Blog"
+       page_title: "Tidbits & Thoughts - A Retro Hacker Blog",
+       cursor_position: nil
      )}
   end
 
@@ -37,9 +38,22 @@ defmodule BlogWeb.PostLive.Index do
     {:noreply, assign(socket, total_readers: total_readers)}
   end
 
+  def handle_event("mousemove", %{"x" => x, "y" => y}, socket) do
+    {:noreply, assign(socket, cursor_position: %{x: x, y: y})}
+  end
+
   def render(assigns) do
     ~H"""
-    <div class="py-12 px-4 sm:px-6 lg:px-8 min-h-screen">
+    <div
+      class="py-12 px-4 sm:px-6 lg:px-8 min-h-screen"
+      id="cursor-tracker-container"
+      phx-hook="CursorTracker"
+    >
+      <%= if @cursor_position do %>
+        <div class="fixed top-4 right-4 bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white px-3 py-1 rounded-lg shadow-md text-sm font-mono z-50">
+          x: <%= @cursor_position.x %>, y: <%= @cursor_position.y %>
+        </div>
+      <% end %>
       <div class="max-w-7xl mx-auto">
         <!-- Header with retro styling -->
         <header class="mb-12 text-center">

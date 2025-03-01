@@ -31,7 +31,7 @@ const CursorTracker = {
         this.pushEvent("mousemove", { x: x, y: y });
       }
     };
-
+    console.log("Mounted and have position")
     // Add the event listener to the document
     document.addEventListener("mousemove", this.handleMouseMove);
   },
