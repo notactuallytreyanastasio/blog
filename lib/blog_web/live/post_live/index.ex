@@ -45,7 +45,7 @@ defmodule BlogWeb.PostLive.Index do
        tech_posts: tech_posts,
        non_tech_posts: non_tech_posts,
        total_readers: total_readers,
-       page_title: "Tidbits & Thoughts - A Retro Hacker Blog",
+       page_title: "Thoughts & Tidbits",
        cursor_position: nil,
        reader_id: reader_id,
        visitor_cursors: visitor_cursors,
