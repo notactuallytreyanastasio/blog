@@ -52,7 +52,8 @@ defmodule Blog.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:earmark, "~> 1.4"},
-      {:websockex, "~> 0.4.3"}
+      {:websockex, "~> 0.4.3"},
+      {:pythonx, "~> 0.4.2"}
     ]
   end
 
