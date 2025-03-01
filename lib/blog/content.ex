@@ -64,7 +64,6 @@ defmodule Blog.Content do
           Map.update!(acc, :non_tech, fn posts -> [post | posts] end)
         end
       end)
-      |> IO.inspect()
 
     sorted_tech = Enum.sort_by(tech_list, & &1.written_on, {:desc, Date})
     sorted_non_tech = Enum.sort_by(non_tech_list, & &1.written_on, {:desc, Date})
