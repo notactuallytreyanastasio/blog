@@ -2,12 +2,18 @@ defmodule BlogWeb.PostLive.Index do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
   alias Blog.Content
+  alias Blog.Chat
 
   @presence_topic "blog_presence"
   @chat_topic "blog_chat"
+  @default_rooms ["general", "random", "programming", "music"]
+  @url_regex ~r/(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})/i
 
   # TODO add meta tags
   def mount(_params, _session, socket) do
+    # Ensure ETS chat store is started
+    Chat.ensure_started()
+
     reader_id = if connected?(socket) do
       id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
@@ -21,7 +27,8 @@ defmodule BlogWeb.PostLive.Index do
           joined_at: DateTime.utc_now(),
           cursor_position: nil,
           color: color,
-          display_name: nil
+          display_name: nil,
+          current_room: "general"
         })
 
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
@@ -42,6 +49,9 @@ defmodule BlogWeb.PostLive.Index do
 
     total_readers = map_size(visitor_cursors)
 
+    # Get messages for the default room
+    messages = if connected?(socket), do: Chat.get_messages("general"), else: []
+
     {:ok,
      assign(socket,
        tech_posts: tech_posts,
@@ -54,8 +64,19 @@ defmodule BlogWeb.PostLive.Index do
        name_form: %{"name" => ""},
        name_submitted: false,
        show_chat: false,
-       chat_messages: [],
-       chat_form: %{"message" => ""}
+       chat_messages: messages,
+       chat_form: %{"message" => ""},
+       current_room: "general",
+       chat_rooms: @default_rooms,
+       room_users: %{
+         "general" => 0,
+         "random" => 0,
+         "programming" => 0,
+         "music" => 0
+       },
+       show_mod_panel: false,
+       banned_word_form: %{"word" => ""},
+       mod_password: "letmein" # This is a simple example - in a real app you'd use proper auth
      )}
   end
 
@@ -67,12 +88,30 @@ defmodule BlogWeb.PostLive.Index do
 
     total_readers = map_size(visitor_cursors)
 
-    {:noreply, assign(socket, total_readers: total_readers, visitor_cursors: visitor_cursors)}
+    # Count users in each room
+    room_users =
+      visitor_cursors
+      |> Enum.reduce(%{
+        "general" => 0,
+        "random" => 0,
+        "programming" => 0,
+        "music" => 0
+      }, fn {_id, meta}, acc ->
+        room = meta.current_room || "general"
+        Map.update(acc, room, 1, &(&1 + 1))
+      end)
+
+    {:noreply, assign(socket, total_readers: total_readers, visitor_cursors: visitor_cursors, room_users: room_users)}
   end
 
   def handle_info({:new_chat_message, message}, socket) do
-    updated_messages = [message | socket.assigns.chat_messages] |> Enum.take(50)
-    {:noreply, assign(socket, chat_messages: updated_messages)}
+    # Only update messages if we're in the same room as the message
+    if message.room == socket.assigns.current_room do
+      updated_messages = [message | socket.assigns.chat_messages] |> Enum.take(50)
+      {:noreply, assign(socket, chat_messages: updated_messages)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("mousemove", %{"x" => x, "y" => y}, socket) do
@@ -116,36 +155,102 @@ defmodule BlogWeb.PostLive.Index do
     {:noreply, assign(socket, show_chat: !socket.assigns.show_chat)}
   end
 
+  def handle_event("toggle_mod_panel", _params, socket) do
+    {:noreply, assign(socket, show_mod_panel: !socket.assigns.show_mod_panel)}
+  end
+
+  def handle_event("add_banned_word", %{"word" => word, "password" => password}, socket) do
+    if password == socket.assigns.mod_password do
+      case Chat.add_banned_word(word) do
+        {:ok, _} ->
+          {:noreply, assign(socket, banned_word_form: %{"word" => ""})}
+        {:error, _} ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("validate_banned_word", %{"word" => word}, socket) do
+    {:noreply, assign(socket, banned_word_form: %{"word" => word})}
+  end
+
+  def handle_event("change_room", %{"room" => room}, socket) when room in @default_rooms do
+    reader_id = socket.assigns.reader_id
+
+    if reader_id do
+      # Update the presence with the new room
+      Presence.update(self(), @presence_topic, reader_id, fn meta ->
+        Map.put(meta, :current_room, room)
+      end)
+
+      # Get messages for the new room
+      messages = Chat.get_messages(room)
+
+      {:noreply, assign(socket, current_room: room, chat_messages: messages)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("send_chat_message", %{"message" => message}, socket) do
     reader_id = socket.assigns.reader_id
+    current_room = socket.assigns.current_room
     trimmed_message = String.trim(message)
 
     if reader_id && trimmed_message != "" do
-      # Get display name from presence
-      visitor_meta =
-        case Presence.get_by_key(@presence_topic, reader_id) do
-          %{metas: [meta | _]} -> meta
-          _ -> %{display_name: nil, color: "hsl(200, 70%, 60%)"}
-        end
+      # Check for banned words
+      case Chat.check_for_banned_words(trimmed_message) do
+        {:ok, _} ->
+          # Message is clean, proceed with sending
+          # Get display name from presence
+          visitor_meta =
+            case Presence.get_by_key(@presence_topic, reader_id) do
+              %{metas: [meta | _]} -> meta
+              _ -> %{display_name: nil, color: "hsl(200, 70%, 60%)"}
+            end
 
-      display_name = visitor_meta.display_name || "visitor #{String.slice(reader_id, -4, 4)}"
-      color = visitor_meta.color
+          display_name = visitor_meta.display_name || "visitor #{String.slice(reader_id, -4, 4)}"
+          color = visitor_meta.color
 
-      # Create the message
-      new_message = %{
-        id: System.os_time(:millisecond),
-        sender_id: reader_id,
-        sender_name: display_name,
-        sender_color: color,
-        content: trimmed_message,
-        timestamp: DateTime.utc_now()
-      }
+          # Create the message
+          new_message = %{
+            id: System.os_time(:millisecond),
+            sender_id: reader_id,
+            sender_name: display_name,
+            sender_color: color,
+            content: trimmed_message,
+            timestamp: DateTime.utc_now(),
+            room: current_room
+          }
 
-      # Broadcast the message to all clients
-      Phoenix.PubSub.broadcast(Blog.PubSub, @chat_topic, {:new_chat_message, new_message})
+          # Save message to ETS
+          Chat.save_message(new_message)
 
-      # Clear the input field
-      {:noreply, assign(socket, chat_form: %{"message" => ""})}
+          # Broadcast the message to all clients
+          Phoenix.PubSub.broadcast(Blog.PubSub, @chat_topic, {:new_chat_message, new_message})
+
+          # Clear the input field
+          {:noreply, assign(socket, chat_form: %{"message" => ""})}
+
+        {:error, :contains_banned_words} ->
+          # Message contains banned words, reject it
+          system_message = %{
+            id: System.os_time(:millisecond),
+            sender_id: "system",
+            sender_name: "ChatBot",
+            sender_color: "hsl(0, 100%, 50%)",
+            content: "Your message was not sent because it contains prohibited words.",
+            timestamp: DateTime.utc_now(),
+            room: current_room
+          }
+
+          # Only show the warning to the sender
+          updated_messages = [system_message | socket.assigns.chat_messages] |> Enum.take(50)
+
+          {:noreply, assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
+      end
     else
       {:noreply, socket}
     end
@@ -153,6 +258,22 @@ defmodule BlogWeb.PostLive.Index do
 
   def handle_event("validate_chat_message", %{"message" => message}, socket) do
     {:noreply, assign(socket, chat_form: %{"message" => message})}
+  end
+
+  # Function to format message text and make URLs clickable
+  def format_message_with_links(content) when is_binary(content) do
+    Regex.replace(@url_regex, content, fn url, _ ->
+      # Ensure URL has http/https prefix for the href attribute
+      href = if String.starts_with?(url, ["http://", "https://"]) do
+        url
+      else
+        "https://#{url}"
+      end
+
+      # Create the anchor tag with appropriate attributes
+      # Note: We use target="_blank" and rel="noopener noreferrer" for security
+      "<a href=\"#{href}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-blue-600 hover:underline break-all\">#{url}</a>"
+    end)
   end
 
   def render(assigns) do
@@ -185,6 +306,48 @@ defmodule BlogWeb.PostLive.Index do
         </div>
       <% end %>
 
+      <!-- Moderator Panel (Hidden from regular users) -->
+      <%= if @show_mod_panel do %>
+        <div class="fixed top-20 left-4 z-50 bg-gray-900 text-white p-4 rounded-lg shadow-xl border border-red-500 w-80">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold">Moderator Panel</h3>
+            <button phx-click="toggle_mod_panel" class="text-red-400 hover:text-red-300">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mb-4">
+            <h4 class="text-sm font-bold mb-2 text-red-400">Add Word to Ban List</h4>
+            <.form for={%{}} phx-submit="add_banned_word" phx-change="validate_banned_word">
+              <div class="flex flex-col space-y-2">
+                <input
+                  type="text"
+                  name="word"
+                  value={@banned_word_form["word"]}
+                  placeholder="Enter word to ban"
+                  class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm"
+                />
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Moderator password"
+                  class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm"
+                />
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded text-sm">
+                  Add to Ban List
+                </button>
+              </div>
+            </.form>
+          </div>
+
+          <div class="text-xs text-gray-400 mt-2">
+            This panel is not visible to users. The banned word list is not displayed anywhere.
+          </div>
+        </div>
+      <% end %>
+
       <!-- Join Chat Button -->
       <div class="fixed bottom-4 right-4 z-50">
         <button
@@ -199,59 +362,148 @@ defmodule BlogWeb.PostLive.Index do
         </button>
       </div>
 
-      <!-- AIM-style Chat Window -->
+      <!-- Expanded AIM-style Chat Window -->
       <%= if @show_chat do %>
-        <div class="fixed bottom-16 right-4 w-80 z-50 shadow-2xl">
-          <!-- Chat Window Header -->
-          <div class="bg-blue-800 text-white px-3 py-2 flex justify-between items-center rounded-t-md border-2 border-b-0 border-gray-400">
-            <div class="font-bold" style="font-family: 'Comic Sans MS', cursive, sans-serif;">
-              Blog Chat
+        <div class="fixed bottom-16 right-4 w-[90vw] md:w-[40rem] h-[70vh] z-50 shadow-2xl flex">
+          <!-- Room Sidebar -->
+          <div class="w-48 bg-gray-100 border-2 border-r-0 border-gray-400 rounded-l-md flex flex-col">
+            <!-- Room Header -->
+            <div class="bg-blue-800 text-white px-3 py-2 font-bold border-b-2 border-gray-400" style="font-family: 'Comic Sans MS', cursive, sans-serif;">
+              Chat Rooms
             </div>
-            <div class="flex space-x-1">
-              <div class="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-600"></div>
-              <div class="w-3 h-3 rounded-full bg-green-400 border border-green-600"></div>
-              <div class="w-3 h-3 rounded-full bg-red-400 border border-red-600 cursor-pointer" phx-click="toggle_chat"></div>
+
+            <!-- Room List -->
+            <div class="flex-1 overflow-y-auto p-2">
+              <%= for room <- @chat_rooms do %>
+                <button
+                  phx-click="change_room"
+                  phx-value-room={room}
+                  class={"w-full text-left mb-2 px-3 py-2 rounded #{if @current_room == room, do: 'bg-yellow-100 border border-yellow-300', else: 'hover:bg-gray-200'}"}
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                      <!-- Room Icon based on room name -->
+                      <%= case room do %>
+                        <% "general" -> %>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        <% "random" -> %>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        <% "programming" -> %>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                          </svg>
+                        <% "music" -> %>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                          </svg>
+                      <% end %>
+                      <span style="font-family: 'Tahoma', sans-serif;" class="text-sm"><%= String.capitalize(room) %></span>
+                    </div>
+                    <span class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                      <%= Map.get(@room_users, room, 0) %>
+                    </span>
+                  </div>
+                </button>
+              <% end %>
+            </div>
+
+            <!-- Online Users -->
+            <div class="p-2 border-t-2 border-gray-400">
+              <div class="text-xs text-gray-600 mb-1 font-bold">Online Users</div>
+              <div class="max-h-40 overflow-y-auto">
+                <%= for {_id, user} <- @visitor_cursors do %>
+                  <div class="flex items-center mb-1">
+                    <div class="w-2 h-2 rounded-full bg-green-500 mr-1"></div>
+                    <span class="text-xs truncate" style={"color: #{user.color};"}>
+                      <%= if user.display_name, do: user.display_name, else: "Anonymous" %>
+                    </span>
+                  </div>
+                <% end %>
+              </div>
             </div>
           </div>
 
-          <!-- Chat Window Body -->
-          <div class="bg-white border-2 border-t-0 border-b-0 border-gray-400 h-64 overflow-y-auto p-2" style="font-family: 'Courier New', monospace;" id="chat-messages">
-            <%= for message <- @chat_messages do %>
-              <div class="mb-2">
-                <span class="font-bold" style={"color: #{message.sender_color};"}>
-                  <%= message.sender_name %>:
-                </span>
-                <span class="text-gray-800 break-words">
-                  <%= message.content %>
-                </span>
-                <div class="text-xs text-gray-500">
-                  <%= Calendar.strftime(message.timestamp, "%I:%M %p") %>
+          <!-- Main Chat Area -->
+          <div class="flex-1 flex flex-col">
+            <!-- Chat Window Header -->
+            <div class="bg-blue-800 text-white px-3 py-2 flex justify-between items-center rounded-tr-md border-2 border-b-0 border-l-0 border-gray-400">
+              <div class="font-bold flex items-center" style="font-family: 'Comic Sans MS', cursive, sans-serif;">
+                <%= case @current_room do %>
+                  <% "general" -> %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    General Chat
+                  <% "random" -> %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Random Chat
+                  <% "programming" -> %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                    Programming Chat
+                  <% "music" -> %>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                    Music Chat
+                <% end %>
+              </div>
+              <div class="flex space-x-1">
+                <div class="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-600"></div>
+                <div class="w-3 h-3 rounded-full bg-green-400 border border-green-600"></div>
+                <div class="w-3 h-3 rounded-full bg-red-400 border border-red-600 cursor-pointer" phx-click="toggle_chat"></div>
+              </div>
+            </div>
+
+            <!-- Chat Window Body -->
+            <div class="bg-white border-2 border-t-0 border-b-0 border-l-0 border-gray-400 flex-1 overflow-y-auto p-3" style="font-family: 'Courier New', monospace;" id="chat-messages">
+              <%= for message <- @chat_messages do %>
+                <div class="mb-3 hover:bg-gray-50 p-2 rounded">
+                  <div class="flex items-center mb-1">
+                    <span class="font-bold" style={"color: #{message.sender_color};"}>
+                      <%= message.sender_name %>
+                    </span>
+                    <span class="text-xs text-gray-500 ml-2">
+                      <%= Calendar.strftime(message.timestamp, "%I:%M %p") %>
+                    </span>
+                  </div>
+                  <div class="text-gray-800 break-words pl-1 border-l-2" style={"border-color: #{message.sender_color};"}>
+                    <%= raw format_message_with_links(message.content) %>
+                  </div>
                 </div>
-              </div>
-            <% end %>
-            <%= if Enum.empty?(@chat_messages) do %>
-              <div class="text-center text-gray-500 italic mt-4">
-                No messages yet. Be the first to say hello!
-              </div>
-            <% end %>
-          </div>
+              <% end %>
+              <%= if Enum.empty?(@chat_messages) do %>
+                <div class="text-center text-gray-500 italic mt-8">
+                  <div class="mb-2">Welcome to the <%= String.capitalize(@current_room) %> room!</div>
+                  <div>No messages yet. Be the first to say hello!</div>
+                </div>
+              <% end %>
+            </div>
 
-          <!-- Chat Input Area -->
-          <div class="bg-gray-200 border-2 border-t-0 border-gray-400 rounded-b-md p-2">
-            <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message" class="flex">
-              <input
-                type="text"
-                name="message"
-                value={@chat_form["message"]}
-                placeholder="Type a message..."
-                maxlength="200"
-                class="flex-1 border border-gray-400 rounded px-2 py-1 text-sm"
-                autocomplete="off"
-              />
-              <button type="submit" class="ml-2 bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-3 py-1 rounded border border-yellow-600 text-sm">
-                Send
-              </button>
-            </.form>
+            <!-- Chat Input Area -->
+            <div class="bg-gray-200 border-2 border-t-0 border-l-0 border-gray-400 rounded-br-md p-3">
+              <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message" class="flex">
+                <input
+                  type="text"
+                  name="message"
+                  value={@chat_form["message"]}
+                  placeholder={"Type a message in #{String.capitalize(@current_room)}..."}
+                  maxlength="500"
+                  class="flex-1 border border-gray-400 rounded px-3 py-2 text-sm"
+                  autocomplete="off"
+                />
+                <button type="submit" class="ml-2 bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-4 py-2 rounded border border-yellow-600">
+                  Send
+                </button>
+              </.form>
+            </div>
           </div>
         </div>
       <% end %>
@@ -314,7 +566,7 @@ defmodule BlogWeb.PostLive.Index do
           <div class="flex justify-center items-center space-x-2 text-sm text-gray-600 mb-4">
             <div class="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-fuchsia-100 to-cyan-100 border border-fuchsia-200">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-fuchsia-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span><%= @total_readers %> <%= if @total_readers == 1, do: "person", else: "people" %> browsing</span>
             </div>
@@ -419,6 +671,19 @@ defmodule BlogWeb.PostLive.Index do
         <footer class="mt-16 text-center">
           <div class="inline-block px-4 py-2 bg-gradient-to-r from-fuchsia-100 to-cyan-100 rounded-full text-sm text-gray-700">
             <span class="font-mono">/* Crafted with ♥ and Elixir */</span>
+          </div>
+
+          <!-- Moderator Button - subtle but visible -->
+          <div class="mt-4 flex justify-center">
+            <button
+              phx-click="toggle_mod_panel"
+              class="flex items-center px-3 py-1 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-md transition-colors duration-200 bg-white hover:bg-gray-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Moderator Access
+            </button>
           </div>
         </footer>
     </div>
