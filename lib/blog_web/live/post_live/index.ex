@@ -3,6 +3,7 @@ defmodule BlogWeb.PostLive.Index do
   alias BlogWeb.Presence
   alias Blog.Content
   alias Blog.Chat
+  require Logger
 
   @presence_topic "blog_presence"
   @chat_topic "blog_chat"
@@ -31,8 +32,11 @@ defmodule BlogWeb.PostLive.Index do
           current_room: "general"
         })
 
+      # Subscribe to presence and chat topics
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
       Phoenix.PubSub.subscribe(Blog.PubSub, @chat_topic)
+
+      Logger.debug("User #{id} mounted and subscribed to topics: #{@presence_topic}, #{@chat_topic}")
       id
     else
       nil
@@ -49,8 +53,9 @@ defmodule BlogWeb.PostLive.Index do
 
     total_readers = map_size(visitor_cursors)
 
-    # Get messages for the default room
-    messages = if connected?(socket), do: Chat.get_messages("general"), else: []
+    # Get messages for the default room - always fetch from ETS
+    messages = Chat.get_messages("general")
+    Logger.debug("Loaded #{length(messages)} messages for general room during mount")
 
     {:ok,
      assign(socket,
@@ -105,11 +110,16 @@ defmodule BlogWeb.PostLive.Index do
   end
 
   def handle_info({:new_chat_message, message}, socket) do
+    Logger.debug("Received new chat message: #{inspect(message.id)} in room #{message.room} from #{message.sender_name}")
+
     # Only update messages if we're in the same room as the message
     if message.room == socket.assigns.current_room do
-      updated_messages = [message | socket.assigns.chat_messages] |> Enum.take(50)
+      # Get all messages from ETS to ensure we have the latest data
+      updated_messages = Chat.get_messages(socket.assigns.current_room)
+      Logger.debug("Updated chat messages for room #{socket.assigns.current_room}, now have #{length(updated_messages)} messages")
       {:noreply, assign(socket, chat_messages: updated_messages)}
     else
+      Logger.debug("Ignoring message for room #{message.room} since user is in room #{socket.assigns.current_room}")
       {:noreply, socket}
     end
   end
@@ -187,6 +197,7 @@ defmodule BlogWeb.PostLive.Index do
 
       # Get messages for the new room
       messages = Chat.get_messages(room)
+      Logger.debug("Changed room to #{room}, loaded #{length(messages)} messages")
 
       {:noreply, assign(socket, current_room: room, chat_messages: messages)}
     else
@@ -198,6 +209,8 @@ defmodule BlogWeb.PostLive.Index do
     reader_id = socket.assigns.reader_id
     current_room = socket.assigns.current_room
     trimmed_message = String.trim(message)
+
+    Logger.debug("Handling send_chat_message event for #{reader_id} in room #{current_room}")
 
     if reader_id && trimmed_message != "" do
       # Check for banned words
@@ -226,13 +239,22 @@ defmodule BlogWeb.PostLive.Index do
           }
 
           # Save message to ETS
-          Chat.save_message(new_message)
+          saved_message = Chat.save_message(new_message)
+          Logger.debug("Saved new message to ETS with ID: #{inspect(saved_message.id)}")
 
-          # Broadcast the message to all clients
-          Phoenix.PubSub.broadcast(Blog.PubSub, @chat_topic, {:new_chat_message, new_message})
+          # Broadcast the message to all clients - use broadcast! to raise errors
+          Phoenix.PubSub.broadcast!(
+            Blog.PubSub,
+            @chat_topic,
+            {:new_chat_message, saved_message}
+          )
+          Logger.debug("Broadcast message to topic #{@chat_topic} succeeded")
 
-          # Clear the input field
-          {:noreply, assign(socket, chat_form: %{"message" => ""})}
+          # Get updated messages from ETS to ensure consistency
+          updated_messages = Chat.get_messages(current_room)
+          Logger.debug("After sending: room #{current_room} has #{length(updated_messages)} messages")
+
+          {:noreply, assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
 
         {:error, :contains_banned_words} ->
           # Message contains banned words, reject it
@@ -274,6 +296,26 @@ defmodule BlogWeb.PostLive.Index do
       # Note: We use target="_blank" and rel="noopener noreferrer" for security
       "<a href=\"#{href}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-blue-600 hover:underline break-all\">#{url}</a>"
     end)
+  end
+
+  # Add a debug function to be used for troubleshooting
+  def debug_chat_state(socket) do
+    Logger.debug("------- CHAT DEBUG -------")
+    Logger.debug("Reader ID: #{socket.assigns.reader_id}")
+    Logger.debug("Current room: #{socket.assigns.current_room}")
+    Logger.debug("Message count: #{length(socket.assigns.chat_messages)}")
+
+    # Dump the contents of the ETS table for this room
+    room_messages = Chat.get_messages(socket.assigns.current_room)
+    Logger.debug("ETS messages for room: #{length(room_messages)}")
+
+    if length(room_messages) > 0 do
+      sample = Enum.take(room_messages, 2)
+      Logger.debug("Sample messages: #{inspect(sample)}")
+    end
+
+    Logger.debug("-------------------------")
+    socket
   end
 
   def render(assigns) do
@@ -688,12 +730,5 @@ defmodule BlogWeb.PostLive.Index do
         </footer>
     </div>
     """
-  end
-
-  # Add a debug function to help troubleshoot
-  def debug_presence(socket) do
-    IO.inspect(socket.assigns.reader_id, label: "Current reader_id")
-    IO.inspect(socket.assigns.visitor_cursors, label: "All visitor cursors")
-    socket
   end
 end
