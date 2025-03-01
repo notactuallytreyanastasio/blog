@@ -7,21 +7,38 @@ defmodule BlogWeb.PostLive.Index do
 
   # TODO add meta tags
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
+    reader_id = if connected?(socket) do
+      id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
+
+      # Generate a random color for this visitor
+      hue = :rand.uniform(360)
+      color = "hsl(#{hue}, 70%, 60%)"
 
       {:ok, _} =
-        Presence.track(self(), @presence_topic, reader_id, %{
+        Presence.track(self(), @presence_topic, id, %{
           page: "index",
-          joined_at: DateTime.utc_now()
+          joined_at: DateTime.utc_now(),
+          cursor_position: nil,
+          color: color,
+          display_name: nil
         })
 
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
+      id
+    else
+      nil
     end
 
     posts = Blog.Content.Post.all()
     %{tech: tech_posts, non_tech: non_tech_posts} = Content.categorize_posts(posts)
-    total_readers = Presence.list(@presence_topic) |> map_size()
+
+    # Get all current visitors from presence
+    visitor_cursors =
+      Presence.list(@presence_topic)
+      |> Enum.map(fn {id, %{metas: [meta | _]}} -> {id, meta} end)
+      |> Enum.into(%{})
+
+    total_readers = map_size(visitor_cursors)
 
     {:ok,
      assign(socket,
@@ -29,17 +46,60 @@ defmodule BlogWeb.PostLive.Index do
        non_tech_posts: non_tech_posts,
        total_readers: total_readers,
        page_title: "Tidbits & Thoughts - A Retro Hacker Blog",
-       cursor_position: nil
+       cursor_position: nil,
+       reader_id: reader_id,
+       visitor_cursors: visitor_cursors,
+       name_form: %{"name" => ""},
+       name_submitted: false
      )}
   end
 
   def handle_info(%{event: "presence_diff"}, socket) do
-    total_readers = Presence.list(@presence_topic) |> map_size()
-    {:noreply, assign(socket, total_readers: total_readers)}
+    visitor_cursors =
+      Presence.list(@presence_topic)
+      |> Enum.map(fn {id, %{metas: [meta | _]}} -> {id, meta} end)
+      |> Enum.into(%{})
+
+    total_readers = map_size(visitor_cursors)
+
+    {:noreply, assign(socket, total_readers: total_readers, visitor_cursors: visitor_cursors)}
   end
 
   def handle_event("mousemove", %{"x" => x, "y" => y}, socket) do
-    {:noreply, assign(socket, cursor_position: %{x: x, y: y})}
+    reader_id = socket.assigns.reader_id
+
+    # Update local cursor position
+    cursor_position = %{x: x, y: y}
+    socket = assign(socket, cursor_position: cursor_position)
+
+    if reader_id do
+      # Update the presence with the new cursor position
+      Presence.update(self(), @presence_topic, reader_id, fn meta ->
+        Map.put(meta, :cursor_position, cursor_position)
+      end)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("save_name", %{"name" => name}, socket) do
+    reader_id = socket.assigns.reader_id
+    trimmed_name = String.trim(name)
+
+    if reader_id && trimmed_name != "" do
+      # Update the presence with the display name
+      Presence.update(self(), @presence_topic, reader_id, fn meta ->
+        Map.put(meta, :display_name, trimmed_name)
+      end)
+
+      {:noreply, assign(socket, name_submitted: true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("validate_name", %{"name" => name}, socket) do
+    {:noreply, assign(socket, name_form: %{"name" => name})}
   end
 
   def render(assigns) do
@@ -49,6 +109,29 @@ defmodule BlogWeb.PostLive.Index do
       id="cursor-tracker-container"
       phx-hook="CursorTracker"
     >
+      <!-- Name input form if not yet submitted -->
+      <%= if @reader_id && !@name_submitted do %>
+        <div class="fixed top-4 left-4 z-50">
+          <.form for={%{}} phx-submit="save_name" phx-change="validate_name" class="flex items-center space-x-2">
+            <div class="bg-gradient-to-r from-fuchsia-500 to-cyan-500 p-0.5 rounded-lg shadow-md">
+              <div class="bg-white rounded-md px-3 py-2 flex items-center space-x-2">
+                <input
+                  type="text"
+                  name="name"
+                  value={@name_form["name"]}
+                  placeholder="WHAT'S YOUR NAME?"
+                  maxlength="20"
+                  class="text-sm font-mono text-gray-800 focus:outline-none"
+                />
+                <button type="submit" class="bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white text-xs font-bold px-3 py-1 rounded-md">
+                  SET
+                </button>
+              </div>
+            </div>
+          </.form>
+        </div>
+      <% end %>
+
       <%= if @cursor_position do %>
         <div class="fixed top-4 right-4 bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white px-3 py-1 rounded-lg shadow-md text-sm font-mono z-50">
           x: <%= @cursor_position.x %>, y: <%= @cursor_position.y %>
@@ -69,6 +152,30 @@ defmodule BlogWeb.PostLive.Index do
           ></div>
         </div>
       <% end %>
+
+      <!-- Show all visitor cursors except our own -->
+      <%= for {visitor_id, visitor} <- @visitor_cursors do %>
+        <%= if visitor_id != @reader_id && visitor.cursor_position do %>
+          <div
+            class="fixed pointer-events-none z-45 transition-all duration-200 ease-out"
+            style={"left: #{visitor.cursor_position.x}px; top: #{visitor.cursor_position.y}px; transform: translate(-50%, -50%);"}
+          >
+            <!-- Visitor cursor indicator -->
+            <div class="flex flex-col items-center">
+              <!-- Cursor icon -->
+              <svg width="16" height="16" viewBox="0 0 16 16" class="transform -rotate-12" style={"filter: drop-shadow(0 0 1px #000); fill: #{visitor.color};"}>
+                <path d="M0 0L5 12L7.5 9.5L14 14L16 0Z" />
+              </svg>
+
+              <!-- Visitor label with name if available -->
+              <div class="mt-1 px-2 py-0.5 rounded text-xs font-mono text-white shadow-sm whitespace-nowrap" style={"background-color: #{visitor.color}; opacity: 0.85;"}>
+                <%= if visitor.display_name, do: visitor.display_name, else: "visitor #{String.slice(visitor_id, -4, 4)}" %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+
       <div class="max-w-7xl mx-auto">
         <!-- Header with retro styling -->
         <header class="mb-12 text-center">
@@ -192,5 +299,12 @@ defmodule BlogWeb.PostLive.Index do
         </footer>
     </div>
     """
+  end
+
+  # Add a debug function to help troubleshoot
+  def debug_presence(socket) do
+    IO.inspect(socket.assigns.reader_id, label: "Current reader_id")
+    IO.inspect(socket.assigns.visitor_cursors, label: "All visitor cursors")
+    socket
   end
 end
