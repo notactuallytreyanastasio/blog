@@ -4,6 +4,7 @@ defmodule BlogWeb.PostLive.Index do
   alias Blog.Content
 
   @presence_topic "blog_presence"
+  @chat_topic "blog_chat"
 
   # TODO add meta tags
   def mount(_params, _session, socket) do
@@ -24,6 +25,7 @@ defmodule BlogWeb.PostLive.Index do
         })
 
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
+      Phoenix.PubSub.subscribe(Blog.PubSub, @chat_topic)
       id
     else
       nil
@@ -50,7 +52,10 @@ defmodule BlogWeb.PostLive.Index do
        reader_id: reader_id,
        visitor_cursors: visitor_cursors,
        name_form: %{"name" => ""},
-       name_submitted: false
+       name_submitted: false,
+       show_chat: false,
+       chat_messages: [],
+       chat_form: %{"message" => ""}
      )}
   end
 
@@ -63,6 +68,11 @@ defmodule BlogWeb.PostLive.Index do
     total_readers = map_size(visitor_cursors)
 
     {:noreply, assign(socket, total_readers: total_readers, visitor_cursors: visitor_cursors)}
+  end
+
+  def handle_info({:new_chat_message, message}, socket) do
+    updated_messages = [message | socket.assigns.chat_messages] |> Enum.take(50)
+    {:noreply, assign(socket, chat_messages: updated_messages)}
   end
 
   def handle_event("mousemove", %{"x" => x, "y" => y}, socket) do
@@ -102,6 +112,49 @@ defmodule BlogWeb.PostLive.Index do
     {:noreply, assign(socket, name_form: %{"name" => name})}
   end
 
+  def handle_event("toggle_chat", _params, socket) do
+    {:noreply, assign(socket, show_chat: !socket.assigns.show_chat)}
+  end
+
+  def handle_event("send_chat_message", %{"message" => message}, socket) do
+    reader_id = socket.assigns.reader_id
+    trimmed_message = String.trim(message)
+
+    if reader_id && trimmed_message != "" do
+      # Get display name from presence
+      visitor_meta =
+        case Presence.get_by_key(@presence_topic, reader_id) do
+          %{metas: [meta | _]} -> meta
+          _ -> %{display_name: nil, color: "hsl(200, 70%, 60%)"}
+        end
+
+      display_name = visitor_meta.display_name || "visitor #{String.slice(reader_id, -4, 4)}"
+      color = visitor_meta.color
+
+      # Create the message
+      new_message = %{
+        id: System.os_time(:millisecond),
+        sender_id: reader_id,
+        sender_name: display_name,
+        sender_color: color,
+        content: trimmed_message,
+        timestamp: DateTime.utc_now()
+      }
+
+      # Broadcast the message to all clients
+      Phoenix.PubSub.broadcast(Blog.PubSub, @chat_topic, {:new_chat_message, new_message})
+
+      # Clear the input field
+      {:noreply, assign(socket, chat_form: %{"message" => ""})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("validate_chat_message", %{"message" => message}, socket) do
+    {:noreply, assign(socket, chat_form: %{"message" => message})}
+  end
+
   def render(assigns) do
     ~H"""
     <div
@@ -129,6 +182,77 @@ defmodule BlogWeb.PostLive.Index do
               </div>
             </div>
           </.form>
+        </div>
+      <% end %>
+
+      <!-- Join Chat Button -->
+      <div class="fixed bottom-4 right-4 z-50">
+        <button
+          phx-click="toggle_chat"
+          class="group bg-gradient-to-r from-yellow-400 to-yellow-500 border-2 border-yellow-600 rounded-md px-4 py-2 font-bold text-blue-900 shadow-lg hover:shadow-xl transition-all duration-300"
+          style="font-family: 'Comic Sans MS', cursive, sans-serif; text-shadow: 1px 1px 0 #fff;"
+        >
+          <div class="flex items-center">
+            <div class="w-3 h-3 rounded-full bg-green-500 mr-2 group-hover:bg-red-500 transition-colors"></div>
+            <%= if @show_chat, do: "Close Chat", else: "Join Chat" %>
+          </div>
+        </button>
+      </div>
+
+      <!-- AIM-style Chat Window -->
+      <%= if @show_chat do %>
+        <div class="fixed bottom-16 right-4 w-80 z-50 shadow-2xl">
+          <!-- Chat Window Header -->
+          <div class="bg-blue-800 text-white px-3 py-2 flex justify-between items-center rounded-t-md border-2 border-b-0 border-gray-400">
+            <div class="font-bold" style="font-family: 'Comic Sans MS', cursive, sans-serif;">
+              Blog Chat
+            </div>
+            <div class="flex space-x-1">
+              <div class="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-600"></div>
+              <div class="w-3 h-3 rounded-full bg-green-400 border border-green-600"></div>
+              <div class="w-3 h-3 rounded-full bg-red-400 border border-red-600 cursor-pointer" phx-click="toggle_chat"></div>
+            </div>
+          </div>
+
+          <!-- Chat Window Body -->
+          <div class="bg-white border-2 border-t-0 border-b-0 border-gray-400 h-64 overflow-y-auto p-2" style="font-family: 'Courier New', monospace;" id="chat-messages">
+            <%= for message <- @chat_messages do %>
+              <div class="mb-2">
+                <span class="font-bold" style={"color: #{message.sender_color};"}>
+                  <%= message.sender_name %>:
+                </span>
+                <span class="text-gray-800 break-words">
+                  <%= message.content %>
+                </span>
+                <div class="text-xs text-gray-500">
+                  <%= Calendar.strftime(message.timestamp, "%I:%M %p") %>
+                </div>
+              </div>
+            <% end %>
+            <%= if Enum.empty?(@chat_messages) do %>
+              <div class="text-center text-gray-500 italic mt-4">
+                No messages yet. Be the first to say hello!
+              </div>
+            <% end %>
+          </div>
+
+          <!-- Chat Input Area -->
+          <div class="bg-gray-200 border-2 border-t-0 border-gray-400 rounded-b-md p-2">
+            <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message" class="flex">
+              <input
+                type="text"
+                name="message"
+                value={@chat_form["message"]}
+                placeholder="Type a message..."
+                maxlength="200"
+                class="flex-1 border border-gray-400 rounded px-2 py-1 text-sm"
+                autocomplete="off"
+              />
+              <button type="submit" class="ml-2 bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-3 py-1 rounded border border-yellow-600 text-sm">
+                Send
+              </button>
+            </.form>
+          </div>
         </div>
       <% end %>
 
