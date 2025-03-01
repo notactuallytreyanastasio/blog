@@ -20,23 +20,10 @@ defmodule BlogWeb.PythonLive.Index do
     end
 
     # Get the hello world result
-    hello_result = if python_status == :available do
-      try do
-        {result, _} = PythonRunner.hello_world()
-        result
-      rescue
-        e ->
-          Logger.error("Error running hello world: #{inspect(e)}")
-          "Error: #{inspect(e)}"
-      end
-    else
-      "Python unavailable"
-    end
 
     {:ok, assign(socket,
       code: @python_example,
       result: "",
-      hello_result: hello_result,
       python_status: python_status
     )}
   end
@@ -67,21 +54,6 @@ defmodule BlogWeb.PythonLive.Index do
 
       <div class="mb-6 p-4 rounded bg-gray-100">
         <h2 class="text-xl font-semibold mb-2">Python Status</h2>
-        <%= if @python_status == :available do %>
-          <div class="text-green-600 font-bold">✅ Python is available</div>
-        <% else %>
-          <div class="text-red-600 font-bold">❌ Python is unavailable</div>
-          <div class="mt-2 p-2 bg-yellow-100 rounded">
-            <p>Reason: <%= inspect(@python_status) %></p>
-          </div>
-        <% end %>
-      </div>
-
-      <div class="mb-6 p-4 rounded bg-gray-100">
-        <h2 class="text-xl font-semibold mb-2">Hello from Python</h2>
-        <div class="p-2 bg-white rounded border">
-          <%= @hello_result %>
-        </div>
       </div>
 
       <div class="mb-6">
