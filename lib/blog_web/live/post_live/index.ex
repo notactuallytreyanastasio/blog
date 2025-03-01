@@ -53,6 +53,21 @@ defmodule BlogWeb.PostLive.Index do
         <div class="fixed top-4 right-4 bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white px-3 py-1 rounded-lg shadow-md text-sm font-mono z-50">
           x: <%= @cursor_position.x %>, y: <%= @cursor_position.y %>
         </div>
+
+        <!-- Full screen crosshair with gradient and smooth transitions -->
+        <div class="fixed inset-0 pointer-events-none z-40">
+          <!-- Horizontal line across entire screen with gradient -->
+          <div
+            class="absolute w-full h-0.5 opacity-40 transition-all duration-200 ease-out"
+            style={"top: #{@cursor_position.y}px; background: linear-gradient(to right, #d946ef, #0891b2);"}
+          ></div>
+
+          <!-- Vertical line across entire screen with gradient -->
+          <div
+            class="absolute h-full w-0.5 opacity-40 transition-all duration-200 ease-out"
+            style={"left: #{@cursor_position.x}px; background: linear-gradient(to bottom, #d946ef, #0891b2);"}
+          ></div>
+        </div>
       <% end %>
       <div class="max-w-7xl mx-auto">
         <!-- Header with retro styling -->
