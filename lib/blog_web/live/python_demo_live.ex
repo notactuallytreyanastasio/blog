@@ -6,13 +6,7 @@ defmodule BlogWeb.PythonDemoLive do
   def mount(_params, _session, socket) do
     {:ok, assign(socket,
       result: nil,
-      code: """
-def hello_world():
-    return "Hello from Python! 🐍"
-
-result = hello_world()
-result
-""",
+      code: "",
       executing: false,
       error: nil
     )}
