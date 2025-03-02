@@ -8,7 +8,19 @@ defmodule BlogWeb.PythonDemoLive do
       python_result: nil,
       custom_code: "print('Hello from custom Python code!')",
       custom_result: nil,
-      error: nil
+      error: nil,
+      meta_attrs: [
+        %{name: "title", content: "A python interpreter in the browser, run via Elixir webserver"},
+        %{
+          name: "description",
+          content:
+          "Just go nuts. You really can run arbitrary python code right now"
+        },
+        %{
+          property: "og:title",
+          content: "lol a poor man's IDLE or something?"
+        },
+      ]
     )}
   end
 
