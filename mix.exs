@@ -21,7 +21,7 @@ defmodule Blog.MixProject do
   def application do
     [
       mod: {Blog.Application, []},
-      extra_applications: [:logger, :runtime_tools, :inet]
+      extra_applications: [:logger, :runtime_tools, :inets]
     ]
   end
 

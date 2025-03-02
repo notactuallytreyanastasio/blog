@@ -31,6 +31,7 @@ defmodule BlogWeb.Router do
     live "/allowed-chats", AllowedChatsLive, :index
     live "/hacker-news", HackerNewsLive, :index
     live "/python", PythonLive.Index, :index
+    live "/python-demo", PythonDemoLive, :index
   end
 
   # Other scopes may use custom stacks.
