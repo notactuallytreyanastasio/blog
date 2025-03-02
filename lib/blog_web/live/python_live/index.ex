@@ -13,35 +13,30 @@ defmodule BlogWeb.PythonLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Initialize the Python environment - now returns :ok instead of {:ok, _}
+    # Get Python environment information
+    python_info = PythonRunner.get_python_info()
+
+    # Initialize the Python environment
     python_status = case PythonRunner.init() do
       :ok -> :available
       {:error, reason} -> {:unavailable, reason}
     end
 
-    # Get the hello world result
+    # Get the hello world result if Python is available
+    hello_result = PythonRunner.hello_world()
 
     {:ok, assign(socket,
       code: @python_example,
       result: "",
-      python_status: python_status
+      hello_result: hello_result,
+      python_status: python_status,
+      python_info: python_info
     )}
   end
 
   @impl true
   def handle_event("run-code", %{"code" => code}, socket) do
-    result = if socket.assigns.python_status == :available do
-      try do
-        PythonRunner.run_code(code)
-      rescue
-        e ->
-          Logger.error("Error executing Python code: #{inspect(e)}")
-          "Error: #{inspect(e)}"
-      end
-    else
-      "Python is unavailable"
-    end
-
+    result = PythonRunner.run_code(code)
     Logger.info("Python code execution result: #{inspect(result)}")
     {:noreply, assign(socket, result: result)}
   end
@@ -54,6 +49,37 @@ defmodule BlogWeb.PythonLive.Index do
 
       <div class="mb-6 p-4 rounded bg-gray-100">
         <h2 class="text-xl font-semibold mb-2">Python Status</h2>
+        <%= if @python_status == :available do %>
+          <div class="text-green-600 font-bold">✅ Python is available</div>
+        <% else %>
+          <div class="text-red-600 font-bold">❌ Python is unavailable</div>
+          <div class="mt-2 p-2 bg-yellow-100 rounded">
+            <p>Reason: <%= if is_tuple(@python_status), do: elem(@python_status, 1), else: @python_status %></p>
+          </div>
+        <% end %>
+
+        <div class="mt-4">
+          <h3 class="text-lg font-semibold">Python Environment Info</h3>
+          <div class="bg-white p-2 rounded mt-2 text-sm font-mono">
+            <div><span class="font-bold">Pythonx Version:</span> <%= @python_info.pythonx_version %></div>
+            <div><span class="font-bold">Python Path:</span> <%= @python_info.python_path %></div>
+            <div><span class="font-bold">Cache Dir:</span> <%= @python_info.cache_dir %></div>
+            <div><span class="font-bold">Cache Exists:</span> <%= @python_info.cache_dir_exists %></div>
+            <div><span class="font-bold">Cache Writable:</span> <%= @python_info.cache_dir_writable %></div>
+            <div><span class="font-bold">/tmp Writable:</span> <%= @python_info.tmp_writable %></div>
+            <div><span class="font-bold">/app/.cache Writable:</span> <%= @python_info.app_cache_writable %></div>
+            <div><span class="font-bold">Current Dir Writable:</span> <%= @python_info.current_dir_writable %></div>
+            <div><span class="font-bold">Inets Started:</span> <%= @python_info.inets_started %></div>
+            <div><span class="font-bold">On Gigalixir:</span> <%= @python_info.on_gigalixir %></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-6 p-4 rounded bg-gray-100">
+        <h2 class="text-xl font-semibold mb-2">Hello from Python</h2>
+        <div class="p-2 bg-white rounded border">
+          <%= @hello_result %>
+        </div>
       </div>
 
       <div class="mb-6">
