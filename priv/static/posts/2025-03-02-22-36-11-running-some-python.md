@@ -1,7 +1,7 @@
 tags: tech,elixir,python,live_view
 So, I like making friends.
 
-## You can now run arbitrary python code on this blog
+## [You can now run arbitrary python code on this blog](https://www.bobbby.online/python-demo)
 At work, we have so many developers. 
 Pepsi is a really big company.
 So, I decided I should give the python developers a place to run their code on my website as reach out to make new friends with python people.
