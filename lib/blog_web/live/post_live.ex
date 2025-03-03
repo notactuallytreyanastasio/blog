@@ -48,17 +48,15 @@ defmodule BlogWeb.PostLive do
           |> assign(meta_attrs: meta_attrs)
           |> assign(page_title: post.title)
 
-        # require IEx; IEx.pry
         Logger.debug("Found post: #{inspect(post, pretty: true)}")
 
-        case Earmark.as_html(post.body, code_class_prefix: "language-") do
+        # Filter out tags line and process markdown
+        content_without_tags = remove_tags_line(post.body)
+        case Earmark.as_html(content_without_tags, code_class_prefix: "language-") do
           {:ok, html, _} ->
-            headers = extract_headers(post.body)
-
             socket =
               assign(socket,
                 html: html,
-                headers: headers,
                 reader_count: get_reader_count(slug)
               )
 
@@ -67,12 +65,10 @@ defmodule BlogWeb.PostLive do
           {:error, html, errors} ->
             # Still show the content even if there are markdown errors
             Logger.error("Markdown parsing warnings: #{inspect(errors)}")
-            headers = extract_headers(post.body)
 
             socket =
               assign(socket,
                 html: html,
-                headers: headers,
                 post: post
               )
 
@@ -81,8 +77,24 @@ defmodule BlogWeb.PostLive do
     end
   end
 
+  # Remove the tags line from the content
+  defp remove_tags_line(content) when is_binary(content) do
+    content
+    |> String.split("\n")
+    |> Enum.reject(&is_tags_line?/1)
+    |> Enum.join("\n")
+  end
+
+  # Check if a line is a tags line
+  defp is_tags_line?(line) do
+    String.starts_with?(String.trim(line), "tags:")
+  end
+
   defp truncated_post(body) do
-    String.slice(body, 0, 250) <> "..."
+    body
+    |> remove_tags_line()
+    |> String.slice(0, 250)
+    |> Kernel.<>("...")
   end
 
   def handle_info(%{event: "presence_diff"} = _diff, socket) do
@@ -111,19 +123,6 @@ defmodule BlogWeb.PostLive do
             {@reader_count - 1} other {if @reader_count == 2, do: "person", else: "people"} reading this post
           <% end %>
         </div>
-        <div class="mb-12 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
-          <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 border-gray-200">Table of Contents</h2>
-          <ul class="space-y-2">
-            <%= for {text, level} <- @headers do %>
-              <li class={[
-                "hover:text-blue-600 transition-colors",
-                level_to_padding(level)
-              ]}>
-                <a href={"##{generate_id(text)}"}>{text}</a>
-              </li>
-            <% end %>
-          </ul>
-        </div>
 
         <article class="p-8 bg-white rounded-lg border-2 border-gray-200">
           <div
@@ -138,40 +137,6 @@ defmodule BlogWeb.PostLive do
     </div>
     """
   end
-
-  defp extract_headers(markdown) do
-    markdown
-    |> String.split("\n")
-    |> Enum.filter(&header?/1)
-    |> Enum.map(fn line ->
-      {text, level} = parse_header(line)
-      {text, level}
-    end)
-  end
-
-  defp header?(line) do
-    String.match?(line, ~r/^#+\s+.+$/)
-  end
-
-  defp parse_header(line) do
-    [hashes | words] = String.split(line, " ")
-    level = String.length(hashes)
-    text = Enum.join(words, " ")
-    {text, level}
-  end
-
-  defp generate_id(text) do
-    text
-    |> String.downcase()
-    |> String.replace(~r/[^\w-]+/, "-")
-    |> String.trim("-")
-  end
-
-  defp level_to_padding(1), do: "pl-0"
-  defp level_to_padding(2), do: "pl-4"
-  defp level_to_padding(3), do: "pl-8"
-  defp level_to_padding(4), do: "pl-12"
-  defp level_to_padding(_), do: "pl-16"
 
   defp assign_meta_tags(socket, post) do
     description = get_preview(post.body)
@@ -223,8 +188,8 @@ defmodule BlogWeb.PostLive do
 
   defp get_preview(content, max_length \\ 200) do
     content
+    |> remove_tags_line()
     |> String.split("\n")
-    |> Enum.reject(&String.starts_with?(&1, "tags:"))
     |> Enum.join(" ")
     |> String.replace(~r/[#*`]/, "")
     |> String.replace(~r/\s+/, " ")

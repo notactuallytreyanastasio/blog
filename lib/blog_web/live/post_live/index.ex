@@ -14,6 +14,58 @@ defmodule BlogWeb.PostLive.Index do
   def mount(_params, _session, socket) do
     # Ensure ETS chat store is started
     Chat.ensure_started()
+    demos = [
+      %{
+        title: "Python Playground",
+        description: "Run Python code directly in your browser",
+        path: ~p"/python-demo",
+        icon: "code", # We'll use heroicons for these
+        color: "emerald" # Each demo gets a signature color
+      },
+      %{
+        title: "Cursor Party",
+        description: "Watch cursors dance across your screen",
+        path: ~p"/cursor-tracker",
+        icon: "cursor-arrow-rays",
+        color: "fuchsia"
+      },
+      %{
+        title: "Rainbow Chaos",
+        description: "Embrace the gay agenda",
+        path: ~p"/gay_chaos",
+        icon: "sparkles",
+        color: "violet"
+      },
+      %{
+        title: "Digital Mirror",
+        description: "See yourself in pixels",
+        path: ~p"/mirror",
+        icon: "camera",
+        color: "blue"
+      },
+      %{
+        title: "Reddit Feed",
+        description: "Your favorite subreddits, live",
+        path: ~p"/reddit-links",
+        icon: "newspaper",
+        color: "orange"
+      },
+      %{
+        title: "Emoji Skeets",
+        description: "Express yourself in flying emojis",
+        path: ~p"/emoji-skeets",
+        icon: "face-smile",
+        color: "yellow"
+      },
+      %{
+        title: "Hacker News Live",
+        description: "Real-time tech news feed",
+        path: ~p"/hacker-news",
+        icon: "command-line",
+        color: "red"
+      }
+    ]
+
 
     reader_id = if connected?(socket) do
       id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
@@ -60,6 +112,7 @@ defmodule BlogWeb.PostLive.Index do
     {:ok,
      assign(socket,
        tech_posts: tech_posts,
+       demos: demos,
        non_tech_posts: non_tech_posts,
        total_readers: total_readers,
        page_title: "Thoughts & Tidbits",
@@ -420,7 +473,7 @@ defmodule BlogWeb.PostLive.Index do
                 <button
                   phx-click="change_room"
                   phx-value-room={room}
-                  class={"w-full text-left mb-2 px-3 py-2 rounded #{if @current_room == room, do: 'bg-yellow-100 border border-yellow-300', else: 'hover:bg-gray-200'}"}
+                  class={"w-full text-left mb-2 px-3 py-2 rounded #{if @current_room == room, do: "bg-yellow-100 border border-yellow-300", else: "hover:bg-gray-200"}"}
                 >
                   <div class="flex items-center justify-between">
                     <div class="flex items-center">
@@ -683,26 +736,34 @@ defmodule BlogWeb.PostLive.Index do
             </div>
           </div>
 
-                  <!-- Non-Tech Posts Column -->
-          <div class="bg-gradient-to-br from-cyan-50 to-fuchsia-50 rounded-xl p-6 shadow-lg border border-cyan-100">
+          <!-- Tech Demos Column -->
+          <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 shadow-lg border border-indigo-100">
             <div class="flex items-center mb-6">
-              <div class="w-3 h-3 rounded-full bg-cyan-400 mr-2"></div>
-              <div class="w-3 h-3 rounded-full bg-fuchsia-400 mr-2"></div>
-              <div class="w-3 h-3 rounded-full bg-indigo-400 mr-4"></div>
-              <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-fuchsia-600">
-                Tech Demos
+              <div class="w-3 h-3 rounded-full bg-indigo-400 mr-2"></div>
+              <div class="w-3 h-3 rounded-full bg-purple-400 mr-2"></div>
+              <div class="w-3 h-3 rounded-full bg-pink-400 mr-4"></div>
+              <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                Interactive Demos
               </h2>
             </div>
 
             <div class="space-y-4">
-              <%= for post <- @non_tech_posts do %>
-                <div class="group bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-300 border-l-4 border-cyan-400">
-                  <.link navigate={~p"/post/#{post.slug}"} class="block">
-                    <h3 class="text-xl font-bold text-gray-800 group-hover:text-cyan-600 transition-colors">
-                      <%= "Reddit Links Feed" %>
-                    </h3>
-                  </.link>
-                </div>
+              <%= for demo <- @demos do %>
+                <.link navigate={demo.path} class="block">
+                  <div class={"group bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-300 border-l-4 border-#{demo.color}-400 hover:border-#{demo.color}-500"}>
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <h3 class={"text-xl font-bold text-gray-800 group-hover:text-#{demo.color}-600 transition-colors"}>
+                          <%= demo.title %>
+                        </h3>
+                        <p class="text-sm text-gray-600 mt-1">
+                          <%= demo.description %>
+                        </p>
+                      </div>
+                      <span class={"text-#{demo.color}-600 group-hover:translate-x-0.5 transition-transform"}>→</span>
+                    </div>
+                  </div>
+                </.link>
               <% end %>
             </div>
           </div>
@@ -711,9 +772,7 @@ defmodule BlogWeb.PostLive.Index do
 
         <!-- Retro footer -->
         <footer class="mt-16 text-center">
-          <div class="inline-block px-4 py-2 bg-gradient-to-r from-fuchsia-100 to-cyan-100 rounded-full text-sm text-gray-700">
-            <span class="font-mono">/* Crafted with ♥ and Elixir */</span>
-          </div>
+          <span class="font-mono">/* Crafted with ♥ and Elixir */</span>
 
           <!-- Moderator Button - subtle but visible -->
           <div class="mt-4 flex justify-center">

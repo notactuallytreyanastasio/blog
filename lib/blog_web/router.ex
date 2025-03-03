@@ -20,8 +20,7 @@ defmodule BlogWeb.Router do
 
     live "/", PostLive.Index
     live "/post/:slug", PostLive
-    live "/faketweets", FakeTweetsLive
-    live "/vim", VimTweetsLive
+
     live "/keylogger", KeyloggerLive
     live "/gay_chaos", RainbowLive, :index
     live "/mirror", MirrorLive, :index
@@ -32,6 +31,7 @@ defmodule BlogWeb.Router do
     live "/hacker-news", HackerNewsLive, :index
     live "/python", PythonLive.Index, :index
     live "/python-demo", PythonDemoLive, :index
+
   end
 
   # Other scopes may use custom stacks.
