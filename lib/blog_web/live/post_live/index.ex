@@ -625,23 +625,20 @@ defmodule BlogWeb.PostLive.Index do
       <% end %>
 
       <!-- Show all visitor cursors except our own -->
-      <%= for {visitor_id, visitor} <- @visitor_cursors do %>
-        <%= if visitor_id != @reader_id && visitor.cursor_position do %>
+      <%= for {id, meta} <- @visitor_cursors do %>
+        <%= if id != @reader_id && Map.get(meta, :cursor_position) do %>
           <div
-            class="fixed pointer-events-none z-45 transition-all duration-200 ease-out"
-            style={"left: #{visitor.cursor_position.x}px; top: #{visitor.cursor_position.y}px; transform: translate(-50%, -50%);"}
+            class="absolute w-4 h-4 pointer-events-none transform -translate-x-2 -translate-y-2 transition-all duration-100"
+            style={"left: #{Map.get(meta, :cursor_position, %{})[:x]}px; top: #{Map.get(meta, :cursor_position, %{})[:y]}px;"}
           >
-            <!-- Visitor cursor indicator -->
-            <div class="flex flex-col items-center">
-              <!-- Cursor icon -->
-              <svg width="16" height="16" viewBox="0 0 16 16" class="transform -rotate-12" style={"filter: drop-shadow(0 0 1px #000); fill: #{visitor.color};"}>
-                <path d="M0 0L5 12L7.5 9.5L14 14L16 0Z" />
-              </svg>
-
-              <!-- Visitor label with name if available -->
-              <div class="mt-1 px-2 py-0.5 rounded text-xs font-mono text-white shadow-sm whitespace-nowrap" style={"background-color: #{visitor.color}; opacity: 0.85;"}>
-                <%= if visitor.display_name, do: visitor.display_name, else: "visitor #{String.slice(visitor_id, -4, 4)}" %>
-              </div>
+            <div class="relative">
+              <div class={"w-4 h-4 absolute animate-ping rounded-full opacity-20"} style={"background-color: #{meta.color}"}></div>
+              <div class={"w-4 h-4 rounded-full"} style={"background-color: #{meta.color}"}></div>
+              <%= if meta.display_name do %>
+                <div class="absolute left-5 top-0 px-2 py-1 text-xs rounded bg-gray-800 text-white whitespace-nowrap">
+                  <%= meta.display_name %>
+                </div>
+              <% end %>
             </div>
           </div>
         <% end %>
