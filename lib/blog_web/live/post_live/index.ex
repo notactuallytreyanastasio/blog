@@ -23,36 +23,29 @@ defmodule BlogWeb.PostLive.Index do
         color: "emerald" # Each demo gets a signature color
       },
       %{
-        title: "Cursor Party",
-        description: "Watch cursors dance across your screen",
+        title: "Cursor Tracker",
+        description: "Track each others cursors like this, and draw points to show your favorite spots",
         path: ~p"/cursor-tracker",
         icon: "cursor-arrow-rays",
         color: "fuchsia"
       },
       %{
-        title: "Rainbow Chaos",
-        description: "Embrace the gay agenda",
+        title: "SSR animation, rainbows, fun, keyboard interaction (try typing on it)",
+        description: "A stupid demo to show some animations and interaction off",
         path: ~p"/gay_chaos",
         icon: "sparkles",
         color: "violet"
       },
       %{
-        title: "Digital Mirror",
-        description: "See yourself in pixels",
-        path: ~p"/mirror",
-        icon: "camera",
-        color: "blue"
-      },
-      %{
-        title: "Reddit Feed",
-        description: "Your favorite subreddits, live",
+        title: "Bluesky youtube videos",
+        description: "Live feed of YT links on blueskystreaming",
         path: ~p"/reddit-links",
         icon: "newspaper",
         color: "orange"
       },
       %{
         title: "Emoji Skeets",
-        description: "Express yourself in flying emojis",
+        description: "Filter bluesky firehose by emojis live",
         path: ~p"/emoji-skeets",
         icon: "face-smile",
         color: "yellow"
