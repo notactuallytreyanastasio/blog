@@ -155,7 +155,7 @@ defmodule BlogWeb.PostLive.Index do
         "programming" => 0,
         "music" => 0
       }, fn {_id, meta}, acc ->
-        room = meta.current_room || "general"
+        room = Map.get(meta, :current_room, "general")
         Map.update(acc, room, 1, &(&1 + 1))
       end)
 
