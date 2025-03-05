@@ -23,6 +23,13 @@ defmodule BlogWeb.PostLive.Index do
         color: "emerald" # Each demo gets a signature color
       },
       %{
+        title: "Wordle Clone",
+        description: "A clone of Wordle in almost pure LiveView, a tiny bit of JS for mobile keyboard support",
+        path: ~p"/wordle",
+        icon: "cursor-arrow-rays",
+        color: "orange"
+      },
+      %{
         title: "Cursor Tracker",
         description: "Track each others cursors like this, and draw points to show your favorite spots",
         path: ~p"/cursor-tracker",
