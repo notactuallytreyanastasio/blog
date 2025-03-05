@@ -14,11 +14,35 @@ defmodule BlogWeb.WordleLive do
     {:ok,
      assign(socket,
        target_word: word,
+       page_title: "Wordle Clone",
+       meta_attrs: [
+         %{name: "description", content: "A LiveView wordle clone"},
+         %{property: "og:title", content: "Wordle Clone"},
+         %{
+           property: "og:description",
+           content: "A LiveView wordle clone"
+         },
+         %{property: "og:type", content: "website"}
+       ],
        current_guess: "",
        guesses: [],
        game_over: false,
        message: nil,
        used_letters: %{}, # Will store letters and their states (correct, present, absent)
+       max_attempts: @max_attempts
+     )}
+  end
+
+  @impl true
+  def handle_event("new-game", _params, socket) do
+    {:noreply,
+     assign(socket,
+       target_word: WordStore.get_random_word(),
+       current_guess: "",
+       guesses: [],
+       game_over: false,
+       message: nil,
+       used_letters: %{},
        max_attempts: @max_attempts
      )}
   end
@@ -225,17 +249,4 @@ defmodule BlogWeb.WordleLive do
   defp keyboard_color_class(:absent), do: "bg-gray-600 text-white"
   defp keyboard_color_class(_), do: "bg-gray-200"
 
-  @impl true
-  def handle_event("new-game", _params, socket) do
-    {:noreply,
-     assign(socket,
-       target_word: WordStore.get_random_word(),
-       current_guess: "",
-       guesses: [],
-       game_over: false,
-       message: nil,
-       used_letters: %{},
-       max_attempts: @max_attempts
-     )}
-  end
 end
