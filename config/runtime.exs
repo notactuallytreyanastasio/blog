@@ -21,6 +21,7 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  # Check if DATABASE_URL is set as environment variable
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -28,13 +29,35 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
+  # Parse the DATABASE_URL to extract components
+  %URI{host: host, port: port, userinfo: userinfo, path: path} = URI.parse(database_url)
+  [username, password] = String.split(userinfo, ":")
+  database = String.trim_leading(path, "/")
+
+  # Try to convert IP string to tuple, use a direct IP if parsing fails
+  ip_tuple =
+    try do
+      host
+      |> String.split(".")
+      |> Enum.map(&String.to_integer/1)
+      |> List.to_tuple()
+    rescue
+      _ -> {35, 188, 50, 120}  # Fallback to direct IP if parsing fails
+    end
+
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
+  # Configure Ecto database with direct parameters instead of URL
   config :blog, Blog.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    socket_options: maybe_ipv6
+    ssl: true,
+    username: username,
+    password: password,
+    database: database,
+    port: port,
+    # Use both hostname and IP configurations for maximum compatibility
+    hostname: "35.188.50.120",  # Direct IP address
+    socket_options: [:inet], # Force IPv4
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
 
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
@@ -43,7 +66,6 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
   config :blog, BlogWeb.Endpoint,

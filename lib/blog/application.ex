@@ -21,6 +21,14 @@ defmodule Blog.Application do
     # Create cache directory with proper permissions
     File.mkdir_p!("/tmp/pythonx_venv")
 
+    # Configure DNS for database if in production
+    if config_env() == :prod do
+      db_host = get_db_host_from_env()
+      if db_host do
+        :ok = :inet_db.add_host({35, 188, 50, 120}, [String.to_charlist(db_host)])
+      end
+    end
+
     # Create the ETS table for Reddit links
     :ets.new(:reddit_links, [:named_table, :ordered_set, :public, read_concurrency: true])
 
@@ -82,5 +90,18 @@ defmodule Blog.Application do
   def config_change(changed, _new, removed) do
     BlogWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp config_env do
+    Application.get_env(:blog, :env, :prod)
+  end
+
+  defp get_db_host_from_env do
+    case System.get_env("DATABASE_URL") do
+      nil -> nil
+      url ->
+        %URI{host: host} = URI.parse(url)
+        host
+    end
   end
 end
