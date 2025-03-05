@@ -23,6 +23,7 @@ import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import Highlight from "./hooks/highlight"
 import CursorTracker from "./hooks/cursor_tracker"
+import FocusInput from "./hooks/focus_input"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
@@ -30,7 +31,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken},
   hooks: {
     Highlight,
-    CursorTracker
+    CursorTracker,
+    FocusInput
   }
 })
 

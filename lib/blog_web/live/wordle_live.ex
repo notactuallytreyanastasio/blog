@@ -158,7 +158,20 @@ defmodule BlogWeb.WordleLive do
     <div class="mx-auto max-w-[500px] p-2 md:p-4">
       <h1 class="text-3xl font-bold text-center mb-4">Wordle Clone</h1>
 
-      <div class="grid grid-rows-6 gap-[5px] mb-4" id="game-board" phx-window-keyup="key-press">
+      <%!-- Mobile keyboard input --%>
+      <input
+        type="text"
+        class="sr-only"
+        id="mobile-input"
+        phx-keyup="key-press"
+        autocomplete="off"
+        spellcheck="false"
+        autocapitalize="none"
+        inputmode="text"
+        phx-hook="FocusInput"
+      />
+
+      <div class="grid grid-rows-6 gap-[5px] mb-4" id="game-board">
         <%= for {guess, result} <- @guesses do %>
           <div class="grid grid-cols-5 gap-[5px]">
             <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
@@ -204,6 +217,7 @@ defmodule BlogWeb.WordleLive do
               <button
                 class={"px-2 py-4 rounded text-sm font-bold min-w-[2rem] md:min-w-[2.5rem] #{if key in ["Enter", "Backspace"], do: "text-xs min-w-[4rem]"} #{keyboard_color_class(Map.get(@used_letters, key))}"}
                 phx-click="key-press"
+                phx-touch-start="key-press"
                 phx-value-key={key}
               >
                 <%= if key == "Backspace" do %>
