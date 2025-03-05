@@ -209,12 +209,12 @@ defmodule BlogWeb.WordleLive do
         </div>
       <% end %>
 
-      <div class="grid grid-rows-3 gap-1.5 px-2">
+      <div class="grid grid-rows-3 gap-1 w-full">
         <%= for row <- keyboard_layout() do %>
-          <div class="flex justify-center gap-1.5">
+          <div class="flex justify-center gap-1">
             <%= for key <- row do %>
               <button
-                class={"px-2 py-4 rounded text-sm font-bold min-w-[2rem] md:min-w-[2.5rem] #{if key in ["Enter", "Backspace"], do: "text-xs min-w-[4rem]"} #{keyboard_color_class(Map.get(@used_letters, key))}"}
+                class={"flex-1 h-14 flex items-center justify-center rounded text-sm font-bold #{if key in ["Enter", "Backspace"], do: "px-1 text-xs", else: "px-0.5"} #{keyboard_color_class(Map.get(@used_letters, key))}"}
                 phx-click="key-press"
                 phx-touch-start="key-press"
                 phx-value-key={key}
