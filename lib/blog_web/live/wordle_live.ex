@@ -163,7 +163,6 @@ defmodule BlogWeb.WordleLive do
         type="text"
         class="sr-only"
         id="mobile-input"
-        phx-keyup="key-press"
         autocomplete="off"
         spellcheck="false"
         autocapitalize="none"
