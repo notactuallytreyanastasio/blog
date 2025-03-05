@@ -1,7 +1,7 @@
 defmodule BlogWeb.WordleLive do
   use BlogWeb, :live_view
   require Logger
-  alias Blog.Wordle.WordStore
+  alias Blog.Wordle.{WordStore, GuessChecker}
 
   @max_attempts 6
   @word_length 5
@@ -29,7 +29,8 @@ defmodule BlogWeb.WordleLive do
        game_over: false,
        message: nil,
        used_letters: %{}, # Will store letters and their states (correct, present, absent)
-       max_attempts: @max_attempts
+       max_attempts: @max_attempts,
+       hard_mode: false
      )}
   end
 
@@ -45,6 +46,16 @@ defmodule BlogWeb.WordleLive do
        used_letters: %{},
        max_attempts: @max_attempts
      )}
+  end
+
+  @impl true
+  def handle_event("toggle-hard-mode", _params, socket) do
+    # Only allow toggling if no guesses have been made
+    if Enum.empty?(socket.assigns.guesses) do
+      {:noreply, assign(socket, hard_mode: !socket.assigns.hard_mode)}
+    else
+      {:noreply, assign(socket, message: "Can't change difficulty mid-game")}
+    end
   end
 
   @impl true
@@ -78,61 +89,44 @@ defmodule BlogWeb.WordleLive do
     guess = socket.assigns.current_guess
 
     if WordStore.valid_guess?(guess) do
-      result = check_guess(guess, socket.assigns.target_word)
-      used_letters = update_used_letters(socket.assigns.used_letters, guess, result)
-      guesses = socket.assigns.guesses ++ [{guess, result}]
+      check_result =
+        if socket.assigns.hard_mode do
+          GuessChecker.check_guess(guess, socket.assigns.target_word, socket.assigns.guesses)
+        else
+          {:ok, GuessChecker.check_guess(guess, socket.assigns.target_word)}
+        end
 
-      won = guess == socket.assigns.target_word
-      lost = length(guesses) >= socket.assigns.max_attempts
+      case check_result do
+        {:ok, result} ->
+          used_letters = update_used_letters(socket.assigns.used_letters, guess, result)
+          guesses = socket.assigns.guesses ++ [{guess, result}]
 
-      socket =
-        socket
-        |> assign(
-          current_guess: "",
-          guesses: guesses,
-          used_letters: used_letters,
-          game_over: won || lost,
-          message:
-            case {won, lost} do
-              {true, _} -> "Congratulations! You won!"
-              {false, true} -> "Game Over! The word was #{socket.assigns.target_word}"
-              {false, false} -> nil
-            end
-        )
+          won = guess == socket.assigns.target_word
+          lost = length(guesses) >= socket.assigns.max_attempts
 
-      {:noreply, socket}
+          socket =
+            socket
+            |> assign(
+              current_guess: "",
+              guesses: guesses,
+              used_letters: used_letters,
+              game_over: won || lost,
+              message:
+                case {won, lost} do
+                  {true, _} -> "Congratulations! You won!"
+                  {false, true} -> "Game Over! The word was #{socket.assigns.target_word}"
+                  {false, false} -> nil
+                end
+            )
+
+          {:noreply, socket}
+
+        {:error, message} ->
+          {:noreply, assign(socket, message: message, current_guess: "")}
+      end
     else
       {:noreply, assign(socket, message: "Not in word list")}
     end
-  end
-
-  defp check_guess(guess, target) do
-    # Convert strings to character lists
-    guess_chars = String.graphemes(guess)
-    target_chars = String.graphemes(target)
-
-    # First pass: Find correct letters (green)
-    {greens, remaining_target} =
-      Enum.zip(guess_chars, target_chars)
-      |> Enum.reduce({[], target_chars}, fn {g, t}, {results, target_acc} ->
-        case g == t do
-          true -> {results ++ [:correct], List.delete(target_acc, t)}
-          false -> {results ++ [nil], target_acc}
-        end
-      end)
-
-    # Second pass: Find present letters (yellow)
-    guess_chars
-    |> Enum.with_index()
-    |> Enum.map(fn {char, i} ->
-      case {Enum.at(greens, i), char in remaining_target} do
-        {:correct, _} -> :correct
-        {_, true} ->
-          remaining_target = List.delete(remaining_target, char)
-          :present
-        _ -> :absent
-      end
-    end)
   end
 
   defp update_used_letters(used_letters, guess, results) do
@@ -156,7 +150,16 @@ defmodule BlogWeb.WordleLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-[500px] p-2 md:p-4">
-      <h1 class="text-3xl font-bold text-center mb-4">Wordle Clone</h1>
+      <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold">Wordle Clone</h1>
+        <button
+          class={"px-4 py-2 rounded font-bold text-sm #{if @hard_mode, do: "bg-yellow-500 text-white", else: "bg-gray-200 text-gray-700"}"}
+          phx-click="toggle-hard-mode"
+          disabled={not Enum.empty?(@guesses)}
+        >
+          HARD MODE
+        </button>
+      </div>
 
       <%!-- Mobile keyboard input --%>
       <input
@@ -261,5 +264,4 @@ defmodule BlogWeb.WordleLive do
   defp keyboard_color_class(:present), do: "bg-yellow-500 text-white"
   defp keyboard_color_class(:absent), do: "bg-gray-600 text-white"
   defp keyboard_color_class(_), do: "bg-gray-200"
-
 end
