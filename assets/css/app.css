@@ -46,3 +46,119 @@ input[type="checkbox"]:checked {
 input[type="checkbox"]:hover {
   border-color: #93c5fd;
 }
+
+/* Add these custom styles at the end of the file */
+
+/* Code block enhancements */
+.line-numbers-rows {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2.5rem;
+  font-size: 0.8em;
+  font-weight: 500;
+  padding: 0.75rem 0.5rem;
+  border-right: 1px solid #e5e7eb;
+  background-color: #f3f4f6;
+  color: #4b5563;
+  pointer-events: all;
+  opacity: 1;
+  user-select: none;
+}
+
+.line-numbers-rows > span {
+  display: block;
+  counter-increment: linenumber;
+  pointer-events: all;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  padding-right: 0.5rem;
+}
+
+.line-numbers-rows > span:hover {
+  background-color: #e5e7eb;
+  color: #374151;
+  font-weight: 600;
+}
+
+.line-numbers-rows > span.highlighted-line {
+  background-color: #fef3c7;
+  border-right: 2px solid #f59e0b;
+  font-weight: 600;
+  position: relative;
+}
+
+.line-numbers-rows > span.highlighted-line::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 100%;
+  bottom: 0;
+  width: 100vw;
+  background-color: rgba(254, 243, 199, 0.5);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Hide code toolbar until hover */
+pre:not(:hover) .code-toolbar {
+  opacity: 0.3;
+}
+
+pre {
+  border-radius: 0.25rem;
+  position: relative;
+}
+
+pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  overflow-x: auto;
+}
+
+pre::-webkit-scrollbar {
+  height: 8px;
+  cursor: pointer;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 4px;
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Fix mobile table display */
+.prose-sm table td {
+  padding: 0.25rem 0.5rem;
+}
+
+.prose-sm table th {
+  padding: 0.25rem 0.5rem;
+}
+
+/* Print styles */
+@media print {
+  .hidden {
+    display: none !important;
+  }
+
+  .max-w-full {
+    max-width: 100% !important;
+  }
+
+  body {
+    font-size: 12pt !important;
+  }
+
+  pre, code {
+    font-size: 10pt !important;
+    white-space: pre-wrap !important;
+  }
+
+  .prose-sm {
+    font-size: 12pt !important;
+  }
+}
