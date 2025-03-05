@@ -1,0 +1,1 @@
+web: eval "Blog.Release.migrate()" && _build/prod/rel/blog/bin/blog start
