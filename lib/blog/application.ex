@@ -30,7 +30,7 @@ defmodule Blog.Application do
     children = [
       # Start the WordStore as a supervised process
       Blog.Wordle.WordStore,
-      # Blog.Repo,
+      Blog.Repo,
       BlogWeb.Telemetry,
       {Phoenix.PubSub, name: Blog.PubSub},
       BlogWeb.Presence,
@@ -58,7 +58,7 @@ defmodule Blog.Application do
       children = [
         # Start the WordStore as a supervised process
         Blog.Wordle.WordStore,
-        # Blog.Repo,
+        Blog.Repo,
         BlogWeb.Telemetry,
         {Phoenix.PubSub, name: Blog.PubSub},
         BlogWeb.Presence,
