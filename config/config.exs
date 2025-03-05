@@ -7,6 +7,9 @@
 # General application configuration
 import Config
 
+config :blog,
+  ecto_repos: [Blog.Repo]
+
 # Configures the endpoint
 config :blog, BlogWeb.Endpoint,
   url: [host: "localhost"],
