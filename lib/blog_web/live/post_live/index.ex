@@ -11,7 +11,7 @@ defmodule BlogWeb.PostLive.Index do
   @url_regex ~r/(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})/i
 
   # TODO add meta tags
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     # Ensure ETS chat store is started
     Chat.ensure_started()
     demos = [
@@ -102,6 +102,13 @@ defmodule BlogWeb.PostLive.Index do
     messages = Chat.get_messages("general")
     Logger.debug("Loaded #{length(messages)} messages for general room during mount")
 
+    modal_state = case params["modal"] do
+      "tech_posts" -> :tech_posts
+      "non_tech_posts" -> :non_tech_posts
+      "demos" -> :demos
+      _ -> nil
+    end
+
     {:ok,
      assign(socket,
        tech_posts: tech_posts,
@@ -127,7 +134,25 @@ defmodule BlogWeb.PostLive.Index do
        },
        show_mod_panel: false,
        banned_word_form: %{"word" => ""},
-       mod_password: "letmein" # This is a simple example - in a real app you'd use proper auth
+       mod_password: "letmein", # This is a simple example - in a real app you'd use proper auth
+       show_mobile_modal: modal_state != nil,
+       selected_mobile_content: modal_state
+     )}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    modal_state = case params["modal"] do
+      "tech_posts" -> :tech_posts
+      "non_tech_posts" -> :non_tech_posts
+      "demos" -> :demos
+      _ -> nil
+    end
+
+    {:noreply,
+     assign(socket,
+       show_mobile_modal: modal_state != nil,
+       selected_mobile_content: modal_state
      )}
   end
 
@@ -364,7 +389,34 @@ defmodule BlogWeb.PostLive.Index do
     socket
   end
 
+  # Handle modal open event
+  def handle_event("open_mobile_modal", %{"content" => content}, socket) do
+    {:noreply, push_patch(socket, to: ~p"/?modal=#{content}")}
+  end
+
+  # Handle modal close event
+  def handle_event("close_mobile_modal", _params, socket) do
+    {:noreply, push_patch(socket, to: ~p"/")}
+  end
+
   def render(assigns) do
+    ~H"""
+    <div class="hidden md:block">
+      <%= render_desktop_view(assigns) %>
+    </div>
+
+    <div class="block md:hidden">
+      <%= render_mobile_view(assigns) %>
+    </div>
+
+    <%= if @selected_mobile_content do %>
+      <%= render_mobile_modal(assigns) %>
+    <% end %>
+    """
+  end
+
+  # Desktop view function
+  defp render_desktop_view(assigns) do
     ~H"""
     <div
       class="py-12 px-4 sm:px-6 lg:px-8 min-h-screen"
@@ -777,6 +829,81 @@ defmodule BlogWeb.PostLive.Index do
             </button>
           </div>
         </footer>
+    </div>
+    """
+  end
+
+  # Mobile view with buttons
+  defp render_mobile_view(assigns) do
+    ~H"""
+    <div class="flex flex-col items-center justify-center min-h-screen space-y-4">
+      <button phx-click="open_mobile_modal" phx-value-content="tech_posts" class="px-4 py-2 bg-blue-500 text-white rounded">TECH WRITING</button>
+      <button phx-click="open_mobile_modal" phx-value-content="non_tech_posts" class="px-4 py-2 bg-green-500 text-white rounded">OTHER WRITING</button>
+      <button phx-click="open_mobile_modal" phx-value-content="demos" class="px-4 py-2 bg-purple-500 text-white rounded">TOYS</button>
+
+      <button phx-click="toggle_chat" class="px-4 py-2 bg-yellow-500 text-white rounded">
+        <%= if @show_chat, do: "Close Chat", else: "Join Chat" %>
+      </button>
+
+      <%= if @show_chat do %>
+        <div class="fixed bottom-0 left-0 right-0 h-1/2 bg-white shadow-lg overflow-auto">
+          <%= for message <- @chat_messages do %>
+            <div class="p-2 border-b">
+              <strong><%= message.sender_name %></strong>:
+              <span><%= raw format_message_with_links(message.content) %></span>
+            <span class="text-xs text-gray-500 ml-2">
+              <%= Calendar.strftime(message.timestamp, "%I:%M %p") %>
+            </span>
+          </div>
+          <% end %>
+
+          <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message" class="p-2">
+            <input
+              type="text"
+              name="message"
+              value={@chat_form["message"]}
+              placeholder="Type a message..."
+              maxlength="500"
+              class="w-full border rounded px-3 py-2"
+              autocomplete="off"
+            />
+            <button type="submit" class="mt-2 w-full bg-blue-500 text-white py-2 rounded">
+              Send
+            </button>
+          </.form>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  # Mobile modal rendering
+  defp render_mobile_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div class="bg-white rounded-lg shadow-lg p-4 w-full max-w-md">
+        <button phx-click="close_mobile_modal" class="mb-4 text-red-500">Close</button>
+        <%= case @selected_mobile_content do %>
+          <% :tech_posts -> %>
+            <%= for post <- @tech_posts do %>
+              <.link navigate={~p"/post/#{post.slug}"} class="block mb-2 text-blue-600">
+                <%= post.title %>
+              </.link>
+            <% end %>
+          <% :non_tech_posts -> %>
+            <%= for post <- @non_tech_posts do %>
+              <.link navigate={~p"/post/#{post.slug}"} class="block mb-2 text-green-600">
+                <%= post.title %>
+              </.link>
+            <% end %>
+          <% :demos -> %>
+            <%= for demo <- @demos do %>
+              <.link navigate={demo.path} class="block mb-2 text-purple-600">
+                <%= demo.title %>
+              </.link>
+            <% end %>
+        <% end %>
+      </div>
     </div>
     """
   end
