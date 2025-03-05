@@ -28,6 +28,8 @@ defmodule Blog.Application do
     Blog.Chat.MessageStore.init()
 
     children = [
+      # Start the WordStore as a supervised process
+      Blog.Wordle.WordStore,
       # Blog.Repo,
       BlogWeb.Telemetry,
       {Phoenix.PubSub, name: Blog.PubSub},
@@ -54,6 +56,8 @@ defmodule Blog.Application do
       Blog.Chat.MessageStore.init()
 
       children = [
+        # Start the WordStore as a supervised process
+        Blog.Wordle.WordStore,
         # Blog.Repo,
         BlogWeb.Telemetry,
         {Phoenix.PubSub, name: Blog.PubSub},

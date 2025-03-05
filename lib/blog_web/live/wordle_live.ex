@@ -1,30 +1,15 @@
 defmodule BlogWeb.WordleLive do
   use BlogWeb, :live_view
   require Logger
+  alias Blog.Wordle.WordStore
 
   @max_attempts 6
   @word_length 5
 
-  @word_list ~w(
-    traps
-    aisle
-    horse
-  )
-
-  # We'll start with a small word list for testing
-  @valid_words ~w(
-    horse
-    traps
-    aisle
-    fives
-    nopes
-    house
-  )
-
   @impl true
   def mount(_params, _session, socket) do
-    # Pick a random word for now - we can make it daily later
-    word = Enum.random(@word_list)
+    # Pick a random word using WordStore
+    word = WordStore.get_random_word()
 
     {:ok,
      assign(socket,
@@ -68,7 +53,7 @@ defmodule BlogWeb.WordleLive do
   defp handle_guess(socket) do
     guess = socket.assigns.current_guess
 
-    if guess in @valid_words do
+    if WordStore.valid_guess?(guess) do
       result = check_guess(guess, socket.assigns.target_word)
       used_letters = update_used_letters(socket.assigns.used_letters, guess, result)
       guesses = socket.assigns.guesses ++ [{guess, result}]
@@ -168,15 +153,17 @@ defmodule BlogWeb.WordleLive do
               </div>
             <% end %>
           </div>
-        <% end %>
 
-        <%= for _i <- length(@guesses) + 1..@max_attempts do %>
-          <div class="grid grid-cols-5 gap-[5px]">
-            <%= for _j <- 1..5 do %>
-              <div class="w-full aspect-square flex items-center justify-center text-2xl font-bold rounded-none border-2 border-gray-200">
+          <%= if length(@guesses) < @max_attempts - 1 do %>
+            <%= for _i <- (length(@guesses) + 1)..(@max_attempts - 1) do %>
+              <div class="grid grid-cols-5 gap-[5px]">
+                <%= for _j <- 1..5 do %>
+                  <div class="w-full aspect-square flex items-center justify-center text-2xl font-bold rounded-none border-2 border-gray-200">
+                  </div>
+                <% end %>
               </div>
             <% end %>
-          </div>
+          <% end %>
         <% end %>
       </div>
 
@@ -242,7 +229,7 @@ defmodule BlogWeb.WordleLive do
   def handle_event("new-game", _params, socket) do
     {:noreply,
      assign(socket,
-       target_word: Enum.random(@valid_words),
+       target_word: WordStore.get_random_word(),
        current_guess: "",
        guesses: [],
        game_over: false,
