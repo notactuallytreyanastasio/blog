@@ -1,7 +1,7 @@
 defmodule Blog.Wordle.Game do
   use Ecto.Schema
   import Ecto.Changeset
-  alias Blog.Wordle.{WordStore, GuessChecker}
+  alias Blog.Wordle.{WordStore, GuessChecker, GameStore}
 
   @primary_key false
   embedded_schema do
@@ -36,6 +36,9 @@ defmodule Blog.Wordle.Game do
       max_attempts: @max_attempts,
       last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
     }
+
+    # Save to ETS storage
+    game = GameStore.save_game(game)
 
     # Broadcast that a new game has been created
     broadcast_update(game)
@@ -196,6 +199,9 @@ defmodule Blog.Wordle.Game do
   defp broadcast_update(game) do
     # Debug broadcast
     IO.puts("Broadcasting update for game #{game.session_id}, player: #{game.player_id}")
+
+    # Save to ETS storage before broadcasting
+    GameStore.save_game(game)
 
     Phoenix.PubSub.broadcast(
       Blog.PubSub,

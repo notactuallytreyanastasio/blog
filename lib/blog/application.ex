@@ -30,6 +30,8 @@ defmodule Blog.Application do
     children = [
       # Start the WordStore as a supervised process
       Blog.Wordle.WordStore,
+      # Start the GameStore for persisting game states
+      Blog.Wordle.GameStore,
       Blog.Repo,
       BlogWeb.Telemetry,
       {Phoenix.PubSub, name: Blog.PubSub},
@@ -58,6 +60,8 @@ defmodule Blog.Application do
       children = [
         # Start the WordStore as a supervised process
         Blog.Wordle.WordStore,
+        # Start the GameStore for persisting game states
+        Blog.Wordle.GameStore,
         Blog.Repo,
         BlogWeb.Telemetry,
         {Phoenix.PubSub, name: Blog.PubSub},

@@ -1,7 +1,7 @@
 defmodule BlogWeb.WordleGodLive do
   use BlogWeb, :live_view
   require Logger
-  alias Blog.Wordle.Game
+  alias Blog.Wordle.{Game, GameStore}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -11,8 +11,17 @@ defmodule BlogWeb.WordleGodLive do
     # Debug message
     IO.puts("WordleGodLive subscribed to #{Game.topic()}")
 
-    # Initialize with empty games map
-    {:ok, assign(socket, games: %{}, page_title: "Wordle God Mode")}
+    # Get all existing games from ETS
+    existing_games = GameStore.all_games_map()
+    IO.puts("Loaded #{map_size(existing_games)} existing games from ETS")
+
+    # Start a timer process for cleaning up stale games
+    if connected?(socket) do
+      :timer.send_interval(60_000, self(), :cleanup_stale_games)  # Every minute
+    end
+
+    # Initialize with games map from ETS
+    {:ok, assign(socket, games: existing_games, page_title: "Wordle God Mode")}
   end
 
   @impl true
@@ -21,8 +30,18 @@ defmodule BlogWeb.WordleGodLive do
     IO.puts("Received game update in WordleGodLive: #{game.session_id}")
 
     # Update the games map with the latest game state
-    # Always include active games - removed the filtering for troubleshooting
     games = Map.put(socket.assigns.games, game.session_id, game)
+
+    {:noreply, assign(socket, games: games)}
+  end
+
+  @impl true
+  def handle_info(:cleanup_stale_games, socket) do
+    # Clean up games that haven't had activity in the last hour
+    GameStore.cleanup_stale_games(1)
+
+    # Get fresh data from ETS
+    games = GameStore.all_games_map()
 
     {:noreply, assign(socket, games: games)}
   end
