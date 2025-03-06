@@ -34,29 +34,16 @@ if config_env() == :prod do
   [username, password] = String.split(userinfo, ":")
   database = String.trim_leading(path, "/")
 
-  # Try to convert IP string to tuple, use a direct IP if parsing fails
-  ip_tuple =
-    try do
-      host
-      |> String.split(".")
-      |> Enum.map(&String.to_integer/1)
-      |> List.to_tuple()
-    rescue
-      _ -> {35, 188, 50, 120}  # Fallback to direct IP if parsing fails
-    end
-
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
-
   # Configure Ecto database with direct parameters instead of URL
   config :blog, Blog.Repo,
-    ssl: true,
     username: username,
     password: password,
     database: database,
     port: port,
     # Use both hostname and IP configurations for maximum compatibility
     hostname: "35.188.50.120",  # Direct IP address
-    socket_options: [:inet], # Force IPv4
+    # Configure SSL with explicit verify mode set to 'none' to avoid certificate verification issues
+    ssl: [verify: :verify_none],
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
 
   secret_key_base =
