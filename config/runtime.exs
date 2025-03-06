@@ -42,8 +42,14 @@ if config_env() == :prod do
     port: port,
     # Use both hostname and IP configurations for maximum compatibility
     hostname: "35.188.50.120",  # Direct IP address
-    # Configure SSL with explicit verify mode set to 'none' to avoid certificate verification issues
-    ssl: [verify: :verify_none],
+    # Configure SSL with explicit verify mode and disable additional options that might conflict
+    ssl: [
+      verify: :verify_none,
+      cacerts: nil,
+      customize_hostname_check: [
+        match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+      ]
+    ],
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
 
   secret_key_base =
