@@ -53,7 +53,7 @@ defmodule Blog.Wordle.GuessChecker do
 
   defp get_required_letters(previous_results) do
     previous_results
-    |> Enum.flat_map(fn {word, results} ->
+    |> Enum.flat_map(fn %{word: word, result: results} ->
       word
       |> String.graphemes()
       |> Enum.zip(results)
