@@ -31,7 +31,7 @@ if config_env() == :prod do
 
   # Parse the DATABASE_URL to extract components
   config :blog, Blog.Repo,
-    url: System.get_env("DATABAUSE_URL")
+    url: System.get_env("DATABAUSE_URL"),
     ssl: false
 
   secret_key_base =
