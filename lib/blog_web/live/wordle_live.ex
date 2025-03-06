@@ -198,10 +198,38 @@ defmodule BlogWeb.WordleLive do
   defp keyboard_color_class(_), do: "bg-gray-200"
 
   defp get_player_id(socket) do
-    case get_connect_params(socket) do
-      %{"player_id" => player_id} when is_binary(player_id) and player_id != "" ->
-        player_id
+    # First look for a user_id in the session
+    user_id = case socket.assigns[:current_user] do
+      %{id: id} when is_integer(id) -> "user-#{id}"
       _ ->
+        # Try getting from the socket assigns.session (LiveView stores session here)
+        session = socket.assigns[:session] || %{}
+        case Map.get(session, "user_id") do
+          nil -> nil
+          id -> "user-#{id}"
+        end
+    end
+
+    # If we have a user_id, use it, otherwise try connect params or generate a random one
+    cond do
+      user_id ->
+        IO.puts("Using user_id from session: #{user_id}")
+        user_id
+
+      connected?(socket) ->
+        case get_connect_params(socket) do
+          %{"player_id" => player_id} when is_binary(player_id) and player_id != "" ->
+            player_id
+          _ ->
+            # Generate a random player ID and store it
+            random_id = "player-#{:rand.uniform(10000)}"
+            IO.puts("Generated new random player_id: #{random_id}")
+            random_id
+        end
+
+      true ->
+        # For the initial server render (not connected yet), generate a temporary ID
+        # This will be replaced once connected
         "player-#{:rand.uniform(10000)}"
     end
   end
