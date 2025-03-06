@@ -30,21 +30,9 @@ if config_env() == :prod do
       """
 
   # Parse the DATABASE_URL to extract components
-  %URI{host: host, port: port, userinfo: userinfo, path: path} = URI.parse(database_url)
-  [username, password] = String.split(userinfo, ":")
-  database = String.trim_leading(path, "/")
-
-  # Configure Ecto database with direct parameters instead of URL
   config :blog, Blog.Repo,
-    username: username,
-    password: password,
-    database: database,
-    port: port,
-    # Use both hostname and IP configurations for maximum compatibility
-    hostname: "35.188.50.120",  # Direct IP address
-    # Disable SSL completely
-    ssl: false,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+    url: System.get_env("DATABAUSE_URL")
+    ssl: false
 
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
