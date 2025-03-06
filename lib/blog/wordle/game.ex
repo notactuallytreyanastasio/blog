@@ -5,6 +5,8 @@ defmodule Blog.Wordle.Game do
 
   @primary_key false
   embedded_schema do
+    field :session_id, :string
+    field :player_id, :string
     field :target_word, :string
     field :current_guess, :string, default: ""
     field :guesses, {:array, :map}, default: []
@@ -13,19 +15,32 @@ defmodule Blog.Wordle.Game do
     field :used_letters, :map, default: %{}
     field :max_attempts, :integer, default: 6
     field :hard_mode, :boolean, default: false
+    field :last_activity, :string, default: nil # Changed to string to avoid serialization issues
   end
 
   @word_length 5
   @max_attempts 6
+  @topic "wordle:games"
 
   @doc """
   Creates a new game with a random target word.
   """
-  def new do
-    %__MODULE__{
+  def new(player_id \\ nil) do
+    session_id = generate_session_id()
+    player_id = player_id || "player-#{:rand.uniform(10000)}"
+
+    game = %__MODULE__{
+      session_id: session_id,
+      player_id: player_id,
       target_word: WordStore.get_random_word(),
-      max_attempts: @max_attempts
+      max_attempts: @max_attempts,
+      last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
     }
+
+    # Broadcast that a new game has been created
+    broadcast_update(game)
+
+    game
   end
 
   @doc """
@@ -33,6 +48,8 @@ defmodule Blog.Wordle.Game do
   """
   def changeset(game, attrs) do
     cast(game, attrs, [
+      :session_id,
+      :player_id,
       :target_word,
       :current_guess,
       :guesses,
@@ -40,7 +57,8 @@ defmodule Blog.Wordle.Game do
       :message,
       :used_letters,
       :max_attempts,
-      :hard_mode
+      :hard_mode,
+      :last_activity
     ])
   end
 
@@ -56,11 +74,21 @@ defmodule Blog.Wordle.Game do
         submit_guess(game)
 
       {false, "Backspace", _length} ->
-        {:ok, %{game | current_guess: String.slice(game.current_guess, 0..-2)}}
+        game = %{game |
+          current_guess: String.slice(game.current_guess, 0..-2),
+          last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+        broadcast_update(game)
+        {:ok, game}
 
       {false, key, length} when length < @word_length ->
         if key =~ ~r/^[a-zA-Z]$/ do
-          {:ok, %{game | current_guess: game.current_guess <> String.downcase(key)}}
+          game = %{game |
+            current_guess: game.current_guess <> String.downcase(key),
+            last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+          broadcast_update(game)
+          {:ok, game}
         else
           {:ok, game}
         end
@@ -98,6 +126,7 @@ defmodule Blog.Wordle.Game do
             guesses: guesses,
             used_letters: used_letters,
             game_over: won || lost,
+            last_activity: DateTime.utc_now() |> DateTime.to_iso8601(),
             message:
               case {won, lost} do
                 {true, _} -> "Congratulations! You won!"
@@ -106,13 +135,18 @@ defmodule Blog.Wordle.Game do
               end
           }
 
+          broadcast_update(game)
           {:ok, game}
 
         {:error, message} ->
-          {:error, %{game | message: message, current_guess: ""}}
+          game = %{game | message: message, current_guess: "", last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+          broadcast_update(game)
+          {:error, game}
       end
     else
-      {:error, %{game | message: "Not in word list"}}
+      game = %{game | message: "Not in word list", last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+      broadcast_update(game)
+      {:error, game}
     end
   end
 
@@ -121,9 +155,13 @@ defmodule Blog.Wordle.Game do
   """
   def toggle_hard_mode(game) do
     if Enum.empty?(game.guesses) do
-      {:ok, %{game | hard_mode: !game.hard_mode}}
+      game = %{game | hard_mode: !game.hard_mode, last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+      broadcast_update(game)
+      {:ok, game}
     else
-      {:error, %{game | message: "Can't change difficulty mid-game"}}
+      game = %{game | message: "Can't change difficulty mid-game", last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+      broadcast_update(game)
+      {:error, game}
     end
   end
 
@@ -131,14 +169,50 @@ defmodule Blog.Wordle.Game do
   Resets the game with a new target word.
   """
   def reset_game(game) do
-    %{game |
+    game = %{game |
       target_word: WordStore.get_random_word(),
       current_guess: "",
       guesses: [],
       game_over: false,
       message: nil,
-      used_letters: %{}
+      used_letters: %{},
+      last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
     }
+
+    broadcast_update(game)
+    game
+  end
+
+  @doc """
+  Returns the PubSub topic for wordle games
+  """
+  def topic, do: @topic
+
+  @doc """
+  Returns the specific topic for a single game
+  """
+  def game_topic(session_id), do: "#{@topic}:#{session_id}"
+
+  defp broadcast_update(game) do
+    # Debug broadcast
+    IO.puts("Broadcasting update for game #{game.session_id}, player: #{game.player_id}")
+
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      @topic,
+      {:game_updated, game}
+    )
+
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      game_topic(game.session_id),
+      {:game_updated, game}
+    )
+  end
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(16)
+    |> Base.encode16(case: :lower)
   end
 
   defp update_used_letters(used_letters, guess, results) do

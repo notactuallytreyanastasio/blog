@@ -5,12 +5,24 @@ defmodule BlogWeb.WordleLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Create a new game instance
-    game = Game.new()
+    player_id = get_player_id(socket)
+
+    # Create a new game instance with the player ID
+    game = Game.new(player_id)
+
+    # Log game creation
+    IO.puts("WordleLive: Created new game session #{game.session_id} for player #{player_id}")
+
+    # Subscribe to this specific game's topic
+    Phoenix.PubSub.subscribe(Blog.PubSub, Game.game_topic(game.session_id))
+
+    # Also subscribe to the global topic (for debug purposes)
+    Phoenix.PubSub.subscribe(Blog.PubSub, Game.topic())
 
     {:ok,
      assign(socket,
        game: game,
+       player_id: player_id,
        page_title: "Wordle Clone",
        meta_attrs: [
          %{name: "description", content: "A LiveView wordle clone"},
@@ -22,6 +34,19 @@ defmodule BlogWeb.WordleLive do
          %{property: "og:type", content: "website"}
        ]
      )}
+  end
+
+  @impl true
+  def handle_info({:game_updated, updated_game}, socket) do
+    # Only update if the session_id matches
+    if updated_game.session_id == socket.assigns.game.session_id do
+      IO.puts("WordleLive: Received update for MY game #{updated_game.session_id}")
+      {:noreply, assign(socket, game: updated_game)}
+    else
+      # For debug purposes, log that we received an update for another game
+      IO.puts("WordleLive: Received update for other game #{updated_game.session_id}")
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -62,6 +87,10 @@ defmodule BlogWeb.WordleLive do
         >
           HARD MODE
         </button>
+      </div>
+
+      <div class="text-sm text-gray-500 mb-4">
+        Player ID: <%= @game.player_id %>
       </div>
 
       <%!-- Mobile keyboard input --%>
@@ -167,4 +196,13 @@ defmodule BlogWeb.WordleLive do
   defp keyboard_color_class(:present), do: "bg-yellow-500 text-white"
   defp keyboard_color_class(:absent), do: "bg-gray-600 text-white"
   defp keyboard_color_class(_), do: "bg-gray-200"
+
+  defp get_player_id(socket) do
+    case get_connect_params(socket) do
+      %{"player_id" => player_id} when is_binary(player_id) and player_id != "" ->
+        player_id
+      _ ->
+        "player-#{:rand.uniform(10000)}"
+    end
+  end
 end

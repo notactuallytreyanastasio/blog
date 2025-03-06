@@ -32,6 +32,7 @@ defmodule BlogWeb.Router do
     live "/python", PythonLive.Index, :index
     live "/python-demo", PythonDemoLive, :index
     live "/wordle", WordleLive, :index
+    live "/wordle_god", WordleGodLive, :index
 
   end
 
