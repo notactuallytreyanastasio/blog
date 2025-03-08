@@ -11,7 +11,7 @@ defmodule BlogWeb.BookmarksFirehoseLive do
 
     {:ok,
      assign(socket,
-       page_title: "Reddit Firehose",
+       page_title: "Bookmarks Firehose",
        bookmarks: get_all_bookmarks()
      )}
   end
@@ -57,7 +57,7 @@ defmodule BlogWeb.BookmarksFirehoseLive do
             <div class="w-3 h-3 rounded-full bg-cyan-400 mr-2"></div>
             <div class="w-3 h-3 rounded-full bg-indigo-400 mr-4"></div>
             <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-cyan-600">
-              Reddit Firehose
+              Bookmarks Firehose
             </h2>
           </div>
 
@@ -66,12 +66,6 @@ defmodule BlogWeb.BookmarksFirehoseLive do
               <div class="flex items-center px-3 py-1.5 text-sm rounded-lg hover:bg-white/80 group transition-colors">
                 <div class="flex items-center gap-2 w-[140px] shrink-0">
                   <span class="font-mono text-fuchsia-600/70"><%= Calendar.strftime(bookmark.inserted_at, "%H:%M:%S") %></span>
-                </div>
-
-                <div class="w-[180px] shrink-0">
-                  <%= if subreddit = get_subreddit(bookmark.tags || []) do %>
-                    <span class="text-cyan-600/90 font-medium"><%= subreddit %></span>
-                  <% end %>
                 </div>
 
                 <a href={bookmark.url}
