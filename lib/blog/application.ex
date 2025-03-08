@@ -21,8 +21,9 @@ defmodule Blog.Application do
     # Create cache directory with proper permissions
     File.mkdir_p!("/tmp/pythonx_venv")
 
-    # Create the ETS table for Reddit links
+    # Create the ETS tables
     :ets.new(:reddit_links, [:named_table, :ordered_set, :public, read_concurrency: true])
+    :ets.new(:bookmarks_table, [:named_table, :set, :public, read_concurrency: true])
 
     # Initialize the chat message store
     Blog.Chat.MessageStore.init()
@@ -45,7 +46,8 @@ defmodule Blog.Application do
       Blog.Bookmarks.Store,
       # Start the Endpoint (http/https)
       BlogWeb.Endpoint,
-      BlueskyHose
+      BlueskyHose,
+      Blog.RedditBookmarkProcessor
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
@@ -77,7 +79,8 @@ defmodule Blog.Application do
         Blog.Bookmarks.Store,
         # Start the Endpoint (http/https)
         BlogWeb.Endpoint,
-        BlueskyHose
+        BlueskyHose,
+        Blog.RedditBookmarkProcessor
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]

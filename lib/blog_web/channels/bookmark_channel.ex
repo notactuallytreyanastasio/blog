@@ -21,6 +21,7 @@ defmodule BlogWeb.BookmarkChannel do
     case Store.add_bookmark(url, title, description, tags, favicon_url, socket.assigns.user_id) do
       {:ok, bookmark} ->
         broadcast!(socket, "bookmark_added", bookmark)
+        BlogWeb.Endpoint.broadcast("bookmark:firehose", "bookmark_added", bookmark)
         {:reply, {:ok, bookmark}, socket}
 
       error ->
@@ -32,6 +33,7 @@ defmodule BlogWeb.BookmarkChannel do
   def handle_in("delete_bookmark", %{"id" => id}, socket) do
     :ok = Store.delete_bookmark(id)
     broadcast!(socket, "bookmark_deleted", %{id: id})
+    BlogWeb.Endpoint.broadcast("bookmark:firehose", "bookmark_deleted", %{id: id})
     {:reply, :ok, socket}
   end
 
@@ -62,6 +64,7 @@ defmodule BlogWeb.BookmarkChannel do
     ) do
       {:ok, bookmark} ->
         broadcast!(socket, "bookmark_added", bookmark)
+        BlogWeb.Endpoint.broadcast("bookmark:firehose", "bookmark_added", bookmark)
         {:reply, {:ok, bookmark}, socket}
 
       error ->

@@ -43,7 +43,18 @@ defmodule BlueskyHose do
           {:new_skeet, skeet}
         )
 
-        case contains_external_uri?(skeet, record) do
+        case derive_reddit_embed_link(skeet, record) do
+          {:ok, link} ->
+
+            Phoenix.PubSub.broadcast(
+              Blog.PubSub,
+              "reddit_firehose",
+              {:reddit_link, {link, record}}
+            )
+          _ -> :no_nothing_no_link
+        end
+
+        case derive_youtube_embed_link(skeet, record) do
           {:ok, link} ->
             Phoenix.PubSub.broadcast(
               Blog.PubSub,
@@ -63,7 +74,31 @@ defmodule BlueskyHose do
     {:ok, state + 1}
   end
 
-  defp contains_external_uri?(skeet, record) when is_binary(skeet) do
+  defp derive_reddit_embed_link(skeet, record) when is_binary(skeet) do
+    uri =
+      case record do
+        %{
+          "record" => %{
+            "embed" => %{
+              "external" => %{
+                "uri" => uri
+              }
+            },
+          },
+        } ->
+          uri
+        _ -> nil
+      end
+    if uri do
+      if String.contains?(uri, "reddit.com") || String.contains?(uri, "reddi.it") do
+        {:ok, uri}
+      end
+    end
+  end
+
+
+
+  defp derive_youtube_embed_link(skeet, record) when is_binary(skeet) do
     uri =
       case record do
         %{

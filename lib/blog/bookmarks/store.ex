@@ -8,8 +8,30 @@ defmodule Blog.Bookmarks.Store do
   end
 
   def init(_) do
-    table = :ets.new(@table_name, [:named_table, :public, :set])
-    {:ok, %{table: table}}
+    # Table is already created in application.ex
+    {:ok, %{}}
+  end
+
+  def add_bookmark(bookmark) when is_map(bookmark) do
+    bookmark = %{
+      id: generate_id(),
+      url: bookmark.url,
+      title: bookmark.title,
+      description: bookmark.description,
+      tags: bookmark.tags || [],
+      favicon_url: bookmark.favicon_url,
+      user_id: bookmark.user_id,
+      inserted_at: DateTime.utc_now()
+    }
+
+    true = :ets.insert(@table_name, {bookmark.id, bookmark})
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "bookmarks:firehose",
+      %{bookmark: bookmark, action: :created}
+    )
+
+    {:ok, bookmark}
   end
 
   def add_bookmark(url, title, description, tags, favicon_url, user_id) do
@@ -18,7 +40,7 @@ defmodule Blog.Bookmarks.Store do
       url: url,
       title: title,
       description: description,
-      tags: tags,
+      tags: tags || [],
       favicon_url: favicon_url,
       user_id: user_id,
       inserted_at: DateTime.utc_now()
