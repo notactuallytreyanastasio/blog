@@ -1,6 +1,6 @@
 defmodule Blog.RedditBookmarkProcessor do
   use GenServer
-  alias Blog.Bookmarks.Store
+  alias Blog.Bookmarks.{Store, Bookmark}
   require Logger
 
   def start_link(_opts) do
@@ -13,38 +13,54 @@ defmodule Blog.RedditBookmarkProcessor do
   end
 
   def handle_info({:reddit_link, {link, record}}, %{count: count} = state) do
-    IO.puts("Received reddit link: #{link}")
     new_count = count + 1
-
-    # if rem(new_count, 5) == 0 do
-      create_bookmark_from_reddit_link(link, record)
-      IO.inspect(record, label: "Record for post")
-    # end
-
+    create_bookmark_from_reddit_link(link, record)
     {:noreply, %{state | count: new_count}}
   end
 
   defp create_bookmark_from_reddit_link(url, record) do
-    tags = extract_subreddit(url)
-    title = Map.get(record, "record", %{}) |> Map.get("embed", %{}) |> Map.get("external", %{}) |> Map.get("title", "Reddit")
-    IO.inspect(title, label: "Title derived")
-    bookmark = %{
+    subreddit = extract_subreddit(url)
+    title = Map.get(record, "record", %{})
+            |> Map.get("embed", %{})
+            |> Map.get("external", %{})
+            |> Map.get("title", "Reddit")
+
+    bookmark = Bookmark.new(%{
       url: url,
-      title: title || "Reddit: #{tags}",
+      title: title || "Reddit: #{subreddit}",
       description: "Auto-generated bookmark from Reddit link",
-      tags: [tags, "reddit"],
+      tags: [subreddit],
       user_id: "reddit_bot",
-      favicon_url: "https://www.reddit.com/favicon.ico",
-      inserted_at: DateTime.utc_now()
-    }
+      favicon_url: "https://www.reddit.com/favicon.ico"
+    })
 
-    Store.add_bookmark(bookmark)
-  end
-
-  defp extract_subreddit(url) do
-    case Regex.run(~r/reddit\.com\/r\/([^\/\?]+)/i, url) do
-      [_, subreddit] -> "r/#{subreddit}"
-      nil -> "reddit"
+    case Store.add_bookmark(bookmark) do
+      {:ok, bookmark} -> bookmark
+      {:error, reason} -> Logger.error("Failed to create bookmark: #{reason}")
     end
   end
+
+  defp extract_subreddit(url) when is_binary(url) do
+    # Handle various Reddit URL formats
+    cond do
+      # Handle old.reddit.com URLs
+      Regex.match?(~r{(?:old\.)?reddit\.com/r/([^/\s]+)}, url) ->
+        [_, subreddit] = Regex.run(~r{(?:old\.)?reddit\.com/r/([^/\s]+)}, url)
+        "r/#{String.downcase(subreddit)}"
+
+      # Handle reddit.com URLs
+      Regex.match?(~r{reddit\.com/r/([^/\s]+)}, url) ->
+        [_, subreddit] = Regex.run(~r{reddit\.com/r/([^/\s]+)}, url)
+        "r/#{String.downcase(subreddit)}"
+
+      # Handle reddi.it short URLs by following them
+      String.contains?(url, "redd.it") ->
+        "reddit"  # For now just return reddit, we could follow the URL if needed
+
+      true ->
+        "reddit"
+    end
+  end
+
+  defp extract_subreddit(_), do: "reddit"
 end

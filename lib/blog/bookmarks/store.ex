@@ -1,5 +1,6 @@
 defmodule Blog.Bookmarks.Store do
   use GenServer
+  alias Blog.Bookmarks.Bookmark
 
   @table_name :bookmarks_table
 
@@ -12,42 +13,42 @@ defmodule Blog.Bookmarks.Store do
     {:ok, %{}}
   end
 
-  def add_bookmark(bookmark) when is_map(bookmark) do
-    bookmark = %{
-      id: generate_id(),
-      url: bookmark.url,
-      title: bookmark.title,
-      description: bookmark.description,
-      tags: bookmark.tags || [],
-      favicon_url: bookmark.favicon_url,
-      user_id: bookmark.user_id,
-      inserted_at: DateTime.utc_now()
-    }
+  def add_bookmark(%Bookmark{} = bookmark) do
+    case Bookmark.validate(bookmark) do
+      {:ok, bookmark} ->
+        true = :ets.insert(@table_name, {bookmark.id, bookmark})
+        Phoenix.PubSub.broadcast(
+          Blog.PubSub,
+          "bookmark:firehose",
+          %{event: "bookmark_added", payload: bookmark}
+        )
+        {:ok, bookmark}
 
-    true = :ets.insert(@table_name, {bookmark.id, bookmark})
-    Phoenix.PubSub.broadcast(
-      Blog.PubSub,
-      "bookmarks:firehose",
-      %{bookmark: bookmark, action: :created}
-    )
-
-    {:ok, bookmark}
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
+  # Chrome extension compatibility
   def add_bookmark(url, title, description, tags, favicon_url, user_id) do
-    bookmark = %{
-      id: generate_id(),
+    attrs = %{
       url: url,
       title: title,
       description: description,
       tags: tags || [],
       favicon_url: favicon_url,
-      user_id: user_id,
-      inserted_at: DateTime.utc_now()
+      user_id: user_id
     }
 
-    true = :ets.insert(@table_name, {bookmark.id, bookmark})
-    {:ok, bookmark}
+    attrs
+    |> Bookmark.new()
+    |> add_bookmark()
+  end
+
+  def add_bookmark(attrs) when is_map(attrs) do
+    attrs
+    |> Bookmark.new()
+    |> add_bookmark()
   end
 
   def get_bookmark(id) do
@@ -58,20 +59,25 @@ defmodule Blog.Bookmarks.Store do
   end
 
   def list_bookmarks(user_id) do
-    :ets.match_object(@table_name, {:_, %{user_id: user_id}})
+    :ets.match_object(@table_name, {:_, %Bookmark{user_id: user_id}})
     |> Enum.map(fn {_id, bookmark} -> bookmark end)
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
   end
 
   def delete_bookmark(id) do
     :ets.delete(@table_name, id)
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "bookmark:firehose",
+      %{event: "bookmark_deleted", payload: %{id: id}}
+    )
     :ok
   end
 
   def search_bookmarks(user_id, query) do
     query = String.downcase(query)
 
-    :ets.match_object(@table_name, {:_, %{user_id: user_id}})
+    :ets.match_object(@table_name, {:_, %Bookmark{user_id: user_id}})
     |> Enum.map(fn {_id, bookmark} -> bookmark end)
     |> Enum.filter(fn bookmark ->
       String.contains?(String.downcase(bookmark.title || ""), query) ||
@@ -81,6 +87,4 @@ defmodule Blog.Bookmarks.Store do
     end)
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
   end
-
-  defp generate_id, do: System.unique_integer([:positive, :monotonic]) |> to_string()
 end
