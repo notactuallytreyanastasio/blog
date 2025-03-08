@@ -8,6 +8,7 @@ defmodule BlogWeb.UserSocket do
 
   ## Channels
   channel "fireworks", BlogWeb.FireworkChannel
+  channel "bookmark:*", BlogWeb.BookmarkChannel
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After
@@ -22,9 +23,10 @@ defmodule BlogWeb.UserSocket do
   # See `Phoenix.Token` documentation for examples in
   # performing token verification on connect.
   @impl true
-  def connect(_params, socket, _connect_info) do
-    {:ok, socket}
+  def connect(%{"token" => token}, socket, _connect_info) do
+    {:ok, assign(socket, :user_id, token)}
   end
+  def connect(_params, socket, _connect_info), do: {:ok, socket}
 
   # Socket id's are topics that allow you to identify all sockets for a given user:
   #

@@ -41,6 +41,8 @@ defmodule Blog.Application do
       Blog.Chat.Presence,
       # Start the cursor points manager
       Blog.CursorPoints,
+      # Start the bookmark store
+      Blog.Bookmarks.Store,
       # Start the Endpoint (http/https)
       BlogWeb.Endpoint,
       BlueskyHose
@@ -71,6 +73,8 @@ defmodule Blog.Application do
         Blog.Chat.Presence,
         # Start the cursor points manager
         Blog.CursorPoints,
+        # Start the bookmark store
+        Blog.Bookmarks.Store,
         # Start the Endpoint (http/https)
         BlogWeb.Endpoint,
         BlueskyHose
