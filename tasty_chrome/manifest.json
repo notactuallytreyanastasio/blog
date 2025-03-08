@@ -1,0 +1,32 @@
+{
+  "name": "Tasty Bookmarks",
+  "version": "1.0.0",
+  "description": "Save bookmarks to your Tasty application",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://localhost:4000/*",
+    "ws://localhost:4000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  }
+}

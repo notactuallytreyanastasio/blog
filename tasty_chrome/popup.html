@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tasty Bookmarks</title>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 360px;
+      min-height: 400px;
+      margin: 0;
+      padding: 0;
+      font-family: 'Courier New', monospace;
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #e0e0e0;
+    }
+    .container {
+      padding: 16px;
+    }
+    .header {
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #4ade80;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .title span {
+      color: #f59e0b;
+    }
+    .form-group {
+      margin-bottom: 12px;
+    }
+    label {
+      display: block;
+      margin-bottom: 4px;
+      color: #9ca3af;
+    }
+    input[type="text"], input[type="url"], textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #4c1d95;
+      border-radius: 4px;
+      background-color: #111827;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      box-sizing: border-box;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .tags-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #4c1d95;
+      border-radius: 4px;
+      background-color: #111827;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      box-sizing: border-box;
+    }
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      gap: 4px;
+    }
+    .tag {
+      background-color: #4c1d95;
+      color: #e0e0e0;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+    }
+    .tag .remove {
+      margin-left: 4px;
+      cursor: pointer;
+      color: #d1d5db;
+    }
+    .button {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(90deg, #4ade80 0%, #3b82f6 100%);
+      border: none;
+      border-radius: 4px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+      margin-top: 8px;
+    }
+    .button:hover {
+      transform: scale(1.02);
+    }
+    .button:disabled {
+      background: #6b7280;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .status {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 14px;
+    }
+    .error {
+      color: #ef4444;
+    }
+    .success {
+      color: #10b981;
+    }
+    .token-input {
+      margin-bottom: 16px;
+    }
+    .loader {
+      border: 3px solid #1f2937;
+      border-top: 3px solid #3b82f6;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+      display: none;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background-color: #4ade80;
+      margin-left: 4px;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      from, to { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 class="title">
+        Tasty<span>@</span>Bookmarks<div class="cursor"></div>
+      </h1>
+    </div>
+
+    <div class="form-group token-input">
+      <label for="token">Authentication Token:</label>
+      <input type="text" id="token" placeholder="Paste your WebSocket token here...">
+    </div>
+
+    <form id="bookmark-form">
+      <div class="form-group">
+        <label for="title">Title:</label>
+        <input type="text" id="title" required>
+      </div>
+
+      <div class="form-group">
+        <label for="url">URL:</label>
+        <input type="url" id="url" required>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description (optional):</label>
+        <textarea id="description"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="tags">Tags (optional):</label>
+        <input type="text" id="tags-input" class="tags-input" placeholder="Add tags separated by commas...">
+        <div class="tags-container" id="tags-container"></div>
+      </div>
+
+      <button type="submit" class="button" id="save-button">
+        Save Bookmark <span>▶</span>
+      </button>
+    </form>
+
+    <div class="status" id="status">
+      <div class="loader" id="loader"></div>
+      <div id="message"></div>
+    </div>
+  </div>
+
+  <script src="phoenix_simple.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
