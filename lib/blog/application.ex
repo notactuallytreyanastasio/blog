@@ -30,6 +30,7 @@ defmodule Blog.Application do
     children = [
       # Start the Telemetry supervisor
       BlogWeb.Telemetry,
+      BlueskyHose,
       # Start the PubSub system
       {Phoenix.PubSub, name: Blog.PubSub},
       # Start Finch
