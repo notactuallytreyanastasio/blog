@@ -21,32 +21,23 @@ defmodule Blog.Application do
     # Create cache directory with proper permissions
     File.mkdir_p!("/tmp/pythonx_venv")
 
-    # Create the ETS tables
-    :ets.new(:reddit_links, [:named_table, :ordered_set, :public, read_concurrency: true])
-    :ets.new(:bookmarks_table, [:named_table, :set, :public, read_concurrency: true])
+    # Create the ETS tables - in a safe way that handles table already existing
+    create_ets_tables()
 
     # Initialize the chat message store
     Blog.Chat.MessageStore.init()
 
     children = [
-      # Start the WordStore as a supervised process
-      Blog.Wordle.WordStore,
-      # Start the GameStore for persisting game states
-      Blog.Wordle.GameStore,
-      Blog.Repo,
+      # Start the Telemetry supervisor
       BlogWeb.Telemetry,
+      # Start the PubSub system
       {Phoenix.PubSub, name: Blog.PubSub},
-      BlogWeb.Presence,
+      # Start Finch
       {Finch, name: Blog.Finch},
-      # Start the presence tracker for chat
-      Blog.Chat.Presence,
-      # Start the cursor points manager
-      Blog.CursorPoints,
-      # Start the bookmark store
-      Blog.Bookmarks.Store,
       # Start the Endpoint (http/https)
       BlogWeb.Endpoint,
-      BlueskyHose,
+      # Start a worker by calling: Blog.Worker.start_link(arg)
+      # {Blog.Worker, arg}
       Blog.RedditBookmarkProcessor
     ]
 
@@ -62,29 +53,36 @@ defmodule Blog.Application do
       Blog.Chat.MessageStore.init()
 
       children = [
-        # Start the WordStore as a supervised process
-        Blog.Wordle.WordStore,
-        # Start the GameStore for persisting game states
-        Blog.Wordle.GameStore,
-        Blog.Repo,
+        # Start the Telemetry supervisor
         BlogWeb.Telemetry,
+        # Start the PubSub system
         {Phoenix.PubSub, name: Blog.PubSub},
-        BlogWeb.Presence,
+        # Start Finch
         {Finch, name: Blog.Finch},
-        # Start the presence tracker for chat
-        Blog.Chat.Presence,
-        # Start the cursor points manager
-        Blog.CursorPoints,
-        # Start the bookmark store
-        Blog.Bookmarks.Store,
         # Start the Endpoint (http/https)
         BlogWeb.Endpoint,
-        BlueskyHose,
+        # Start a worker by calling: Blog.Worker.start_link(arg)
+        # {Blog.Worker, arg}
         Blog.RedditBookmarkProcessor
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
       Supervisor.start_link(children, opts)
+  end
+
+  # Create all ETS tables safely
+  defp create_ets_tables do
+    # For each table, check if it exists first
+    Enum.each([
+      {:reddit_links, [:ordered_set, :public, read_concurrency: true]},
+      {:bookmarks_table, [:set, :public, read_concurrency: true]},
+      {:pong_games, [:set, :public]}
+    ], fn {table_name, table_opts} ->
+      # Only create if it doesn't exist
+      if :ets.whereis(table_name) == :undefined do
+        :ets.new(table_name, [:named_table | table_opts])
+      end
+    end)
   end
 
   # Tell Phoenix to update the endpoint configuration

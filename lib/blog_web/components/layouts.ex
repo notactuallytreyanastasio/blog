@@ -33,7 +33,18 @@ defmodule BlogWeb.Layouts do
   end
 
   def total_readers do
-    Presence.list("blog_presence") |> map_size()
+    try do
+      count = Blog.PubSub
+      |> Phoenix.Presence.list("readers")
+      |> map_size()
+
+      count
+    rescue
+      # Handle the case when the Presence table doesn't exist
+      ArgumentError -> 0
+      # Handle other potential errors
+      _ -> 0
+    end
   end
 
   defp format_date(datetime) do
