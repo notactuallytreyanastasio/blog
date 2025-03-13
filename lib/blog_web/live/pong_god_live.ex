@@ -4,11 +4,12 @@ defmodule BlogWeb.PongGodLive do
 
   @refresh_interval 100 # ms
   @cleanup_interval 30_000 # 30 seconds
-  @explosion_interval 15 # 15ms (100x more frequent than 1500ms)
+  @explosion_interval 50 # Increased from 5ms to 50ms for better performance
   @rainbow_segments 12 # Number of segments in each rainbow
   @rainbow_width 3 # Width of rainbow lines in pixels
-  @particles_per_explosion 40 # Doubled from 20 to 40 particles per explosion
-  @max_explosions 50 # Cap the number of simultaneous explosions to prevent performance issues
+  @particles_per_explosion 30 # Reduced from 80 to 30 particles per explosion
+  @max_explosions 20 # Reduced from 100 to 20 simultaneous explosions
+  @explosion_types [:burst, :spiral] # Reduced to just two simpler explosion types
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -50,7 +51,14 @@ defmodule BlogWeb.PongGodLive do
     # Update explosions - remove any that have expired
     current_time = System.monotonic_time(:millisecond)
     updated_explosions = Enum.filter(socket.assigns.explosions, fn explosion ->
-      current_time - explosion.created_at < 800 # Shorter lifespan for better performance
+      # Shorter lifespans for better performance
+      lifespan = case explosion.type do
+        :burst -> 600
+        :spiral -> 800
+        _ -> 600
+      end
+
+      current_time - explosion.created_at < lifespan
     end)
 
     {:noreply, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths, explosions: updated_explosions)}
@@ -98,11 +106,28 @@ defmodule BlogWeb.PongGodLive do
     center_x = :rand.uniform(100)
     center_y = :rand.uniform(100)
 
-    # Random explosion size
-    explosion_size = 5 + :rand.uniform() * 20
+    # Random explosion size - reduced for performance
+    explosion_size = 8 + :rand.uniform() * 15 # Smaller size range
+
+    # Random explosion type from reduced set
+    explosion_type = Enum.random(@explosion_types)
 
     # Generate particles for the explosion
-    particles = Enum.map(1..@particles_per_explosion, fn _ ->
+    particles = generate_particles(explosion_type, center_x, center_y, explosion_size)
+
+    %{
+      center_x: center_x,
+      center_y: center_y,
+      particles: particles,
+      created_at: System.monotonic_time(:millisecond),
+      type: explosion_type
+    }
+  end
+
+  # Generate particles based on explosion type
+  defp generate_particles(:burst, center_x, center_y, explosion_size) do
+    # Standard burst explosion - particles radiate outward in all directions
+    Enum.map(1..@particles_per_explosion, fn _ ->
       # Random angle and distance from center
       angle = :rand.uniform() * 2 * :math.pi
       distance = :rand.uniform() * explosion_size
@@ -111,14 +136,14 @@ defmodule BlogWeb.PongGodLive do
       x = center_x + distance * :math.cos(angle)
       y = center_y + distance * :math.sin(angle)
 
-      # Random size for the particle
-      size = 1 + :rand.uniform() * 5
+      # Random size for the particle - smaller for performance
+      size = 1.5 + :rand.uniform() * 3
 
       # Random color from expanded palette
       color = get_random_vibrant_color()
 
       # Random opacity
-      opacity = 0.7 + :rand.uniform() * 0.3
+      opacity = 0.6 + :rand.uniform() * 0.3
 
       %{
         x: x,
@@ -128,13 +153,35 @@ defmodule BlogWeb.PongGodLive do
         opacity: opacity
       }
     end)
+  end
 
-    %{
-      center_x: center_x,
-      center_y: center_y,
-      particles: particles,
-      created_at: System.monotonic_time(:millisecond)
-    }
+  defp generate_particles(:spiral, center_x, center_y, explosion_size) do
+    # Spiral explosion - particles form a spiral pattern
+    Enum.map(1..@particles_per_explosion, fn i ->
+      # Spiral angle based on particle index
+      angle = (i / @particles_per_explosion) * 8 * :math.pi
+      # Distance increases with index for spiral effect
+      distance = (i / @particles_per_explosion) * explosion_size
+
+      # Calculate particle position
+      x = center_x + distance * :math.cos(angle)
+      y = center_y + distance * :math.sin(angle)
+
+      # Size decreases as we move outward - smaller for performance
+      size = 4 - (i / @particles_per_explosion) * 2.5
+
+      # Color based on position in spiral (rainbow effect)
+      hue = rem(i * 10, 360)
+      color = "hsla(#{hue}, 100%, 70%, #{0.6 + :rand.uniform() * 0.3})"
+
+      %{
+        x: x,
+        y: y,
+        size: size,
+        color: color,
+        opacity: 0.8
+      }
+    end)
   end
 
   # Get a random vibrant color
@@ -172,7 +219,14 @@ defmodule BlogWeb.PongGodLive do
 
       # Cyans
       "rgba(0, 255, 255, %s)",   # Cyan
-      "rgba(64, 224, 208, %s)"   # Turquoise
+      "rgba(64, 224, 208, %s)",  # Turquoise
+
+      # Additional vibrant colors
+      "rgba(255, 0, 255, %s)",   # Magenta
+      "rgba(0, 255, 0, %s)",     # Lime
+      "rgba(255, 215, 0, %s)",   # Gold
+      "rgba(255, 105, 180, %s)", # Hot Pink
+      "rgba(0, 191, 255, %s)"    # Deep Sky Blue
     ]
 
     color_template = Enum.random(colors)
@@ -309,7 +363,7 @@ defmodule BlogWeb.PongGodLive do
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <%= for game <- @games do %>
-            <div class="border border-gray-700 rounded-lg overflow-hidden">
+            <div class="border border-gray-700 rounded-lg overflow-hidden hover:border-blue-500 transition-colors duration-300">
               <!-- Game header with ID and score -->
               <div class="bg-gray-800 p-3 flex justify-between items-center">
                 <div class="text-xs opacity-70 truncate">
