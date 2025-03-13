@@ -23,6 +23,10 @@ defmodule BlogWeb.PongGodLive do
     "#FFE81C", # Yellow
     "#FF781C"  # Orange
   ]
+  @musical_notes [
+    "C4", "D4", "E4", "F4", "G4", "A4", "B4",
+    "C5", "D5", "E5", "F5", "G5"
+  ]
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -43,6 +47,10 @@ defmodule BlogWeb.PongGodLive do
       |> assign(:game_width, @game_width)
       |> assign(:game_height, @game_height)
       |> assign(:paddle_height, @paddle_height)
+      |> assign(:musical_notes, @musical_notes)
+      |> assign(:game_scores, %{})
+      |> assign(:play_sound, false)
+      |> assign(:sound_note, nil)
 
     {:ok, socket}
   end
@@ -53,6 +61,9 @@ defmodule BlogWeb.PongGodLive do
 
     # Update rainbow paths for each game
     rainbow_paths = update_rainbow_paths(socket.assigns.rainbow_paths, games, socket.assigns.rainbow_colors)
+
+    # Check for score changes to play sounds
+    {play_sound, sound_note, game_scores} = check_for_score_changes(games, socket.assigns.game_scores, socket.assigns.musical_notes)
 
     # Update explosions - remove expired ones
     explosions =
@@ -68,7 +79,14 @@ defmodule BlogWeb.PongGodLive do
       end)
       |> Enum.filter(fn explosion -> explosion.life > 0 end)
 
-    {:noreply, assign(socket, games: games, explosions: explosions, rainbow_paths: rainbow_paths)}
+    {:noreply, assign(socket,
+      games: games,
+      explosions: explosions,
+      rainbow_paths: rainbow_paths,
+      play_sound: play_sound,
+      sound_note: sound_note,
+      game_scores: game_scores
+    )}
   end
 
   def handle_info(:generate_explosion, socket) do
@@ -79,6 +97,28 @@ defmodule BlogWeb.PongGodLive do
     else
       {:noreply, socket}
     end
+  end
+
+  # Check for score changes to play sounds
+  defp check_for_score_changes(games, previous_scores, musical_notes) do
+    {play_sound, sound_note, new_scores} =
+      games
+      |> Enum.reduce({false, nil, previous_scores}, fn game, {should_play, note, scores_acc} ->
+        game_id = Map.get(game, :game_id)
+        current_score = get_in(game, [:scores, :wall])
+        previous_score = Map.get(scores_acc, game_id, 0)
+
+        if game_id && current_score > previous_score do
+          # Score increased, play a sound
+          random_note = Enum.random(musical_notes)
+          {true, random_note, Map.put(scores_acc, game_id, current_score)}
+        else
+          # Update the score in our tracking map
+          {should_play, note, Map.put(scores_acc, game_id, current_score || 0)}
+        end
+      end)
+
+    {play_sound, sound_note, new_scores}
   end
 
   # Generate a random explosion
@@ -184,6 +224,25 @@ defmodule BlogWeb.PongGodLive do
     value / dimension * preview_dimension
   end
 
+  # Get frequency for a musical note
+  defp get_note_frequency(note) do
+    case note do
+      "C4" -> 261.63
+      "D4" -> 293.66
+      "E4" -> 329.63
+      "F4" -> 349.23
+      "G4" -> 392.00
+      "A4" -> 440.00
+      "B4" -> 493.88
+      "C5" -> 523.25
+      "D5" -> 587.33
+      "E5" -> 659.25
+      "F5" -> 698.46
+      "G5" -> 783.99
+      _ -> 440.00 # Default to A4
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <div class="w-full h-full bg-gradient-to-br from-gray-900 to-gray-800 p-4 overflow-hidden">
@@ -195,6 +254,11 @@ defmodule BlogWeb.PongGodLive do
           Watching <%= length(@games) %> active games
         </p>
       </div>
+
+      <!-- Sound player -->
+      <%= if @play_sound && @sound_note do %>
+        <div id="sound-player" phx-hook="PlaySound" data-frequency={get_note_frequency(@sound_note)}></div>
+      <% end %>
 
       <!-- Background particles container with pointer-events: none -->
       <div class="fixed inset-0 pointer-events-none z-10">
@@ -239,7 +303,7 @@ defmodule BlogWeb.PongGodLive do
       <!-- Game previews -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 z-20 relative">
         <%= for game <- @games do %>
-          <div class="bg-gray-900 rounded-lg overflow-hidden border border-gray-700 hover:border-fuchsia-500 transition-colors duration-300 hover:opacity-100 opacity-80">
+          <div class={"bg-gray-900 rounded-lg overflow-hidden border transition-colors duration-300 hover:opacity-100 opacity-80 #{if game.game_state == :defeat_message, do: "border-red-500 shadow-lg shadow-red-500/30", else: "border-gray-700 hover:border-fuchsia-500"}"}>
             <div class="p-2 bg-gradient-to-r from-fuchsia-900 to-cyan-900 text-white text-xs">
               <div class="truncate">
                 Game ID: <%= game.game_id %>
@@ -255,7 +319,7 @@ defmodule BlogWeb.PongGodLive do
               <div class="absolute inset-0 bg-gray-900">
                 <!-- Ball -->
                 <div
-                  class="absolute rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"
+                  class={"absolute rounded-full #{if game.game_state == :defeat_message, do: "animate-pulse"} bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"}
                   style={"width: 10px; height: 10px; left: #{game.ball.x / @game_width * 100}%; top: #{game.ball.y / @game_height * 100}%; transform: translate(-50%, -50%); filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.5));"}
                 ></div>
 
@@ -267,6 +331,15 @@ defmodule BlogWeb.PongGodLive do
 
                 <!-- Center line -->
                 <div class="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30"></div>
+
+                <!-- Defeat message overlay -->
+                <%= if game.game_state == :defeat_message do %>
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-yellow-500 text-lg font-bold animate-pulse">
+                      DEFEAT
+                    </div>
+                  </div>
+                <% end %>
               </div>
             </div>
           </div>
@@ -279,6 +352,58 @@ defmodule BlogWeb.PongGodLive do
         </a>
       </div>
     </div>
+
+    <script>
+      // Add a hook for playing sounds
+      document.addEventListener("DOMContentLoaded", () => {
+        let audioContext;
+
+        // Initialize audio context on user interaction
+        document.addEventListener("click", initAudio, { once: true });
+
+        function initAudio() {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        // Hook for playing sounds
+        window.addEventListener("phx:hook-initialized", () => {
+          window.LiveView.registerHook("PlaySound", {
+            mounted() {
+              if (!audioContext) {
+                initAudio();
+              }
+
+              const frequency = parseFloat(this.el.dataset.frequency);
+              playTone(frequency);
+            }
+          });
+        });
+
+        function playTone(frequency) {
+          if (!audioContext) return;
+
+          // Create oscillator
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          // Set properties
+          oscillator.type = "sine";
+          oscillator.frequency.value = frequency;
+          gainNode.gain.value = 0.1; // Lower volume
+
+          // Connect nodes
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          // Start and stop
+          oscillator.start();
+
+          // Fade out
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1.5);
+          oscillator.stop(audioContext.currentTime + 1.5);
+        }
+      });
+    </script>
     """
   end
 end
