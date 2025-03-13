@@ -89,19 +89,13 @@ defmodule BlogWeb.KeyloggerLive do
       #content-of-letter {
         font-family: "Courier New", Courier, monospace;
         line-height: 1.5;
-        white-space: pre-wrap;
-        word-wrap: break-word;
       }
 
-      .text-container {
+      .typewriter-text {
+        font-family: "Courier New", Courier, monospace;
         white-space: pre-wrap;
-        font-family: monospace;
-      }
-
-      .letter-animate {
-        display: inline;
-        opacity: 0;
-        animation: fadeIn 0.1s ease-out forwards;
+        margin: 0;
+        padding: 0;
       }
 
       /* Hide print-only content during normal viewing */
@@ -172,11 +166,7 @@ defmodule BlogWeb.KeyloggerLive do
     <div id="content-of-letter" class="mt-4 text-gray-500" phx-window-keydown="keydown">
       <div class="mb-4">
         THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
-        <div class="text-container">
-          <%= for {char, index} <- String.split(@pressed_keys, "") |> Enum.with_index() do %>
-            <span class="letter-animate" style={"animation-delay: #{index * 0.005}s"}>{char}</span>
-          <% end %>
-        </div>
+        <pre class="typewriter-text"><%= @pressed_keys %></pre>
       </div>
     </div>
     """
