@@ -1,406 +1,282 @@
 defmodule BlogWeb.PongGodLive do
   use BlogWeb, :live_view
   alias BlogWeb.PongLive
+  require Logger
 
-  @refresh_interval 100 # ms
-  @cleanup_interval 30_000 # 30 seconds
-  @explosion_interval 50 # Increased from 5ms to 50ms for better performance
-  @rainbow_segments 12 # Number of segments in each rainbow
-  @rainbow_width 3 # Width of rainbow lines in pixels
-  @particles_per_explosion 30 # Reduced from 80 to 30 particles per explosion
-  @max_explosions 20 # Reduced from 100 to 20 simultaneous explosions
-  @explosion_types [:burst, :spiral] # Reduced to just two simpler explosion types
+  @refresh_interval 50
+  @max_explosions 20
+  @explosion_interval 50
+  @particles_per_explosion 30
+  @explosion_types [:burst, :spiral]
+  @rainbow_width 3
+  @trail_length 40
+  @game_width 800
+  @game_height 600
+  @paddle_height 100
+  @rainbow_colors [
+    "#FF1A8C", # Pink
+    "#E81CFF", # Magenta
+    "#841CFF", # Purple
+    "#1C56FF", # Blue
+    "#1CD7FF", # Cyan
+    "#1CFF78", # Green
+    "#FFE81C", # Yellow
+    "#FF781C"  # Orange
+  ]
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
+      # Start the refresh timer
       :timer.send_interval(@refresh_interval, :refresh)
-      :timer.send_interval(@cleanup_interval, :cleanup_stale_games)
-      :timer.send_interval(@explosion_interval, :create_explosion)
+      # Start the explosion timer
+      :timer.send_interval(@explosion_interval, :generate_explosion)
     end
 
-    games = PongLive.get_all_games()
-    # Sort games by score for better visibility
-    sorted_games = Enum.sort_by(games, fn game ->
-      -(game.scores || %{}).wall || 0
-    end)
+    # Initialize the socket with empty games and explosions
+    socket =
+      socket
+      |> assign(:games, [])
+      |> assign(:explosions, [])
+      |> assign(:rainbow_paths, %{})
+      |> assign(:rainbow_width, @rainbow_width)
+      |> assign(:rainbow_colors, @rainbow_colors)
+      |> assign(:game_width, @game_width)
+      |> assign(:game_height, @game_height)
+      |> assign(:paddle_height, @paddle_height)
 
-    # Generate rainbow paths for each game
-    rainbow_paths = generate_rainbow_paths(sorted_games)
-
-    # Initialize explosions list
-    explosions = []
-
-    {:ok, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths, explosions: explosions)}
+    {:ok, socket}
   end
 
   def handle_info(:refresh, socket) do
+    # Get all games from PongLive
     games = PongLive.get_all_games()
-    # Sort games by score for better visibility
-    sorted_games = Enum.sort_by(games, fn game ->
-      -(game.scores || %{}).wall || 0
-    end)
 
-    # Update rainbow paths if games have changed
-    rainbow_paths =
-      if length(sorted_games) != length(socket.assigns.games) do
-        generate_rainbow_paths(sorted_games)
-      else
-        socket.assigns.rainbow_paths
-      end
+    # Update rainbow paths for each game
+    rainbow_paths = update_rainbow_paths(socket.assigns.rainbow_paths, games, socket.assigns.rainbow_colors)
 
-    # Update explosions - remove any that have expired
-    current_time = System.monotonic_time(:millisecond)
-    updated_explosions = Enum.filter(socket.assigns.explosions, fn explosion ->
-      # Shorter lifespans for better performance
-      lifespan = case explosion.type do
-        :burst -> 600
-        :spiral -> 800
-        _ -> 600
-      end
+    # Update explosions - remove expired ones
+    explosions =
+      socket.assigns.explosions
+      |> Enum.map(fn explosion ->
+        # Reduce life of explosion based on type
+        life_reduction = case explosion.type do
+          :burst -> 2
+          :spiral -> 1
+          _ -> 2
+        end
+        %{explosion | life: explosion.life - life_reduction}
+      end)
+      |> Enum.filter(fn explosion -> explosion.life > 0 end)
 
-      current_time - explosion.created_at < lifespan
-    end)
-
-    {:noreply, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths, explosions: updated_explosions)}
+    {:noreply, assign(socket, games: games, explosions: explosions, rainbow_paths: rainbow_paths)}
   end
 
-  def handle_info(:create_explosion, socket) do
-    # Only create a new explosion if we're under the maximum limit
-    updated_explosions =
-      if length(socket.assigns.explosions) < @max_explosions do
-        # Create a new explosion at a random position
-        new_explosion = generate_explosion()
-        [new_explosion | socket.assigns.explosions]
-      else
-        socket.assigns.explosions
-      end
-
-    {:noreply, assign(socket, explosions: updated_explosions)}
+  def handle_info(:generate_explosion, socket) do
+    # Only generate a new explosion if we're under the limit
+    if length(socket.assigns.explosions) < @max_explosions do
+      new_explosion = generate_explosion(socket.assigns.rainbow_colors)
+      {:noreply, assign(socket, explosions: [new_explosion | socket.assigns.explosions])}
+    else
+      {:noreply, socket}
+    end
   end
 
-  def handle_info(:cleanup_stale_games, socket) do
-    # With our new ID system (including tab IDs), we don't need to
-    # clean up duplicates anymore as each tab should have a unique ID
-    # We'll just keep this as a placeholder for future cleanup logic
+  # Generate a random explosion
+  defp generate_explosion(rainbow_colors) do
+    # Random position within the viewport
+    x = :rand.uniform(800)
+    y = :rand.uniform(600)
 
-    # Refresh the games list
-    games = PongLive.get_all_games()
-    sorted_games = Enum.sort_by(games, fn game ->
-      -(game.scores || %{}).wall || 0
-    end)
+    # Random size
+    size = :rand.uniform(5) + 8
 
-    # Update rainbow paths if games have changed
-    rainbow_paths =
-      if length(sorted_games) != length(socket.assigns.games) do
-        generate_rainbow_paths(sorted_games)
-      else
-        socket.assigns.rainbow_paths
-      end
+    # Random explosion type
+    type = Enum.random(@explosion_types)
 
-    {:noreply, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths)}
-  end
-
-  # Generate a new explosion with particles
-  defp generate_explosion do
-    # Random position for the explosion center
-    center_x = :rand.uniform(100)
-    center_y = :rand.uniform(100)
-
-    # Random explosion size - reduced for performance
-    explosion_size = 8 + :rand.uniform() * 15 # Smaller size range
-
-    # Random explosion type from reduced set
-    explosion_type = Enum.random(@explosion_types)
-
-    # Generate particles for the explosion
-    particles = generate_particles(explosion_type, center_x, center_y, explosion_size)
-
+    # Create the explosion with particles
     %{
-      center_x: center_x,
-      center_y: center_y,
-      particles: particles,
-      created_at: System.monotonic_time(:millisecond),
-      type: explosion_type
+      x: x,
+      y: y,
+      size: size,
+      type: type,
+      life: :rand.uniform(200) + 600,
+      particles: generate_particles(type, x, y, size, rainbow_colors)
     }
   end
 
   # Generate particles based on explosion type
-  defp generate_particles(:burst, center_x, center_y, explosion_size) do
-    # Standard burst explosion - particles radiate outward in all directions
-    Enum.map(1..@particles_per_explosion, fn _ ->
-      # Random angle and distance from center
+  defp generate_particles(:burst, x, y, size, rainbow_colors) do
+    for i <- 1..@particles_per_explosion do
       angle = :rand.uniform() * 2 * :math.pi
-      distance = :rand.uniform() * explosion_size
-
-      # Calculate particle position
-      x = center_x + distance * :math.cos(angle)
-      y = center_y + distance * :math.sin(angle)
-
-      # Random size for the particle - smaller for performance
-      size = 1.5 + :rand.uniform() * 3
-
-      # Random color from expanded palette
-      color = get_random_vibrant_color()
-
-      # Random opacity
-      opacity = 0.6 + :rand.uniform() * 0.3
+      distance = :rand.uniform(size * 3)
+      particle_x = x + :math.cos(angle) * distance
+      particle_y = y + :math.sin(angle) * distance
+      particle_size = :rand.uniform(3) + 1
 
       %{
-        x: x,
-        y: y,
-        size: size,
-        color: color,
-        opacity: opacity
+        x: particle_x,
+        y: particle_y,
+        size: particle_size,
+        color: Enum.random(rainbow_colors)
       }
+    end
+  end
+
+  defp generate_particles(:spiral, x, y, size, rainbow_colors) do
+    for i <- 1..@particles_per_explosion do
+      angle = i / @particles_per_explosion * 2 * :math.pi * 3
+      distance = size * (i / @particles_per_explosion) * 2
+      particle_x = x + :math.cos(angle) * distance
+      particle_y = y + :math.sin(angle) * distance
+      particle_size = :rand.uniform(2) + 1
+
+      %{
+        x: particle_x,
+        y: particle_y,
+        size: particle_size,
+        color: Enum.at(rainbow_colors, rem(i, length(rainbow_colors)))
+      }
+    end
+  end
+
+  # Update rainbow paths for each game
+  defp update_rainbow_paths(existing_paths, games, rainbow_colors) do
+    games
+    |> Enum.reduce(%{}, fn game, acc ->
+      game_id = Map.get(game, :game_id)
+      ball = Map.get(game, :ball)
+
+      if game_id && ball do
+        # Get existing path or initialize a new one
+        existing_path = Map.get(existing_paths, game_id, [])
+
+        # Add new point to the path
+        new_point = %{x: ball.x, y: ball.y, color: get_rainbow_color(length(existing_path), rainbow_colors)}
+
+        # Keep only the last @trail_length points
+        updated_path = [new_point | existing_path] |> Enum.take(@trail_length)
+
+        Map.put(acc, game_id, updated_path)
+      else
+        acc
+      end
     end)
   end
 
-  defp generate_particles(:spiral, center_x, center_y, explosion_size) do
-    # Spiral explosion - particles form a spiral pattern
-    Enum.map(1..@particles_per_explosion, fn i ->
-      # Spiral angle based on particle index
-      angle = (i / @particles_per_explosion) * 8 * :math.pi
-      # Distance increases with index for spiral effect
-      distance = (i / @particles_per_explosion) * explosion_size
-
-      # Calculate particle position
-      x = center_x + distance * :math.cos(angle)
-      y = center_y + distance * :math.sin(angle)
-
-      # Size decreases as we move outward - smaller for performance
-      size = 4 - (i / @particles_per_explosion) * 2.5
-
-      # Color based on position in spiral (rainbow effect)
-      hue = rem(i * 10, 360)
-      color = "hsla(#{hue}, 100%, 70%, #{0.6 + :rand.uniform() * 0.3})"
-
-      %{
-        x: x,
-        y: y,
-        size: size,
-        color: color,
-        opacity: 0.8
-      }
-    end)
+  # Generate a rainbow color based on index
+  defp get_rainbow_color(index, rainbow_colors) do
+    Enum.at(rainbow_colors, rem(index, length(rainbow_colors)))
   end
 
-  # Get a random vibrant color
-  defp get_random_vibrant_color do
-    colors = [
-      # Pinks
-      "rgba(255, 105, 180, %s)", # Hot Pink
-      "rgba(255, 20, 147, %s)",  # Deep Pink
-      "rgba(219, 112, 147, %s)", # Pale Violet Red
-
-      # Yellows
-      "rgba(255, 255, 0, %s)",   # Yellow
-      "rgba(255, 215, 0, %s)",   # Gold
-      "rgba(255, 165, 0, %s)",   # Orange
-
-      # Blues
-      "rgba(0, 191, 255, %s)",   # Deep Sky Blue
-      "rgba(30, 144, 255, %s)",  # Dodger Blue
-      "rgba(138, 43, 226, %s)",  # Blue Violet
-
-      # Greens
-      "rgba(50, 205, 50, %s)",   # Lime Green
-      "rgba(0, 250, 154, %s)",   # Medium Spring Green
-      "rgba(127, 255, 212, %s)", # Aquamarine
-
-      # Reds
-      "rgba(255, 69, 0, %s)",    # Red-Orange
-      "rgba(255, 0, 0, %s)",     # Red
-      "rgba(220, 20, 60, %s)",   # Crimson
-
-      # Purples
-      "rgba(148, 0, 211, %s)",   # Dark Violet
-      "rgba(186, 85, 211, %s)",  # Medium Orchid
-      "rgba(218, 112, 214, %s)", # Orchid
-
-      # Cyans
-      "rgba(0, 255, 255, %s)",   # Cyan
-      "rgba(64, 224, 208, %s)",  # Turquoise
-
-      # Additional vibrant colors
-      "rgba(255, 0, 255, %s)",   # Magenta
-      "rgba(0, 255, 0, %s)",     # Lime
-      "rgba(255, 215, 0, %s)",   # Gold
-      "rgba(255, 105, 180, %s)", # Hot Pink
-      "rgba(0, 191, 255, %s)"    # Deep Sky Blue
-    ]
-
-    color_template = Enum.random(colors)
-    opacity = 0.7 + :rand.uniform() * 0.3
-    opacity_string = :erlang.float_to_binary(opacity, [decimals: 2])
-    String.replace(color_template, "%s", opacity_string)
+  # Generate SVG path for rainbow trail
+  defp generate_rainbow_path(points) do
+    if length(points) >= 2 do
+      points
+      |> Enum.map(fn %{x: x, y: y} -> "#{x},#{y}" end)
+      |> Enum.join(" ")
+    else
+      ""
+    end
   end
 
-  # Generate random rainbow paths for each game
-  defp generate_rainbow_paths(game) when is_map(game) do
-    # Generate a single rainbow path for a game
-    # Make sure we have a game_id to use as seed
-    game_id = Map.get(game, :game_id, "default_#{:rand.uniform(10000)}")
-
-    # Use game ID as seed for randomness to ensure consistent rainbows per game
-    seed =
-      game_id
-      |> to_string()
-      |> String.to_charlist()
-      |> Enum.sum()
-
-    :rand.seed(:exsss, {seed, seed + 1, seed + 2})
-
-    # Generate multiple paths for this game
-    Enum.map(1..3, fn path_index ->
-      # Random starting position
-      start_x = :rand.uniform(100)
-      start_y = :rand.uniform(100)
-
-      # Random direction
-      angle = :rand.uniform() * 2 * :math.pi
-      length = 30 + :rand.uniform(70) # Random length between 30-100
-
-      # Random curve factor
-      curve_factor = (:rand.uniform() * 0.4) - 0.2 # Between -0.2 and 0.2
-
-      # Generate path points
-      points = generate_path_points(start_x, start_y, angle, length, curve_factor, @rainbow_segments)
-
-      # Convert points to SVG path
-      path_d = points_to_svg_path(points)
-
-      # Get color from the last point (end of rainbow)
-      color = List.last(points).color
-
-      %{
-        d: path_d,
-        color: color
-      }
-    end)
-  end
-
-  # Handle list of games
-  defp generate_rainbow_paths(games) when is_list(games) do
-    # Generate rainbow paths for each game
-    Enum.flat_map(games, &generate_rainbow_paths/1)
-  end
-
-  # Fallback for any other type
-  defp generate_rainbow_paths(_), do: []
-
-  # Convert points to SVG path string
-  defp points_to_svg_path(points) do
-    # Start with the first point
-    [first | rest] = points
-
-    # Create the path string
-    path = "M #{first.x} #{first.y} " <>
-      Enum.map_join(rest, " ", fn point -> "L #{point.x} #{point.y}" end)
-
-    path
-  end
-
-  # Generate points for a curved path
-  defp generate_path_points(start_x, start_y, angle, length, curve_factor, segments) do
-    segment_length = length / segments
-
-    Enum.map(0..segments, fn i ->
-      # Gradually change angle for curved path
-      current_angle = angle + (curve_factor * i)
-
-      # Calculate position
-      x = start_x + (i * segment_length * :math.cos(current_angle))
-      y = start_y + (i * segment_length * :math.sin(current_angle))
-
-      # Calculate color (rainbow hue)
-      hue = rem(i * div(360, segments), 360)
-
-      %{
-        x: x,
-        y: y,
-        color: "hsl(#{hue}, 100%, 70%)"
-      }
-    end)
+  # Calculate the scaled position for the preview
+  defp scale_position(value, dimension, preview_dimension) do
+    value / dimension * preview_dimension
   end
 
   def render(assigns) do
-    # Add rainbow_width to assigns so it's accessible in the template
-    assigns = assign(assigns, :rainbow_width, @rainbow_width)
-
     ~H"""
-    <div class="w-full min-h-screen bg-gray-900 text-white p-4 relative overflow-hidden">
-      <!-- Rainbow background paths -->
-      <svg class="absolute inset-0 w-full h-full" style="z-index: 0;">
-        <%= for game <- @games do %>
-          <% paths = generate_rainbow_paths(game) %>
-          <%= for path <- paths do %>
-            <path
-              d={path.d}
-              fill="none"
-              stroke={path.color}
-              stroke-width={@rainbow_width}
-              stroke-linecap="round"
-              opacity="0.3"
-            />
-          <% end %>
-        <% end %>
-      </svg>
+    <div class="w-full h-full bg-gradient-to-br from-gray-900 to-gray-800 p-4 overflow-hidden">
+      <div class="text-center mb-4">
+        <h1 class="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-3xl font-bold">
+          Pong God Mode
+        </h1>
+        <p class="text-gray-300 mt-2">
+          Watching <%= length(@games) %> active games
+        </p>
+      </div>
 
-      <!-- Explosion particles -->
-      <div class="absolute inset-0 w-full h-full" style="z-index: 1; pointer-events: none;">
+      <!-- Background particles container with pointer-events: none -->
+      <div class="fixed inset-0 pointer-events-none z-10">
         <%= for explosion <- @explosions do %>
           <%= for particle <- explosion.particles do %>
             <div
               class="absolute rounded-full"
-              style={"left: #{particle.x}%; top: #{particle.y}%; width: #{particle.size}px; height: #{particle.size}px; background-color: #{particle.color}; opacity: #{particle.opacity};"}
+              style={"left: #{particle.x}px; top: #{particle.y}px; width: #{particle.size}px; height: #{particle.size}px; background-color: #{particle.color}; opacity: #{explosion.life / 800};"}
             ></div>
           <% end %>
         <% end %>
       </div>
 
-      <div class="relative z-10">
-        <h1 class="text-3xl font-bold mb-6 text-center">Pong God Mode</h1>
+      <!-- Rainbow trails container -->
+      <div class="fixed inset-0 pointer-events-none z-0">
+        <svg width="100%" height="100%" class="absolute inset-0">
+          <%= for {game_id, points} <- @rainbow_paths do %>
+            <%= if length(points) >= 2 do %>
+              <polyline
+                points={generate_rainbow_path(points)}
+                fill="none"
+                stroke="url(#rainbow-gradient-#{game_id})"
+                stroke-width={@rainbow_width}
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="opacity-70"
+              />
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <%= for game <- @games do %>
-            <div class="border border-gray-700 rounded-lg overflow-hidden hover:border-blue-500 transition-colors duration-300">
-              <!-- Game header with ID and score -->
-              <div class="bg-gray-800 p-3 flex justify-between items-center">
-                <div class="text-xs opacity-70 truncate">
-                  ID: <%= String.slice(game.game_id || "unknown", 0, 8) %>...
-                </div>
-                <div class="text-sm font-bold">
-                  Score: <%= (game.scores || %{}).wall || 0 %>
-                </div>
+              <!-- Define a unique gradient for each game -->
+              <defs>
+                <linearGradient id={"rainbow-gradient-#{game_id}"} x1="0%" y1="0%" x2="100%" y2="0%">
+                  <%= for {color, index} <- Enum.with_index(@rainbow_colors) do %>
+                    <stop offset={to_string(index * 100 / (length(@rainbow_colors) - 1)) <> "%"} stop-color={color} />
+                  <% end %>
+                </linearGradient>
+              </defs>
+            <% end %>
+          <% end %>
+        </svg>
+      </div>
+
+      <!-- Game previews -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 z-20 relative">
+        <%= for game <- @games do %>
+          <div class="bg-gray-900 rounded-lg overflow-hidden border border-gray-700 hover:border-fuchsia-500 transition-colors duration-300 hover:opacity-100 opacity-80">
+            <div class="p-2 bg-gradient-to-r from-fuchsia-900 to-cyan-900 text-white text-xs">
+              <div class="truncate">
+                Game ID: <%= game.game_id %>
               </div>
+              <div class="flex justify-between mt-1">
+                <span>Score: <%= game.scores.wall %></span>
+                <span><%= if game.ai_controlled, do: "AI Playing", else: "Player Control" %></span>
+              </div>
+            </div>
 
-              <!-- Game preview -->
-              <div class="relative" style="height: 200px;">
-                <!-- Semi-transparent game background -->
-                <div class="absolute inset-0 bg-gray-900 bg-opacity-60 rounded-b-lg"></div>
-
+            <div class="relative" style="height: 150px;">
+              <!-- Game board -->
+              <div class="absolute inset-0 bg-gray-900">
                 <!-- Ball -->
                 <div
-                  class="absolute rounded-full bg-white"
-                  style={"width: #{20}px; height: #{20}px; left: #{(game.ball || %{x: 400}).x / 4 - 10}px; top: #{(game.ball || %{y: 300}).y / 3 - 10}px;"}
+                  class="absolute rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"
+                  style={"width: 10px; height: 10px; left: #{game.ball.x / @game_width * 100}%; top: #{game.ball.y / @game_height * 100}%; transform: translate(-50%, -50%); filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.5));"}
                 ></div>
 
-                <!-- Paddle -->
+                <!-- Paddle - correctly positioned and sized -->
                 <div
-                  class="absolute bg-white rounded-sm"
-                  style={"width: #{15 / 4}px; height: #{100 / 3}px; left: #{(game.paddle || %{x: 30}).x / 4}px; top: #{(game.paddle || %{y: 250}).y / 3}px;"}
+                  class="absolute bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 rounded-sm"
+                  style={"width: 4px; height: #{@paddle_height / @game_height * 150}px; left: #{game.paddle.x / @game_width * 100}%; top: #{game.paddle.y / @game_height * 100}%;"}
                 ></div>
 
                 <!-- Center line -->
-                <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gray-700 opacity-50"></div>
+                <div class="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30"></div>
               </div>
             </div>
-          <% end %>
-        </div>
+          </div>
+        <% end %>
+      </div>
 
-        <div class="mt-8 text-center">
-          <a href={~p"/pong"} class="text-blue-400 hover:underline">Play Pong</a>
-        </div>
+      <div class="text-center mt-6">
+        <a href={~p"/pong"} class="inline-block px-4 py-2 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow">
+          Play Pong
+        </a>
       </div>
     </div>
     """

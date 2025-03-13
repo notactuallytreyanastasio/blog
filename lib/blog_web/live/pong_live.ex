@@ -13,7 +13,7 @@ defmodule BlogWeb.PongLive do
   @paddle_height 100
   @paddle_offset 30
   @paddle_speed 10
-  @trail_length 125
+  @trail_length 80
   @sparkle_life 30
   @defeat_message_duration 60
   @jitter_amount 40
