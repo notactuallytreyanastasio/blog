@@ -3,7 +3,7 @@ defmodule BlogWeb.PongLive do
   alias Phoenix.LiveView.Socket
   require Logger
 
-  @fps 60
+  @fps 30
   @tick_rate 1000 / @fps
   @ball_radius 10
   @ball_speed 5
@@ -13,20 +13,20 @@ defmodule BlogWeb.PongLive do
   @paddle_height 100
   @paddle_offset 30
   @paddle_speed 10
-  @trail_length 30  # Reduced to a more reasonable value
-  @sparkle_life 45 # frames
-  @defeat_message_duration 90 # frames (1.5 seconds at 60 FPS)
-  @jitter_amount 40 # Reduced from 80 to 40 pixels of random jitter in ball position
-  @initial_jitter_amount 15 # Much smaller jitter for initial ball position
-  @burst_particle_count 50 # number of particles in defeat burst
+  @trail_length 15
+  @sparkle_life 30
+  @defeat_message_duration 60
+  @jitter_amount 40
+  @initial_jitter_amount 15
+  @burst_particle_count 30
   @game_width 800
   @game_height 600
   @ball_size 10
-  @frame_rate 16 # ~60 FPS
-  @ai_reaction_time 100 # ms - how often the AI updates its paddle position
-  @max_bounce_count 30 # Increased from 20 to 30 - more bounces before forcing randomness
-  @progressive_speed_increase 0.02 # Reduced from 0.05 to 0.02 - more gradual speed increase (2% per bounce)
-  @max_speed_multiplier 1.6 # Reduced from 2.0 to 1.6 - lower maximum speed
+  @frame_rate 33
+  @ai_reaction_time 150
+  @max_bounce_count 30
+  @progressive_speed_increase 0.02
+  @max_speed_multiplier 1.6
 
   def mount(_params, session, socket) do
     # Use the user's session ID + a unique timestamp for this session
@@ -308,7 +308,7 @@ defmodule BlogWeb.PongLive do
     new_particles = for _i <- 1..@burst_particle_count do
       # Random angle and speed for each particle
       angle = :rand.uniform() * 2 * :math.pi
-      speed = :rand.uniform(8) + 2
+      speed = :rand.uniform(6) + 2
 
       # Calculate velocity components
       dx = :math.cos(angle) * speed
@@ -321,8 +321,8 @@ defmodule BlogWeb.PongLive do
         dx: dx,
         dy: dy,
         type: :burst,
-        life: @sparkle_life + :rand.uniform(30),
-        size: :rand.uniform(8) + 2,
+        life: @sparkle_life + :rand.uniform(20),
+        size: :rand.uniform(6) + 2,
         color: "hsl(#{:rand.uniform(60)}, 100%, #{50 + :rand.uniform(40)}%)" # Red/orange hues
       }
     end
@@ -330,7 +330,7 @@ defmodule BlogWeb.PongLive do
     # Combine with existing sparkles and limit to a reasonable number
     (new_particles ++ Enum.map(existing_sparkles, &age_sparkle/1))
     |> Enum.filter(&(&1.life > 0))
-    |> Enum.take(200) # Allow more particles for the burst
+    |> Enum.take(120)
   end
 
   defp update_trail(trail, ball) do
@@ -361,7 +361,7 @@ defmodule BlogWeb.PongLive do
       dy: 0,
       type: bounce_type,
       life: @sparkle_life,
-      size: :rand.uniform(7) + 3, # Random size between 3 and 10
+      size: :rand.uniform(5) + 3,
       color: case bounce_type do
         :paddle -> "hsl(#{:rand.uniform(60) + 180}, 100%, 70%)" # Blues/purples
         :wall -> "hsl(#{:rand.uniform(60)}, 100%, 70%)" # Reds/oranges
@@ -373,7 +373,7 @@ defmodule BlogWeb.PongLive do
     [new_sparkle | Enum.map(sparkles, &age_sparkle/1)]
     |> update_particle_positions()
     |> Enum.filter(&(&1.life > 0))
-    |> Enum.take(50) # Limit to 50 sparkles max
+    |> Enum.take(30)
   end
 
   defp age_sparkle(sparkle) do
