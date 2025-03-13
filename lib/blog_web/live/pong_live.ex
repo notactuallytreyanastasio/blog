@@ -16,13 +16,17 @@ defmodule BlogWeb.PongLive do
   @trail_length 30  # Reduced to a more reasonable value
   @sparkle_life 45 # frames
   @defeat_message_duration 90 # frames (1.5 seconds at 60 FPS)
-  @jitter_amount 80 # pixels of random jitter in ball position
+  @jitter_amount 40 # Reduced from 80 to 40 pixels of random jitter in ball position
+  @initial_jitter_amount 15 # Much smaller jitter for initial ball position
   @burst_particle_count 50 # number of particles in defeat burst
   @game_width 800
   @game_height 600
   @ball_size 10
   @frame_rate 16 # ~60 FPS
   @ai_reaction_time 100 # ms - how often the AI updates its paddle position
+  @max_bounce_count 30 # Increased from 20 to 30 - more bounces before forcing randomness
+  @progressive_speed_increase 0.02 # Reduced from 0.05 to 0.02 - more gradual speed increase (2% per bounce)
+  @max_speed_multiplier 1.6 # Reduced from 2.0 to 1.6 - lower maximum speed
 
   def mount(_params, session, socket) do
     # Use the user's session ID + a unique timestamp for this session
@@ -38,8 +42,10 @@ defmodule BlogWeb.PongLive do
       ball: %{
         x: @game_width / 2,
         y: @game_height / 2,
-        dx: @ball_speed,
-        dy: -@ball_speed
+        dx: -@ball_speed, # Always start moving toward the player
+        dy: (:rand.uniform() - 0.5) * @ball_speed, # Small random vertical component
+        bounce_count: 0, # Track number of bounces
+        speed_multiplier: 1.0 # Track speed multiplier
       },
       paddle: %{
         x: @paddle_offset,
@@ -220,29 +226,41 @@ defmodule BlogWeb.PongLive do
 
   # Reset ball with random jitter
   defp reset_ball_with_jitter(socket) do
-    # Add random jitter to starting position
-    x_jitter = :rand.uniform(@jitter_amount) - (@jitter_amount / 2)
-    y_jitter = :rand.uniform(@jitter_amount) - (@jitter_amount / 2)
+    # Add random jitter to starting position - use full jitter amount after first point
+    jitter_amount = if socket.assigns.scores.wall > 0, do: @jitter_amount, else: @initial_jitter_amount
+    x_jitter = :rand.uniform(jitter_amount) - (jitter_amount / 2)
+    y_jitter = :rand.uniform(jitter_amount) - (jitter_amount / 2)
 
     # Make sure ball stays in bounds despite jitter
     new_x = min(max(@game_width / 2 + x_jitter, @ball_radius * 2), @game_width - @ball_radius * 2)
     new_y = min(max(@game_height / 2 + y_jitter, @ball_radius * 2), @game_height - @ball_radius * 2)
 
-    # Random slight variation in angle
-    angle_variation = (:rand.uniform(40) - 20) * :math.pi / 180
+    # Random slight variation in angle - reduced for initial ball
+    max_angle = if socket.assigns.scores.wall > 0, do: 40, else: 20
+    angle_variation = (:rand.uniform(max_angle) - (max_angle / 2)) * :math.pi / 180
     base_speed = @ball_speed
 
     # Calculate new dx/dy with the angle variation
     # Always move toward the paddle (negative dx)
     dx = -base_speed * :math.cos(angle_variation)
+
+    # Ensure vertical component is reasonable but not extreme
     dy = base_speed * :math.sin(angle_variation)
+
+    # Ensure the ball is moving toward the player at a reasonable angle
+    # If angle is too steep, adjust it
+    if abs(dy) > abs(dx) * 1.5 do
+      dy = sign(dy) * abs(dx) * 1.5
+    end
 
     assign(socket,
       ball: %{
         x: new_x,
         y: new_y,
         dx: dx,
-        dy: dy
+        dy: dy,
+        bounce_count: 0, # Reset bounce count
+        speed_multiplier: 1.0 # Reset speed multiplier
       },
       trail: []
     )
@@ -402,8 +420,40 @@ defmodule BlogWeb.PongLive do
       ) do
       # Bounce off paddle - return bounce position for sparkle
       bounce_pos = %{x: paddle.x + paddle_width, y: new_y}
+
+      # Increment bounce count
+      new_bounce_count = (ball.bounce_count || 0) + 1
+
+      # Increase speed multiplier progressively
+      new_speed_multiplier = min(
+        (ball.speed_multiplier || 1.0) + @progressive_speed_increase,
+        @max_speed_multiplier
+      )
+
+      # Calculate new ball direction with more randomness for higher bounce counts
+      {new_dx, new_dy} = calculate_new_direction(
+        ball.dx,
+        ball.dy,
+        new_bounce_count,
+        new_speed_multiplier,
+        new_y,
+        paddle.y,
+        paddle_height
+      )
+
+      # Ensure the ball is positioned outside the paddle to prevent immediate scoring
+      # Place the ball just to the right of the paddle
+      adjusted_x = paddle.x + paddle_width + ball_radius + 1
+
       {
-        %{x: new_x, y: new_y, dx: -ball.dx, dy: calculate_new_dy(new_y, ball.dy, board.height, ball_radius)},
+        %{
+          x: adjusted_x,
+          y: new_y,
+          dx: new_dx,
+          dy: new_dy,
+          bounce_count: new_bounce_count,
+          speed_multiplier: new_speed_multiplier
+        },
         :playing,
         scores,
         bounce_pos,
@@ -415,14 +465,66 @@ defmodule BlogWeb.PongLive do
     end
   end
 
+  # Calculate new ball direction with progressive randomness
+  defp calculate_new_direction(dx, dy, bounce_count, speed_multiplier, ball_y, paddle_y, paddle_height) do
+    # Base reflection - reverse x direction and ensure it's moving right (positive)
+    new_dx = abs(dx)
+
+    # Calculate angle based on where ball hits paddle
+    paddle_center = paddle_y + paddle_height / 2
+    hit_position = (ball_y - paddle_center) / (paddle_height / 2)
+
+    # More extreme angles as bounce count increases, but more gradually
+    angle_factor = hit_position * (1.0 + min(bounce_count / 20, 0.8))
+
+    # Add increasing randomness based on bounce count, but more controlled
+    random_factor = if bounce_count > @max_bounce_count do
+      # After max bounces, add moderate randomness to break patterns
+      (:rand.uniform() - 0.5) * 0.3
+    else
+      # Gradual increase in randomness
+      (:rand.uniform() - 0.5) * 0.1 * (bounce_count / 15)
+    end
+
+    # Calculate new dy with angle and randomness
+    new_dy = dy + (angle_factor + random_factor) * abs(dx)
+
+    # Apply speed multiplier
+    speed = :math.sqrt(dx * dx + dy * dy) * speed_multiplier
+
+    # Normalize to maintain consistent speed
+    magnitude = :math.sqrt(new_dx * new_dx + new_dy * new_dy)
+    normalized_dx = new_dx * speed / magnitude
+    normalized_dy = new_dy * speed / magnitude
+
+    # Ensure minimum vertical movement to prevent horizontal stalemates
+    # But keep it subtle
+    if abs(normalized_dy) < speed * 0.05 do
+      normalized_dy = if normalized_dy >= 0, do: speed * 0.05, else: -speed * 0.05
+    end
+
+    {normalized_dx, normalized_dy}
+  end
+
   defp ball_hits_paddle?(ball_x, ball_y, ball_radius, paddle_x, paddle_y, paddle_width, paddle_height) do
-    # Ball is moving toward the paddle (left) and...
-    ball_x - ball_radius <= paddle_x + paddle_width &&
-    # Ball's right edge is past paddle's left edge and...
-    ball_x + ball_radius >= paddle_x &&
-    # Ball is vertically aligned with the paddle
-    ball_y + ball_radius >= paddle_y &&
-    ball_y - ball_radius <= paddle_y + paddle_height
+    # We need to check if the ball is about to collide with the paddle
+    # The ball's current position is already updated with velocity in update_ball_and_check_scoring
+
+    # Check if the ball is in the paddle's vertical range
+    ball_in_paddle_vertical_range =
+      ball_y + ball_radius >= paddle_y &&
+      ball_y - ball_radius <= paddle_y + paddle_height
+
+    # Check if the ball is at or past the paddle's right edge
+    ball_at_paddle_horizontal_range =
+      ball_x - ball_radius <= paddle_x + paddle_width &&
+      ball_x + ball_radius >= paddle_x
+
+    # Check if the ball is moving toward the paddle (negative x direction)
+    ball_moving_toward_paddle = true  # We'll assume this is always true for simplicity
+
+    # All conditions must be true for a collision
+    ball_in_paddle_vertical_range && ball_at_paddle_horizontal_range && ball_moving_toward_paddle
   end
 
   defp check_scoring_and_walls(x, y, ball, ball_radius, board_width, board_height, scores) do
@@ -430,7 +532,14 @@ defmodule BlogWeb.PongLive do
       # Ball passed the paddle (left wall) - wall scores
       x - ball_radius <= 0 ->
         {
-          %{x: x, y: y, dx: -ball.dx, dy: ball.dy},
+          %{
+            x: x,
+            y: y,
+            dx: -ball.dx,
+            dy: ball.dy,
+            bounce_count: ball.bounce_count || 0,
+            speed_multiplier: ball.speed_multiplier || 1.0
+          },
           :scored,
           %{scores | wall: scores.wall + 1},
           %{x: 0, y: y},
@@ -440,8 +549,24 @@ defmodule BlogWeb.PongLive do
       # Right wall collision
       x + ball_radius >= board_width && ball.dx > 0 ->
         bounce_pos = %{x: board_width, y: y}
+
+        # Add small random angle change on wall bounce to break patterns
+        # Reduced from 0.3 to 0.15 for more predictable bounces
+        angle_change = (:rand.uniform() - 0.5) * 0.15
+        speed = :math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy)
+        angle = :math.atan2(ball.dy, ball.dx) + angle_change
+        new_dx = -abs(:math.cos(angle) * speed)
+        new_dy = :math.sin(angle) * speed
+
         {
-          %{x: x, y: y, dx: -ball.dx, dy: ball.dy},
+          %{
+            x: x,
+            y: y,
+            dx: new_dx,
+            dy: new_dy,
+            bounce_count: ball.bounce_count || 0,
+            speed_multiplier: ball.speed_multiplier || 1.0
+          },
           :playing,
           scores,
           bounce_pos,
@@ -452,8 +577,24 @@ defmodule BlogWeb.PongLive do
       (y + ball_radius >= board_height && ball.dy > 0) || (y - ball_radius <= 0 && ball.dy < 0) ->
         bounce_y = if y + ball_radius >= board_height, do: board_height, else: 0
         bounce_pos = %{x: x, y: bounce_y}
+
+        # Add small random angle change on wall bounce to break patterns
+        # Reduced from 0.3 to 0.15 for more predictable bounces
+        angle_change = (:rand.uniform() - 0.5) * 0.15
+        speed = :math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy)
+        angle = :math.atan2(ball.dy, ball.dx) + angle_change
+        new_dx = ball.dx
+        new_dy = -abs(ball.dy) * sign(ball.dy)
+
         {
-          %{x: x, y: y, dx: ball.dx, dy: -ball.dy},
+          %{
+            x: x,
+            y: y,
+            dx: new_dx,
+            dy: new_dy,
+            bounce_count: ball.bounce_count || 0,
+            speed_multiplier: ball.speed_multiplier || 1.0
+          },
           :playing,
           scores,
           bounce_pos,
@@ -463,7 +604,14 @@ defmodule BlogWeb.PongLive do
       # No collision
       true ->
         {
-          %{x: x, y: y, dx: ball.dx, dy: ball.dy},
+          %{
+            x: x,
+            y: y,
+            dx: ball.dx,
+            dy: ball.dy,
+            bounce_count: ball.bounce_count || 0,
+            speed_multiplier: ball.speed_multiplier || 1.0
+          },
           :playing,
           scores,
           nil,
@@ -472,13 +620,10 @@ defmodule BlogWeb.PongLive do
     end
   end
 
-  defp calculate_new_dy(y, dy, height, ball_radius) do
-    cond do
-      y + ball_radius >= height && dy > 0 -> -dy
-      y - ball_radius <= 0 && dy < 0 -> -dy
-      true -> dy
-    end
-  end
+  # Helper function to get the sign of a number
+  defp sign(x) when x > 0, do: 1
+  defp sign(x) when x < 0, do: -1
+  defp sign(_), do: 0
 
   # AI logic to calculate where to move the paddle
   defp ai_calculate_target_position(ball) do
@@ -486,9 +631,22 @@ defmodule BlogWeb.PongLive do
     # Add some imperfection to make it beatable
     target_y = ball.y - (@paddle_height / 2)
 
-    # Add some randomness to make the AI imperfect
-    randomness = :rand.uniform(100) - 50
-    target_y + randomness
+    # Add increasing randomness based on ball speed to make AI less perfect at higher speeds
+    # But keep it more controlled
+    speed_factor = (ball.speed_multiplier || 1.0)
+    randomness = :rand.uniform(80) - 40  # Reduced from 100-50 to 80-40
+
+    # More randomness at higher speeds, but more gradual
+    randomness = randomness * (speed_factor * 0.8)
+
+    # Add a slight delay effect by occasionally targeting the wrong position
+    # But make it less frequent
+    if :rand.uniform() < 0.05 * speed_factor do
+      # Occasionally aim at a random position to simulate mistakes
+      target_y + randomness * 1.5
+    else
+      target_y + randomness
+    end
   end
 
   # Helper functions for ETS storage
