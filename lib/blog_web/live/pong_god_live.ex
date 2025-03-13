@@ -4,13 +4,17 @@ defmodule BlogWeb.PongGodLive do
 
   @refresh_interval 100 # ms
   @cleanup_interval 30_000 # 30 seconds
+  @explosion_interval 15 # 15ms (100x more frequent than 1500ms)
   @rainbow_segments 12 # Number of segments in each rainbow
   @rainbow_width 3 # Width of rainbow lines in pixels
+  @particles_per_explosion 40 # Doubled from 20 to 40 particles per explosion
+  @max_explosions 50 # Cap the number of simultaneous explosions to prevent performance issues
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
       :timer.send_interval(@refresh_interval, :refresh)
       :timer.send_interval(@cleanup_interval, :cleanup_stale_games)
+      :timer.send_interval(@explosion_interval, :create_explosion)
     end
 
     games = PongLive.get_all_games()
@@ -22,7 +26,10 @@ defmodule BlogWeb.PongGodLive do
     # Generate rainbow paths for each game
     rainbow_paths = generate_rainbow_paths(sorted_games)
 
-    {:ok, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths)}
+    # Initialize explosions list
+    explosions = []
+
+    {:ok, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths, explosions: explosions)}
   end
 
   def handle_info(:refresh, socket) do
@@ -40,7 +47,27 @@ defmodule BlogWeb.PongGodLive do
         socket.assigns.rainbow_paths
       end
 
-    {:noreply, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths)}
+    # Update explosions - remove any that have expired
+    current_time = System.monotonic_time(:millisecond)
+    updated_explosions = Enum.filter(socket.assigns.explosions, fn explosion ->
+      current_time - explosion.created_at < 800 # Shorter lifespan for better performance
+    end)
+
+    {:noreply, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths, explosions: updated_explosions)}
+  end
+
+  def handle_info(:create_explosion, socket) do
+    # Only create a new explosion if we're under the maximum limit
+    updated_explosions =
+      if length(socket.assigns.explosions) < @max_explosions do
+        # Create a new explosion at a random position
+        new_explosion = generate_explosion()
+        [new_explosion | socket.assigns.explosions]
+      else
+        socket.assigns.explosions
+      end
+
+    {:noreply, assign(socket, explosions: updated_explosions)}
   end
 
   def handle_info(:cleanup_stale_games, socket) do
@@ -63,6 +90,95 @@ defmodule BlogWeb.PongGodLive do
       end
 
     {:noreply, assign(socket, games: sorted_games, rainbow_paths: rainbow_paths)}
+  end
+
+  # Generate a new explosion with particles
+  defp generate_explosion do
+    # Random position for the explosion center
+    center_x = :rand.uniform(100)
+    center_y = :rand.uniform(100)
+
+    # Random explosion size
+    explosion_size = 5 + :rand.uniform() * 20
+
+    # Generate particles for the explosion
+    particles = Enum.map(1..@particles_per_explosion, fn _ ->
+      # Random angle and distance from center
+      angle = :rand.uniform() * 2 * :math.pi
+      distance = :rand.uniform() * explosion_size
+
+      # Calculate particle position
+      x = center_x + distance * :math.cos(angle)
+      y = center_y + distance * :math.sin(angle)
+
+      # Random size for the particle
+      size = 1 + :rand.uniform() * 5
+
+      # Random color from expanded palette
+      color = get_random_vibrant_color()
+
+      # Random opacity
+      opacity = 0.7 + :rand.uniform() * 0.3
+
+      %{
+        x: x,
+        y: y,
+        size: size,
+        color: color,
+        opacity: opacity
+      }
+    end)
+
+    %{
+      center_x: center_x,
+      center_y: center_y,
+      particles: particles,
+      created_at: System.monotonic_time(:millisecond)
+    }
+  end
+
+  # Get a random vibrant color
+  defp get_random_vibrant_color do
+    colors = [
+      # Pinks
+      "rgba(255, 105, 180, %s)", # Hot Pink
+      "rgba(255, 20, 147, %s)",  # Deep Pink
+      "rgba(219, 112, 147, %s)", # Pale Violet Red
+
+      # Yellows
+      "rgba(255, 255, 0, %s)",   # Yellow
+      "rgba(255, 215, 0, %s)",   # Gold
+      "rgba(255, 165, 0, %s)",   # Orange
+
+      # Blues
+      "rgba(0, 191, 255, %s)",   # Deep Sky Blue
+      "rgba(30, 144, 255, %s)",  # Dodger Blue
+      "rgba(138, 43, 226, %s)",  # Blue Violet
+
+      # Greens
+      "rgba(50, 205, 50, %s)",   # Lime Green
+      "rgba(0, 250, 154, %s)",   # Medium Spring Green
+      "rgba(127, 255, 212, %s)", # Aquamarine
+
+      # Reds
+      "rgba(255, 69, 0, %s)",    # Red-Orange
+      "rgba(255, 0, 0, %s)",     # Red
+      "rgba(220, 20, 60, %s)",   # Crimson
+
+      # Purples
+      "rgba(148, 0, 211, %s)",   # Dark Violet
+      "rgba(186, 85, 211, %s)",  # Medium Orchid
+      "rgba(218, 112, 214, %s)", # Orchid
+
+      # Cyans
+      "rgba(0, 255, 255, %s)",   # Cyan
+      "rgba(64, 224, 208, %s)"   # Turquoise
+    ]
+
+    color_template = Enum.random(colors)
+    opacity = 0.7 + :rand.uniform() * 0.3
+    opacity_string = :erlang.float_to_binary(opacity, [decimals: 2])
+    String.replace(color_template, "%s", opacity_string)
   end
 
   # Generate random rainbow paths for each game
@@ -159,6 +275,26 @@ defmodule BlogWeb.PongGodLive do
                   stroke-linecap="round"
                 />
               </svg>
+            </div>
+          <% end %>
+        <% end %>
+
+        <!-- Explosions -->
+        <%= for explosion <- @explosions do %>
+          <%= for particle <- explosion.particles do %>
+            <div
+              class="absolute rounded-full"
+              style={"
+                left: #{particle.x}%;
+                top: #{particle.y}%;
+                width: #{particle.size}px;
+                height: #{particle.size}px;
+                background-color: #{particle.color};
+                box-shadow: 0 0 #{particle.size * 2}px #{particle.color};
+                transform: translate(-50%, -50%);
+                z-index: 1;
+              "}
+            >
             </div>
           <% end %>
         <% end %>
