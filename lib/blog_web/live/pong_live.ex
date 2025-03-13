@@ -1,6 +1,7 @@
 defmodule BlogWeb.PongLive do
   use BlogWeb, :live_view
   alias Phoenix.LiveView.Socket
+  require Logger
 
   @fps 60
   @tick_rate 1000 / @fps
@@ -17,6 +18,11 @@ defmodule BlogWeb.PongLive do
   @defeat_message_duration 90 # frames (1.5 seconds at 60 FPS)
   @jitter_amount 80 # pixels of random jitter in ball position
   @burst_particle_count 50 # number of particles in defeat burst
+  @game_width 800
+  @game_height 600
+  @ball_size 10
+  @frame_rate 16 # ~60 FPS
+  @ai_reaction_time 100 # ms - how often the AI updates its paddle position
 
   def mount(_params, session, socket) do
     # Use the user's session ID + a unique timestamp for this session
@@ -30,21 +36,21 @@ defmodule BlogWeb.PongLive do
     initial_state = %{
       game_id: game_id,
       ball: %{
-        x: @board_width / 2,
-        y: @board_height / 2,
+        x: @game_width / 2,
+        y: @game_height / 2,
         dx: @ball_speed,
-        dy: @ball_speed
+        dy: -@ball_speed
       },
       paddle: %{
-        y: @board_height / 2 - @paddle_height / 2,
-        x: @paddle_offset
+        x: @paddle_offset,
+        y: @game_height / 2 - @paddle_height / 2
       },
       scores: %{
         wall: 0
       },
       board: %{
-        width: @board_width,
-        height: @board_height
+        width: @game_width,
+        height: @game_height
       },
       trail: [],
       sparkles: [],
@@ -58,7 +64,8 @@ defmodule BlogWeb.PongLive do
       sparkle_life: @sparkle_life,
       defeat_message_duration: @defeat_message_duration,
       show_defeat_message: false,
-      game_state: :playing # :playing, :scored, :defeat_message
+      game_state: :ready, # :ready, :playing, :defeat_message
+      ai_controlled: true # Start with AI control enabled
     }
 
     # Always start the tick timer for this LiveView instance
@@ -75,14 +82,21 @@ defmodule BlogWeb.PongLive do
 
         [{^game_id, existing_state}] ->
           # Existing game - use its state instead of the initial state
-          initial_state = Map.merge(initial_state, %{
+          updated_state = Map.merge(initial_state, %{
             ball: existing_state.ball,
             paddle: existing_state.paddle,
             scores: existing_state.scores,
             game_state: Map.get(existing_state, :game_state, :playing),
-            show_defeat_message: Map.get(existing_state, :show_defeat_message, false)
+            show_defeat_message: Map.get(existing_state, :show_defeat_message, false),
+            ai_controlled: Map.get(existing_state, :ai_controlled, true)
           })
           Phoenix.PubSub.subscribe(Blog.PubSub, "pong:#{game_id}")
+          initial_state = updated_state
+      end
+
+      # Start the AI timer if AI is enabled
+      if initial_state.ai_controlled do
+        :timer.send_interval(@ai_reaction_time, :ai_move)
       end
     end
 
@@ -101,7 +115,14 @@ defmodule BlogWeb.PongLive do
   end
 
   def handle_event("keydown", %{"key" => key}, socket) when key in ["ArrowUp", "ArrowDown"] do
-    {:noreply, assign(socket, :last_key, key)}
+    # When user presses a key, disable AI control
+    updated_socket = if socket.assigns.ai_controlled do
+      assign(socket, ai_controlled: false)
+    else
+      socket
+    end
+
+    {:noreply, assign(updated_socket, :last_key, key)}
   end
 
   def handle_event("keydown", _params, socket), do: {:noreply, socket}
@@ -115,6 +136,16 @@ defmodule BlogWeb.PongLive do
   end
 
   def handle_event("keyup", _params, socket), do: {:noreply, socket}
+
+  # Toggle AI control
+  def handle_event("toggle_ai", _params, socket) do
+    updated_socket = assign(socket, ai_controlled: !socket.assigns.ai_controlled)
+
+    # Store the updated game state
+    store_game_state(socket.assigns.game_id, updated_socket.assigns)
+
+    {:noreply, updated_socket}
+  end
 
   def handle_info(:tick, %{assigns: %{game_state: :defeat_message, message_timer: timer}} = socket) do
     if timer >= @defeat_message_duration do
@@ -155,6 +186,38 @@ defmodule BlogWeb.PongLive do
     {:noreply, new_socket}
   end
 
+  def handle_info(:ai_move, socket) do
+    # Only move the AI paddle if the game is in playing state and AI is enabled
+    if socket.assigns.game_state == :playing && socket.assigns.ai_controlled do
+      # AI logic to track the ball
+      target_y = ai_calculate_target_position(socket.assigns.ball)
+
+      # Move paddle towards target with some "reaction time" delay
+      current_y = socket.assigns.paddle.y
+      ai_speed = 10 # Adjust this to change AI difficulty
+
+      # Move towards target with limited speed
+      new_y = cond do
+        current_y < target_y - ai_speed -> current_y + ai_speed
+        current_y > target_y + ai_speed -> current_y - ai_speed
+        true -> target_y
+      end
+
+      # Ensure paddle stays within bounds
+      new_y = max(0, min(new_y, @game_height - @paddle_height))
+
+      # Update paddle position
+      updated_socket = assign(socket, paddle: %{socket.assigns.paddle | y: new_y})
+
+      # Store the updated game state in ETS
+      store_game_state(updated_socket.assigns.game_id, updated_socket.assigns)
+
+      {:noreply, updated_socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
   # Reset ball with random jitter
   defp reset_ball_with_jitter(socket) do
     # Add random jitter to starting position
@@ -162,8 +225,8 @@ defmodule BlogWeb.PongLive do
     y_jitter = :rand.uniform(@jitter_amount) - (@jitter_amount / 2)
 
     # Make sure ball stays in bounds despite jitter
-    new_x = min(max(@board_width / 2 + x_jitter, @ball_radius * 2), @board_width - @ball_radius * 2)
-    new_y = min(max(@board_height / 2 + y_jitter, @ball_radius * 2), @board_height - @ball_radius * 2)
+    new_x = min(max(@game_width / 2 + x_jitter, @ball_radius * 2), @game_width - @ball_radius * 2)
+    new_y = min(max(@game_height / 2 + y_jitter, @ball_radius * 2), @game_height - @ball_radius * 2)
 
     # Random slight variation in angle
     angle_variation = (:rand.uniform(40) - 20) * :math.pi / 180
@@ -417,6 +480,17 @@ defmodule BlogWeb.PongLive do
     end
   end
 
+  # AI logic to calculate where to move the paddle
+  defp ai_calculate_target_position(ball) do
+    # Simple AI: try to keep the paddle center aligned with the ball
+    # Add some imperfection to make it beatable
+    target_y = ball.y - (@paddle_height / 2)
+
+    # Add some randomness to make the AI imperfect
+    randomness = :rand.uniform(100) - 50
+    target_y + randomness
+  end
+
   # Helper functions for ETS storage
   defp generate_unique_id do
     # Generate a random string to use as game ID
@@ -424,6 +498,9 @@ defmodule BlogWeb.PongLive do
   end
 
   defp store_game_state(game_id, state) do
+    # Ensure the ETS table exists
+    create_ets_table_if_not_exists()
+
     # Store minimal but sufficient state to keep the game running properly
     minimal_state = %{
       game_id: game_id,
@@ -431,14 +508,25 @@ defmodule BlogWeb.PongLive do
       paddle: state.paddle,
       scores: state.scores,
       show_defeat_message: state.show_defeat_message,
-      game_state: state.game_state
+      game_state: state.game_state,
+      ai_controlled: state.ai_controlled
     }
 
     :ets.insert(:pong_games, {game_id, minimal_state})
   end
 
+  # Create ETS table if it doesn't exist
+  defp create_ets_table_if_not_exists do
+    if :ets.whereis(:pong_games) == :undefined do
+      :ets.new(:pong_games, [:named_table, :public, :set])
+    end
+  end
+
   # Used by GodModePongLive to fetch all games
   def get_all_games do
+    # Ensure the ETS table exists
+    create_ets_table_if_not_exists()
+
     :ets.tab2list(:pong_games)
     |> Enum.map(fn {_id, state} -> state end)
   end
@@ -455,6 +543,18 @@ defmodule BlogWeb.PongLive do
       <div class="text-white text-xl mb-4">
         Wall: <%= @scores.wall %>
       </div>
+
+      <!-- AI Control Toggle Button -->
+      <button
+        phx-click="toggle_ai"
+        class={"px-4 py-2 rounded-md mb-4 transition-colors #{if @ai_controlled, do: "bg-green-500 hover:bg-green-600", else: "bg-red-500 hover:bg-red-600"}"}
+      >
+        <%= if @ai_controlled do %>
+          AI Playing (Click to Take Control)
+        <% else %>
+          Manual Control (Click for AI Help)
+        <% end %>
+      </button>
 
       <div
         class="relative"
@@ -519,7 +619,7 @@ defmodule BlogWeb.PongLive do
       </div>
 
       <div class="text-white text-sm mt-2">
-        <a href={~p"/pong/god"} class="text-blue-400 hover:underline">God Mode View</a>
+        <a href={~p"/pong_god"} class="text-blue-400 hover:underline">God Mode View</a>
       </div>
     </div>
     """
