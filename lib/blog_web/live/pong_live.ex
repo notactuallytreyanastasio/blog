@@ -785,7 +785,7 @@ defmodule BlogWeb.PongLive do
       </div>
 
       <div class="mt-2">
-        <a href={~p"/pong_god"} class="inline-block px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow">God Mode View</a>
+        <a href={~p"/pong/god"} class="inline-block px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow">God Mode View</a>
       </div>
     </div>
     """
