@@ -182,16 +182,22 @@ defmodule BlogWeb.PongGodLive do
   end
 
   # Generate random rainbow paths for each game
-  defp generate_rainbow_paths(games) do
-    Enum.map(games, fn game ->
-      # Use game ID as seed for randomness to ensure consistent rainbows per game
-      seed =
-        game.game_id
-        |> String.to_charlist()
-        |> Enum.sum()
+  defp generate_rainbow_paths(game) when is_map(game) do
+    # Generate a single rainbow path for a game
+    # Make sure we have a game_id to use as seed
+    game_id = Map.get(game, :game_id, "default_#{:rand.uniform(10000)}")
 
-      :rand.seed(:exsss, {seed, seed + 1, seed + 2})
+    # Use game ID as seed for randomness to ensure consistent rainbows per game
+    seed =
+      game_id
+      |> to_string()
+      |> String.to_charlist()
+      |> Enum.sum()
 
+    :rand.seed(:exsss, {seed, seed + 1, seed + 2})
+
+    # Generate multiple paths for this game
+    Enum.map(1..3, fn path_index ->
       # Random starting position
       start_x = :rand.uniform(100)
       start_y = :rand.uniform(100)
@@ -206,15 +212,38 @@ defmodule BlogWeb.PongGodLive do
       # Generate path points
       points = generate_path_points(start_x, start_y, angle, length, curve_factor, @rainbow_segments)
 
-      # Random opacity
-      opacity = 0.1 + :rand.uniform() * 0.2 # Between 0.1 and 0.3
+      # Convert points to SVG path
+      path_d = points_to_svg_path(points)
+
+      # Get color from the last point (end of rainbow)
+      color = List.last(points).color
 
       %{
-        points: points,
-        opacity: opacity,
-        width: @rainbow_width
+        d: path_d,
+        color: color
       }
     end)
+  end
+
+  # Handle list of games
+  defp generate_rainbow_paths(games) when is_list(games) do
+    # Generate rainbow paths for each game
+    Enum.flat_map(games, &generate_rainbow_paths/1)
+  end
+
+  # Fallback for any other type
+  defp generate_rainbow_paths(_), do: []
+
+  # Convert points to SVG path string
+  defp points_to_svg_path(points) do
+    # Start with the first point
+    [first | rest] = points
+
+    # Create the path string
+    path = "M #{first.x} #{first.y} " <>
+      Enum.map_join(rest, " ", fn point -> "L #{point.x} #{point.y}" end)
+
+    path
   end
 
   # Generate points for a curved path
@@ -241,127 +270,83 @@ defmodule BlogWeb.PongGodLive do
   end
 
   def render(assigns) do
+    # Add rainbow_width to assigns so it's accessible in the template
+    assigns = assign(assigns, :rainbow_width, @rainbow_width)
+
     ~H"""
-    <div class="p-4 bg-gray-800 min-h-screen relative overflow-hidden">
-      <!-- Rainbow background decorations -->
-      <div class="absolute inset-0 overflow-hidden pointer-events-none">
-        <%= for {rainbow, index} <- Enum.with_index(@rainbow_paths) do %>
-          <!-- Draw rainbow path segments -->
-          <%= for i <- 0..(length(rainbow.points) - 2) do %>
-            <%
-              start_point = Enum.at(rainbow.points, i)
-              end_point = Enum.at(rainbow.points, i + 1)
-            %>
-            <div
-              class="absolute"
-              style={"
-                left: 0;
-                top: 0;
-                width: 100%;
-                height: 100%;
-                opacity: #{rainbow.opacity};
-                overflow: visible;
-                z-index: 0;
-              "}
-            >
-              <svg width="100%" height="100%" style="position: absolute; overflow: visible;">
-                <line
-                  x1={"#{start_point.x}%"}
-                  y1={"#{start_point.y}%"}
-                  x2={"#{end_point.x}%"}
-                  y2={"#{end_point.y}%"}
-                  stroke={"#{start_point.color}"}
-                  stroke-width={"#{rainbow.width}"}
-                  stroke-linecap="round"
-                />
-              </svg>
-            </div>
+    <div class="w-full min-h-screen bg-gray-900 text-white p-4 relative overflow-hidden">
+      <!-- Rainbow background paths -->
+      <svg class="absolute inset-0 w-full h-full" style="z-index: 0;">
+        <%= for game <- @games do %>
+          <% paths = generate_rainbow_paths(game) %>
+          <%= for path <- paths do %>
+            <path
+              d={path.d}
+              fill="none"
+              stroke={path.color}
+              stroke-width={@rainbow_width}
+              stroke-linecap="round"
+              opacity="0.3"
+            />
           <% end %>
         <% end %>
+      </svg>
 
-        <!-- Explosions -->
+      <!-- Explosion particles -->
+      <div class="absolute inset-0 w-full h-full" style="z-index: 1; pointer-events: none;">
         <%= for explosion <- @explosions do %>
           <%= for particle <- explosion.particles do %>
             <div
               class="absolute rounded-full"
-              style={"
-                left: #{particle.x}%;
-                top: #{particle.y}%;
-                width: #{particle.size}px;
-                height: #{particle.size}px;
-                background-color: #{particle.color};
-                box-shadow: 0 0 #{particle.size * 2}px #{particle.color};
-                transform: translate(-50%, -50%);
-                z-index: 1;
-              "}
-            >
-            </div>
+              style={"left: #{particle.x}%; top: #{particle.y}%; width: #{particle.size}px; height: #{particle.size}px; background-color: #{particle.color}; opacity: #{particle.opacity};"}
+            ></div>
           <% end %>
         <% end %>
       </div>
 
-      <!-- Main content -->
-      <div class="max-w-7xl mx-auto relative z-10">
-        <h1 class="text-3xl font-bold text-white mb-6">Pong God Mode</h1>
-        <div class="mb-4">
-          <span class="text-white">Active Games: <%= length(@games) %></span>
-          <a href={~p"/pong"} class="text-blue-400 hover:underline ml-4">Play Pong</a>
-        </div>
+      <div class="relative z-10">
+        <h1 class="text-3xl font-bold mb-6 text-center">Pong God Mode</h1>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <%= for game <- @games do %>
-            <div class="bg-gray-700 rounded-lg overflow-hidden shadow-lg">
-              <div class="p-2 bg-gray-600 text-white text-sm flex justify-between">
-                <span>Game ID: <%= String.slice(game.game_id || "", 0..8) %>...</span>
-                <span>Score: <%= (game.scores || %{}).wall || 0 %></span>
-              </div>
-              <div class="relative" style="width: 100%; height: 200px;">
-                <!-- Mini game board -->
-                <div class="absolute w-full h-full bg-gray-900">
-                  <!-- Center line -->
-                  <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gray-700 border-dashed"></div>
-
-                  <!-- Paddle -->
-                  <%= if game.paddle do %>
-                    <div
-                      class="absolute bg-white rounded-sm"
-                      style={"width: 5px; height: 33px; left: 10px; top: #{(game.paddle.y || 0) * 200 / 600}px;"}
-                    >
-                    </div>
-                  <% end %>
-
-                  <!-- Ball -->
-                  <%= if game.ball do %>
-                    <div
-                      class="absolute rounded-full bg-white"
-                      style={"width: 6px; height: 6px; left: calc(#{(game.ball.x || 0) * 100 / 800}% - 3px); top: calc(#{(game.ball.y || 0) * 200 / 600}px - 3px);"}
-                    >
-                    </div>
-                  <% end %>
-
-                  <!-- Defeat message -->
-                  <%= if game.show_defeat_message do %>
-                    <div class="absolute inset-0 flex items-center justify-center z-10">
-                      <div
-                        class="text-center text-sm font-bold tracking-wider uppercase text-red-500"
-                        style="text-shadow: 0 0 5px currentColor;"
-                      >
-                        DEFEAT
-                      </div>
-                    </div>
-                  <% end %>
+            <div class="border border-gray-700 rounded-lg overflow-hidden">
+              <!-- Game header with ID and score -->
+              <div class="bg-gray-800 p-3 flex justify-between items-center">
+                <div class="text-xs opacity-70 truncate">
+                  ID: <%= String.slice(game.game_id || "unknown", 0, 8) %>...
                 </div>
+                <div class="text-sm font-bold">
+                  Score: <%= (game.scores || %{}).wall || 0 %>
+                </div>
+              </div>
+
+              <!-- Game preview -->
+              <div class="relative" style="height: 200px;">
+                <!-- Semi-transparent game background -->
+                <div class="absolute inset-0 bg-gray-900 bg-opacity-60 rounded-b-lg"></div>
+
+                <!-- Ball -->
+                <div
+                  class="absolute rounded-full bg-white"
+                  style={"width: #{20}px; height: #{20}px; left: #{(game.ball || %{x: 400}).x / 4 - 10}px; top: #{(game.ball || %{y: 300}).y / 3 - 10}px;"}
+                ></div>
+
+                <!-- Paddle -->
+                <div
+                  class="absolute bg-white rounded-sm"
+                  style={"width: #{15 / 4}px; height: #{100 / 3}px; left: #{(game.paddle || %{x: 30}).x / 4}px; top: #{(game.paddle || %{y: 250}).y / 3}px;"}
+                ></div>
+
+                <!-- Center line -->
+                <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gray-700 opacity-50"></div>
               </div>
             </div>
           <% end %>
         </div>
 
-        <%= if @games == [] do %>
-          <div class="text-center text-white py-8">
-            <p class="text-xl">No active games found</p>
-            <p class="mt-2">Open <a href={~p"/pong"} class="text-blue-400 hover:underline">the Pong game</a> in another tab to see it appear here</p>
-          </div>
-        <% end %>
+        <div class="mt-8 text-center">
+          <a href={~p"/pong"} class="text-blue-400 hover:underline">Play Pong</a>
+        </div>
       </div>
     </div>
     """
