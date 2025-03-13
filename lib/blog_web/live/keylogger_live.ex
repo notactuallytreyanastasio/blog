@@ -81,6 +81,15 @@ defmodule BlogWeb.KeyloggerLive do
   def render(assigns) do
     ~H"""
     <style>
+      html, body {
+        background-color: white !important;
+        color: black !important;
+      }
+
+      body > div, main, section, article {
+        background-color: white !important;
+      }
+
       @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -89,6 +98,8 @@ defmodule BlogWeb.KeyloggerLive do
       #content-of-letter {
         font-family: "Courier New", Courier, monospace;
         line-height: 1.5;
+        color: black;
+        background-color: white;
       }
 
       .typewriter-text {
@@ -96,6 +107,8 @@ defmodule BlogWeb.KeyloggerLive do
         white-space: pre-wrap;
         margin: 0;
         padding: 0;
+        color: black;
+        background-color: white;
       }
 
       /* Hide print-only content during normal viewing */
@@ -123,6 +136,7 @@ defmodule BlogWeb.KeyloggerLive do
           line-height: 1.5;
           white-space: pre-wrap;
           color: black;
+          background-color: white;
         }
       }
     </style>
@@ -130,7 +144,7 @@ defmodule BlogWeb.KeyloggerLive do
       THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND {@pressed_keys}
     </div>
     <.head_tags meta_attrs={@meta_attrs} page_title={@page_title} />
-    <h1 class="text-[75px]">Pressing: {@pressed_key}</h1>
+    <h1 class="text-[75px] text-black">Pressing: {@pressed_key}</h1>
     <%= if @show_modal do %>
       <div
         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
@@ -163,10 +177,10 @@ defmodule BlogWeb.KeyloggerLive do
         </div>
       </div>
     <% end %>
-    <div id="content-of-letter" class="mt-4 text-gray-500" phx-window-keydown="keydown">
-      <div class="mb-4">
-        THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
-        <pre class="typewriter-text"><%= @pressed_keys %></pre>
+    <div id="content-of-letter" class="mt-4 bg-white" phx-window-keydown="keydown">
+      <div class="mb-4 bg-white">
+        <div class="text-black font-mono mb-2 bg-white">THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND</div>
+        <pre class="typewriter-text bg-white"><%= @pressed_keys %></pre>
       </div>
     </div>
     """
