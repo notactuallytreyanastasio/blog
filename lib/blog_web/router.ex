@@ -37,6 +37,8 @@ defmodule BlogWeb.Router do
     live "/bookmarks/firehose", BookmarksFirehoseLive, :index
     live "/pong", PongLive, :index
     live "/pong/god", PongGodLive, :index
+    live "/chaos-typing", ChaosTypingLive, :index
+    live "/generative-art", GenerativeArtLive, :index
   end
 
   # Other scopes may use custom stacks.
