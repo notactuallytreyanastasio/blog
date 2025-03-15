@@ -149,7 +149,7 @@
             <!-- Player 1's card -->
             <div class="w-32 h-44 rounded-lg relative transition-all duration-300 transform" data-player1-card>
               <%= if @game_state.player1_card do %>
-                <div class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500 shadow-lg" data-card-front>
+                <div class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500" data-card-front>
                   <div class={["absolute top-1 left-2 text-xl font-bold", card_color(@game_state.player1_card.suit)]}>
                     <%= display_card_value(@game_state.player1_card.value) %>
                   </div>
@@ -198,7 +198,7 @@
             <!-- Player 2's card -->
             <div class="w-32 h-44 rounded-lg relative transition-all duration-300 transform" data-player2-card>
               <%= if @game_state.player2_card do %>
-                <div class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500 shadow-lg" data-card-front>
+                <div class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500" data-card-front>
                   <div class={["absolute top-1 left-2 text-xl font-bold", card_color(@game_state.player2_card.suit)]}>
                     <%= display_card_value(@game_state.player2_card.value) %>
                   </div>
