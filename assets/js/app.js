@@ -25,6 +25,7 @@ import Highlight from "./hooks/highlight"
 import CursorTracker from "./hooks/cursor_tracker"
 import FocusInput from "./hooks/focus_input"
 import GenerativeArt from "./hooks/generative_art"
+import Blackjack from "./hooks/blackjack"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
@@ -34,7 +35,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
     Highlight,
     CursorTracker,
     FocusInput,
-    GenerativeArt
+    GenerativeArt,
+    Blackjack
   }
 })
 
