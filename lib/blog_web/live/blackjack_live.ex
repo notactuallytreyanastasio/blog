@@ -55,6 +55,18 @@ defmodule BlogWeb.BlackjackLive do
     # Broadcast game started to all players
     BlogWeb.BlackjackLive.PubSub.broadcast_game_started(player_ids, game_id, game)
 
+    # Also broadcast game info to the lobby so new players can see it
+    BlogWeb.BlackjackLive.PubSub.broadcast_game_info_to_lobby(
+      game_id,
+      game,
+      socket.assigns.player_id
+    )
+
+    # Set up a recurring timer to periodically republish game info
+    if connected?(socket) do
+      :timer.send_interval(10000, self(), :republish_game_info)
+    end
+
     {:noreply, socket}
   end
 
@@ -237,7 +249,7 @@ defmodule BlogWeb.BlackjackLive do
 
   @impl true
   def handle_info({:request_games, requesting_player_id}, socket) do
-    # Only respond if we're hosting a game
+    # Respond if we're hosting a game - even if we're already playing it
     if socket.assigns.game_id && socket.assigns.game do
       # Send game info to the requesting player
       BlogWeb.BlackjackLive.PubSub.broadcast_game_info(
@@ -306,6 +318,20 @@ defmodule BlogWeb.BlackjackLive do
     else
       {:noreply, socket}
     end
+  end
+
+  @impl true
+  def handle_info(:republish_game_info, socket) do
+    # Only republish if we're hosting a game
+    if socket.assigns.game_id && socket.assigns.game do
+      BlogWeb.BlackjackLive.PubSub.broadcast_game_info_to_lobby(
+        socket.assigns.game_id,
+        socket.assigns.game,
+        socket.assigns.player_id
+      )
+    end
+
+    {:noreply, socket}
   end
 
   # Add a fallback handler for unexpected messages
@@ -660,6 +686,11 @@ defmodule BlogWeb.BlackjackLive.PubSub do
 
   def broadcast_game_info(to_player_id, game_id, game, host_id) do
     # Direct message to the player who requested game info
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id})
+  end
+
+  def broadcast_game_info_to_lobby(game_id, game, host_id) do
+    # Broadcast game info to the main lobby topic for all players to see
     Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id})
   end
 
