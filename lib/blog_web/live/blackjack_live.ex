@@ -351,6 +351,7 @@ defmodule BlogWeb.BlackjackLive do
   # Render functions
 
   defp render_player_hand(hand, status, score, hide_second_card \\ false) do
+    # Make sure we're working with the correct hand for this player
     cards =
       case {hand, hide_second_card} do
         {[first | rest], true} ->
@@ -359,6 +360,13 @@ defmodule BlogWeb.BlackjackLive do
           Enum.map(cards, &Blackjack.render_card/1)
       end
 
+    # Verify the score matches what we calculate (for debugging)
+    actual_score = Blackjack.calculate_score(hand)
+    if !hide_second_card && actual_score != score do
+      IO.puts("WARNING: Score mismatch! Displayed: #{score}, Calculated: #{actual_score}")
+      IO.puts("Hand: #{inspect(hand)}")
+    end
+
     status_text =
       case status do
         :bust -> " (Bust!)"
@@ -366,6 +374,10 @@ defmodule BlogWeb.BlackjackLive do
         _ -> ""
       end
 
+    # Use the calculated score directly for better accuracy
+    score_to_display = if hide_second_card, do: score, else: actual_score
+
+    # Use the provided score directly - don't recalculate it here
     score_text =
       cond do
         # When it's another player's hand, don't show score
@@ -373,7 +385,7 @@ defmodule BlogWeb.BlackjackLive do
         # When it's the dealer with hidden cards
         hide_second_card -> ""
         # Otherwise show the score
-        true -> " - Score: #{score}"
+        true -> " - Score: #{score_to_display}"
       end
 
     {cards, "#{status_text}#{score_text}"}
@@ -514,6 +526,12 @@ defmodule BlogWeb.BlackjackLive do
                     <%
                       # Show all cards for current player, only first card for others
                       should_hide_cards = player_id != @player_id
+
+                      # Debug the hand and score (only for current player)
+                      if player_id == @player_id do
+                        debug_player_hand(player_id, player.hand, player.score)
+                      end
+
                       {player_cards, player_status} = render_player_hand(
                         player.hand,
                         player.status,
@@ -579,6 +597,28 @@ defmodule BlogWeb.BlackjackLive do
       nil -> "Unknown Player"
       player -> player.name
     end
+  end
+
+  # Helper function to debug card values and scores
+  defp debug_player_hand(player_id, hand, score) do
+    hand_values = Enum.map(hand, fn {value, suit} -> "#{value}#{suit}" end)
+
+    card_values = Enum.map(hand, fn {value, suit} ->
+      case value do
+        "A" -> 11  # Simplification: count Ace as 11 for debugging
+        v when v in ["J", "Q", "K"] -> 10
+        "10" -> 10
+        v ->
+          case Integer.parse("#{v}") do
+            {num, _} -> num
+            :error -> 0
+          end
+      end
+    end)
+
+    hand_sum = Enum.sum(card_values)
+
+    IO.puts("DEBUG: Player #{player_id}: Cards: #{inspect(hand_values)}, Card values: #{inspect(card_values)}, Raw sum: #{hand_sum}, Calculated score: #{score}")
   end
 end
 
