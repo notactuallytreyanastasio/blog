@@ -6,16 +6,28 @@ defmodule BlogWeb.SkeetTimelineLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Initialize the ETS table if needed
-    SkeetStore.init()
+    # Initialize the ETS table if needed - with error handling
+    try do
+      SkeetStore.init()
+    rescue
+      e ->
+        Logger.error("Error initializing SkeetStore: #{inspect(e)}")
+    end
 
     # Subscribe to the PubSub topic for skeet updates
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Blog.PubSub, "sample_skeets")
     end
 
-    # Get the initial skeets to display
-    skeets = SkeetStore.get_recent_skeets()
+    # Get the initial skeets to display - with error handling
+    skeets =
+      try do
+        SkeetStore.get_recent_skeets()
+      rescue
+        e ->
+          Logger.error("Error fetching recent skeets: #{inspect(e)}")
+          []
+      end
 
     socket =
       socket
@@ -36,7 +48,6 @@ defmodule BlogWeb.SkeetTimelineLive do
       |> assign(:skeets, updated_skeets)
       |> assign(:new_skeet_count, 0)
       |> assign(:new_skeets, [])
-      # Ensure the scroll happens after the DOM update
       |> push_event("scroll-to-top", %{})
 
     {:noreply, socket}
@@ -44,8 +55,13 @@ defmodule BlogWeb.SkeetTimelineLive do
 
   @impl true
   def handle_info({:sample_skeet, skeet}, socket) do
-    # Store the skeet in ETS
-    SkeetStore.add_skeet(skeet)
+    # Store the skeet in ETS - with error handling
+    try do
+      SkeetStore.add_skeet(skeet)
+    rescue
+      e ->
+        Logger.error("Error storing skeet: #{inspect(e)}")
+    end
 
     # Add the skeet to our new skeets list and increment the counter
     new_skeet = %{skeet: skeet, timestamp: System.system_time(:millisecond)}

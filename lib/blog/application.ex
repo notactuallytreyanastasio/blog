@@ -27,6 +27,10 @@ defmodule Blog.Application do
     # Initialize the chat message store
     Blog.Chat.MessageStore.init()
 
+    # Pre-initialize the SkeetStore
+    # This ensures the module is loaded and the table is ready
+    ensure_skeet_store_initialized()
+
     children = [
       # Start the Telemetry supervisor
       BlogWeb.Telemetry,
@@ -50,6 +54,8 @@ defmodule Blog.Application do
     # Pre-load the Games modules to ensure they're available
     _ = Blog.Games
     _ = Blog.Games.Blackjack
+    # Pre-load SkeetStore module
+    _ = Blog.SkeetStore
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -61,6 +67,9 @@ defmodule Blog.Application do
 
       # Initialize the chat message store (we still try this as it checks if tables exist)
       Blog.Chat.MessageStore.init()
+
+      # Pre-initialize the SkeetStore
+      ensure_skeet_store_initialized()
 
       children = [
         # Start the Telemetry supervisor
@@ -92,13 +101,26 @@ defmodule Blog.Application do
       {:reddit_links, [:ordered_set, :public, read_concurrency: true]},
       {:bookmarks_table, [:set, :public, read_concurrency: true]},
       {:pong_games, [:set, :public]},
-      {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]}
+      {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]},
+      {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]}
     ], fn {table_name, table_opts} ->
       # Only create if it doesn't exist
       if :ets.whereis(table_name) == :undefined do
         :ets.new(table_name, [:named_table | table_opts])
       end
     end)
+  end
+
+  # Ensure the SkeetStore is initialized
+  defp ensure_skeet_store_initialized do
+    # Create tables if they don't exist, this can be called safely multiple times
+    if Code.ensure_loaded?(Blog.SkeetStore) do
+      try do
+        Blog.SkeetStore.init()
+      rescue
+        _ -> :ok  # Ignore any errors during initialization
+      end
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

@@ -64,6 +64,18 @@ defmodule BlueskyHose do
           _ -> :no_nothing_no_link
         end
 
+        # one in ten times broadcast a subset of the firehose
+        # we are going to build a skeet firehose viewer that
+        # utilizes this broadcast to only show a subset of the posts
+        # and build a pretty UI for all of it
+        if :rand.uniform(10) == 1 do
+          Phoenix.PubSub.broadcast(
+            Blog.PubSub,
+            "sample_skeets",
+            {:sample_skeet, skeet}
+          )
+        end
+
 
         # Broadcast to subscribers
 
