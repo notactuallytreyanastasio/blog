@@ -43,6 +43,8 @@ defmodule Blog.Application do
       # Start the Wordle stores
       Blog.Wordle.WordStore,
       Blog.Wordle.GameStore,
+      # Start the Presence service for real-time user tracking
+      BlogWeb.Presence,
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -75,6 +77,8 @@ defmodule Blog.Application do
         # Start the Wordle stores
         Blog.Wordle.WordStore,
         Blog.Wordle.GameStore,
+        # Start the Presence service for real-time user tracking
+        BlogWeb.Presence,
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
@@ -87,7 +91,8 @@ defmodule Blog.Application do
     Enum.each([
       {:reddit_links, [:ordered_set, :public, read_concurrency: true]},
       {:bookmarks_table, [:set, :public, read_concurrency: true]},
-      {:pong_games, [:set, :public]}
+      {:pong_games, [:set, :public]},
+      {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]}
     ], fn {table_name, table_opts} ->
       # Only create if it doesn't exist
       if :ets.whereis(table_name) == :undefined do

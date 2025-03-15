@@ -1,0 +1,287 @@
+<div class="mx-auto max-w-6xl px-4 py-8">
+  <h1 class="mb-8 text-3xl font-bold text-center">War Card Game</h1>
+
+  <div class="mb-6 bg-slate-100 rounded-lg p-4 shadow-md">
+    <div class="bg-blue-100 border border-blue-300 p-3 rounded-md mb-4 text-blue-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <p><strong>Test Mode:</strong> Open this page in multiple tabs to play against yourself.</p>
+          <p class="text-xs text-blue-600 font-mono mt-1">ID: <%= @user_id %></p>
+        </div>
+        <div class="flex items-center">
+          <%= if @edit_name do %>
+            <form phx-submit="save_display_name" phx-change="change_name_form" class="flex items-center">
+              <input type="text" name="display_name" value={@name_form["display_name"]}
+                class="px-2 py-1 border border-blue-400 rounded mr-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter name"
+                autofocus
+                maxlength="20" />
+              <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors duration-200">
+                Save
+              </button>
+            </form>
+          <% else %>
+            <div class="flex items-center mr-2">
+              <span class="font-semibold mr-2">Your name:</span>
+              <span class="text-blue-700 font-medium"><%= player_display_name(@players[@user_id]) %></span>
+            </div>
+            <button phx-click="toggle_edit_name" class="text-sm bg-blue-200 text-blue-800 px-2 py-1 rounded hover:bg-blue-300 transition-colors duration-200">
+              Change Name
+            </button>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <%= if @game_state do %>
+      <div class="p-4 mb-4 bg-white rounded-lg shadow-inner">
+        <div class="flex justify-between items-center mb-4">
+          <div class="text-lg">
+            <span class="font-bold">Player 1:</span>
+            <span class={if @game_state.player1 == @user_id, do: "text-blue-600 font-bold", else: ""}>
+              <%= player_display_name(@players[@game_state.player1]) %>
+            </span>
+            <span class="ml-2 text-sm">(<%= length(@game_state.player1_cards) %> cards)</span>
+            <%= if @game_state.player1 == @user_id do %>
+              <span class="ml-1 text-xs font-semibold bg-blue-100 px-1 py-0.5 rounded-full text-blue-800">YOU</span>
+            <% end %>
+          </div>
+          <div class="text-lg">
+            <span class="font-bold">Player 2:</span>
+            <span class={if @game_state.player2 == @user_id, do: "text-blue-600 font-bold", else: ""}>
+              <%= player_display_name(@players[@game_state.player2]) %>
+            </span>
+            <span class="ml-2 text-sm">(<%= length(@game_state.player2_cards) %> cards)</span>
+            <%= if @game_state.player2 == @user_id do %>
+              <span class="ml-1 text-xs font-semibold bg-blue-100 px-1 py-0.5 rounded-full text-blue-800">YOU</span>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="flex justify-center mb-6">
+          <%= if @game_state.winner do %>
+            <div class="text-center bg-yellow-100 p-4 rounded-lg w-full">
+              <h3 class="text-2xl font-bold mb-2">
+                Game Over!
+              </h3>
+              <p class="text-xl">
+                <%= if @game_state.winner == "player1" do %>
+                  <%= player_display_name(@players[@game_state.player1]) %> wins!
+                <% else %>
+                  <%= player_display_name(@players[@game_state.player2]) %> wins!
+                <% end %>
+              </p>
+            </div>
+          <% else %>
+            <div class="text-center mb-4">
+              <%= if @game_state.war_in_progress do %>
+                <div class="bg-red-100 p-4 rounded-lg mb-2 text-red-700 font-bold text-xl">
+                  WAR!
+                </div>
+                <p>Each player has placed one card face down and one card face up</p>
+                <div class="text-sm mt-2">
+                  <%= length(@game_state.war_pile) %> cards in war pile
+                </div>
+                <div class="text-sm italic mt-2 text-gray-600">
+                  In a war, each player automatically puts one card face down and one card face up.
+                  The player with the higher face up card wins all cards. If they tie again, another war is triggered.
+                </div>
+              <% end %>
+
+              <%= if @game_state.scoring_phase do %>
+                <div class="mt-4">
+                  <div class="mb-2">
+                    <%= cond do %>
+                      <% @game_state.player1_card && @game_state.player2_card && @game_state.player1_card.rank > @game_state.player2_card.rank -> %>
+                        <div class="text-green-600 font-semibold">
+                          <%= player_display_name(@players[@game_state.player1]) %> wins this round!
+                        </div>
+                      <% @game_state.player1_card && @game_state.player2_card && @game_state.player2_card.rank > @game_state.player1_card.rank -> %>
+                        <div class="text-green-600 font-semibold">
+                          <%= player_display_name(@players[@game_state.player2]) %> wins this round!
+                        </div>
+                      <% @game_state.player1_card && @game_state.player2_card -> %>
+                        <div class="text-red-600 font-semibold">
+                          Cards are equal! War is triggered!
+                        </div>
+                      <% true -> %>
+                        <div class="text-gray-600 font-semibold">
+                          Resolving round...
+                        </div>
+                    <% end %>
+                  </div>
+                  <button phx-click="continue_round" class="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors duration-200">
+                    Continue
+                  </button>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+
+        <div class="flex justify-center items-center gap-8 mb-6">
+          <!-- Player 1's card -->
+          <div class="w-32 h-44 rounded-lg relative">
+            <%= if @game_state.player1_card do %>
+              <div class="absolute inset-0 bg-white border-2 border-gray-300 rounded-lg shadow-lg flex flex-col justify-center items-center p-2">
+                <div class={["text-3xl font-bold", card_color(@game_state.player1_card.suit)]}>
+                  <%= display_card_value(@game_state.player1_card.value) %>
+                </div>
+                <div class={["text-4xl mt-2", card_color(@game_state.player1_card.suit)]}>
+                  <%= display_card_suit(@game_state.player1_card.suit) %>
+                </div>
+              </div>
+            <% else %>
+              <%= if !@game_state.winner && !@game_state.scoring_phase && @game_state.player1 == @user_id && length(@game_state.player1_cards) > 0 do %>
+                <button phx-click="play_card" class="absolute inset-0 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow-lg flex flex-col justify-center items-center transition-colors duration-200">
+                  <div class="text-xl font-bold">Play Card</div>
+                </button>
+              <% else %>
+                <div class="absolute inset-0 bg-gray-200 border-2 border-gray-300 rounded-lg flex justify-center items-center">
+                  <span class="text-gray-500 text-lg">
+                    <%= cond do %>
+                      <% @game_state.winner -> %>
+                        Game Over
+                      <% @game_state.scoring_phase -> %>
+                        Awaiting Continue
+                      <% true -> %>
+                        Waiting...
+                    <% end %>
+                  </span>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+
+          <!-- VS -->
+          <div class="text-2xl font-bold text-gray-600">VS</div>
+
+          <!-- Player 2's card -->
+          <div class="w-32 h-44 rounded-lg relative">
+            <%= if @game_state.player2_card do %>
+              <div class="absolute inset-0 bg-white border-2 border-gray-300 rounded-lg shadow-lg flex flex-col justify-center items-center p-2">
+                <div class={["text-3xl font-bold", card_color(@game_state.player2_card.suit)]}>
+                  <%= display_card_value(@game_state.player2_card.value) %>
+                </div>
+                <div class={["text-4xl mt-2", card_color(@game_state.player2_card.suit)]}>
+                  <%= display_card_suit(@game_state.player2_card.suit) %>
+                </div>
+              </div>
+            <% else %>
+              <%= if !@game_state.winner && !@game_state.scoring_phase && @game_state.player2 == @user_id && length(@game_state.player2_cards) > 0 do %>
+                <button phx-click="play_card" class="absolute inset-0 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow-lg flex flex-col justify-center items-center transition-colors duration-200">
+                  <div class="text-xl font-bold">Play Card</div>
+                </button>
+              <% else %>
+                <div class="absolute inset-0 bg-gray-200 border-2 border-gray-300 rounded-lg flex justify-center items-center">
+                  <span class="text-gray-500 text-lg">
+                    <%= cond do %>
+                      <% @game_state.winner -> %>
+                        Game Over
+                      <% @game_state.scoring_phase -> %>
+                        Awaiting Continue
+                      <% true -> %>
+                        Waiting...
+                    <% end %>
+                  </span>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="flex justify-between">
+          <!-- Player 1's deck -->
+          <div class="w-24 h-32 relative">
+            <%= if length(@game_state.player1_cards) > 0 do %>
+              <div class="absolute inset-0 bg-blue-700 rounded-lg shadow-md flex justify-center items-center">
+                <div class="text-white text-sm font-bold">
+                  <%= length(@game_state.player1_cards) %> cards
+                </div>
+              </div>
+            <% else %>
+              <div class="absolute inset-0 border-2 border-dashed border-gray-300 rounded-lg flex justify-center items-center">
+                <div class="text-gray-400 text-sm">Empty</div>
+              </div>
+            <% end %>
+          </div>
+
+          <!-- Player 2's deck -->
+          <div class="w-24 h-32 relative">
+            <%= if length(@game_state.player2_cards) > 0 do %>
+              <div class="absolute inset-0 bg-blue-700 rounded-lg shadow-md flex justify-center items-center">
+                <div class="text-white text-sm font-bold">
+                  <%= length(@game_state.player2_cards) %> cards
+                </div>
+              </div>
+            <% else %>
+              <div class="absolute inset-0 border-2 border-dashed border-gray-300 rounded-lg flex justify-center items-center">
+                <div class="text-gray-400 text-sm">Empty</div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% else %>
+      <!-- Lobby -->
+      <div class="bg-white p-4 rounded-lg">
+        <h3 class="text-xl font-bold mb-4">Lobby</h3>
+
+        <!-- Incoming invitations -->
+        <%= if map_size(@invitations) > 0 do %>
+          <div class="mb-4">
+            <h4 class="font-bold text-lg mb-2">Invitations:</h4>
+            <div class="space-y-2">
+              <%= for {from_id, invitation} <- @invitations do %>
+                <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div>
+                    <span class="font-medium"><%= player_display_name(@players[from_id]) %></span> has invited you to play
+                  </div>
+                  <div class="flex space-x-2">
+                    <button phx-click="accept_invitation" phx-value-from={invitation.from} class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded transition-colors duration-200">
+                      Accept
+                    </button>
+                    <button phx-click="decline_invitation" phx-value-from={invitation.from} class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-colors duration-200">
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <h4 class="font-bold text-lg mb-2">Players Online:</h4>
+        <%= if map_size(@players) > 1 do %>
+          <div class="space-y-2">
+            <%= for {player_id, meta} <- @players do %>
+              <%= if player_id != @user_id do %>
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <div>
+                    <span class="font-medium"><%= player_display_name(meta) %></span>
+                    <span class="text-xs text-gray-500 ml-2">
+                      online for <%= time_ago(meta.online_at) %>
+                    </span>
+                  </div>
+                  <%= if Map.has_key?(@sent_invitations, player_id) do %>
+                    <div class="text-orange-500 text-sm italic">
+                      Invitation sent
+                    </div>
+                  <% else %>
+                    <button phx-click="invite_player" phx-value-id={player_id} class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200">
+                      Invite to Play
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="p-4 text-center text-gray-500 italic">
+            Waiting for other players to join...
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

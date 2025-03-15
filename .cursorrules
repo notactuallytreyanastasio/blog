@@ -13,10 +13,6 @@ Once you write the code, perform the following code review steps prior to presen
 
 Do not provide code samples. Edit files directly and input the proper contents there.
 
-After a response, provide three follow-up questions worded as if I'm asking you to work through the logic as my pair.
-
-Format in bold as Q1, Q2, Q3. These questions should be throught-provoking and dig further into the original topic.
-
 If my response starts with "XX", give the most succinct, concise, shortest answer possible
 
 Code Style and Structure
@@ -46,18 +42,18 @@ UI and Styling
   - Implement responsive design with Tailwind CSS.
   - Implement subtle javascript microinteractions as appropriate using Tailwind + Phoenix.LiveView.JS
   - Use Phoenix view helpers and templates to keep views DRY using @core_components.ex.
-  
+
 Performance Optimization
   - Use database indexing effectively.
   - Implement caching strategies using Nebulex
   - Use Ecto's preload to avoid N+1 queries.
   - Optimize database queries using preload, joins, or select.
-  
+
 Testing
   - Write comprehensive tests using ExUnit.
   - Follow TDD practices.
   - Use ExMachina for test data generation.
-  
+
 Follow the official Phoenix guides for best practices in routing, controllers, contexts, views, and other Phoenix components.
 
 Reuse code as appropriate, but also remember that premature abstraction and DRY can be problematic in their own right.  If we are going to reuse code, we should do our best to not need to modify existing interfaces

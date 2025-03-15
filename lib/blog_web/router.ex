@@ -41,6 +41,7 @@ defmodule BlogWeb.Router do
     live "/generative-art", GenerativeArtLive, :index
     # live "/breakout", BreakoutLive, :index
     live "/blackjack", BlackjackLive, :index
+    live "/war", WarLive, :index
   end
 
   # Other scopes may use custom stacks.
