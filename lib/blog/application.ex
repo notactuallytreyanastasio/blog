@@ -39,8 +39,15 @@ defmodule Blog.Application do
       BlogWeb.Endpoint,
       # Start a worker by calling: Blog.Worker.start_link(arg)
       # {Blog.Worker, arg}
-      Blog.RedditBookmarkProcessor
+      Blog.RedditBookmarkProcessor,
+      # Start the Wordle stores
+      Blog.Wordle.WordStore,
+      Blog.Wordle.GameStore,
     ]
+
+    # Pre-load the Games modules to ensure they're available
+    _ = Blog.Games
+    _ = Blog.Games.Blackjack
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -64,7 +71,10 @@ defmodule Blog.Application do
         BlogWeb.Endpoint,
         # Start a worker by calling: Blog.Worker.start_link(arg)
         # {Blog.Worker, arg}
-        Blog.RedditBookmarkProcessor
+        Blog.RedditBookmarkProcessor,
+        # Start the Wordle stores
+        Blog.Wordle.WordStore,
+        Blog.Wordle.GameStore,
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]

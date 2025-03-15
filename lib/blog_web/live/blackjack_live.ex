@@ -52,14 +52,21 @@ defmodule BlogWeb.BlackjackLive do
       |> assign(:game, game)
       |> assign(:view, :game)
 
-    # Broadcast game started to all players
-    BlogWeb.BlackjackLive.PubSub.broadcast_game_started(player_ids, game_id, game)
+    # Broadcast game started to all players WITH the player lobby data
+    # This ensures everyone has the same player names
+    BlogWeb.BlackjackLive.PubSub.broadcast_game_started(
+      player_ids,
+      game_id,
+      game,
+      socket.assigns.players_in_lobby
+    )
 
     # Also broadcast game info to the lobby so new players can see it
     BlogWeb.BlackjackLive.PubSub.broadcast_game_info_to_lobby(
       game_id,
       game,
-      socket.assigns.player_id
+      socket.assigns.player_id,
+      socket.assigns.players_in_lobby
     )
 
     # Set up a recurring timer to periodically republish game info
@@ -72,22 +79,29 @@ defmodule BlogWeb.BlackjackLive do
 
   @impl true
   def handle_event("join_game", %{"game_id" => game_id}, socket) do
+    player_id = socket.assigns.player_id
+    player_name = get_player_name(socket.assigns.players_in_lobby, player_id)
+
     # Subscribe to the game-specific PubSub topic
     if connected?(socket) do
       BlogWeb.BlackjackLive.PubSub.subscribe_to_game(game_id)
     end
 
     # Send a request to the game host to add us to the game
+    # Include our current name to ensure it's correctly displayed
     BlogWeb.BlackjackLive.PubSub.broadcast_player_joined_game(
       game_id,
-      socket.assigns.player_id,
-      get_player_name(socket.assigns.players_in_lobby, socket.assigns.player_id)
+      player_id,
+      player_name
     )
 
     socket =
       socket
       |> assign(:game_id, game_id)
       |> assign(:view, :game)
+
+    # Add a temporary message to indicate we're waiting to join
+    |> assign(:game_message, "Waiting to join game...")
 
     {:noreply, socket}
   end
@@ -206,7 +220,7 @@ defmodule BlogWeb.BlackjackLive do
   end
 
   @impl true
-  def handle_info({:game_started, game_id, game}, socket) do
+  def handle_info({:game_started, game_id, game, players_lobby}, socket) do
     # Only update if we're part of the game
     if Map.has_key?(game.players, socket.assigns.player_id) do
       socket =
@@ -214,6 +228,7 @@ defmodule BlogWeb.BlackjackLive do
         |> assign(:game_id, game_id)
         |> assign(:game, game)
         |> assign(:view, :game)
+        |> assign(:players_in_lobby, Map.merge(socket.assigns.players_in_lobby, players_lobby))
 
       {:noreply, socket}
     else
@@ -264,20 +279,44 @@ defmodule BlogWeb.BlackjackLive do
   end
 
   @impl true
+  def handle_info({:game_info, game_id, game, host_id, players_lobby}, socket) do
+    # Use the new format with players_lobby
+    process_game_info(game_id, game, host_id, players_lobby, socket)
+  end
+
+  @impl true
   def handle_info({:game_info, game_id, game, host_id}, socket) do
+    # Handle the old format for backward compatibility
+    process_game_info(game_id, game, host_id, %{}, socket)
+  end
+
+  # Helper to process game info in a consistent way
+  defp process_game_info(game_id, game, host_id, players_lobby, socket) do
     # Don't add our own game to the list
     if host_id != socket.assigns.player_id do
-      host_name = get_player_name(socket.assigns.players_in_lobby, host_id)
+      # Get host name from provided players_lobby or current lobby
+      host_name =
+        if Map.has_key?(players_lobby, host_id) do
+          players_lobby[host_id].name
+        else
+          get_player_name(socket.assigns.players_in_lobby, host_id)
+        end
+
+      # Merge any provided player names into our lobby
+      updated_players_lobby = Map.merge(socket.assigns.players_in_lobby, players_lobby)
 
       # Add game to active games list
-      socket = update(socket, :active_games, fn games ->
-        Map.put(games, game_id, %{
-          host_id: host_id,
-          host_name: host_name,
-          player_count: map_size(game.players),
-          created_at: System.system_time(:second)
-        })
-      end)
+      socket =
+        socket
+        |> assign(:players_in_lobby, updated_players_lobby)
+        |> update(:active_games, fn games ->
+          Map.put(games, game_id, %{
+            host_id: host_id,
+            host_name: host_name,
+            player_count: map_size(game.players),
+            created_at: System.system_time(:second)
+          })
+        end)
 
       {:noreply, socket}
     else
@@ -287,34 +326,43 @@ defmodule BlogWeb.BlackjackLive do
 
   @impl true
   def handle_info({:player_joined_game, player_id, player_name}, socket) do
-    # Only the host of the game should handle this
-    if socket.assigns.game && socket.assigns.view == :game do
-      # Add the player to the game if they're not already in it
-      updated_game =
-        if !Map.has_key?(socket.assigns.game.players, player_id) do
-          # Add the player to the players_in_lobby first (for name display)
-          socket = update(socket, :players_in_lobby, fn players ->
-            if !Map.has_key?(players, player_id) do
-              Map.put(players, player_id, %{name: player_name})
-            else
-              players
+    # Only process if we have a game
+    if socket.assigns.game do
+      # Always update the player's name in our players_in_lobby
+      socket = update(socket, :players_in_lobby, fn players ->
+        Map.put(players, player_id, %{name: player_name})
+      end)
+
+      # Only the host should handle adding players to the game
+      if socket.assigns.game && socket.assigns.view == :game && socket.assigns.player_id in Map.keys(socket.assigns.game.players) do
+        # Add the player to the game if they're not already in it
+        updated_game =
+          if !Map.has_key?(socket.assigns.game.players, player_id) do
+            # Add player to the game
+            updated_game =
+              try do
+                Blackjack.add_player(socket.assigns.game, player_id)
+              rescue
+                e ->
+                  # If there's an error adding the player, log it and return the original game
+                  IO.puts("Error adding player to game: #{inspect(e)}")
+                  socket.assigns.game
+              end
+
+            # Broadcast the updated game state to all players
+            if socket.assigns.game_id do
+              BlogWeb.BlackjackLive.PubSub.broadcast_game_updated(socket.assigns.game_id, updated_game)
             end
-          end)
 
-          # Add player to the game
-          updated_game = Blackjack.add_player(socket.assigns.game, player_id)
-
-          # Broadcast the updated game state to all players
-          if socket.assigns.game_id do
-            BlogWeb.BlackjackLive.PubSub.broadcast_game_updated(socket.assigns.game_id, updated_game)
+            updated_game
+          else
+            socket.assigns.game
           end
 
-          updated_game
-        else
-          socket.assigns.game
-        end
-
-      {:noreply, assign(socket, :game, updated_game)}
+        {:noreply, assign(socket, :game, updated_game)}
+      else
+        {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
@@ -327,7 +375,8 @@ defmodule BlogWeb.BlackjackLive do
       BlogWeb.BlackjackLive.PubSub.broadcast_game_info_to_lobby(
         socket.assigns.game_id,
         socket.assigns.game,
-        socket.assigns.player_id
+        socket.assigns.player_id,
+        socket.assigns.players_in_lobby
       )
     end
 
@@ -627,24 +676,13 @@ defmodule BlogWeb.BlackjackLive do
 
   # Helper function to debug card values and scores
   defp debug_player_hand(player_id, hand, score) do
-    hand_values = Enum.map(hand, fn {value, suit} -> "#{value}#{suit}" end)
+    # Only log if there's a discrepancy between calculated and stored score
+    calculated_score = Blackjack.calculate_score(hand)
 
-    card_values = Enum.map(hand, fn {value, suit} ->
-      case value do
-        "A" -> 11  # Simplification: count Ace as 11 for debugging
-        v when v in ["J", "Q", "K"] -> 10
-        "10" -> 10
-        v ->
-          case Integer.parse("#{v}") do
-            {num, _} -> num
-            :error -> 0
-          end
-      end
-    end)
-
-    hand_sum = Enum.sum(card_values)
-
-    IO.puts("DEBUG: Player #{player_id}: Cards: #{inspect(hand_values)}, Card values: #{inspect(card_values)}, Raw sum: #{hand_sum}, Calculated score: #{score}")
+    if calculated_score != score do
+      hand_values = Enum.map(hand, fn {value, suit} -> "#{value}#{suit}" end)
+      IO.puts("SCORE DISCREPANCY: Player #{player_id}: Hand: #{inspect(hand_values)}, Stored: #{score}, Calculated: #{calculated_score}")
+    end
   end
 end
 
@@ -689,17 +727,17 @@ defmodule BlogWeb.BlackjackLive.PubSub do
     Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id})
   end
 
-  def broadcast_game_info_to_lobby(game_id, game, host_id) do
+  def broadcast_game_info_to_lobby(game_id, game, host_id, players_lobby \\ %{}) do
     # Broadcast game info to the main lobby topic for all players to see
-    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id})
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id, players_lobby})
   end
 
-  def broadcast_game_started(player_ids, game_id, game) do
+  def broadcast_game_started(player_ids, game_id, game, players_lobby \\ %{}) do
     # Broadcast to the main lobby that a game has started
-    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_started, game_id, game})
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_started, game_id, game, players_lobby})
 
     # Also broadcast to the game-specific topic
-    Phoenix.PubSub.broadcast(Blog.PubSub, "#{@topic}:#{game_id}", {:game_started, game_id, game})
+    Phoenix.PubSub.broadcast(Blog.PubSub, "#{@topic}:#{game_id}", {:game_started, game_id, game, players_lobby})
   end
 
   def broadcast_game_updated(game_id, game) do
