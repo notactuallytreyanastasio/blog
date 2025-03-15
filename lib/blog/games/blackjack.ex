@@ -18,20 +18,40 @@ defmodule Blog.Games.Blackjack do
     {players, deck} = deal_initial_cards(players, deck)
     {dealer, deck} = deal_cards(dealer, deck, 2)
 
+    # Calculate dealer's score (but don't store it yet)
+    dealer_score = calculate_score(dealer.hand)
+    dealer = Map.put(dealer, :score, dealer_score)
+
     # Check for naturals
     players = check_naturals(players)
 
     # Set active player
     {active_player, players} = activate_next_player(players)
 
-    %{
+    # Determine game status - if no active player (all blackjacks or no players),
+    # proceed directly to dealer's turn
+    initial_status =
+      if active_player == nil do
+        :dealer_turn
+      else
+        :playing
+      end
+
+    game = %{
       deck: deck,
       players: players,
       dealer: dealer,
       active_player_id: active_player,
-      status: :playing,
+      status: initial_status,
       winner: nil
     }
+
+    # If game should proceed directly to dealer's turn, do it now
+    if initial_status == :dealer_turn do
+      maybe_play_dealer_turn(game)
+    else
+      game
+    end
   end
 
   @doc """
@@ -66,7 +86,12 @@ defmodule Blog.Games.Blackjack do
   """
   def deal_initial_cards(players, deck) do
     Enum.reduce(Map.keys(players), {players, deck}, fn player_id, {acc_players, acc_deck} ->
+      # Deal cards
       {updated_player, new_deck} = deal_cards(acc_players[player_id], acc_deck, 2)
+
+      # Calculate and update score
+      updated_player = Map.put(updated_player, :score, calculate_score(updated_player.hand))
+
       {
         Map.put(acc_players, player_id, updated_player),
         new_deck
@@ -78,10 +103,20 @@ defmodule Blog.Games.Blackjack do
   Deal a specified number of cards to a player or dealer.
   """
   def deal_cards(recipient, deck, count) do
+    # Start with the recipient's existing hand or an empty list
+    initial_hand = Map.get(recipient, :hand, [])
+
     Enum.reduce(1..count, {recipient, deck}, fn _, {current_recipient, current_deck} ->
       [card | rest_deck] = current_deck
+
+      # Get the current hand and add the new card to it
+      current_hand = Map.get(current_recipient, :hand, [])
+      # Add to the end of the list to maintain proper order (newest card last)
+      updated_hand = current_hand ++ [card]
+
+      # Update the recipient with the new hand
       {
-        Map.update(current_recipient, :hand, [card], fn hand -> [card | hand] end),
+        Map.put(current_recipient, :hand, updated_hand),
         rest_deck
       }
     end)
@@ -91,19 +126,39 @@ defmodule Blog.Games.Blackjack do
   Calculate the score of a hand, handling Aces appropriately.
   """
   def calculate_score(hand) do
-    # First pass - count non-Aces
+    # Make sure hand is a list
+    hand = case hand do
+      nil -> []
+      hand when is_list(hand) -> hand
+      _ -> []
+    end
+
+    # First pass - count non-Aces with proper scores
     {score, aces} = Enum.reduce(hand, {0, 0}, fn {value, _suit}, {acc_score, acc_aces} ->
       case value do
-        "A" -> {acc_score, acc_aces + 1}
-        v when v in ["J", "Q", "K"] -> {acc_score + 10, acc_aces}
-        v -> {acc_score + String.to_integer(v), acc_aces}
+        "A" ->
+          {acc_score, acc_aces + 1}
+        v when v in ["J", "Q", "K"] ->
+          {acc_score + 10, acc_aces}
+        "10" ->
+          {acc_score + 10, acc_aces}
+        v ->
+          # Properly add the numeric value
+          {num, _} = Integer.parse("#{v}")
+          {acc_score + num, acc_aces}
       end
     end)
 
-    # Second pass - add Aces with optimal values
-    Enum.reduce(1..aces, score, fn _, acc ->
-      if acc + 11 <= 21, do: acc + 11, else: acc + 1
-    end)
+    # Only process aces if we actually have any
+    if aces > 0 do
+      # Second pass - add Aces with optimal values
+      Enum.reduce(1..aces, score, fn _, acc ->
+        if acc + 11 <= 21, do: acc + 11, else: acc + 1
+      end)
+    else
+      # No aces to process
+      score
+    end
   end
 
   @doc """
@@ -194,11 +249,20 @@ defmodule Blog.Games.Blackjack do
       player.status in [:stand, :playing]
     end)
 
-    if has_active_players do
-      play_dealer_turn(game)
-    else
-      # All players busted, dealer automatically wins
-      determine_winners(game)
+    has_blackjack_players = Enum.any?(game.players, fn {_, player} ->
+      Map.get(player, :result) == :blackjack
+    end)
+
+    cond do
+      has_active_players ->
+        # Normal case - proceed to dealer's turn
+        play_dealer_turn(game)
+      has_blackjack_players ->
+        # All players have blackjack or have finished - resolve blackjacks
+        determine_winners(game)
+      true ->
+        # All players busted, dealer automatically wins
+        determine_winners(game)
     end
   end
 
@@ -252,6 +316,7 @@ defmodule Blog.Games.Blackjack do
   def determine_winners(game) do
     dealer_score = calculate_score(game.dealer.hand)
     dealer_busted = dealer_score > 21
+    dealer_blackjack = dealer_score == 21 && length(game.dealer.hand) == 2
 
     # Process each player's result
     {winners, updated_players} =
@@ -260,44 +325,59 @@ defmodule Blog.Games.Blackjack do
         if player.status == :bust do
           {winners_acc, players_acc}
         else
-          player_score = calculate_score(player.hand)
-          player_blackjack = player_score == 21 && length(player.hand) == 2
-          dealer_blackjack = dealer_score == 21 && length(game.dealer.hand) == 2
+          # If player already has a result (like natural blackjack), use that
+          if Map.get(player, :result) == :blackjack do
+            # Player has blackjack - pay 3:2 unless dealer also has blackjack
+            balance_change = if dealer_blackjack, do: 0, else: trunc(player.bet * 1.5)
 
-          # Determine result
-          {result, balance_change} =
-            cond do
-              player_blackjack && !dealer_blackjack ->
-                # Player has blackjack, pays 3:2
-                {:blackjack, trunc(player.bet * 1.5)}
-              dealer_busted ->
-                # Dealer busted, player wins
-                {:win, player.bet}
-              player_score > dealer_score ->
-                # Player score higher than dealer
-                {:win, player.bet}
-              player_score == dealer_score ->
-                # Push (tie)
-                {:push, 0}
-              true ->
-                # Player loses
-                {:lose, -player.bet}
-            end
+            # Update player balance
+            updated_player = Map.put(player, :balance, player.balance + balance_change)
 
-          # Update player balance and status
-          updated_player =
-            player
-            |> Map.put(:balance, player.balance + balance_change)
-            |> Map.put(:result, result)
+            # Add to winners list
+            new_winners = if !dealer_blackjack, do: [player_id | winners_acc], else: winners_acc
 
-          # Add to winners list if appropriate
-          new_winners =
-            if result in [:blackjack, :win], do: [player_id | winners_acc], else: winners_acc
+            {new_winners, Map.put(players_acc, player_id, updated_player)}
+          else
+            # Normal case - evaluate player's hand
+            player_score = calculate_score(player.hand)
+            player_blackjack = player_score == 21 && length(player.hand) == 2
 
-          {new_winners, Map.put(players_acc, player_id, updated_player)}
+            # Determine result
+            {result, balance_change} =
+              cond do
+                player_blackjack && !dealer_blackjack ->
+                  # Player has blackjack, pays 3:2
+                  {:blackjack, trunc(player.bet * 1.5)}
+                dealer_busted ->
+                  # Dealer busted, player wins
+                  {:win, player.bet}
+                player_score > dealer_score ->
+                  # Player score higher than dealer
+                  {:win, player.bet}
+                player_score == dealer_score ->
+                  # Push (tie)
+                  {:push, 0}
+                true ->
+                  # Player loses
+                  {:lose, -player.bet}
+              end
+
+            # Update player balance and status
+            updated_player =
+              player
+              |> Map.put(:balance, player.balance + balance_change)
+              |> Map.put(:result, result)
+
+            # Add to winners list if appropriate
+            new_winners =
+              if result in [:blackjack, :win], do: [player_id | winners_acc], else: winners_acc
+
+            {new_winners, Map.put(players_acc, player_id, updated_player)}
+          end
         end
       end)
 
+    # Set final game state
     game
     |> Map.put(:players, updated_players)
     |> Map.put(:winners, winners)
@@ -326,8 +406,12 @@ defmodule Blog.Games.Blackjack do
   def check_naturals(players) do
     Enum.reduce(players, players, fn {id, player}, acc ->
       if length(player.hand) == 2 && calculate_score(player.hand) == 21 do
-        # Natural blackjack - automatically stand
-        Map.put(acc, id, Map.put(player, :status, :stand))
+        # Natural blackjack - automatically stand and mark as blackjack
+        updated_player = player
+          |> Map.put(:status, :stand)
+          |> Map.put(:result, :blackjack)
+
+        Map.put(acc, id, updated_player)
       else
         acc
       end
