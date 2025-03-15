@@ -92,10 +92,10 @@ defmodule BlogWeb.WarLive do
   def display_card_value("ace"), do: "A"
   def display_card_value(value), do: value
 
-  def display_card_suit("hearts"), do: "♥"
-  def display_card_suit("diamonds"), do: "♦"
-  def display_card_suit("clubs"), do: "♣"
-  def display_card_suit("spades"), do: "♠"
+  def display_card_suit("hearts"), do: "♥️"
+  def display_card_suit("diamonds"), do: "♦️"
+  def display_card_suit("clubs"), do: "♣️"
+  def display_card_suit("spades"), do: "♠️"
 
   def time_ago(timestamp) do
     now = DateTime.utc_now() |> DateTime.to_unix()
@@ -240,6 +240,13 @@ defmodule BlogWeb.WarLive do
       # Broadcast game update
       Phoenix.PubSub.broadcast!(Blog.PubSub, @topic, {:game_updated, updated_game})
 
+      # Push card played animation if a card was played
+      if game_state.player1_card != updated_game.player1_card ||
+         game_state.player2_card != updated_game.player2_card do
+        player = if game_state.player1 == socket.assigns.user_id, do: "player1", else: "player2"
+        if connected?(socket), do: push_event(socket, "card_played", %{player: player})
+      end
+
       socket = socket |> assign(:game_state, updated_game)
       {:noreply, socket}
     else
@@ -254,6 +261,25 @@ defmodule BlogWeb.WarLive do
     if game_state && game_state.scoring_phase do
       # Now resolve the round
       updated_game = resolve_round(game_state)
+
+      # Determine if war was triggered or who won
+      cond do
+        # War was triggered
+        updated_game.war_in_progress ->
+          if connected?(socket), do: push_event(socket, "war_triggered", %{})
+
+        # Player 1 won the round
+        game_state.player1_card && game_state.player2_card && game_state.player1_card.rank > game_state.player2_card.rank ->
+          if connected?(socket), do: push_event(socket, "round_won", %{winner: "player1"})
+
+        # Player 2 won the round
+        game_state.player1_card && game_state.player2_card && game_state.player2_card.rank > game_state.player1_card.rank ->
+          if connected?(socket), do: push_event(socket, "round_won", %{winner: "player2"})
+
+        # No clear winner (should not happen, but handle it)
+        true ->
+          nil
+      end
 
       # Broadcast game update
       Phoenix.PubSub.broadcast!(Blog.PubSub, @topic, {:game_updated, updated_game})

@@ -1,0 +1,286 @@
+/* War Card Game Custom Styling */
+
+/* Card table background */
+.card-table {
+  background-color: #0d6637;
+  background-image:
+    radial-gradient(circle at 100% 150%, #0d6637 24%, #0a5a2f 24%, #0a5a2f 28%, #0d6637 28%, #0d6637 36%, #0a5a2f 36%, #0a5a2f 40%, transparent 40%, transparent),
+    radial-gradient(circle at 0    150%, #0d6637 24%, #0a5a2f 24%, #0a5a2f 28%, #0d6637 28%, #0d6637 36%, #0a5a2f 36%, #0a5a2f 40%, transparent 40%, transparent),
+    radial-gradient(circle at 50%  100%, #0a5a2f 10%, #0d6637 10%, #0d6637 23%, #0a5a2f 23%, #0a5a2f 30%, #0d6637 30%, #0d6637 43%, #0a5a2f 43%, #0a5a2f 50%, #0d6637 50%, #0d6637 63%, #0a5a2f 63%, #0a5a2f 71%, transparent 71%, transparent);
+  background-size: 100px 50px;
+  position: relative;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #094024;
+}
+
+/* Card styling */
+.game-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+  transition: all 0.3s ease;
+  transform-style: preserve-3d;
+  border: 1px solid #888;
+  position: relative;
+  min-height: 140px;
+  overflow: hidden;
+}
+
+.game-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.8);
+}
+
+/* Card design - corners */
+.game-card::before,
+.game-card::after {
+  content: attr(data-value);
+  position: absolute;
+  font-size: 1.2rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.game-card::before {
+  top: 0.4rem;
+  left: 0.4rem;
+}
+
+.game-card::after {
+  bottom: 0.4rem;
+  right: 0.4rem;
+  transform: rotate(180deg);
+}
+
+/* Card suit in corners */
+.game-card .corner-suit {
+  position: absolute;
+  font-size: 0.9rem;
+}
+
+.game-card .corner-suit-top {
+  top: 1.6rem;
+  left: 0.4rem;
+}
+
+.game-card .corner-suit-bottom {
+  bottom: 1.6rem;
+  right: 0.4rem;
+  transform: rotate(180deg);
+}
+
+/* Card back design */
+.game-card-back {
+  background-color: #1e3a8a;
+  position: relative;
+  border: 1px solid #1e3799;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.game-card-back:hover {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8);
+}
+
+.game-card-back::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #3b82f6,
+    #3b82f6 10px,
+    #2563eb 10px,
+    #2563eb 20px
+  );
+  border-radius: 5px;
+  border: 2px solid #1d4ed8;
+}
+
+.game-card-back::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 65%;
+  height: 65%;
+  background-color: #f8fafc;
+  border-radius: 50%;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  background-image:
+    linear-gradient(0deg, transparent 45%, #3b82f6 45%, #3b82f6 55%, transparent 55%),
+    linear-gradient(90deg, transparent 45%, #3b82f6 45%, #3b82f6 55%, transparent 55%);
+  border: 2px solid #3b82f6;
+}
+
+/* Card specific colors */
+.text-red-600 {
+  color: #e11d48 !important;
+}
+
+.text-gray-800 {
+  color: #000000 !important;
+}
+
+/* Center card content */
+.card-value-container {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.center-suit {
+  font-size: 3.5rem;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Card deck styling */
+.card-deck {
+  position: relative;
+  min-height: 120px;
+  min-width: 90px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  background-color: #192a56;
+  border: 1px solid #1e3799;
+}
+
+.card-deck::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #3b82f6,
+    #3b82f6 10px,
+    #2563eb 10px,
+    #2563eb 20px
+  );
+  border-radius: 5px;
+  border: 2px solid #1d4ed8;
+  opacity: 0.9;
+  z-index: 0;
+}
+
+/* War pile styling */
+.war-pile-card {
+  transition: all 0.5s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Victory animation */
+@keyframes victory-glow {
+  0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+  50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.8), 0 0 10px rgba(255, 255, 255, 0.5); }
+  100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+}
+
+.victory-glow {
+  animation: victory-glow 1.5s infinite;
+}
+
+/* Score indicator styling */
+.score-indicator {
+  background: linear-gradient(135deg, #15803d, #166534);
+  color: white;
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  font-weight: bold;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  transform-origin: center;
+  border: 1px solid #14532d;
+}
+
+.score-indicator.highlight {
+  transform: scale(1.1);
+  background: linear-gradient(135deg, #facc15, #eab308);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Table features */
+.table-felt-edge {
+  height: 16px;
+  background-color: #064e3b;
+  border-radius: 4px 4px 0 0;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.5);
+  border-bottom: 3px solid #0c4a6e;
+}
+
+.table-felt-edge:last-child {
+  border-radius: 0 0 4px 4px;
+  border-bottom: none;
+  border-top: 3px solid #0c4a6e;
+}
+
+/* VS circle */
+.vs-circle {
+  background: radial-gradient(circle at center, #1e40af, #1e3a8a);
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 0, 0, 0.4);
+}
+
+/* Button styling */
+.game-button {
+  background: linear-gradient(to bottom, #3b82f6, #2563eb);
+  font-weight: bold;
+  transition: all 0.2s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  border: 1px solid #1d4ed8;
+}
+
+.game-button:hover {
+  background: linear-gradient(to bottom, #60a5fa, #3b82f6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.game-button:active {
+  transform: translateY(1px);
+}
+
+/* Text utilities */
+.text-shadow {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* Card Suits - prevent font inconsistencies */
+.text-red-600 .corner-suit,
+.text-red-600.corner-suit,
+.text-gray-800 .corner-suit,
+.text-gray-800.corner-suit {
+  font-family: "Arial Unicode MS", "Lucida Sans Unicode", sans-serif;
+}
+
+/* Card box sizing */
+.game-card,
+.game-card-back {
+  box-sizing: border-box;
+}
+
+/* Card table background texture overlay */
+.card-table::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAGASURBVGhD7ZixSgNBEIa3EC2s7a0trCzE0kLQJxALH8BCfABBEAQbwSqkEHwAH8DGzgcQbBTB0gcQQZQgCn7/3izkcuFyd8uSYeaDj8zOzCV/bnP3L7mOjo6OVrI3vG4suXXVxvEZXUk15lIvNvVSbflqZHWFwlSwHmvBlbTGg2opfdqPTc/qCmWdzX1rX2JWtZ6zrqWH/ddS+rQfoX9LVl9D3M8uy3MoHU9zL+rGrauHnZQe7UPoS/LW1cRhIuXRuGUlWHNKJ3OkT+lMvgdrTumkHI90Ovlm4kJgTel0MkTAbImVQxJCYK14EUws4C+HBP9fLAKPwJFQOOX/Xlh51nTybJ5hUppHYGKrg1W34TRnWPp8BAeRz8B06EJp+NKcoeHWPJrTmUlQXaEx7fMKTMlvsbJ12QDT2iU2tXUyY6LglV9iuzGVGmJCjGhz8KVvUiO/ZdLcECYxe4AlBvXL34EptZrWUOJvpZu0CiQxZBw+bADTOpnEyLHYhnaIuFUCq12O+mV3dHRYyeQXMixrGbjiJOQAAAAASUVORK5CYII=");
+  opacity: 0.05;
+  pointer-events: none;
+}

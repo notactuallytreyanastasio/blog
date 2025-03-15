@@ -263,3 +263,6 @@ pre::-webkit-scrollbar-thumb:hover {
 .chip-10 { background-color: #2196f3; }
 .chip-25 { background-color: #4caf50; }
 .chip-100 { background-color: #000; color: #fff; }
+
+/* Import War Card Game styles */
+@import "./war_game.css";
