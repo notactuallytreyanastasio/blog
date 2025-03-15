@@ -28,6 +28,34 @@ import GenerativeArt from "./hooks/generative_art"
 import Blackjack from "./hooks/blackjack"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
+// Hook for scrolling to top when new skeets are loaded
+let Hooks = {}
+Hooks.ScrollToTop = {
+  mounted() {
+    this.handleEvent("scroll-to-top", () => {
+      // Use requestAnimationFrame to ensure DOM is updated before scrolling
+      requestAnimationFrame(() => {
+        // First try to focus on the anchor element
+        const anchor = document.getElementById('skeet-anchor');
+        if (anchor) {
+          anchor.scrollIntoView({behavior: 'auto', block: 'start'});
+        } else {
+          // Fallback to absolute top
+          window.scrollTo(0, 0);
+        }
+
+        // Double-check with a slight delay to ensure it worked
+        setTimeout(() => {
+          if (window.scrollY > 10) {
+            window.scrollTo(0, 0);
+          }
+        }, 50);
+      });
+    });
+  }
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
@@ -36,7 +64,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
     CursorTracker,
     FocusInput,
     GenerativeArt,
-    Blackjack
+    Blackjack,
+    ...Hooks
   }
 })
 
