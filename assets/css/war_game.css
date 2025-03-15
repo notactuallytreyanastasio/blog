@@ -19,7 +19,7 @@
 .game-card {
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
   transition: all 0.3s ease;
   transform-style: preserve-3d;
   border: 1px solid #888;
@@ -30,7 +30,7 @@
 
 .game-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
 }
 
 /* Card design - corners */
