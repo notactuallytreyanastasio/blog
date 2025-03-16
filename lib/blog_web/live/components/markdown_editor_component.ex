@@ -1,28 +1,29 @@
-defmodule BlogWeb.MarkdownEditorLive do
-  use BlogWeb, :live_view
+defmodule BlogWeb.MarkdownEditorComponent do
+  use BlogWeb, :live_component
   require Logger
-  import Phoenix.LiveView.JS
-  alias BlogWeb.MarkdownEditorComponent
 
   @impl true
-  def mount(_params, _session, socket) do
-    {:ok, assign(socket, %{
-      markdown: "",
-      html: "",
-      page_title: "Markdown Editor"
-    })}
-  end
+  def update(assigns, socket) do
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign_new(:markdown, fn -> "" end)
+      |> assign_new(:html, fn -> "" end)
+      |> assign_new(:cursor_position, fn -> 0 end)
+      |> assign_new(:selection_start, fn -> 0 end)
+      |> assign_new(:selection_end, fn -> 0 end)
+      |> assign_new(:selected_text, fn -> "" end)
 
-  @impl true
-  def handle_info({:markdown_updated, %{markdown: markdown, html: html}}, socket) do
-    # Update the LiveView state when the component updates the markdown
-    {:noreply, assign(socket, markdown: markdown, html: html)}
+    {:ok, socket}
   end
 
   @impl true
   def handle_event("update_markdown", %{"markdown" => markdown}, socket) do
     # Parse the markdown to HTML using Earmark
     {:ok, html, _warnings} = Earmark.as_html(markdown, %Earmark.Options{code_class_prefix: "language-"})
+
+    # Send the updated content back to the parent LiveView
+    send(self(), {:markdown_updated, %{markdown: markdown, html: html}})
 
     {:noreply, assign(socket, %{markdown: markdown, html: html})}
   rescue
@@ -74,7 +75,10 @@ defmodule BlogWeb.MarkdownEditorLive do
     # Parse the new markdown to update the preview
     {:ok, html, _warnings} = Earmark.as_html(new_text, %Earmark.Options{code_class_prefix: "language-"})
 
-    # Update the socket assigns with the new text and HTML
+    # Send the updated content back to the parent LiveView
+    send(self(), {:markdown_updated, %{markdown: new_text, html: html}})
+
+    # Update the component state
     socket = assign(socket, %{
       markdown: new_text,
       html: html,
@@ -324,15 +328,194 @@ defmodule BlogWeb.MarkdownEditorLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-4">Markdown Editor</h1>
+    <div class="markdown-editor" phx-hook="MarkdownEditor" id={@id}>
+      <div class="flex flex-col md:flex-row gap-6">
+        <!-- Editor Section -->
+        <div class="w-full md:w-1/2">
+          <div class="bg-gray-50 border border-gray-300 rounded-md overflow-hidden">
+            <div class="toolbar bg-gray-100 p-2 border-b border-gray-300 flex flex-wrap gap-1">
+              <button
+                phx-click="insert_format"
+                phx-value-format="h1"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Heading 1"
+              >
+                H1
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="h2"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Heading 2"
+              >
+                H2
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="h3"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Heading 3"
+              >
+                H3
+              </button>
+              <span class="mx-1 text-gray-300">|</span>
+              <button
+                phx-click="insert_format"
+                phx-value-format="bold"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200 font-bold"
+                title="Bold"
+              >
+                B
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="italic"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200 italic"
+                title="Italic"
+              >
+                I
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="strikethrough"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200 line-through"
+                title="Strikethrough"
+              >
+                S
+              </button>
+              <span class="mx-1 text-gray-300">|</span>
+              <button
+                phx-click="insert_format"
+                phx-value-format="code"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200 font-mono"
+                title="Inline Code"
+              >
+                `code`
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="code_block"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200 font-mono"
+                title="Code Block"
+              >
+                ```
+              </button>
+              <span class="mx-1 text-gray-300">|</span>
+              <button
+                phx-click="insert_format"
+                phx-value-format="quote"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Blockquote"
+              >
+                Quote
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="link"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Link"
+              >
+                Link
+              </button>
+              <span class="mx-1 text-gray-300">|</span>
+              <button
+                phx-click="insert_format"
+                phx-value-format="bullet_list"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Bullet List"
+              >
+                • List
+              </button>
+              <button
+                phx-click="insert_format"
+                phx-value-format="numbered_list"
+                phx-target={@myself}
+                class="toolbar-btn p-1 rounded hover:bg-gray-200"
+                title="Numbered List"
+              >
+                1. List
+              </button>
+            </div>
 
-      <.live_component
-        module={MarkdownEditorComponent}
-        id="markdown-editor"
-        markdown={@markdown}
-        html={@html}
-      />
+            <div class="p-4">
+              <form phx-change="update_markdown" phx-submit="update_markdown" phx-target={@myself} class="mb-0">
+                <textarea
+                  name="markdown"
+                  id={"#{@id}-input"}
+                  rows="20"
+                  class="w-full p-3 border border-gray-300 rounded font-mono text-sm focus:ring-blue-500 focus:border-blue-500"
+                  phx-debounce="300"
+                  spellcheck="false"
+                  placeholder="Type your Markdown here..."
+                  phx-hook="MarkdownInput"
+                ><%= @markdown %></textarea>
+              </form>
+            </div>
+          </div>
+
+          <div class="mt-3 text-sm text-gray-600">
+            <details class="cursor-pointer">
+              <summary class="mb-2 font-medium text-blue-600">Markdown Cheatsheet</summary>
+              <div class="pl-4 mt-2 border-l-2 border-gray-200">
+                <p class="font-medium">Headings:</p>
+                <p class="pl-2 font-mono"># H1, ## H2, ### H3</p>
+
+                <p class="font-medium mt-2">Emphasis:</p>
+                <p class="pl-2 font-mono">**bold**, *italic*, ~~strikethrough~~</p>
+
+                <p class="font-medium mt-2">Code:</p>
+                <p class="pl-2 font-mono">`inline code`</p>
+                <p class="pl-2 font-mono">```<br>code block<br>```</p>
+
+                <p class="font-medium mt-2">Lists:</p>
+                <p class="pl-2 font-mono">- Item 1<br>- Item 2</p>
+                <p class="pl-2 font-mono">1. Item 1<br>2. Item 2</p>
+
+                <p class="font-medium mt-2">Links:</p>
+                <p class="pl-2 font-mono">[Link text](URL)</p>
+
+                <p class="font-medium mt-2">Blockquotes:</p>
+                <p class="pl-2 font-mono">> This is a quote</p>
+
+                <p class="font-medium mt-2">Keyboard Shortcuts:</p>
+                <p class="pl-2">Ctrl+B = Bold</p>
+                <p class="pl-2">Ctrl+I = Italic</p>
+                <p class="pl-2">Ctrl+K = Link</p>
+                <p class="pl-2 font-semibold text-blue-600 mt-2">Tip: Select text first, then apply formatting!</p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="w-full md:w-1/2">
+          <div class="bg-white border border-gray-300 rounded-md overflow-hidden h-full">
+            <div class="bg-gray-100 p-3 border-b border-gray-300">
+              <h2 class="text-lg font-semibold">Preview</h2>
+            </div>
+            <div id={"#{@id}-preview"} class="markdown-preview prose prose-sm md:prose max-w-none p-6 overflow-auto min-h-[30rem]">
+              <%= if @html == "" do %>
+                <div class="text-gray-400 italic flex items-center justify-center h-full">
+                  <p>Preview will appear here...</p>
+                </div>
+              <% else %>
+                <%= raw(@html) %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     """
   end
