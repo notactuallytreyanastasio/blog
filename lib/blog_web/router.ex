@@ -43,9 +43,7 @@ defmodule BlogWeb.Router do
     live "/blackjack", BlackjackLive, :index
     live "/war", WarLive, :index
     live "/skeet-timeline", SkeetTimelineLive, :index
-    live "/raw-skeet-timeline", RawSkeetTimelineLive, :index
     live "/markdown-editor", MarkdownEditorLive, :index
-    live "/weather", WeatherLive, :index
   end
 
   # Other scopes may use custom stacks.
