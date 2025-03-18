@@ -25,7 +25,7 @@ defmodule Blog.Mta.Client do
     {:ok, Map.new(results)}
   end
 
-  defp fetch_route(line_ref) do
+  def fetch_route(line_ref) do
     params = %{
       key: @api_key,
       version: 2,
