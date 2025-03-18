@@ -39,6 +39,7 @@ defmodule BlogWeb.Router do
     live "/pong/god", PongGodLive, :index
     live "/chaos-typing", ChaosTypingLive, :index
     live "/generative-art", GenerativeArtLive, :index
+    live "/bezier-triangles", BezierTrianglesLive, :index
     # live "/breakout", BreakoutLive, :index
     live "/blackjack", BlackjackLive, :index
     live "/war", WarLive, :index

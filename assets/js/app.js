@@ -27,6 +27,7 @@ import FocusInput from "./hooks/focus_input"
 import GenerativeArt from "./hooks/generative_art"
 import Blackjack from "./hooks/blackjack"
 import MarkdownEditor, { MarkdownInput } from "./hooks/markdown_editor"
+import BezierTriangles from "./hooks/bezier_triangles"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
@@ -68,6 +69,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     Blackjack,
     MarkdownEditor,
     MarkdownInput,
+    BezierTriangles,
     ...Hooks
   }
 })
