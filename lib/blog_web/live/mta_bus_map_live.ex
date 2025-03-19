@@ -405,30 +405,50 @@ defmodule BlogWeb.MtaBusMapLive do
                       className: 'custom-div-icon',
                       html: `<div style="
                         display: flex;
-                        align-items: center;
-                        gap: 4px;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 2px;
                         pointer-events: none;
                       ">
                         <div style="
-                          background-color: ${color};
-                          width: 12px;
-                          height: 12px;
-                          border-radius: 50%;
-                          border: 2px solid white;
-                          box-shadow: 0 0 4px rgba(0,0,0,0.5);
-                        "></div>
+                          display: flex;
+                          align-items: center;
+                          gap: 4px;
+                        ">
+                          <div style="
+                            background-color: ${color};
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 50%;
+                            border: 2px solid white;
+                            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                          "></div>
+                          <div style="
+                            background-color: white;
+                            padding: 2px 4px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            font-weight: bold;
+                            box-shadow: 0 0 4px rgba(0,0,0,0.2);
+                            color: ${color};
+                          ">${route}</div>
+                        </div>
                         <div style="
                           background-color: white;
                           padding: 2px 4px;
                           border-radius: 4px;
-                          font-size: 12px;
-                          font-weight: bold;
+                          font-size: 10px;
+                          line-height: 1;
                           box-shadow: 0 0 4px rgba(0,0,0,0.2);
                           color: ${color};
-                        ">${route}</div>
+                          max-width: 120px;
+                          white-space: nowrap;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                        ">${bus.destination ? bus.destination[0] : 'N/A'}</div>
                       </div>`,
-                      iconSize: [48, 20],
-                      iconAnchor: [6, 6]
+                      iconSize: [120, 40],
+                      iconAnchor: [6, 20]
                     })
                   })
                   .bindPopup(`
