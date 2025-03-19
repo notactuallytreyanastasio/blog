@@ -189,7 +189,7 @@ defmodule BlogWeb.MtaBusMapLive do
           <p class="text-red-500 text-sm mb-2">{@error}</p>
         <% end %>
 
-        <div class="flex-1 relative" style="min-height: calc(100vh - 80px);">
+        <div class="flex-1 relative" style="min-height: calc(100vh - 130px);">
           <div id={@map_id} class="absolute inset-0 z-0" phx-update="ignore"></div>
         </div>
 
