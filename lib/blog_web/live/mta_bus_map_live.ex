@@ -38,7 +38,7 @@ defmodule BlogWeb.MtaBusMapLive do
   def mount(_params, _session, socket) do
     Logger.info("Mounting MtaBusMapLive")
     if connected?(socket) do
-      :timer.send_interval(15000, self(), :update_buses)
+      :timer.send_interval(30000, self(), :update_buses)
     end
 
     # Start with M21 selected by default
