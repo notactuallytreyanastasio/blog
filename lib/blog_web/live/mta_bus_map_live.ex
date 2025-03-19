@@ -500,9 +500,22 @@ defmodule BlogWeb.MtaBusMapLive do
                             overflow: hidden;
                             text-overflow: ellipsis;
                           ">${bus.destination ? bus.destination[0] : 'N/A'}</div>
+                          <div style="
+                            background-color: white;
+                            padding: 2px 4px;
+                            border-radius: 4px;
+                            font-size: 10px;
+                            line-height: 1;
+                            box-shadow: 0 0 4px rgba(0,0,0,0.2);
+                            color: ${color};
+                            max-width: 120px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                          ">${bus.direction === '1' ? 'Northbound' : 'Southbound'}</div>
                         </div>`,
-                        iconSize: [120, 40],
-                        iconAnchor: [6, 20]
+                        iconSize: [120, 50],
+                        iconAnchor: [6, 25]
                       })
                     })
                     .bindPopup(`
