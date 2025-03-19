@@ -166,47 +166,47 @@ defmodule BlogWeb.MtaBusMapLive do
       >
       </script>
 
-      <div class="p-4 bg-white">
-        <div class="flex justify-between items-center mb-4">
-          <h1 class="text-2xl font-bold">Manhattan MTA Bus Tracker</h1>
+      <div class="p-2 sm:p-4 bg-white">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
+          <h1 class="text-xl sm:text-2xl font-bold">Manhattan MTA Bus Tracker</h1>
           <div class="flex gap-2">
             <button
               phx-click="toggle_modal"
-              class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
+              class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base"
             >
               CHOOSE BUSES
             </button>
             <button
               phx-click="fetch_buses"
-              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base"
             >
-              Update Bus Locations
+              Update
             </button>
           </div>
         </div>
 
         <%= if @error do %>
-          <p class="text-red-500 mb-4">{@error}</p>
+          <p class="text-red-500 text-sm mb-2">{@error}</p>
         <% end %>
 
-        <div class="flex-1 relative" style="min-height: 720px;">
+        <div class="flex-1 relative" style="min-height: calc(100vh - 80px);">
           <div id={@map_id} class="absolute inset-0 z-0" phx-update="ignore"></div>
         </div>
 
         <%= if @show_modal do %>
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-50">
             <div class="fixed inset-0 z-50 overflow-y-auto">
-              <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl">
-                  <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                    <div class="absolute top-0 right-0 pt-4 pr-4">
+              <div class="flex min-h-full items-end justify-center p-2 sm:p-4 text-center sm:items-center sm:p-0">
+                <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl w-full">
+                  <div class="bg-white px-2 sm:px-4 pb-2 sm:pb-4 pt-3 sm:pt-5">
+                    <div class="absolute top-0 right-0 pt-2 sm:pt-4 pr-2 sm:pr-4">
                       <button
                         phx-click="toggle_modal"
                         class="rounded-md bg-white text-gray-400 hover:text-gray-500"
                       >
                         <span class="sr-only">Close</span>
                         <svg
-                          class="h-6 w-6"
+                          class="h-5 w-5 sm:h-6 sm:w-6"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke-width="1.5"
@@ -217,63 +217,63 @@ defmodule BlogWeb.MtaBusMapLive do
                       </button>
                     </div>
                     <div class="sm:flex sm:items-start">
-                      <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                        <div class="flex justify-between items-center mb-4">
-                          <h3 class="text-xl font-semibold leading-6 text-gray-900">
+                      <div class="mt-2 sm:mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
+                        <div class="flex justify-between items-center mb-2 sm:mb-4">
+                          <h3 class="text-lg sm:text-xl font-semibold leading-6 text-gray-900">
                             Select Bus Routes
                           </h3>
                           <button
                             phx-click="select_all_routes"
-                            class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                            class="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base"
                           >
                             Select All
                           </button>
                         </div>
                         <div class="mt-2">
-                          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            <div class="col-span-full mb-2 font-bold text-lg">Crosstown Routes</div>
+                          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Crosstown Routes</div>
                             <%= for {route, _} <- Enum.filter(assigns.all_bus_routes, fn {k, _} ->
                               String.contains?(k, ["M14", "M21", "M22", "M23", "M34", "M42", "M50", "M66", "M72", "M79", "M86", "M96", "M106", "M116"])
                             end) do %>
-                              <label class="flex items-center space-x-2">
+                              <label class="flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base">
                                 <input
                                   type="checkbox"
                                   checked={MapSet.member?(@selected_routes, route)}
                                   phx-click="toggle_route"
                                   phx-value-route={route}
-                                  class="form-checkbox h-4 w-4 text-blue-600"
+                                  class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
                                 <span>{route}</span>
                               </label>
                             <% end %>
 
-                            <div class="col-span-full mb-2 font-bold text-lg">North-South Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">North-South Routes</div>
                             <%= for {route, _} <- Enum.filter(assigns.all_bus_routes, fn {k, _} ->
                               String.match?(k, ~r/^M([1-9]|1[0-5]|98|100|101|102|103|104|60-SBS)$/)
                             end) do %>
-                              <label class="flex items-center space-x-2">
+                              <label class="flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base">
                                 <input
                                   type="checkbox"
                                   checked={MapSet.member?(@selected_routes, route)}
                                   phx-click="toggle_route"
                                   phx-value-route={route}
-                                  class="form-checkbox h-4 w-4 text-blue-600"
+                                  class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
                                 <span>{route}</span>
                               </label>
                             <% end %>
 
-                            <div class="col-span-full mb-2 font-bold text-lg">Limited & Express Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Limited & Express Routes</div>
                             <%= for {route, _} <- Enum.filter(assigns.all_bus_routes, fn {k, _} ->
                               String.contains?(k, "-LTD")
                             end) do %>
-                              <label class="flex items-center space-x-2">
+                              <label class="flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base">
                                 <input
                                   type="checkbox"
                                   checked={MapSet.member?(@selected_routes, route)}
                                   phx-click="toggle_route"
                                   phx-value-route={route}
-                                  class="form-checkbox h-4 w-4 text-blue-600"
+                                  class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
                                 <span>{route}</span>
                               </label>
@@ -283,11 +283,11 @@ defmodule BlogWeb.MtaBusMapLive do
                       </div>
                     </div>
                   </div>
-                  <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                  <div class="bg-gray-50 px-2 sm:px-4 py-2 sm:py-3 sm:flex sm:flex-row-reverse sm:px-6">
                     <button
                       type="button"
                       phx-click="toggle_modal"
-                      class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                      class="mt-2 sm:mt-3 inline-flex w-full justify-center rounded-md bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
                     >
                       Close
                     </button>
