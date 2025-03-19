@@ -16,6 +16,15 @@ defmodule BlogWeb.PostLive.Index do
     Chat.ensure_started()
 
     demos = [
+%{
+        title: "MTA Bus Tracker",
+        description: "Track the manhattan buses",
+        path: ~p"/mta-bus-map",
+        # We'll use heroicons for these
+        icon: "code",
+        # Each demo gets a signature color
+        color: "emerald"
+      },
       %{
         title: "Bezier Trianges",
         description: "A trippy animation with bezier curves and spinning triangles",
@@ -532,7 +541,7 @@ defmodule BlogWeb.PostLive.Index do
           </.form>
         </div>
       <% end %>
-      
+
     <!-- Moderator Panel (Hidden from regular users) -->
       <%= if @show_mod_panel do %>
         <div class="fixed top-20 left-4 z-50 bg-gray-900 text-white p-4 rounded-lg shadow-xl border border-red-500 w-80">
@@ -586,7 +595,7 @@ defmodule BlogWeb.PostLive.Index do
           </div>
         </div>
       <% end %>
-      
+
     <!-- Join Chat Button -->
       <div class="fixed bottom-4 right-4 z-50">
         <button
@@ -601,7 +610,7 @@ defmodule BlogWeb.PostLive.Index do
           </div>
         </button>
       </div>
-      
+
     <!-- Expanded AIM-style Chat Window -->
       <%= if @show_chat do %>
         <div class="fixed bottom-16 right-4 w-[90vw] md:w-[40rem] h-[70vh] z-50 shadow-2xl flex">
@@ -614,7 +623,7 @@ defmodule BlogWeb.PostLive.Index do
             >
               Chat Rooms
             </div>
-            
+
     <!-- Room List -->
             <div class="flex-1 overflow-y-auto p-2">
               <%= for room <- @chat_rooms do %>
@@ -699,7 +708,7 @@ defmodule BlogWeb.PostLive.Index do
                 </button>
               <% end %>
             </div>
-            
+
     <!-- Online Users -->
             <div class="p-2 border-t-2 border-gray-400">
               <div class="text-xs text-gray-600 mb-1 font-bold">Online Users</div>
@@ -715,7 +724,7 @@ defmodule BlogWeb.PostLive.Index do
               </div>
             </div>
           </div>
-          
+
     <!-- Main Chat Area -->
           <div class="flex-1 flex flex-col">
             <!-- Chat Window Header -->
@@ -801,7 +810,7 @@ defmodule BlogWeb.PostLive.Index do
                 </div>
               </div>
             </div>
-            
+
     <!-- Chat Window Body -->
             <div
               class="bg-white border-2 border-t-0 border-b-0 border-l-0 border-gray-400 flex-1 overflow-y-auto p-3"
@@ -833,7 +842,7 @@ defmodule BlogWeb.PostLive.Index do
                 </div>
               <% end %>
             </div>
-            
+
     <!-- Chat Input Area -->
             <div class="bg-gray-200 border-2 border-t-0 border-l-0 border-gray-400 rounded-br-md p-3">
               <.form
@@ -867,7 +876,7 @@ defmodule BlogWeb.PostLive.Index do
         <div class="fixed top-4 right-4 bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white px-3 py-1 rounded-lg shadow-md text-sm font-mono z-50">
           x: {@cursor_position.x}, y: {@cursor_position.y}
         </div>
-        
+
     <!-- Full screen crosshair with gradient and smooth transitions -->
         <div class="fixed inset-0 pointer-events-none z-40">
           <!-- Horizontal line across entire screen with gradient -->
@@ -876,7 +885,7 @@ defmodule BlogWeb.PostLive.Index do
             style={"top: #{@cursor_position.y}px; background: linear-gradient(to right, #d946ef, #0891b2);"}
           >
           </div>
-          
+
     <!-- Vertical line across entire screen with gradient -->
           <div
             class="absolute h-full w-0.5 opacity-40 transition-all duration-200 ease-out"
@@ -885,7 +894,7 @@ defmodule BlogWeb.PostLive.Index do
           </div>
         </div>
       <% end %>
-      
+
     <!-- Show all visitor cursors except our own -->
       <%= for {id, meta} <- @visitor_cursors do %>
         <%= if id != @reader_id && Map.get(meta, :cursor_position) do %>
@@ -947,7 +956,7 @@ defmodule BlogWeb.PostLive.Index do
             A collection of thoughts on technology, life, and weird little things I make.
           </p>
         </header>
-        
+
     <!-- Two column layout for posts -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
           <!-- Tech Posts Column -->
@@ -980,7 +989,7 @@ defmodule BlogWeb.PostLive.Index do
               <% end %>
             </div>
           </div>
-          
+
     <!-- Non-Tech Posts Column -->
           <div class="bg-gradient-to-br from-cyan-50 to-fuchsia-50 rounded-xl p-6 shadow-lg border border-cyan-100">
             <div class="flex items-center mb-6">
@@ -1011,7 +1020,7 @@ defmodule BlogWeb.PostLive.Index do
               <% end %>
             </div>
           </div>
-          
+
     <!-- Tech Demos Column -->
           <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 shadow-lg border border-indigo-100">
             <div class="flex items-center mb-6">
@@ -1047,11 +1056,11 @@ defmodule BlogWeb.PostLive.Index do
           </div>
         </div>
       </div>
-      
+
     <!-- Retro footer -->
       <footer class="mt-16 text-center">
         <span class="font-mono">/* Crafted with ♥ and Elixir */</span>
-        
+
     <!-- Moderator Button - subtle but visible -->
         <div class="mt-4 flex justify-center">
           <button

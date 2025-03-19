@@ -267,212 +267,219 @@ defmodule BlogWeb.MtaBusMapLive do
         .leaflet-container {
           width: 100%;
           height: 100%;
+          z-index: 1;
         }
       </style>
-    </div>
 
-    <script>
-      let map;
-      let markers = [];
+      <script>
+        (() => {
+          // Global variables
+          let map;
+          const markersByBusId = new Map();
+          const mapId = '<%= @map_id %>';
 
-      const ROUTE_COLORS = {
-        // Crosstown Routes
-        'M14A-SBS': '#E31837',  // Red
-        'M14D-SBS': '#FF6B00',  // Orange
-        'M21': '#4CAF50',       // Green
-        'M22': '#2196F3',       // Blue
-        'M23-SBS': '#9C27B0',   // Purple
-        'M34-SBS': '#673AB7',   // Deep Purple
-        // North-South Routes
-        'M1': '#FF1744',        // Red A700
-        'M2': '#F50057',        // Pink A400
-        'M3': '#D500F9',        // Purple A400
-        'M4': '#651FFF',        // Deep Purple A400
-        'M15': '#3D5AFE',       // Indigo A400
-        'M15-SBS': '#2979FF',   // Blue A400
-        'M20': '#00B0FF',       // Light Blue A400
-        'M101': '#00E5FF',      // Cyan A400
-        'M102': '#1DE9B6',      // Teal A400
-        'M103': '#00E676',      // Green A400
-        // Other Manhattan Routes
-        'M9': '#76FF03',        // Light Green A400
-        'M42': '#C6FF00',       // Lime A400
-        'M50': '#FFEA00',       // Yellow A400
-        'M57': '#FFC400',       // Amber A400
-        'M66': '#FF9100',       // Orange A400
-        'M72': '#FF3D00',       // Deep Orange A400
-        'M79-SBS': '#795548',   // Brown
-        'M86-SBS': '#607D8B'    // Blue Grey
-      };
+          const ROUTE_COLORS = {
+            // Crosstown Routes
+            'M14A-SBS': '#E31837',  // Red
+            'M14D-SBS': '#FF6B00',  // Orange
+            'M21': '#4CAF50',       // Green
+            'M22': '#2196F3',       // Blue
+            'M23-SBS': '#9C27B0',   // Purple
+            'M34-SBS': '#673AB7',   // Deep Purple
+            // North-South Routes
+            'M1': '#FF1744',        // Red A700
+            'M2': '#F50057',        // Pink A400
+            'M3': '#D500F9',        // Purple A400
+            'M4': '#651FFF',        // Deep Purple A400
+            'M15': '#3D5AFE',       // Indigo A400
+            'M15-SBS': '#2979FF',   // Blue A400
+            'M20': '#00B0FF',       // Light Blue A400
+            'M101': '#00E5FF',      // Cyan A400
+            'M102': '#1DE9B6',      // Teal A400
+            'M103': '#00E676',      // Green A400
+            // Other Manhattan Routes
+            'M9': '#76FF03',        // Light Green A400
+            'M42': '#C6FF00',       // Lime A400
+            'M50': '#FFEA00',       // Yellow A400
+            'M57': '#FFC400',       // Amber A400
+            'M66': '#FF9100',       // Orange A400
+            'M72': '#FF3D00',       // Deep Orange A400
+            'M79-SBS': '#795548',   // Brown
+            'M86-SBS': '#607D8B'    // Blue Grey
+          };
 
-      function initMap() {
-        console.log("Initializing map...");
-        const mapElement = document.getElementById('<%= @map_id %>');
-        if (!mapElement) {
-          console.error("Map element not found!");
-          return;
-        }
-
-        try {
-          // Initialize map centered on Lower East Side
-          map = L.map('<%= @map_id %>').setView([40.7185, -73.9835], 14);
-          console.log("Map created successfully");
-
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 19
-          }).addTo(map);
-
-          // Set bounds for Lower Manhattan (expanded)
-          const bounds = L.latLngBounds(
-            [40.7800, -74.0200], // North West (above 14th St)
-            [40.6900, -73.9600]  // South East (below Chinatown)
-          );
-          map.setMaxBounds(bounds);
-
-          // Force a resize after a short delay to ensure proper rendering
-          setTimeout(() => {
-            console.log("Invalidating map size...");
-            map.invalidateSize();
-          }, 100);
-        } catch (error) {
-          console.error("Error initializing map:", error);
-        }
-      }
-
-      // Global marker storage
-      const markersByBusId = new Map();
-
-      function updateMarkers(busData) {
-        console.log("Updating markers with buses:", busData);
-        if (!map) {
-          console.error("Map not initialized!");
-          return;
-        }
-
-        if (!busData || !busData.buses) {
-          console.log("No buses to display");
-          return;
-        }
-
-        // Track which buses are still active
-        const activeBusIds = new Set();
-
-        // Update or create markers for each bus
-        busData.buses.forEach((routeData) => {
-          const route = routeData.route;
-          const buses = routeData.buses;
-          const color = ROUTE_COLORS[route] || '#000000';
-
-          buses.forEach(bus => {
-            const busId = `${route}-${bus.id}`;
-            activeBusIds.add(busId);
-
-            const lat = parseFloat(bus.location.latitude);
-            const lng = parseFloat(bus.location.longitude);
-
-            if (isNaN(lat) || isNaN(lng)) {
-              console.error("Invalid coordinates for bus:", bus);
+          function initMap() {
+            console.log("Initializing map...");
+            const mapElement = document.getElementById(mapId);
+            if (!mapElement) {
+              console.error("Map element not found!");
               return;
             }
 
-            let marker = markersByBusId.get(busId);
-            if (marker) {
-              // Update existing marker position
-              marker.setLatLng([lat, lng]);
-              if (!marker._map) {
-                marker.addTo(map);
-              }
-            } else {
-              // Create new marker
-              marker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                  className: 'custom-div-icon',
-                  html: `<div style="
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                    pointer-events: none;
-                  ">
-                    <div style="
-                      background-color: ${color};
-                      width: 12px;
-                      height: 12px;
-                      border-radius: 50%;
-                      border: 2px solid white;
-                      box-shadow: 0 0 4px rgba(0,0,0,0.5);
-                    "></div>
-                    <div style="
-                      background-color: white;
-                      padding: 2px 4px;
-                      border-radius: 4px;
-                      font-size: 12px;
-                      font-weight: bold;
-                      box-shadow: 0 0 4px rgba(0,0,0,0.2);
-                      color: ${color};
-                    ">${route}</div>
-                  </div>`,
-                  iconSize: [48, 20],
-                  iconAnchor: [6, 6]
-                })
-              })
-              .bindPopup(`
-                <div class="p-2">
-                  <strong>${route} Bus ${bus.id}</strong><br>
-                  Speed: ${bus.speed || 'N/A'} mph<br>
-                  Destination: ${bus.destination ? bus.destination.join(', ') : 'N/A'}<br>
-                  Direction: ${bus.direction === '1' ? 'Northbound' : 'Southbound'}<br>
-                  Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}
-                </div>
-              `)
-              .addTo(map);
-
-              markersByBusId.set(busId, marker);
+            if (map) {
+              console.log("Map already initialized");
+              return;
             }
-          });
-        });
 
-        // Hide markers for buses that are no longer active
-        markersByBusId.forEach((marker, busId) => {
-          if (!activeBusIds.has(busId)) {
-            marker.remove();
+            try {
+              // Initialize map centered on Lower East Side
+              map = L.map(mapId, {
+                center: [40.7185, -73.9835],
+                zoom: 14,
+                zoomControl: true,
+                scrollWheelZoom: true
+              });
+
+              console.log("Map created successfully");
+
+              L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+              }).addTo(map);
+
+              // Set bounds for Lower Manhattan (expanded)
+              const bounds = L.latLngBounds(
+                [40.7800, -74.0200], // North West (above 14th St)
+                [40.6900, -73.9600]  // South East (below Chinatown)
+              );
+              map.setMaxBounds(bounds);
+
+              // Force a resize after a short delay to ensure proper rendering
+              setTimeout(() => {
+                console.log("Invalidating map size...");
+                map.invalidateSize();
+              }, 100);
+            } catch (error) {
+              console.error("Error initializing map:", error);
+            }
           }
-        });
 
-        console.log(`Total active buses: ${activeBusIds.size}`);
-      }
+          function updateMarkers(busData) {
+            if (!map) {
+              console.error("Map not initialized, initializing now...");
+              initMap();
+              setTimeout(() => updateMarkers(busData), 100);
+              return;
+            }
 
-      // Initialize map when the page loads
-      window.addEventListener("load", () => {
-        console.log("Page loaded, initializing map...");
-        initMap();
-      });
+            console.log("Updating markers with buses:", busData);
 
-      // Listen for bus updates from LiveView
-      window.addEventListener("phx:update_buses", (event) => {
-        console.log("Received bus update event:", event);
-        console.log("Bus data:", event.detail);
-        updateMarkers(event.detail);
-      });
+            if (!busData || !busData.buses) {
+              console.log("No buses to display");
+              return;
+            }
 
-      // Handle sidebar toggle
-      const sidebarToggle = document.getElementById('sidebar-toggle');
-      if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', () => {
-          setTimeout(() => {
-            console.log("Sidebar toggled, invalidating map size...");
-            map.invalidateSize();
-          }, 300);
-        });
-      }
+            // Track which buses are still active
+            const activeBusIds = new Set();
 
-      // Initialize map immediately if the page is already loaded
-      if (document.readyState === 'complete') {
-        console.log("Page already loaded, initializing map immediately...");
-        initMap();
-      }
-    </script>
+            // Update or create markers for each bus
+            busData.buses.forEach((routeData) => {
+              const route = routeData.route;
+              const buses = routeData.buses;
+              const color = ROUTE_COLORS[route] || '#000000';
+
+              buses.forEach(bus => {
+                const busId = `${route}-${bus.id}`;
+                activeBusIds.add(busId);
+
+                const lat = parseFloat(bus.location.latitude);
+                const lng = parseFloat(bus.location.longitude);
+
+                if (isNaN(lat) || isNaN(lng)) {
+                  console.error("Invalid coordinates for bus:", bus);
+                  return;
+                }
+
+                let marker = markersByBusId.get(busId);
+                if (marker) {
+                  // Update existing marker position
+                  marker.setLatLng([lat, lng]);
+                  if (!marker._map) {
+                    marker.addTo(map);
+                  }
+                } else {
+                  // Create new marker
+                  marker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                      className: 'custom-div-icon',
+                      html: `<div style="
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        pointer-events: none;
+                      ">
+                        <div style="
+                          background-color: ${color};
+                          width: 12px;
+                          height: 12px;
+                          border-radius: 50%;
+                          border: 2px solid white;
+                          box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                        "></div>
+                        <div style="
+                          background-color: white;
+                          padding: 2px 4px;
+                          border-radius: 4px;
+                          font-size: 12px;
+                          font-weight: bold;
+                          box-shadow: 0 0 4px rgba(0,0,0,0.2);
+                          color: ${color};
+                        ">${route}</div>
+                      </div>`,
+                      iconSize: [48, 20],
+                      iconAnchor: [6, 6]
+                    })
+                  })
+                  .bindPopup(`
+                    <div class="p-2">
+                      <strong>${route} Bus ${bus.id}</strong><br>
+                      Speed: ${bus.speed || 'N/A'} mph<br>
+                      Destination: ${bus.destination ? bus.destination.join(', ') : 'N/A'}<br>
+                      Direction: ${bus.direction === '1' ? 'Northbound' : 'Southbound'}<br>
+                      Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                    </div>
+                  `)
+                  .addTo(map);
+
+                  markersByBusId.set(busId, marker);
+                }
+              });
+            });
+
+            // Hide markers for buses that are no longer active
+            markersByBusId.forEach((marker, busId) => {
+              if (!activeBusIds.has(busId)) {
+                marker.remove();
+              }
+            });
+
+            console.log(`Total active buses: ${activeBusIds.size}`);
+          }
+
+          // Initialize map when the page loads
+          if (document.readyState === 'complete') {
+            initMap();
+          } else {
+            window.addEventListener("load", initMap);
+          }
+
+          // Listen for bus updates from LiveView
+          window.addEventListener("phx:update_buses", (event) => {
+            console.log("Received bus update event:", event);
+            updateMarkers(event.detail);
+          });
+
+          // Handle sidebar toggle if present
+          const sidebarToggle = document.getElementById('sidebar-toggle');
+          if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+              setTimeout(() => map?.invalidateSize(), 300);
+            });
+          }
+        })();
+      </script>
+    </div>
     """
   end
 end
