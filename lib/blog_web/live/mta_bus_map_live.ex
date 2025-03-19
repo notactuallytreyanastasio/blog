@@ -10,6 +10,7 @@ defmodule BlogWeb.MtaBusMapLive do
     "M21" => "MTA NYCT_M21",
     "M22" => "MTA NYCT_M22",
     "M23-SBS" => "MTA NYCT_M23+",
+    "M34-SBS" => "MTA NYCT_M34+",
     # North-South Routes
     "M1" => "MTA NYCT_M1",
     "M2" => "MTA NYCT_M2",
@@ -172,7 +173,7 @@ defmodule BlogWeb.MtaBusMapLive do
                       <div class="mt-2">
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                           <div class="col-span-full mb-2 font-bold text-lg">Crosstown Routes</div>
-                          <%= for {route, _} <- Enum.filter(assigns.all_bus_routes, fn {k, _} -> String.contains?(k, ["M14", "M21", "M22", "M23"]) end) do %>
+                          <%= for {route, _} <- Enum.filter(assigns.all_bus_routes, fn {k, _} -> String.contains?(k, ["M14", "M21", "M22", "M23", "M34"]) end) do %>
                             <label class="flex items-center space-x-2">
                               <input
                                 type="checkbox"
@@ -251,6 +252,7 @@ defmodule BlogWeb.MtaBusMapLive do
         'M21': '#4CAF50',       // Green
         'M22': '#2196F3',       // Blue
         'M23-SBS': '#9C27B0',   // Purple
+        'M34-SBS': '#673AB7',   // Deep Purple
         // North-South Routes
         'M1': '#FF1744',        // Red A700
         'M2': '#F50057',        // Pink A400
