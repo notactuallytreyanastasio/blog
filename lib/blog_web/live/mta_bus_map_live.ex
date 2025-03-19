@@ -37,7 +37,7 @@ defmodule BlogWeb.MtaBusMapLive do
   def mount(_params, _session, socket) do
     Logger.info("Mounting MtaBusMapLive")
     if connected?(socket) do
-      :timer.send_interval(5000, self(), :update_buses)
+      :timer.send_interval(15000, self(), :update_buses)
     end
 
     # Start with M21 selected by default
@@ -308,6 +308,9 @@ defmodule BlogWeb.MtaBusMapLive do
         }
       }
 
+      // Global marker storage
+      const markersByBusId = new Map();
+
       function updateMarkers(busData) {
         console.log("Updating markers with buses:", busData);
         if (!map) {
@@ -315,78 +318,96 @@ defmodule BlogWeb.MtaBusMapLive do
           return;
         }
 
-        // Clear existing markers
-        markers.forEach(marker => marker.remove());
-        markers = [];
-
         if (!busData || !busData.buses) {
           console.log("No buses to display");
           return;
         }
 
-        // Add new markers for each route
+        // Track which buses are still active
+        const activeBusIds = new Set();
+
+        // Update or create markers for each bus
         busData.buses.forEach((routeData) => {
           const route = routeData.route;
           const buses = routeData.buses;
           const color = ROUTE_COLORS[route] || '#000000';
 
           buses.forEach(bus => {
-            console.log(`Adding marker for ${route} bus:`, bus);
+            const busId = `${route}-${bus.id}`;
+            activeBusIds.add(busId);
+
             const lat = parseFloat(bus.location.latitude);
             const lng = parseFloat(bus.location.longitude);
 
-            console.log(`Creating marker at coordinates: ${lat}, ${lng}`);
-
             if (isNaN(lat) || isNaN(lng)) {
-              console.error("Invalid coordinates:", bus.location);
+              console.error("Invalid coordinates for bus:", bus);
               return;
             }
 
-            const marker = L.marker([lat, lng], {
-              icon: L.divIcon({
-                className: 'custom-div-icon',
-                html: `<div style="
-                  display: flex;
-                  align-items: center;
-                  gap: 4px;
-                ">
-                  <div style="
-                    background-color: ${color};
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 50%;
-                    border: 2px solid white;
-                    box-shadow: 0 0 4px rgba(0,0,0,0.5);
-                  "></div>
-                  <div style="
-                    background-color: white;
-                    padding: 2px 4px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    font-weight: bold;
-                    box-shadow: 0 0 4px rgba(0,0,0,0.2);
-                    color: ${color};
-                  ">${route}</div>
-                </div>`,
-                iconSize: [48, 20],
-                iconAnchor: [6, 6]
+            let marker = markersByBusId.get(busId);
+            if (marker) {
+              // Update existing marker position
+              marker.setLatLng([lat, lng]);
+              if (!marker._map) {
+                marker.addTo(map);
+              }
+            } else {
+              // Create new marker
+              marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                  className: 'custom-div-icon',
+                  html: `<div style="
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    pointer-events: none;
+                  ">
+                    <div style="
+                      background-color: ${color};
+                      width: 12px;
+                      height: 12px;
+                      border-radius: 50%;
+                      border: 2px solid white;
+                      box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                    "></div>
+                    <div style="
+                      background-color: white;
+                      padding: 2px 4px;
+                      border-radius: 4px;
+                      font-size: 12px;
+                      font-weight: bold;
+                      box-shadow: 0 0 4px rgba(0,0,0,0.2);
+                      color: ${color};
+                    ">${route}</div>
+                  </div>`,
+                  iconSize: [48, 20],
+                  iconAnchor: [6, 6]
+                })
               })
-            })
-            .bindPopup(`
-              <div class="p-2">
-                <strong>${route} Bus ${bus.id}</strong><br>
-                Speed: ${bus.speed || 'N/A'} mph<br>
-                Destination: ${bus.destination.join(', ')}<br>
-                Direction: ${bus.direction === '1' ? 'Northbound' : 'Southbound'}<br>
-                Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}
-              </div>
-            `)
-            .addTo(map);
+              .bindPopup(`
+                <div class="p-2">
+                  <strong>${route} Bus ${bus.id}</strong><br>
+                  Speed: ${bus.speed || 'N/A'} mph<br>
+                  Destination: ${bus.destination ? bus.destination.join(', ') : 'N/A'}<br>
+                  Direction: ${bus.direction === '1' ? 'Northbound' : 'Southbound'}<br>
+                  Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                </div>
+              `)
+              .addTo(map);
 
-            markers.push(marker);
-            console.log("Marker added successfully");
+              markersByBusId.set(busId, marker);
+            }
           });
         });
+
+        // Hide markers for buses that are no longer active
+        markersByBusId.forEach((marker, busId) => {
+          if (!activeBusIds.has(busId)) {
+            marker.remove();
+          }
+        });
+
+        console.log(`Total active buses: ${activeBusIds.size}`);
       }
 
       // Initialize map when the page loads
