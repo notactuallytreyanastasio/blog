@@ -3,9 +3,14 @@ defmodule Blog.Mta.Client do
   @api_key "cddaeca7-eab9-428c-ab34-82f63d533dd2"
 
   @routes %{
-    "M21" => "MTA NYCT_M21",
-    "M14A" => "M14A",
-    "M14D" => "M14D"
+    "M14A" => "MTA NYCT_M14A+",
+    "M14D" => "MTA NYCT_M14D+",
+    "M21" => "MTA NYCT_M21" # ,
+    # "M22" => "MTA NYCT_M22",
+    # "M9" => "MTA NYCT_M9",
+    # "M15" => "MTA NYCT_M15",
+    # "M15-SBS" => "MTA NYCT_M15+",
+    # "M103" => "MTA NYCT_M103"
   }
 
   def fetch_buses do
@@ -25,6 +30,7 @@ defmodule Blog.Mta.Client do
     {:ok, Map.new(results)}
   end
 
+  @spec fetch_route(any()) :: {:error, <<_::64, _::_*8>>} | {:ok, list()}
   def fetch_route(line_ref) do
     params = %{
       key: @api_key,
