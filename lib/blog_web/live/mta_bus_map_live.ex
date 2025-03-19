@@ -49,7 +49,8 @@ defmodule BlogWeb.MtaBusMapLive do
       map_id: "mta-bus-map",
       selected_routes: initial_selected,
       all_bus_routes: @all_bus_routes,
-      show_modal: false
+      show_modal: false,
+      page_title: "Manhattan MTA Bus Tracker"
     )}
   end
 
@@ -112,7 +113,7 @@ defmodule BlogWeb.MtaBusMapLive do
 
       <div class="p-4 bg-white">
         <div class="flex justify-between items-center mb-4">
-          <h1 class="text-2xl font-bold">Manhattan Bus Tracker</h1>
+          <h1 class="text-2xl font-bold">Manhattan MTA Bus Tracker</h1>
           <div class="flex gap-2">
             <button
               phx-click="toggle_modal"
