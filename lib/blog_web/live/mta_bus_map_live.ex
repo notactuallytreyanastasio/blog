@@ -399,6 +399,78 @@ defmodule BlogWeb.MtaBusMapLive do
                   maxZoom: 19
                 }).addTo(map);
 
+                // Add user location control
+                const userLocationControl = L.Control.extend({
+                  options: {
+                    position: 'topleft'
+                  },
+                  onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    const button = L.DomUtil.create('a', 'leaflet-control-zoom-in', container);
+                    button.innerHTML = '📍';
+                    button.title = 'Show my location';
+                    button.style.fontSize = '18px';
+
+                    L.DomEvent.on(button, 'click', function(e) {
+                      L.DomEvent.stopPropagation(e);
+                      L.DomEvent.preventDefault(e);
+                      map.locate({setView: true, maxZoom: 16});
+                    });
+
+                    return container;
+                  }
+                });
+
+                map.addControl(new userLocationControl());
+
+                // Request user location immediately
+                map.locate({setView: true, maxZoom: 16});
+
+                // Handle location found
+                map.on('locationfound', function(e) {
+                  if (!window.userMarker) {
+                    window.userMarker = L.marker(e.latlng, {
+                      icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="
+                          display: flex;
+                          align-items: center;
+                          gap: 4px;
+                          pointer-events: none;
+                        ">
+                          <div style="
+                            background-color: #FF4081;
+                            width: 16px;
+                            height: 16px;
+                            border-radius: 50%;
+                            border: 3px solid white;
+                            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                          "></div>
+                          <div style="
+                            background-color: white;
+                            padding: 2px 6px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            font-weight: bold;
+                            box-shadow: 0 0 4px rgba(0,0,0,0.2);
+                            color: #FF4081;
+                          ">You</div>
+                        </div>`,
+                        iconSize: [80, 20],
+                        iconAnchor: [8, 10]
+                      })
+                    }).addTo(map);
+                  } else {
+                    window.userMarker.setLatLng(e.latlng);
+                  }
+                });
+
+                // Handle location error
+                map.on('locationerror', function(e) {
+                  console.error("Error getting location:", e.message);
+                  alert("Unable to get your location. Please check your browser's location settings.");
+                });
+
                 // Force a resize after a short delay to ensure proper rendering
                 setTimeout(() => {
                   console.log("Invalidating map size...");
