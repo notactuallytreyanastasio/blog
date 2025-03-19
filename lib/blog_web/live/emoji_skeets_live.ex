@@ -64,7 +64,8 @@ defmodule BlogWeb.EmojiSkeetsLive do
       end
 
     # Apply the filter with the updated emoji list
-    filtered_skeets = filter_skeets(socket.assigns.skeets, updated_emojis, socket.assigns.text_filters)
+    filtered_skeets =
+      filter_skeets(socket.assigns.skeets, updated_emojis, socket.assigns.text_filters)
 
     {:noreply, assign(socket, selected_emojis: updated_emojis, filtered_skeets: filtered_skeets)}
   end
@@ -84,11 +85,12 @@ defmodule BlogWeb.EmojiSkeetsLive do
       end
 
     # Apply the updated filters
-    filtered_skeets = filter_skeets(
-      socket.assigns.skeets,
-      socket.assigns.selected_emojis,
-      text_filters
-    )
+    filtered_skeets =
+      filter_skeets(
+        socket.assigns.skeets,
+        socket.assigns.selected_emojis,
+        text_filters
+      )
 
     {:noreply,
      assign(socket,
@@ -103,11 +105,12 @@ defmodule BlogWeb.EmojiSkeetsLive do
     text_filters = Enum.reject(socket.assigns.text_filters, &(&1 == filter))
 
     # Apply the updated filters
-    filtered_skeets = filter_skeets(
-      socket.assigns.skeets,
-      socket.assigns.selected_emojis,
-      text_filters
-    )
+    filtered_skeets =
+      filter_skeets(
+        socket.assigns.skeets,
+        socket.assigns.selected_emojis,
+        text_filters
+      )
 
     {:noreply, assign(socket, text_filters: text_filters, filtered_skeets: filtered_skeets)}
   end
@@ -123,11 +126,12 @@ defmodule BlogWeb.EmojiSkeetsLive do
       |> Enum.take(@max_skeets)
 
     # Apply the current filters to the updated skeet list
-    filtered_skeets = filter_skeets(
-      updated_skeets,
-      socket.assigns.selected_emojis,
-      socket.assigns.text_filters
-    )
+    filtered_skeets =
+      filter_skeets(
+        updated_skeets,
+        socket.assigns.selected_emojis,
+        socket.assigns.text_filters
+      )
 
     {:noreply, assign(socket, skeets: updated_skeets, filtered_skeets: filtered_skeets)}
   end
@@ -142,7 +146,8 @@ defmodule BlogWeb.EmojiSkeetsLive do
     Enum.filter(skeets, fn skeet ->
       emoji_match =
         if selected_emojis == [] do
-          true  # No emoji filter applied
+          # No emoji filter applied
+          true
         else
           Enum.any?(selected_emojis, fn emoji ->
             String.contains?(skeet, emoji)
@@ -151,7 +156,8 @@ defmodule BlogWeb.EmojiSkeetsLive do
 
       text_match =
         if text_filters == [] do
-          true  # No text filter applied
+          # No text filter applied
+          true
         else
           Enum.all?(text_filters, fn filter ->
             String.contains?(String.downcase(skeet), String.downcase(filter))
@@ -178,7 +184,7 @@ defmodule BlogWeb.EmojiSkeetsLive do
                 class={"p-3 text-2xl rounded-lg transition-all #{if emoji in @selected_emojis, do: "bg-blue-100 ring-2 ring-blue-500", else: "bg-gray-100 hover:bg-gray-200"}"}
                 title={description}
               >
-                <%= emoji %>
+                {emoji}
               </button>
             <% end %>
           </div>
@@ -207,7 +213,7 @@ defmodule BlogWeb.EmojiSkeetsLive do
               <div class="mt-3 flex flex-wrap gap-2">
                 <%= for filter <- @text_filters do %>
                   <span class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                    <%= filter %>
+                    {filter}
                     <button
                       phx-click="remove_text_filter"
                       phx-value-filter={filter}
@@ -223,29 +229,29 @@ defmodule BlogWeb.EmojiSkeetsLive do
 
           <div class="mt-4 text-sm text-gray-600">
             <%= if @selected_emojis == [] and @text_filters == [] do %>
-              <p>No filters selected. Select at least one emoji or add a text filter to see skeets.</p>
+              <p>
+                No filters selected. Select at least one emoji or add a text filter to see skeets.
+              </p>
             <% else %>
               <%= if @selected_emojis != [] do %>
                 <p>
-                  Filtering for emojis:
-                  <%= Enum.map_join(@selected_emojis, " ", fn emoji -> emoji end) %>
+                  Filtering for emojis: {Enum.map_join(@selected_emojis, " ", fn emoji -> emoji end)}
                 </p>
               <% end %>
 
               <%= if @text_filters != [] do %>
                 <p>
-                  Filtering for text:
-                  <%= Enum.map_join(@text_filters, ", ", & &1) %>
+                  Filtering for text: {Enum.map_join(@text_filters, ", ", & &1)}
                 </p>
               <% end %>
             <% end %>
 
             <div class="mt-2 flex justify-between text-gray-500">
-              <p>Total skeets collected: <%= length(@skeets) %></p>
+              <p>Total skeets collected: {length(@skeets)}</p>
               <%= if @selected_emojis != [] or @text_filters != [] do %>
                 <p>
-                  Showing <%= length(@filtered_skeets) %> of <%= length(@skeets) %> skeets
-                  (<%= length(@skeets) - length(@filtered_skeets) %> filtered out)
+                  Showing {length(@filtered_skeets)} of {length(@skeets)} skeets
+                  ({length(@skeets) - length(@filtered_skeets)} filtered out)
                 </p>
               <% end %>
             </div>
@@ -270,7 +276,7 @@ defmodule BlogWeb.EmojiSkeetsLive do
           <% else %>
             <%= for skeet <- @filtered_skeets do %>
               <div class="bg-white rounded-lg shadow-md p-4 transition-all hover:shadow-lg">
-                <p class="text-gray-800 whitespace-pre-wrap break-words"><%= skeet %></p>
+                <p class="text-gray-800 whitespace-pre-wrap break-words">{skeet}</p>
               </div>
             <% end %>
           <% end %>

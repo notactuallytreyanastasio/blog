@@ -3,7 +3,7 @@ defmodule BlogWeb.BezierTrianglesLive do
   require Logger
   alias Jason
 
-  def triangle_size(), do: (15..60) |> Enum.to_list() |> Enum.shuffle() |> List.first()
+  def triangle_size(), do: 15..60 |> Enum.to_list() |> Enum.shuffle() |> List.first()
 
   # Animation configuration
   @fps 30
@@ -19,20 +19,34 @@ defmodule BlogWeb.BezierTrianglesLive do
   @max_triangles 300
   @background_line_count 60
   @gradient_colors [
-    "#FF5E5B", # Coral red
-    "#D8A47F", # Light brown
-    "#7FC6A4", # Mint green
-    "#5D737E", # Slate
-    "#468189", # Teal
-    "#FF9E00", # Orange
-    "#9C59D1", # Purple
-    "#2EC4B6", # Turquoise
-    "#FFD700", # Gold
-    "#FF69B4", # Hot Pink
-    "#98FB98", # Pale Green
-    "#87CEEB", # Sky Blue
-    "#FFA07A", # Light Salmon
-    "#DDA0DD"  # Plum
+    # Coral red
+    "#FF5E5B",
+    # Light brown
+    "#D8A47F",
+    # Mint green
+    "#7FC6A4",
+    # Slate
+    "#5D737E",
+    # Teal
+    "#468189",
+    # Orange
+    "#FF9E00",
+    # Purple
+    "#9C59D1",
+    # Turquoise
+    "#2EC4B6",
+    # Gold
+    "#FFD700",
+    # Hot Pink
+    "#FF69B4",
+    # Pale Green
+    "#98FB98",
+    # Sky Blue
+    "#87CEEB",
+    # Light Salmon
+    "#FFA07A",
+    # Plum
+    "#DDA0DD"
   ]
 
   def mount(_params, _session, socket) do
@@ -54,7 +68,8 @@ defmodule BlogWeb.BezierTrianglesLive do
     Logger.info("Generated #{length(initial_triangles)} initial triangles")
 
     # Generate background lines
-    background_lines = generate_random_lines(@background_line_count, viewport_width, viewport_height)
+    background_lines =
+      generate_random_lines(@background_line_count, viewport_width, viewport_height)
 
     socket =
       socket
@@ -68,9 +83,15 @@ defmodule BlogWeb.BezierTrianglesLive do
       |> assign(:max_triangles, @max_triangles)
       |> assign(:page_title, "Bezier Triangles Animation")
       |> assign(:meta_attrs, [
-        %{name: "description", content: "A mesmerizing animation of triangles moving along bezier curves"},
+        %{
+          name: "description",
+          content: "A mesmerizing animation of triangles moving along bezier curves"
+        },
         %{property: "og:title", content: "Bezier Triangles Animation"},
-        %{property: "og:description", content: "A mesmerizing animation of triangles moving along bezier curves"},
+        %{
+          property: "og:description",
+          content: "A mesmerizing animation of triangles moving along bezier curves"
+        },
         %{property: "og:type", content: "website"}
       ])
 
@@ -108,7 +129,11 @@ defmodule BlogWeb.BezierTrianglesLive do
     # Occasionally regenerate background lines (every 300 frames / 10 seconds)
     background_lines =
       if rem(frame, 300) == 0 do
-        generate_random_lines(@background_line_count, socket.assigns.viewport_width, socket.assigns.viewport_height)
+        generate_random_lines(
+          @background_line_count,
+          socket.assigns.viewport_width,
+          socket.assigns.viewport_height
+        )
       else
         socket.assigns.background_lines
       end
@@ -116,7 +141,11 @@ defmodule BlogWeb.BezierTrianglesLive do
     # Occasionally generate new curves (every 900 frames / 30 seconds)
     curves =
       if rem(frame, 900) == 0 do
-        generate_random_bezier_curves(@num_curves, socket.assigns.viewport_width, socket.assigns.viewport_height)
+        generate_random_bezier_curves(
+          @num_curves,
+          socket.assigns.viewport_width,
+          socket.assigns.viewport_height
+        )
       else
         socket.assigns.curves
       end
@@ -162,8 +191,8 @@ defmodule BlogWeb.BezierTrianglesLive do
         <div class="text-xs text-gray-300 mb-1">Bezier Triangles Animation</div>
         <div class="flex flex-col gap-1">
           <div class="flex gap-3">
-            <div>Triangles: <%= length(@triangles) %>/<%= @max_triangles %></div>
-            <div>Curves: <%= @num_curves %></div>
+            <div>Triangles: {length(@triangles)}/{@max_triangles}</div>
+            <div>Curves: {@num_curves}</div>
           </div>
           <div class="text-xs text-gray-400">Optimized for performance</div>
         </div>
@@ -252,7 +281,7 @@ defmodule BlogWeb.BezierTrianglesLive do
   defp generate_triangles_for_curve(curve, curve_index, count) do
     start_point = List.first(curve.points)
 
-    Enum.map(0..(count-1), fn i ->
+    Enum.map(0..(count - 1), fn i ->
       # Distribute triangles along the first part of the curve
       initial_t = i * (0.2 / count)
 
@@ -260,7 +289,8 @@ defmodule BlogWeb.BezierTrianglesLive do
         x: start_point.x,
         y: start_point.y,
         curve_index: curve_index,
-        t: initial_t, # Position along curve (0.0 to 1.0)
+        # Position along curve (0.0 to 1.0)
+        t: initial_t,
         rotation: :rand.uniform() * 2 * :math.pi(),
         size: triangle_size(),
         color: Enum.random(@gradient_colors),
@@ -293,11 +323,12 @@ defmodule BlogWeb.BezierTrianglesLive do
         end
 
       # Update triangle
-      %{triangle |
-        t: new_t,
-        rotation: new_rotation,
-        color_index: new_color_index,
-        color: new_color
+      %{
+        triangle
+        | t: new_t,
+          rotation: new_rotation,
+          color_index: new_color_index,
+          color: new_color
       }
     end)
   end

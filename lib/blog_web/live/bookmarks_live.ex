@@ -34,8 +34,10 @@ defmodule BlogWeb.BookmarksLive do
 
   @impl true
   def handle_info(%{event: "bookmark_added", payload: bookmark}, socket) do
-    bookmarks = [bookmark | socket.assigns.bookmarks]
-    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    bookmarks =
+      [bookmark | socket.assigns.bookmarks]
+      |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+
     {:noreply, assign(socket, :bookmarks, bookmarks)}
   end
 
@@ -75,19 +77,19 @@ defmodule BlogWeb.BookmarksLive do
                 <div class="flex-1 min-w-0">
                   <h3 class="text-lg font-medium text-gray-900 truncate">
                     <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
-                      <%= bookmark.title || bookmark.url %>
+                      {bookmark.title || bookmark.url}
                     </a>
                   </h3>
                   <%= if bookmark.description do %>
                     <p class="mt-1 text-sm text-gray-500">
-                      <%= bookmark.description %>
+                      {bookmark.description}
                     </p>
                   <% end %>
                   <%= if bookmark.tags != [] do %>
                     <div class="mt-2 flex flex-wrap gap-2">
                       <%= for tag <- bookmark.tags do %>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
-                          <%= tag %>
+                          {tag}
                         </span>
                       <% end %>
                     </div>
@@ -100,7 +102,11 @@ defmodule BlogWeb.BookmarksLive do
                     class="text-gray-400 hover:text-gray-500"
                   >
                     <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                      <path
+                        fill-rule="evenodd"
+                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                        clip-rule="evenodd"
+                      />
                     </svg>
                   </button>
                 </div>

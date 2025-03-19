@@ -26,6 +26,7 @@ defmodule BlogWeb.UserSocket do
   def connect(%{"token" => token}, socket, _connect_info) do
     {:ok, assign(socket, :user_id, token)}
   end
+
   def connect(_params, socket, _connect_info), do: {:ok, socket}
 
   # Socket id's are topics that allow you to identify all sockets for a given user:

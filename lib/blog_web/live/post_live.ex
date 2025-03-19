@@ -52,6 +52,7 @@ defmodule BlogWeb.PostLive do
 
         # Filter out tags line and process markdown
         content_without_tags = remove_tags_line(post.body)
+
         case Earmark.as_html(content_without_tags, code_class_prefix: "language-") do
           {:ok, html, _} ->
             socket =
@@ -60,7 +61,8 @@ defmodule BlogWeb.PostLive do
                 reader_count: get_reader_count(slug),
                 word_count: word_count(content_without_tags),
                 estimated_read_time: estimated_read_time(content_without_tags),
-                show_line_numbers: true # Default to showing line numbers
+                # Default to showing line numbers
+                show_line_numbers: true
               )
 
             {:ok, socket}
@@ -143,10 +145,7 @@ defmodule BlogWeb.PostLive do
 
   def render(assigns) do
     ~H"""
-    <div
-      class="px-2 py-3 font-mono text-gray-700"
-      id="post-container"
-    >
+    <div class="px-2 py-3 font-mono text-gray-700" id="post-container">
       <div class="max-w-full mx-auto">
         <div class="flex flex-wrap justify-between items-center text-xs text-gray-500 mb-2">
           <div class="flex items-center space-x-3">
@@ -157,15 +156,29 @@ defmodule BlogWeb.PostLive do
             </div>
 
             <div class="border-l pl-2 border-gray-200">
-              <%= @word_count %> words · <%= @estimated_read_time %>
+              {@word_count} words · {@estimated_read_time}
             </div>
           </div>
 
           <div class="flex items-center space-x-3">
             <div class="flex space-x-1 border border-gray-200 rounded-md overflow-hidden shadow-sm">
-              <button phx-click="toggle_line_numbers" class={"hover:bg-gray-100 px-2 py-1 flex items-center text-xs bg-white #{if @show_line_numbers, do: "border-b-2 border-blue-400"}"}>
-                <svg xmlns="http://www.w3.org/2000/svg" class={"h-3.5 w-3.5 mr-1 #{if @show_line_numbers, do: "text-blue-500"}"} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              <button
+                phx-click="toggle_line_numbers"
+                class={"hover:bg-gray-100 px-2 py-1 flex items-center text-xs bg-white #{if @show_line_numbers, do: "border-b-2 border-blue-400"}"}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class={"h-3.5 w-3.5 mr-1 #{if @show_line_numbers, do: "text-blue-500"}"}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
                 </svg>
                 Line #
               </button>
@@ -178,17 +191,17 @@ defmodule BlogWeb.PostLive do
         <div>
           <!-- Main Content -->
           <article class="p-3 md:p-4 bg-white rounded border border-gray-200">
-            <h1 class="text-2xl font-bold mb-2"><%= @post.title %></h1>
-
-            <!-- Post metadata -->
+            <h1 class="text-2xl font-bold mb-2">{@post.title}</h1>
+            
+    <!-- Post metadata -->
             <div class="flex flex-wrap gap-1 text-xs mb-3">
               <%= for tag <- @post.tags do %>
                 <span class="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                  <%= tag.name %>
+                  {tag.name}
                 </span>
               <% end %>
               <span class="px-1.5 py-0.5 text-gray-500">
-                <%= Calendar.strftime(@post.written_on, "%b %d, %Y") %>
+                {Calendar.strftime(@post.written_on, "%b %d, %Y")}
               </span>
             </div>
 

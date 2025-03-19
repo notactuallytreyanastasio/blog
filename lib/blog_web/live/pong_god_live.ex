@@ -14,18 +14,36 @@ defmodule BlogWeb.PongGodLive do
   @game_height 600
   @paddle_height 100
   @rainbow_colors [
-    "#FF1A8C", # Pink
-    "#E81CFF", # Magenta
-    "#841CFF", # Purple
-    "#1C56FF", # Blue
-    "#1CD7FF", # Cyan
-    "#1CFF78", # Green
-    "#FFE81C", # Yellow
-    "#FF781C"  # Orange
+    # Pink
+    "#FF1A8C",
+    # Magenta
+    "#E81CFF",
+    # Purple
+    "#841CFF",
+    # Blue
+    "#1C56FF",
+    # Cyan
+    "#1CD7FF",
+    # Green
+    "#1CFF78",
+    # Yellow
+    "#FFE81C",
+    # Orange
+    "#FF781C"
   ]
   @musical_notes [
-    "C4", "D4", "E4", "F4", "G4", "A4", "B4",
-    "C5", "D5", "E5", "F5", "G5"
+    "C4",
+    "D4",
+    "E4",
+    "F4",
+    "G4",
+    "A4",
+    "B4",
+    "C5",
+    "D5",
+    "E5",
+    "F5",
+    "G5"
   ]
 
   def mount(_params, _session, socket) do
@@ -60,33 +78,38 @@ defmodule BlogWeb.PongGodLive do
     games = PongLive.get_all_games()
 
     # Update rainbow paths for each game
-    rainbow_paths = update_rainbow_paths(socket.assigns.rainbow_paths, games, socket.assigns.rainbow_colors)
+    rainbow_paths =
+      update_rainbow_paths(socket.assigns.rainbow_paths, games, socket.assigns.rainbow_colors)
 
     # Check for score changes to play sounds
-    {play_sound, sound_note, game_scores} = check_for_score_changes(games, socket.assigns.game_scores, socket.assigns.musical_notes)
+    {play_sound, sound_note, game_scores} =
+      check_for_score_changes(games, socket.assigns.game_scores, socket.assigns.musical_notes)
 
     # Update explosions - remove expired ones
     explosions =
       socket.assigns.explosions
       |> Enum.map(fn explosion ->
         # Reduce life of explosion based on type
-        life_reduction = case explosion.type do
-          :burst -> 2
-          :spiral -> 1
-          _ -> 2
-        end
+        life_reduction =
+          case explosion.type do
+            :burst -> 2
+            :spiral -> 1
+            _ -> 2
+          end
+
         %{explosion | life: explosion.life - life_reduction}
       end)
       |> Enum.filter(fn explosion -> explosion.life > 0 end)
 
-    {:noreply, assign(socket,
-      games: games,
-      explosions: explosions,
-      rainbow_paths: rainbow_paths,
-      play_sound: play_sound,
-      sound_note: sound_note,
-      game_scores: game_scores
-    )}
+    {:noreply,
+     assign(socket,
+       games: games,
+       explosions: explosions,
+       rainbow_paths: rainbow_paths,
+       play_sound: play_sound,
+       sound_note: sound_note,
+       game_scores: game_scores
+     )}
   end
 
   def handle_info(:generate_explosion, socket) do
@@ -147,7 +170,7 @@ defmodule BlogWeb.PongGodLive do
   # Generate particles based on explosion type
   defp generate_particles(:burst, x, y, size, rainbow_colors) do
     for i <- 1..@particles_per_explosion do
-      angle = :rand.uniform() * 2 * :math.pi
+      angle = :rand.uniform() * 2 * :math.pi()
       distance = :rand.uniform(size * 3)
       particle_x = x + :math.cos(angle) * distance
       particle_y = y + :math.sin(angle) * distance
@@ -164,7 +187,7 @@ defmodule BlogWeb.PongGodLive do
 
   defp generate_particles(:spiral, x, y, size, rainbow_colors) do
     for i <- 1..@particles_per_explosion do
-      angle = i / @particles_per_explosion * 2 * :math.pi * 3
+      angle = i / @particles_per_explosion * 2 * :math.pi() * 3
       distance = size * (i / @particles_per_explosion) * 2
       particle_x = x + :math.cos(angle) * distance
       particle_y = y + :math.sin(angle) * distance
@@ -191,7 +214,11 @@ defmodule BlogWeb.PongGodLive do
         existing_path = Map.get(existing_paths, game_id, [])
 
         # Add new point to the path
-        new_point = %{x: ball.x, y: ball.y, color: get_rainbow_color(length(existing_path), rainbow_colors)}
+        new_point = %{
+          x: ball.x,
+          y: ball.y,
+          color: get_rainbow_color(length(existing_path), rainbow_colors)
+        }
 
         # Keep only the last @trail_length points
         updated_path = [new_point | existing_path] |> Enum.take(@trail_length)
@@ -239,7 +266,8 @@ defmodule BlogWeb.PongGodLive do
       "E5" -> 659.25
       "F5" -> 698.46
       "G5" -> 783.99
-      _ -> 440.00 # Default to A4
+      # Default to A4
+      _ -> 440.00
     end
   end
 
@@ -251,28 +279,30 @@ defmodule BlogWeb.PongGodLive do
           Pong God Mode
         </h1>
         <p class="text-gray-300 mt-2">
-          Watching <%= length(@games) %> active games
+          Watching {length(@games)} active games
         </p>
       </div>
-
-      <!-- Sound player -->
+      
+    <!-- Sound player -->
       <%= if @play_sound && @sound_note do %>
-        <div id="sound-player" phx-hook="PlaySound" data-frequency={get_note_frequency(@sound_note)}></div>
+        <div id="sound-player" phx-hook="PlaySound" data-frequency={get_note_frequency(@sound_note)}>
+        </div>
       <% end %>
-
-      <!-- Background particles container with pointer-events: none -->
+      
+    <!-- Background particles container with pointer-events: none -->
       <div class="fixed inset-0 pointer-events-none z-10">
         <%= for explosion <- @explosions do %>
           <%= for particle <- explosion.particles do %>
             <div
               class="absolute rounded-full"
               style={"left: #{particle.x}px; top: #{particle.y}px; width: #{particle.size}px; height: #{particle.size}px; background-color: #{particle.color}; opacity: #{explosion.life / 800};"}
-            ></div>
+            >
+            </div>
           <% end %>
         <% end %>
       </div>
-
-      <!-- Rainbow trails container -->
+      
+    <!-- Rainbow trails container -->
       <div class="fixed inset-0 pointer-events-none z-0">
         <svg width="100%" height="100%" class="absolute inset-0">
           <%= for {game_id, points} <- @rainbow_paths do %>
@@ -286,12 +316,15 @@ defmodule BlogWeb.PongGodLive do
                 stroke-linejoin="round"
                 class="opacity-70"
               />
-
-              <!-- Define a unique gradient for each game -->
+              
+    <!-- Define a unique gradient for each game -->
               <defs>
                 <linearGradient id={"rainbow-gradient-#{game_id}"} x1="0%" y1="0%" x2="100%" y2="0%">
                   <%= for {color, index} <- Enum.with_index(@rainbow_colors) do %>
-                    <stop offset={to_string(index * 100 / (length(@rainbow_colors) - 1)) <> "%"} stop-color={color} />
+                    <stop
+                      offset={to_string(index * 100 / (length(@rainbow_colors) - 1)) <> "%"}
+                      stop-color={color}
+                    />
                   <% end %>
                 </linearGradient>
               </defs>
@@ -299,18 +332,18 @@ defmodule BlogWeb.PongGodLive do
           <% end %>
         </svg>
       </div>
-
-      <!-- Game previews -->
+      
+    <!-- Game previews -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 z-20 relative">
         <%= for game <- @games do %>
           <div class={"bg-gray-900 rounded-lg overflow-hidden border transition-colors duration-300 hover:opacity-100 opacity-80 #{if game.game_state == :defeat_message, do: "border-red-500 shadow-lg shadow-red-500/30", else: "border-gray-700 hover:border-fuchsia-500"}"}>
             <div class="p-2 bg-gradient-to-r from-fuchsia-900 to-cyan-900 text-white text-xs">
               <div class="truncate">
-                Game ID: <%= game.game_id %>
+                Game ID: {game.game_id}
               </div>
               <div class="flex justify-between mt-1">
-                <span>Score: <%= game.scores.wall %></span>
-                <span><%= if game.ai_controlled, do: "AI Playing", else: "Player Control" %></span>
+                <span>Score: {game.scores.wall}</span>
+                <span>{if game.ai_controlled, do: "AI Playing", else: "Player Control"}</span>
               </div>
             </div>
 
@@ -321,18 +354,21 @@ defmodule BlogWeb.PongGodLive do
                 <div
                   class={"absolute rounded-full #{if game.game_state == :defeat_message, do: "animate-pulse"} bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"}
                   style={"width: 10px; height: 10px; left: #{game.ball.x / @game_width * 100}%; top: #{game.ball.y / @game_height * 100}%; transform: translate(-50%, -50%); filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.5));"}
-                ></div>
-
-                <!-- Paddle - correctly positioned and sized -->
+                >
+                </div>
+                
+    <!-- Paddle - correctly positioned and sized -->
                 <div
                   class="absolute bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 rounded-sm"
                   style={"width: 4px; height: #{@paddle_height / @game_height * 150}px; left: #{game.paddle.x / @game_width * 100}%; top: #{game.paddle.y / @game_height * 100}%;"}
-                ></div>
-
-                <!-- Center line -->
-                <div class="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30"></div>
-
-                <!-- Defeat message overlay -->
+                >
+                </div>
+                
+    <!-- Center line -->
+                <div class="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30">
+                </div>
+                
+    <!-- Defeat message overlay -->
                 <%= if game.game_state == :defeat_message do %>
                   <div class="absolute inset-0 flex items-center justify-center">
                     <div class="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-yellow-500 text-lg font-bold animate-pulse">
@@ -347,7 +383,10 @@ defmodule BlogWeb.PongGodLive do
       </div>
 
       <div class="text-center mt-6">
-        <a href={~p"/pong"} class="inline-block px-4 py-2 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow">
+        <a
+          href={~p"/pong"}
+          class="inline-block px-4 py-2 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow"
+        >
           Play Pong
         </a>
       </div>

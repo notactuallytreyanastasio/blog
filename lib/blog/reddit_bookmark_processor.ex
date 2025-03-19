@@ -20,19 +20,22 @@ defmodule Blog.RedditBookmarkProcessor do
 
   defp create_bookmark_from_reddit_link(url, record) do
     subreddit = extract_subreddit(url)
-    title = Map.get(record, "record", %{})
-            |> Map.get("embed", %{})
-            |> Map.get("external", %{})
-            |> Map.get("title", "Reddit")
 
-    bookmark = Bookmark.new(%{
-      url: url,
-      title: title || "Reddit: #{subreddit}",
-      description: "Auto-generated bookmark from Reddit link",
-      tags: [subreddit],
-      user_id: "reddit_bot",
-      favicon_url: "https://www.reddit.com/favicon.ico"
-    })
+    title =
+      Map.get(record, "record", %{})
+      |> Map.get("embed", %{})
+      |> Map.get("external", %{})
+      |> Map.get("title", "Reddit")
+
+    bookmark =
+      Bookmark.new(%{
+        url: url,
+        title: title || "Reddit: #{subreddit}",
+        description: "Auto-generated bookmark from Reddit link",
+        tags: [subreddit],
+        user_id: "reddit_bot",
+        favicon_url: "https://www.reddit.com/favicon.ico"
+      })
 
     case Store.add_bookmark(bookmark) do
       {:ok, bookmark} -> bookmark
@@ -55,7 +58,8 @@ defmodule Blog.RedditBookmarkProcessor do
 
       # Handle reddi.it short URLs by following them
       String.contains?(url, "redd.it") ->
-        "reddit"  # For now just return reddit, we could follow the URL if needed
+        # For now just return reddit, we could follow the URL if needed
+        "reddit"
 
       true ->
         "reddit"

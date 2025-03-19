@@ -20,7 +20,8 @@ defmodule BlogWeb.MarkdownEditorComponent do
   @impl true
   def handle_event("update_markdown", %{"markdown" => markdown}, socket) do
     # Parse the markdown to HTML using Earmark
-    {:ok, html, _warnings} = Earmark.as_html(markdown, %Earmark.Options{code_class_prefix: "language-"})
+    {:ok, html, _warnings} =
+      Earmark.as_html(markdown, %Earmark.Options{code_class_prefix: "language-"})
 
     # Send the updated content back to the parent LiveView
     send(self(), {:markdown_updated, %{markdown: markdown, html: html}})
@@ -34,18 +35,27 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   @impl true
-  def handle_event("save_selection_info", %{"position" => position, "selection_start" => selection_start,
-                                           "selection_end" => selection_end, "selected_text" => selected_text}, socket) do
+  def handle_event(
+        "save_selection_info",
+        %{
+          "position" => position,
+          "selection_start" => selection_start,
+          "selection_end" => selection_end,
+          "selected_text" => selected_text
+        },
+        socket
+      ) do
     {position, _} = Integer.parse(position)
     {selection_start, _} = Integer.parse(selection_start)
     {selection_end, _} = Integer.parse(selection_end)
 
-    {:noreply, assign(socket, %{
-      cursor_position: position,
-      selection_start: selection_start,
-      selection_end: selection_end,
-      selected_text: selected_text
-    })}
+    {:noreply,
+     assign(socket, %{
+       cursor_position: position,
+       selection_start: selection_start,
+       selection_end: selection_end,
+       selected_text: selected_text
+     })}
   end
 
   @impl true
@@ -70,29 +80,40 @@ defmodule BlogWeb.MarkdownEditorComponent do
       end
 
     {new_text, new_selection_start, new_selection_end} =
-      handle_format(format, before_text, after_text, selection_start, selection_end, selected_text, has_selection)
+      handle_format(
+        format,
+        before_text,
+        after_text,
+        selection_start,
+        selection_end,
+        selected_text,
+        has_selection
+      )
 
     # Parse the new markdown to update the preview
-    {:ok, html, _warnings} = Earmark.as_html(new_text, %Earmark.Options{code_class_prefix: "language-"})
+    {:ok, html, _warnings} =
+      Earmark.as_html(new_text, %Earmark.Options{code_class_prefix: "language-"})
 
     # Send the updated content back to the parent LiveView
     send(self(), {:markdown_updated, %{markdown: new_text, html: html}})
 
     # Update the component state
-    socket = assign(socket, %{
-      markdown: new_text,
-      html: html,
-      selection_start: new_selection_start,
-      selection_end: new_selection_end
-    })
+    socket =
+      assign(socket, %{
+        markdown: new_text,
+        html: html,
+        selection_start: new_selection_start,
+        selection_end: new_selection_end
+      })
 
     # Push the updated markdown content to the client
     # This ensures the textarea is updated with the new text
-    socket = push_event(socket, "update_markdown_content", %{
-      content: new_text,
-      selectionStart: new_selection_start,
-      selectionEnd: new_selection_end
-    })
+    socket =
+      push_event(socket, "update_markdown_content", %{
+        content: new_text,
+        selectionStart: new_selection_start,
+        selectionEnd: new_selection_end
+      })
 
     {:noreply, socket}
   rescue
@@ -104,7 +125,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   # ========== Format handling functions with pattern matching ==========
 
   # Bold formatting
-  defp handle_format("bold", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "bold",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}**#{selected_text}**#{after_text}",
       selection_start,
@@ -112,7 +141,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("bold", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "bold",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}**bold text**#{after_text}",
       selection_start + 2,
@@ -121,7 +158,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Italic formatting
-  defp handle_format("italic", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "italic",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}*#{selected_text}*#{after_text}",
       selection_start,
@@ -129,7 +174,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("italic", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "italic",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}*italic text*#{after_text}",
       selection_start + 1,
@@ -138,7 +191,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Strikethrough formatting
-  defp handle_format("strikethrough", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "strikethrough",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}~~#{selected_text}~~#{after_text}",
       selection_start,
@@ -146,7 +207,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("strikethrough", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "strikethrough",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}~~strikethrough~~#{after_text}",
       selection_start + 2,
@@ -155,7 +224,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Code formatting
-  defp handle_format("code", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "code",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}`#{selected_text}`#{after_text}",
       selection_start,
@@ -163,7 +240,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("code", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "code",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}`code`#{after_text}",
       selection_start + 1,
@@ -172,7 +257,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Code block formatting
-  defp handle_format("code_block", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "code_block",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}```\n#{selected_text}\n```#{after_text}",
       selection_start,
@@ -180,7 +273,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("code_block", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "code_block",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}```\ncode block\n```#{after_text}",
       selection_start + 4,
@@ -189,7 +290,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # H1 formatting
-  defp handle_format("h1", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "h1",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}# #{selected_text}#{after_text}",
       selection_start,
@@ -197,7 +306,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("h1", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "h1",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}# Heading 1#{after_text}",
       selection_start + 2,
@@ -206,7 +323,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # H2 formatting
-  defp handle_format("h2", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "h2",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}## #{selected_text}#{after_text}",
       selection_start,
@@ -214,7 +339,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("h2", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "h2",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}## Heading 2#{after_text}",
       selection_start + 3,
@@ -223,7 +356,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # H3 formatting
-  defp handle_format("h3", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "h3",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}### #{selected_text}#{after_text}",
       selection_start,
@@ -231,7 +372,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("h3", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "h3",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}### Heading 3#{after_text}",
       selection_start + 4,
@@ -240,7 +389,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Quote formatting
-  defp handle_format("quote", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "quote",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}> #{selected_text}#{after_text}",
       selection_start,
@@ -248,7 +405,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("quote", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "quote",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}> Blockquote#{after_text}",
       selection_start + 2,
@@ -257,7 +422,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Link formatting
-  defp handle_format("link", before_text, after_text, selection_start, selection_end, selected_text, true) do
+  defp handle_format(
+         "link",
+         before_text,
+         after_text,
+         selection_start,
+         selection_end,
+         selected_text,
+         true
+       ) do
     {
       "#{before_text}[#{selected_text}](https://example.com)#{after_text}",
       selection_start,
@@ -265,7 +438,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("link", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "link",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}[link text](https://example.com)#{after_text}",
       selection_start + 1,
@@ -274,7 +455,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Bullet list formatting
-  defp handle_format("bullet_list", before_text, after_text, selection_start, _selection_end, selected_text, true) do
+  defp handle_format(
+         "bullet_list",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         selected_text,
+         true
+       ) do
     # Split selected text by newlines and add bullet points
     formatted_text =
       selected_text
@@ -288,7 +477,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("bullet_list", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "bullet_list",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}\n- List item 1\n- List item 2\n- List item 3#{after_text}",
       selection_start + 3,
@@ -297,7 +494,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Numbered list formatting
-  defp handle_format("numbered_list", before_text, after_text, selection_start, _selection_end, selected_text, true) do
+  defp handle_format(
+         "numbered_list",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         selected_text,
+         true
+       ) do
     # Split selected text by newlines and add numbered points
     formatted_text =
       selected_text
@@ -312,7 +517,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
     }
   end
 
-  defp handle_format("numbered_list", before_text, after_text, selection_start, _selection_end, _selected_text, false) do
+  defp handle_format(
+         "numbered_list",
+         before_text,
+         after_text,
+         selection_start,
+         _selection_end,
+         _selected_text,
+         false
+       ) do
     {
       "#{before_text}\n1. List item 1\n2. List item 2\n3. List item 3#{after_text}",
       selection_start + 3,
@@ -321,7 +534,15 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   # Default case for unknown formats
-  defp handle_format(_format, text, _after_text, selection_start, selection_end, _selected_text, _has_selection) do
+  defp handle_format(
+         _format,
+         text,
+         _after_text,
+         selection_start,
+         selection_end,
+         _selected_text,
+         _has_selection
+       ) do
     {text, selection_start, selection_end}
   end
 
@@ -449,7 +670,12 @@ defmodule BlogWeb.MarkdownEditorComponent do
             </div>
 
             <div class="p-4">
-              <form phx-change="update_markdown" phx-submit="update_markdown" phx-target={@myself} class="mb-0">
+              <form
+                phx-change="update_markdown"
+                phx-submit="update_markdown"
+                phx-target={@myself}
+                class="mb-0"
+              >
                 <textarea
                   name="markdown"
                   id={"#{@id}-input"}
@@ -476,11 +702,11 @@ defmodule BlogWeb.MarkdownEditorComponent do
 
                 <p class="font-medium mt-2">Code:</p>
                 <p class="pl-2 font-mono">`inline code`</p>
-                <p class="pl-2 font-mono">```<br>code block<br>```</p>
+                <p class="pl-2 font-mono">```<br />code block<br />```</p>
 
                 <p class="font-medium mt-2">Lists:</p>
-                <p class="pl-2 font-mono">- Item 1<br>- Item 2</p>
-                <p class="pl-2 font-mono">1. Item 1<br>2. Item 2</p>
+                <p class="pl-2 font-mono">- Item 1<br />- Item 2</p>
+                <p class="pl-2 font-mono">1. Item 1<br />2. Item 2</p>
 
                 <p class="font-medium mt-2">Links:</p>
                 <p class="pl-2 font-mono">[Link text](URL)</p>
@@ -492,25 +718,30 @@ defmodule BlogWeb.MarkdownEditorComponent do
                 <p class="pl-2">Ctrl+B = Bold</p>
                 <p class="pl-2">Ctrl+I = Italic</p>
                 <p class="pl-2">Ctrl+K = Link</p>
-                <p class="pl-2 font-semibold text-blue-600 mt-2">Tip: Select text first, then apply formatting!</p>
+                <p class="pl-2 font-semibold text-blue-600 mt-2">
+                  Tip: Select text first, then apply formatting!
+                </p>
               </div>
             </details>
           </div>
         </div>
-
-        <!-- Preview Section -->
+        
+    <!-- Preview Section -->
         <div class="w-full md:w-1/2">
           <div class="bg-white border border-gray-300 rounded-md overflow-hidden h-full">
             <div class="bg-gray-100 p-3 border-b border-gray-300">
               <h2 class="text-lg font-semibold">Preview</h2>
             </div>
-            <div id={"#{@id}-preview"} class="markdown-preview prose prose-sm md:prose max-w-none p-6 overflow-auto min-h-[30rem]">
+            <div
+              id={"#{@id}-preview"}
+              class="markdown-preview prose prose-sm md:prose max-w-none p-6 overflow-auto min-h-[30rem]"
+            >
               <%= if @html == "" do %>
                 <div class="text-gray-400 italic flex items-center justify-center h-full">
                   <p>Preview will appear here...</p>
                 </div>
               <% else %>
-                <%= raw(@html) %>
+                {raw(@html)}
               <% end %>
             </div>
           </div>

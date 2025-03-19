@@ -42,10 +42,14 @@ defmodule BlogWeb.PongLive do
       ball: %{
         x: @game_width / 2,
         y: @game_height / 2,
-        dx: -@ball_speed, # Always start moving toward the player
-        dy: (:rand.uniform() - 0.5) * @ball_speed, # Small random vertical component
-        bounce_count: 0, # Track number of bounces
-        speed_multiplier: 1.0 # Track speed multiplier
+        # Always start moving toward the player
+        dx: -@ball_speed,
+        # Small random vertical component
+        dy: (:rand.uniform() - 0.5) * @ball_speed,
+        # Track number of bounces
+        bounce_count: 0,
+        # Track speed multiplier
+        speed_multiplier: 1.0
       },
       paddle: %{
         x: @paddle_offset,
@@ -70,8 +74,10 @@ defmodule BlogWeb.PongLive do
       sparkle_life: @sparkle_life,
       defeat_message_duration: @defeat_message_duration,
       show_defeat_message: false,
-      game_state: :ready, # :ready, :playing, :defeat_message
-      ai_controlled: true # Start with AI control enabled
+      # :ready, :playing, :defeat_message
+      game_state: :ready,
+      # Start with AI control enabled
+      ai_controlled: true
     }
 
     # Always start the tick timer for this LiveView instance
@@ -88,14 +94,16 @@ defmodule BlogWeb.PongLive do
 
         [{^game_id, existing_state}] ->
           # Existing game - use its state instead of the initial state
-          updated_state = Map.merge(initial_state, %{
-            ball: existing_state.ball,
-            paddle: existing_state.paddle,
-            scores: existing_state.scores,
-            game_state: Map.get(existing_state, :game_state, :playing),
-            show_defeat_message: Map.get(existing_state, :show_defeat_message, false),
-            ai_controlled: Map.get(existing_state, :ai_controlled, true)
-          })
+          updated_state =
+            Map.merge(initial_state, %{
+              ball: existing_state.ball,
+              paddle: existing_state.paddle,
+              scores: existing_state.scores,
+              game_state: Map.get(existing_state, :game_state, :playing),
+              show_defeat_message: Map.get(existing_state, :show_defeat_message, false),
+              ai_controlled: Map.get(existing_state, :ai_controlled, true)
+            })
+
           Phoenix.PubSub.subscribe(Blog.PubSub, "pong:#{game_id}")
           initial_state = updated_state
       end
@@ -117,16 +125,18 @@ defmodule BlogWeb.PongLive do
       # For now, we'll just delete on full disconnect
       :ets.delete(:pong_games, socket.assigns.game_id)
     end
+
     :ok
   end
 
   def handle_event("keydown", %{"key" => key}, socket) when key in ["ArrowUp", "ArrowDown"] do
     # When user presses a key, disable AI control
-    updated_socket = if socket.assigns.ai_controlled do
-      assign(socket, ai_controlled: false)
-    else
-      socket
-    end
+    updated_socket =
+      if socket.assigns.ai_controlled do
+        assign(socket, ai_controlled: false)
+      else
+        socket
+      end
 
     {:noreply, assign(updated_socket, :last_key, key)}
   end
@@ -153,7 +163,10 @@ defmodule BlogWeb.PongLive do
     {:noreply, updated_socket}
   end
 
-  def handle_info(:tick, %{assigns: %{game_state: :defeat_message, message_timer: timer}} = socket) do
+  def handle_info(
+        :tick,
+        %{assigns: %{game_state: :defeat_message, message_timer: timer}} = socket
+      ) do
     if timer >= @defeat_message_duration do
       # Time to reset ball and continue playing
       socket = reset_ball_with_jitter(socket)
@@ -172,11 +185,13 @@ defmodule BlogWeb.PongLive do
 
   def handle_info(:tick, %{assigns: %{game_state: :scored}} = socket) do
     # Transition to defeat message state instead of directly resetting
-    new_socket = socket |> assign(
-      game_state: :defeat_message,
-      message_timer: 0,
-      show_defeat_message: true
-    )
+    new_socket =
+      socket
+      |> assign(
+        game_state: :defeat_message,
+        message_timer: 0,
+        show_defeat_message: true
+      )
 
     store_game_state(new_socket.assigns.game_id, new_socket.assigns)
     {:noreply, new_socket}
@@ -200,14 +215,16 @@ defmodule BlogWeb.PongLive do
 
       # Move paddle towards target with some "reaction time" delay
       current_y = socket.assigns.paddle.y
-      ai_speed = 10 # Adjust this to change AI difficulty
+      # Adjust this to change AI difficulty
+      ai_speed = 10
 
       # Move towards target with limited speed
-      new_y = cond do
-        current_y < target_y - ai_speed -> current_y + ai_speed
-        current_y > target_y + ai_speed -> current_y - ai_speed
-        true -> target_y
-      end
+      new_y =
+        cond do
+          current_y < target_y - ai_speed -> current_y + ai_speed
+          current_y > target_y + ai_speed -> current_y - ai_speed
+          true -> target_y
+        end
 
       # Ensure paddle stays within bounds
       new_y = max(0, min(new_y, @game_height - @paddle_height))
@@ -227,17 +244,21 @@ defmodule BlogWeb.PongLive do
   # Reset ball with random jitter
   defp reset_ball_with_jitter(socket) do
     # Add random jitter to starting position - use full jitter amount after first point
-    jitter_amount = if socket.assigns.scores.wall > 0, do: @jitter_amount, else: @initial_jitter_amount
-    x_jitter = :rand.uniform(jitter_amount) - (jitter_amount / 2)
-    y_jitter = :rand.uniform(jitter_amount) - (jitter_amount / 2)
+    jitter_amount =
+      if socket.assigns.scores.wall > 0, do: @jitter_amount, else: @initial_jitter_amount
+
+    x_jitter = :rand.uniform(jitter_amount) - jitter_amount / 2
+    y_jitter = :rand.uniform(jitter_amount) - jitter_amount / 2
 
     # Make sure ball stays in bounds despite jitter
     new_x = min(max(@game_width / 2 + x_jitter, @ball_radius * 2), @game_width - @ball_radius * 2)
-    new_y = min(max(@game_height / 2 + y_jitter, @ball_radius * 2), @game_height - @ball_radius * 2)
+
+    new_y =
+      min(max(@game_height / 2 + y_jitter, @ball_radius * 2), @game_height - @ball_radius * 2)
 
     # Random slight variation in angle - reduced for initial ball
     max_angle = if socket.assigns.scores.wall > 0, do: 40, else: 20
-    angle_variation = (:rand.uniform(max_angle) - (max_angle / 2)) * :math.pi / 180
+    angle_variation = (:rand.uniform(max_angle) - max_angle / 2) * :math.pi() / 180
     base_speed = @ball_speed
 
     # Calculate new dx/dy with the angle variation
@@ -259,8 +280,10 @@ defmodule BlogWeb.PongLive do
         y: new_y,
         dx: dx,
         dy: dy,
-        bounce_count: 0, # Reset bounce count
-        speed_multiplier: 1.0 # Reset speed multiplier
+        # Reset bounce count
+        bounce_count: 0,
+        # Reset speed multiplier
+        speed_multiplier: 1.0
       },
       trail: []
     )
@@ -268,18 +291,25 @@ defmodule BlogWeb.PongLive do
 
   defp update_game_state(assigns) do
     # First, update paddle position based on keyboard input
-    new_paddle = update_paddle_position(assigns.paddle, assigns.last_key, assigns.board.height, assigns.paddle_height)
+    new_paddle =
+      update_paddle_position(
+        assigns.paddle,
+        assigns.last_key,
+        assigns.board.height,
+        assigns.paddle_height
+      )
 
     # Then, update ball position and check for collisions
-    {new_ball, new_game_state, new_scores, bounce_position, bounce_type} = update_ball_and_check_scoring(
-      assigns.ball,
-      assigns.board,
-      new_paddle,
-      assigns.ball_radius,
-      assigns.paddle_width,
-      assigns.paddle_height,
-      assigns.scores
-    )
+    {new_ball, new_game_state, new_scores, bounce_position, bounce_type} =
+      update_ball_and_check_scoring(
+        assigns.ball,
+        assigns.board,
+        new_paddle,
+        assigns.ball_radius,
+        assigns.paddle_width,
+        assigns.paddle_height,
+        assigns.scores
+      )
 
     # Update trail with new position
     new_trail = update_trail(assigns.trail, new_ball)
@@ -305,27 +335,29 @@ defmodule BlogWeb.PongLive do
 
   defp create_defeat_burst(existing_sparkles, ball) do
     # Create a large burst of particles around the ball position
-    new_particles = for _i <- 1..@burst_particle_count do
-      # Random angle and speed for each particle
-      angle = :rand.uniform() * 2 * :math.pi
-      speed = :rand.uniform(6) + 2
+    new_particles =
+      for _i <- 1..@burst_particle_count do
+        # Random angle and speed for each particle
+        angle = :rand.uniform() * 2 * :math.pi()
+        speed = :rand.uniform(6) + 2
 
-      # Calculate velocity components
-      dx = :math.cos(angle) * speed
-      dy = :math.sin(angle) * speed
+        # Calculate velocity components
+        dx = :math.cos(angle) * speed
+        dy = :math.sin(angle) * speed
 
-      # Random particle properties
-      %{
-        x: ball.x,
-        y: ball.y,
-        dx: dx,
-        dy: dy,
-        type: :burst,
-        life: @sparkle_life + :rand.uniform(20),
-        size: :rand.uniform(6) + 2,
-        color: "hsl(#{:rand.uniform(60)}, 100%, #{50 + :rand.uniform(40)}%)" # Red/orange hues
-      }
-    end
+        # Random particle properties
+        %{
+          x: ball.x,
+          y: ball.y,
+          dx: dx,
+          dy: dy,
+          type: :burst,
+          life: @sparkle_life + :rand.uniform(20),
+          size: :rand.uniform(6) + 2,
+          # Red/orange hues
+          color: "hsl(#{:rand.uniform(60)}, 100%, #{50 + :rand.uniform(40)}%)"
+        }
+      end
 
     # Combine with existing sparkles and limit to a reasonable number
     (new_particles ++ Enum.map(existing_sparkles, &age_sparkle/1))
@@ -356,7 +388,9 @@ defmodule BlogWeb.PongLive do
     "hsl(#{hue}, #{saturation}%, #{lightness}%)"
   end
 
-  defp update_sparkles(sparkles, nil, _), do: update_particle_positions(Enum.map(sparkles, &age_sparkle/1)) |> Enum.filter(&(&1.life > 0))
+  defp update_sparkles(sparkles, nil, _),
+    do:
+      update_particle_positions(Enum.map(sparkles, &age_sparkle/1)) |> Enum.filter(&(&1.life > 0))
 
   defp update_sparkles(sparkles, bounce_position, bounce_type) do
     # Add a new sparkle
@@ -368,11 +402,15 @@ defmodule BlogWeb.PongLive do
       type: bounce_type,
       life: @sparkle_life,
       size: :rand.uniform(5) + 3,
-      color: case bounce_type do
-        :paddle -> "hsl(#{:rand.uniform(60) + 180}, 100%, 70%)" # Blues/purples
-        :wall -> "hsl(#{:rand.uniform(60)}, 100%, 70%)" # Reds/oranges
-        _ -> "hsl(#{:rand.uniform(360)}, 100%, 70%)" # Any color
-      end
+      color:
+        case bounce_type do
+          # Blues/purples
+          :paddle -> "hsl(#{:rand.uniform(60) + 180}, 100%, 70%)"
+          # Reds/oranges
+          :wall -> "hsl(#{:rand.uniform(60)}, 100%, 70%)"
+          # Any color
+          _ -> "hsl(#{:rand.uniform(360)}, 100%, 70%)"
+        end
     }
 
     # Add the new sparkle and age existing ones
@@ -389,7 +427,8 @@ defmodule BlogWeb.PongLive do
   # Update positions for particles with velocity
   defp update_particle_positions(particles) do
     Enum.map(particles, fn particle ->
-      if Map.has_key?(particle, :dx) && Map.has_key?(particle, :dy) && particle.dx != 0 && particle.dy != 0 do
+      if Map.has_key?(particle, :dx) && Map.has_key?(particle, :dy) && particle.dx != 0 &&
+           particle.dy != 0 do
         %{particle | x: particle.x + particle.dx, y: particle.y + particle.dy}
       else
         particle
@@ -409,21 +448,29 @@ defmodule BlogWeb.PongLive do
 
   defp update_paddle_position(paddle, _key, _board_height, _paddle_height), do: paddle
 
-  defp update_ball_and_check_scoring(ball, board, paddle, ball_radius, paddle_width, paddle_height, scores) do
+  defp update_ball_and_check_scoring(
+         ball,
+         board,
+         paddle,
+         ball_radius,
+         paddle_width,
+         paddle_height,
+         scores
+       ) do
     # Calculate new position
     new_x = ball.x + ball.dx
     new_y = ball.y + ball.dy
 
     # Check paddle collision
     if ball_hits_paddle?(
-        new_x,
-        new_y,
-        ball_radius,
-        paddle.x,
-        paddle.y,
-        paddle_width,
-        paddle_height
-      ) do
+         new_x,
+         new_y,
+         ball_radius,
+         paddle.x,
+         paddle.y,
+         paddle_width,
+         paddle_height
+       ) do
       # Bounce off paddle - return bounce position for sparkle
       bounce_pos = %{x: paddle.x + paddle_width, y: new_y}
 
@@ -431,21 +478,23 @@ defmodule BlogWeb.PongLive do
       new_bounce_count = (ball.bounce_count || 0) + 1
 
       # Increase speed multiplier progressively
-      new_speed_multiplier = min(
-        (ball.speed_multiplier || 1.0) + @progressive_speed_increase,
-        @max_speed_multiplier
-      )
+      new_speed_multiplier =
+        min(
+          (ball.speed_multiplier || 1.0) + @progressive_speed_increase,
+          @max_speed_multiplier
+        )
 
       # Calculate new ball direction with more randomness for higher bounce counts
-      {new_dx, new_dy} = calculate_new_direction(
-        ball.dx,
-        ball.dy,
-        new_bounce_count,
-        new_speed_multiplier,
-        new_y,
-        paddle.y,
-        paddle_height
-      )
+      {new_dx, new_dy} =
+        calculate_new_direction(
+          ball.dx,
+          ball.dy,
+          new_bounce_count,
+          new_speed_multiplier,
+          new_y,
+          paddle.y,
+          paddle_height
+        )
 
       # Ensure the ball is positioned outside the paddle to prevent immediate scoring
       # Place the ball just to the right of the paddle
@@ -472,7 +521,15 @@ defmodule BlogWeb.PongLive do
   end
 
   # Calculate new ball direction with progressive randomness
-  defp calculate_new_direction(dx, dy, bounce_count, speed_multiplier, ball_y, paddle_y, paddle_height) do
+  defp calculate_new_direction(
+         dx,
+         dy,
+         bounce_count,
+         speed_multiplier,
+         ball_y,
+         paddle_y,
+         paddle_height
+       ) do
     # Base reflection - reverse x direction and ensure it's moving right (positive)
     new_dx = abs(dx)
 
@@ -484,13 +541,14 @@ defmodule BlogWeb.PongLive do
     angle_factor = hit_position * (1.0 + min(bounce_count / 20, 0.8))
 
     # Add increasing randomness based on bounce count, but more controlled
-    random_factor = if bounce_count > @max_bounce_count do
-      # After max bounces, add moderate randomness to break patterns
-      (:rand.uniform() - 0.5) * 0.3
-    else
-      # Gradual increase in randomness
-      (:rand.uniform() - 0.5) * 0.1 * (bounce_count / 15)
-    end
+    random_factor =
+      if bounce_count > @max_bounce_count do
+        # After max bounces, add moderate randomness to break patterns
+        (:rand.uniform() - 0.5) * 0.3
+      else
+        # Gradual increase in randomness
+        (:rand.uniform() - 0.5) * 0.1 * (bounce_count / 15)
+      end
 
     # Calculate new dy with angle and randomness
     new_dy = dy + (angle_factor + random_factor) * abs(dx)
@@ -512,22 +570,31 @@ defmodule BlogWeb.PongLive do
     {normalized_dx, normalized_dy}
   end
 
-  defp ball_hits_paddle?(ball_x, ball_y, ball_radius, paddle_x, paddle_y, paddle_width, paddle_height) do
+  defp ball_hits_paddle?(
+         ball_x,
+         ball_y,
+         ball_radius,
+         paddle_x,
+         paddle_y,
+         paddle_width,
+         paddle_height
+       ) do
     # We need to check if the ball is about to collide with the paddle
     # The ball's current position is already updated with velocity in update_ball_and_check_scoring
 
     # Check if the ball is in the paddle's vertical range
     ball_in_paddle_vertical_range =
       ball_y + ball_radius >= paddle_y &&
-      ball_y - ball_radius <= paddle_y + paddle_height
+        ball_y - ball_radius <= paddle_y + paddle_height
 
     # Check if the ball is at or past the paddle's right edge
     ball_at_paddle_horizontal_range =
       ball_x - ball_radius <= paddle_x + paddle_width &&
-      ball_x + ball_radius >= paddle_x
+        ball_x + ball_radius >= paddle_x
 
     # Check if the ball is moving toward the paddle (negative x direction)
-    ball_moving_toward_paddle = true  # We'll assume this is always true for simplicity
+    # We'll assume this is always true for simplicity
+    ball_moving_toward_paddle = true
 
     # All conditions must be true for a collision
     ball_in_paddle_vertical_range && ball_at_paddle_horizontal_range && ball_moving_toward_paddle
@@ -635,12 +702,13 @@ defmodule BlogWeb.PongLive do
   defp ai_calculate_target_position(ball) do
     # Simple AI: try to keep the paddle center aligned with the ball
     # Add some imperfection to make it beatable
-    target_y = ball.y - (@paddle_height / 2)
+    target_y = ball.y - @paddle_height / 2
 
     # Add increasing randomness based on ball speed to make AI less perfect at higher speeds
     # But keep it more controlled
-    speed_factor = (ball.speed_multiplier || 1.0)
-    randomness = :rand.uniform(80) - 40  # Reduced from 100-50 to 80-40
+    speed_factor = ball.speed_multiplier || 1.0
+    # Reduced from 100-50 to 80-40
+    randomness = :rand.uniform(80) - 40
 
     # More randomness at higher speeds, but more gradual
     randomness = randomness * (speed_factor * 0.8)
@@ -700,19 +768,19 @@ defmodule BlogWeb.PongLive do
     <div class="w-full h-full flex flex-col justify-center items-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
       <!-- Game ID display -->
       <div class="text-white text-xs mb-2 opacity-50">
-        Game ID: <%= @game_id %>
+        Game ID: {@game_id}
       </div>
-
-      <!-- Score display with rainbow gradient -->
+      
+    <!-- Score display with rainbow gradient -->
       <div class="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-2xl font-bold mb-4">
-        Wall: <%= @scores.wall %>
+        Wall: {@scores.wall}
       </div>
-
-      <!-- AI Control Toggle Button with gradient -->
+      
+    <!-- AI Control Toggle Button with gradient -->
       <div class="rounded-lg shadow-md mb-4">
         <button
           phx-click="toggle_ai"
-          class={"px-4 py-2 rounded-md font-bold transition-colors bg-gray-900 hover:bg-gray-800 text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500"}
+          class="px-4 py-2 rounded-md font-bold transition-colors bg-gray-900 hover:bg-gray-800 text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500"
         >
           <%= if @ai_controlled do %>
             AI Playing (Click to Take Control)
@@ -733,9 +801,10 @@ defmodule BlogWeb.PongLive do
         <div class="absolute w-full h-full bg-gray-900 rounded-lg overflow-hidden p-0.5 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500">
           <div class="w-full h-full bg-gray-900 rounded-lg overflow-hidden">
             <!-- Center line -->
-            <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30"></div>
-
-            <!-- Defeat message -->
+            <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30">
+            </div>
+            
+    <!-- Defeat message -->
             <%= if @show_defeat_message do %>
               <div class="absolute inset-0 flex items-center justify-center z-10">
                 <div
@@ -746,8 +815,8 @@ defmodule BlogWeb.PongLive do
                 </div>
               </div>
             <% end %>
-
-            <!-- Trail with enhanced rainbow effect -->
+            
+    <!-- Trail with enhanced rainbow effect -->
             <%= for {pos, index} <- Enum.with_index(@trail) do %>
               <div
                 class="absolute rounded-full"
@@ -755,8 +824,8 @@ defmodule BlogWeb.PongLive do
               >
               </div>
             <% end %>
-
-            <!-- Sparkles & Burst Particles -->
+            
+    <!-- Sparkles & Burst Particles -->
             <%= for sparkle <- @sparkles do %>
               <div
                 class="absolute"
@@ -764,13 +833,17 @@ defmodule BlogWeb.PongLive do
               >
               </div>
             <% end %>
-
-            <!-- Paddle with gradient -->
-            <div class="absolute" style={"width: #{@paddle_width}px; height: #{@paddle_height}px; left: #{@paddle.x}px; top: #{@paddle.y}px;"}>
-              <div class="w-full h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 rounded-sm"></div>
+            
+    <!-- Paddle with gradient -->
+            <div
+              class="absolute"
+              style={"width: #{@paddle_width}px; height: #{@paddle_height}px; left: #{@paddle.x}px; top: #{@paddle.y}px;"}
+            >
+              <div class="w-full h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 rounded-sm">
+              </div>
             </div>
-
-            <!-- Ball with gradient -->
+            
+    <!-- Ball with gradient -->
             <div
               class="absolute rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"
               style={"width: #{@ball_radius * 2}px; height: #{@ball_radius * 2}px; left: #{@ball.x - @ball_radius}px; top: #{@ball.y - @ball_radius}px; filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.5));"}
@@ -785,7 +858,12 @@ defmodule BlogWeb.PongLive do
       </div>
 
       <div class="mt-2">
-        <a href={~p"/pong/god"} class="inline-block px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow">God Mode View</a>
+        <a
+          href={~p"/pong/god"}
+          class="inline-block px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow"
+        >
+          God Mode View
+        </a>
       </div>
     </div>
     """

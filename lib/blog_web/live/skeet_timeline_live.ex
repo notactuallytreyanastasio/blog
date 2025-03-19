@@ -90,7 +90,7 @@ defmodule BlogWeb.SkeetTimelineLive do
           class="sticky top-2 left-0 right-0 mx-auto w-64 bg-blue-500 text-white font-mono text-center py-2 px-4 rounded-full cursor-pointer shadow-lg z-10 mb-4"
           phx-click="load_new_skeets"
         >
-          <%= @new_skeet_count %> new <%= if @new_skeet_count == 1, do: "skeet", else: "skeets" %>
+          {@new_skeet_count} new {if @new_skeet_count == 1, do: "skeet", else: "skeets"}
         </div>
       <% end %>
 
@@ -99,10 +99,10 @@ defmodule BlogWeb.SkeetTimelineLive do
         <%= for skeet_data <- @skeets do %>
           <div class="skeet-item p-4 border border-gray-300 rounded-md hover:bg-gray-50">
             <div class="skeet-content whitespace-pre-wrap font-mono text-sm">
-              <%= skeet_data.skeet %>
+              {skeet_data.skeet}
             </div>
             <div class="text-xs text-gray-500 mt-2 font-mono">
-              <%= format_timestamp(skeet_data.timestamp) %>
+              {format_timestamp(skeet_data.timestamp)}
             </div>
           </div>
         <% end %>

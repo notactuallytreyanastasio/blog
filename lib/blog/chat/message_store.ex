@@ -69,10 +69,13 @@ defmodule Blog.Chat.MessageStore do
   def get_recent_messages(limit \\ @max_messages) do
     # Get messages ordered by timestamp (newest first)
     case :ets.info(@table_name) do
-      :undefined -> []
+      :undefined ->
+        []
+
       _ ->
         :ets.tab2list(@table_name)
-        |> Enum.sort()  # Sort by key (negative timestamp)
+        # Sort by key (negative timestamp)
+        |> Enum.sort()
         |> Enum.take(limit)
         |> Enum.map(fn {_key, message} -> message end)
     end
@@ -114,7 +117,9 @@ defmodule Blog.Chat.MessageStore do
   """
   def get_allowed_words do
     case :ets.lookup(@allowed_words_table, @global_words_key) do
-      [{@global_words_key, allowed_words}] -> allowed_words
+      [{@global_words_key, allowed_words}] ->
+        allowed_words
+
       [] ->
         # If no global list exists, initialize an empty one
         empty_set = MapSet.new()
@@ -141,9 +146,12 @@ defmodule Blog.Chat.MessageStore do
   # Private helper to prune old messages
   defp prune_messages do
     case :ets.info(@table_name) do
-      :undefined -> :ok
+      :undefined ->
+        :ok
+
       info ->
         count = info[:size]
+
         if count > @max_messages do
           # Get all keys
           keys = :ets.tab2list(@table_name) |> Enum.map(fn {k, _} -> k end) |> Enum.sort(:desc)

@@ -1,4 +1,5 @@
-<div class="mx-auto max-w-6xl px-4 py-8"
+<div
+  class="mx-auto max-w-6xl px-4 py-8"
   x-data="{
     playAnimation: false,
     warAnimation: false,
@@ -7,34 +8,53 @@
     warPileVisible: false
   }"
   id="game-board"
-  phx-hook="GameAnimations">
+  phx-hook="GameAnimations"
+>
   <h1 class="mb-8 text-3xl font-bold text-center">War Card Game</h1>
 
   <div class="mb-6 bg-slate-100 rounded-lg p-4 shadow-md">
     <div class="bg-blue-100 border border-blue-300 p-3 rounded-md mb-4 text-blue-800">
       <div class="flex items-center justify-between">
         <div>
-          <p><strong>Test Mode:</strong> Open this page in multiple tabs to play against yourself.</p>
-          <p class="text-xs text-blue-600 font-mono mt-1">ID: <%= @user_id %></p>
+          <p>
+            <strong>Test Mode:</strong> Open this page in multiple tabs to play against yourself.
+          </p>
+          <p class="text-xs text-blue-600 font-mono mt-1">ID: {@user_id}</p>
         </div>
         <div class="flex items-center">
           <%= if @edit_name do %>
-            <form phx-submit="save_display_name" phx-change="change_name_form" class="flex items-center">
-              <input type="text" name="display_name" value={@name_form["display_name"]}
+            <form
+              phx-submit="save_display_name"
+              phx-change="change_name_form"
+              class="flex items-center"
+            >
+              <input
+                type="text"
+                name="display_name"
+                value={@name_form["display_name"]}
                 class="px-2 py-1 border border-blue-400 rounded mr-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter name"
                 autofocus
-                maxlength="20" />
-              <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors duration-200 game-button">
+                maxlength="20"
+              />
+              <button
+                type="submit"
+                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors duration-200 game-button"
+              >
                 Save
               </button>
             </form>
           <% else %>
             <div class="flex items-center mr-2">
               <span class="font-semibold mr-2">Your name:</span>
-              <span class="text-blue-700 font-medium"><%= player_display_name(@players[@user_id]) %></span>
+              <span class="text-blue-700 font-medium">
+                {player_display_name(@players[@user_id])}
+              </span>
             </div>
-            <button phx-click="toggle_edit_name" class="text-sm bg-blue-200 text-blue-800 px-2 py-1 rounded hover:bg-blue-300 transition-colors duration-200">
+            <button
+              phx-click="toggle_edit_name"
+              class="text-sm bg-blue-200 text-blue-800 px-2 py-1 rounded hover:bg-blue-300 transition-colors duration-200"
+            >
               Change Name
             </button>
           <% end %>
@@ -49,17 +69,21 @@
         <div class="card-table p-6 rounded-lg mb-4">
           <div class="flex justify-between items-center mb-4">
             <div class="score-indicator" data-player="player1">
-              <span class="font-bold"><%= player_display_name(@players[@game_state.player1]) %></span>
-              <span class="ml-2 text-sm">(<%= length(@game_state.player1_cards) %> cards)</span>
+              <span class="font-bold">{player_display_name(@players[@game_state.player1])}</span>
+              <span class="ml-2 text-sm">({length(@game_state.player1_cards)} cards)</span>
               <%= if @game_state.player1 == @user_id do %>
-                <span class="ml-1 text-xs font-semibold bg-yellow-100 px-1 py-0.5 rounded-full text-yellow-800">YOU</span>
+                <span class="ml-1 text-xs font-semibold bg-yellow-100 px-1 py-0.5 rounded-full text-yellow-800">
+                  YOU
+                </span>
               <% end %>
             </div>
             <div class="score-indicator" data-player="player2">
-              <span class="font-bold"><%= player_display_name(@players[@game_state.player2]) %></span>
-              <span class="ml-2 text-sm">(<%= length(@game_state.player2_cards) %> cards)</span>
+              <span class="font-bold">{player_display_name(@players[@game_state.player2])}</span>
+              <span class="ml-2 text-sm">({length(@game_state.player2_cards)} cards)</span>
               <%= if @game_state.player2 == @user_id do %>
-                <span class="ml-1 text-xs font-semibold bg-yellow-100 px-1 py-0.5 rounded-full text-yellow-800">YOU</span>
+                <span class="ml-1 text-xs font-semibold bg-yellow-100 px-1 py-0.5 rounded-full text-yellow-800">
+                  YOU
+                </span>
               <% end %>
             </div>
           </div>
@@ -72,9 +96,9 @@
                 </h3>
                 <p class="text-xl">
                   <%= if @game_state.winner == "player1" do %>
-                    <%= player_display_name(@players[@game_state.player1]) %> wins!
+                    {player_display_name(@players[@game_state.player1])} wins!
                   <% else %>
-                    <%= player_display_name(@players[@game_state.player2]) %> wins!
+                    {player_display_name(@players[@game_state.player2])} wins!
                   <% end %>
                 </p>
               </div>
@@ -84,9 +108,11 @@
                   <div class="bg-red-600 p-4 rounded-lg mb-4 text-white font-bold text-2xl animate-pulse shadow-lg">
                     W A R !
                   </div>
-                  <p class="text-white text-shadow">Each player has placed one card face down and one card face up</p>
+                  <p class="text-white text-shadow">
+                    Each player has placed one card face down and one card face up
+                  </p>
                   <div class="text-sm mt-2 text-white font-medium">
-                    <%= length(@game_state.war_pile) %> cards in war pile
+                    {length(@game_state.war_pile)} cards in war pile
                   </div>
                   <div class="text-sm italic mt-2 text-gray-100 bg-black/20 p-2 rounded">
                     In a war, each player automatically puts one card face down and one card face up.
@@ -95,20 +121,28 @@
                 <% end %>
 
                 <%= if @game_state.scoring_phase do %>
-                  <%
-                    scoring_bg_class = if @game_state.war_pile && length(@game_state.war_pile) > 0, do: "bg-red-100", else: "bg-green-100"
-                    war_pile_class = if @game_state.war_pile && length(@game_state.war_pile) > 0, do: "", else: "hidden"
-                  %>
+                  <% scoring_bg_class =
+                    if @game_state.war_pile && length(@game_state.war_pile) > 0,
+                      do: "bg-red-100",
+                      else: "bg-green-100"
+
+                  war_pile_class =
+                    if @game_state.war_pile && length(@game_state.war_pile) > 0,
+                      do: "",
+                      else: "hidden" %>
                   <div class="mt-4">
-                    <div class={"mb-2 text-xl font-bold p-3 rounded-lg #{scoring_bg_class} shadow-md"} data-scoring>
+                    <div
+                      class={"mb-2 text-xl font-bold p-3 rounded-lg #{scoring_bg_class} shadow-md"}
+                      data-scoring
+                    >
                       <%= cond do %>
                         <% @game_state.player1_card && @game_state.player2_card && @game_state.player1_card.rank > @game_state.player2_card.rank -> %>
                           <div class="text-green-700 font-semibold">
-                            <%= player_display_name(@players[@game_state.player1]) %> wins this round!
+                            {player_display_name(@players[@game_state.player1])} wins this round!
                           </div>
                         <% @game_state.player1_card && @game_state.player2_card && @game_state.player2_card.rank > @game_state.player1_card.rank -> %>
                           <div class="text-green-700 font-semibold">
-                            <%= player_display_name(@players[@game_state.player2]) %> wins this round!
+                            {player_display_name(@players[@game_state.player2])} wins this round!
                           </div>
                         <% @game_state.player1_card && @game_state.player2_card -> %>
                           <div class="text-red-700 font-semibold">
@@ -120,7 +154,10 @@
                           </div>
                       <% end %>
                     </div>
-                    <button phx-click="continue_round" class="mt-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white text-lg rounded-md transition-colors duration-200 animate-pulse game-button">
+                    <button
+                      phx-click="continue_round"
+                      class="mt-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white text-lg rounded-md transition-colors duration-200 animate-pulse game-button"
+                    >
                       Continue
                     </button>
                   </div>
@@ -128,51 +165,70 @@
               </div>
             <% end %>
           </div>
-
-          <!-- War pile visualization (center of table) -->
-          <% war_pile_class = if @game_state.war_pile && length(@game_state.war_pile) > 0, do: "", else: "hidden" %>
+          
+<!-- War pile visualization (center of table) -->
+          <% war_pile_class =
+            if @game_state.war_pile && length(@game_state.war_pile) > 0, do: "", else: "hidden" %>
           <div class={"flex justify-center mb-6 relative #{war_pile_class}"} data-war-pile>
             <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
               <div class="relative">
                 <%= for i <- 0..min(8, (if @game_state.war_pile, do: length(@game_state.war_pile), else: 0) - 1) do %>
-                  <div class="absolute game-card-back war-pile-card w-20 h-28 shadow-lg"
-                       style={"transform: rotate(#{rem(i * 17 - 60, 120) - 60}deg) translateX(#{rem(i * 7, 20) - 10}px); z-index: #{i};"}>
+                  <div
+                    class="absolute game-card-back war-pile-card w-20 h-28 shadow-lg"
+                    style={"transform: rotate(#{rem(i * 17 - 60, 120) - 60}deg) translateX(#{rem(i * 7, 20) - 10}px); z-index: #{i};"}
+                  >
                   </div>
                 <% end %>
               </div>
             </div>
           </div>
 
-          <div
-            class="flex justify-center items-center gap-8 mb-6 relative"
-            data-card-area>
+          <div class="flex justify-center items-center gap-8 mb-6 relative" data-card-area>
             <!-- Player 1's card -->
-            <div class="w-32 h-44 rounded-lg relative transition-all duration-300 transform" data-player1-card>
+            <div
+              class="w-32 h-44 rounded-lg relative transition-all duration-300 transform"
+              data-player1-card
+            >
               <%= if @game_state.player1_card do %>
-                <div class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500" data-card-front>
-                  <div class={["absolute top-1 left-2 text-xl font-bold", card_color(@game_state.player1_card.suit)]}>
-                    <%= display_card_value(@game_state.player1_card.value) %>
+                <div
+                  class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500"
+                  data-card-front
+                >
+                  <div class={[
+                    "absolute top-1 left-2 text-xl font-bold",
+                    card_color(@game_state.player1_card.suit)
+                  ]}>
+                    {display_card_value(@game_state.player1_card.value)}
                   </div>
                   <div class={["absolute top-7 left-2", card_color(@game_state.player1_card.suit)]}>
-                    <%= display_card_suit(@game_state.player1_card.suit) %>
+                    {display_card_suit(@game_state.player1_card.suit)}
                   </div>
 
                   <div class="card-value-container">
                     <div class={["center-suit", card_color(@game_state.player1_card.suit)]}>
-                      <%= display_card_suit(@game_state.player1_card.suit) %>
+                      {display_card_suit(@game_state.player1_card.suit)}
                     </div>
                   </div>
 
-                  <div class={["absolute bottom-7 right-2 transform rotate-180", card_color(@game_state.player1_card.suit)]}>
-                    <%= display_card_suit(@game_state.player1_card.suit) %>
+                  <div class={[
+                    "absolute bottom-7 right-2 transform rotate-180",
+                    card_color(@game_state.player1_card.suit)
+                  ]}>
+                    {display_card_suit(@game_state.player1_card.suit)}
                   </div>
-                  <div class={["absolute bottom-1 right-2 text-xl font-bold transform rotate-180", card_color(@game_state.player1_card.suit)]}>
-                    <%= display_card_value(@game_state.player1_card.value) %>
+                  <div class={[
+                    "absolute bottom-1 right-2 text-xl font-bold transform rotate-180",
+                    card_color(@game_state.player1_card.suit)
+                  ]}>
+                    {display_card_value(@game_state.player1_card.value)}
                   </div>
                 </div>
               <% else %>
                 <%= if !@game_state.winner && !@game_state.scoring_phase && @game_state.player1 == @user_id && length(@game_state.player1_cards) > 0 do %>
-                  <button phx-click="play_card" class="absolute inset-0 game-card-back rounded-lg shadow-lg flex flex-col justify-center items-center transition-colors duration-200 hover:shadow-xl cursor-pointer">
+                  <button
+                    phx-click="play_card"
+                    class="absolute inset-0 game-card-back rounded-lg shadow-lg flex flex-col justify-center items-center transition-colors duration-200 hover:shadow-xl cursor-pointer"
+                  >
                     <div class="text-xl font-bold text-white">Play Card</div>
                   </button>
                 <% else %>
@@ -191,37 +247,57 @@
                 <% end %>
               <% end %>
             </div>
-
-            <!-- VS -->
-            <div class="text-2xl font-bold text-white z-20 bg-blue-900 px-5 py-3 rounded-full shadow-lg vs-circle">VS</div>
-
-            <!-- Player 2's card -->
-            <div class="w-32 h-44 rounded-lg relative transition-all duration-300 transform" data-player2-card>
+            
+<!-- VS -->
+            <div class="text-2xl font-bold text-white z-20 bg-blue-900 px-5 py-3 rounded-full shadow-lg vs-circle">
+              VS
+            </div>
+            
+<!-- Player 2's card -->
+            <div
+              class="w-32 h-44 rounded-lg relative transition-all duration-300 transform"
+              data-player2-card
+            >
               <%= if @game_state.player2_card do %>
-                <div class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500" data-card-front>
-                  <div class={["absolute top-1 left-2 text-xl font-bold", card_color(@game_state.player2_card.suit)]}>
-                    <%= display_card_value(@game_state.player2_card.value) %>
+                <div
+                  class="absolute inset-0 game-card flex flex-col justify-center items-center p-2 transition-all duration-500"
+                  data-card-front
+                >
+                  <div class={[
+                    "absolute top-1 left-2 text-xl font-bold",
+                    card_color(@game_state.player2_card.suit)
+                  ]}>
+                    {display_card_value(@game_state.player2_card.value)}
                   </div>
                   <div class={["absolute top-7 left-2", card_color(@game_state.player2_card.suit)]}>
-                    <%= display_card_suit(@game_state.player2_card.suit) %>
+                    {display_card_suit(@game_state.player2_card.suit)}
                   </div>
 
                   <div class="card-value-container">
                     <div class={["center-suit", card_color(@game_state.player2_card.suit)]}>
-                      <%= display_card_suit(@game_state.player2_card.suit) %>
+                      {display_card_suit(@game_state.player2_card.suit)}
                     </div>
                   </div>
 
-                  <div class={["absolute bottom-7 right-2 transform rotate-180", card_color(@game_state.player2_card.suit)]}>
-                    <%= display_card_suit(@game_state.player2_card.suit) %>
+                  <div class={[
+                    "absolute bottom-7 right-2 transform rotate-180",
+                    card_color(@game_state.player2_card.suit)
+                  ]}>
+                    {display_card_suit(@game_state.player2_card.suit)}
                   </div>
-                  <div class={["absolute bottom-1 right-2 text-xl font-bold transform rotate-180", card_color(@game_state.player2_card.suit)]}>
-                    <%= display_card_value(@game_state.player2_card.value) %>
+                  <div class={[
+                    "absolute bottom-1 right-2 text-xl font-bold transform rotate-180",
+                    card_color(@game_state.player2_card.suit)
+                  ]}>
+                    {display_card_value(@game_state.player2_card.value)}
                   </div>
                 </div>
               <% else %>
                 <%= if !@game_state.winner && !@game_state.scoring_phase && @game_state.player2 == @user_id && length(@game_state.player2_cards) > 0 do %>
-                  <button phx-click="play_card" class="absolute inset-0 game-card-back rounded-lg shadow-lg flex flex-col justify-center items-center transition-colors duration-200 hover:shadow-xl cursor-pointer">
+                  <button
+                    phx-click="play_card"
+                    class="absolute inset-0 game-card-back rounded-lg shadow-lg flex flex-col justify-center items-center transition-colors duration-200 hover:shadow-xl cursor-pointer"
+                  >
                     <div class="text-xl font-bold text-white">Play Card</div>
                   </button>
                 <% else %>
@@ -241,21 +317,26 @@
               <% end %>
             </div>
           </div>
-
-          <!-- Card decks with visual feedback -->
+          
+<!-- Card decks with visual feedback -->
           <div class="flex justify-between mt-10">
             <!-- Player 1's deck -->
             <div class="w-24 h-32 relative">
               <%= if length(@game_state.player1_cards) > 0 do %>
-                <div class="absolute inset-0 card-deck flex justify-center items-center transition-all duration-300" data-player1-deck>
+                <div
+                  class="absolute inset-0 card-deck flex justify-center items-center transition-all duration-300"
+                  data-player1-deck
+                >
                   <div class="text-white text-sm font-bold z-10 text-shadow">
-                    <%= length(@game_state.player1_cards) %> cards
+                    {length(@game_state.player1_cards)} cards
                   </div>
                   <!-- Card Stack visualization -->
                   <div class="absolute inset-0 z-0">
                     <%= for i <- 1..min(5, div(length(@game_state.player1_cards), 5)) do %>
-                      <div class="absolute top-0 left-0 w-full h-full game-card-back rounded-lg"
-                           style={"transform: translateY(-#{i * 2}px) rotate(#{i * 2 - 4}deg); z-index: -#{i};"}>
+                      <div
+                        class="absolute top-0 left-0 w-full h-full game-card-back rounded-lg"
+                        style={"transform: translateY(-#{i * 2}px) rotate(#{i * 2 - 4}deg); z-index: -#{i};"}
+                      >
                       </div>
                     <% end %>
                   </div>
@@ -266,19 +347,24 @@
                 </div>
               <% end %>
             </div>
-
-            <!-- Player 2's deck -->
+            
+<!-- Player 2's deck -->
             <div class="w-24 h-32 relative">
               <%= if length(@game_state.player2_cards) > 0 do %>
-                <div class="absolute inset-0 card-deck flex justify-center items-center transition-all duration-300" data-player2-deck>
+                <div
+                  class="absolute inset-0 card-deck flex justify-center items-center transition-all duration-300"
+                  data-player2-deck
+                >
                   <div class="text-white text-sm font-bold z-10 text-shadow">
-                    <%= length(@game_state.player2_cards) %> cards
+                    {length(@game_state.player2_cards)} cards
                   </div>
                   <!-- Card Stack visualization -->
                   <div class="absolute inset-0 z-0">
                     <%= for i <- 1..min(5, div(length(@game_state.player2_cards), 5)) do %>
-                      <div class="absolute top-0 left-0 w-full h-full game-card-back rounded-lg"
-                           style={"transform: translateY(-#{i * 2}px) rotate(#{i * 2 - 4}deg); z-index: -#{i};"}>
+                      <div
+                        class="absolute top-0 left-0 w-full h-full game-card-back rounded-lg"
+                        style={"transform: translateY(-#{i * 2}px) rotate(#{i * 2 - 4}deg); z-index: -#{i};"}
+                      >
                       </div>
                     <% end %>
                   </div>
@@ -297,8 +383,8 @@
       <!-- Lobby -->
       <div class="bg-white p-4 rounded-lg">
         <h3 class="text-xl font-bold mb-4">Lobby</h3>
-
-        <!-- Incoming invitations -->
+        
+<!-- Incoming invitations -->
         <%= if map_size(@invitations) > 0 do %>
           <div class="mb-4">
             <h4 class="font-bold text-lg mb-2">Invitations:</h4>
@@ -306,13 +392,22 @@
               <%= for {from_id, invitation} <- @invitations do %>
                 <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                   <div>
-                    <span class="font-medium"><%= player_display_name(@players[from_id]) %></span> has invited you to play
+                    <span class="font-medium">{player_display_name(@players[from_id])}</span>
+                    has invited you to play
                   </div>
                   <div class="flex space-x-2">
-                    <button phx-click="accept_invitation" phx-value-from={invitation.from} class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded transition-colors duration-200">
+                    <button
+                      phx-click="accept_invitation"
+                      phx-value-from={invitation.from}
+                      class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded transition-colors duration-200"
+                    >
                       Accept
                     </button>
-                    <button phx-click="decline_invitation" phx-value-from={invitation.from} class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-colors duration-200">
+                    <button
+                      phx-click="decline_invitation"
+                      phx-value-from={invitation.from}
+                      class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-colors duration-200"
+                    >
                       Decline
                     </button>
                   </div>
@@ -329,9 +424,9 @@
               <%= if player_id != @user_id do %>
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                   <div>
-                    <span class="font-medium"><%= player_display_name(meta) %></span>
+                    <span class="font-medium">{player_display_name(meta)}</span>
                     <span class="text-xs text-gray-500 ml-2">
-                      online for <%= time_ago(meta.online_at) %>
+                      online for {time_ago(meta.online_at)}
                     </span>
                   </div>
                   <%= if Map.has_key?(@sent_invitations, player_id) do %>
@@ -339,7 +434,11 @@
                       Invitation sent
                     </div>
                   <% else %>
-                    <button phx-click="invite_player" phx-value-id={player_id} class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200">
+                    <button
+                      phx-click="invite_player"
+                      phx-value-id={player_id}
+                      class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200"
+                    >
                       Invite to Play
                     </button>
                   <% end %>

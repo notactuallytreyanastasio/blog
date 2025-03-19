@@ -42,11 +42,15 @@ defmodule Blog.Wordle.GuessChecker do
     |> Enum.with_index()
     |> Enum.map(fn {char, i} ->
       case {Enum.at(greens, i), char in remaining_target} do
-        {:correct, _} -> :correct
+        {:correct, _} ->
+          :correct
+
         {_, true} ->
           remaining_target = List.delete(remaining_target, char)
           :present
-        _ -> :absent
+
+        _ ->
+          :absent
       end
     end)
   end

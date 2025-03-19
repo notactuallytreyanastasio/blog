@@ -13,7 +13,8 @@ defmodule BlogWeb.BlackjackLive do
       |> assign(:player_id, player_id)
       |> assign(:game_id, nil)
       |> assign(:players_in_lobby, %{player_id => %{name: "Player #{random_name_suffix()}"}})
-      |> assign(:active_games, %{})  # Track active games that can be joined
+      # Track active games that can be joined
+      |> assign(:active_games, %{})
       |> assign(:view, :lobby)
       |> assign(:game, nil)
       |> assign(:game_message, nil)
@@ -100,8 +101,8 @@ defmodule BlogWeb.BlackjackLive do
       |> assign(:game_id, game_id)
       |> assign(:view, :game)
 
-    # Add a temporary message to indicate we're waiting to join
-    |> assign(:game_message, "Waiting to join game...")
+      # Add a temporary message to indicate we're waiting to join
+      |> assign(:game_message, "Waiting to join game...")
 
     {:noreply, socket}
   end
@@ -180,9 +181,10 @@ defmodule BlogWeb.BlackjackLive do
     players_in_lobby = socket.assigns.players_in_lobby
 
     # Update player name
-    updated_players = Map.update!(players_in_lobby, player_id, fn player ->
-      Map.put(player, :name, name)
-    end)
+    updated_players =
+      Map.update!(players_in_lobby, player_id, fn player ->
+        Map.put(player, :name, name)
+      end)
 
     socket = assign(socket, :players_in_lobby, updated_players)
 
@@ -196,9 +198,11 @@ defmodule BlogWeb.BlackjackLive do
   def handle_info({:player_joined, player_id}, socket) do
     # If this is a new player, add them to the lobby
     if !Map.has_key?(socket.assigns.players_in_lobby, player_id) do
-      socket = update(socket, :players_in_lobby, fn players ->
-        Map.put(players, player_id, %{name: "Player #{random_name_suffix()}"})
-      end)
+      socket =
+        update(socket, :players_in_lobby, fn players ->
+          Map.put(players, player_id, %{name: "Player #{random_name_suffix()}"})
+        end)
+
       {:noreply, socket}
     else
       {:noreply, socket}
@@ -208,13 +212,14 @@ defmodule BlogWeb.BlackjackLive do
   @impl true
   def handle_info({:player_updated, player_id, name}, socket) do
     # Update the player's name in our local state
-    socket = update(socket, :players_in_lobby, fn players ->
-      if Map.has_key?(players, player_id) do
-        Map.update!(players, player_id, fn player -> Map.put(player, :name, name) end)
-      else
-        players
-      end
-    end)
+    socket =
+      update(socket, :players_in_lobby, fn players ->
+        if Map.has_key?(players, player_id) do
+          Map.update!(players, player_id, fn player -> Map.put(player, :name, name) end)
+        else
+          players
+        end
+      end)
 
     {:noreply, socket}
   end
@@ -329,12 +334,14 @@ defmodule BlogWeb.BlackjackLive do
     # Only process if we have a game
     if socket.assigns.game do
       # Always update the player's name in our players_in_lobby
-      socket = update(socket, :players_in_lobby, fn players ->
-        Map.put(players, player_id, %{name: player_name})
-      end)
+      socket =
+        update(socket, :players_in_lobby, fn players ->
+          Map.put(players, player_id, %{name: player_name})
+        end)
 
       # Only the host should handle adding players to the game
-      if socket.assigns.game && socket.assigns.view == :game && socket.assigns.player_id in Map.keys(socket.assigns.game.players) do
+      if socket.assigns.game && socket.assigns.view == :game &&
+           socket.assigns.player_id in Map.keys(socket.assigns.game.players) do
         # Add the player to the game if they're not already in it
         updated_game =
           if !Map.has_key?(socket.assigns.game.players, player_id) do
@@ -351,7 +358,10 @@ defmodule BlogWeb.BlackjackLive do
 
             # Broadcast the updated game state to all players
             if socket.assigns.game_id do
-              BlogWeb.BlackjackLive.PubSub.broadcast_game_updated(socket.assigns.game_id, updated_game)
+              BlogWeb.BlackjackLive.PubSub.broadcast_game_updated(
+                socket.assigns.game_id,
+                updated_game
+              )
             end
 
             updated_game
@@ -400,6 +410,7 @@ defmodule BlogWeb.BlackjackLive do
         # Handle case when player has busted and result isn't set yet
         player.status == :bust ->
           "Bust! You lose #{player.bet} chips."
+
         # For cases where we have a result
         Map.has_key?(player, :result) ->
           case player.result do
@@ -409,8 +420,10 @@ defmodule BlogWeb.BlackjackLive do
             :lose -> "You lose #{player.bet} chips."
             _ -> "Game over!"
           end
+
         # Default case if neither is true
-        true -> "Game over!"
+        true ->
+          "Game over!"
       end
 
     assign(socket, :game_message, message)
@@ -431,12 +444,14 @@ defmodule BlogWeb.BlackjackLive do
       case {hand, hide_second_card} do
         {[first | rest], true} ->
           [Blackjack.render_card(first) | Enum.map(rest, fn _ -> "🂠" end)]
+
         {cards, false} ->
           Enum.map(cards, &Blackjack.render_card/1)
       end
 
     # Verify the score matches what we calculate (for debugging)
     actual_score = Blackjack.calculate_score(hand)
+
     if !hide_second_card && actual_score != score do
       IO.puts("WARNING: Score mismatch! Displayed: #{score}, Calculated: #{actual_score}")
       IO.puts("Hand: #{inspect(hand)}")
@@ -473,11 +488,7 @@ defmodule BlogWeb.BlackjackLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div
-      id="blackjack-game"
-      class="min-h-screen bg-green-800 p-4 text-white"
-      phx-hook="Blackjack"
-    >
+    <div id="blackjack-game" class="min-h-screen bg-green-800 p-4 text-white" phx-hook="Blackjack">
       <div class="max-w-4xl mx-auto">
         <h1 class="text-4xl font-bold mb-6 text-center">Blackjack</h1>
 
@@ -505,7 +516,7 @@ defmodule BlogWeb.BlackjackLive do
               <ul class="list-disc pl-6">
                 <%= for {id, player} <- @players_in_lobby do %>
                   <li class={if id == @player_id, do: "font-bold", else: ""}>
-                    <%= player.name %> <%= if id == @player_id, do: "(You)" %>
+                    {player.name} {if id == @player_id, do: "(You)"}
                   </li>
                 <% end %>
               </ul>
@@ -518,8 +529,8 @@ defmodule BlogWeb.BlackjackLive do
                   <%= for {game_id, game_info} <- @active_games do %>
                     <div class="bg-green-800 p-4 rounded-lg">
                       <p class="mb-2">
-                        <strong>Host:</strong> <%= game_info.host_name %>
-                        <span class="ml-4"><strong>Players:</strong> <%= game_info.player_count %></span>
+                        <strong>Host:</strong> {game_info.host_name}
+                        <span class="ml-4"><strong>Players:</strong> {game_info.player_count}</span>
                       </p>
                       <div class="flex justify-end">
                         <button
@@ -549,31 +560,32 @@ defmodule BlogWeb.BlackjackLive do
           <div class="bg-green-900 rounded-lg p-6 mb-4 blackjack-table">
             <%= if @game_message do %>
               <div class="bg-yellow-600 text-white p-3 rounded mb-4 text-center font-bold result-message">
-                <%= @game_message %>
+                {@game_message}
               </div>
             <% end %>
 
             <div class="mb-8 dealer-area p-4">
               <h2 class="text-xl font-bold mb-4 player-name">Dealer's Hand</h2>
               <div class="flex flex-wrap gap-2 mb-2">
-                <%
-                  # Calculate dealer score if it's not in the map
-                  dealer_score = Map.get(@game.dealer, :score) || Blackjack.calculate_score(@game.dealer.hand)
-                  {dealer_cards, dealer_status} = render_player_hand(
+                <% # Calculate dealer score if it's not in the map
+                dealer_score =
+                  Map.get(@game.dealer, :score) || Blackjack.calculate_score(@game.dealer.hand)
+
+                {dealer_cards, dealer_status} =
+                  render_player_hand(
                     @game.dealer.hand,
                     @game.dealer.status,
                     dealer_score,
                     @game.status != :game_over
-                  )
-                %>
+                  ) %>
 
                 <%= for card <- dealer_cards do %>
                   <div class="text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji">
-                    <%= card %>
+                    {card}
                   </div>
                 <% end %>
               </div>
-              <div><%= dealer_status %></div>
+              <div>{dealer_status}</div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -589,39 +601,37 @@ defmodule BlogWeb.BlackjackLive do
                   }"
                 }>
                   <h3 class="text-lg font-bold mb-2 player-name">
-                    <%= get_player_name(@players_in_lobby, player_id) %>
-                    <%= if player_id == @player_id, do: "(You)" %>
-                    - Balance:
+                    {get_player_name(@players_in_lobby, player_id)}
+                    {if player_id == @player_id, do: "(You)"} - Balance:
                     <span class={"chip chip-#{min(100, player.balance)}"}>
-                      <%= player.balance %>
+                      {player.balance}
                     </span>
                   </h3>
 
                   <div class="flex flex-wrap gap-2 mb-2 card-container">
-                    <%
-                      # Show all cards for current player, only first card for others
-                      should_hide_cards = player_id != @player_id
+                    <% # Show all cards for current player, only first card for others
+                    should_hide_cards = player_id != @player_id
 
-                      # Debug the hand and score (only for current player)
-                      if player_id == @player_id do
-                        debug_player_hand(player_id, player.hand, player.score)
-                      end
+                    # Debug the hand and score (only for current player)
+                    if player_id == @player_id do
+                      debug_player_hand(player_id, player.hand, player.score)
+                    end
 
-                      {player_cards, player_status} = render_player_hand(
+                    {player_cards, player_status} =
+                      render_player_hand(
                         player.hand,
                         player.status,
                         player.score,
                         should_hide_cards
-                      )
-                    %>
+                      ) %>
 
                     <%= for card <- player_cards do %>
                       <div class="text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji">
-                        <%= card %>
+                        {card}
                       </div>
                     <% end %>
                   </div>
-                  <div><%= player_status %></div>
+                  <div>{player_status}</div>
 
                   <%= if player_id == @player_id && is_players_turn?(@game, player_id) do %>
                     <div class="mt-4 flex gap-3">
@@ -681,7 +691,10 @@ defmodule BlogWeb.BlackjackLive do
 
     if calculated_score != score do
       hand_values = Enum.map(hand, fn {value, suit} -> "#{value}#{suit}" end)
-      IO.puts("SCORE DISCREPANCY: Player #{player_id}: Hand: #{inspect(hand_values)}, Stored: #{score}, Calculated: #{calculated_score}")
+
+      IO.puts(
+        "SCORE DISCREPANCY: Player #{player_id}: Hand: #{inspect(hand_values)}, Stored: #{score}, Calculated: #{calculated_score}"
+      )
     end
   end
 end
@@ -729,7 +742,11 @@ defmodule BlogWeb.BlackjackLive.PubSub do
 
   def broadcast_game_info_to_lobby(game_id, game, host_id, players_lobby \\ %{}) do
     # Broadcast game info to the main lobby topic for all players to see
-    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id, players_lobby})
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      @topic,
+      {:game_info, game_id, game, host_id, players_lobby}
+    )
   end
 
   def broadcast_game_started(player_ids, game_id, game, players_lobby \\ %{}) do
@@ -737,7 +754,11 @@ defmodule BlogWeb.BlackjackLive.PubSub do
     Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_started, game_id, game, players_lobby})
 
     # Also broadcast to the game-specific topic
-    Phoenix.PubSub.broadcast(Blog.PubSub, "#{@topic}:#{game_id}", {:game_started, game_id, game, players_lobby})
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "#{@topic}:#{game_id}",
+      {:game_started, game_id, game, players_lobby}
+    )
   end
 
   def broadcast_game_updated(game_id, game) do
@@ -752,6 +773,10 @@ defmodule BlogWeb.BlackjackLive.PubSub do
   end
 
   def broadcast_player_joined_game(game_id, player_id, player_name) do
-    Phoenix.PubSub.broadcast(Blog.PubSub, "#{@topic}:#{game_id}", {:player_joined_game, player_id, player_name})
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "#{@topic}:#{game_id}",
+      {:player_joined_game, player_id, player_name}
+    )
   end
 end

@@ -17,11 +17,13 @@ defmodule Blog.Bookmarks.Store do
     case Bookmark.validate(bookmark) do
       {:ok, bookmark} ->
         true = :ets.insert(@table_name, {bookmark.id, bookmark})
+
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
           "bookmark:firehose",
           %{event: "bookmark_added", payload: bookmark}
         )
+
         {:ok, bookmark}
 
       {:error, reason} ->
@@ -66,11 +68,13 @@ defmodule Blog.Bookmarks.Store do
 
   def delete_bookmark(id) do
     :ets.delete(@table_name, id)
+
     Phoenix.PubSub.broadcast(
       Blog.PubSub,
       "bookmark:firehose",
       %{event: "bookmark_deleted", payload: %{id: id}}
     )
+
     :ok
   end
 
@@ -81,9 +85,9 @@ defmodule Blog.Bookmarks.Store do
     |> Enum.map(fn {_id, bookmark} -> bookmark end)
     |> Enum.filter(fn bookmark ->
       String.contains?(String.downcase(bookmark.title || ""), query) ||
-      String.contains?(String.downcase(bookmark.description || ""), query) ||
-      String.contains?(String.downcase(bookmark.url), query) ||
-      Enum.any?(bookmark.tags, &String.contains?(String.downcase(&1), query))
+        String.contains?(String.downcase(bookmark.description || ""), query) ||
+        String.contains?(String.downcase(bookmark.url), query) ||
+        Enum.any?(bookmark.tags, &String.contains?(String.downcase(&1), query))
     end)
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
   end

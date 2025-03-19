@@ -7,8 +7,10 @@ defmodule Blog.Wordle.GameStore do
 
   @games_table :wordle_game_sessions
   # Cleanup intervals in milliseconds
-  @cleanup_interval 600_000 # 10 minutes (changed from 1 hour)
-  @idle_threshold 60 # Seconds of inactivity for new games with no guesses
+  # 10 minutes (changed from 1 hour)
+  @cleanup_interval 600_000
+  # Seconds of inactivity for new games with no guesses
+  @idle_threshold 60
 
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
@@ -67,8 +69,8 @@ defmodule Blog.Wordle.GameStore do
     deleted_count =
       :ets.tab2list(@games_table)
       |> Enum.count(fn {session_id, game} ->
-        is_idle_with_no_guesses?(game, now, threshold_seconds)
-        && delete_game(session_id)
+        is_idle_with_no_guesses?(game, now, threshold_seconds) &&
+          delete_game(session_id)
       end)
 
     Logger.info("GameStore: Cleaned up #{deleted_count} idle games with no guesses")
@@ -84,6 +86,7 @@ defmodule Blog.Wordle.GameStore do
         {:ok, last_active, _} ->
           diff = DateTime.diff(now, last_active, :second)
           diff > threshold_seconds
+
         _ ->
           # If we can't parse the timestamp, consider it idle
           true
@@ -195,12 +198,13 @@ defmodule Blog.Wordle.GameStore do
         sorted_games = Enum.sort_by(games, fn game -> game.last_activity end, {:desc, DateTime})
 
         # Split into active and completed games
-        {active_games, completed_games} = Enum.split_with(sorted_games, fn game -> !game.game_over end)
+        {active_games, completed_games} =
+          Enum.split_with(sorted_games, fn game -> !game.game_over end)
 
         # Keep at most one active game and one completed game
         games_to_keep =
-          (if Enum.empty?(active_games), do: [], else: [List.first(active_games)]) ++
-          (if Enum.empty?(completed_games), do: [], else: [List.first(completed_games)])
+          if(Enum.empty?(active_games), do: [], else: [List.first(active_games)]) ++
+            if Enum.empty?(completed_games), do: [], else: [List.first(completed_games)]
 
         # Find which games to delete
         games_to_delete = games -- games_to_keep
@@ -224,17 +228,18 @@ defmodule Blog.Wordle.GameStore do
   def valid_game?(game) do
     # Check that all the important fields exist and have valid values
     is_map(game) &&
-    is_binary(game.session_id) && String.length(game.session_id) > 0 &&
-    is_binary(game.player_id) && String.length(game.player_id) > 0 &&
-    is_binary(game.target_word) && String.length(game.target_word) == 5 &&
-    is_list(game.guesses) &&
-    is_map(game.used_letters)
+      is_binary(game.session_id) && String.length(game.session_id) > 0 &&
+      is_binary(game.player_id) && String.length(game.player_id) > 0 &&
+      is_binary(game.target_word) && String.length(game.target_word) == 5 &&
+      is_list(game.guesses) &&
+      is_map(game.used_letters)
   end
 
   defp older_than?(timestamp, cutoff) when is_binary(timestamp) and is_binary(cutoff) do
     case {DateTime.from_iso8601(timestamp), DateTime.from_iso8601(cutoff)} do
       {{:ok, time, _}, {:ok, cutoff_time, _}} ->
         DateTime.compare(time, cutoff_time) == :lt
+
       _ ->
         false
     end

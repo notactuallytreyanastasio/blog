@@ -1,5 +1,4 @@
 defmodule Blog.WordleWords do
-
   def valid_guesses do
     ~W(
     aahed
@@ -14858,7 +14857,6 @@ defmodule Blog.WordleWords do
     zymes
     zymic
     )
-
   end
 
   def potential_words do

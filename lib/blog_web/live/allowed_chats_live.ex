@@ -40,7 +40,10 @@ defmodule BlogWeb.AllowedChatsLive do
        %{name: "title", content: "Community Allowed Chats"},
        %{name: "description", content: "Chat with community-managed allowed words filtering"},
        %{property: "og:title", content: "Community Allowed Chats"},
-       %{property: "og:description", content: "Chat with community-managed allowed words filtering"},
+       %{
+         property: "og:description",
+         content: "Chat with community-managed allowed words filtering"
+       },
        %{property: "og:type", content: "website"}
      ])
      |> assign(:user_id, user_id)
@@ -72,7 +75,8 @@ defmodule BlogWeb.AllowedChatsLive do
   end
 
   @impl true
-  def handle_event("send_message", %{"content" => content}, socket) when is_binary(content) and content != "" do
+  def handle_event("send_message", %{"content" => content}, socket)
+      when is_binary(content) and content != "" do
     user_id = socket.assigns.user_id
 
     # Create a new message map (without is_visible - we'll calculate it dynamically)
@@ -106,7 +110,8 @@ defmodule BlogWeb.AllowedChatsLive do
     messages = MessageStore.get_recent_messages()
 
     # Calculate visibility for each message based on the current allowed words
-    messages_with_visibility = calculate_message_visibility(messages, socket.assigns.allowed_words)
+    messages_with_visibility =
+      calculate_message_visibility(messages, socket.assigns.allowed_words)
 
     {:noreply, assign(socket, :messages, messages_with_visibility)}
   end
@@ -151,10 +156,11 @@ defmodule BlogWeb.AllowedChatsLive do
       {false, []}
     else
       # Split the content into words
-      words = content
-              |> String.downcase()
-              |> String.split(~r/\s+/)
-              |> Enum.map(&String.trim/1)
+      words =
+        content
+        |> String.downcase()
+        |> String.split(~r/\s+/)
+        |> Enum.map(&String.trim/1)
 
       # Find all matching words
       matching_words =
@@ -208,22 +214,32 @@ defmodule BlogWeb.AllowedChatsLive do
           <h1 class="text-3xl font-bold">Community Chat</h1>
           <div class="bg-white rounded-full px-4 py-2 shadow flex items-center">
             <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-            <span class="text-sm font-medium"><%= @online_count %> online</span>
+            <span class="text-sm font-medium">{@online_count} online</span>
           </div>
         </div>
-        <div class="text-sm text-gray-500 mb-6">Your session ID: <%= @user_id %></div>
+        <div class="text-sm text-gray-500 mb-6">Your session ID: {@user_id}</div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <!-- Left sidebar: Allowed words -->
           <div class="md:col-span-1">
             <div class="bg-white rounded-lg shadow p-4">
               <h2 class="text-xl font-semibold mb-4">Community Allowed Words</h2>
-              <p class="text-sm text-gray-600 mb-4">These words are shared by all users. Any message containing these words will be visible to everyone.</p>
+              <p class="text-sm text-gray-600 mb-4">
+                These words are shared by all users. Any message containing these words will be visible to everyone.
+              </p>
 
-              <.form for={@add_word_form} phx-submit="add_word" phx-change="validate_add_word" class="mb-4">
+              <.form
+                for={@add_word_form}
+                phx-submit="add_word"
+                phx-change="validate_add_word"
+                class="mb-4"
+              >
                 <div class="flex gap-2">
                   <.input field={@add_word_form[:word]} placeholder="Enter a word" class="flex-grow" />
-                  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                  <button
+                    type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
                     Add
                   </button>
                 </div>
@@ -233,7 +249,7 @@ defmodule BlogWeb.AllowedChatsLive do
                 <div class="flex flex-wrap gap-2">
                   <%= for word <- @allowed_words do %>
                     <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm group relative">
-                      <%= word %>
+                      {word}
                       <button
                         phx-click="remove_word"
                         phx-value-word={word}
@@ -246,21 +262,30 @@ defmodule BlogWeb.AllowedChatsLive do
                   <% end %>
                 </div>
                 <%= if Enum.empty?(@allowed_words) do %>
-                  <p class="text-gray-500 text-sm italic">No community allowed words yet. Add some!</p>
+                  <p class="text-gray-500 text-sm italic">
+                    No community allowed words yet. Add some!
+                  </p>
                 <% end %>
               </div>
             </div>
           </div>
-
-          <!-- Main content: Messages -->
+          
+    <!-- Main content: Messages -->
           <div class="md:col-span-2">
             <div class="bg-white rounded-lg shadow p-4 mb-4">
               <h2 class="text-xl font-semibold mb-4">Messages</h2>
 
               <.form for={@message_form} phx-submit="send_message" phx-change="validate_message">
                 <div class="flex gap-2">
-                  <.input field={@message_form[:content]} placeholder="Type a message..." class="flex-grow" />
-                  <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                  <.input
+                    field={@message_form[:content]}
+                    placeholder="Type a message..."
+                    class="flex-grow"
+                  />
+                  <button
+                    type="submit"
+                    class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
                     Send
                   </button>
                 </div>
@@ -272,30 +297,41 @@ defmodule BlogWeb.AllowedChatsLive do
 
               <div class="space-y-4">
                 <%= if Enum.empty?(@messages) do %>
-                  <p class="text-gray-500 text-center py-4">No messages yet. Start the conversation!</p>
+                  <p class="text-gray-500 text-center py-4">
+                    No messages yet. Start the conversation!
+                  </p>
                 <% else %>
                   <%= for message <- @messages do %>
                     <div class={[
                       "p-3 rounded-lg",
-                      if(message.is_visible, do: "bg-green-50 border border-green-200", else: "bg-red-50 border border-red-200")
+                      if(message.is_visible,
+                        do: "bg-green-50 border border-green-200",
+                        else: "bg-red-50 border border-red-200"
+                      )
                     ]}>
                       <div class="flex justify-between items-start">
                         <div class="flex-1">
                           <%= if message.is_visible do %>
-                            <p class="text-gray-800"><%= message.content %></p>
+                            <p class="text-gray-800">{message.content}</p>
                             <%= if message[:matching_words] && length(message.matching_words) > 0 do %>
                               <p class="text-xs text-green-600 mt-1">
                                 Allowed by:
                                 <%= for {word, i} <- Enum.with_index(message.matching_words) do %>
-                                  <span class="font-semibold"><%= word %></span><%= if i < length(message.matching_words) - 1, do: ", " %>
+                                  <span class="font-semibold">{word}</span>{if i <
+                                                                                 length(
+                                                                                   message.matching_words
+                                                                                 ) - 1,
+                                                                               do: ", "}
                                 <% end %>
                               </p>
                             <% end %>
                           <% else %>
-                            <p class="text-gray-400 italic">This message is hidden (no allowed words found)</p>
+                            <p class="text-gray-400 italic">
+                              This message is hidden (no allowed words found)
+                            </p>
                           <% end %>
                           <p class="text-xs text-gray-500 mt-1">
-                            <%= Calendar.strftime(message.timestamp, "%B %d, %Y at %I:%M %p") %>
+                            {Calendar.strftime(message.timestamp, "%B %d, %Y at %I:%M %p")}
                             <%= if Map.get(message, :user_id) == @user_id do %>
                               <span class="ml-2 text-blue-500">(You)</span>
                             <% end %>
@@ -303,9 +339,12 @@ defmodule BlogWeb.AllowedChatsLive do
                         </div>
                         <span class={[
                           "text-xs px-2 py-1 rounded-full",
-                          if(message.is_visible, do: "bg-green-200 text-green-800", else: "bg-red-200 text-red-800")
+                          if(message.is_visible,
+                            do: "bg-green-200 text-green-800",
+                            else: "bg-red-200 text-red-800"
+                          )
                         ]}>
-                          <%= if message.is_visible, do: "Visible", else: "Hidden" %>
+                          {if message.is_visible, do: "Visible", else: "Hidden"}
                         </span>
                       </div>
                     </div>

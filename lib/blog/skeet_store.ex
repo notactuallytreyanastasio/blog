@@ -22,6 +22,7 @@ defmodule Blog.SkeetStore do
             # Table already exists, that's fine
             :ok
         end
+
       _ ->
         # Table already exists
         :ok
@@ -62,6 +63,7 @@ defmodule Blog.SkeetStore do
       case :ets.info(@table_name) do
         :undefined ->
           []
+
         _ ->
           :ets.tab2list(@table_name)
           |> Enum.sort_by(fn {ts, _} -> ts end, :desc)
@@ -96,7 +98,8 @@ defmodule Blog.SkeetStore do
         |> Enum.each(fn key -> :ets.delete(@table_name, key) end)
       end
     rescue
-      _ -> :ok  # Ignore errors during trimming
+      # Ignore errors during trimming
+      _ -> :ok
     end
   end
 end

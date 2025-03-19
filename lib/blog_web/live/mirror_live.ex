@@ -46,16 +46,19 @@ defmodule BlogWeb.MirrorLive do
 
   defp process_source_code(source) do
     # Handle both string and error tuple cases
-    source_str = case source do
-      {:error, reason} ->
-        Logger.error("Error decompiling source: #{inspect(reason)}")
-        fallback_source_code()
-      str when is_binary(str) ->
-        str
-      other ->
-        Logger.error("Unexpected source format: #{inspect(other)}")
-        fallback_source_code()
-    end
+    source_str =
+      case source do
+        {:error, reason} ->
+          Logger.error("Error decompiling source: #{inspect(reason)}")
+          fallback_source_code()
+
+        str when is_binary(str) ->
+          str
+
+        other ->
+          Logger.error("Unexpected source format: #{inspect(other)}")
+          fallback_source_code()
+      end
 
     # Split into lines first, then characters
     source_str
@@ -103,6 +106,7 @@ defmodule BlogWeb.MirrorLive do
       case result do
         {:error, _} ->
           fetch_from_github()
+
         _ ->
           result
       end
@@ -118,6 +122,7 @@ defmodule BlogWeb.MirrorLive do
       case Req.get(@source_url) do
         {:ok, %{status: 200, body: body}} ->
           body
+
         error ->
           Logger.error("Failed to fetch from GitHub: #{inspect(error)}")
           fallback_source_code()

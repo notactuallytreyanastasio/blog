@@ -20,6 +20,7 @@ defmodule Blog.PythonRunner do
           true ->
             Logger.info("Python interpreter was already initialized, continuing")
             :ok
+
           false ->
             Logger.error("Failed to initialize Python: #{Exception.message(e)}")
             {:error, Exception.message(e)}

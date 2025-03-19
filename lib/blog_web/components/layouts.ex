@@ -34,9 +34,10 @@ defmodule BlogWeb.Layouts do
 
   def total_readers do
     try do
-      count = Blog.PubSub
-      |> Phoenix.Presence.list("readers")
-      |> map_size()
+      count =
+        Blog.PubSub
+        |> Phoenix.Presence.list("readers")
+        |> map_size()
 
       count
     rescue

@@ -5,17 +5,18 @@ defmodule Blog.Wordle.Game do
 
   @primary_key false
   embedded_schema do
-    field :session_id, :string
-    field :player_id, :string
-    field :target_word, :string
-    field :current_guess, :string, default: ""
-    field :guesses, {:array, :map}, default: []
-    field :game_over, :boolean, default: false
-    field :message, :string
-    field :used_letters, :map, default: %{}
-    field :max_attempts, :integer, default: 6
-    field :hard_mode, :boolean, default: false
-    field :last_activity, :string, default: nil # Changed to string to avoid serialization issues
+    field(:session_id, :string)
+    field(:player_id, :string)
+    field(:target_word, :string)
+    field(:current_guess, :string, default: "")
+    field(:guesses, {:array, :map}, default: [])
+    field(:game_over, :boolean, default: false)
+    field(:message, :string)
+    field(:used_letters, :map, default: %{})
+    field(:max_attempts, :integer, default: 6)
+    field(:hard_mode, :boolean, default: false)
+    # Changed to string to avoid serialization issues
+    field(:last_activity, :string, default: nil)
   end
 
   @word_length 5
@@ -77,19 +78,23 @@ defmodule Blog.Wordle.Game do
         submit_guess(game)
 
       {false, "Backspace", _length} ->
-        game = %{game |
-          current_guess: String.slice(game.current_guess, 0..-2),
-          last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+        game = %{
+          game
+          | current_guess: String.slice(game.current_guess, 0..-2),
+            last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
         }
+
         broadcast_update(game)
         {:ok, game}
 
       {false, key, length} when length < @word_length ->
         if key =~ ~r/^[a-zA-Z]$/ do
-          game = %{game |
-            current_guess: game.current_guess <> String.downcase(key),
-            last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+          game = %{
+            game
+            | current_guess: game.current_guess <> String.downcase(key),
+              last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
           }
+
           broadcast_update(game)
           {:ok, game}
         else
@@ -124,30 +129,41 @@ defmodule Blog.Wordle.Game do
           lost = length(guesses) >= game.max_attempts
 
           game = %{
-            game |
-            current_guess: "",
-            guesses: guesses,
-            used_letters: used_letters,
-            game_over: won || lost,
-            last_activity: DateTime.utc_now() |> DateTime.to_iso8601(),
-            message:
-              case {won, lost} do
-                {true, _} -> "Congratulations! You won!"
-                {false, true} -> "Game Over! The word was #{game.target_word}"
-                {false, false} -> nil
-              end
+            game
+            | current_guess: "",
+              guesses: guesses,
+              used_letters: used_letters,
+              game_over: won || lost,
+              last_activity: DateTime.utc_now() |> DateTime.to_iso8601(),
+              message:
+                case {won, lost} do
+                  {true, _} -> "Congratulations! You won!"
+                  {false, true} -> "Game Over! The word was #{game.target_word}"
+                  {false, false} -> nil
+                end
           }
 
           broadcast_update(game)
           {:ok, game}
 
         {:error, message} ->
-          game = %{game | message: message, current_guess: "", last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+          game = %{
+            game
+            | message: message,
+              current_guess: "",
+              last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+
           broadcast_update(game)
           {:error, game}
       end
     else
-      game = %{game | message: "Not in word list", last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+      game = %{
+        game
+        | message: "Not in word list",
+          last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
       broadcast_update(game)
       {:error, game}
     end
@@ -158,11 +174,21 @@ defmodule Blog.Wordle.Game do
   """
   def toggle_hard_mode(game) do
     if Enum.empty?(game.guesses) do
-      game = %{game | hard_mode: !game.hard_mode, last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+      game = %{
+        game
+        | hard_mode: !game.hard_mode,
+          last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
       broadcast_update(game)
       {:ok, game}
     else
-      game = %{game | message: "Can't change difficulty mid-game", last_activity: DateTime.utc_now() |> DateTime.to_iso8601()}
+      game = %{
+        game
+        | message: "Can't change difficulty mid-game",
+          last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
       broadcast_update(game)
       {:error, game}
     end
@@ -172,14 +198,15 @@ defmodule Blog.Wordle.Game do
   Resets the game with a new target word.
   """
   def reset_game(game) do
-    game = %{game |
-      target_word: WordStore.get_random_word(),
-      current_guess: "",
-      guesses: [],
-      game_over: false,
-      message: nil,
-      used_letters: %{},
-      last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
+    game = %{
+      game
+      | target_word: WordStore.get_random_word(),
+        current_guess: "",
+        guesses: [],
+        game_over: false,
+        message: nil,
+        used_letters: %{},
+        last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
     }
 
     broadcast_update(game)

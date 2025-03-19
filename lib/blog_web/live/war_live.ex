@@ -26,11 +26,12 @@ defmodule BlogWeb.WarLive do
       Phoenix.PubSub.subscribe(Blog.PubSub, @topic)
 
       # Track user in presence with a unique mnemonic name for easier testing
-      {:ok, _} = Presence.track(self(), @topic, user_id, %{
-        online_at: timestamp,
-        status: "available",
-        display_name: display_name
-      })
+      {:ok, _} =
+        Presence.track(self(), @topic, user_id, %{
+          online_at: timestamp,
+          status: "available",
+          display_name: display_name
+        })
 
       # Also store in ETS for persistence across all sessions
       store_player_in_ets(user_id, %{
@@ -49,7 +50,8 @@ defmodule BlogWeb.WarLive do
     # Get ALL players from ETS
     all_players = get_all_players_from_ets()
 
-    socket = socket
+    socket =
+      socket
       |> assign(:user_id, user_id)
       |> assign(:players, all_players)
       |> assign(:game_state, nil)
@@ -65,8 +67,11 @@ defmodule BlogWeb.WarLive do
   # Generate a random display name for easier identification during testing
   defp generate_display_name do
     # Lists of adjectives and animals to create a readable identifier
-    adjectives = ~w(Red Blue Green Yellow Purple Orange Tiny Big Fast Slow Happy Silly Smart Brave Wild Calm)
-    animals = ~w(Lion Tiger Bear Wolf Fox Panda Koala Eagle Shark Dolphin Rabbit Turtle Elephant Giraffe Kangaroo)
+    adjectives =
+      ~w(Red Blue Green Yellow Purple Orange Tiny Big Fast Slow Happy Silly Smart Brave Wild Calm)
+
+    animals =
+      ~w(Lion Tiger Bear Wolf Fox Panda Koala Eagle Shark Dolphin Rabbit Turtle Elephant Giraffe Kangaroo)
 
     adjective = Enum.random(adjectives)
     animal = Enum.random(animals)
@@ -76,6 +81,7 @@ defmodule BlogWeb.WarLive do
 
   # Helper function to get the display name for a player
   def player_display_name(nil), do: "Unknown Player"
+
   def player_display_name(player) when is_map(player) do
     Map.get(player, :display_name, "Player")
   end
@@ -122,7 +128,9 @@ defmodule BlogWeb.WarLive do
   # Get all players from ETS
   defp get_all_players_from_ets do
     case :ets.tab2list(@ets_table) do
-      [] -> %{}
+      [] ->
+        %{}
+
       players ->
         players
         |> Enum.map(fn {user_id, data} -> {user_id, data} end)
@@ -165,7 +173,8 @@ defmodule BlogWeb.WarLive do
     # Update local assigns
     all_players = get_all_players_from_ets()
 
-    socket = socket
+    socket =
+      socket
       |> assign(:players, all_players)
       |> assign(:edit_name, false)
 
@@ -185,7 +194,9 @@ defmodule BlogWeb.WarLive do
 
     # Add a sent_invitations list to track outgoing invitations for UI feedback
     sent_invitations = Map.get(socket.assigns, :sent_invitations, %{})
-    socket = socket
+
+    socket =
+      socket
       |> assign(:sent_invitations, Map.put(sent_invitations, player_id, invitation))
 
     {:noreply, socket}
@@ -204,7 +215,8 @@ defmodule BlogWeb.WarLive do
       Phoenix.PubSub.broadcast!(Blog.PubSub, @topic, {:game_started, game_state})
 
       # Update socket
-      socket = socket
+      socket =
+        socket
         |> assign(:game_state, game_state)
         |> assign(:invitations, Map.drop(socket.assigns.invitations, [from_id]))
 
@@ -217,14 +229,20 @@ defmodule BlogWeb.WarLive do
   @impl true
   def handle_event("decline_invitation", %{"from" => from_id}, socket) do
     # Remove invitation
-    socket = socket
+    socket =
+      socket
       |> assign(:invitations, Map.drop(socket.assigns.invitations, [from_id]))
 
     # Broadcast decline
-    Phoenix.PubSub.broadcast!(Blog.PubSub, @topic, {:invitation_declined, %{
-      from: from_id,
-      to: socket.assigns.user_id
-    }})
+    Phoenix.PubSub.broadcast!(
+      Blog.PubSub,
+      @topic,
+      {:invitation_declined,
+       %{
+         from: from_id,
+         to: socket.assigns.user_id
+       }}
+    )
 
     {:noreply, socket}
   end
@@ -242,7 +260,7 @@ defmodule BlogWeb.WarLive do
 
       # Push card played animation if a card was played
       if game_state.player1_card != updated_game.player1_card ||
-         game_state.player2_card != updated_game.player2_card do
+           game_state.player2_card != updated_game.player2_card do
         player = if game_state.player1 == socket.assigns.user_id, do: "player1", else: "player2"
         if connected?(socket), do: push_event(socket, "card_played", %{player: player})
       end
@@ -269,11 +287,13 @@ defmodule BlogWeb.WarLive do
           if connected?(socket), do: push_event(socket, "war_triggered", %{})
 
         # Player 1 won the round
-        game_state.player1_card && game_state.player2_card && game_state.player1_card.rank > game_state.player2_card.rank ->
+        game_state.player1_card && game_state.player2_card &&
+            game_state.player1_card.rank > game_state.player2_card.rank ->
           if connected?(socket), do: push_event(socket, "round_won", %{winner: "player1"})
 
         # Player 2 won the round
-        game_state.player1_card && game_state.player2_card && game_state.player2_card.rank > game_state.player1_card.rank ->
+        game_state.player1_card && game_state.player2_card &&
+            game_state.player2_card.rank > game_state.player1_card.rank ->
           if connected?(socket), do: push_event(socket, "round_won", %{winner: "player2"})
 
         # No clear winner (should not happen, but handle it)
@@ -320,7 +340,8 @@ defmodule BlogWeb.WarLive do
   def handle_info({:invitation, invitation}, socket) do
     # Only process invitations sent to this user
     if invitation.to == socket.assigns.user_id do
-      socket = socket
+      socket =
+        socket
         |> assign(:invitations, Map.put(socket.assigns.invitations, invitation.from, invitation))
 
       {:noreply, socket}
@@ -333,7 +354,8 @@ defmodule BlogWeb.WarLive do
   def handle_info({:invitation_declined, invitation}, socket) do
     # Only process invitations sent by this user
     if invitation.from == socket.assigns.user_id do
-      socket = socket
+      socket =
+        socket
         |> assign(:sent_invitations, Map.drop(socket.assigns.sent_invitations, [invitation.to]))
 
       {:noreply, socket}
@@ -345,8 +367,10 @@ defmodule BlogWeb.WarLive do
   @impl true
   def handle_info({:game_started, game_state}, socket) do
     # Only process game starts that involve this user
-    if game_state.player1 == socket.assigns.user_id || game_state.player2 == socket.assigns.user_id do
-      socket = socket
+    if game_state.player1 == socket.assigns.user_id ||
+         game_state.player2 == socket.assigns.user_id do
+      socket =
+        socket
         |> assign(:game_state, game_state)
         |> assign(:invitations, %{})
         |> assign(:sent_invitations, %{})
@@ -411,9 +435,10 @@ defmodule BlogWeb.WarLive do
     game_state = socket.assigns.game_state
 
     if game_state do
-      player_left = Enum.any?(Map.keys(leaves), fn user_id ->
-        user_id == game_state.player1 || user_id == game_state.player2
-      end)
+      player_left =
+        Enum.any?(Map.keys(leaves), fn user_id ->
+          user_id == game_state.player1 || user_id == game_state.player2
+        end)
 
       if player_left do
         assign(socket, :game_state, nil)
@@ -429,18 +454,20 @@ defmodule BlogWeb.WarLive do
   defp update_invitations_after_players_left(socket, left_user_ids) do
     # Remove invitations TO users who left
     # Remove invitations FROM users who left
-    updated_invitations = socket.assigns.invitations
+    updated_invitations =
+      socket.assigns.invitations
       |> Map.drop(left_user_ids)
       |> Enum.reject(fn {_, inv} -> Enum.member?(left_user_ids, inv.from) end)
       |> Map.new()
 
     # Also clean up sent invitations to users who left
-    updated_sent_invitations = socket.assigns.sent_invitations
+    updated_sent_invitations =
+      socket.assigns.sent_invitations
       |> Map.drop(left_user_ids)
 
     socket
-      |> assign(:invitations, updated_invitations)
-      |> assign(:sent_invitations, updated_sent_invitations)
+    |> assign(:invitations, updated_invitations)
+    |> assign(:sent_invitations, updated_sent_invitations)
   end
 
   # Private functions
@@ -450,7 +477,7 @@ defmodule BlogWeb.WarLive do
     {player1_cards, player2_cards} = deal_cards(deck)
 
     %{
-      id: "game_#{:rand.uniform(1000000)}",
+      id: "game_#{:rand.uniform(1_000_000)}",
       player1: player1,
       player2: player2,
       player1_cards: player1_cards,
@@ -508,7 +535,8 @@ defmodule BlogWeb.WarLive do
   defp play_round(game, user_id) do
     # If a war is in progress, explain that cards have already been played automatically
     if game.war_in_progress do
-      game  # Return game unchanged - war is handled automatically
+      # Return game unchanged - war is handled automatically
+      game
     else
       # If we're in scoring phase, don't allow additional card plays
       if game.scoring_phase do
@@ -557,29 +585,33 @@ defmodule BlogWeb.WarLive do
       # Player 1 wins the round
       player1_rank > player2_rank ->
         player1_cards = game.player1_cards ++ war_pile
-        %{game |
-          player1_cards: player1_cards,
-          player2_cards: game.player2_cards,
-          player1_card: nil,
-          player2_card: nil,
-          war_pile: [],
-          war_in_progress: false,
-          scoring_phase: false,
-          winner: check_for_winner(player1_cards, game.player2_cards)
+
+        %{
+          game
+          | player1_cards: player1_cards,
+            player2_cards: game.player2_cards,
+            player1_card: nil,
+            player2_card: nil,
+            war_pile: [],
+            war_in_progress: false,
+            scoring_phase: false,
+            winner: check_for_winner(player1_cards, game.player2_cards)
         }
 
       # Player 2 wins the round
       player2_rank > player1_rank ->
         player2_cards = game.player2_cards ++ war_pile
-        %{game |
-          player1_cards: game.player1_cards,
-          player2_cards: player2_cards,
-          player1_card: nil,
-          player2_card: nil,
-          war_pile: [],
-          war_in_progress: false,
-          scoring_phase: false,
-          winner: check_for_winner(game.player1_cards, player2_cards)
+
+        %{
+          game
+          | player1_cards: game.player1_cards,
+            player2_cards: player2_cards,
+            player1_card: nil,
+            player2_card: nil,
+            war_pile: [],
+            war_in_progress: false,
+            scoring_phase: false,
+            winner: check_for_winner(game.player1_cards, player2_cards)
         }
 
       # War! (equal cards)
@@ -593,28 +625,30 @@ defmodule BlogWeb.WarLive do
     cond do
       # If player 1 has fewer than 2 cards, they lose (need 1 face down, 1 face up)
       length(game.player1_cards) < 2 ->
-        %{game |
-          player1_cards: [],
-          player2_cards: game.player2_cards ++ war_pile,
-          player1_card: nil,
-          player2_card: nil,
-          war_pile: [],
-          war_in_progress: false,
-          scoring_phase: false,
-          winner: "player2"
+        %{
+          game
+          | player1_cards: [],
+            player2_cards: game.player2_cards ++ war_pile,
+            player1_card: nil,
+            player2_card: nil,
+            war_pile: [],
+            war_in_progress: false,
+            scoring_phase: false,
+            winner: "player2"
         }
 
       # If player 2 has fewer than 2 cards, they lose (need 1 face down, 1 face up)
       length(game.player2_cards) < 2 ->
-        %{game |
-          player1_cards: game.player1_cards ++ war_pile,
-          player2_cards: [],
-          player1_card: nil,
-          player2_card: nil,
-          war_pile: [],
-          war_in_progress: false,
-          scoring_phase: false,
-          winner: "player1"
+        %{
+          game
+          | player1_cards: game.player1_cards ++ war_pile,
+            player2_cards: [],
+            player1_card: nil,
+            player2_card: nil,
+            war_pile: [],
+            war_in_progress: false,
+            scoring_phase: false,
+            winner: "player1"
         }
 
       true ->
@@ -638,30 +672,34 @@ defmodule BlogWeb.WarLive do
           face_up_1_rank > face_up_2_rank ->
             # Player 1 gets all cards including face up cards
             player1_cards = new_rest_1 ++ [face_up_1, face_up_2 | updated_war_pile]
-            %{game |
-              player1_cards: player1_cards,
-              player2_cards: new_rest_2,
-              player1_card: nil,
-              player2_card: nil,
-              war_pile: [],
-              war_in_progress: false,
-              scoring_phase: false,
-              winner: check_for_winner(player1_cards, new_rest_2)
+
+            %{
+              game
+              | player1_cards: player1_cards,
+                player2_cards: new_rest_2,
+                player1_card: nil,
+                player2_card: nil,
+                war_pile: [],
+                war_in_progress: false,
+                scoring_phase: false,
+                winner: check_for_winner(player1_cards, new_rest_2)
             }
 
           # Player 2 wins the war
           face_up_2_rank > face_up_1_rank ->
             # Player 2 gets all cards including face up cards
             player2_cards = new_rest_2 ++ [face_up_1, face_up_2 | updated_war_pile]
-            %{game |
-              player1_cards: new_rest_1,
-              player2_cards: player2_cards,
-              player1_card: nil,
-              player2_card: nil,
-              war_pile: [],
-              war_in_progress: false,
-              scoring_phase: false,
-              winner: check_for_winner(new_rest_1, player2_cards)
+
+            %{
+              game
+              | player1_cards: new_rest_1,
+                player2_cards: player2_cards,
+                player1_card: nil,
+                player2_card: nil,
+                war_pile: [],
+                war_in_progress: false,
+                scoring_phase: false,
+                winner: check_for_winner(new_rest_1, player2_cards)
             }
 
           # Another war! (face up cards are equal)
@@ -670,11 +708,12 @@ defmodule BlogWeb.WarLive do
             new_war_pile = [face_up_1, face_up_2 | updated_war_pile]
             # Recursive call to handle the next war
             handle_war(
-              %{game |
-                player1_cards: new_rest_1,
-                player2_cards: new_rest_2,
-                war_pile: new_war_pile,
-                war_in_progress: true
+              %{
+                game
+                | player1_cards: new_rest_1,
+                  player2_cards: new_rest_2,
+                  war_pile: new_war_pile,
+                  war_in_progress: true
               },
               []
             )

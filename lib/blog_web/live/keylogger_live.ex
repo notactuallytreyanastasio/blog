@@ -153,10 +153,10 @@ defmodule BlogWeb.KeyloggerLive do
         <div class="bg-white p-8 rounded-lg shadow-lg max-w-lg" phx-click-away="toggle_modal">
           <div class="prose">
             <p class="font-mono text-gray-800">
-            Write like its a typewriter.
+              Write like its a typewriter.
 
-            No copy or paste. Enter for newline. Backspace works. Thats it.
-            Print screen prints it out like a real typewriter-written letter.
+              No copy or paste. Enter for newline. Backspace works. Thats it.
+              Print screen prints it out like a real typewriter-written letter.
             </p>
           </div>
           <div class="mt-6 flex justify-end">
@@ -172,7 +172,9 @@ defmodule BlogWeb.KeyloggerLive do
     <% end %>
     <div id="content-of-letter" class="mt-4 bg-white" phx-window-keydown="keydown">
       <div class="mb-4 bg-white">
-        <div class="text-black font-mono mb-2 bg-white">THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND</div>
+        <div class="text-black font-mono mb-2 bg-white">
+          THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND
+        </div>
         <pre class="typewriter-text text-4xl bg-white"><%= for char <- String.graphemes(@pressed_keys) do %><%= if :rand.uniform(10) == 1 || :rand.uniform(10) == 2 do %><span class="inline-block animate-spin font-bold"><%= char %></span><% else %><%= char %><% end %><% end %></pre>
       </div>
     </div>

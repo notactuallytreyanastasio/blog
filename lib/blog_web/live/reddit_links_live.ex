@@ -39,7 +39,6 @@ defmodule BlogWeb.RedditLinksLive do
     {:noreply, assign(socket, skeets: updated_skeets)}
   end
 
-
   def render(assigns) do
     ~H"""
     <div class="max-w-4xl mx-auto py-8">
@@ -64,20 +63,20 @@ defmodule BlogWeb.RedditLinksLive do
         <%= for skeet <- @skeets do %>
           <div class="p-4 bg-white rounded-lg shadow-md border border-gray-200 transition-all hover:shadow-lg">
             <div class="prose prose-sm max-w-none">
-                <%= if youtube_id = extract_youtube_id(skeet) do %>
-                  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div class="aspect-w-16 aspect-h-9 w-full">
-                      <iframe
-                        src={"https://www.youtube.com/embed/#{youtube_id}"}
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowfullscreen
-                        class="w-full h-full rounded-lg"
-                      >
-                      </iframe>
-                    </div>
+              <%= if youtube_id = extract_youtube_id(skeet) do %>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div class="aspect-w-16 aspect-h-9 w-full">
+                    <iframe
+                      src={"https://www.youtube.com/embed/#{youtube_id}"}
+                      frameborder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowfullscreen
+                      class="w-full h-full rounded-lg"
+                    >
+                    </iframe>
                   </div>
-                <% end %>
+                </div>
+              <% end %>
             </div>
           </div>
         <% end %>
@@ -112,5 +111,4 @@ defmodule BlogWeb.RedditLinksLive do
         nil
     end
   end
-
 end

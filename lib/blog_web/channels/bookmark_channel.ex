@@ -55,13 +55,13 @@ defmodule BlogWeb.BookmarkChannel do
     }
 
     case Store.add_bookmark(
-      bookmark_data["url"],
-      bookmark_data["title"],
-      bookmark_data["description"],
-      bookmark_data["tags"],
-      bookmark_data["favicon_url"],
-      socket.assigns.user_id
-    ) do
+           bookmark_data["url"],
+           bookmark_data["title"],
+           bookmark_data["description"],
+           bookmark_data["tags"],
+           bookmark_data["favicon_url"],
+           socket.assigns.user_id
+         ) do
       {:ok, bookmark} ->
         broadcast!(socket, "bookmark_added", bookmark)
         BlogWeb.Endpoint.broadcast("bookmark:firehose", "bookmark_added", bookmark)

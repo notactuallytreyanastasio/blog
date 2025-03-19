@@ -38,7 +38,9 @@ defmodule BlogWeb.WordleLive do
         game = Game.new(socket.assigns.player_id)
 
         # Log game creation
-        IO.puts("WordleLive: Created new game session #{game.session_id} for player #{socket.assigns.player_id}")
+        IO.puts(
+          "WordleLive: Created new game session #{game.session_id} for player #{socket.assigns.player_id}"
+        )
 
         # Subscribe to this specific game's topic
         Phoenix.PubSub.subscribe(Blog.PubSub, Game.game_topic(game.session_id))
@@ -64,14 +66,15 @@ defmodule BlogWeb.WordleLive do
       other_games = Map.put(socket.assigns.other_games, session_id, game_state)
 
       # Limit to 12 most recent games
-      other_games = if map_size(other_games) > 12 do
-        other_games
-        |> Enum.sort_by(fn {_id, game} -> game.last_activity end, :desc)
-        |> Enum.take(12)
-        |> Map.new()
-      else
-        other_games
-      end
+      other_games =
+        if map_size(other_games) > 12 do
+          other_games
+          |> Enum.sort_by(fn {_id, game} -> game.last_activity end, :desc)
+          |> Enum.take(12)
+          |> Map.new()
+        else
+          other_games
+        end
 
       {:noreply, assign(socket, :other_games, other_games)}
     end
@@ -96,6 +99,7 @@ defmodule BlogWeb.WordleLive do
   def handle_event("toggle-hard-mode", _params, socket) do
     # Ensure game is initialized
     socket = lazy_load_game(socket)
+
     case Game.toggle_hard_mode(socket.assigns.game) do
       {:ok, game} -> {:noreply, assign(socket, game: game)}
       {:error, game} -> {:noreply, assign(socket, game: game)}
@@ -106,6 +110,7 @@ defmodule BlogWeb.WordleLive do
   def handle_event("key-press", %{"key" => key}, socket) do
     # Ensure game is initialized
     socket = lazy_load_game(socket)
+
     case Game.handle_key_press(socket.assigns.game, key) do
       {:ok, game} ->
         {:noreply, assign(socket, game: game)}
@@ -128,23 +133,23 @@ defmodule BlogWeb.WordleLive do
             <div class="bg-white rounded-sm shadow-sm opacity-30 text-xs">
               <div class="flex justify-between items-center px-1 pt-1">
                 <div class="font-bold truncate max-w-[90%] text-xs">
-                  <%= game.player_id %>
+                  {game.player_id}
                   <span class={[if(game.hard_mode, do: "text-yellow-600", else: "hidden")]}>★</span>
                 </div>
                 <span class="text-xs text-gray-500">
-                  <%= if game.last_activity, do: format_time_ago(game.last_activity), else: "" %>
+                  {if game.last_activity, do: format_time_ago(game.last_activity), else: ""}
                 </span>
               </div>
 
               <div class="text-xs px-1 flex justify-between">
-                <div><%= game.target_word %></div>
+                <div>{game.target_word}</div>
                 <%= cond do %>
                   <% game.game_over && Enum.any?(game.guesses, fn %{word: word} -> word == game.target_word end) -> %>
                     <span class="text-green-600">Won</span>
                   <% game.game_over -> %>
                     <span class="text-red-600">Lost</span>
                   <% true -> %>
-                    <span class="text-blue-600"><%= length(game.guesses) %>/<%= game.max_attempts %></span>
+                    <span class="text-blue-600">{length(game.guesses)}/{game.max_attempts}</span>
                 <% end %>
               </div>
 
@@ -152,8 +157,11 @@ defmodule BlogWeb.WordleLive do
                 <%= for %{word: guess, result: result} <- game.guesses do %>
                   <div class="grid grid-cols-5 gap-[1px]">
                     <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
-                      <div class={["w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold text-white rounded-none uppercase", color_class(status)]}>
-                        <%= letter %>
+                      <div class={[
+                        "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold text-white rounded-none uppercase",
+                        color_class(status)
+                      ]}>
+                        {letter}
                       </div>
                     <% end %>
                   </div>
@@ -162,8 +170,14 @@ defmodule BlogWeb.WordleLive do
                 <%= if length(game.guesses) < game.max_attempts && !game.game_over do %>
                   <div class="grid grid-cols-5 gap-[1px]">
                     <%= for i <- 0..4 do %>
-                      <div class={["w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none uppercase border", if(i < String.length(game.current_guess), do: "border-gray-600", else: "border-gray-300")]}>
-                        <%= String.at(game.current_guess, i) %>
+                      <div class={[
+                        "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none uppercase border",
+                        if(i < String.length(game.current_guess),
+                          do: "border-gray-600",
+                          else: "border-gray-300"
+                        )
+                      ]}>
+                        {String.at(game.current_guess, i)}
                       </div>
                     <% end %>
                   </div>
@@ -182,8 +196,8 @@ defmodule BlogWeb.WordleLive do
           <% end %>
         </div>
       <% end %>
-
-      <!-- Main player's game - centered on screen -->
+      
+    <!-- Main player's game - centered on screen -->
       <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div class="w-full max-w-[min(400px,90vw)] bg-white shadow-xl rounded-lg p-3 pointer-events-auto">
           <div class="flex justify-between items-center mb-1">
@@ -198,7 +212,7 @@ defmodule BlogWeb.WordleLive do
           </div>
 
           <div class="text-[10px] text-gray-500 mb-1">
-            Player ID: <%= @player_id %>
+            Player ID: {@player_id}
           </div>
 
           <%!-- Mobile keyboard input --%>
@@ -219,7 +233,7 @@ defmodule BlogWeb.WordleLive do
                 <div class="grid grid-cols-5 gap-[3px]">
                   <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
                     <div class={"w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold text-white rounded-none uppercase transition-colors duration-500 #{color_class(status)}"}>
-                      <%= letter %>
+                      {letter}
                     </div>
                   <% end %>
                 </div>
@@ -229,7 +243,7 @@ defmodule BlogWeb.WordleLive do
                 <div class="grid grid-cols-5 gap-[3px]">
                   <%= for i <- 0..4 do %>
                     <div class={"w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none uppercase border-2 #{if i < String.length(@game.current_guess), do: "border-gray-600", else: "border-gray-300"}"}>
-                      <%= String.at(@game.current_guess, i) %>
+                      {String.at(@game.current_guess, i)}
                     </div>
                   <% end %>
                 </div>
@@ -246,7 +260,7 @@ defmodule BlogWeb.WordleLive do
                 <% end %>
               <% end %>
             <% else %>
-              <%# When no game exists yet, display an empty board with instructions %>
+              
               <div class="grid grid-cols-5 gap-[3px]">
                 <%= for _j <- 1..5 do %>
                   <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-300">
@@ -266,7 +280,7 @@ defmodule BlogWeb.WordleLive do
 
           <%= if @game && @game.message do %>
             <div class="text-center mb-1 font-bold text-sm">
-              <%= @game.message %>
+              {@game.message}
             </div>
           <% else %>
             <div class="text-center mb-1 font-medium text-sm text-gray-500">
@@ -287,7 +301,7 @@ defmodule BlogWeb.WordleLive do
                     <%= if key == "Backspace" do %>
                       ⌫
                     <% else %>
-                      <%= String.upcase(key) %>
+                      {String.upcase(key)}
                     <% end %>
                   </button>
                 <% end %>
@@ -338,12 +352,14 @@ defmodule BlogWeb.WordleLive do
     case DateTime.from_iso8601(timestamp) do
       {:ok, datetime, _} ->
         seconds_diff = DateTime.diff(DateTime.utc_now(), datetime)
+
         cond do
           seconds_diff < 60 -> "just now"
           seconds_diff < 3600 -> "#{div(seconds_diff, 60)} min ago"
           seconds_diff < 86400 -> "#{div(seconds_diff, 3600)} hours ago"
           true -> "#{div(seconds_diff, 86400)} days ago"
         end
+
       _ ->
         "Unknown"
     end
@@ -353,16 +369,20 @@ defmodule BlogWeb.WordleLive do
 
   defp get_player_id(socket) do
     # First look for a user_id in the session
-    user_id = case socket.assigns[:current_user] do
-      %{id: id} when is_integer(id) -> "user-#{id}"
-      _ ->
-        # Try getting from the socket assigns.session (LiveView stores session here)
-        session = socket.assigns[:session] || %{}
-        case Map.get(session, "user_id") do
-          nil -> nil
-          id -> "user-#{id}"
-        end
-    end
+    user_id =
+      case socket.assigns[:current_user] do
+        %{id: id} when is_integer(id) ->
+          "user-#{id}"
+
+        _ ->
+          # Try getting from the socket assigns.session (LiveView stores session here)
+          session = socket.assigns[:session] || %{}
+
+          case Map.get(session, "user_id") do
+            nil -> nil
+            id -> "user-#{id}"
+          end
+      end
 
     # If we have a user_id, use it, otherwise try connect params or generate a random one
     cond do
@@ -374,6 +394,7 @@ defmodule BlogWeb.WordleLive do
         case get_connect_params(socket) do
           %{"player_id" => player_id} when is_binary(player_id) and player_id != "" ->
             player_id
+
           _ ->
             # Generate a random player ID and store it
             random_id = "player-#{:rand.uniform(10000)}"

@@ -3,17 +3,18 @@ defmodule Blog.Bookmarks.Bookmark do
   Represents a bookmark in the system.
   """
 
-  @derive {Jason.Encoder, only: [:id, :url, :title, :description, :tags, :favicon_url, :user_id, :inserted_at]}
+  @derive {Jason.Encoder,
+           only: [:id, :url, :title, :description, :tags, :favicon_url, :user_id, :inserted_at]}
   @type t :: %__MODULE__{
-    id: String.t(),
-    url: String.t(),
-    title: String.t() | nil,
-    description: String.t() | nil,
-    tags: [String.t()],
-    favicon_url: String.t() | nil,
-    user_id: String.t(),
-    inserted_at: DateTime.t()
-  }
+          id: String.t(),
+          url: String.t(),
+          title: String.t() | nil,
+          description: String.t() | nil,
+          tags: [String.t()],
+          favicon_url: String.t() | nil,
+          user_id: String.t(),
+          inserted_at: DateTime.t()
+        }
 
   defstruct [
     :id,
@@ -53,8 +54,10 @@ defmodule Blog.Bookmarks.Bookmark do
     cond do
       is_nil(bookmark.url) or bookmark.url == "" ->
         {:error, "URL is required"}
+
       is_nil(bookmark.user_id) or bookmark.user_id == "" ->
         {:error, "User ID is required"}
+
       true ->
         {:ok, bookmark}
     end

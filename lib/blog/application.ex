@@ -48,7 +48,7 @@ defmodule Blog.Application do
       Blog.Wordle.WordStore,
       Blog.Wordle.GameStore,
       # Start the Presence service for real-time user tracking
-      BlogWeb.Presence,
+      BlogWeb.Presence
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -87,7 +87,7 @@ defmodule Blog.Application do
         Blog.Wordle.WordStore,
         Blog.Wordle.GameStore,
         # Start the Presence service for real-time user tracking
-        BlogWeb.Presence,
+        BlogWeb.Presence
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
@@ -97,18 +97,21 @@ defmodule Blog.Application do
   # Create all ETS tables safely
   defp create_ets_tables do
     # For each table, check if it exists first
-    Enum.each([
-      {:reddit_links, [:ordered_set, :public, read_concurrency: true]},
-      {:bookmarks_table, [:set, :public, read_concurrency: true]},
-      {:pong_games, [:set, :public]},
-      {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]},
-      {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]}
-    ], fn {table_name, table_opts} ->
-      # Only create if it doesn't exist
-      if :ets.whereis(table_name) == :undefined do
-        :ets.new(table_name, [:named_table | table_opts])
+    Enum.each(
+      [
+        {:reddit_links, [:ordered_set, :public, read_concurrency: true]},
+        {:bookmarks_table, [:set, :public, read_concurrency: true]},
+        {:pong_games, [:set, :public]},
+        {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]},
+        {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]}
+      ],
+      fn {table_name, table_opts} ->
+        # Only create if it doesn't exist
+        if :ets.whereis(table_name) == :undefined do
+          :ets.new(table_name, [:named_table | table_opts])
+        end
       end
-    end)
+    )
   end
 
   # Ensure the SkeetStore is initialized
@@ -118,7 +121,8 @@ defmodule Blog.Application do
       try do
         Blog.SkeetStore.init()
       rescue
-        _ -> :ok  # Ignore any errors during initialization
+        # Ignore any errors during initialization
+        _ -> :ok
       end
     end
   end

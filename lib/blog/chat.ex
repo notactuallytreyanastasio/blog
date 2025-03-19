@@ -18,6 +18,7 @@ defmodule Blog.Chat do
         :ets.new(@table_name, [:ordered_set, :public, :named_table])
         Logger.info("Created new chat message ETS table")
         initialize_rooms()
+
       _ ->
         Logger.debug("Chat message ETS table already exists")
         :ok
@@ -30,6 +31,7 @@ defmodule Blog.Chat do
         # Add some initial banned words (these should be severe ones)
         add_banned_word("somedefaultbannedword")
         Logger.info("Created new banned words ETS table")
+
       _ ->
         Logger.debug("Banned words ETS table already exists")
         :ok
@@ -49,8 +51,10 @@ defmodule Blog.Chat do
         welcome_messages = %{
           "general" => "Welcome to the General chat room! This is where everyone hangs out.",
           "random" => "Welcome to the Random chat room! Random conversations welcome!",
-          "programming" => "Welcome to the Programming chat room! Discuss code, programming languages, and tech.",
-          "music" => "Welcome to the Music chat room! Share your favorite artists, songs, and musical opinions."
+          "programming" =>
+            "Welcome to the Programming chat room! Discuss code, programming languages, and tech.",
+          "music" =>
+            "Welcome to the Music chat room! Share your favorite artists, songs, and musical opinions."
         }
 
         Enum.each(rooms, fn room ->
@@ -63,8 +67,10 @@ defmodule Blog.Chat do
             timestamp: DateTime.utc_now(),
             room: room
           })
+
           Logger.info("Initialized #{room} room with welcome message")
         end)
+
       _ ->
         Logger.debug("Rooms already initialized with welcome messages")
         :ok
@@ -76,6 +82,7 @@ defmodule Blog.Chat do
   """
   def add_banned_word(word) when is_binary(word) do
     lowercase_word = String.downcase(String.trim(word))
+
     if lowercase_word != "" do
       :ets.insert(@banned_words_table, {lowercase_word, true})
       Logger.info("Added new banned word: #{lowercase_word}")
@@ -106,9 +113,10 @@ defmodule Blog.Chat do
     banned_words = get_banned_words()
 
     # Check if any banned word is in the message
-    found_banned_word = Enum.find(banned_words, fn word ->
-      String.contains?(lowercase_message, word)
-    end)
+    found_banned_word =
+      Enum.find(banned_words, fn word ->
+        String.contains?(lowercase_message, word)
+      end)
 
     if found_banned_word do
       Logger.warn("Message contained banned word, rejected")
@@ -129,7 +137,10 @@ defmodule Blog.Chat do
     result = :ets.insert(@table_name, {key, message})
 
     # Debug the actual key structure to ensure consistency
-    Logger.debug("Saved message to ETS with key structure: #{inspect(key)}, result: #{inspect(result)}")
+    Logger.debug(
+      "Saved message to ETS with key structure: #{inspect(key)}, result: #{inspect(result)}"
+    )
+
     Logger.debug("Message content: #{inspect(message)}")
 
     # Debug the current state of the table
@@ -218,9 +229,10 @@ defmodule Blog.Chat do
     end
 
     # Group by room
-    result = all_messages
-    |> Enum.map(fn {{room, _id}, message} -> {room, message} end)
-    |> Enum.group_by(fn {room, _} -> room end, fn {_, message} -> message end)
+    result =
+      all_messages
+      |> Enum.map(fn {{room, _id}, message} -> {room, message} end)
+      |> Enum.group_by(fn {room, _} -> room end, fn {_, message} -> message end)
 
     # Log the count per room
     Enum.each(result, fn {room, msgs} ->
@@ -238,10 +250,11 @@ defmodule Blog.Chat do
     messages = :ets.match_object(@table_name, {{room, :_}, :_})
 
     # Delete them one by one
-    deleted_count = Enum.reduce(messages, 0, fn {{r, id}, _}, acc ->
-      :ets.delete(@table_name, {r, id})
-      acc + 1
-    end)
+    deleted_count =
+      Enum.reduce(messages, 0, fn {{r, id}, _}, acc ->
+        :ets.delete(@table_name, {r, id})
+        acc + 1
+      end)
 
     Logger.info("Cleared #{deleted_count} messages from room #{room}")
     deleted_count

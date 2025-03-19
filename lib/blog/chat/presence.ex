@@ -50,7 +50,8 @@ defmodule Blog.Chat.Presence do
       |> __MODULE__.list()
       |> map_size()
     rescue
-      ArgumentError -> 0  # Return 0 if the presence tracker is not initialized
+      # Return 0 if the presence tracker is not initialized
+      ArgumentError -> 0
     end
   end
 end

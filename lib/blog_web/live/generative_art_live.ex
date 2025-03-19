@@ -6,7 +6,8 @@ defmodule BlogWeb.GenerativeArtLive do
   @ball_speed 5
   @trail_length 100
   @auto_curve_interval 2
-  @background_color "#000000" # Fixed black background
+  # Fixed black background
+  @background_color "#000000"
 
   def mount(_params, _session, socket) do
     viewport_width = 800
@@ -35,7 +36,8 @@ defmodule BlogWeb.GenerativeArtLive do
       })
       |> assign(:trail, [])
       |> assign(:trail_length, @trail_length)
-      |> assign(:background_color, @background_color) # Use the fixed background color
+      # Use the fixed background color
+      |> assign(:background_color, @background_color)
       |> assign(:colors, generate_rainbow_colors(@trail_length))
       |> assign(:curve_count, 0)
       |> assign(:last_auto_curve_time, System.os_time(:second))
@@ -65,17 +67,18 @@ defmodule BlogWeb.GenerativeArtLive do
     time_since_last = current_time - socket.assigns.last_auto_curve_time
 
     # Check if enough time has passed and we're not currently drawing
+    # Increased probability from 30% to 50%
     if socket.assigns.curve_count > 0 &&
-       time_since_last >= @auto_curve_interval &&
-       !socket.assigns.bezier_data.draw &&
-       :rand.uniform(100) < 50 do  # Increased probability from 30% to 50%
-
+         time_since_last >= @auto_curve_interval &&
+         !socket.assigns.bezier_data.draw &&
+         :rand.uniform(100) < 50 do
       bezier_data = %{
         width: socket.assigns.viewport_width,
         height: socket.assigns.viewport_height,
         draw: true,
         progress: 0,
-        reset: false  # Don't clear existing triangles
+        # Don't clear existing triangles
+        reset: false
       }
 
       socket
@@ -106,7 +109,8 @@ defmodule BlogWeb.GenerativeArtLive do
       height: height,
       draw: true,
       progress: 0,
-      reset: true  # Full reset on resize
+      # Full reset on resize
+      reset: true
     }
 
     socket =
@@ -153,7 +157,8 @@ defmodule BlogWeb.GenerativeArtLive do
 
     # Immediately try to add more curves with a higher chance after completion
     current_time = System.os_time(:second)
-    should_add_more = :rand.uniform(100) < 60  # Increased from 40% to 60% chance to immediately add more
+    # Increased from 40% to 60% chance to immediately add more
+    should_add_more = :rand.uniform(100) < 60
 
     socket =
       if should_add_more do
@@ -162,7 +167,8 @@ defmodule BlogWeb.GenerativeArtLive do
           height: socket.assigns.viewport_height,
           draw: true,
           progress: 0,
-          reset: false  # Don't clear existing triangles
+          # Don't clear existing triangles
+          reset: false
         }
 
         socket
@@ -274,8 +280,8 @@ defmodule BlogWeb.GenerativeArtLive do
           data-bezier={Jason.encode!(@bezier_data)}
         >
         </canvas>
-
-        <!-- SVG for ball and trail -->
+        
+    <!-- SVG for ball and trail -->
         <svg width="100%" height="100%" class="absolute inset-0 pointer-events-none">
           <!-- Ball Trail -->
           <%= for {[x, y], index} <- Enum.with_index(@trail) do %>
@@ -287,8 +293,8 @@ defmodule BlogWeb.GenerativeArtLive do
               opacity={1.0}
             />
           <% end %>
-
-          <!-- Ball -->
+          
+    <!-- Ball -->
           <circle
             cx={@ball.x}
             cy={@ball.y}

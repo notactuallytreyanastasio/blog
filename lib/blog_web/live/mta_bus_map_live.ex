@@ -37,6 +37,7 @@ defmodule BlogWeb.MtaBusMapLive do
   @impl true
   def mount(_params, _session, socket) do
     Logger.info("Mounting MtaBusMapLive")
+
     if connected?(socket) do
       :timer.send_interval(30000, self(), :update_buses)
     end
@@ -44,15 +45,16 @@ defmodule BlogWeb.MtaBusMapLive do
     # Start with M21 selected by default
     initial_selected = MapSet.new(["M21"])
 
-    {:ok, assign(socket,
-      buses: %{},
-      error: nil,
-      map_id: "mta-bus-map",
-      selected_routes: initial_selected,
-      all_bus_routes: @all_bus_routes,
-      show_modal: false,
-      page_title: "Manhattan MTA Bus Tracker"
-    )}
+    {:ok,
+     assign(socket,
+       buses: %{},
+       error: nil,
+       map_id: "mta-bus-map",
+       selected_routes: initial_selected,
+       all_bus_routes: @all_bus_routes,
+       show_modal: false,
+       page_title: "Manhattan MTA Bus Tracker"
+     )}
   end
 
   @impl true
@@ -61,23 +63,29 @@ defmodule BlogWeb.MtaBusMapLive do
 
     # Only fetch selected routes
     selected_routes = socket.assigns.selected_routes
-    routes_to_fetch = Map.filter(socket.assigns.all_bus_routes, fn {route, _} -> MapSet.member?(selected_routes, route) end)
 
-    results = Enum.map(routes_to_fetch, fn {route_name, line_ref} ->
-      case Client.fetch_route(line_ref) do
-        {:ok, buses} ->
-          Logger.info("Received #{length(buses)} buses for #{route_name}")
-          %{route: route_name, buses: buses}
-        {:error, error} ->
-          Logger.error("Error fetching #{route_name}: #{inspect(error)}")
-          %{route: route_name, buses: []}
-      end
-    end)
+    routes_to_fetch =
+      Map.filter(socket.assigns.all_bus_routes, fn {route, _} ->
+        MapSet.member?(selected_routes, route)
+      end)
+
+    results =
+      Enum.map(routes_to_fetch, fn {route_name, line_ref} ->
+        case Client.fetch_route(line_ref) do
+          {:ok, buses} ->
+            Logger.info("Received #{length(buses)} buses for #{route_name}")
+            %{route: route_name, buses: buses}
+
+          {:error, error} ->
+            Logger.error("Error fetching #{route_name}: #{inspect(error)}")
+            %{route: route_name, buses: []}
+        end
+      end)
 
     {:noreply,
-      socket
-      |> assign(buses: Map.new(results, fn %{route: route, buses: buses} -> {route, buses} end))
-      |> push_event("update_buses", %{buses: results})}
+     socket
+     |> assign(buses: Map.new(results, fn %{route: route, buses: buses} -> {route, buses} end))
+     |> push_event("update_buses", %{buses: results})}
   end
 
   @impl true
@@ -88,16 +96,18 @@ defmodule BlogWeb.MtaBusMapLive do
   @impl true
   def handle_event("toggle_route", %{"route" => route}, socket) do
     selected_routes = socket.assigns.selected_routes
-    new_selected = if MapSet.member?(selected_routes, route) do
-      MapSet.delete(selected_routes, route)
-    else
-      MapSet.put(selected_routes, route)
-    end
+
+    new_selected =
+      if MapSet.member?(selected_routes, route) do
+        MapSet.delete(selected_routes, route)
+      else
+        MapSet.put(selected_routes, route)
+      end
 
     {:noreply,
-      socket
-      |> assign(selected_routes: new_selected)
-      |> then(fn socket -> handle_info(:update_buses, socket) |> elem(1) end)}
+     socket
+     |> assign(selected_routes: new_selected)
+     |> then(fn socket -> handle_info(:update_buses, socket) |> elem(1) end)}
   end
 
   @impl true
@@ -109,8 +119,18 @@ defmodule BlogWeb.MtaBusMapLive do
   def render(assigns) do
     ~H"""
     <div class="h-screen flex flex-col">
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/KFQW0q+MJTEXx+bCw=" crossorigin="" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+      <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/KFQW0q+MJTEXx+bCw="
+        crossorigin=""
+      />
+      <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+      >
+      </script>
 
       <div class="p-4 bg-white">
         <div class="flex justify-between items-center mb-4">
@@ -132,14 +152,14 @@ defmodule BlogWeb.MtaBusMapLive do
         </div>
 
         <%= if @error do %>
-          <p class="text-red-500 mb-4"><%= @error %></p>
+          <p class="text-red-500 mb-4">{@error}</p>
         <% end %>
 
         <%= if map_size(@buses) > 0 do %>
           <div class="bg-white shadow rounded-lg p-4 mb-4">
             <div class="text-green-500 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               <%= for {route, buses} <- @buses do %>
-                <div><%= route %>: <%= length(buses) %> buses</div>
+                <div>{route}: {length(buses)} buses</div>
               <% end %>
             </div>
           </div>
@@ -162,14 +182,22 @@ defmodule BlogWeb.MtaBusMapLive do
                       class="rounded-md bg-white text-gray-400 hover:text-gray-500"
                     >
                       <span class="sr-only">Close</span>
-                      <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <svg
+                        class="h-6 w-6"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                      >
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   </div>
                   <div class="sm:flex sm:items-start">
                     <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                      <h3 class="text-xl font-semibold leading-6 text-gray-900 mb-4">Select Bus Routes</h3>
+                      <h3 class="text-xl font-semibold leading-6 text-gray-900 mb-4">
+                        Select Bus Routes
+                      </h3>
                       <div class="mt-2">
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                           <div class="col-span-full mb-2 font-bold text-lg">Crosstown Routes</div>
@@ -182,7 +210,7 @@ defmodule BlogWeb.MtaBusMapLive do
                                 phx-value-route={route}
                                 class="form-checkbox h-4 w-4 text-blue-600"
                               />
-                              <span><%= route %></span>
+                              <span>{route}</span>
                             </label>
                           <% end %>
 
@@ -196,11 +224,13 @@ defmodule BlogWeb.MtaBusMapLive do
                                 phx-value-route={route}
                                 class="form-checkbox h-4 w-4 text-blue-600"
                               />
-                              <span><%= route %></span>
+                              <span>{route}</span>
                             </label>
                           <% end %>
 
-                          <div class="col-span-full mb-2 font-bold text-lg">Other Manhattan Routes</div>
+                          <div class="col-span-full mb-2 font-bold text-lg">
+                            Other Manhattan Routes
+                          </div>
                           <%= for {route, _} <- Enum.filter(assigns.all_bus_routes, fn {k, _} -> String.match?(k, ~r/M(20|42|50|57|66|72|79|86)/) end) do %>
                             <label class="flex items-center space-x-2">
                               <input
@@ -210,7 +240,7 @@ defmodule BlogWeb.MtaBusMapLive do
                                 phx-value-route={route}
                                 class="form-checkbox h-4 w-4 text-blue-600"
                               />
-                              <span><%= route %></span>
+                              <span>{route}</span>
                             </label>
                           <% end %>
                         </div>
