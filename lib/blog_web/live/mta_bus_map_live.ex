@@ -316,14 +316,6 @@ defmodule BlogWeb.MtaBusMapLive do
   def handle_event("select_borough", %{"borough" => borough}, socket) do
     borough_atom = String.to_existing_atom(borough)
 
-    routes =
-      case borough_atom do
-        :manhattan -> @manhattan_bus_routes
-        :brooklyn -> @brooklyn_bus_routes
-        :queens -> @queens_bus_routes
-        :all -> @all_bus_routes
-      end
-
     borough_name =
       case borough_atom do
         :manhattan -> "Manhattan"
@@ -387,38 +379,6 @@ defmodule BlogWeb.MtaBusMapLive do
           </h1>
 
           <div class="flex flex-wrap gap-2">
-            <!-- Borough Selection Buttons -->
-            <div class="flex gap-1 flex-wrap">
-              <button
-                phx-click="select_borough"
-                phx-value-borough="manhattan"
-                class={"px-3 py-1.5 text-sm font-medium rounded-l-md #{if @active_borough == :manhattan, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
-              >
-                Manhattan
-              </button>
-              <button
-                phx-click="select_borough"
-                phx-value-borough="brooklyn"
-                class={"px-3 py-1.5 text-sm font-medium #{if @active_borough == :brooklyn, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
-              >
-                Brooklyn
-              </button>
-              <button
-                phx-click="select_borough"
-                phx-value-borough="queens"
-                class={"px-3 py-1.5 text-sm font-medium #{if @active_borough == :queens, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
-              >
-                Queens
-              </button>
-              <button
-                phx-click="select_borough"
-                phx-value-borough="all"
-                class={"rounded-r-md px-3 py-1.5 text-sm font-medium #{if @active_borough == :all, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
-              >
-                All
-              </button>
-            </div>
-
             <button
               phx-click="toggle_modal"
               class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base"
@@ -443,11 +403,125 @@ defmodule BlogWeb.MtaBusMapLive do
           </div>
         </div>
 
+        <!-- Borough Selection Buttons -->
+        <div class="mb-4">
+          <div class="text-sm text-gray-500 mb-1">Select Borough:</div>
+          <div class="flex flex-wrap gap-1">
+            <button
+              phx-click="select_borough"
+              phx-value-borough="all"
+              class={"px-3 py-1.5 text-sm font-medium rounded #{if @active_borough == :all, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"} #{if @loading, do: "opacity-75 cursor-wait", else: ""}"}
+              disabled={@loading}
+            >
+              <%= if @loading && @active_borough == :all do %>
+                <span class="flex items-center">
+                  <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  All Boroughs
+                </span>
+              <% else %>
+                All Boroughs
+              <% end %>
+            </button>
+            <button
+              phx-click="select_borough"
+              phx-value-borough="manhattan"
+              class={"px-3 py-1.5 text-sm font-medium rounded #{if @active_borough == :manhattan, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"} #{if @loading, do: "opacity-75 cursor-wait", else: ""}"}
+              disabled={@loading}
+            >
+              <div class="flex items-center">
+                <div class="w-3 h-3 rounded-full bg-red-500 mr-1.5"></div>
+                <%= if @loading && @active_borough == :manhattan do %>
+                  <span class="flex items-center">
+                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Manhattan
+                  </span>
+                <% else %>
+                  Manhattan
+                <% end %>
+              </div>
+            </button>
+            <button
+              phx-click="select_borough"
+              phx-value-borough="brooklyn"
+              class={"px-3 py-1.5 text-sm font-medium rounded #{if @active_borough == :brooklyn, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"} #{if @loading, do: "opacity-75 cursor-wait", else: ""}"}
+              disabled={@loading}
+            >
+              <div class="flex items-center">
+                <div class="w-3 h-3 rounded-full bg-purple-500 mr-1.5"></div>
+                <%= if @loading && @active_borough == :brooklyn do %>
+                  <span class="flex items-center">
+                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Brooklyn
+                  </span>
+                <% else %>
+                  Brooklyn
+                <% end %>
+              </div>
+            </button>
+            <button
+              phx-click="select_borough"
+              phx-value-borough="queens"
+              class={"px-3 py-1.5 text-sm font-medium rounded #{if @active_borough == :queens, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"} #{if @loading, do: "opacity-75 cursor-wait", else: ""}"}
+              disabled={@loading}
+            >
+              <div class="flex items-center">
+                <div class="w-3 h-3 rounded-full bg-green-500 mr-1.5"></div>
+                <%= if @loading && @active_borough == :queens do %>
+                  <span class="flex items-center">
+                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Queens
+                  </span>
+                <% else %>
+                  Queens
+                <% end %>
+              </div>
+            </button>
+          </div>
+
+          <div class="mt-2">
+            <button
+              phx-click="select_all_borough_routes"
+              phx-value-borough={@active_borough}
+              class="px-4 py-1.5 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded transition-colors"
+              disabled={@loading}
+            >
+              <%= if @loading do %>
+                <span class="flex items-center">
+                  <svg class="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Loading...
+                </span>
+              <% else %>
+                Select All <%= case @active_borough do
+                  :manhattan -> "Manhattan"
+                  :brooklyn -> "Brooklyn"
+                  :queens -> "Queens"
+                  :all -> "Boroughs"
+                end %> Routes
+              <% end %>
+            </button>
+          </div>
+        </div>
+
         <%= if @error do %>
           <p class="text-red-500 text-sm mb-2"><%= @error %></p>
         <% end %>
 
-        <div class="flex-1 relative" style="min-height: calc(100vh - 130px);">
+        <div class="flex-1 relative" style="min-height: calc(100vh - 180px);">
           <div id={@map_id} class="absolute inset-0 z-0" phx-hook="MtaBusMap" phx-update="ignore"></div>
         </div>
 
