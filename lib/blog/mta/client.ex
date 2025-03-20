@@ -212,8 +212,59 @@ defmodule Blog.Mta.Client do
     "Q70-SBS" => "MTA NYCT_Q70+"
   }
 
+  # Bronx routes - Using the exact format as we see in the logs for Bx23
+  @bronx_routes %{
+    # Local routes
+    "Bx1" => "MTABC_BX1",
+    "Bx2" => "MTABC_BX2",
+    "Bx3" => "MTABC_BX3",
+    "Bx4" => "MTABC_BX4",
+    "Bx4A" => "MTABC_BX4A",
+    "Bx5" => "MTABC_BX5",
+    "Bx6" => "MTABC_BX6",
+    "Bx7" => "MTABC_BX7",
+    "Bx8" => "MTABC_BX8",
+    "Bx9" => "MTABC_BX9",
+    "Bx10" => "MTABC_BX10",
+    "Bx11" => "MTABC_BX11",
+    "Bx12" => "MTABC_BX12",
+    "Bx13" => "MTABC_BX13",
+    "Bx15" => "MTABC_BX15",
+    "Bx16" => "MTABC_BX16",
+    "Bx17" => "MTABC_BX17",
+    "Bx18" => "MTABC_BX18",
+    "Bx19" => "MTABC_BX19",
+    "Bx20" => "MTABC_BX20",
+    "Bx21" => "MTABC_BX21",
+    "Bx22" => "MTABC_BX22",
+    "Bx23" => "MTABC_BX23",
+    "Bx24" => "MTABC_BX24",
+    "Bx26" => "MTABC_BX26",
+    "Bx27" => "MTABC_BX27",
+    "Bx28" => "MTABC_BX28",
+    "Bx29" => "MTABC_BX29",
+    "Bx30" => "MTABC_BX30",
+    "Bx31" => "MTABC_BX31",
+    "Bx32" => "MTABC_BX32",
+    "Bx33" => "MTABC_BX33",
+    "Bx34" => "MTABC_BX34",
+    "Bx35" => "MTABC_BX35",
+    "Bx36" => "MTABC_BX36",
+    "Bx38" => "MTABC_BX38",
+    "Bx39" => "MTABC_BX39",
+    "Bx40" => "MTABC_BX40",
+    "Bx41" => "MTABC_BX41",
+    "Bx42" => "MTABC_BX42",
+    "Bx46" => "MTABC_BX46",
+    "Bx99" => "MTABC_BX99",
+    # Select Bus Service (SBS)
+    "Bx6-SBS" => "MTABC_BX6+",
+    "Bx12-SBS" => "MTABC_BX12+",
+    "Bx41-SBS" => "MTABC_BX41+"
+  }
+
   # Combine all routes for backwards compatibility
-  @all_routes Map.merge(Map.merge(@manhattan_routes, @brooklyn_routes), @queens_routes)
+  @all_routes Map.merge(Map.merge(Map.merge(@manhattan_routes, @brooklyn_routes), @queens_routes), @bronx_routes)
 
   @doc """
   Fetch buses for all routes.
@@ -246,16 +297,20 @@ defmodule Blog.Mta.Client do
   def get_routes(:manhattan), do: @manhattan_routes
   def get_routes(:brooklyn), do: @brooklyn_routes
   def get_routes(:queens), do: @queens_routes
+  def get_routes(:bronx), do: @bronx_routes
   def get_routes(:all), do: @all_routes
   def get_routes(_), do: @all_routes
 
   @spec fetch_route(any()) :: {:error, <<_::64, _::_*8>>} | {:ok, list()}
   def fetch_route(line_ref) do
+    # Determine the correct operator based on the line_ref
+    operator_ref = if String.starts_with?(line_ref, "MTABC_"), do: "MTABC", else: "MTA NYCT"
+
     params = %{
       key: @api_key,
       version: 2,
       LineRef: line_ref,
-      OperatorRef: "MTA NYCT",
+      OperatorRef: operator_ref,
       VehicleMonitoringDetailLevel: "normal"
     }
 
@@ -263,8 +318,44 @@ defmodule Blog.Mta.Client do
 
     case Req.get(@base_url, params: params) do
       {:ok, %{status: 200, body: body}} ->
-        Logger.info("Response for #{line_ref}: #{inspect(body)}")
-        {:ok, parse_response(body)}
+        # Check if we have a valid response with vehicle data
+        delivery = get_in(body, ["Siri", "ServiceDelivery", "VehicleMonitoringDelivery"])
+
+        # Log detailed info about the response structure for diagnostic purposes
+        Logger.info("Response for #{line_ref} structure: #{inspect(Map.keys(body))}")
+        if delivery do
+          first_delivery = List.first(delivery)
+          Logger.info("  Delivery keys: #{inspect(Map.keys(first_delivery))}")
+
+          if first_delivery["ErrorCondition"] do
+            Logger.info("  Error condition: #{inspect(first_delivery["ErrorCondition"])}")
+          end
+
+          if first_delivery["VehicleActivity"] do
+            vehicles = first_delivery["VehicleActivity"]
+            Logger.info("  Found #{length(vehicles)} vehicles")
+          else
+            Logger.info("  No vehicles found in response")
+          end
+        end
+
+        has_vehicles = delivery && List.first(delivery) |> Map.has_key?("VehicleActivity")
+
+        if has_vehicles do
+          buses = parse_response(body)
+          Logger.info("Parsed #{length(buses)} buses for #{line_ref}")
+
+          # Log some details about the first bus to help debug
+          if length(buses) > 0 do
+            first_bus = List.first(buses)
+            Logger.info("Sample bus data: #{inspect(first_bus)}")
+          end
+
+          {:ok, buses}
+        else
+          Logger.info("No vehicles found for #{line_ref}")
+          {:ok, []}
+        end
 
       {:ok, %{status: status, body: body}} ->
         Logger.error("Error fetching route: #{status}, #{inspect(body)}")

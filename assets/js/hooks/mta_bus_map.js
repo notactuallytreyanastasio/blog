@@ -201,7 +201,54 @@ const MtaBusMap = {
       'Q110': '#1B5E20',        // Green 900
       'Q111': '#2E7D32',        // Green 800
       'Q112': '#388E3C',        // Green 700
-      'Q113': '#43A047'         // Green 600
+      'Q113': '#43A047',        // Green 600
+
+      // Bronx Routes - yellowish/amber colors
+      'Bx1': '#FFC107',         // Amber 500
+      'Bx2': '#FFD54F',         // Amber 300
+      'Bx3': '#FFE082',         // Amber 200
+      'Bx4': '#FFECB3',         // Amber 100
+      'Bx4A': '#FFF8E1',        // Amber 50
+      'Bx5': '#FFB300',         // Amber 600
+      'Bx6': '#FFA000',         // Amber 700
+      'Bx6-SBS': '#FFCA28',     // Amber 400
+      'Bx7': '#FF8F00',         // Amber 800
+      'Bx8': '#FF6F00',         // Amber 900
+      'Bx9': '#FFAB00',         // Amber A700
+      'Bx10': '#FFD740',        // Amber A200
+      'Bx11': '#FFC400',        // Amber A400
+      'Bx12': '#FFAB00',        // Amber A700
+      'Bx12-SBS': '#FFB300',    // Amber 600
+      'Bx13': '#FFC107',        // Amber 500
+      'Bx15': '#FFD54F',        // Amber 300
+      'Bx16': '#FFE082',        // Amber 200
+      'Bx17': '#FFECB3',        // Amber 100
+      'Bx18': '#FFF8E1',        // Amber 50
+      'Bx19': '#FFB300',        // Amber 600
+      'Bx20': '#FFA000',        // Amber 700
+      'Bx21': '#FF8F00',        // Amber 800
+      'Bx22': '#FF6F00',        // Amber 900
+      'Bx23': '#FFAB00',        // Amber A700
+      'Bx24': '#FFD740',        // Amber A200
+      'Bx26': '#FFC400',        // Amber A400
+      'Bx27': '#FFAB00',        // Amber A700
+      'Bx28': '#FFC107',        // Amber 500
+      'Bx29': '#FFD54F',        // Amber 300
+      'Bx30': '#FFE082',        // Amber 200
+      'Bx31': '#FFECB3',        // Amber 100
+      'Bx32': '#FFF8E1',        // Amber 50
+      'Bx33': '#FFB300',        // Amber 600
+      'Bx34': '#FFA000',        // Amber 700
+      'Bx35': '#FF8F00',        // Amber 800
+      'Bx36': '#FF6F00',        // Amber 900
+      'Bx38': '#FFAB00',        // Amber A700
+      'Bx39': '#FFD740',        // Amber A200
+      'Bx40': '#FFC400',        // Amber A400
+      'Bx41': '#FFAB00',        // Amber A700
+      'Bx41-SBS': '#FFA000',    // Amber 700
+      'Bx42': '#FFC107',        // Amber 500
+      'Bx46': '#FFD54F',        // Amber 300
+      'Bx99': '#FFE082'         // Amber 200
     };
 
     const initMap = () => {
@@ -333,7 +380,8 @@ const MtaBusMap = {
       const routeCounts = {
         'M': 0, // Manhattan
         'B': 0, // Brooklyn
-        'Q': 0  // Queens
+        'Q': 0,  // Queens
+        'Bx': 0  // Bronx
       };
 
       // Update or create markers for each bus
@@ -346,6 +394,7 @@ const MtaBusMap = {
         if (route.startsWith('M')) routeCounts.M += buses.length;
         if (route.startsWith('B')) routeCounts.B += buses.length;
         if (route.startsWith('Q')) routeCounts.Q += buses.length;
+        if (route.startsWith('Bx')) routeCounts.Bx += buses.length;
 
         console.log(`Route ${route}: ${buses.length} buses, color: ${color}`);
 
@@ -457,7 +506,7 @@ const MtaBusMap = {
         }
       });
 
-      console.log(`Total active buses: ${activeBusIds.size}, by borough: Manhattan: ${routeCounts.M}, Brooklyn: ${routeCounts.B}, Queens: ${routeCounts.Q}`);
+      console.log(`Total active buses: ${activeBusIds.size}, by borough: Manhattan: ${routeCounts.M}, Brooklyn: ${routeCounts.B}, Queens: ${routeCounts.Q}, Bronx: ${routeCounts.Bx}`);
     };
 
     // Initialize map when mounted
