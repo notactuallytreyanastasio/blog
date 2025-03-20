@@ -7,16 +7,18 @@ defmodule BlogWeb.MTAComponents do
   ## Props
 
   * `show` - boolean indicating whether the modal should be displayed
-  * `active_borough` - the currently active borough (:manhattan, :brooklyn, or :all)
+  * `active_borough` - the currently active borough (:manhattan, :brooklyn, :queens, or :all)
   * `selected_routes` - a MapSet containing the currently selected routes
   * `manhattan_bus_routes` - a map of Manhattan bus routes
   * `brooklyn_bus_routes` - a map of Brooklyn bus routes
+  * `queens_bus_routes` - a map of Queens bus routes
   """
   attr :show, :boolean, required: true
   attr :active_borough, :atom, required: true
   attr :selected_routes, :any, required: true
   attr :manhattan_bus_routes, :map, required: true
   attr :brooklyn_bus_routes, :map, required: true
+  attr :queens_bus_routes, :map, required: true
 
   def bus_route_selection_modal(assigns) do
     ~H"""
@@ -58,6 +60,7 @@ defmodule BlogWeb.MTAComponents do
                           Select All <%= case @active_borough do %>
                             <% :manhattan -> %>Manhattan
                             <% :brooklyn -> %>Brooklyn
+                            <% :queens -> %>Queens
                             <% :all -> %>
                           <% end %>
                         </button>
@@ -72,25 +75,32 @@ defmodule BlogWeb.MTAComponents do
 
                     <!-- Bus Route Selection Tabs -->
                     <div class="border-b border-gray-200 mb-4">
-                      <nav class="-mb-px flex" aria-label="Borough tabs">
+                      <nav class="-mb-px flex flex-wrap" aria-label="Borough tabs">
                         <button
                           phx-click="select_borough"
                           phx-value-borough="manhattan"
-                          class={"w-1/3 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :manhattan, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
+                          class={"w-1/4 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :manhattan, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
                         >
                           Manhattan
                         </button>
                         <button
                           phx-click="select_borough"
                           phx-value-borough="brooklyn"
-                          class={"w-1/3 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :brooklyn, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
+                          class={"w-1/4 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :brooklyn, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
                         >
                           Brooklyn
                         </button>
                         <button
                           phx-click="select_borough"
+                          phx-value-borough="queens"
+                          class={"w-1/4 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :queens, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
+                        >
+                          Queens
+                        </button>
+                        <button
+                          phx-click="select_borough"
                           phx-value-borough="all"
-                          class={"w-1/3 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :all, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
+                          class={"w-1/4 py-2 px-1 border-b-2 text-sm font-medium #{if @active_borough == :all, do: "border-blue-500 text-blue-600", else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}"}
                         >
                           All Routes
                         </button>
@@ -173,6 +183,44 @@ defmodule BlogWeb.MTAComponents do
 
                             <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Brooklyn SBS Routes</div>
                             <%= for {route, _} <- Enum.filter(@brooklyn_bus_routes, fn {k, _} ->
+                              String.contains?(k, "-SBS")
+                            end) |> Enum.sort() do %>
+                              <label class="flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base">
+                                <input
+                                  type="checkbox"
+                                  checked={MapSet.member?(@selected_routes, route)}
+                                  phx-click="toggle_route"
+                                  phx-value-route={route}
+                                  class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
+                                />
+                                <span><%= route %></span>
+                              </label>
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%= if @active_borough == :queens || @active_borough == :all do %>
+                        <div>
+                          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Queens Routes</div>
+                            <%= for {route, _} <- Enum.filter(@queens_bus_routes, fn {k, _} ->
+                              String.match?(k, ~r/^Q\d+[A-Z]?$/)
+                            end) |> Enum.sort() do %>
+                              <label class="flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base">
+                                <input
+                                  type="checkbox"
+                                  checked={MapSet.member?(@selected_routes, route)}
+                                  phx-click="toggle_route"
+                                  phx-value-route={route}
+                                  class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
+                                />
+                                <span><%= route %></span>
+                              </label>
+                            <% end %>
+
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Queens SBS Routes</div>
+                            <%= for {route, _} <- Enum.filter(@queens_bus_routes, fn {k, _} ->
                               String.contains?(k, "-SBS")
                             end) |> Enum.sort() do %>
                               <label class="flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base">

@@ -122,8 +122,98 @@ defmodule BlogWeb.MtaBusMapLive do
     "B82-SBS" => "MTA NYCT_B82+"
   }
 
-  # All routes (both Manhattan and Brooklyn)
-  @all_bus_routes Map.merge(@manhattan_bus_routes, @brooklyn_bus_routes)
+  # Queens bus routes
+  @queens_bus_routes %{
+    # Local routes
+    "Q1" => "MTA NYCT_Q1",
+    "Q2" => "MTA NYCT_Q2",
+    "Q3" => "MTA NYCT_Q3",
+    "Q4" => "MTA NYCT_Q4",
+    "Q5" => "MTA NYCT_Q5",
+    "Q6" => "MTA NYCT_Q6",
+    "Q7" => "MTA NYCT_Q7",
+    "Q8" => "MTA NYCT_Q8",
+    "Q9" => "MTA NYCT_Q9",
+    "Q10" => "MTA NYCT_Q10",
+    "Q11" => "MTA NYCT_Q11",
+    "Q12" => "MTA NYCT_Q12",
+    "Q13" => "MTA NYCT_Q13",
+    "Q15" => "MTA NYCT_Q15",
+    "Q15A" => "MTA NYCT_Q15A",
+    "Q16" => "MTA NYCT_Q16",
+    "Q17" => "MTA NYCT_Q17",
+    "Q18" => "MTA NYCT_Q18",
+    "Q19" => "MTA NYCT_Q19",
+    "Q20A" => "MTA NYCT_Q20A",
+    "Q20B" => "MTA NYCT_Q20B",
+    "Q21" => "MTA NYCT_Q21",
+    "Q22" => "MTA NYCT_Q22",
+    "Q23" => "MTA NYCT_Q23",
+    "Q24" => "MTA NYCT_Q24",
+    "Q25" => "MTA NYCT_Q25",
+    "Q26" => "MTA NYCT_Q26",
+    "Q27" => "MTA NYCT_Q27",
+    "Q28" => "MTA NYCT_Q28",
+    "Q29" => "MTA NYCT_Q29",
+    "Q30" => "MTA NYCT_Q30",
+    "Q31" => "MTA NYCT_Q31",
+    "Q32" => "MTA NYCT_Q32",
+    "Q33" => "MTA NYCT_Q33",
+    "Q34" => "MTA NYCT_Q34",
+    "Q35" => "MTA NYCT_Q35",
+    "Q36" => "MTA NYCT_Q36",
+    "Q37" => "MTA NYCT_Q37",
+    "Q38" => "MTA NYCT_Q38",
+    "Q39" => "MTA NYCT_Q39",
+    "Q40" => "MTA NYCT_Q40",
+    "Q41" => "MTA NYCT_Q41",
+    "Q42" => "MTA NYCT_Q42",
+    "Q43" => "MTA NYCT_Q43",
+    "Q44" => "MTA NYCT_Q44",
+    "Q46" => "MTA NYCT_Q46",
+    "Q47" => "MTA NYCT_Q47",
+    "Q48" => "MTA NYCT_Q48",
+    "Q49" => "MTA NYCT_Q49",
+    "Q50" => "MTA NYCT_Q50",
+    "Q52" => "MTA NYCT_Q52",
+    "Q53" => "MTA NYCT_Q53",
+    "Q54" => "MTA NYCT_Q54",
+    "Q55" => "MTA NYCT_Q55",
+    "Q56" => "MTA NYCT_Q56",
+    "Q58" => "MTA NYCT_Q58",
+    "Q59" => "MTA NYCT_Q59",
+    "Q60" => "MTA NYCT_Q60",
+    "Q64" => "MTA NYCT_Q64",
+    "Q65" => "MTA NYCT_Q65",
+    "Q66" => "MTA NYCT_Q66",
+    "Q67" => "MTA NYCT_Q67",
+    "Q69" => "MTA NYCT_Q69",
+    "Q70" => "MTA NYCT_Q70",
+    "Q72" => "MTA NYCT_Q72",
+    "Q76" => "MTA NYCT_Q76",
+    "Q77" => "MTA NYCT_Q77",
+    "Q83" => "MTA NYCT_Q83",
+    "Q84" => "MTA NYCT_Q84",
+    "Q85" => "MTA NYCT_Q85",
+    "Q88" => "MTA NYCT_Q88",
+    "Q100" => "MTA NYCT_Q100",
+    "Q101" => "MTA NYCT_Q101",
+    "Q102" => "MTA NYCT_Q102",
+    "Q103" => "MTA NYCT_Q103",
+    "Q104" => "MTA NYCT_Q104",
+    "Q110" => "MTA NYCT_Q110",
+    "Q111" => "MTA NYCT_Q111",
+    "Q112" => "MTA NYCT_Q112",
+    "Q113" => "MTA NYCT_Q113",
+    # Select Bus Service (SBS)
+    "Q44-SBS" => "MTA NYCT_Q44+",
+    "Q52-SBS" => "MTA NYCT_Q52+",
+    "Q53-SBS" => "MTA NYCT_Q53+",
+    "Q70-SBS" => "MTA NYCT_Q70+"
+  }
+
+  # All routes (Manhattan, Brooklyn, and Queens)
+  @all_bus_routes Map.merge(Map.merge(@manhattan_bus_routes, @brooklyn_bus_routes), @queens_bus_routes)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -145,6 +235,7 @@ defmodule BlogWeb.MtaBusMapLive do
        all_bus_routes: @all_bus_routes,
        manhattan_bus_routes: @manhattan_bus_routes,
        brooklyn_bus_routes: @brooklyn_bus_routes,
+       queens_bus_routes: @queens_bus_routes,
        active_borough: :manhattan,
        show_modal: false,
        loading: false,
@@ -229,6 +320,7 @@ defmodule BlogWeb.MtaBusMapLive do
       case borough_atom do
         :manhattan -> @manhattan_bus_routes
         :brooklyn -> @brooklyn_bus_routes
+        :queens -> @queens_bus_routes
         :all -> @all_bus_routes
       end
 
@@ -236,6 +328,7 @@ defmodule BlogWeb.MtaBusMapLive do
       case borough_atom do
         :manhattan -> "Manhattan"
         :brooklyn -> "Brooklyn"
+        :queens -> "Queens"
         :all -> "All Boroughs"
       end
 
@@ -253,6 +346,7 @@ defmodule BlogWeb.MtaBusMapLive do
       case borough_atom do
         :manhattan -> @manhattan_bus_routes
         :brooklyn -> @brooklyn_bus_routes
+        :queens -> @queens_bus_routes
         :all -> @all_bus_routes
       end
 
@@ -287,17 +381,18 @@ defmodule BlogWeb.MtaBusMapLive do
             <%= case @active_borough do %>
               <% :manhattan -> %>Manhattan
               <% :brooklyn -> %>Brooklyn
+              <% :queens -> %>Queens
               <% :all -> %>All Boroughs
             <% end %> MTA Bus Tracker
           </h1>
 
           <div class="flex flex-wrap gap-2">
             <!-- Borough Selection Buttons -->
-            <div class="flex gap-1">
+            <div class="flex gap-1 flex-wrap">
               <button
                 phx-click="select_borough"
                 phx-value-borough="manhattan"
-                class={"rounded-l-md px-3 py-1.5 text-sm font-medium #{if @active_borough == :manhattan, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
+                class={"px-3 py-1.5 text-sm font-medium rounded-l-md #{if @active_borough == :manhattan, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
               >
                 Manhattan
               </button>
@@ -307,6 +402,13 @@ defmodule BlogWeb.MtaBusMapLive do
                 class={"px-3 py-1.5 text-sm font-medium #{if @active_borough == :brooklyn, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
               >
                 Brooklyn
+              </button>
+              <button
+                phx-click="select_borough"
+                phx-value-borough="queens"
+                class={"px-3 py-1.5 text-sm font-medium #{if @active_borough == :queens, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"}"}
+              >
+                Queens
               </button>
               <button
                 phx-click="select_borough"
@@ -355,6 +457,7 @@ defmodule BlogWeb.MtaBusMapLive do
           selected_routes={@selected_routes}
           manhattan_bus_routes={@manhattan_bus_routes}
           brooklyn_bus_routes={@brooklyn_bus_routes}
+          queens_bus_routes={@queens_bus_routes}
         />
 
         <style>
