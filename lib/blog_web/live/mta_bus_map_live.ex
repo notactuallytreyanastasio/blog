@@ -212,59 +212,8 @@ defmodule BlogWeb.MtaBusMapLive do
     "Q70-SBS" => "MTA NYCT_Q70+"
   }
 
-  # Bronx bus routes
-  @bronx_bus_routes %{
-    # Local routes
-    "Bx1" => "MTABC_BX1",
-    "Bx2" => "MTABC_BX2",
-    "Bx3" => "MTABC_BX3",
-    "Bx4" => "MTABC_BX4",
-    "Bx4A" => "MTABC_BX4A",
-    "Bx5" => "MTABC_BX5",
-    "Bx6" => "MTABC_BX6",
-    "Bx7" => "MTABC_BX7",
-    "Bx8" => "MTABC_BX8",
-    "Bx9" => "MTABC_BX9",
-    "Bx10" => "MTABC_BX10",
-    "Bx11" => "MTABC_BX11",
-    "Bx12" => "MTABC_BX12",
-    "Bx13" => "MTABC_BX13",
-    "Bx15" => "MTABC_BX15",
-    "Bx16" => "MTABC_BX16",
-    "Bx17" => "MTABC_BX17",
-    "Bx18" => "MTABC_BX18",
-    "Bx19" => "MTABC_BX19",
-    "Bx20" => "MTABC_BX20",
-    "Bx21" => "MTABC_BX21",
-    "Bx22" => "MTABC_BX22",
-    "Bx23" => "MTABC_BX23",
-    "Bx24" => "MTABC_BX24",
-    "Bx26" => "MTABC_BX26",
-    "Bx27" => "MTABC_BX27",
-    "Bx28" => "MTABC_BX28",
-    "Bx29" => "MTABC_BX29",
-    "Bx30" => "MTABC_BX30",
-    "Bx31" => "MTABC_BX31",
-    "Bx32" => "MTABC_BX32",
-    "Bx33" => "MTABC_BX33",
-    "Bx34" => "MTABC_BX34",
-    "Bx35" => "MTABC_BX35",
-    "Bx36" => "MTABC_BX36",
-    "Bx38" => "MTABC_BX38",
-    "Bx39" => "MTABC_BX39",
-    "Bx40" => "MTABC_BX40",
-    "Bx41" => "MTABC_BX41",
-    "Bx42" => "MTABC_BX42",
-    "Bx46" => "MTABC_BX46",
-    "Bx99" => "MTABC_BX99",
-    # Select Bus Service (SBS)
-    "Bx6-SBS" => "MTABC_BX6+",
-    "Bx12-SBS" => "MTABC_BX12+",
-    "Bx41-SBS" => "MTABC_BX41+"
-  }
-
-  # All routes (Manhattan, Brooklyn, Queens, and Bronx)
-  @all_bus_routes Map.merge(Map.merge(Map.merge(@manhattan_bus_routes, @brooklyn_bus_routes), @queens_bus_routes), @bronx_bus_routes)
+  # All routes (Manhattan, Brooklyn, and Queens)
+  @all_bus_routes Map.merge(Map.merge(@manhattan_bus_routes, @brooklyn_bus_routes), @queens_bus_routes)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -287,7 +236,6 @@ defmodule BlogWeb.MtaBusMapLive do
        manhattan_bus_routes: @manhattan_bus_routes,
        brooklyn_bus_routes: @brooklyn_bus_routes,
        queens_bus_routes: @queens_bus_routes,
-       bronx_bus_routes: @bronx_bus_routes,
        active_borough: :manhattan,
        show_modal: false,
        loading: false,
@@ -373,27 +321,13 @@ defmodule BlogWeb.MtaBusMapLive do
         :manhattan -> "Manhattan"
         :brooklyn -> "Brooklyn"
         :queens -> "Queens"
-        :bronx -> "Bronx"
         :all -> "All Boroughs"
       end
-
-    # Let's select a default route for the borough to show something immediately
-    default_route = case borough_atom do
-      :manhattan -> "M21"
-      :brooklyn -> "B41"
-      :queens -> "Q58"
-      :bronx -> "Bx12"
-      :all -> "M21"
-    end
-
-    updated_routes = MapSet.new([default_route])
 
     {:noreply,
      socket
      |> assign(active_borough: borough_atom)
-     |> assign(page_title: "#{borough_name} MTA Bus Tracker")
-     |> assign(selected_routes: updated_routes)
-     |> then(fn socket -> handle_info(:update_buses, socket) |> elem(1) end)}
+     |> assign(page_title: "#{borough_name} MTA Bus Tracker")}
   end
 
   @impl true
@@ -405,7 +339,6 @@ defmodule BlogWeb.MtaBusMapLive do
         :manhattan -> @manhattan_bus_routes
         :brooklyn -> @brooklyn_bus_routes
         :queens -> @queens_bus_routes
-        :bronx -> @bronx_bus_routes
         :all -> @all_bus_routes
       end
 
@@ -441,7 +374,6 @@ defmodule BlogWeb.MtaBusMapLive do
               <% :manhattan -> %>Manhattan
               <% :brooklyn -> %>Brooklyn
               <% :queens -> %>Queens
-              <% :bronx -> %>Bronx
               <% :all -> %>All Boroughs
             <% end %> MTA Bus Tracker
           </h1>
@@ -556,27 +488,6 @@ defmodule BlogWeb.MtaBusMapLive do
                 <% end %>
               </div>
             </button>
-            <button
-              phx-click="select_borough"
-              phx-value-borough="bronx"
-              class={"px-3 py-1.5 text-sm font-medium rounded #{if @active_borough == :bronx, do: "bg-blue-600 text-white", else: "bg-gray-200 text-gray-700 hover:bg-gray-300"} #{if @loading, do: "opacity-75 cursor-wait", else: ""}"}
-              disabled={@loading}
-            >
-              <div class="flex items-center">
-                <div class="w-3 h-3 rounded-full bg-yellow-500 mr-1.5"></div>
-                <%= if @loading && @active_borough == :bronx do %>
-                  <span class="flex items-center">
-                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Bronx
-                  </span>
-                <% else %>
-                  Bronx
-                <% end %>
-              </div>
-            </button>
           </div>
 
           <div class="mt-2">
@@ -599,7 +510,6 @@ defmodule BlogWeb.MtaBusMapLive do
                   :manhattan -> "Manhattan"
                   :brooklyn -> "Brooklyn"
                   :queens -> "Queens"
-                  :bronx -> "Bronx"
                   :all -> "Boroughs"
                 end %> Routes
               <% end %>
@@ -622,7 +532,6 @@ defmodule BlogWeb.MtaBusMapLive do
           manhattan_bus_routes={@manhattan_bus_routes}
           brooklyn_bus_routes={@brooklyn_bus_routes}
           queens_bus_routes={@queens_bus_routes}
-          bronx_bus_routes={@bronx_bus_routes}
         />
 
         <style>
