@@ -22,6 +22,7 @@ defmodule BlogWeb.Router do
     live "/post/:slug", PostLive
     live "/mta-bus", MtaBusLive, :index
     live "/mta-bus-map", MtaBusMapLive, :index
+    live "/mta-train", MtaTrainLive, :index
 
     live "/keylogger", KeyloggerLive
     live "/gay_chaos", RainbowLive, :index

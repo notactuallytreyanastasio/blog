@@ -28,6 +28,7 @@ import GenerativeArt from "./hooks/generative_art"
 import Blackjack from "./hooks/blackjack"
 import MarkdownEditor, { MarkdownInput } from "./hooks/markdown_editor"
 import BezierTriangles from "./hooks/bezier_triangles"
+import MtaBusMap from "./hooks/mta_bus_map"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
@@ -70,6 +71,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     MarkdownEditor,
     MarkdownInput,
     BezierTriangles,
+    MtaBusMap,
     ...Hooks
   }
 })
