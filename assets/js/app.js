@@ -29,6 +29,8 @@ import Blackjack from "./hooks/blackjack"
 import MarkdownEditor, { MarkdownInput } from "./hooks/markdown_editor"
 import BezierTriangles from "./hooks/bezier_triangles"
 import MtaBusMap from "./hooks/mta_bus_map"
+import BubbleGame from "./hooks/bubble_game"
+import * as THREE from 'three';
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
@@ -72,6 +74,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     MarkdownInput,
     BezierTriangles,
     MtaBusMap,
+    BubbleGame,
     ...Hooks
   }
 })
@@ -89,3 +92,5 @@ liveSocket.connect()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
+
+window.THREE = THREE;

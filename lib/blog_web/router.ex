@@ -48,6 +48,8 @@ defmodule BlogWeb.Router do
     live "/war", WarLive, :index
     live "/skeet-timeline", SkeetTimelineLive, :index
     live "/markdown-editor", MarkdownEditorLive, :index
+    live "/lumon-celebration", LumonCelebrationLive, :index
+    live "/bubble-game", BubbleGameLive
   end
 
   # Other scopes may use custom stacks.
