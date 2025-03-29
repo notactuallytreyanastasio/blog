@@ -221,10 +221,12 @@ defmodule BlogWeb.MtaBusMapLive do
 
     if connected?(socket) do
       :timer.send_interval(30000, self(), :update_buses)
+      # Send an immediate update when socket connects
+      send(self(), :update_buses)
     end
 
-    # Start with M21 selected by default
-    initial_selected = MapSet.new(["M21"])
+    # Start with multiple routes selected by default
+    initial_selected = MapSet.new(["M14A-SBS", "M14D-SBS", "M21", "M34-SBS"])
 
     {:ok,
      assign(socket,
