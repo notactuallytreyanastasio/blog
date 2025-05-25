@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="csrf-token" content={csrf_token_value()}>
+    <%= live_title_tag assigns[:page_title] || "Article", suffix: " · Your Site" %>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"}/>
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
+    <style>
+      body {
+        font-family: Georgia, serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        background-color: #fdfdfd;
+        color: #333;
+      }
+      .reader-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background-color: #fff;
+        /* box-shadow: 0 0 10px rgba(0,0,0,0.05); */ /* Optional: subtle shadow */
+      }
+      .reader-container h1 {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #111;
+        margin-bottom: 1.5em;
+        text-align: center;
+      }
+      /* Component base styles - can be expanded in app.css or here */
+      .section-component {
+        margin-bottom: 2rem;
+      }
+      .section-component h3 {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #222;
+        margin-bottom: 0.5em;
+      }
+      .aside-component {
+        background-color: #f7f7f7;
+        border-left: 4px solid #e0e0e0;
+        padding: 1rem 1.5rem;
+        margin: 1.5rem 0;
+        font-style: italic;
+        color: #444;
+      }
+      .aside-component h4 {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        margin-top: 0;
+        margin-bottom: 0.5em;
+        font-style: normal;
+        color: #333;
+      }
+      .enhanced-media-component {
+        margin: 2.5rem 0;
+        text-align: center;
+      }
+      .enhanced-media-component h5 {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #222;
+        margin-bottom: 0.75em;
+      }
+      .enhanced-media-component figure {
+        margin: 0;
+        padding: 0;
+      }
+      .enhanced-media-component img {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #ddd;
+        padding: 4px;
+        background-color: #fff;
+        border-radius: 3px;
+      }
+      .enhanced-media-component figcaption {
+        font-size: 0.9em;
+        color: #555;
+        margin-top: 0.75rem;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <%= @inner_content %>
+  </body>
+</html>

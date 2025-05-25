@@ -89,6 +89,8 @@ defmodule BlogWeb do
       import Phoenix.HTML
       # Core UI components
       import BlogWeb.CoreComponents
+      # LiveView specific helpers
+      import Phoenix.LiveView.Helpers
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

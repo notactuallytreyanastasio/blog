@@ -54,7 +54,8 @@ defmodule Blog.MixProject do
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      {:earmark, "~> 1.4"},
+      # {:earmark_parser, "~> 1.4"},
+      {:mdex, "~> 0.6"},
       {:websockex, "~> 0.4.3"},
       {:pythonx, "~> 0.4.2"}
     ]

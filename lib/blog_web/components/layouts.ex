@@ -8,6 +8,7 @@ defmodule BlogWeb.Layouts do
   layout on both `use BlogWeb, :controller` and
   `use BlogWeb, :live_view`.
   """
+  import Phoenix.LiveView.Helpers # Ensure CSRF and other LV helpers are available
   use BlogWeb, :html
   alias BlogWeb.Presence
 

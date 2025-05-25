@@ -1,6 +1,7 @@
 defmodule BlogWeb.MarkdownEditorComponent do
   use BlogWeb, :live_component
   require Logger
+  alias MDEx
 
   @impl true
   def update(assigns, socket) do
@@ -9,19 +10,14 @@ defmodule BlogWeb.MarkdownEditorComponent do
       |> assign(assigns)
       |> assign_new(:markdown, fn -> "" end)
       |> assign_new(:html, fn -> "" end)
-      |> assign_new(:cursor_position, fn -> 0 end)
-      |> assign_new(:selection_start, fn -> 0 end)
-      |> assign_new(:selection_end, fn -> 0 end)
-      |> assign_new(:selected_text, fn -> "" end)
 
     {:ok, socket}
   end
 
   @impl true
   def handle_event("update_markdown", %{"markdown" => markdown}, socket) do
-    # Parse the markdown to HTML using Earmark
-    {:ok, html, _warnings} =
-      Earmark.as_html(markdown, %Earmark.Options{code_class_prefix: "language-"})
+    # Parse the markdown to HTML using EarmarkParser
+    html = MDEx.to_html!(markdown)
 
     # Send the updated content back to the parent LiveView
     send(self(), {:markdown_updated, %{markdown: markdown, html: html}})
@@ -35,42 +31,12 @@ defmodule BlogWeb.MarkdownEditorComponent do
   end
 
   @impl true
-  def handle_event(
-        "save_selection_info",
-        %{
-          "position" => position,
-          "selection_start" => selection_start,
-          "selection_end" => selection_end,
-          "selected_text" => selected_text
-        },
-        socket
-      ) do
-    {position, _} = Integer.parse(position)
-    {selection_start, _} = Integer.parse(selection_start)
-    {selection_end, _} = Integer.parse(selection_end)
-
-    {:noreply,
-     assign(socket, %{
-       cursor_position: position,
-       selection_start: selection_start,
-       selection_end: selection_end,
-       selected_text: selected_text
-     })}
-  end
-
-  @impl true
-  def handle_event("save_cursor_position", %{"position" => position}, socket) do
-    {position, _} = Integer.parse(position)
-    {:noreply, assign(socket, cursor_position: position)}
-  end
-
-  @impl true
   def handle_event("insert_format", %{"format" => format}, socket) do
     text = socket.assigns.markdown
-    selection_start = socket.assigns.selection_start
-    selection_end = socket.assigns.selection_end
-    selected_text = socket.assigns.selected_text
-    has_selection = selection_start != selection_end
+    selection_start = 0
+    selection_end = 0
+    selected_text = ""
+    has_selection = false
 
     {before_text, after_text} =
       if has_selection do
@@ -91,8 +57,7 @@ defmodule BlogWeb.MarkdownEditorComponent do
       )
 
     # Parse the new markdown to update the preview
-    {:ok, html, _warnings} =
-      Earmark.as_html(new_text, %Earmark.Options{code_class_prefix: "language-"})
+    html = MDEx.to_html!(new_text)
 
     # Send the updated content back to the parent LiveView
     send(self(), {:markdown_updated, %{markdown: new_text, html: html}})
@@ -101,18 +66,14 @@ defmodule BlogWeb.MarkdownEditorComponent do
     socket =
       assign(socket, %{
         markdown: new_text,
-        html: html,
-        selection_start: new_selection_start,
-        selection_end: new_selection_end
+        html: html
       })
 
     # Push the updated markdown content to the client
     # This ensures the textarea is updated with the new text
     socket =
       push_event(socket, "update_markdown_content", %{
-        content: new_text,
-        selectionStart: new_selection_start,
-        selectionEnd: new_selection_end
+        content: new_text
       })
 
     {:noreply, socket}
@@ -725,7 +686,7 @@ defmodule BlogWeb.MarkdownEditorComponent do
             </details>
           </div>
         </div>
-        
+
     <!-- Preview Section -->
         <div class="w-full md:w-1/2">
           <div class="bg-white border border-gray-300 rounded-md overflow-hidden h-full">

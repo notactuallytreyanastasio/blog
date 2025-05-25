@@ -27,7 +27,7 @@ defmodule BlueskyHose do
 
   def handle_connect(_conn, _state) do
     Logger.info("Connected!")
-    IO.puts("#{DateTime.utc_now()}")
+    # IO.puts("#{DateTime.utc_now()}")
     {:ok, 0}
   end
 
@@ -36,6 +36,7 @@ defmodule BlueskyHose do
 
     case msg do
       %{"commit" => record = %{"record" => %{"text" => skeet}}} = _msg ->
+        # IO.puts(skeet)
         # Broadcast to the general skeet feed
         Phoenix.PubSub.broadcast(
           Blog.PubSub,

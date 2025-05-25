@@ -22,9 +22,8 @@ defmodule BlogWeb.MarkdownEditorLive do
 
   @impl true
   def handle_event("update_markdown", %{"markdown" => markdown}, socket) do
-    # Parse the markdown to HTML using Earmark
-    {:ok, html, _warnings} =
-      Earmark.as_html(markdown, %Earmark.Options{code_class_prefix: "language-"})
+    # Parse the markdown to HTML using EarmarkParser
+    html = EarmarkParser.as_html!(markdown, [code_class_prefix: "language-"])
 
     {:noreply, assign(socket, %{markdown: markdown, html: html})}
   rescue
@@ -91,8 +90,7 @@ defmodule BlogWeb.MarkdownEditorLive do
       )
 
     # Parse the new markdown to update the preview
-    {:ok, html, _warnings} =
-      Earmark.as_html(new_text, %Earmark.Options{code_class_prefix: "language-"})
+    html = EarmarkParser.as_html!(new_text, [code_class_prefix: "language-"])
 
     # Update the socket assigns with the new text and HTML
     socket =
