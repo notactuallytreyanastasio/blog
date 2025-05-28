@@ -51,6 +51,7 @@ defmodule BlogWeb.Router do
     live "/lumon-celebration", LumonCelebrationLive, :index
     live "/bubble-game", BubbleGameLive
     live "/article/my-custom-article", ArticleLive, :show
+    live "/nathan", NathanLive, :index
   end
 
   # Other scopes may use custom stacks.
