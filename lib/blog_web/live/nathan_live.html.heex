@@ -647,24 +647,24 @@
             .container {
                 padding: 0;
             }
-
+            
             .bio-section {
                 padding: 0 80px;
             }
-
+            
             .aside-section {
                 margin: 30px 80px;
             }
-
+            
             .intro-section {
                 margin-left: 80px;
                 margin-right: 80px;
             }
-
+            
             .pull-quote-large {
                 margin: 50px 80px;
             }
-
+            
             body {
                 font-size: 17px;
             }
@@ -672,30 +672,56 @@
 
         @media (max-width: 768px) {
             body {
-                padding: 10px;
+                padding: 0;
+                margin: 0;
             }
 
             .container {
                 padding: 0;
                 max-width: 100%;
             }
-
+            
+            .header {
+                padding: 20px 15px 0 15px;
+            }
+            
             .bio-section {
-                padding: 0 20px;
+                padding: 0 15px;
+                margin-bottom: 30px;
+            }
+            
+            .bio-section.aside-section {
+                padding: 15px;
+                margin: 15px;
+                border-width: 1px;
             }
 
             .aside-section {
                 padding: 15px;
-                margin: 20px;
+                margin: 15px;
+                border-width: 1px;
             }
-
+            
             .intro-section {
-                margin-left: 20px;
-                margin-right: 20px;
+                margin-left: 15px;
+                margin-right: 15px;
+                padding: 20px;
             }
-
+            
             .pull-quote-large {
-                margin: 30px 20px;
+                margin: 20px 15px;
+                padding: 20px;
+                font-size: 1.2rem;
+            }
+            
+            .pull-quote {
+                margin: 20px 15px;
+                padding: 15px;
+                font-size: 1.1rem;
+            }
+            
+            hr {
+                margin: 40px 15px 30px 15px !important;
             }
 
             .premise-grid {
@@ -741,9 +767,153 @@
                 position: static;
                 margin-top: 10px;
             }
-
-            .header {
-                padding: 20px 20px 0 20px;
+            
+            /* Fix nested box padding issues */
+            .aside-section .collapsible-content {
+                padding: 0;
+            }
+            
+            .premise-box {
+                padding: 15px;
+            }
+            
+            .case-study {
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .timeline-item {
+                padding: 10px;
+                margin-bottom: 20px;
+            }
+            
+            .timeline-item.timeline-item-major {
+                padding: 15px;
+            }
+            
+            /* Reduce font sizes for better mobile readability */
+            .main-title {
+                font-size: 2rem;
+            }
+            
+            .section-title {
+                font-size: 1.3rem;
+                padding: 10px 0;
+            }
+            
+            .event-title {
+                font-size: 1.1rem;
+            }
+            
+            body {
+                font-size: 15px;
+            }
+            
+            /* Prevent any element from becoming too narrow */
+            * {
+                min-width: 0;
+            }
+            
+            /* Fix specific nested elements */
+            .episode-visual-case {
+                margin-bottom: 25px;
+            }
+            
+            .episode-visual-case .episode-content {
+                padding: 0;
+            }
+            
+            .episode-visual-case .premise-grid {
+                padding: 15px;
+            }
+            
+            .case-study-mini {
+                padding: 15px;
+            }
+            
+            /* Fix pull quotes on mobile */
+            .pull-quote::before,
+            .pull-quote::after {
+                font-size: 2rem;
+            }
+            
+            /* Fix timeline styling */
+            .timeline {
+                padding-left: 20px;
+            }
+            
+            .sub-events {
+                padding-left: 10px;
+                margin-top: 10px;
+            }
+            
+            /* Ensure text doesn't get crushed */
+            p, li, .description, .example {
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            /* Fix key insights and foreshadowing notes */
+            .key-insight,
+            .foreshadowing-note,
+            .methodology-evolution {
+                margin: 15px 0;
+                padding: 15px;
+            }
+            
+            /* Fix nested divs in episodes */
+            .foreshadowing-note > div,
+            .key-insight > div {
+                padding: 0;
+            }
+            
+            /* Ensure minimum readable width */
+            .collapsible-content,
+            .episode-content {
+                min-width: 280px;
+                overflow-x: auto;
+            }
+            
+            /* Override any nested padding that causes issues */
+            .aside-section .aside-section,
+            .bio-section .bio-section {
+                padding: 10px;
+                margin: 10px 0;
+            }
+            
+            /* Fix deeply nested content */
+            .framework-point,
+            .difference-point {
+                padding: 10px;
+                margin-bottom: 10px;
+            }
+            
+            /* Ensure readable line lengths */
+            .collapsible-content p,
+            .collapsible-content li,
+            .collapsible-content div {
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            
+            /* Remove excessive nested margins on mobile */
+            .bio-section .collapsible-content > *:first-child {
+                margin-top: 0;
+            }
+            
+            .bio-section .collapsible-content > *:last-child {
+                margin-bottom: 0;
+            }
+            
+            /* Fix aside within aside issue */
+            .aside-section .section-title {
+                margin-left: 0;
+                margin-right: 0;
+            }
+            
+            /* Prevent text overflow */
+            .container {
+                overflow-x: hidden;
             }
         }
 
@@ -857,7 +1027,7 @@
             box-sizing: border-box;
             overflow: hidden;
         }
-
+        
         .bio-section.aside-section {
             padding: 20px;
         }
@@ -1659,7 +1829,6 @@
         </div>
 
         <div class="bio-section aside-section">
-        <div class="bio-section aside-section">
             <div class="aside-label">ASIDE</div>
             <h2 class="section-title collapsed" onclick="toggleCollapse(this)">The Kaufman Connection: Two People, or, how many, really? (click to expand)</h2>
 
@@ -2354,11 +2523,11 @@
 
                     <div class="methodology-evolution">
                         <strong>The Pattern Emerges:</strong> Start with real problems, apply obsessive logic, commit completely to elaborate execution, then discover that human connection matters more than business success. Nathan's schemes function as social experiments exposing truths about capitalism, loneliness, and the performances we all enact daily.
-
+                        
                         <div style="margin-top: 15px; padding: 15px; background: #f0f0f0; border-left: 3px solid #666;">
                             <strong>The Evolution Timeline:</strong> From "The Hunk" establishing fake shows within shows, to "Dumb Starbucks" breaking into reality and becoming actual news, to "Smokers Allowed" creating performance-based legal loopholes, to "The Movement" manufacturing actual cultural phenomena, to "The Anecdote" showing Nathan playing Nathan playing Nathan, to "The Richards Tip" demonstrating his willingness to train for months for a single moment - each episode builds Nathan's toolkit for reality manipulation. These aren't just comedy bits; they're experiments in how far constructed reality can intrude upon and reshape actual reality. By the time we reach The Rehearsal, Nathan has all the tools needed to completely dissolve the boundary between performance and life.
                         </div>
-
+                        
                         <div style="margin-top: 15px; padding: 15px; background: #fff5f5; border: 2px solid #ddd;">
                             <strong>The Recursive Identity Loop:</strong> "The Anecdote" represents a crucial turning point where Nathan's performance becomes explicitly self-referential. He's no longer just CNF helping businesses - he's CNF creating experiences for AMNF to perform as himself. When he appears on Jimmy Kimmel, we're watching Nathan play a character playing himself telling a "true" story that was manufactured for the telling. This recursive loop would later manifest in his appearances on other shows like "How To with John Wilson," where the question of which Nathan is present becomes unanswerable.
                         </div>
@@ -2507,7 +2676,7 @@
                     <div class="bread-description">
                         <strong>The Bread Scene Paradox:</strong> In "How To with John Wilson," Nathan appears in the episode about bread, ostensibly as "himself" - just Nathan Fielder, executive producer, having a casual conversation. But which Nathan is this? He's being filmed for Wilson's show while potentially being filmed for his own purposes, creating a moment where CNF plays AMNF for someone else's camera while remaining CNF for his own narrative. The simple act of Nathan eating bread becomes a philosophical puzzle: is any moment of Nathan on camera ever NOT a performance?
                     </div>
-
+                    
                     <div style="margin-top: 15px; padding: 15px; background: #f0f0f0; border-left: 3px solid #666; font-style: italic;">
                         This connects directly to "The Anecdote" from Nathan For You, where Nathan manufactured a story to tell "naturally" on Jimmy Kimmel. The difference is that by the time of the bread scene, the performance has become so total that even mundane moments in other people's projects become part of the CNF construction. There's no longer a clear moment where Nathan stops performing Nathan.
                     </div>
@@ -3076,7 +3245,7 @@
                     <h4>The Pattern of Dissolution</h4>
                     <div class="analysis-description">
                         <p>What this timeline reveals is not just a career progression but a systematic dissolution of identity. Each project pushes further into the space between performance and reality until that space no longer exists. The early Nathan who did magic at children's parties and worked as a broker has been completely subsumed by the Nathan who appears on our screens.</p>
-
+                        
                         <p>The trajectory shows:
                         <ul style="margin-left: 30px; line-height: 1.6;">
                             <li><strong>2008-2012:</strong> Learning to weaponize natural awkwardness</li>
@@ -3087,7 +3256,7 @@
                             <li><strong>2025:</strong> Complete transformation where performance is identity</li>
                         </ul>
                         </p>
-
+                        
                         <p>The most telling moment may be deleting the brain scan results - actively choosing to remain CNF rather than understand AMNF. This isn't just method acting or commitment to a bit. It's the complete replacement of one identity system with another, more functional one. Nathan has solved the problem of being Nathan by becoming "Nathan" permanently.</p>
                     </div>
                 </div>
@@ -3101,7 +3270,7 @@
 
             <div class="collapsible-content collapsed">
                 <h3>Biographical Sources</h3>
-
+                
                 <p><strong>The Canadian Encyclopedia.</strong> "Nathan Fielder." <em>The Canadian Encyclopedia</em>, Historica Canada, 2023, thecanadianencyclopedia.ca. Provides comprehensive biographical information including birth date (May 12, 1983), parents Eric and Deb Fielder (both social workers), Vancouver upbringing in Dunbar neighbourhood, Jewish heritage, and educational background.</p>
 
                 <p><strong>University of Victoria Business School.</strong> "2005 - Comedian Nathan Fielder Graduates with Really Good Grades." <em>UVic Business History</em>, University of Victoria, 2005. Confirms Bachelor of Commerce degree completion in 2005.</p>
@@ -3206,8 +3375,6 @@
             </div>
         </div>
     </div>
-    </div>
-
 
     <script>
         function toggleCollapse(element) {
