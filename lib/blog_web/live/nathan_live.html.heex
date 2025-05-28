@@ -248,12 +248,17 @@
             color: #999;
         }
 
+        html {
+            height: 100%;
+            overflow-y: auto;
+        }
+
         body {
             font-family: 'Arial', sans-serif;
             background: white;
             color: #000;
             min-height: 100vh;
-            padding: 20px;
+            padding: 20px 20px 100px 20px;
             overflow-x: hidden;
             overflow-y: auto;
             margin: 0;
@@ -266,6 +271,8 @@
             padding: 40px;
             width: 100%;
             box-sizing: border-box;
+            padding-bottom: 100px;
+            min-height: 100vh;
         }
 
         .header {
@@ -446,13 +453,14 @@
         }
 
         .collapsible-content {
-            max-height: 10000px;
-            overflow: hidden;
+            max-height: 50000px;
+            overflow: visible;
             transition: max-height 0.3s ease;
         }
 
         .collapsible-content.collapsed {
             max-height: 0;
+            overflow: hidden;
         }
 
         /* Ensure collapsible sections are properly contained */
@@ -1548,6 +1556,14 @@
             line-height: 1.6;
         }
 
+        /* Ensure Works Cited section is visible */
+        .bio-section:last-of-type {
+            margin-bottom: 50px;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
     </style>
 </head>
 <body>
@@ -2386,11 +2402,11 @@
 
                     <div class="methodology-evolution">
                         <strong>The Pattern Emerges:</strong> Start with real problems, apply obsessive logic, commit completely to elaborate execution, then discover that human connection matters more than business success. Nathan's schemes function as social experiments exposing truths about capitalism, loneliness, and the performances we all enact daily.
-                        
+
                         <div style="margin-top: 15px; padding: 15px; background: #f0f0f0; border-left: 3px solid #666;">
                             <strong>The Evolution Timeline:</strong> From "The Hunk" establishing fake shows within shows, to "Dumb Starbucks" breaking into reality and becoming actual news, to "Smokers Allowed" creating performance-based legal loopholes, to "The Movement" manufacturing actual cultural phenomena, to "The Anecdote" showing Nathan playing Nathan playing Nathan, to "The Richards Tip" demonstrating his willingness to train for months for a single moment - each episode builds Nathan's toolkit for reality manipulation. These aren't just comedy bits; they're experiments in how far constructed reality can intrude upon and reshape actual reality. By the time we reach The Rehearsal, Nathan has all the tools needed to completely dissolve the boundary between performance and life.
                         </div>
-                        
+
                         <div style="margin-top: 15px; padding: 15px; background: #fff5f5; border: 2px solid #ddd;">
                             <strong>The Recursive Identity Loop:</strong> "The Anecdote" represents a crucial turning point where Nathan's performance becomes explicitly self-referential. He's no longer just CNF helping businesses - he's CNF creating experiences for AMNF to perform as himself. When he appears on Jimmy Kimmel, we're watching Nathan play a character playing himself telling a "true" story that was manufactured for the telling. This recursive loop would later manifest in his appearances on other shows like "How To with John Wilson," where the question of which Nathan is present becomes unanswerable.
                         </div>
@@ -2520,7 +2536,7 @@
 
         <div class="bio-section aside-section">
             <div class="aside-label">ASIDE</div>
-            <h2 class="section-title collapsed" onclick="toggleCollapse(this)">How To with John Wilson: The HBO Connection</h2>
+            <h2 class="section-title collapsed" onclick="toggleCollapse(this)">How To with John Wilson: The HBO Connection (click to expand)</h2>
 
             <div class="collapsible-content collapsed">
                 <div class="hbo-connection">
@@ -2539,7 +2555,7 @@
                     <div class="bread-description">
                         <strong>The Bread Scene Paradox:</strong> In "How To with John Wilson," Nathan appears in the episode about bread, ostensibly as "himself" - just Nathan Fielder, executive producer, having a casual conversation. But which Nathan is this? He's being filmed for Wilson's show while potentially being filmed for his own purposes, creating a moment where CNF plays AMNF for someone else's camera while remaining CNF for his own narrative. The simple act of Nathan eating bread becomes a philosophical puzzle: is any moment of Nathan on camera ever NOT a performance?
                     </div>
-                    
+
                     <div style="margin-top: 15px; padding: 15px; background: #f0f0f0; border-left: 3px solid #666; font-style: italic;">
                         This connects directly to "The Anecdote" from Nathan For You, where Nathan manufactured a story to tell "naturally" on Jimmy Kimmel. The difference is that by the time of the bread scene, the performance has become so total that even mundane moments in other people's projects become part of the CNF construction. There's no longer a clear moment where Nathan stops performing Nathan.
                     </div>
@@ -2706,7 +2722,7 @@
 
         <div class="bio-section aside-section">
             <div class="aside-label">ASIDE</div>
-            <h2 class="section-title collapsed" onclick="toggleCollapse(this)">The Curse - Scripted Reality as Performance Art</h2>
+            <h2 class="section-title collapsed" onclick="toggleCollapse(this)">The Curse - Scripted Reality as Performance Art (click to expand)</h2>
 
             <div class="collapsible-content collapsed">
                 <div class="format-shift">
@@ -2919,6 +2935,109 @@
             </div>
         </div>
     </div>
+
+
+<div class="works-cited-section">
+    <h2 class="section-title" onclick="toggleCollapse(this)">Works Cited</h2>
+
+    <div class="collapsible-content">
+        <div class="citation-category">
+            <h3>Biographical Sources</h3>
+            <ul class="citation-list">
+                <li>The Canadian Encyclopedia. "Nathan Fielder." The Canadian Encyclopedia, Historica Canada, 2023, thecanadianencyclopedia.ca.</li>
+                <li>University of Victoria Business School. "2005 - Comedian Nathan Fielder Graduates with Really Good Grades." UVic Business History, University of Victoria, 2005.</li>
+                <li>Point Grey Secondary School Alumni Records. Confirms attendance with Seth Rogen and participation in improv comedy team.</li>
+                <li>Humber College Comedy Program. "Alumni Profile: Nathan Fielder." Humber College, 2006.</li>
+            </ul>
+        </div>
+
+        <div class="citation-category">
+            <h3>Television Productions</h3>
+
+            <h4>Nathan For You (2013-2017)</h4>
+            <ul class="citation-list">
+                <li>Comedy Central. "Nathan For You." Comedy Central Official, 2013-2017.</li>
+                <li>"Yogurt Shop/Pizzeria." Nathan For You, season 1, episode 1, Comedy Central, 28 Feb. 2013.</li>
+                <li>"Electronics Store." Nathan For You, season 3, episode 1, Comedy Central, 15 Oct. 2015.</li>
+                <li>"The Hero." Nathan For You, season 3, episode 8, Comedy Central, 10 Dec. 2015.</li>
+                <li>"Finding Frances." Nathan For You, season 4, episode 8, Comedy Central, 9 Nov. 2017.</li>
+            </ul>
+
+            <h4>The Rehearsal (2022-2024)</h4>
+            <ul class="citation-list">
+                <li>HBO. "The Rehearsal." HBO Official, 2022-present.</li>
+                <li>"Star Potential." The Rehearsal, season 2, episode 2, HBO, 2024.</li>
+                <li>Love, Lana. "Nathan Fielder's Show Made Me Spend $5,500+ for Fake Auditions." Personal testimony, 2024.</li>
+                <li>Season 2 Finale. The Rehearsal, season 2, episode 6, HBO, 2024.</li>
+            </ul>
+
+            <h4>The Curse (2023)</h4>
+            <ul class="citation-list">
+                <li>Showtime/Paramount+. "The Curse." Co-created by Nathan Fielder and Benny Safdie, 2023.</li>
+            </ul>
+
+            <h4>How To with John Wilson (2020-2023)</h4>
+            <ul class="citation-list">
+                <li>HBO. "How To with John Wilson." Created by John Wilson, executive produced by Nathan Fielder and Michael Koman, 2020-2023.</li>
+            </ul>
+        </div>
+
+        <div class="citation-category">
+            <h3>Early Career Work</h3>
+            <ul class="citation-list">
+                <li>Canadian Idol. Season 5, CTV, 2007.</li>
+                <li>"Nathan on Your Side." This Hour Has 22 Minutes, CBC, 2008-2009.</li>
+                <li>Ontario Arts Foundation. "Tim Sims Encouragement Fund Award 2006."</li>
+                <li>"Important Things with Demetri Martin." Season 2, Comedy Central, 2010.</li>
+            </ul>
+        </div>
+
+        <div class="citation-category">
+            <h3>Other Projects and References</h3>
+
+            <h4>Summit Ice Apparel</h4>
+            <ul class="citation-list">
+                <li>Vancouver Holocaust Education Centre. "Summit Ice Partnership." Founded by Nathan Fielder in 2015.</li>
+                <li>Canadian Jewish News. "Nathan Fielder's Summit Ice Raises Awareness Through Fashion." 2015-2017.</li>
+            </ul>
+
+            <h4>Professional Associations and Comparisons</h4>
+            <ul class="citation-list">
+                <li>The Magic Castle. Current member status confirmed.</li>
+                <li>"Who Is America?" Created by Sacha Baron Cohen, Showtime, 2018.</li>
+                <li>Multiple Entertainment Publications. Various outlets including Vulture, Rolling Stone, IndieWire.</li>
+            </ul>
+        </div>
+
+        <div class="citation-category">
+            <h3>Verified Corrections</h3>
+            <ul class="citation-list">
+                <li>Congressional Testimony: The referenced aviation safety testimony was a staged rehearsal.</li>
+                <li>NTSB Investigator: The correct expert was John Goglia (former NTSB board member), not "Robert Bent."</li>
+            </ul>
+        </div>
+
+        <div class="citation-category">
+            <h3>Awards and Recognition</h3>
+            <ul class="citation-list">
+                <li>Writers Guild of America. Comedy/Variety Sketch Series Winner 2019 for Nathan For You.</li>
+                <li>Canadian Comedy Award. Best Performance by a Male - Television, 2014.</li>
+                <li>Just for Laughs. Breakout Comedy Star of the Year, 2014.</li>
+                <li>Film Independent Spirit Award. 2023 for The Rehearsal.</li>
+            </ul>
+        </div>
+
+        <div class="citation-category">
+            <h3>Critical Reception Documentation</h3>
+            <ul class="citation-list">
+                <li>Metacritic Scores: Nathan For You - widespread critical acclaim; The Rehearsal Season 1 - 86/100; The Curse - 76/100.</li>
+                <li>Rotten Tomatoes Scores: The Rehearsal Season 1 - 95%, Season 2 - 97%; The Curse - 94%.</li>
+                <li>Christopher Nolan. Praised The Curse as "an incredible show" with "no precedents" in television history.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
 
     <script>
         function toggleCollapse(element) {
