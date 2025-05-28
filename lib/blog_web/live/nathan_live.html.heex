@@ -13,385 +13,6 @@
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'Arial', sans-serif;
-            background: white;
-            color: #000;
-            min-height: 100vh;
-            padding: 20px;
-            overflow-x: hidden;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 40px;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 50px;
-        }
-
-        .main-title {
-            font-size: 2.5rem;
-            font-weight: normal;
-            color: #000;
-            margin-bottom: 40px;
-        }
-
-        .intro-section {
-            margin-bottom: 40px;
-            padding: 20px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            text-align: center;
-        }
-
-        .intro-section p {
-            font-size: 1.1rem;
-            line-height: 1.5;
-            color: #333;
-            margin: 0;
-        }
-
-        .bio-section {
-            background: white;
-            padding: 0;
-        }
-
-        .timeline {
-            position: relative;
-            padding-left: 30px;
-        }
-
-        .timeline::before {
-            content: '';
-            position: absolute;
-            left: 15px;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background: #ccc;
-        }
-
-        .timeline-item {
-            position: relative;
-            margin-bottom: 30px;
-            padding: 15px 0;
-            border-left: 2px solid #000;
-            padding-left: 20px;
-        }
-
-        .timeline-item.timeline-item-major {
-            padding: 20px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            border-left: 4px solid #333;
-        }
-
-        .timeline-item.gap-period {
-            background: #f0f0f0;
-            border-left-color: #999;
-        }
-
-        .timeline-item.current {
-            background: #fff5f5;
-            border-left-color: #666;
-        }
-
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -16px;
-            top: 20px;
-            width: 8px;
-            height: 8px;
-            background: #000;
-            border-radius: 50%;
-        }
-
-        .timeline-item.timeline-item-major::before {
-            left: -22px;
-            top: 25px;
-            width: 12px;
-            height: 12px;
-            background: #333;
-            border: 2px solid white;
-        }
-
-        .timeline-item.gap-period::before {
-            background: #999;
-        }
-
-        .timeline-item.current::before {
-            background: #666;
-        }
-
-        .sub-events {
-            margin-top: 15px;
-            padding-left: 15px;
-            border-left: 2px solid #ddd;
-        }
-
-        .sub-event {
-            margin-bottom: 8px;
-            font-size: 0.95rem;
-            color: #555;
-        }
-
-        .timeline-analysis {
-            margin-top: 40px;
-            padding: 25px;
-            background: #f5f5f5;
-            border: 2px solid #ccc;
-        }
-
-        .timeline-analysis h4 {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        .analysis-description {
-            line-height: 1.4;
-            font-style: italic;
-        }
-
-        .year {
-            font-size: 1rem;
-            font-weight: bold;
-            color: #000;
-            margin-bottom: 5px;
-        }
-
-        .event-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #000;
-            margin-bottom: 8px;
-        }
-
-        .event-description {
-            color: #333;
-            line-height: 1.5;
-            font-size: 0.95rem;
-        }
-
-        .section-title {
-            font-size: 1.4rem;
-            font-weight: bold;
-            color: #000;
-            margin-bottom: 20px;
-            cursor: pointer;
-            padding: 10px 0;
-            border-bottom: 1px solid #ccc;
-            position: relative;
-        }
-
-        .section-title::after {
-            content: '▼';
-            position: absolute;
-            right: 0;
-            transition: transform 0.3s ease;
-        }
-
-        .section-title.collapsed::after {
-            transform: rotate(-90deg);
-        }
-
-        .highlight {
-            font-weight: bold;
-            color: #000;
-        }
-
-        .collapsible-content {
-            max-height: 4000px;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .collapsible-content.collapsed {
-            max-height: 0;
-        }
-
-        .show-premise {
-            margin-bottom: 30px;
-        }
-
-        .premise-grid {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            gap: 20px;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-
-        .premise-box {
-            border: 1px solid #ccc;
-            padding: 20px;
-            background: #f9f9f9;
-        }
-
-        .premise-box h3 {
-            font-size: 1.1rem;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        .tv-format {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .description {
-            margin-bottom: 10px;
-            font-style: italic;
-        }
-
-        .example {
-            font-size: 0.9rem;
-            color: #555;
-        }
-
-        .vs-divider {
-            font-size: 1.2rem;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        .case-study {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            background: #fafafa;
-        }
-
-        .case-study h4 {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        .case-steps {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .step {
-            display: flex;
-            align-items: flex-start;
-            gap: 15px;
-        }
-
-        .step-number {
-            background: #000;
-            color: white;
-            width: 25px;
-            height: 25px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.9rem;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-
-        .step-content {
-            flex: 1;
-            line-height: 1.4;
-        }
-
-        .analysis-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .comedy-comparison, .reality-blur {
-            padding: 20px;
-            border: 1px solid #ddd;
-            background: #f9f9f9;
-        }
-
-        .comedy-comparison h4, .reality-blur h4 {
-            font-size: 1.1rem;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        .comparison-item, .blur-example {
-            margin-bottom: 12px;
-            line-height: 1.4;
-        }
-
-        .amnf-cnf-emergence {
-            padding: 20px;
-            border: 2px solid #000;
-            background: #f5f5f5;
-        }
-
-        .amnf-cnf-emergence h4 {
-            font-size: 1.2rem;
-            margin-bottom: 20px;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        .character-evolution {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .evolution-stage {
-            width: 100%;
-            padding: 15px;
-            border: 1px solid #999;
-            background: white;
-        }
-
-        .evolution-stage strong {
-            display: block;
-            margin-bottom: 10px;
-            font-size: 1.05rem;
-        }
-
-        .evolution-stage ul {
-            margin-left: 20px;
-            line-height: 1.4;
-        }
-
-        .evolution-stage li {
-            margin-bottom: 5px;
-        }
-
-        .evolution-arrow {
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-
-        @media (max-width: 768px) {
-            .premise-grid {
-                grid-template-columns: 1fr;
-                gap: 15px;
-            }
-
-            .vs-divider {
-                order: 2;
-            }
-
-            .analysis-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .central-mystery {
             margin-bottom: 30px;
             padding: 20px;
@@ -627,7 +248,423 @@
             color: #999;
         }
 
+        body {
+            font-family: 'Arial', sans-serif;
+            background: white;
+            color: #000;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .main-title {
+            font-size: 2.5rem;
+            font-weight: normal;
+            color: #000;
+            margin-bottom: 40px;
+        }
+
+        .intro-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        .intro-section p {
+            font-size: 1.1rem;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+        }
+
+        .bio-section {
+            background: white;
+            padding: 0;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #ccc;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            padding: 15px 0;
+            border-left: 2px solid #000;
+            padding-left: 20px;
+        }
+
+        .timeline-item.timeline-item-major {
+            padding: 20px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-left: 4px solid #333;
+        }
+
+        .timeline-item.gap-period {
+            background: #f0f0f0;
+            border-left-color: #999;
+        }
+
+        .timeline-item.current {
+            background: #fff5f5;
+            border-left-color: #666;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 20px;
+            width: 8px;
+            height: 8px;
+            background: #000;
+            border-radius: 50%;
+        }
+
+        .timeline-item.timeline-item-major::before {
+            left: -22px;
+            top: 25px;
+            width: 12px;
+            height: 12px;
+            background: #333;
+            border: 2px solid white;
+        }
+
+        .timeline-item.gap-period::before {
+            background: #999;
+        }
+
+        .timeline-item.current::before {
+            background: #666;
+        }
+
+        .sub-events {
+            margin-top: 15px;
+            padding-left: 15px;
+            border-left: 2px solid #ddd;
+        }
+
+        .sub-event {
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            color: #555;
+        }
+
+        .timeline-analysis {
+            margin-top: 40px;
+            padding: 25px;
+            background: #f5f5f5;
+            border: 2px solid #ccc;
+        }
+
+        .timeline-analysis h4 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .analysis-description {
+            line-height: 1.4;
+            font-style: italic;
+        }
+
+        .year {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 5px;
+        }
+
+        .event-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 8px;
+        }
+
+        .event-description {
+            color: #333;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 20px;
+            cursor: pointer;
+            padding: 10px 0;
+            border-bottom: 1px solid #ccc;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '▼';
+            position: absolute;
+            right: 0;
+            transition: transform 0.3s ease;
+        }
+
+        .section-title.collapsed::after {
+            transform: rotate(-90deg);
+        }
+
+        .highlight {
+            font-weight: bold;
+            color: #000;
+        }
+
+        .collapsible-content {
+            max-height: 4000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+        }
+
+        /* Ensure collapsible sections are properly contained */
+        .bio-section .collapsible-content * {
+            box-sizing: border-box;
+        }
+
+        .show-premise {
+            margin-bottom: 30px;
+        }
+
+        .premise-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 30px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .premise-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            background: #f9f9f9;
+            box-sizing: border-box;
+            min-width: 0;
+        }
+
+        .premise-box h3 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .tv-format {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+
+        .example {
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .vs-divider {
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .case-study {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            background: #fafafa;
+        }
+
+        .case-study h4 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .case-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .step-number {
+            background: #000;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .comedy-comparison, .reality-blur {
+            padding: 20px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+        }
+
+        .comedy-comparison h4, .reality-blur h4 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .comparison-item, .blur-example {
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .amnf-cnf-emergence {
+            padding: 20px;
+            border: 2px solid #000;
+            background: #f5f5f5;
+        }
+
+        .amnf-cnf-emergence h4 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .character-evolution {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .evolution-stage {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #999;
+            background: white;
+        }
+
+        .evolution-stage strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 1.05rem;
+        }
+
+        .evolution-stage ul {
+            margin-left: 20px;
+            line-height: 1.4;
+        }
+
+        .evolution-stage li {
+            margin-bottom: 5px;
+        }
+
+        .evolution-arrow {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .aside-section {
+                padding: 15px;
+                margin: 20px 0;
+            }
+
+            .premise-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .vs-divider {
+                order: 2;
+            }
+
+            .analysis-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .episode-visual-case .premise-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .episode-visual-case .vs-divider {
+                order: 2;
+                text-align: center;
+            }
+
+            .parallel-grid {
+                grid-template-columns: 1fr;
+            }
+
             .visual-gap-container {
                 margin: 20px 0;
             }
@@ -752,6 +789,10 @@
             padding: 20px;
             margin: 30px 0;
             position: relative;
+            width: 100%;
+            box-sizing: border-box;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         .aside-label {
@@ -857,6 +898,12 @@
 
         .collapsible-content p:last-child {
             margin-bottom: 0;
+        }
+
+        /* Ensure all content within collapsible sections respects width */
+        .collapsible-content * {
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         /* Dramatic color highlights */
@@ -1372,12 +1419,17 @@
             grid-template-columns: 1fr 1fr;
             gap: 20px;
             margin-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .parallel-item {
             padding: 20px;
             border: 1px solid #ccc;
             background: #fafafa;
+            box-sizing: border-box;
+            min-width: 0;
+            word-wrap: break-word;
         }
 
         .parallel-item h5 {
@@ -1406,6 +1458,9 @@
             padding: 15px;
             background: #f9f9f9;
             border-left: 2px solid #999;
+            box-sizing: border-box;
+            width: 100%;
+            word-wrap: break-word;
         }
 
         .framework-point strong, .difference-point strong {
@@ -1448,104 +1503,10 @@
         <div class="pull-quote-large">
             What happens when someone's coping mechanism becomes so complete that it replaces the person who needed to cope?
         </div>
-
-        <div class="bio-section aside-section">
-            <div class="aside-label">ASIDE</div>
-            <h2 class="section-title" onclick="toggleCollapse(this)">The Kaufman Connection: Two People, or, how many, really?</h2>
-
-            <div class="collapsible-content">
-                <div class="kaufman-comparison">
-                    <h4>The Andy Kaufman Template</h4>
-                    <div class="kaufman-description">
-                        Andy Kaufman (1949-1984) created a performance methodology built around incredulity - making audiences question everything they thought they knew about entertainment, reality, and human behavior. His Foreign Man character, Tony Clifton persona, and elaborate wrestling stunts weren't just comedy bits; they were systematic attacks on the audience's expectations of what performance should be.
-                    </div>
-
-                    <div class="kaufman-method">
-                        <strong>Kaufman's Core Strategy:</strong> Use performance to create a space where social rules don't apply, where he could interact with the world through constructed characters that allowed him to navigate situations his authentic self found difficult or impossible.
-                    </div>
-                </div>
-
-                <div class="parallel-analysis">
-                    <h4>The Nathan Evolution</h4>
-                    <div class="parallel-grid">
-                        <div class="parallel-item">
-                            <h5>Andy's Approach</h5>
-                            <div class="approach-details">
-                                <strong>Character Types:</strong> Foreign Man (childlike confusion), Tony Clifton (aggressive confidence), wrestling personas (physical dominance)
-
-                                <strong>Audience Relationship:</strong> Deliberate confusion and discomfort. "Is this real? Is he serious? What's happening?"
-
-                                <strong>Never Breaking:</strong> Maintained characters even in "private" interviews, making reality/performance indistinguishable
-
-                                <strong>Social Navigation:</strong> Characters provided frameworks for interaction that his neurodivergent authentic self couldn't manage
-                            </div>
-                        </div>
-
-                        <div class="parallel-item">
-                            <h5>Nathan's Approach</h5>
-                            <div class="approach-details">
-                                <strong>Character Types:</strong> Business consultant (competent authority), helpful friend (genuine concern), performance artist (committed experimenter)
-
-                                <strong>Audience Relationship:</strong> Elaborate scenarios that blur help/exploitation. "Is he helping? Is this real? Should I feel bad for laughing?"
-
-                                <strong>Never Breaking:</strong> Maintains deadpan consultant persona even when schemes become absurd (alligators, tightrope training, child actors)
-
-                                <strong>Social Navigation:</strong> Elaborate constructions become his primary interface with human connection and authentic experience
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="neurodivergent-lens">
-                    <h4>The Neurodivergent Framework</h4>
-                    <div class="framework-analysis">
-                        <div class="framework-point">
-                            <strong>Masking Through Performance:</strong> Both Andy and Nathan seem to use their characters as sophisticated masking strategies. Where most neurodivergent people learn to "act normal," they learned to act as constructed personas that could navigate social situations more effectively than their authentic selves.
-                        </div>
-
-                        <div class="framework-point">
-                            <strong>Obsessive Commitment:</strong> The extreme dedication both show to their constructions - Andy maintaining Tony Clifton for years, Nathan training months for a tightrope walk - suggests something beyond comedy. It's the same hyperfocus that characterizes neurodivergent special interests, but applied to identity construction.
-                        </div>
-
-                        <div class="framework-point">
-                            <strong>Reality as Performance Space:</strong> Both treat the "real world" as a stage where they can experiment with different approaches to human connection. Nathan's parenting rehearsals and elaborate business schemes echo Andy's wrestling personas and Foreign Man interactions - attempts to find a version of themselves that can successfully connect with others.
-                        </div>
-                    </div>
-                </div>
-
-                <div class="key-differences">
-                    <h4>The Crucial Differences</h4>
-                    <div class="differences-analysis">
-                        <div class="difference-point">
-                            <strong>Andy's Characters Were Shields:</strong> Foreign Man and Tony Clifton protected Andy from direct social interaction. They were buffers between his authentic self and a world he found overwhelming.
-                        </div>
-
-                        <div class="difference-point">
-                            <strong>Nathan's Character Is a Bridge:</strong> His business consultant persona doesn't protect him from authentic interaction - it facilitates it. Nathan uses CNF (Character Nathan Fielder) to access human connection that AMNF (Actual Man Nathan Fielder) cannot reach alone.
-                        </div>
-
-                        <div class="difference-point">
-                            <strong>The Consumption Problem:</strong> Andy maintained separation between his characters and himself until his death. Nathan's character appears to be consuming his authentic self entirely, raising the question of whether AMNF will survive the process.
-                        </div>
-
-                        <div class="pull-quote">
-                            Nathan's character appears to be consuming his authentic self entirely, raising the question of whether AMNF will survive the process.
-                        </div>
-                    </div>
-                </div>
-
-                <div class="foreshadowing-note">
-                    <div class="foreshadowing-content">
-                        <em>This comparison provides the framework for understanding everything that follows: Nathan's business schemes, his parenting experiments, his pilot training advocacy, and his ultimate evolution into someone whose coping mechanism has become so complete that it may have replaced the person who needed to cope.</em>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="bio-section">
-            <h2 class="section-title" onclick="toggleCollapse(this)">Nathan's Origin: The Facts I Can Gather</h2>
+            <h2 class="section-title collapsed" onclick="toggleCollapse(this)">Nathan's Origin: The Facts I Can Gather (click to expand)</h2>
 
-            <div class="collapsible-content">
+            <div>
                 <div class="timeline">
                     <div class="timeline-item">
                         <div class="year">1983</div>
@@ -1669,6 +1630,97 @@
             </div>
         </div>
 
+        <div class="bio-section aside-section">
+            <div class="aside-label">ASIDE</div>
+            <h2 class="section-title collapsed" onclick="toggleCollapse(this)">The Kaufman Connection: Two People, or, how many, really? (click to expand)</h2>
+
+            <div class="collapsible-content collapsed">
+                <div class="kaufman-comparison">
+                    <h4>The Andy Kaufman Template</h4>
+                    <div class="kaufman-description">
+                        Andy Kaufman (1949-1984) created a performance methodology built around incredulity - making audiences question everything they thought they knew about entertainment, reality, and human behavior. His Foreign Man character, Tony Clifton persona, and elaborate wrestling stunts weren't just comedy bits; they were systematic attacks on the audience's expectations of what performance should be.
+                    </div>
+
+                    <div class="kaufman-method">
+                        <strong>Kaufman's Core Strategy:</strong> Use performance to create a space where social rules don't apply, where he could interact with the world through constructed characters that allowed him to navigate situations his authentic self found difficult or impossible.
+                    </div>
+                </div>
+
+                <div class="parallel-analysis">
+                    <h4>The Nathan Evolution</h4>
+                    <div class="parallel-grid">
+                        <div class="parallel-item">
+                            <h5>Andy's Approach</h5>
+                            <div class="approach-details">
+                                <strong>Character Types:</strong> Foreign Man (childlike confusion), Tony Clifton (aggressive confidence), wrestling personas (physical dominance)
+
+                                <strong>Audience Relationship:</strong> Deliberate confusion and discomfort. "Is this real? Is he serious? What's happening?"
+
+                                <strong>Never Breaking:</strong> Maintained characters even in "private" interviews, making reality/performance indistinguishable
+
+                                <strong>Social Navigation:</strong> Characters provided frameworks for interaction that his neurodivergent authentic self couldn't manage
+                            </div>
+                        </div>
+
+                        <div class="parallel-item">
+                            <h5>Nathan's Approach</h5>
+                            <div class="approach-details">
+                                <strong>Character Types:</strong> Business consultant (competent authority), helpful friend (genuine concern), performance artist (committed experimenter)
+
+                                <strong>Audience Relationship:</strong> Elaborate scenarios that blur help/exploitation. "Is he helping? Is this real? Should I feel bad for laughing?"
+
+                                <strong>Never Breaking:</strong> Maintains deadpan consultant persona even when schemes become absurd (alligators, tightrope training, child actors)
+
+                                <strong>Social Navigation:</strong> Elaborate constructions become his primary interface with human connection and authentic experience
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="neurodivergent-lens">
+                    <h4 class="section-title collapsed" onclick="toggleCollapse(this)">The Neurodivergent Framework (click to expand)</h4>
+                    <div class="collapsible-content collapsed">
+                        <div class="framework-analysis">
+                            <div class="framework-point">
+                                <strong>Masking Through Performance:</strong> Both Andy and Nathan seem to use their characters as sophisticated masking strategies. Where most neurodivergent people learn to "act normal," they learned to act as constructed personas that could navigate social situations more effectively than their authentic selves.
+                            </div>
+
+                            <div class="framework-point">
+                                <strong>Obsessive Commitment:</strong> The extreme dedication both show to their constructions - Andy maintaining Tony Clifton for years, Nathan training months for a tightrope walk - suggests something beyond comedy. It's the same hyperfocus that characterizes neurodivergent special interests, but applied to identity construction.
+                            </div>
+
+                            <div class="framework-point">
+                                <strong>Reality as Performance Space:</strong> Both treat the "real world" as a stage where they can experiment with different approaches to human connection. Nathan's parenting rehearsals and elaborate business schemes echo Andy's wrestling personas and Foreign Man interactions - attempts to find a version of themselves that can successfully connect with others.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="key-differences">
+                    <h4 class="section-title collapsed" onclick="toggleCollapse(this)">The Crucial Differences (click to expand)</h4>
+                    <div class="collapsible-content collapsed">
+                        <div class="differences-analysis">
+                            <div class="difference-point">
+                                <strong>Andy's Characters Were Shields:</strong> Foreign Man and Tony Clifton protected Andy from direct social interaction. They were buffers between his authentic self and a world he found overwhelming.
+                            </div>
+
+                            <div class="difference-point">
+                                <strong>Nathan's Character Is a Bridge:</strong> His business consultant persona doesn't protect him from authentic interaction - it facilitates it. Nathan uses CNF (Character Nathan Fielder) to access human connection that AMNF (Actual Man Nathan Fielder) cannot reach alone.
+                            </div>
+
+                            <div class="difference-point">
+                                <strong>The Consumption Problem:</strong> Andy maintained separation between his characters and himself until his death. Nathan's character appears to be consuming his authentic self entirely, raising the question of whether AMNF will survive the process.
+                            </div>
+
+                            <div class="pull-quote">
+                                Nathan's character appears to be consuming his authentic self entirely, raising the question of whether AMNF will survive the process.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="bio-section">
             <h2 class="section-title" onclick="toggleCollapse(this)">Nathan For You: The Establishment of AMNF vs CNF</h2>
 
@@ -1732,8 +1784,8 @@
                     <h4>The Evolution of Nathan's Methodology</h4>
 
                     <div class="episode-visual-case">
-                        <h5>The Alligator Discount ("Electronics Store")</h5>
-                        <div class="premise-grid">
+                        <h5 class="collapsed" onclick="toggleEpisode(this)">The Alligator Discount Electronics Store (click to expand)</h5>
+                        <div class="episode-content collapsed"> class="premise-grid">
                             <div class="premise-box">
                                 <h6>What It Says It Is</h6>
                                 <div class="premise-content">
@@ -1787,7 +1839,8 @@
 
                     <div class="episode-visual-case">
                         <h5>Seven Months of Tightrope Training ("The Hero")</h5>
-                        <div class="premise-grid">
+                        <div class="episode-content collapsed">
+                            <div class="premise-grid">
                             <div class="premise-box">
                                 <h6>What It Says It Is</h6>
                                 <div class="premise-content">
@@ -1837,11 +1890,13 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </div>
 
                     <div class="episode-visual-case">
-                        <h5>Finding Frances (The Series Finale)</h5>
-                        <div class="premise-grid">
+                        <h5 class="collapsed" onclick="toggleEpisode(this)">Finding Frances The Series Finale (click to expand)</h5>
+                        <div class="episode-content collapsed">
+                            <div class="premise-grid">
                             <div class="premise-box">
                                 <h6>What It Says It Is</h6>
                                 <div class="premise-content">
@@ -2384,14 +2439,15 @@
                 <div class="deeper-commentary">
                     <h4>The Meta-Commentary</h4>
                     <div class="commentary-description">
-                        It goes deeper. There is a meta commentary about what it even means to be a person here. And Nathan is deeply confused by that. I am too.
-                    </div>
-                </div>
+                        <p>It goes deeper. There is a meta commentary about what it even means to be a person here. And Nathan is deeply confused by that. I am too. I have spent my entire life trying to fit in, and have become quite good at it. But along the way it's been massive steps of growth trying to get myself out there and "rehearse" running through making friends and living life in over ten different cities in a decade. Nathan's deeply unsettled.</p>
 
-                <div class="fundamental-difficulty">
-                    <h4>The Exercise of Fitting In</h4>
-                    <div class="difficulty-description">
-                        Not relating to people on a fundamental level is extremely difficult. Masking and learning to fit in becomes an exercise - a constant performance of what you think a person should be, what connection should look like, what authentic interaction means.
+                        <p>What Nathan has created through his elaborate constructions is essentially a systematic approach to the same problem many of us face quietly: how do you learn to be human when the rules feel fundamentally foreign? His television shows become laboratories for social interaction, testing grounds for authentic connection, rehearsal spaces for the basic human experiences that others seem to navigate intuitively.</p>
+
+                        <p>The uncomfortable truth is that Nathan's methods - the obsessive preparation, the scripted interactions, the need to control every variable - might be more relatable than we want to admit. How many of us rehearse conversations in our heads? How many practice our responses, craft our personas, perform versions of ourselves that we think will be more acceptable? Nathan has simply taken this universal human experience and made it visible, systematic, and extreme.</p>
+
+                        <p>But there's something deeply unsettling about watching someone go to these lengths and still end up isolated, still struggling with the same fundamental questions about identity and belonging. It forces the question: if elaborate preparation and perfect execution can't solve the problem of human connection, what can? If Nathan, with all his resources and commitment, still can't figure out how to simply be himself with other people, what hope is there for the rest of us?</p>
+
+                        <p>The most disturbing possibility is that Nathan's journey represents not an aberration, but an acceleration - a glimpse into what happens when the performative aspects of social interaction become so consuming that they replace the authentic self entirely. In a world where we're all performing versions of ourselves on social media, where authentic interaction increasingly feels scripted, Nathan's complete transformation into CNF might be less of a psychological curiosity and more of a cautionary tale about where we're all heading.</p>
                     </div>
                 </div>
 
@@ -2422,6 +2478,7 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <script>
