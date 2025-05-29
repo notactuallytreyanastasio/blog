@@ -55,6 +55,8 @@ defmodule BlogWeb.Router do
     live "/nathan_harpers", NathanHarpersLive, :index
     live "/nathan_teen_vogue", NathanTeenVogueLive, :index
     live "/nathan_buzzfeed", NathanBuzzfeedLive, :index
+    live "/nathan_usenet", NathanUsenetLive, :index
+    live "/nathan_content_farm", NathanContentFarmLive, :index
   end
 
   # Other scopes may use custom stacks.
