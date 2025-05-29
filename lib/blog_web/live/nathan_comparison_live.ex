@@ -20,6 +20,7 @@ defmodule BlogWeb.NathanComparisonLive do
       |> assign(:available_articles, available_articles)
       |> assign(:selected_articles, selected_articles)
       |> assign(:selected_ids, default_selected_ids)
+      |> assign(:page_title, "Nathan Fielder Article Comparison")
 
     {:ok, socket}
   end

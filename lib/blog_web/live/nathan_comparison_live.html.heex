@@ -1,14 +1,14 @@
 <div class="comparison-container">
   <div class="comparison-header">
     <h1>Nathan Fielder Article Comparison</h1>
-    <p>Compare different stylistic interpretations of the same Nathan Fielder character study</p>
-    
+    <p>Compare different AI re-writings of an original Nathan Fielder character study</p>
+
     <div class="article-multiselect">
       <div class="multiselect-buttons">
         <%= for article <- @available_articles do %>
-          <button 
-            class={"multiselect-btn #{if article.id in @selected_ids, do: "selected", else: ""}"} 
-            phx-click="toggle_article" 
+          <button
+            class={"multiselect-btn #{if article.id in @selected_ids, do: "selected", else: ""}"}
+            phx-click="toggle_article"
             phx-value-article_id={article.id}
           >
             <%= if article.id in @selected_ids do %>
@@ -28,8 +28,8 @@
           <span class="iframe-title"><%= article.name %></span>
           <span class="iframe-url"><%= article.url %></span>
         </div>
-        <iframe 
-          src={article.url} 
+        <iframe
+          src={article.url}
           class="article-iframe"
           title={"Nathan Fielder Article - #{article.name}"}
           sandbox="allow-same-origin allow-scripts"
@@ -174,7 +174,7 @@
     grid-template-columns: 1fr;
     height: auto;
   }
-  
+
   .article-iframe {
     height: 700px;
   }
@@ -184,23 +184,23 @@
   .comparison-container {
     padding: 10px;
   }
-  
+
   .multiselect-buttons {
     gap: 4px;
   }
-  
+
   .multiselect-btn {
     padding: 3px 6px;
     font-size: 10px;
     min-width: 50px;
   }
-  
+
   .iframe-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
   }
-  
+
   .article-iframe {
     height: 600px;
   }
