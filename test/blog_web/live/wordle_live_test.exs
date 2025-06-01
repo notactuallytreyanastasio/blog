@@ -16,7 +16,6 @@ defmodule BlogWeb.WordleLiveTest do
       current_guess: "",
       max_attempts: 6,
       game_over: false,
-      win: false,
       hard_mode: false,
       used_letters: %{},
       message: nil
@@ -81,8 +80,7 @@ defmodule BlogWeb.WordleLiveTest do
     game_with_guesses = %{
       game1
       | guesses: [%{word: "guess", result: [:absent, :absent, :absent, :absent, :absent]}],
-        game_over: true,
-        win: true
+        game_over: true
     }
 
     # Now reset it
@@ -93,7 +91,6 @@ defmodule BlogWeb.WordleLiveTest do
     assert reset_game.current_guess == ""
     assert reset_game.guesses == []
     assert reset_game.game_over == false
-    assert reset_game.win == false
 
     # Hard mode setting should be preserved
     hard_mode_game = %{game | hard_mode: true}

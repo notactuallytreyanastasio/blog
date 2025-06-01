@@ -57,10 +57,14 @@ defmodule BlogWeb.MTAComponents do
                           phx-value-borough={@active_borough}
                           class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs sm:text-sm"
                         >
-                          Select All <%= case @active_borough do %>
-                            <% :manhattan -> %>Manhattan
-                            <% :brooklyn -> %>Brooklyn
-                            <% :queens -> %>Queens
+                          Select All
+                          <%= case @active_borough do %>
+                            <% :manhattan -> %>
+                              Manhattan
+                            <% :brooklyn -> %>
+                              Brooklyn
+                            <% :queens -> %>
+                              Queens
                             <% :all -> %>
                           <% end %>
                         </button>
@@ -72,8 +76,8 @@ defmodule BlogWeb.MTAComponents do
                         </button>
                       </div>
                     </div>
-
-                    <!-- Bus Route Selection Tabs -->
+                    
+    <!-- Bus Route Selection Tabs -->
                     <div class="border-b border-gray-200 mb-4">
                       <nav class="-mb-px flex flex-wrap" aria-label="Borough tabs">
                         <button
@@ -111,7 +115,9 @@ defmodule BlogWeb.MTAComponents do
                       <%= if @active_borough == :manhattan || @active_borough == :all do %>
                         <div>
                           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Manhattan Crosstown Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Manhattan Crosstown Routes
+                            </div>
                             <%= for {route, _} <- Enum.filter(@manhattan_bus_routes, fn {k, _} ->
                               String.contains?(k, ["M14", "M21", "M22", "M23", "M34", "M42", "M50", "M66", "M72", "M79", "M86", "M96", "M106", "M116"])
                             end) do %>
@@ -123,11 +129,13 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
 
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Manhattan North-South Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Manhattan North-South Routes
+                            </div>
                             <%= for {route, _} <- Enum.filter(@manhattan_bus_routes, fn {k, _} ->
                               String.match?(k, ~r/^M([1-9]|1[0-5]|98|100|101|102|103|104|60-SBS)$/)
                             end) do %>
@@ -139,11 +147,13 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
 
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Manhattan Limited & Express</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Manhattan Limited & Express
+                            </div>
                             <%= for {route, _} <- Enum.filter(@manhattan_bus_routes, fn {k, _} ->
                               String.contains?(k, "-LTD")
                             end) do %>
@@ -155,7 +165,7 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
                           </div>
@@ -165,7 +175,9 @@ defmodule BlogWeb.MTAComponents do
                       <%= if @active_borough == :brooklyn || @active_borough == :all do %>
                         <div>
                           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Brooklyn Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Brooklyn Routes
+                            </div>
                             <%= for {route, _} <- Enum.filter(@brooklyn_bus_routes, fn {k, _} ->
                               String.match?(k, ~r/^B\d+$/)
                             end) |> Enum.sort() do %>
@@ -177,11 +189,13 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
 
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Brooklyn SBS Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Brooklyn SBS Routes
+                            </div>
                             <%= for {route, _} <- Enum.filter(@brooklyn_bus_routes, fn {k, _} ->
                               String.contains?(k, "-SBS")
                             end) |> Enum.sort() do %>
@@ -193,7 +207,7 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
                           </div>
@@ -203,7 +217,9 @@ defmodule BlogWeb.MTAComponents do
                       <%= if @active_borough == :queens || @active_borough == :all do %>
                         <div>
                           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Queens Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Queens Routes
+                            </div>
                             <%= for {route, _} <- Enum.filter(@queens_bus_routes, fn {k, _} ->
                               String.match?(k, ~r/^Q\d+[A-Z]?$/)
                             end) |> Enum.sort() do %>
@@ -215,11 +231,13 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
 
-                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">Queens SBS Routes</div>
+                            <div class="col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg">
+                              Queens SBS Routes
+                            </div>
                             <%= for {route, _} <- Enum.filter(@queens_bus_routes, fn {k, _} ->
                               String.contains?(k, "-SBS")
                             end) |> Enum.sort() do %>
@@ -231,7 +249,7 @@ defmodule BlogWeb.MTAComponents do
                                   phx-value-route={route}
                                   class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"
                                 />
-                                <span><%= route %></span>
+                                <span>{route}</span>
                               </label>
                             <% end %>
                           </div>

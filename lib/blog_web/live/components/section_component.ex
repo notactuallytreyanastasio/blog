@@ -6,8 +6,8 @@ defmodule BlogWeb.SectionComponent do
   def render(assigns) do
     ~H"""
     <section id={@id} class="section-component">
-      <h3><%= @title %></h3>
-      <div><%= @content |> MDEx.to_html!([]) |> Phoenix.HTML.raw() %></div>
+      <h3>{@title}</h3>
+      <div>{@content |> MDEx.to_html!([]) |> Phoenix.HTML.raw()}</div>
     </section>
     """
   end

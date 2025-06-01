@@ -260,7 +260,6 @@ defmodule BlogWeb.WordleLive do
                 <% end %>
               <% end %>
             <% else %>
-              
               <div class="grid grid-cols-5 gap-[3px]">
                 <%= for _j <- 1..5 do %>
                   <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-300">

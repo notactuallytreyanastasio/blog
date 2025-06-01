@@ -213,7 +213,10 @@ defmodule BlogWeb.MtaBusMapLive do
   }
 
   # All routes (Manhattan, Brooklyn, and Queens)
-  @all_bus_routes Map.merge(Map.merge(@manhattan_bus_routes, @brooklyn_bus_routes), @queens_bus_routes)
+  @all_bus_routes Map.merge(
+                    Map.merge(@manhattan_bus_routes, @brooklyn_bus_routes),
+                    @queens_bus_routes
+                  )
 
   @impl true
   def mount(_params, _session, socket) do
@@ -274,7 +277,10 @@ defmodule BlogWeb.MtaBusMapLive do
 
     {:noreply,
      socket
-     |> assign(buses: Map.new(results, fn %{route: route, buses: buses} -> {route, buses} end), loading: false)
+     |> assign(
+       buses: Map.new(results, fn %{route: route, buses: buses} -> {route, buses} end),
+       loading: false
+     )
      |> push_event("update_buses", %{buses: results})}
   end
 
@@ -308,6 +314,7 @@ defmodule BlogWeb.MtaBusMapLive do
   @impl true
   def handle_event("select_all_routes", _params, socket) do
     all_routes = Map.keys(socket.assigns.all_bus_routes) |> MapSet.new()
+
     {:noreply,
      socket
      |> assign(selected_routes: all_routes)
@@ -373,11 +380,16 @@ defmodule BlogWeb.MtaBusMapLive do
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
           <h1 class="text-xl sm:text-2xl font-bold">
             <%= case @active_borough do %>
-              <% :manhattan -> %>Manhattan
-              <% :brooklyn -> %>Brooklyn
-              <% :queens -> %>Queens
-              <% :all -> %>All Boroughs
-            <% end %> MTA Bus Tracker
+              <% :manhattan -> %>
+                Manhattan
+              <% :brooklyn -> %>
+                Brooklyn
+              <% :queens -> %>
+                Queens
+              <% :all -> %>
+                All Boroughs
+            <% end %>
+            MTA Bus Tracker
           </h1>
 
           <div class="flex flex-wrap gap-2">
@@ -393,9 +405,27 @@ defmodule BlogWeb.MtaBusMapLive do
               disabled={@loading}
             >
               <%= if @loading do %>
-                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  class="animate-spin h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  >
+                  </circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  >
+                  </path>
                 </svg>
                 Loading...
               <% else %>
@@ -404,8 +434,8 @@ defmodule BlogWeb.MtaBusMapLive do
             </button>
           </div>
         </div>
-
-        <!-- Borough Selection Buttons -->
+        
+    <!-- Borough Selection Buttons -->
         <div class="mb-4">
           <div class="text-sm text-gray-500 mb-1">Select Borough:</div>
           <div class="flex flex-wrap gap-1">
@@ -417,9 +447,27 @@ defmodule BlogWeb.MtaBusMapLive do
             >
               <%= if @loading && @active_borough == :all do %>
                 <span class="flex items-center">
-                  <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    class="animate-spin h-3 w-3 mr-1 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    >
+                    </circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    >
+                    </path>
                   </svg>
                   All Boroughs
                 </span>
@@ -437,9 +485,27 @@ defmodule BlogWeb.MtaBusMapLive do
                 <div class="w-3 h-3 rounded-full bg-red-500 mr-1.5"></div>
                 <%= if @loading && @active_borough == :manhattan do %>
                   <span class="flex items-center">
-                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      class="animate-spin h-3 w-3 mr-1 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      >
+                      </circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      >
+                      </path>
                     </svg>
                     Manhattan
                   </span>
@@ -458,9 +524,27 @@ defmodule BlogWeb.MtaBusMapLive do
                 <div class="w-3 h-3 rounded-full bg-purple-500 mr-1.5"></div>
                 <%= if @loading && @active_borough == :brooklyn do %>
                   <span class="flex items-center">
-                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      class="animate-spin h-3 w-3 mr-1 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      >
+                      </circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      >
+                      </path>
                     </svg>
                     Brooklyn
                   </span>
@@ -479,9 +563,27 @@ defmodule BlogWeb.MtaBusMapLive do
                 <div class="w-3 h-3 rounded-full bg-green-500 mr-1.5"></div>
                 <%= if @loading && @active_borough == :queens do %>
                   <span class="flex items-center">
-                    <svg class="animate-spin h-3 w-3 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      class="animate-spin h-3 w-3 mr-1 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      >
+                      </circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      >
+                      </path>
                     </svg>
                     Queens
                   </span>
@@ -501,30 +603,49 @@ defmodule BlogWeb.MtaBusMapLive do
             >
               <%= if @loading do %>
                 <span class="flex items-center">
-                  <svg class="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    class="animate-spin h-3 w-3 mr-1"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    >
+                    </circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    >
+                    </path>
                   </svg>
                   Loading...
                 </span>
               <% else %>
-                Select All <%= case @active_borough do
+                Select All {case @active_borough do
                   :manhattan -> "Manhattan"
                   :brooklyn -> "Brooklyn"
                   :queens -> "Queens"
                   :all -> "Boroughs"
-                end %> Routes
+                end} Routes
               <% end %>
             </button>
           </div>
         </div>
 
         <%= if @error do %>
-          <p class="text-red-500 text-sm mb-2"><%= @error %></p>
+          <p class="text-red-500 text-sm mb-2">{@error}</p>
         <% end %>
 
         <div class="flex-1 relative" style="min-height: calc(100vh - 180px);">
-          <div id={@map_id} class="absolute inset-0 z-0" phx-hook="MtaBusMap" phx-update="ignore"></div>
+          <div id={@map_id} class="absolute inset-0 z-0" phx-hook="MtaBusMap" phx-update="ignore">
+          </div>
         </div>
 
         <.bus_route_selection_modal

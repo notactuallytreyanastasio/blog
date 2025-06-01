@@ -15,7 +15,7 @@ defmodule BlogWeb.NathanComparisonLive do
     default_selected_ids = ["original", "harpers", "teen_vogue"]
     selected_articles = Enum.filter(available_articles, &(&1.id in default_selected_ids))
 
-    socket = 
+    socket =
       socket
       |> assign(:available_articles, available_articles)
       |> assign(:selected_articles, selected_articles)
@@ -28,32 +28,34 @@ defmodule BlogWeb.NathanComparisonLive do
   @impl true
   def handle_event("toggle_article", %{"article_id" => article_id}, socket) do
     current_selected = socket.assigns.selected_ids
-    
-    updated_selected_ids = if article_id in current_selected do
-      List.delete(current_selected, article_id)
-    else
-      # Limit to maximum of 3 selections
-      if length(current_selected) >= 3 do
-        # Replace the first selected item with the new one
-        [article_id | Enum.drop(current_selected, -1)]
+
+    updated_selected_ids =
+      if article_id in current_selected do
+        List.delete(current_selected, article_id)
       else
-        [article_id | current_selected]
+        # Limit to maximum of 3 selections
+        if length(current_selected) >= 3 do
+          # Replace the first selected item with the new one
+          [article_id | Enum.drop(current_selected, -1)]
+        else
+          [article_id | current_selected]
+        end
       end
-    end
-    
+
     # Get the actual article objects for the selected IDs
-    selected_articles = 
+    selected_articles =
       updated_selected_ids
-      |> Enum.map(fn id -> 
+      |> Enum.map(fn id ->
         Enum.find(socket.assigns.available_articles, &(&1.id == id))
       end)
-      |> Enum.filter(& &1)  # Remove any nils
-    
-    socket = 
+      # Remove any nils
+      |> Enum.filter(& &1)
+
+    socket =
       socket
       |> assign(:selected_articles, selected_articles)
       |> assign(:selected_ids, updated_selected_ids)
-    
+
     {:noreply, socket}
   end
 end

@@ -278,7 +278,11 @@ defmodule Blog.Mta.Client do
 
   defp parse_response(%{"Siri" => siri}) do
     case siri do
-      %{"ServiceDelivery" => %{"VehicleMonitoringDelivery" => [%{"VehicleActivity" => vehicles} | _]}} ->
+      %{
+        "ServiceDelivery" => %{
+          "VehicleMonitoringDelivery" => [%{"VehicleActivity" => vehicles} | _]
+        }
+      } ->
         parse_vehicles(vehicles)
 
       _ ->
@@ -316,7 +320,8 @@ defmodule Blog.Mta.Client do
           },
           direction: Map.get(journey, "DirectionRef", ""),
           destination: destination,
-          speed: Map.get(journey, "Velocity", 0), # Changed from Speed to Velocity
+          # Changed from Speed to Velocity
+          speed: Map.get(journey, "Velocity", 0),
           recorded_at: recorded_at
         }
 

@@ -12,12 +12,12 @@ defmodule BlogWeb.AsideComponent do
     ~H"""
     <aside id={@id} class="aside-component bg-gray-100 p-4 rounded-md mb-4">
       <h4 class="font-semibold text-lg cursor-pointer" phx-click="toggle_aside" phx-target={@myself}>
-        <%= @title %>
-        <span><%= if @is_collapsed, do: "▶", else: "▼" %></span>
+        {@title}
+        <span>{if @is_collapsed, do: "▶", else: "▼"}</span>
       </h4>
       <%= if not @is_collapsed do %>
         <div class="mt-2">
-          <%= @content |> MDEx.to_html! |> Phoenix.HTML.raw() %>
+          {@content |> MDEx.to_html!() |> Phoenix.HTML.raw()}
         </div>
       <% end %>
     </aside>

@@ -686,7 +686,7 @@ defmodule BlogWeb.MarkdownEditorComponent do
             </details>
           </div>
         </div>
-
+        
     <!-- Preview Section -->
         <div class="w-full md:w-1/2">
           <div class="bg-white border border-gray-300 rounded-md overflow-hidden h-full">
