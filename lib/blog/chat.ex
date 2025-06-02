@@ -43,18 +43,13 @@ defmodule Blog.Chat do
   """
   defp initialize_rooms do
     # Check if rooms are already initialized
-    case get_messages("general") do
+    case get_messages("frontpage") do
       [] ->
         # Add welcome messages to each room
-        rooms = ["general", "random", "programming", "music"]
+        rooms = ["frontpage"]
 
         welcome_messages = %{
-          "general" => "Welcome to the General chat room! This is where everyone hangs out.",
-          "random" => "Welcome to the Random chat room! Random conversations welcome!",
-          "programming" =>
-            "Welcome to the Programming chat room! Discuss code, programming languages, and tech.",
-          "music" =>
-            "Welcome to the Music chat room! Share your favorite artists, songs, and musical opinions."
+          "frontpage" => "Welcome to the frontpage chat! Chat with other visitors in real-time."
         }
 
         Enum.each(rooms, fn room ->

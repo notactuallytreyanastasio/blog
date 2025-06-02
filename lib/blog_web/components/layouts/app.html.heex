@@ -1,32 +1,3 @@
-<div class="min-h-screen font-mono">
-  <%!-- Header with better mobile responsiveness --%>
-  <header class="px-4 sm:px-6 py-3 bg-white border-b">
-    <div class="max-w-7xl mx-auto">
-      <%!-- Title and reader count --%>
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-        <nav class="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-4 sm:gap-6 text-sm">
-          <.link navigate="/post/whats-my-schtick" class="hover:text-blue-600 transition-colors">
-            What's My Schtick?
-          </.link>
-        </nav>
-        <div class="flex items-center gap-4">
-          <a
-            href={~p"/pong"}
-            class="text-sm font-semibold leading-6 text-zinc-900 hover:text-zinc-700"
-          >
-            Pong
-          </a>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <%!-- Main content --%>
-  <main class="px-4 py-6 sm:px-6">
-    <div class="max-w-7xl mx-auto">
-      {@inner_content}
-    </div>
-  </main>
-
-  <%!-- Mobile-only random posts section --%>
+<div class="min-h-screen">
+  {@inner_content}
 </div>

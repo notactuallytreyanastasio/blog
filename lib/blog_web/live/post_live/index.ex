@@ -7,7 +7,7 @@ defmodule BlogWeb.PostLive.Index do
 
   @presence_topic "blog_presence"
   @chat_topic "blog_chat"
-  @default_rooms ["general", "random", "programming", "music"]
+  @default_rooms ["frontpage"]
   @url_regex ~r/(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})/i
 
   # TODO add meta tags
@@ -18,101 +18,117 @@ defmodule BlogWeb.PostLive.Index do
     demos = [
       %{
         title: "MTA Bus Tracker",
-        description: "Track the manhattan buses",
+        description: "Track Manhattan buses in real-time",
         path: ~p"/mta-bus-map",
-        # We'll use heroicons for these
-        icon: "code",
-        # Each demo gets a signature color
-        color: "emerald"
+        category: "Data Visualization"
       },
       %{
-        title: "Bezier Trianges",
-        description: "A trippy animation with bezier curves and spinning triangles",
+        title: "Bezier Triangles",
+        description: "Trippy animation with bezier curves and spinning triangles",
         path: ~p"/bezier-triangles",
-        # We'll use heroicons for these
-        icon: "code",
-        # Each demo gets a signature color
-        color: "emerald"
+        category: "Art"
       },
       %{
         title: "Wordle",
-        description: "Wordle clone, LiveView, with viewing other peoples games baked in",
+        description: "Wordle clone with multiplayer viewing",
         path: ~p"/wordle",
-        # We'll use heroicons for these
-        icon: "code",
-        # Each demo gets a signature color
-        color: "emerald"
+        category: "Games"
       },
       %{
-        title: "Watch all the infinite pong games",
-        description: "Run Python code directly in your browser",
+        title: "Pong God Mode",
+        description: "Watch all infinite pong games",
         path: ~p"/pong/god",
-        # We'll use heroicons for these
-        icon: "code",
-        # Each demo gets a signature color
-        color: "emerald"
+        category: "Games"
       },
       %{
-        title: "Infinite Pong, with AI controls",
-        description: "Run Python code directly in your browser",
+        title: "AI Pong",
+        description: "Infinite Pong with AI controls",
         path: ~p"/pong",
-        # We'll use heroicons for these
-        icon: "code",
-        # Each demo gets a signature color
-        color: "emerald"
+        category: "Games"
       },
       %{
         title: "Python Playground",
-        description: "Run Python code directly in your browser",
+        description: "Run Python code in your browser",
         path: ~p"/python-demo",
-        # We'll use heroicons for these
-        icon: "code",
-        # Each demo gets a signature color
-        color: "emerald"
-      },
-      %{
-        title: "Wordle Clone",
-        description:
-          "A clone of Wordle in almost pure LiveView, a tiny bit of JS for mobile keyboard support",
-        path: ~p"/wordle",
-        icon: "cursor-arrow-rays",
-        color: "orange"
+        category: "Development"
       },
       %{
         title: "Cursor Tracker",
-        description:
-          "Track each others cursors like this, and draw points to show your favorite spots",
+        description: "Track cursors and draw favorite spots",
         path: ~p"/cursor-tracker",
-        icon: "cursor-arrow-rays",
-        color: "fuchsia"
+        category: "Interactive"
       },
       %{
-        title: "SSR animation, rainbows, fun, keyboard interaction (try typing on it)",
-        description: "A stupid demo to show some animations and interaction off",
+        title: "Rainbow Chaos",
+        description: "SSR animations with keyboard interaction",
         path: ~p"/gay_chaos",
-        icon: "sparkles",
-        color: "violet"
+        category: "Art"
       },
       %{
-        title: "Bluesky youtube videos",
-        description: "Live feed of YT links on blueskystreaming",
+        title: "Reddit Links",
+        description: "Live feed of YouTube links from social",
         path: ~p"/reddit-links",
-        icon: "newspaper",
-        color: "orange"
+        category: "Social"
       },
       %{
         title: "Emoji Skeets",
-        description: "Filter bluesky firehose by emojis live",
+        description: "Filter Bluesky firehose by emojis",
         path: ~p"/emoji-skeets",
-        icon: "face-smile",
-        color: "yellow"
+        category: "Social"
       },
       %{
         title: "Hacker News Live",
         description: "Real-time tech news feed",
         path: ~p"/hacker-news",
-        icon: "command-line",
-        color: "red"
+        category: "News"
+      },
+      %{
+        title: "Blackjack",
+        description: "Classic casino card game",
+        path: ~p"/blackjack",
+        category: "Games"
+      },
+      %{
+        title: "War Card Game",
+        description: "Simple card game of War",
+        path: ~p"/war",
+        category: "Games"
+      },
+      %{
+        title: "Generative Art",
+        description: "Dynamic generative art canvas",
+        path: ~p"/generative-art",
+        category: "Art"
+      },
+      %{
+        title: "Bubble Game",
+        description: "Interactive bubble popping game",
+        path: ~p"/bubble-game",
+        category: "Games"
+      },
+      %{
+        title: "Markdown Editor",
+        description: "Live markdown editor with preview",
+        path: ~p"/markdown-editor",
+        category: "Productivity"
+      },
+      %{
+        title: "Nathan Fielder Archive",
+        description: "Various Nathan Fielder content styles",
+        path: ~p"/nathan",
+        category: "Comedy"
+      },
+      %{
+        title: "Bookmarks",
+        description: "Personal bookmark collection",
+        path: ~p"/bookmarks",
+        category: "Productivity"
+      },
+      %{
+        title: "Museum",
+        description: "Full museum of all projects",
+        path: ~p"/museum",
+        category: "Meta"
       }
     ]
 
@@ -131,7 +147,7 @@ defmodule BlogWeb.PostLive.Index do
             cursor_position: nil,
             color: color,
             display_name: nil,
-            current_room: "general"
+            current_room: "frontpage"
           })
 
         # Subscribe to presence and chat topics
@@ -158,9 +174,9 @@ defmodule BlogWeb.PostLive.Index do
 
     total_readers = map_size(visitor_cursors)
 
-    # Get messages for the default room - always fetch from ETS
-    messages = Chat.get_messages("general")
-    Logger.debug("Loaded #{length(messages)} messages for general room during mount")
+    # Get messages for the frontpage chat - always fetch from ETS
+    messages = Chat.get_messages("frontpage")
+    Logger.debug("Loaded #{length(messages)} messages for frontpage room during mount")
 
     modal_state =
       case params["modal"] do
@@ -185,20 +201,19 @@ defmodule BlogWeb.PostLive.Index do
        show_chat: false,
        chat_messages: messages,
        chat_form: %{"message" => ""},
-       current_room: "general",
+       current_room: "frontpage",
        chat_rooms: @default_rooms,
        room_users: %{
-         "general" => 0,
-         "random" => 0,
-         "programming" => 0,
-         "music" => 0
+         "frontpage" => 0
        },
        show_mod_panel: false,
        banned_word_form: %{"word" => ""},
        # This is a simple example - in a real app you'd use proper auth
        mod_password: "letmein",
        show_mobile_modal: modal_state != nil,
-       selected_mobile_content: modal_state
+       selected_mobile_content: modal_state,
+       expanded_posts: MapSet.new(),
+       selected_category: "All"
      )}
   end
 
@@ -232,10 +247,7 @@ defmodule BlogWeb.PostLive.Index do
       visitor_cursors
       |> Enum.reduce(
         %{
-          "general" => 0,
-          "random" => 0,
-          "programming" => 0,
-          "music" => 0
+          "frontpage" => 0
         },
         fn {_id, meta}, acc ->
           room = Map.get(meta, :current_room, "general")
@@ -310,6 +322,10 @@ defmodule BlogWeb.PostLive.Index do
 
   def handle_event("validate_name", %{"name" => name}, socket) do
     {:noreply, assign(socket, name_form: %{"name" => name})}
+  end
+
+  def handle_event("skip_name", _params, socket) do
+    {:noreply, assign(socket, name_submitted: true)}
   end
 
   def handle_event("toggle_chat", _params, socket) do
@@ -487,20 +503,222 @@ defmodule BlogWeb.PostLive.Index do
     {:noreply, push_patch(socket, to: ~p"/")}
   end
 
+  # Handle post toggle event
+  def handle_event("toggle_post", %{"slug" => slug}, socket) do
+    expanded_posts = socket.assigns.expanded_posts
+    
+    updated_expanded = 
+      if MapSet.member?(expanded_posts, slug) do
+        MapSet.delete(expanded_posts, slug)
+      else
+        MapSet.put(expanded_posts, slug)
+      end
+    
+    {:noreply, assign(socket, expanded_posts: updated_expanded)}
+  end
+
+  # Handle category filter event
+  def handle_event("filter_category", %{"category" => category}, socket) do
+    {:noreply, assign(socket, selected_category: category)}
+  end
+
+  # Helper functions
+  defp get_demo_categories(demos) do
+    demos
+    |> Enum.map(fn demo -> Map.get(demo, :category, "Demo") end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp filter_demos(demos, "All"), do: demos
+  defp filter_demos(demos, category) do
+    Enum.filter(demos, fn demo -> Map.get(demo, :category, "Demo") == category end)
+  end
+
   def render(assigns) do
     ~H"""
-    <div class="hidden md:block">
-      {render_desktop_view(assigns)}
-    </div>
-
-    <div class="block md:hidden">
-      {render_mobile_view(assigns)}
-    </div>
-
-    <%= if @selected_mobile_content do %>
-      {render_mobile_modal(assigns)}
+    <!-- AIM Name Dialog -->
+    <%= if @reader_id && !@name_submitted do %>
+      <div class="aim-name-dialog">
+        <div class="aim-name-dialog-titlebar">
+          <span>Enter Screen Name</span>
+        </div>
+        <div class="aim-name-dialog-content">
+          <div class="aim-name-dialog-text">
+            Please enter your screen name to join the chat room:
+          </div>
+          <.form for={%{}} phx-submit="save_name" phx-change="validate_name">
+            <input
+              type="text"
+              name="name"
+              value={@name_form["name"]}
+              placeholder="Screen Name"
+              maxlength="20"
+              class="aim-name-input"
+              autofocus
+            />
+            <div class="aim-name-buttons">
+              <button type="submit" class="aim-name-btn primary">
+                OK
+              </button>
+              <button type="button" class="aim-name-btn" phx-click="skip_name">
+                Skip
+              </button>
+            </div>
+          </.form>
+        </div>
+      </div>
     <% end %>
+
+    <div class="site-header">
+      <h1 class="site-title">Thoughts & Tidbits</h1>
+      <p class="site-subtitle">A collection of thoughts on technology, life, and weird little things I make</p>
+      <div class="reader-count">
+        <div class="reader-dot"></div>
+        {@total_readers} {if @total_readers == 1, do: "person", else: "people"} browsing
+      </div>
+    </div>
+
+    <div class="main-container" phx-hook="PostExpander" id="post-expander">
+      <!-- Left Column: Blog Posts -->
+      <div class="posts-column">
+        <div class="posts-header">
+          Recent Posts
+        </div>
+        <div class="posts-list" id="posts-list">
+          <%= for post <- (@tech_posts ++ @non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime}) do %>
+            <div class={["post-card", if(MapSet.member?(@expanded_posts, post.slug), do: "expanded", else: "")]} id={"post-#{post.slug}"}>
+              <div class="post-header" phx-click="toggle_post" phx-value-slug={post.slug}>
+                <div class="post-info">
+                  <h3 class="post-title">{post.title}</h3>
+                  <div class="post-meta">
+                    {Calendar.strftime(post.written_on, "%B %d, %Y")}
+                  </div>
+                  <div class="post-tags">
+                    <%= for tag <- post.tags do %>
+                      <span class="post-tag">{tag.name}</span>
+                    <% end %>
+                  </div>
+                </div>
+                <div class="expand-icon">▶</div>
+              </div>
+              <div class="post-content" id={"content-#{post.slug}"}>
+                <div class="post-excerpt">
+                  {String.slice(post.body, 0, 300)}...
+                </div>
+                <a href={~p"/post/#{post.slug}"} class="read-full-link">
+                  Read full post →
+                </a>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Right Column: Museum/Projects -->
+      <div class="museum-column">
+        <div class="museum-header">
+          🏛️ Project Museum
+        </div>
+        <div class="museum-content">
+          <div class="category-filter">
+            <%= for category <- ["All" | get_demo_categories(@demos)] do %>
+              <button 
+                class={["category-btn", if(@selected_category == category, do: "active", else: "")]}
+                phx-click="filter_category" 
+                phx-value-category={category}
+              >
+                {category}
+              </button>
+            <% end %>
+          </div>
+          
+          <div class="projects-grid">
+            <%= for demo <- filter_demos(@demos, @selected_category || "All") do %>
+              <a href={demo.path} class="project-card">
+                <div class="project-title">{demo.title}</div>
+                <div class="project-description">{demo.description}</div>
+                <div class="project-category">{demo.category || "Demo"}</div>
+              </a>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AIM Style Chat -->
+    <button 
+      class="aim-toggle-btn" 
+      phx-click="toggle_chat"
+      style={if @show_chat, do: "display: none;", else: ""}
+    >
+      Chat Room
+    </button>
+
+    <div class={["aim-chat-container", if(@show_chat, do: "open", else: "")]}>
+      <div class="aim-chat-titlebar">
+        <span class="aim-chat-title">General Chat Room</span>
+        <div class="aim-chat-controls">
+          <button class="aim-control-btn" phx-click="toggle_chat">×</button>
+        </div>
+      </div>
+      
+      <div class="aim-chat-content">
+        <div class="aim-buddy-list-title">Online ({@total_readers})</div>
+        <div class="aim-buddy-list">
+          <%= for {_id, user} <- @visitor_cursors do %>
+            <div class="aim-buddy">
+              <div class="aim-buddy-status"></div>
+              <span class="aim-buddy-name">
+                {if Map.get(user, :display_name), do: Map.get(user, :display_name), else: "Anonymous"}
+              </span>
+            </div>
+          <% end %>
+        </div>
+        
+        <div class="aim-messages-area" id="aim-chat-messages">
+          <%= for message <- @chat_messages do %>
+            <div class="aim-message">
+              <span class="aim-message-sender" style={"color: #{message.sender_color};"}>
+                {message.sender_name}
+              </span>
+              <span class="aim-message-time">
+                {Calendar.strftime(message.timestamp, "%I:%M %p")}
+              </span>
+              <div class="aim-message-content">
+                {raw(format_message_with_links(message.content))}
+              </div>
+            </div>
+          <% end %>
+          <%= if Enum.empty?(@chat_messages) do %>
+            <div class="aim-message">
+              <span class="aim-message-sender" style="color: #000080;">ChatBot</span>
+              <div class="aim-message-content">Welcome to the chat room! Say hello!</div>
+            </div>
+          <% end %>
+        </div>
+        
+        <div class="aim-input-area">
+          <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message">
+            <textarea 
+              name="message"
+              class="aim-input-box"
+              placeholder="Type a message..."
+              maxlength="500"
+              autocomplete="off"
+            >{@chat_form["message"]}</textarea>
+            <button type="submit" class="aim-send-btn">Send</button>
+            <div style="clear: both;"></div>
+          </.form>
+        </div>
+      </div>
+    </div>
     """
+  end
+
+  # Check if post is expanded
+  defp post_expanded?(assigns, slug) do
+    MapSet.member?(assigns.expanded_posts, slug)
   end
 
   # Desktop view function
@@ -717,7 +935,7 @@ defmodule BlogWeb.PostLive.Index do
                   <div class="flex items-center mb-1">
                     <div class="w-2 h-2 rounded-full bg-green-500 mr-1"></div>
                     <span class="text-xs truncate" style={"color: #{user.color};"}>
-                      {if user.display_name, do: user.display_name, else: "Anonymous"}
+                      {if Map.get(user, :display_name), do: Map.get(user, :display_name), else: "Anonymous"}
                     </span>
                   </div>
                 <% end %>
