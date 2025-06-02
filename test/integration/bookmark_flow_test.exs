@@ -4,12 +4,12 @@ defmodule Blog.Integration.BookmarkFlowTest do
   Tests the full user journey from adding bookmarks to searching and managing them.
   """
   
-  use BlogWeb.ChannelCase, async: false
-  use BlogWeb.ConnCase, async: false
+  use ExUnit.Case, async: false
   
-  import Phoenix.LiveViewTest
   import Phoenix.ChannelTest
   import Blog.TestHelpers
+
+  @endpoint BlogWeb.Endpoint
   
   alias BlogWeb.BookmarkChannel
   alias Blog.Bookmarks.Store
@@ -33,7 +33,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
   describe "Complete bookmark workflow via channels" do
     test "user can add, search, and delete bookmarks", %{user_id: user_id} do
       # Step 1: Join the bookmark channel
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Step 2: Add a bookmark
       bookmark_params = %{
@@ -103,7 +103,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
     end
 
     test "Chrome extension bookmark creation workflow", %{user_id: user_id} do
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Test Chrome extension format
       chrome_params = %{
@@ -127,11 +127,11 @@ defmodule Blog.Integration.BookmarkFlowTest do
       subscribe_to_topic("bookmark:firehose")
       
       # Join as first user
-      {:ok, _reply, socket1} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket1} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Join as second user
       user_id_2 = random_user_id()
-      {:ok, _reply, socket2} = join(create_test_socket(user_id_2), BookmarkChannel, "bookmark:client:#{user_id_2}")
+      {:ok, _reply, socket2} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id_2}), BookmarkChannel, "bookmark:client:#{user_id_2}")
       
       # First user adds bookmark
       bookmark_params = %{
@@ -174,7 +174,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
       user_id_2 = random_user_id()
       
       # User 1 joins and adds bookmark
-      {:ok, reply1, socket1} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, reply1, socket1} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       assert %{bookmarks: []} = reply1  # Initially empty
       
       ref = Phoenix.ChannelTest.push(socket1, "add_bookmark", %{
@@ -187,7 +187,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
       assert_reply ref, :ok, user1_bookmark
       
       # User 2 joins
-      {:ok, reply2, socket2} = join(create_test_socket(user_id_2), BookmarkChannel, "bookmark:client:#{user_id_2}")
+      {:ok, reply2, socket2} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id_2}), BookmarkChannel, "bookmark:client:#{user_id_2}")
       assert %{bookmarks: []} = reply2  # Should not see user 1's bookmark
       
       # User 2 adds their own bookmark
@@ -218,7 +218,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
 
   describe "Error handling and edge cases" do
     test "handles invalid bookmark data gracefully", %{user_id: user_id} do
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Try to add bookmark with invalid URL
       invalid_params = %{
@@ -245,7 +245,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
     end
 
     test "handles searching with empty query", %{user_id: user_id} do
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Add a bookmark first
       ref = Phoenix.ChannelTest.push(socket, "add_bookmark", %{
@@ -266,7 +266,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
     end
 
     test "handles deletion of non-existent bookmark", %{user_id: user_id} do
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Try to delete non-existent bookmark
       ref = Phoenix.ChannelTest.push(socket, "delete_bookmark", %{"id" => "non-existent-id"})
@@ -276,7 +276,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
 
   describe "Performance and scalability" do
     test "handles large number of bookmarks efficiently", %{user_id: user_id} do
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       
       # Add 100 bookmarks
       bookmark_count = 100
@@ -310,7 +310,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
       # Start multiple channel connections for the same user
       tasks = for i <- 1..5 do
         Task.async(fn ->
-          {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+          {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
           
           # Each task adds a bookmark
           ref = Phoenix.ChannelTest.push(socket, "add_bookmark", %{
@@ -334,7 +334,7 @@ defmodule Blog.Integration.BookmarkFlowTest do
       assert length(Enum.uniq(urls)) == 5
       
       # All bookmarks should be searchable
-      {:ok, _reply, socket} = join(create_test_socket(user_id), BookmarkChannel, "bookmark:client:#{user_id}")
+      {:ok, _reply, socket} = Phoenix.ChannelTest.join(socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}), BookmarkChannel, "bookmark:client:#{user_id}")
       ref = Phoenix.ChannelTest.push(socket, "search_bookmarks", %{"query" => "concurrent"})
       assert_reply ref, :ok, %{bookmarks: search_results}
       

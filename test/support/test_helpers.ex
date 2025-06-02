@@ -4,7 +4,6 @@ defmodule Blog.TestHelpers do
   """
 
   import ExUnit.Assertions
-  import Phoenix.ChannelTest, only: [socket: 3]
   alias Blog.Bookmarks.{Bookmark, Store}
   alias Blog.Wordle.Game
   alias Blog.Games.Blackjack
@@ -238,14 +237,6 @@ defmodule Blog.TestHelpers do
     end
   end
 
-  @doc """
-  Creates a test Phoenix.Socket for channel testing.
-  """
-  def create_test_socket(user_id \\ nil) do
-    user_id = user_id || random_user_id()
-    Phoenix.ChannelTest.socket(BlogWeb.UserSocket, "user_id", %{user_id: user_id}, 
-      endpoint: BlogWeb.Endpoint, log_level: :error)
-  end
 
   @doc """
   Subscribes to a PubSub topic for testing broadcasts.
