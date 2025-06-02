@@ -20,6 +20,7 @@ defmodule BlogWeb.Router do
 
     live "/", PostLive.Index
     live "/post/:slug", PostLive
+    live "/museum", MuseumLive, :index
     live "/mta-bus", MtaBusLive, :index
     live "/mta-bus-map", MtaBusMapLive, :index
     live "/mta-train", MtaTrainLive, :index
