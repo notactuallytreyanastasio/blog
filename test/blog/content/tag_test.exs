@@ -15,7 +15,7 @@ defmodule Blog.Content.TagTest do
 
     test "supports pattern matching" do
       tag = %Tag{name: "phoenix"}
-      
+
       case tag do
         %Tag{name: "phoenix"} -> :ok
         _ -> flunk("Pattern matching failed")

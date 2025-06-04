@@ -85,7 +85,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
       previous_results = [
         %{word: "adieu", result: [:absent, :present, :absent, :absent, :absent]}
       ]
-      
+
       # Guess must contain 'd' since it was marked as present
       result = GuessChecker.check_guess("dodge", "audio", previous_results)
       assert {:ok, _} = result
@@ -95,7 +95,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
       previous_results = [
         %{word: "adieu", result: [:absent, :present, :absent, :absent, :absent]}
       ]
-      
+
       # Guess doesn't contain 'd' which was marked as present
       result = GuessChecker.check_guess("store", "audio", previous_results)
       assert {:error, "Guess must use all discovered letters"} = result
@@ -106,7 +106,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
         %{word: "adieu", result: [:absent, :present, :absent, :absent, :absent]},
         %{word: "dodge", result: [:correct, :absent, :absent, :absent, :present]}
       ]
-      
+
       # Must contain 'd' (present from first guess) and 'e' (present from second)
       result = GuessChecker.check_guess("dente", "depot", previous_results)
       assert {:ok, _} = result
@@ -117,7 +117,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
         %{word: "adieu", result: [:absent, :present, :absent, :absent, :absent]},
         %{word: "dodge", result: [:correct, :absent, :absent, :absent, :present]}
       ]
-      
+
       # Missing 'e' which was marked as present
       result = GuessChecker.check_guess("drawn", "depot", previous_results)
       assert {:error, "Guess must use all discovered letters"} = result
@@ -127,11 +127,11 @@ defmodule Blog.Wordle.GuessCheckerTest do
       previous_results = [
         %{word: "adieu", result: [:correct, :absent, :absent, :absent, :absent]}
       ]
-      
+
       # Must contain 'a' in any position since it was correct
       result = GuessChecker.check_guess("table", "audio", previous_results)
       assert {:ok, _} = result
-      
+
       # Invalid without 'a'
       result = GuessChecker.check_guess("store", "audio", previous_results)
       assert {:error, "Guess must use all discovered letters"} = result
@@ -141,7 +141,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
       previous_results = [
         %{word: "adieu", result: [:absent, :absent, :absent, :absent, :absent]}
       ]
-      
+
       # No letters were present or correct, so any guess is valid
       result = GuessChecker.check_guess("story", "brake", previous_results)
       assert {:ok, _} = result
@@ -151,17 +151,19 @@ defmodule Blog.Wordle.GuessCheckerTest do
       previous_results = [
         %{word: "speed", result: [:absent, :absent, :present, :present, :correct]}
       ]
-      
+
       # Must contain 'e' and 'd' 
       result = GuessChecker.check_guess("dealt", "depot", previous_results)
       assert {:ok, _} = result
-      
+
       # Invalid - missing one required letter
       result = GuessChecker.check_guess("dealt", "depot", previous_results)
-      assert {:ok, _} = result  # This should be valid since it has both e and d
-      
+      # This should be valid since it has both e and d
+      assert {:ok, _} = result
+
       result = GuessChecker.check_guess("grant", "depot", previous_results)
-      assert {:error, "Guess must use all discovered letters"} = result  # Missing e and d
+      # Missing e and d
+      assert {:error, "Guess must use all discovered letters"} = result
     end
 
     test "empty previous results allows any guess" do
@@ -177,13 +179,15 @@ defmodule Blog.Wordle.GuessCheckerTest do
         %{word: "adieu", result: [:correct, :present, :absent, :present, :absent]},
         %{word: "store", result: [:absent, :absent, :absent, :correct, :present]}
       ]
-      
+
       # Should require: a (correct), d (present), u (present), r (correct), e (present)
-      valid_guess = "ardeu"  # Contains all required letters
+      # Contains all required letters
+      valid_guess = "ardeu"
       result = GuessChecker.check_guess(valid_guess, "audio", previous_results)
       assert {:ok, _} = result
-      
-      invalid_guess = "blunt"  # Missing required letters
+
+      # Missing required letters
+      invalid_guess = "blunt"
       result = GuessChecker.check_guess(invalid_guess, "audio", previous_results)
       assert {:error, "Guess must use all discovered letters"} = result
     end
@@ -193,7 +197,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
     test "single character words" do
       result = GuessChecker.check_guess("a", "a")
       assert result == [:correct]
-      
+
       result = GuessChecker.check_guess("a", "b")
       assert result == [:absent]
     end
@@ -201,7 +205,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
     test "unicode characters" do
       result = GuessChecker.check_guess("café", "café")
       assert result == [:correct, :correct, :correct, :correct]
-      
+
       result = GuessChecker.check_guess("café", "face")
       assert result == [:present, :present, :absent, :present]
     end
@@ -223,7 +227,7 @@ defmodule Blog.Wordle.GuessCheckerTest do
     test "all same letter" do
       result = GuessChecker.check_guess("aaaaa", "aaaaa")
       assert result == [:correct, :correct, :correct, :correct, :correct]
-      
+
       result = GuessChecker.check_guess("aaaaa", "aabbb")
       assert result == [:correct, :correct, :absent, :absent, :absent]
     end

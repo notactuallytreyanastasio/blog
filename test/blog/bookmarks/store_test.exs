@@ -1,15 +1,18 @@
 defmodule Blog.Bookmarks.StoreTest do
-  use ExUnit.Case, async: false  # Not async because we're testing GenServer and ETS
+  # Not async because we're testing GenServer and ETS
+  use ExUnit.Case, async: false
   alias Blog.Bookmarks.{Store, Bookmark}
 
   setup do
     # Start the GenServer if not already started
     case GenServer.whereis(Store) do
-      nil -> 
+      nil ->
         # Create ETS table for testing
         :ets.new(:bookmarks_table, [:set, :public, :named_table])
         {:ok, _pid} = Store.start_link([])
-      _pid -> :ok
+
+      _pid ->
+        :ok
     end
 
     # Clear the table before each test
@@ -24,7 +27,7 @@ defmodule Blog.Bookmarks.StoreTest do
         title: "Example Site",
         user_id: "user123"
       }
-      
+
       assert {:ok, stored_bookmark} = Store.add_bookmark(bookmark)
       assert stored_bookmark.url == "https://example.com"
       assert stored_bookmark.title == "Example Site"
@@ -33,7 +36,7 @@ defmodule Blog.Bookmarks.StoreTest do
 
     test "rejects invalid bookmark" do
       bookmark = %Bookmark{url: nil, user_id: "user123"}
-      
+
       assert {:error, "URL is required"} = Store.add_bookmark(bookmark)
     end
 
@@ -43,10 +46,10 @@ defmodule Blog.Bookmarks.StoreTest do
         url: "https://example.com",
         user_id: "user123"
       }
-      
+
       {:ok, _} = Store.add_bookmark(bookmark)
       {:ok, retrieved} = Store.get_bookmark("test-id")
-      
+
       assert retrieved.url == "https://example.com"
       assert retrieved.user_id == "user123"
     end
@@ -54,15 +57,16 @@ defmodule Blog.Bookmarks.StoreTest do
 
   describe "add_bookmark/6 (Chrome extension compatibility)" do
     test "creates bookmark from individual parameters" do
-      {:ok, bookmark} = Store.add_bookmark(
-        "https://example.com",
-        "Example Site", 
-        "A test site",
-        ["test", "example"],
-        "https://example.com/favicon.ico",
-        "user123"
-      )
-      
+      {:ok, bookmark} =
+        Store.add_bookmark(
+          "https://example.com",
+          "Example Site",
+          "A test site",
+          ["test", "example"],
+          "https://example.com/favicon.ico",
+          "user123"
+        )
+
       assert bookmark.url == "https://example.com"
       assert bookmark.title == "Example Site"
       assert bookmark.description == "A test site"
@@ -72,27 +76,30 @@ defmodule Blog.Bookmarks.StoreTest do
     end
 
     test "handles nil tags" do
-      {:ok, bookmark} = Store.add_bookmark(
-        "https://example.com",
-        "Example Site",
-        "A test site", 
-        nil,
-        "https://example.com/favicon.ico",
-        "user123"
-      )
-      
+      {:ok, bookmark} =
+        Store.add_bookmark(
+          "https://example.com",
+          "Example Site",
+          "A test site",
+          nil,
+          "https://example.com/favicon.ico",
+          "user123"
+        )
+
       assert bookmark.tags == []
     end
 
     test "fails with invalid parameters" do
-      {:error, _reason} = Store.add_bookmark(
-        nil,  # Invalid URL
-        "Example Site",
-        "A test site",
-        ["test"],
-        "https://example.com/favicon.ico", 
-        "user123"
-      )
+      {:error, _reason} =
+        Store.add_bookmark(
+          # Invalid URL
+          nil,
+          "Example Site",
+          "A test site",
+          ["test"],
+          "https://example.com/favicon.ico",
+          "user123"
+        )
     end
   end
 
@@ -105,9 +112,9 @@ defmodule Blog.Bookmarks.StoreTest do
         tags: ["test"],
         user_id: "user123"
       }
-      
+
       {:ok, bookmark} = Store.add_bookmark(attrs)
-      
+
       assert bookmark.url == "https://example.com"
       assert bookmark.title == "Example Site"
       assert bookmark.description == "A test site"
@@ -117,10 +124,11 @@ defmodule Blog.Bookmarks.StoreTest do
 
     test "fails with invalid map attributes" do
       attrs = %{
-        url: "",  # Invalid empty URL
+        # Invalid empty URL
+        url: "",
         user_id: "user123"
       }
-      
+
       {:error, _reason} = Store.add_bookmark(attrs)
     end
   end
@@ -132,10 +140,10 @@ defmodule Blog.Bookmarks.StoreTest do
         url: "https://example.com",
         user_id: "user123"
       }
-      
+
       {:ok, _} = Store.add_bookmark(bookmark)
       {:ok, retrieved} = Store.get_bookmark("test-id")
-      
+
       assert retrieved.id == "test-id"
       assert retrieved.url == "https://example.com"
     end
@@ -150,17 +158,17 @@ defmodule Blog.Bookmarks.StoreTest do
       bookmark1 = %Bookmark{url: "https://site1.com", user_id: "user1"}
       bookmark2 = %Bookmark{url: "https://site2.com", user_id: "user1"}
       bookmark3 = %Bookmark{url: "https://site3.com", user_id: "user2"}
-      
+
       {:ok, _} = Store.add_bookmark(bookmark1)
       {:ok, _} = Store.add_bookmark(bookmark2)
       {:ok, _} = Store.add_bookmark(bookmark3)
-      
+
       user1_bookmarks = Store.list_bookmarks("user1")
       user2_bookmarks = Store.list_bookmarks("user2")
-      
+
       assert length(user1_bookmarks) == 2
       assert length(user2_bookmarks) == 1
-      
+
       user1_urls = Enum.map(user1_bookmarks, & &1.url)
       assert "https://site1.com" in user1_urls
       assert "https://site2.com" in user1_urls
@@ -177,18 +185,18 @@ defmodule Blog.Bookmarks.StoreTest do
       now = DateTime.utc_now()
       earlier = DateTime.add(now, -60, :second)
       later = DateTime.add(now, 60, :second)
-      
+
       bookmark1 = %Bookmark{url: "https://first.com", user_id: "user1", inserted_at: earlier}
       bookmark2 = %Bookmark{url: "https://second.com", user_id: "user1", inserted_at: now}
       bookmark3 = %Bookmark{url: "https://third.com", user_id: "user1", inserted_at: later}
-      
+
       {:ok, _} = Store.add_bookmark(bookmark1)
       {:ok, _} = Store.add_bookmark(bookmark2)
       {:ok, _} = Store.add_bookmark(bookmark3)
-      
+
       bookmarks = Store.list_bookmarks("user1")
       urls = Enum.map(bookmarks, & &1.url)
-      
+
       # Should be sorted by inserted_at descending (newest first)
       assert urls == ["https://third.com", "https://second.com", "https://first.com"]
     end
@@ -201,10 +209,10 @@ defmodule Blog.Bookmarks.StoreTest do
         url: "https://example.com",
         user_id: "user123"
       }
-      
+
       {:ok, _} = Store.add_bookmark(bookmark)
       assert {:ok, _} = Store.get_bookmark("test-id")
-      
+
       assert :ok = Store.delete_bookmark("test-id")
       assert {:error, :not_found} = Store.get_bookmark("test-id")
     end
@@ -217,75 +225,101 @@ defmodule Blog.Bookmarks.StoreTest do
   describe "search_bookmarks/2" do
     setup do
       bookmarks = [
-        %Bookmark{url: "https://elixir-lang.org", title: "Elixir Language", description: "Dynamic programming", tags: ["elixir", "programming"], user_id: "user1"},
-        %Bookmark{url: "https://phoenixframework.org", title: "Phoenix Framework", description: "Web framework for Elixir", tags: ["phoenix", "web"], user_id: "user1"},
-        %Bookmark{url: "https://github.com", title: "GitHub", description: "Code hosting platform", tags: ["git", "code"], user_id: "user1"},
-        %Bookmark{url: "https://stackoverflow.com", title: "Stack Overflow", description: "Programming Q&A", tags: ["programming", "help"], user_id: "user2"}
+        %Bookmark{
+          url: "https://elixir-lang.org",
+          title: "Elixir Language",
+          description: "Dynamic programming",
+          tags: ["elixir", "programming"],
+          user_id: "user1"
+        },
+        %Bookmark{
+          url: "https://phoenixframework.org",
+          title: "Phoenix Framework",
+          description: "Web framework for Elixir",
+          tags: ["phoenix", "web"],
+          user_id: "user1"
+        },
+        %Bookmark{
+          url: "https://github.com",
+          title: "GitHub",
+          description: "Code hosting platform",
+          tags: ["git", "code"],
+          user_id: "user1"
+        },
+        %Bookmark{
+          url: "https://stackoverflow.com",
+          title: "Stack Overflow",
+          description: "Programming Q&A",
+          tags: ["programming", "help"],
+          user_id: "user2"
+        }
       ]
-      
+
       for bookmark <- bookmarks do
         {:ok, _} = Store.add_bookmark(bookmark)
       end
-      
+
       :ok
     end
 
     test "searches by title" do
       results = Store.search_bookmarks("user1", "elixir")
-      
+
       assert length(results) == 1
       assert hd(results).title == "Elixir Language"
     end
 
     test "searches by description" do
       results = Store.search_bookmarks("user1", "framework")
-      
+
       assert length(results) == 1
       assert hd(results).title == "Phoenix Framework"
     end
 
     test "searches by URL" do
       results = Store.search_bookmarks("user1", "github")
-      
+
       assert length(results) == 1
       assert hd(results).title == "GitHub"
     end
 
     test "searches by tags" do
       results = Store.search_bookmarks("user1", "programming")
-      
+
       assert length(results) == 1
       assert hd(results).title == "Elixir Language"
     end
 
     test "search is case insensitive" do
       results = Store.search_bookmarks("user1", "ELIXIR")
-      
+
       assert length(results) == 1
       assert hd(results).title == "Elixir Language"
     end
 
     test "search returns multiple matches" do
       results = Store.search_bookmarks("user1", "programming")
-      
+
       # Should find bookmarks with "programming" in description or tags
-      assert length(results) == 1  # Only "Dynamic programming" description
-      
+      # Only "Dynamic programming" description
+      assert length(results) == 1
+
       # Test with broader term
       results = Store.search_bookmarks("user1", "web")
-      assert length(results) == 1  # Phoenix has "web" tag
+      # Phoenix has "web" tag
+      assert length(results) == 1
     end
 
     test "search only returns results for specified user" do
       results = Store.search_bookmarks("user1", "programming")
       user1_results = Enum.map(results, & &1.user_id)
-      
+
       assert Enum.all?(user1_results, &(&1 == "user1"))
     end
 
     test "search returns empty list when no matches" do
       results = Store.search_bookmarks("user1", "nonexistent")
-      
+
       assert results == []
     end
 
@@ -297,12 +331,12 @@ defmodule Blog.Bookmarks.StoreTest do
         tags: [],
         user_id: "user1"
       }
-      
+
       {:ok, _} = Store.add_bookmark(bookmark_with_nils)
-      
+
       # Should not crash when searching
       results = Store.search_bookmarks("user1", "minimal")
-      
+
       assert length(results) == 1
       assert hd(results).url == "https://minimal.com"
     end
@@ -312,19 +346,19 @@ defmodule Blog.Bookmarks.StoreTest do
       # Add another bookmark with programming to test sorting
       now = DateTime.utc_now()
       later = DateTime.add(now, 60, :second)
-      
+
       newer_bookmark = %Bookmark{
-        url: "https://programming.com", 
+        url: "https://programming.com",
         title: "Programming Site",
         description: "All about programming",
         user_id: "user1",
         inserted_at: later
       }
-      
+
       {:ok, _} = Store.add_bookmark(newer_bookmark)
-      
+
       results = Store.search_bookmarks("user1", "programming")
-      
+
       if length(results) > 1 do
         timestamps = Enum.map(results, & &1.inserted_at)
         sorted_timestamps = Enum.sort(timestamps, {:desc, DateTime})
@@ -340,14 +374,14 @@ defmodule Blog.Bookmarks.StoreTest do
         nil -> :ok
         pid -> GenServer.stop(pid)
       end
-      
+
       # Start fresh
       :ets.new(:bookmarks_table, [:set, :public, :named_table])
       {:ok, pid} = Store.start_link([])
-      
+
       assert Process.alive?(pid)
       assert GenServer.whereis(Store) == pid
-      
+
       # Stop it
       GenServer.stop(pid)
       refute Process.alive?(pid)

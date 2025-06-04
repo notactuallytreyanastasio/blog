@@ -1,5 +1,6 @@
 defmodule Blog.ChatTest do
-  use ExUnit.Case, async: false  # Not async because we're testing ETS tables
+  # Not async because we're testing ETS tables
+  use ExUnit.Case, async: false
   alias Blog.Chat
 
   setup do
@@ -12,6 +13,7 @@ defmodule Blog.ChatTest do
     if :ets.info(:blog_chat_messages) != :undefined do
       :ets.delete(:blog_chat_messages)
     end
+
     if :ets.info(:blog_chat_banned_words) != :undefined do
       :ets.delete(:blog_chat_banned_words)
     end
@@ -31,23 +33,23 @@ defmodule Blog.ChatTest do
     test "doesn't recreate tables if they already exist" do
       Chat.ensure_started()
       table_id1 = :ets.info(:blog_chat_messages, :id)
-      
+
       Chat.ensure_started()
       table_id2 = :ets.info(:blog_chat_messages, :id)
-      
+
       assert table_id1 == table_id2
     end
 
     test "initializes rooms with welcome messages" do
       Chat.ensure_started()
-      
+
       # Check that default rooms have welcome messages
       rooms = ["general", "random", "programming", "music"]
-      
+
       for room <- rooms do
         messages = Chat.get_messages(room)
         assert length(messages) >= 1
-        
+
         # First message should be from ChatBot
         welcome_message = hd(messages)
         assert welcome_message.sender_name == "ChatBot"
@@ -91,7 +93,7 @@ defmodule Blog.ChatTest do
       Chat.add_banned_word("zebra")
       Chat.add_banned_word("apple")
       Chat.add_banned_word("banana")
-      
+
       banned_words = Chat.get_banned_words()
       assert banned_words == Enum.sort(banned_words)
       assert "apple" in banned_words
@@ -101,18 +103,26 @@ defmodule Blog.ChatTest do
 
     test "check_for_banned_words/1 allows clean messages" do
       Chat.add_banned_word("badword")
-      assert {:ok, "This is a clean message"} = Chat.check_for_banned_words("This is a clean message")
+
+      assert {:ok, "This is a clean message"} =
+               Chat.check_for_banned_words("This is a clean message")
     end
 
     test "check_for_banned_words/1 rejects messages with banned words" do
       Chat.add_banned_word("badword")
-      assert {:error, :contains_banned_words} = Chat.check_for_banned_words("This contains badword")
+
+      assert {:error, :contains_banned_words} =
+               Chat.check_for_banned_words("This contains badword")
     end
 
     test "check_for_banned_words/1 is case insensitive" do
       Chat.add_banned_word("badword")
-      assert {:error, :contains_banned_words} = Chat.check_for_banned_words("This contains BADWORD")
-      assert {:error, :contains_banned_words} = Chat.check_for_banned_words("This contains BadWord")
+
+      assert {:error, :contains_banned_words} =
+               Chat.check_for_banned_words("This contains BADWORD")
+
+      assert {:error, :contains_banned_words} =
+               Chat.check_for_banned_words("This contains BadWord")
     end
 
     test "check_for_banned_words/1 detects partial matches" do
@@ -129,8 +139,8 @@ defmodule Blog.ChatTest do
 
     test "save_message/1 stores message correctly" do
       message = %{
-        id: 123456789,
-        sender_id: "user123", 
+        id: 123_456_789,
+        sender_id: "user123",
         sender_name: "Test User",
         sender_color: "hsl(200, 50%, 50%)",
         content: "Hello world",
@@ -140,10 +150,10 @@ defmodule Blog.ChatTest do
 
       result = Chat.save_message(message)
       assert result == message
-      
+
       # Verify it's stored
       messages = Chat.get_messages("general")
-      saved_message = Enum.find(messages, fn m -> m.id == 123456789 end)
+      saved_message = Enum.find(messages, fn m -> m.id == 123_456_789 end)
       assert saved_message != nil
       assert saved_message.content == "Hello world"
     end
@@ -153,7 +163,7 @@ defmodule Blog.ChatTest do
       general_message = %{
         id: 1,
         sender_id: "user1",
-        sender_name: "User One", 
+        sender_name: "User One",
         sender_color: "hsl(0, 50%, 50%)",
         content: "General message",
         timestamp: DateTime.utc_now(),
@@ -164,7 +174,7 @@ defmodule Blog.ChatTest do
         id: 2,
         sender_id: "user2",
         sender_name: "User Two",
-        sender_color: "hsl(100, 50%, 50%)", 
+        sender_color: "hsl(100, 50%, 50%)",
         content: "Random message",
         timestamp: DateTime.utc_now(),
         room: "random"
@@ -182,15 +192,15 @@ defmodule Blog.ChatTest do
 
       assert "General message" in general_content
       refute "Random message" in general_content
-      
-      assert "Random message" in random_content  
+
+      assert "Random message" in random_content
       refute "General message" in random_content
     end
 
     test "get_messages/1 returns messages in descending order by ID" do
       # Save messages with different IDs
       message1 = create_test_message(1, "First message", "general")
-      message2 = create_test_message(3, "Third message", "general") 
+      message2 = create_test_message(3, "Third message", "general")
       message3 = create_test_message(2, "Second message", "general")
 
       Chat.save_message(message1)
@@ -199,7 +209,7 @@ defmodule Blog.ChatTest do
 
       messages = Chat.get_messages("general")
       message_ids = Enum.map(messages, & &1.id)
-      
+
       # Should be in descending order by ID
       filtered_ids = Enum.filter(message_ids, fn id -> id in [1, 2, 3] end)
       assert filtered_ids == [3, 2, 1]
@@ -227,15 +237,16 @@ defmodule Blog.ChatTest do
 
       messages = Chat.get_messages("general")
       user_messages = Enum.filter(messages, fn m -> m.sender_id != "system" end)
-      
+
       # Should be trimmed to max (100) or less
       assert length(user_messages) <= 100
-      
+
       # Newer messages should be kept
       message_ids = Enum.map(user_messages, & &1.id)
       assert 105 in message_ids
       assert 104 in message_ids
-      refute 1 in message_ids  # Oldest should be removed
+      # Oldest should be removed
+      refute 1 in message_ids
     end
 
     test "clear_room/1 removes all messages from specific room" do
@@ -246,14 +257,14 @@ defmodule Blog.ChatTest do
 
       # Clear general room
       deleted_count = Chat.clear_room("general")
-      
+
       general_messages = Chat.get_messages("general")
       random_messages = Chat.get_messages("random")
-      
+
       # General should be empty (except welcome message)
       user_general = Enum.filter(general_messages, fn m -> m.sender_id != "system" end)
       assert length(user_general) == 0
-      
+
       # Random should still have messages
       user_random = Enum.filter(random_messages, fn m -> m.sender_id != "system" end)
       assert length(user_random) == 1
@@ -269,11 +280,12 @@ defmodule Blog.ChatTest do
 
       # Check that rooms are reinitialized with welcome messages
       rooms = ["general", "random", "programming", "music"]
+
       for room <- rooms do
         messages = Chat.get_messages(room)
         # Should have at least welcome message
         assert length(messages) >= 1
-        
+
         # All messages should be from system (welcome messages)
         user_messages = Enum.filter(messages, fn m -> m.sender_id != "system" end)
         assert length(user_messages) == 0
@@ -286,18 +298,18 @@ defmodule Blog.ChatTest do
       Chat.save_message(create_test_message(3, "General 2", "general"))
 
       all_messages = Chat.list_all_messages()
-      
+
       assert is_map(all_messages)
       assert Map.has_key?(all_messages, "general")
       assert Map.has_key?(all_messages, "random")
-      
+
       general_msgs = Map.get(all_messages, "general", [])
       random_msgs = Map.get(all_messages, "random", [])
-      
+
       # Check that messages are in correct groups
       general_content = Enum.map(general_msgs, & &1.content)
       random_content = Enum.map(random_msgs, & &1.content)
-      
+
       assert "General 1" in general_content
       assert "General 2" in general_content
       assert "Random 1" in random_content

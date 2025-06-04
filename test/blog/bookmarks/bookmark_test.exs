@@ -5,7 +5,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
   describe "Bookmark struct" do
     test "has correct default values" do
       bookmark = %Bookmark{}
-      
+
       assert bookmark.id == nil
       assert bookmark.url == nil
       assert bookmark.title == nil
@@ -18,7 +18,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
 
     test "can be created with specific values" do
       now = DateTime.utc_now()
-      
+
       bookmark = %Bookmark{
         id: "123",
         url: "https://example.com",
@@ -29,7 +29,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
         user_id: "user123",
         inserted_at: now
       }
-      
+
       assert bookmark.id == "123"
       assert bookmark.url == "https://example.com"
       assert bookmark.title == "Example Site"
@@ -50,9 +50,9 @@ defmodule Blog.Bookmarks.BookmarkTest do
         tags: ["tag1", "tag2"],
         user_id: "user123"
       }
-      
+
       bookmark = Bookmark.new(attrs)
-      
+
       assert bookmark.url == "https://example.com"
       assert bookmark.title == "Example"
       assert bookmark.description == "Test description"
@@ -62,20 +62,20 @@ defmodule Blog.Bookmarks.BookmarkTest do
 
     test "generates ID automatically if not provided" do
       bookmark = Bookmark.new(%{url: "https://example.com", user_id: "user123"})
-      
+
       assert is_binary(bookmark.id)
       assert bookmark.id != ""
     end
 
     test "uses provided ID if given" do
       bookmark = Bookmark.new(%{id: "custom-id", url: "https://example.com", user_id: "user123"})
-      
+
       assert bookmark.id == "custom-id"
     end
 
     test "generates timestamp automatically if not provided" do
       bookmark = Bookmark.new(%{url: "https://example.com", user_id: "user123"})
-      
+
       assert %DateTime{} = bookmark.inserted_at
       # Should be very recent
       assert DateTime.diff(DateTime.utc_now(), bookmark.inserted_at, :second) < 2
@@ -83,20 +83,22 @@ defmodule Blog.Bookmarks.BookmarkTest do
 
     test "uses provided timestamp if given" do
       timestamp = ~U[2025-01-01 12:00:00Z]
-      bookmark = Bookmark.new(%{url: "https://example.com", user_id: "user123", inserted_at: timestamp})
-      
+
+      bookmark =
+        Bookmark.new(%{url: "https://example.com", user_id: "user123", inserted_at: timestamp})
+
       assert bookmark.inserted_at == timestamp
     end
 
     test "defaults empty tags if not provided" do
       bookmark = Bookmark.new(%{url: "https://example.com", user_id: "user123"})
-      
+
       assert bookmark.tags == []
     end
 
     test "handles keyword list input" do
       bookmark = Bookmark.new(url: "https://example.com", user_id: "user123", title: "Test")
-      
+
       assert bookmark.url == "https://example.com"
       assert bookmark.user_id == "user123"
       assert bookmark.title == "Test"
@@ -104,7 +106,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
 
     test "handles nil attributes gracefully" do
       bookmark = Bookmark.new(%{url: nil, title: nil, description: nil, user_id: nil})
-      
+
       assert bookmark.url == nil
       assert bookmark.title == nil
       assert bookmark.description == nil
@@ -114,7 +116,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
 
     test "creates bookmark with no arguments" do
       bookmark = Bookmark.new()
-      
+
       assert %Bookmark{} = bookmark
       assert is_binary(bookmark.id)
       assert %DateTime{} = bookmark.inserted_at
@@ -128,31 +130,31 @@ defmodule Blog.Bookmarks.BookmarkTest do
         url: "https://example.com",
         user_id: "user123"
       }
-      
+
       assert {:ok, ^bookmark} = Bookmark.validate(bookmark)
     end
 
     test "returns error when URL is nil" do
       bookmark = %Bookmark{url: nil, user_id: "user123"}
-      
+
       assert {:error, "URL is required"} = Bookmark.validate(bookmark)
     end
 
     test "returns error when URL is empty string" do
       bookmark = %Bookmark{url: "", user_id: "user123"}
-      
+
       assert {:error, "URL is required"} = Bookmark.validate(bookmark)
     end
 
     test "returns error when user_id is nil" do
       bookmark = %Bookmark{url: "https://example.com", user_id: nil}
-      
+
       assert {:error, "User ID is required"} = Bookmark.validate(bookmark)
     end
 
     test "returns error when user_id is empty string" do
       bookmark = %Bookmark{url: "https://example.com", user_id: ""}
-      
+
       assert {:error, "User ID is required"} = Bookmark.validate(bookmark)
     end
 
@@ -164,7 +166,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
         description: nil,
         favicon_url: nil
       }
-      
+
       assert {:ok, ^bookmark} = Bookmark.validate(bookmark)
     end
 
@@ -179,7 +181,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
         user_id: "user123",
         inserted_at: DateTime.utc_now()
       }
-      
+
       assert {:ok, ^bookmark} = Bookmark.validate(bookmark)
     end
   end
@@ -188,25 +190,26 @@ defmodule Blog.Bookmarks.BookmarkTest do
     test "generates unique IDs" do
       bookmark1 = Bookmark.new()
       bookmark2 = Bookmark.new()
-      
+
       refute bookmark1.id == bookmark2.id
     end
 
     test "generates string IDs" do
       bookmark = Bookmark.new()
-      
+
       assert is_binary(bookmark.id)
       assert String.length(bookmark.id) > 0
     end
 
     test "IDs are monotonic (later ones are larger when converted to integer)" do
       bookmark1 = Bookmark.new()
-      Process.sleep(1)  # Ensure time difference
+      # Ensure time difference
+      Process.sleep(1)
       bookmark2 = Bookmark.new()
-      
+
       id1_int = String.to_integer(bookmark1.id)
       id2_int = String.to_integer(bookmark2.id)
-      
+
       assert id2_int > id1_int
     end
   end
@@ -223,9 +226,9 @@ defmodule Blog.Bookmarks.BookmarkTest do
         user_id: "user123",
         inserted_at: ~U[2025-01-01 12:00:00Z]
       }
-      
+
       {:ok, json} = Jason.encode(bookmark)
-      
+
       assert is_binary(json)
       assert String.contains?(json, "example.com")
       assert String.contains?(json, "user123")
@@ -239,13 +242,22 @@ defmodule Blog.Bookmarks.BookmarkTest do
         title: "Example",
         user_id: "user123"
       }
-      
+
       {:ok, json} = Jason.encode(bookmark)
       {:ok, decoded} = Jason.decode(json)
-      
+
       # Should only contain fields specified in @derive
-      expected_keys = ["id", "url", "title", "description", "tags", "favicon_url", "user_id", "inserted_at"]
-      
+      expected_keys = [
+        "id",
+        "url",
+        "title",
+        "description",
+        "tags",
+        "favicon_url",
+        "user_id",
+        "inserted_at"
+      ]
+
       for key <- Map.keys(decoded) do
         assert key in expected_keys
       end
@@ -264,7 +276,7 @@ defmodule Blog.Bookmarks.BookmarkTest do
         user_id: "user123",
         inserted_at: DateTime.utc_now()
       }
-      
+
       # Test that all fields have correct types
       assert is_binary(bookmark.id)
       assert is_binary(bookmark.url)

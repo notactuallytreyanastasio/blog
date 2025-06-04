@@ -52,6 +52,7 @@ defmodule BlogWeb.Router do
     live "/lumon-celebration", LumonCelebrationLive, :index
     live "/bubble-game", BubbleGameLive
     live "/article/my-custom-article", ArticleLive, :show
+    live "/untitled-ai-dev-blogpost", AiDevLive, :index
     live "/nathan", NathanLive, :index
     live "/nathan_harpers", NathanHarpersLive, :index
     live "/nathan_teen_vogue", NathanTeenVogueLive, :index

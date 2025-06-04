@@ -45,7 +45,7 @@ defmodule Blog.Content.PostTest do
     test "filters out files with specific length pattern" do
       # This tests the rejection logic for files with 35-character endings
       posts = Post.all()
-      
+
       # All returned posts should have valid slug formats
       for post <- posts do
         refute String.length(post.slug) == 35
@@ -56,7 +56,7 @@ defmodule Blog.Content.PostTest do
   describe "get_by_slug/1" do
     test "returns post when slug exists" do
       posts = Post.all()
-      
+
       case posts do
         [first_post | _] ->
           found_post = Post.get_by_slug(first_post.slug)
@@ -78,17 +78,19 @@ defmodule Blog.Content.PostTest do
     test "humanize_title/1 converts slug to title case" do
       # We can't test private functions directly, but we can test through parse_post_file
       # by creating a temporary test file if needed, or test the behavior through public functions
-      
+
       posts = Post.all()
-      
+
       for post <- posts do
         # Title should be properly capitalized
         words = String.split(post.title, " ")
+
         for word <- words do
           if String.length(word) > 0 do
             first_char = String.first(word)
-            assert first_char == String.upcase(first_char), 
-              "Expected #{word} to start with uppercase letter in title: #{post.title}"
+
+            assert first_char == String.upcase(first_char),
+                   "Expected #{word} to start with uppercase letter in title: #{post.title}"
           end
         end
       end
@@ -97,7 +99,7 @@ defmodule Blog.Content.PostTest do
     test "parse_datetime creates valid NaiveDateTime" do
       # Test through existing posts that they have valid datetimes
       posts = Post.all()
-      
+
       for post <- posts do
         assert %NaiveDateTime{} = post.written_on
         # Should be a reasonable date (after 2020, before 2030)
@@ -108,10 +110,10 @@ defmodule Blog.Content.PostTest do
 
     test "parse_tags extracts tags correctly" do
       posts = Post.all()
-      
+
       for post <- posts do
         assert is_list(post.tags)
-        
+
         for tag <- post.tags do
           assert %Tag{} = tag
           assert is_binary(tag.name)

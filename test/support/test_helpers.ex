@@ -181,7 +181,7 @@ defmodule Blog.TestHelpers do
   Generates a random user ID for testing.
   """
   def random_user_id do
-    "test_user_#{:rand.uniform(999999)}"
+    "test_user_#{:rand.uniform(999_999)}"
   end
 
   @doc """
@@ -217,7 +217,7 @@ defmodule Blog.TestHelpers do
   """
   def assert_html_eventually(live_view, pattern, timeout \\ 1000) do
     end_time = System.monotonic_time(:millisecond) + timeout
-    
+
     assert_html_loop(live_view, pattern, end_time)
   end
 
@@ -228,7 +228,7 @@ defmodule Blog.TestHelpers do
     end
 
     html = Phoenix.LiveViewTest.render(live_view)
-    
+
     if html =~ pattern do
       :ok
     else
@@ -236,7 +236,6 @@ defmodule Blog.TestHelpers do
       assert_html_loop(live_view, pattern, end_time)
     end
   end
-
 
   @doc """
   Subscribes to a PubSub topic for testing broadcasts.
@@ -253,16 +252,19 @@ defmodule Blog.TestHelpers do
       case unquote(payload_pattern) do
         :_ ->
           assert_receive %Phoenix.Socket.Broadcast{
-            topic: unquote(topic),
-            event: unquote(event),
-            payload: _
-          }, unquote(timeout)
+                           topic: unquote(topic),
+                           event: unquote(event),
+                           payload: _
+                         },
+                         unquote(timeout)
+
         pattern ->
           assert_receive %Phoenix.Socket.Broadcast{
-            topic: unquote(topic),
-            event: unquote(event),
-            payload: ^pattern
-          }, unquote(timeout)
+                           topic: unquote(topic),
+                           event: unquote(event),
+                           payload: ^pattern
+                         },
+                         unquote(timeout)
       end
     end
   end
@@ -272,8 +274,16 @@ defmodule Blog.TestHelpers do
   """
   def create_test_deck do
     [
-      {"A", "♠️"}, {"K", "♠️"}, {"Q", "♠️"}, {"J", "♠️"}, {"10", "♠️"},
-      {"9", "♠️"}, {"8", "♠️"}, {"7", "♠️"}, {"6", "♠️"}, {"5", "♠️"}
+      {"A", "♠️"},
+      {"K", "♠️"},
+      {"Q", "♠️"},
+      {"J", "♠️"},
+      {"10", "♠️"},
+      {"9", "♠️"},
+      {"8", "♠️"},
+      {"7", "♠️"},
+      {"6", "♠️"},
+      {"5", "♠️"}
     ]
   end
 
@@ -282,12 +292,18 @@ defmodule Blog.TestHelpers do
   """
   def create_blackjack_hand(target_value) do
     case target_value do
-      21 -> [{"A", "♠️"}, {"K", "♣️"}]  # Blackjack
-      20 -> [{"K", "♠️"}, {"Q", "♣️"}]   # 20
-      19 -> [{"K", "♠️"}, {"9", "♣️"}]   # 19
-      15 -> [{"7", "♠️"}, {"8", "♣️"}]   # 15
-      12 -> [{"5", "♠️"}, {"7", "♣️"}]   # 12
-      _ -> [{"2", "♠️"}, {"3", "♣️"}]    # Default to 5
+      # Blackjack
+      21 -> [{"A", "♠️"}, {"K", "♣️"}]
+      # 20
+      20 -> [{"K", "♠️"}, {"Q", "♣️"}]
+      # 19
+      19 -> [{"K", "♠️"}, {"9", "♣️"}]
+      # 15
+      15 -> [{"7", "♠️"}, {"8", "♣️"}]
+      # 12
+      12 -> [{"5", "♠️"}, {"7", "♣️"}]
+      # Default to 5
+      _ -> [{"2", "♠️"}, {"3", "♣️"}]
     end
   end
 
@@ -317,6 +333,7 @@ defmodule Blog.TestHelpers do
   """
   def cleanup_test_files do
     test_dir = Path.join(System.tmp_dir(), "test_posts")
+
     if File.exists?(test_dir) do
       File.rm_rf!(test_dir)
     end

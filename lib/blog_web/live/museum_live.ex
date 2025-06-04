@@ -240,18 +240,20 @@ defmodule BlogWeb.MuseumLive do
   end
 
   def handle_event("filter_category", %{"category" => category}, socket) do
-    socket = 
+    socket =
       socket
       |> assign(:selected_category, category)
       |> assign(:selected_tag, nil)
+
     {:noreply, socket}
   end
 
   def handle_event("filter_tag", %{"tag" => tag}, socket) do
-    socket = 
+    socket =
       socket
       |> assign(:selected_tag, tag)
       |> assign(:selected_category, "All")
+
     {:noreply, socket}
   end
 
@@ -267,8 +269,8 @@ defmodule BlogWeb.MuseumLive do
     ~H"""
     <div class="p-6">
       <h1 class="text-3xl font-bold mb-6">🏛️ Museum of Weird Apps</h1>
-
-      <!-- Category Filter -->
+      
+    <!-- Category Filter -->
       <div class="flex flex-wrap gap-2 mb-6">
         <%= for category <- @categories do %>
           <button
@@ -286,8 +288,8 @@ defmodule BlogWeb.MuseumLive do
           </button>
         <% end %>
       </div>
-
-      <!-- Apps Grid -->
+      
+    <!-- Apps Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <%= for app <- filter_apps(@apps, @selected_category, @selected_tag) do %>
           <div class="border rounded-lg p-4 hover:shadow-lg transition-shadow">
@@ -295,9 +297,9 @@ defmodule BlogWeb.MuseumLive do
               <h3 class="font-bold text-lg">{app.title}</h3>
               <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{app.category}</span>
             </div>
-            
+
             <p class="text-gray-600 text-sm mb-3">{app.description}</p>
-            
+
             <div class="flex flex-wrap gap-1 mb-3">
               <%= for tag <- app.tags do %>
                 <button
@@ -315,7 +317,7 @@ defmodule BlogWeb.MuseumLive do
                 </button>
               <% end %>
             </div>
-            
+
             <a
               href={app.path}
               class="inline-block w-full text-center bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"

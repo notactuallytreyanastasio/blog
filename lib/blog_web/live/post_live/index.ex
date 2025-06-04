@@ -506,14 +506,14 @@ defmodule BlogWeb.PostLive.Index do
   # Handle post toggle event
   def handle_event("toggle_post", %{"slug" => slug}, socket) do
     expanded_posts = socket.assigns.expanded_posts
-    
-    updated_expanded = 
+
+    updated_expanded =
       if MapSet.member?(expanded_posts, slug) do
         MapSet.delete(expanded_posts, slug)
       else
         MapSet.put(expanded_posts, slug)
       end
-    
+
     {:noreply, assign(socket, expanded_posts: updated_expanded)}
   end
 
@@ -531,6 +531,7 @@ defmodule BlogWeb.PostLive.Index do
   end
 
   defp filter_demos(demos, "All"), do: demos
+
   defp filter_demos(demos, category) do
     Enum.filter(demos, fn demo -> Map.get(demo, :category, "Demo") == category end)
   end
@@ -572,7 +573,9 @@ defmodule BlogWeb.PostLive.Index do
 
     <div class="site-header">
       <h1 class="site-title">Thoughts & Tidbits</h1>
-      <p class="site-subtitle">A collection of thoughts on technology, life, and weird little things I make</p>
+      <p class="site-subtitle">
+        A collection of thoughts on technology, life, and weird little things I make
+      </p>
       <div class="reader-count">
         <div class="reader-dot"></div>
         {@total_readers} {if @total_readers == 1, do: "person", else: "people"} browsing
@@ -587,7 +590,13 @@ defmodule BlogWeb.PostLive.Index do
         </div>
         <div class="posts-list" id="posts-list">
           <%= for post <- (@tech_posts ++ @non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime}) do %>
-            <div class={["post-card", if(MapSet.member?(@expanded_posts, post.slug), do: "expanded", else: "")]} id={"post-#{post.slug}"}>
+            <div
+              class={[
+                "post-card",
+                if(MapSet.member?(@expanded_posts, post.slug), do: "expanded", else: "")
+              ]}
+              id={"post-#{post.slug}"}
+            >
               <div class="post-header" phx-click="toggle_post" phx-value-slug={post.slug}>
                 <div class="post-info">
                   <h3 class="post-title">{post.title}</h3>
@@ -614,8 +623,8 @@ defmodule BlogWeb.PostLive.Index do
           <% end %>
         </div>
       </div>
-
-      <!-- Right Column: Museum/Projects -->
+      
+    <!-- Right Column: Museum/Projects -->
       <div class="museum-column">
         <div class="museum-header">
           🏛️ Project Museum
@@ -623,16 +632,16 @@ defmodule BlogWeb.PostLive.Index do
         <div class="museum-content">
           <div class="category-filter">
             <%= for category <- ["All" | get_demo_categories(@demos)] do %>
-              <button 
+              <button
                 class={["category-btn", if(@selected_category == category, do: "active", else: "")]}
-                phx-click="filter_category" 
+                phx-click="filter_category"
                 phx-value-category={category}
               >
                 {category}
               </button>
             <% end %>
           </div>
-          
+
           <div class="projects-grid">
             <%= for demo <- filter_demos(@demos, @selected_category || "All") do %>
               <a href={demo.path} class="project-card">
@@ -647,8 +656,8 @@ defmodule BlogWeb.PostLive.Index do
     </div>
 
     <!-- AIM Style Chat -->
-    <button 
-      class="aim-toggle-btn" 
+    <button
+      class="aim-toggle-btn"
       phx-click="toggle_chat"
       style={if @show_chat, do: "display: none;", else: ""}
     >
@@ -662,7 +671,7 @@ defmodule BlogWeb.PostLive.Index do
           <button class="aim-control-btn" phx-click="toggle_chat">×</button>
         </div>
       </div>
-      
+
       <div class="aim-chat-content">
         <div class="aim-buddy-list-title">Online ({@total_readers})</div>
         <div class="aim-buddy-list">
@@ -675,7 +684,7 @@ defmodule BlogWeb.PostLive.Index do
             </div>
           <% end %>
         </div>
-        
+
         <div class="aim-messages-area" id="aim-chat-messages">
           <%= for message <- @chat_messages do %>
             <div class="aim-message">
@@ -697,10 +706,10 @@ defmodule BlogWeb.PostLive.Index do
             </div>
           <% end %>
         </div>
-        
+
         <div class="aim-input-area">
           <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message">
-            <textarea 
+            <textarea
               name="message"
               class="aim-input-box"
               placeholder="Type a message..."
@@ -935,7 +944,9 @@ defmodule BlogWeb.PostLive.Index do
                   <div class="flex items-center mb-1">
                     <div class="w-2 h-2 rounded-full bg-green-500 mr-1"></div>
                     <span class="text-xs truncate" style={"color: #{user.color};"}>
-                      {if Map.get(user, :display_name), do: Map.get(user, :display_name), else: "Anonymous"}
+                      {if Map.get(user, :display_name),
+                        do: Map.get(user, :display_name),
+                        else: "Anonymous"}
                     </span>
                   </div>
                 <% end %>

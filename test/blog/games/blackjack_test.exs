@@ -6,21 +6,21 @@ defmodule Blog.Games.BlackjackTest do
     test "creates a full deck of 52 cards" do
       deck = Blackjack.new_shuffled_deck()
       assert length(deck) == 52
-      
+
       # Check that all cards are unique
       assert length(Enum.uniq(deck)) == 52
     end
 
     test "deck contains all expected cards" do
       deck = Blackjack.new_shuffled_deck()
-      
+
       # Check suits
       suits = Enum.map(deck, fn {_, suit} -> suit end) |> Enum.uniq()
       assert "♥️" in suits
       assert "♦️" in suits
       assert "♣️" in suits
       assert "♠️" in suits
-      
+
       # Check values
       values = Enum.map(deck, fn {value, _} -> value end) |> Enum.uniq() |> Enum.sort()
       expected_values = ["10", "2", "3", "4", "5", "6", "7", "8", "9", "A", "J", "K", "Q"]
@@ -30,7 +30,7 @@ defmodule Blog.Games.BlackjackTest do
     test "deck is shuffled (not in order)" do
       deck1 = Blackjack.new_shuffled_deck()
       deck2 = Blackjack.new_shuffled_deck()
-      
+
       # Very unlikely that two shuffled decks are identical
       refute deck1 == deck2
     end
@@ -39,10 +39,10 @@ defmodule Blog.Games.BlackjackTest do
   describe "create_players/1" do
     test "creates player map with correct initial values" do
       players = Blackjack.create_players(["player1", "player2"])
-      
+
       assert Map.has_key?(players, "player1")
       assert Map.has_key?(players, "player2")
-      
+
       player1 = players["player1"]
       assert player1.hand == []
       assert player1.status == :playing
@@ -86,21 +86,24 @@ defmodule Blog.Games.BlackjackTest do
 
     test "calculates aces as 1 when 11 would bust" do
       hand = [{"A", "♥️"}, {"K", "♦️"}, {"5", "♣️"}]
-      assert Blackjack.calculate_score(hand) == 16  # A=1, K=10, 5=5
+      # A=1, K=10, 5=5
+      assert Blackjack.calculate_score(hand) == 16
     end
 
     test "handles multiple aces optimally" do
       hand = [{"A", "♥️"}, {"A", "♦️"}, {"5", "♣️"}]
-      assert Blackjack.calculate_score(hand) == 17  # A=11, A=1, 5=5
-      
+      # A=11, A=1, 5=5
+      assert Blackjack.calculate_score(hand) == 17
+
       hand2 = [{"A", "♥️"}, {"A", "♦️"}, {"A", "♣️"}, {"8", "♠️"}]
-      assert Blackjack.calculate_score(hand2) == 21  # A=11, A=1, A=1, 8=8
+      # A=11, A=1, A=1, 8=8
+      assert Blackjack.calculate_score(hand2) == 21
     end
 
     test "blackjack hands score 21" do
       hand = [{"A", "♥️"}, {"K", "♦️"}]
       assert Blackjack.calculate_score(hand) == 21
-      
+
       hand2 = [{"A", "♣️"}, {"Q", "♠️"}]
       assert Blackjack.calculate_score(hand2) == 21
     end
@@ -115,9 +118,9 @@ defmodule Blog.Games.BlackjackTest do
     test "deals specified number of cards from deck" do
       deck = [{"A", "♥️"}, {"K", "♦️"}, {"Q", "♣️"}, {"J", "♠️"}]
       player = %{hand: []}
-      
+
       {updated_player, remaining_deck} = Blackjack.deal_cards(player, deck, 2)
-      
+
       assert length(updated_player.hand) == 2
       assert length(remaining_deck) == 2
       assert updated_player.hand == [{"A", "♥️"}, {"K", "♦️"}]
@@ -126,9 +129,9 @@ defmodule Blog.Games.BlackjackTest do
     test "adds cards to existing hand" do
       deck = [{"5", "♥️"}, {"6", "♦️"}]
       player = %{hand: [{"A", "♣️"}, {"K", "♠️"}]}
-      
+
       {updated_player, remaining_deck} = Blackjack.deal_cards(player, deck, 1)
-      
+
       assert length(updated_player.hand) == 3
       assert updated_player.hand == [{"A", "♣️"}, {"K", "♠️"}, {"5", "♥️"}]
       assert remaining_deck == [{"6", "♦️"}]
@@ -137,9 +140,9 @@ defmodule Blog.Games.BlackjackTest do
     test "handles player with no existing hand" do
       deck = [{"A", "♥️"}, {"K", "♦️"}]
       player = %{}
-      
+
       {updated_player, remaining_deck} = Blackjack.deal_cards(player, deck, 1)
-      
+
       assert updated_player.hand == [{"A", "♥️"}]
       assert remaining_deck == [{"K", "♦️"}]
     end
@@ -151,13 +154,13 @@ defmodule Blog.Games.BlackjackTest do
         "player1" => %{hand: [{"A", "♥️"}, {"K", "♦️"}], status: :playing},
         "player2" => %{hand: [{"5", "♣️"}, {"6", "♠️"}], status: :playing}
       }
-      
+
       updated_players = Blackjack.check_naturals(players)
-      
+
       # Player1 should have blackjack
       assert updated_players["player1"].status == :stand
       assert updated_players["player1"].result == :blackjack
-      
+
       # Player2 should remain unchanged
       assert updated_players["player2"].status == :playing
       refute Map.has_key?(updated_players["player2"], :result)
@@ -167,9 +170,9 @@ defmodule Blog.Games.BlackjackTest do
       players = %{
         "player1" => %{hand: [{"7", "♥️"}, {"7", "♦️"}, {"7", "♣️"}], status: :playing}
       }
-      
+
       updated_players = Blackjack.check_naturals(players)
-      
+
       # Should not be marked as blackjack (3 cards)
       assert updated_players["player1"].status == :playing
       refute Map.has_key?(updated_players["player1"], :result)
@@ -183,7 +186,7 @@ defmodule Blog.Games.BlackjackTest do
         "player2" => %{status: :playing},
         "player3" => %{status: :playing}
       }
-      
+
       {active_id, _} = Blackjack.activate_next_player(players)
       assert active_id == "player2"
     end
@@ -193,7 +196,7 @@ defmodule Blog.Games.BlackjackTest do
         "player1" => %{status: :bust},
         "player2" => %{status: :stand}
       }
-      
+
       {active_id, _} = Blackjack.activate_next_player(players)
       assert active_id == nil
     end
@@ -207,28 +210,28 @@ defmodule Blog.Games.BlackjackTest do
   describe "new_game/1" do
     test "creates new game with correct structure" do
       game = Blackjack.new_game(["player1", "player2"])
-      
+
       assert Map.has_key?(game, :deck)
       assert Map.has_key?(game, :players)
       assert Map.has_key?(game, :dealer)
       assert Map.has_key?(game, :active_player_id)
       assert Map.has_key?(game, :status)
       assert Map.has_key?(game, :winner)
-      
+
       # Deck should be smaller after dealing
       assert length(game.deck) < 52
-      
+
       # Players should have 2 cards each
       assert length(game.players["player1"].hand) == 2
       assert length(game.players["player2"].hand) == 2
-      
+
       # Dealer should have 2 cards
       assert length(game.dealer.hand) == 2
     end
 
     test "handles single player" do
       game = Blackjack.new_game(["solo_player"])
-      
+
       assert map_size(game.players) == 1
       assert Map.has_key?(game.players, "solo_player")
     end
@@ -236,9 +239,9 @@ defmodule Blog.Games.BlackjackTest do
     test "sets active player or moves to dealer turn if all have blackjack" do
       # Test multiple times to catch the case where all players get blackjack
       game = Blackjack.new_game(["player1"])
-      
+
       assert game.status in [:playing, :dealer_turn]
-      
+
       if game.status == :playing do
         assert game.active_player_id != nil
       else
@@ -251,58 +254,74 @@ defmodule Blog.Games.BlackjackTest do
     setup do
       # Create a predictable deck for testing
       deck = [{"5", "♥️"}, {"K", "♦️"}, {"A", "♣️"}, {"2", "♠️"}]
-      
+
       game = %{
         deck: deck,
         players: %{
-          "player1" => %{hand: [{"7", "♥️"}, {"8", "♦️"}], status: :playing, score: 15, bet: 10, balance: 100}
+          "player1" => %{
+            hand: [{"7", "♥️"}, {"8", "♦️"}],
+            status: :playing,
+            score: 15,
+            bet: 10,
+            balance: 100
+          }
         },
         dealer: %{hand: [{"A", "♠️"}, {"6", "♣️"}], status: :waiting, score: 17},
         active_player_id: "player1",
         status: :playing,
         winner: nil
       }
-      
+
       {:ok, game: game}
     end
 
     test "adds card to active player and updates score", %{game: game} do
       updated_game = Blackjack.hit(game, "player1")
-      
+
       player = updated_game.players["player1"]
       assert length(player.hand) == 3
       assert List.last(player.hand) == {"5", "♥️"}
-      assert player.score == 20  # 7 + 8 + 5
+      # 7 + 8 + 5
+      assert player.score == 20
     end
 
     test "doesn't allow hit from non-active player", %{game: game} do
       result = Blackjack.hit(game, "wrong_player")
-      assert result == game  # Should be unchanged
+      # Should be unchanged
+      assert result == game
     end
 
     test "handles player bust", %{game: game} do
       # Set up a hand that will bust with next card
       bust_game = put_in(game.players["player1"].hand, [{"K", "♠️"}, {"Q", "♥️"}])
       bust_game = put_in(bust_game.players["player1"].score, 20)
-      
+
       updated_game = Blackjack.hit(bust_game, "player1")
-      
+
       player = updated_game.players["player1"]
       assert player.status == :bust
       assert player.result == :lose
-      assert player.balance == 90  # Lost bet of 10
+      # Lost bet of 10
+      assert player.balance == 90
     end
 
     test "moves to next player after current player busts", %{game: game} do
       # Add another player
-      game = put_in(game.players["player2"], %{hand: [{"2", "♣️"}, {"3", "♦️"}], status: :playing, score: 5, bet: 10, balance: 100})
-      
+      game =
+        put_in(game.players["player2"], %{
+          hand: [{"2", "♣️"}, {"3", "♦️"}],
+          status: :playing,
+          score: 5,
+          bet: 10,
+          balance: 100
+        })
+
       # Make player1 bust
       bust_game = put_in(game.players["player1"].hand, [{"K", "♠️"}, {"Q", "♥️"}])
       bust_game = put_in(bust_game.players["player1"].score, 20)
-      
+
       updated_game = Blackjack.hit(bust_game, "player1")
-      
+
       assert updated_game.active_player_id == "player2"
       assert updated_game.status == :playing
     end
@@ -311,11 +330,12 @@ defmodule Blog.Games.BlackjackTest do
       # Set up player to bust (only player in game)
       bust_game = put_in(game.players["player1"].hand, [{"K", "♠️"}, {"Q", "♥️"}])
       bust_game = put_in(bust_game.players["player1"].score, 20)
-      
+
       updated_game = Blackjack.hit(bust_game, "player1")
-      
+
       assert updated_game.active_player_id == nil
-      assert updated_game.status == :game_over  # Should process dealer turn and finish
+      # Should process dealer turn and finish
+      assert updated_game.status == :game_over
     end
   end
 
@@ -332,13 +352,13 @@ defmodule Blog.Games.BlackjackTest do
         status: :playing,
         winner: nil
       }
-      
+
       {:ok, game: game}
     end
 
     test "sets player status to stand and moves to next player", %{game: game} do
       updated_game = Blackjack.stand(game, "player1")
-      
+
       assert updated_game.players["player1"].status == :stand
       assert updated_game.active_player_id == "player2"
       assert updated_game.status == :playing
@@ -346,17 +366,19 @@ defmodule Blog.Games.BlackjackTest do
 
     test "doesn't allow stand from non-active player", %{game: game} do
       result = Blackjack.stand(game, "player2")
-      assert result == game  # Should be unchanged
+      # Should be unchanged
+      assert result == game
     end
 
     test "moves to dealer turn when all players have stood", %{game: game} do
       # Make player2 already standing
       game = put_in(game.players["player2"].status, :stand)
-      
+
       updated_game = Blackjack.stand(game, "player1")
-      
+
       assert updated_game.active_player_id == nil
-      assert updated_game.status == :game_over  # Should process dealer and finish
+      # Should process dealer and finish
+      assert updated_game.status == :game_over
     end
   end
 
@@ -364,83 +386,120 @@ defmodule Blog.Games.BlackjackTest do
     test "player wins when dealer busts" do
       game = %{
         players: %{
-          "player1" => %{hand: [{"7", "♥️"}, {"8", "♦️"}], status: :stand, score: 15, bet: 10, balance: 100}
+          "player1" => %{
+            hand: [{"7", "♥️"}, {"8", "♦️"}],
+            status: :stand,
+            score: 15,
+            bet: 10,
+            balance: 100
+          }
         },
         dealer: %{hand: [{"K", "♠️"}, {"Q", "♥️"}, {"5", "♣️"}], status: :bust, score: 25},
         status: :game_over
       }
-      
+
       updated_game = Blackjack.determine_winners(game)
-      
+
       player = updated_game.players["player1"]
       assert player.result == :win
-      assert player.balance == 110  # Won bet
+      # Won bet
+      assert player.balance == 110
       assert "player1" in updated_game.winners
     end
 
     test "player loses when dealer has higher score" do
       game = %{
         players: %{
-          "player1" => %{hand: [{"7", "♥️"}, {"8", "♦️"}], status: :stand, score: 15, bet: 10, balance: 100}
+          "player1" => %{
+            hand: [{"7", "♥️"}, {"8", "♦️"}],
+            status: :stand,
+            score: 15,
+            bet: 10,
+            balance: 100
+          }
         },
         dealer: %{hand: [{"K", "♠️"}, {"9", "♥️"}], status: :stand, score: 19},
         status: :game_over
       }
-      
+
       updated_game = Blackjack.determine_winners(game)
-      
+
       player = updated_game.players["player1"]
       assert player.result == :lose
-      assert player.balance == 90  # Lost bet
+      # Lost bet
+      assert player.balance == 90
       assert updated_game.winners == []
     end
 
     test "push when scores are equal" do
       game = %{
         players: %{
-          "player1" => %{hand: [{"K", "♥️"}, {"8", "♦️"}], status: :stand, score: 18, bet: 10, balance: 100}
+          "player1" => %{
+            hand: [{"K", "♥️"}, {"8", "♦️"}],
+            status: :stand,
+            score: 18,
+            bet: 10,
+            balance: 100
+          }
         },
         dealer: %{hand: [{"9", "♠️"}, {"9", "♥️"}], status: :stand, score: 18},
         status: :game_over
       }
-      
+
       updated_game = Blackjack.determine_winners(game)
-      
+
       player = updated_game.players["player1"]
       assert player.result == :push
-      assert player.balance == 100  # No change
+      # No change
+      assert player.balance == 100
       assert updated_game.winners == []
     end
 
     test "blackjack pays 3:2" do
       game = %{
         players: %{
-          "player1" => %{hand: [{"A", "♥️"}, {"K", "♦️"}], status: :stand, score: 21, bet: 10, balance: 100, result: :blackjack}
+          "player1" => %{
+            hand: [{"A", "♥️"}, {"K", "♦️"}],
+            status: :stand,
+            score: 21,
+            bet: 10,
+            balance: 100,
+            result: :blackjack
+          }
         },
         dealer: %{hand: [{"K", "♠️"}, {"9", "♥️"}], status: :stand, score: 19},
         status: :game_over
       }
-      
+
       updated_game = Blackjack.determine_winners(game)
-      
+
       player = updated_game.players["player1"]
-      assert player.balance == 115  # 100 + (10 * 1.5)
+      # 100 + (10 * 1.5)
+      assert player.balance == 115
       assert "player1" in updated_game.winners
     end
 
     test "blackjack pushes against dealer blackjack" do
       game = %{
         players: %{
-          "player1" => %{hand: [{"A", "♥️"}, {"K", "♦️"}], status: :stand, score: 21, bet: 10, balance: 100, result: :blackjack}
+          "player1" => %{
+            hand: [{"A", "♥️"}, {"K", "♦️"}],
+            status: :stand,
+            score: 21,
+            bet: 10,
+            balance: 100,
+            result: :blackjack
+          }
         },
         dealer: %{hand: [{"A", "♠️"}, {"Q", "♥️"}], status: :stand, score: 21},
         status: :game_over
       }
-      
+
       updated_game = Blackjack.determine_winners(game)
-      
+
       player = updated_game.players["player1"]
-      assert player.balance == 100  # No change
+      # No change
+      assert player.balance == 100
       assert updated_game.winners == []
     end
   end
@@ -461,9 +520,9 @@ defmodule Blog.Games.BlackjackTest do
           "player2" => %{balance: 75, bet: 10}
         }
       }
-      
+
       new_game = Blackjack.new_round(old_game)
-      
+
       # Should have fresh hands but preserved balances
       assert new_game.players["player1"].balance == 150
       assert new_game.players["player2"].balance == 75
@@ -483,13 +542,13 @@ defmodule Blog.Games.BlackjackTest do
         active_player_id: "existing",
         status: :playing
       }
-      
+
       {:ok, game: game}
     end
 
     test "adds new player to active game", %{game: game} do
       updated_game = Blackjack.add_player(game, "new_player")
-      
+
       assert Map.has_key?(updated_game.players, "new_player")
       new_player = updated_game.players["new_player"]
       assert length(new_player.hand) == 2
@@ -512,11 +571,12 @@ defmodule Blog.Games.BlackjackTest do
       # Set up deck so new player gets blackjack
       blackjack_deck = [{"A", "♥️"}, {"K", "♦️"} | game.deck]
       game = %{game | deck: blackjack_deck}
-      
+
       updated_game = Blackjack.add_player(game, "lucky_player")
-      
+
       lucky_player = updated_game.players["lucky_player"]
-      assert lucky_player.status == :stand  # Should auto-stand on blackjack
+      # Should auto-stand on blackjack
+      assert lucky_player.status == :stand
       assert lucky_player.score == 21
     end
   end
