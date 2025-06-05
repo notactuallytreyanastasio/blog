@@ -333,7 +333,7 @@ defmodule BlogWeb.WordleLive do
     [
       ~w(q w e r t y u i o p),
       ~w(a s d f g h j k l),
-      ~w(Enter z x c v b n m Backspace)
+      ~w(Backspace z x c v b n m Enter)
     ]
   end
 

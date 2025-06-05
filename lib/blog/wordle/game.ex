@@ -14,7 +14,7 @@ defmodule Blog.Wordle.Game do
     field(:message, :string)
     field(:used_letters, :map, default: %{})
     field(:max_attempts, :integer, default: 6)
-    field(:hard_mode, :boolean, default: false)
+    field(:hard_mode, :boolean, default: true)
     # Changed to string to avoid serialization issues
     field(:last_activity, :string, default: nil)
   end
