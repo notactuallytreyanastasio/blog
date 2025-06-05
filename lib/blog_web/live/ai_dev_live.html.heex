@@ -1,15 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="" />
-    <meta property="og:title" content="Nathan Fielder: An Exhaustive Character Study" />
-    <title>Untitled</title>
-    <link rel="stylesheet" href="/assets/app.css" />
-  </head>
-  <body>
-    <div class="container">
+<div class="max-w-4xl mx-auto py-8 px-6">
+  <article class="prose prose-gray max-w-none prose-lg">
+    <div class="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
       <h1 id="advanced-charlie-work-guiding-the-robot-good-for-your-health">Advanced
         Charlie Work: Guiding The Robot Good (For Your Health)</h1>
       <h2 id="why-you-are-here">Why You Are Here</h2>
@@ -55,14 +46,18 @@
         reasoning model will do, though. o3 is especially impressive, too. Grok
         also can hold its own here (though I do not endorse using it).</p>
       <p><strong>We can start with a simple prompt:</strong></p>
-      <pre><code>I need to design an application. I am choosing to use the Elixir programming language and Phoenix framework because I have heard they have some features with real-time capabilities that may be of use to me. The application is a social bookmarking service. It features several core concepts.
-
-- A chrome extension. This simple extension saves a URL, a page title, a description, and some tags describing the page. It does this by communicating with our server.
-- A backend service with several features: saving bookmarks, tagging them, browsing them once saved, sharing them with others, upvoting/downvoting, commenting, or more.
-
-Can you help me structure a CLAUDE.md file to give Claude code instructions on getting started here?
-
-I need a detailed specification, because I ultimately am going to feed this into another model. Please engineer this output to be structured in a way that it is a plan Claude Sonnet 4 is ready to implement.</code></pre>
+      <div class="bg-gray-50 border-l-4 border-blue-500 p-4 my-4">
+        <div class="text-sm text-gray-600 mb-2 font-semibold">Example Prompt:</div>
+        <div class="bg-white rounded p-3 border text-sm">
+          <p>I need to design an application. I am choosing to use the Elixir programming language and Phoenix framework because I have heard they have some features with real-time capabilities that may be of use to me. The application is a social bookmarking service. It features several core concepts.</p>
+          <ul class="list-disc list-inside my-2">
+            <li>A chrome extension. This simple extension saves a URL, a page title, a description, and some tags describing the page. It does this by communicating with our server.</li>
+            <li>A backend service with several features: saving bookmarks, tagging them, browsing them once saved, sharing them with others, upvoting/downvoting, commenting, or more.</li>
+          </ul>
+          <p>Can you help me structure a CLAUDE.md file to give Claude code instructions on getting started here?</p>
+          <p>I need a detailed specification, because I ultimately am going to feed this into another model. Please engineer this output to be structured in a way that it is a plan Claude Sonnet 4 is ready to implement.</p>
+        </div>
+      </div>
       <h2 id="implementation-claude-code">Implementation: Claude Code</h2>
       <p>We will begin by getting some real outputs and go from there. We will
         use claude code for those. So, let’s begin. I am going to start an empty
@@ -71,24 +66,24 @@ I need a detailed specification, because I ultimately am going to feed this into
         language you choose.</p>
       <p>It’s worth noting Phoenix is somewhat niche, but I am still confident
         I can get high quality outputs here.</p>
-      <div class="sourceCode" id="cb2">
-        <pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">mix</span> phx.new tasty <span class="at">--live</span></span></code></pre>
+      <div class="bg-gray-900 rounded-lg p-4 my-4">
+        <pre class="text-green-400 font-mono text-sm"><code>mix phx.new tasty --live</code></pre>
       </div>
       <p>And with this, we can begin.</p>
       <p>
         I have added a github repository that will keep track of the code for
         this endeavour along the way
-        <a href="https://github.com/notactuallytreyanastasio/tasty">here</a>
+        <a href="https://github.com/notactuallytreyanastasio/tasty" class="text-blue-600 hover:text-blue-800 underline">here</a>
       </p>
       <p>
         The first commit with the app created is
-        <a href="https://github.com/notactuallytreyanastasio/tasty/commit/eb1eebdc4c567f812449fa6a0701d63f32edf770">
+        <a href="https://github.com/notactuallytreyanastasio/tasty/commit/eb1eebdc4c567f812449fa6a0701d63f32edf770" class="text-blue-600 hover:text-blue-800 underline">
           here
         </a>
       </p>
       <p>
         If we examine
-        <a href="https://github.com/notactuallytreyanastasio/tasty/commit/d4566a519663047e6831c0b8f46614299fffc033">
+        <a href="https://github.com/notactuallytreyanastasio/tasty/commit/d4566a519663047e6831c0b8f46614299fffc033" class="text-blue-600 hover:text-blue-800 underline">
           commit
           d4566a519663047e6831c0b8f46614299fffc033
         </a>
@@ -113,7 +108,7 @@ I need a detailed specification, because I ultimately am going to feed this into
         parts and bells and whistles quite quickly.</p>
       <p>I just let claude go and kept hitting yes for about 30 minutes. It
         got pretty far.</p>
-      <p>You can see the entire log <a href="fake_link">here</a></p>
+      <p>You can see the entire log <a href="#" class="text-blue-600 hover:text-blue-800 underline">here</a></p>
       <p>We can look at this Github Gist to see the entire run log, if you are
         curious. It shows quite a bit of the methodical approach Claude was
         allowed to take because of our prior instructions working over having an
@@ -130,13 +125,13 @@ I need a detailed specification, because I ultimately am going to feed this into
         gotten to the same point in your framework of choice once you begin
         following along.</p>
       <p>
-        <a href="https://gist.github.com/notactuallytreyanastasio/db1c23114eeb01c394285299d8c31bfb#file-claude_session_2-md">
+        <a href="https://gist.github.com/notactuallytreyanastasio/db1c23114eeb01c394285299d8c31bfb#file-claude_session_2-md" class="text-blue-600 hover:text-blue-800 underline">
           Here
           is the log for anyone wondering
         </a>
       </p>
       <h3 id="what-we-have">What we have:</h3>
-      <ol type="1">
+      <ol class="list-decimal list-inside space-y-2 my-4">
         <li>Database schemas for everything</li>
         <li>Backend relationships all set up</li>
         <li>Channels set up for pubsub</li>
@@ -168,40 +163,43 @@ I need a detailed specification, because I ultimately am going to feed this into
         to take the most “freestyle” approach possible. Instead of reaching for
         a specification, we are going to let it YOLO its way to something
         functional. In this case, we start off with a pretty simple prompt</p>
-      <blockquote>
+      <div class="border-l-4 border-gray-300 pl-4 my-4 italic text-gray-700 bg-gray-50 py-2">
         <p>now let’s make a liveview. this will be our first one. it will view a
           random sampling of bookmarks from the database that are labeled public.
           To get the database off we will seed it with 100 random reddit links. it
           should also have an ability to click a tag at the top and select it then
           only show bookmarks with that tag in the feed</p>
-      </blockquote>
+      </div>
       <p>This is a bit more of a tall order! I let it run and it started to
         cook.</p>
-      <pre><code>⏺ Update Todos
-
-  ⎿  ☐ Create database seeding script with 100 Reddit bookmarks
-     ☐ Update Bookmarks context for public bookmark queries
-     ☐ Create BookmarkLive for browsing public bookmarks
-     ☐ Add tag filtering functionality to LiveView
-     ☐ Add LiveView routes and test the implementation</code></pre>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 my-4">
+        <div class="text-sm font-semibold text-yellow-800 mb-2">⏺ Update Todos</div>
+        <ul class="text-sm text-yellow-700 space-y-1 ml-4">
+          <li>☐ Create database seeding script with 100 Reddit bookmarks</li>
+          <li>☐ Update Bookmarks context for public bookmark queries</li>
+          <li>☐ Create BookmarkLive for browsing public bookmarks</li>
+          <li>☐ Add tag filtering functionality to LiveView</li>
+          <li>☐ Add LiveView routes and test the implementation</li>
+        </ul>
+      </div>
       <p>This is totally a reasonable start, but each of these tasks are
         pretty large! I guess we can just let it run though, and I did. So here
         are some highlights of what came next.</p>
-      <blockquote>
+      <div class="border-l-4 border-gray-300 pl-4 my-4 italic text-gray-700 bg-gray-50 py-2">
         <p>✻ Thinking… Let me also add different source types based on the URL
           to make it more realistic. Let me update the source badge logic to show
           different types based on the bookmark URL.</p>
-      </blockquote>
+      </div>
       <p>So, we can see its reaching to add some color here and that isn’t
         necessarily the worst thing.</p>
       <p>We do end up in a position where we have a pretty clear path.</p>
       <p>So, I gave it some light prompts for refinement. Here they are:</p>
-      <blockquote>
+      <div class="border-l-4 border-gray-300 pl-4 my-4 italic text-gray-700 bg-gray-50 py-2">
         <p>lets start off by writing tests for all the context modules and
           schemas we have created so far. This is pretty lacking in this first
           implementation. You can keep them all in one isolated commit if that is
           easy for you.</p>
-      </blockquote>
+      </div>
       <p>This is a pretty good step just to ensure the logic is all thought
         out. It’s an excuse to look at the tests, especially. If we cover the
         implementations right now, they are pretty well documented and make
@@ -209,13 +207,13 @@ I need a detailed specification, because I ultimately am going to feed this into
         doing the work described.</p>
       <p>Unsurprisingly, its super good at this and the testing loop goes
         quickly.</p>
-      <blockquote>
+      <div class="border-l-4 border-gray-300 pl-4 my-4 italic text-gray-700 bg-gray-50 py-2">
         <p>now let’s make a liveview. this will be our first one. it will view a
           random sampling of bookmarks from the database that are labeled public.
           To get the database off we will seed it with 100 random reddit links. it
           should also have an ability to click a tag at the top and select it then
           only show bookmarks with that tag in the feed</p>
-      </blockquote>
+      </div>
       <p>This was the next big step and we are really going to get to cooking
         now that we’re giving it input this wide. And this is where our next
         step comes in.</p>
@@ -236,6 +234,88 @@ I need a detailed specification, because I ultimately am going to feed this into
       <p>Why on earth write an application with absolutely no text editor?</p>
       <p>Because we live in the future. That is the tool that primitive people
         used to make software. We do not have such constraints.</p>
+
+      <p>What we will do now is start purely with Claude Desktop and run through the same situation to get to the same point of functionality.</p>
+      <p>If this sounds like a tall order, don't worry, we have a pretty robust ability to produce reasonable frontend code to get started.</p>
+      <div class="bg-gray-50 border-l-4 border-blue-500 p-4 my-4">
+        <div class="text-sm text-gray-600 mb-2 font-semibold">Prompt:</div>
+        <div class="bg-white rounded p-3 border text-sm">
+          <p>The following is a specification for the beginning of a project we architected to be built in Elixir/Phoenix. In this case, I would like to build a single-file JS application we can run as an artifact that goes as far along the way as possible to match the features that are included here.</p>
+          <ul class="list-disc list-inside my-2">
+            <li>We will use localStorage for the database.</li>
+            <li>We will modify the specification to work for this JS environment.</li>
+          </ul>
+          <p>Can you help me structure a full plan to develop this entirely in the browser with Claude Desktop?</p>
+          <p>I need a detailed specification, because I ultimately am going to feed this into another model. Please engineer this output to be structured in a way that it is a plan Claude Sonnet 4 is ready to implement.</p>
+          <p>Please start with the full plan here requiring the necessity of ALL DEVELOPMENT HAPPENING INSIDE CLAUDE DESKTOP, that is a hard constraint we have.</p>
+          <p>Here is the specification...</p>
+        </div>
+      </div>
+      <p>This nets us a very large document. It can be found <a href="https://gist.github.com/notactuallytreyanastasio/092feb6b7789ff050c4b5777dc53353c">here</a></p>
+      <p>Overall, there is clearly a theme here: Claude Opus 4 is very good at making plans and schematics for Claude Sonnet 4.</p>
+      <p>This interplay is not unique to Claude, it works between any reasoning model and a more "implementation oriented" model that you might see elsewhere.</p>
+      <p>What our big takeaway is at this point, is that we can get a pretty serious tool pretty quickly.</p>
+      <p>How? Well, wait just a second...its time to feed it the full specification and see what happens</p>
+        <div class="bg-white rounded p-3 border text-sm">
+          <p>combine all these pieces into one artifact that we can work with inside of claude here</p>
+        </div>
+
+        <div class="text-sm text-gray-600 mb-2 font-semibold">Return:</div>
+    <div class="bg-gray-50 border-l-4 border-blue-500 p-4 my-4">
+      <p>I'll create a comprehensive single-file HTML application that combines all the architectural pieces into a working foundation for the Tasty Browser social bookmarking app.I've created a comprehensive single-file HTML application that combines all the architectural pieces into a working foundation for Tasty Browser. Here's what's included:
+
+<h2>What's Working Now:</h2>
+<p>
+1. **Authentication System**
+   - Register new users
+   - Login/logout functionality
+   - Demo user (username: `demo`, password: `demo123`)
+
+2. **Bookmark Management**
+   - View public bookmarks on the homepage
+   - Add new bookmarks (when logged in)
+   - View bookmark details with comments
+   - Tag system with colored tags
+
+3. **Social Features**
+   - Voting system (upvote/downvote)
+   - Comment system with nested comments
+   - View counts for bookmarks
+
+4. **Data Persistence**
+   - All data stored in localStorage
+   - Demo data created on first load
+   - Multi-tab sync via storage events
+
+5. **Navigation**
+   - Hash-based routing
+   - Working pages: Home, Login, Register, Bookmark Detail
+</p>
+<h2>Architecture Highlights:</h2>
+
+- **Service Layer**: Separate services for each domain (Auth, Bookmarks, Votes, Comments)
+- **Component System**: Simple but effective component-based UI
+- **Router**: Handles navigation and parameterized routes
+- **Real-time Updates**: Custom events for UI updates when data changes
+
+<h2> Next Steps to Implement:</h2>
+
+1. **User Profiles** - View user's bookmarks and profile info
+2. **Tag Pages** - Browse bookmarks by tag
+3. **Collections** - Create and manage bookmark collections
+4. **Following System** - Follow other users
+5. **Search** - Search bookmarks by title/description
+6. **Import/Export** - Backup and restore bookmarks
+7. **Bookmarklet** - Quick-add bookmarks from any page
+
+You can now start using the app immediately! Try:
+- Creating a new account or logging in with the demo credentials
+- Adding some bookmarks
+- Voting and commenting on bookmarks
+- Opening the app in multiple tabs to see localStorage sync
+
+What feature would you like to work on next?</p>
     </div>
-  </body>
-</html>
+    </div>
+  </article>
+</div>
