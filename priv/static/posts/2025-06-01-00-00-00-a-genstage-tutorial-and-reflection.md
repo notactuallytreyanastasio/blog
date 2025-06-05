@@ -1590,3 +1590,13 @@ end
 ```
 
 GenStage's demand-driven architecture naturally handles backpressure, load balancing, and fault isolation. These production patterns build on that foundation, giving you the tools to run job processing at scale. The same principles that made our tutorial system work - processes, supervision, and message passing - scale to enterprise deployments.
+
+## Looking Back, Moving Forward
+
+Ten years later, I'm struck by how well this design has aged. The fundamentals haven't changed because they were right from the beginning: isolated processes, demand-driven flow control, and supervision trees create systems that are both simple to reason about and robust under pressure.
+
+What has changed is the ecosystem around these patterns. Tools like Broadway have formalized many of the production patterns we outlined. LiveView has shown how the same message-passing principles work for interactive applications. The BEAM's reputation for building resilient systems has only grown stronger.
+
+If you're building distributed systems, the lessons from this tutorial extend far beyond job processing. Whether you're handling WebSocket connections, processing streaming data, or coordinating microservices, the same patterns apply: pull don't push, isolate failures, and let the system self-regulate.
+
+The beauty of GenStage isn't in its complexity—it's in its simplicity. When your job processor starts handling millions of tasks without breaking a sweat, remember that it's built on the same simple idea we started with: consumers asking producers for exactly what they can handle, one event at a time.

@@ -27,3 +27,9 @@ The codebase for the Electron app was a single file and a total mess.
 
 I wanted to take a few different approaches with the potential paths I had.
 
+## Conclusion
+
+The convergence of AI-assisted development and stacked diffs represents more than just a workflow improvement—it's a fundamental shift in how we think about iterative development. As AI tools enable us to rapidly explore multiple implementation paths in parallel, the traditional linear git workflow becomes a bottleneck rather than a feature.
+
+Stacked git workflows will become essential not because they're technically superior, but because they match the natural rhythm of AI-assisted development: rapid iteration, parallel exploration, and the ability to maintain multiple coherent threads of work simultaneously. The future belongs to developers who can orchestrate these parallel streams of changes as fluidly as they can prompt an AI to generate code.
+
