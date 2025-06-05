@@ -10,6 +10,9 @@ defmodule BlogWeb.WordleLive do
     # Subscribe to the global wordle games topic
     Phoenix.PubSub.subscribe(Blog.PubSub, Game.topic())
 
+    # Check if this is the first visit for hard mode warning
+    show_hard_mode_warning = not visited_before?(socket)
+
     # Instead of creating a game immediately, just assign the player_id
     # and set up a placeholder for the game
     {:ok,
@@ -17,6 +20,7 @@ defmodule BlogWeb.WordleLive do
        game: nil,
        player_id: player_id,
        other_games: %{},
+       show_hard_mode_warning: show_hard_mode_warning,
        page_title: "Wordle Clone",
        meta_attrs: [
          %{name: "description", content: "A LiveView wordle clone"},
@@ -118,6 +122,11 @@ defmodule BlogWeb.WordleLive do
       {:error, game} ->
         {:noreply, assign(socket, game: game)}
     end
+  end
+
+  @impl true
+  def handle_event("dismiss-hard-mode-warning", _params, socket) do
+    {:noreply, assign(socket, show_hard_mode_warning: false)}
   end
 
   @impl true
@@ -320,6 +329,11 @@ defmodule BlogWeb.WordleLive do
           <% end %>
         </div>
       </div>
+
+      <%!-- Hard Mode Warning Popup --%>
+      <%= if @show_hard_mode_warning do %>
+        <.live_component module={BlogWeb.HardModeWarningComponent} id="hard-mode-warning" />
+      <% end %>
     </div>
     """
   end
@@ -365,6 +379,14 @@ defmodule BlogWeb.WordleLive do
   end
 
   defp format_time_ago(_), do: "Unknown"
+
+  defp visited_before?(socket) do
+    # Check if there's a wordle_visited cookie or session flag
+    case get_connect_params(socket) do
+      %{"wordle_visited" => "true"} -> true
+      _ -> false
+    end
+  end
 
   defp get_player_id(socket) do
     # First look for a user_id in the session
