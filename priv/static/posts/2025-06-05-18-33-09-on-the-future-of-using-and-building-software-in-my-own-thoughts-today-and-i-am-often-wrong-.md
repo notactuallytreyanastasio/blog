@@ -35,6 +35,50 @@ Let's take a look at one of their examples.
 
 > Calculating the understanding of a phrase
 
+Now, we might run some python code for the first one.
+
+```
+python run mul.py
+12324842551279 (calculated instantly and perfectly)
+```
+
+or
+
+```
+python run understanding.py
+The understanding of the phrase "Explain what makes the sunset beautiful?" is:
+"TODO implement something, idk, this is impossible without machine learning"
+```
+
+or, me re-asking the question to an LLM right now just to see:
+
+> 429052095942052 * 4250945290452
+
+> Thought process
+
+> The user is asking me to multiply two large numbers:
+> 429052095942052 * 4250945290452
+
+> Let me check if this requires the analysis tool. According to the guidelines, calculations with 6+ digit numbers necessitate using the analysis tool. The first number has 15 digits and the second has 13 digits, so this definitely requires the analysis tool.
+
+> I'll calculate this multiplication for you using the analysis tool.
+
+> The calculation has been completed. The result is approximately 1.82 × 10^27, or more precisely: 1,823,876,986,603,425,500,000,000,000.
+
+> The result of 429052095942052 × 4250945290452 is:
+
+> 1,823,876,986,603,425,500,000,000,000
+
+> That's approximately 1.82 × 10²⁷ (or about 1.82 octillion).
+
+Now, this time Claude 4 Opus knew to use a trick.
+
+But a month ago (today is 6/5/2025) this was not true!
+
+LLM's, as a whole, really, are _not_ great at math.
+They predict tokens!
+That isn't an inherently totally logical activity.
+
 - **Intent replaces navigation**: "Show me sales data from Q3" vs opening Excel → navigating to folder → opening file → filtering data
 - **Conversational flow replaces rigid workflows**: Each interaction builds on context rather than starting fresh
 - **Ambiguity becomes acceptable**: The system interprets unclear requests rather than throwing errors
