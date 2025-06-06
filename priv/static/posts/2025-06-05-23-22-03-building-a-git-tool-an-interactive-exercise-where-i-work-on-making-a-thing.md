@@ -1352,7 +1352,9 @@ Explicit Requirements:          Inferred Requirements:
                            → - Need buffered output
 ```
 
-### The Hidden Layer: Assumption Networks## Part III: The Construction of Intent
+### The Hidden Layer: Assumption Networks
+
+## Part III: The Construction of Intent
 
 ### Beyond Literal Interpretation
 
@@ -1405,7 +1407,9 @@ One of the most fascinating aspects of Claude Sonnet 4's response is how it went
 
 Every problem has an inherent "shape" - a topology of constraints, requirements, and possibilities. The AI's job is to recognize this shape and find solutions that fit perfectly within it.
 
-For the Git TUI project, the shape looked like this:## Part IV: From Understanding to Planning - The Synthesis Engine
+For the Git TUI project, the shape looked like this:
+
+## Part IV: From Understanding to Planning - The Synthesis Engine
 
 ### The Moment of Crystallization
 
@@ -1451,7 +1455,9 @@ For the Git TUI project, here's how that crystallization occurred:
 
 Notice how Claude Sonnet 4 chose a **bottom-up approach**. This wasn't arbitrary - it emerged from recognizing that terminal control is the riskiest, most fundamental layer. If that doesn't work, nothing else matters.
 
-This decision process looks like:## Part V: The Nature of AI "Work" - Transformation and Creation
+This decision process looks like:
+
+## Part V: The Nature of AI "Work" - Transformation and Creation
 
 ### What Happens When AI "Writes Code"
 
@@ -1481,7 +1487,9 @@ MVC Patterns:            + "Terminal constraints"    =  View protocol with
 
 ### The Iterative Refinement Loop
 
-Here's what happened when Claude Sonnet 4 initially built a GUI instead of TUI:## Part VI: The Dance of Collaboration - Where AI and Human Work Interweave
+Here's what happened when Claude Sonnet 4 initially built a GUI instead of TUI:
+
+## Part VI: The Dance of Collaboration - Where AI and Human Work Interweave
 
 ### The Collaborative Tapestry
 
@@ -1512,7 +1520,9 @@ Feedback & Iteration    →   Rapid Adaptation
 
 ### The Emergent Intelligence
 
-When human and AI collaborate effectively, an emergent intelligence appears that transcends both:## Part VII: The Deep Synthesis - What We've Learned About AI Work
+When human and AI collaborate effectively, an emergent intelligence appears that transcends both:
+
+## Part VII: The Deep Synthesis - What We've Learned About AI Work
 
 ### Answering the Fundamental Questions
 

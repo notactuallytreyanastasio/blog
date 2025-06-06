@@ -53,11 +53,14 @@ defmodule BlogWeb.PostLive do
         # Filter out tags line and process markdown
         content_without_tags = remove_tags_line(post.body)
 
-        case Earmark.as_html(content_without_tags, code_class_prefix: "language-") do
+        case Earmark.as_html(content_without_tags, code_class_prefix: "language-", escape: false) do
           {:ok, html, _} ->
+            # Post-process the HTML to handle details blocks
+            processed_html = process_details_in_html(html)
+            
             socket =
               assign(socket,
-                html: html,
+                html: processed_html,
                 reader_count: get_reader_count(slug),
                 word_count: word_count(content_without_tags),
                 estimated_read_time: estimated_read_time(content_without_tags),
@@ -70,11 +73,18 @@ defmodule BlogWeb.PostLive do
           {:error, html, errors} ->
             # Still show the content even if there are markdown errors
             Logger.error("Markdown parsing warnings: #{inspect(errors)}")
+            
+            # Still try to process details blocks even if there were errors
+            processed_html = process_details_in_html(html)
 
             socket =
               assign(socket,
-                html: html,
-                post: post
+                html: processed_html,
+                post: post,
+                reader_count: get_reader_count(slug),
+                word_count: word_count(content_without_tags),
+                estimated_read_time: estimated_read_time(content_without_tags),
+                show_line_numbers: true
               )
 
             {:ok, socket}
@@ -93,6 +103,59 @@ defmodule BlogWeb.PostLive do
   # Check if a line is a tags line
   defp is_tags_line?(line) do
     String.starts_with?(String.trim(line), "tags:")
+  end
+
+  # Process details blocks in already-rendered HTML
+  defp process_details_in_html(html) do
+    # Pattern to match details blocks that contain raw markdown text
+    pattern = ~r/<details([^>]*)>\s*<summary([^>]*)>(.*?)<\/summary>\s*(.*?)<\/details>/s
+    
+    matches = Regex.scan(pattern, html)
+    
+    # Process each match one by one
+    Enum.reduce(matches, html, fn [full_match, details_attrs, summary_attrs, summary_content, details_content], acc ->
+      processed_block = process_single_html_details_block(details_attrs, summary_attrs, summary_content, details_content)
+      String.replace(acc, full_match, processed_block, global: false)
+    end)
+  end
+
+  # Process a single details block from HTML
+  defp process_single_html_details_block(details_attrs, summary_attrs, summary_content, details_content) do
+    # Check if the content looks like raw markdown (has ## headings, --- rules, etc.)
+    trimmed_content = String.trim(details_content)
+    
+    
+    if looks_like_markdown?(trimmed_content) do
+      case Earmark.as_html(trimmed_content, code_class_prefix: "language-", escape: false) do
+        {:ok, processed_content, _} ->
+          "<details#{details_attrs}><summary#{summary_attrs}>#{summary_content}</summary><div class=\"details-content\">#{processed_content}</div></details>"
+        
+        {:error, _, _} ->
+          "<details#{details_attrs}><summary#{summary_attrs}>#{summary_content}</summary><div class=\"details-content\">#{trimmed_content}</div></details>"
+      end
+    else
+      # Content is already HTML, just wrap it
+      "<details#{details_attrs}><summary#{summary_attrs}>#{summary_content}</summary><div class=\"details-content\">#{trimmed_content}</div></details>"
+    end
+  end
+
+  # Check if content looks like markdown rather than HTML
+  defp looks_like_markdown?(content) do
+    # More comprehensive heuristics to detect markdown
+    has_markdown_headings = String.contains?(content, "##") or String.contains?(content, "# ")
+    has_markdown_rules = String.contains?(content, "---")
+    has_markdown_lists = Regex.match?(~r/^\s*[-*+]\s+/m, content) or Regex.match?(~r/^\s*\d+\.\s+/m, content)
+    has_markdown_emphasis = (String.contains?(content, "*") and not String.contains?(content, "<strong>")) or
+                           (String.contains?(content, "_") and not String.contains?(content, "<em>"))
+    has_markdown_code = String.contains?(content, "```") or Regex.match?(~r/`[^`]+`/, content)
+    has_blockquotes = Regex.match?(~r/^\s*>\s+/m, content)
+    
+    # If it has HTML tags, it's probably already processed
+    has_html_tags = String.contains?(content, "<h") or String.contains?(content, "<p>") or String.contains?(content, "<ul>")
+    
+    # Return true if it has markdown features and doesn't look like HTML
+    (has_markdown_headings or has_markdown_rules or has_markdown_lists or 
+     has_markdown_emphasis or has_markdown_code or has_blockquotes) and not has_html_tags
   end
 
   defp truncated_post(body) do
