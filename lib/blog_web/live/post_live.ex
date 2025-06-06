@@ -208,77 +208,87 @@ defmodule BlogWeb.PostLive do
 
   def render(assigns) do
     ~H"""
-    <div class="px-2 py-3 font-mono text-gray-700" id="post-container">
-      <div class="max-w-3xl mx-auto">
-        <div class="flex flex-wrap justify-between items-center text-xs text-gray-500 mb-2">
-          <div class="flex items-center space-x-3">
-            <div>
+    <article class="min-h-screen bg-gray-50">
+      <!-- Header with navigation and metadata -->
+      <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-6 py-4">
+          <div class="flex items-center justify-between">
+            <.link navigate={~p"/"} class="flex items-center text-gray-600 hover:text-gray-900 transition-colors">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+              Back to posts
+            </.link>
+            
+            <div class="flex items-center space-x-4 text-sm text-gray-500">
               <%= if @reader_count > 1 do %>
-                {@reader_count - 1} other {if @reader_count == 2, do: "person", else: "people"} reading
+                <div class="flex items-center">
+                  <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                  {@reader_count - 1} {if @reader_count == 2, do: "other reader", else: "others reading"}
+                </div>
               <% end %>
+              <div>{@word_count} words</div>
+              <div>{@estimated_read_time}</div>
             </div>
-
-            <div class="border-l pl-2 border-gray-200">
-              {@word_count} words · {@estimated_read_time}
-            </div>
-          </div>
-
-          <div class="flex items-center space-x-3">
-            <div class="flex space-x-1 border border-gray-200 rounded-md overflow-hidden shadow-sm">
-              <button
-                phx-click="toggle_line_numbers"
-                class={"hover:bg-gray-100 px-2 py-1 flex items-center text-xs bg-white #{if @show_line_numbers, do: "border-b-2 border-blue-400"}"}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class={"h-3.5 w-3.5 mr-1 #{if @show_line_numbers, do: "text-blue-500"}"}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-                Line #
-              </button>
-            </div>
-
-            <.link navigate={~p"/"} class="hover:underline">← Back to index</.link>
           </div>
         </div>
+      </header>
 
-        <div>
-          <!-- Main Content -->
-          <article class="p-3 md:p-4 bg-white rounded border border-gray-200">
-            <h1 class="text-2xl font-bold mb-2">{@post.title}</h1>
+      <!-- Main content -->
+      <div class="max-w-4xl mx-auto px-6 py-12">
+        <!-- Article header -->
+        <header class="mb-12">
+          <h1 class="text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-6">
+            {@post.title}
+          </h1>
+          
+          <div class="flex items-center justify-between mb-8">
+            <time class="text-gray-600 font-medium">
+              {Calendar.strftime(@post.written_on, "%B %d, %Y")}
+            </time>
             
-    <!-- Post metadata -->
-            <div class="flex flex-wrap gap-1 text-xs mb-3">
+            <div class="flex flex-wrap gap-2">
               <%= for tag <- @post.tags do %>
-                <span class="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
                   {tag.name}
                 </span>
               <% end %>
-              <span class="px-1.5 py-0.5 text-gray-500">
-                {Calendar.strftime(@post.written_on, "%b %d, %Y")}
-              </span>
             </div>
+          </div>
+          
+          <!-- Reading progress indicator -->
+          <div class="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+            <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%" id="reading-progress"></div>
+          </div>
+        </header>
 
-            <div
-              id="post-content"
-              phx-hook="Highlight"
-              class={"prose prose-sm max-w-none prose-headings:font-mono prose-headings:font-bold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:p-2 prose-pre:text-xs prose-code:text-xs prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-pre:max-w-full prose-pre:border prose-pre:border-gray-200 prose-pre:shadow-sm prose-pre:relative prose-pre:group #{if @show_line_numbers, do: "line-numbers", else: ""}"}
-            >
-              {raw(@html)}
-            </div>
-          </article>
+        <!-- Article body -->
+        <div class="prose prose-lg prose-gray max-w-none">
+          <div
+            id="post-content"
+            phx-hook="Highlight"
+            class="article-content"
+          >
+            {raw(@html)}
+          </div>
         </div>
       </div>
-    </div>
+    </article>
+    
+    <script>
+      // Reading progress indicator
+      window.addEventListener('scroll', function() {
+        const article = document.querySelector('.article-content');
+        const progress = document.getElementById('reading-progress');
+        if (article && progress) {
+          const articleHeight = article.offsetHeight;
+          const windowHeight = window.innerHeight;
+          const scrollTop = window.pageYOffset;
+          const scrollPercent = (scrollTop / (articleHeight + windowHeight - window.innerHeight)) * 100;
+          progress.style.width = Math.min(100, Math.max(0, scrollPercent)) + '%';
+        }
+      });
+    </script>
     """
   end
 

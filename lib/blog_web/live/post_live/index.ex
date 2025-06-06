@@ -212,7 +212,6 @@ defmodule BlogWeb.PostLive.Index do
        mod_password: "letmein",
        show_mobile_modal: modal_state != nil,
        selected_mobile_content: modal_state,
-       expanded_posts: MapSet.new(),
        selected_category: "All"
      )}
   end
@@ -314,7 +313,7 @@ defmodule BlogWeb.PostLive.Index do
         Map.put(meta, :display_name, trimmed_name)
       end)
 
-      {:noreply, assign(socket, name_submitted: true)}
+      {:noreply, assign(socket, name_submitted: true, show_chat: true)}
     else
       {:noreply, socket}
     end
@@ -325,7 +324,7 @@ defmodule BlogWeb.PostLive.Index do
   end
 
   def handle_event("skip_name", _params, socket) do
-    {:noreply, assign(socket, name_submitted: true)}
+    {:noreply, assign(socket, name_submitted: true, show_chat: true)}
   end
 
   def handle_event("toggle_chat", _params, socket) do
@@ -503,19 +502,6 @@ defmodule BlogWeb.PostLive.Index do
     {:noreply, push_patch(socket, to: ~p"/")}
   end
 
-  # Handle post toggle event
-  def handle_event("toggle_post", %{"slug" => slug}, socket) do
-    expanded_posts = socket.assigns.expanded_posts
-
-    updated_expanded =
-      if MapSet.member?(expanded_posts, slug) do
-        MapSet.delete(expanded_posts, slug)
-      else
-        MapSet.put(expanded_posts, slug)
-      end
-
-    {:noreply, assign(socket, expanded_posts: updated_expanded)}
-  end
 
   # Handle category filter event
   def handle_event("filter_category", %{"category" => category}, socket) do
@@ -576,9 +562,14 @@ defmodule BlogWeb.PostLive.Index do
       <p class="site-subtitle">
         A collection of thoughts on technology, life, and weird little things I make
       </p>
-      <div class="reader-count">
-        <div class="reader-dot"></div>
-        {@total_readers} {if @total_readers == 1, do: "person", else: "people"} browsing
+      <div class="flex items-center justify-center space-x-4">
+        <div class="reader-count">
+          <div class="reader-dot"></div>
+          {@total_readers} {if @total_readers == 1, do: "person", else: "people"} browsing
+        </div>
+        <a href="/post/whats-my-schtick" class="schtick-link">
+          what's my schtick?
+        </a>
       </div>
     </div>
 
@@ -590,14 +581,8 @@ defmodule BlogWeb.PostLive.Index do
         </div>
         <div class="posts-list" id="posts-list">
           <%= for post <- (@tech_posts ++ @non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime}) do %>
-            <div
-              class={[
-                "post-card",
-                if(MapSet.member?(@expanded_posts, post.slug), do: "expanded", else: "")
-              ]}
-              id={"post-#{post.slug}"}
-            >
-              <div class="post-header" phx-click="toggle_post" phx-value-slug={post.slug}>
+            <div class="post-card" id={"post-#{post.slug}"}>
+              <a href={~p"/post/#{post.slug}"} class="post-link">
                 <div class="post-info">
                   <h3 class="post-title">{post.title}</h3>
                   <div class="post-meta">
@@ -609,16 +594,7 @@ defmodule BlogWeb.PostLive.Index do
                     <% end %>
                   </div>
                 </div>
-                <div class="expand-icon">▶</div>
-              </div>
-              <div class="post-content" id={"content-#{post.slug}"}>
-                <div class="post-excerpt">
-                  {String.slice(post.body, 0, 300)}...
-                </div>
-                <a href={~p"/post/#{post.slug}"} class="read-full-link">
-                  Read full post →
-                </a>
-              </div>
+              </a>
             </div>
           <% end %>
         </div>
@@ -740,7 +716,7 @@ defmodule BlogWeb.PostLive.Index do
     >
       <!-- Name input form if not yet submitted -->
       <%= if @reader_id && !@name_submitted do %>
-        <div class="fixed top-4 left-4 z-50">
+        <div class="fixed top-4 right-4 z-50">
           <.form
             for={%{}}
             phx-submit="save_name"

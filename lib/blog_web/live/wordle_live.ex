@@ -346,6 +346,24 @@ defmodule BlogWeb.WordleLive do
 
           <%= if @game && @game.game_over do %>
             <div class="text-center mt-2">
+              <%= cond do %>
+                <%# Player won %>
+                <% Enum.any?(@game.guesses, fn %{word: word} -> word == @game.target_word end) -> %>
+                  <div class="mb-2">
+                    <div class="text-green-600 font-bold text-lg">🎉 Congratulations!</div>
+                    <div class="text-sm text-gray-600">You found the word!</div>
+                  </div>
+                <%# Player lost %>
+                <% true -> %>
+                  <div class="mb-2">
+                    <div class="text-red-600 font-bold text-lg">Game Over</div>
+                    <div class="text-sm text-gray-600">The word was:</div>
+                    <div class="text-xl font-bold text-gray-800 uppercase tracking-wider mt-1 bg-gray-100 px-3 py-1 rounded">
+                      {@game.target_word}
+                    </div>
+                  </div>
+              <% end %>
+              
               <button
                 class="bg-green-600 text-white px-3 py-1 text-sm rounded hover:bg-green-700"
                 phx-click="new-game"
