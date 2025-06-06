@@ -1665,3 +1665,5 @@ So fuck it dude, let's go bowling and see what it comes up with.
 
 I am going to go out and have a smoke as I walk around the block, and we're gonna see what happens.
 
+Midway through this, I realize ow things all tie together.
+
