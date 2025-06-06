@@ -18,6 +18,17 @@ defmodule Blog.Content.ImageGenerator do
   end
 
   defp generate_image(path) do
+    Logger.info("Attempting to generate image at: #{path}")
+    
+    # Check if ImageMagick is available
+    case System.cmd("which", ["convert"]) do
+      {convert_path, 0} ->
+        Logger.info("ImageMagick convert found at: #{String.trim(convert_path)}")
+      _ ->
+        Logger.error("ImageMagick convert command not found in PATH")
+        return {:error, "ImageMagick not available"}
+    end
+    
     # Generate a 1200x630 image (optimal for OpenGraph)
     commands = [
       "-size",
@@ -60,12 +71,15 @@ defmodule Blog.Content.ImageGenerator do
       path
     ]
 
+    Logger.info("Running ImageMagick with commands: #{inspect(commands)}")
+    
     case System.cmd("convert", commands) do
       {_, 0} ->
+        Logger.info("Successfully generated image at: #{path}")
         {:ok, path}
 
-      {error, _} ->
-        Logger.error("Failed to generate image: #{error}")
+      {error, exit_code} ->
+        Logger.error("Failed to generate image. Exit code: #{exit_code}, Error: #{error}")
         {:error, "Failed to generate image"}
     end
   end
