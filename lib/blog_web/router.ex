@@ -31,6 +31,7 @@ defmodule BlogWeb.Router do
     live "/reddit-links", RedditLinksLive, :index
     live "/cursor-tracker", CursorTrackerLive, :index
     live "/emoji-skeets", EmojiSkeetsLive, :index
+    live "/swear-skeets", SwearSkeetsLive, :index
     live "/allowed-chats", AllowedChatsLive, :index
     live "/hacker-news", HackerNewsLive, :index
     live "/python", PythonLive.Index, :index
