@@ -34,7 +34,7 @@ defmodule Blog.Content.ImageGenerator do
       "xc:transparent",
       # Blue
       "-draw",
-      random_circles(20, "rgba(59,130,246,0.6)"),
+      random_circles(20, "#3B82F6"),
       ")",
       "(",
       "-size",
@@ -42,7 +42,7 @@ defmodule Blog.Content.ImageGenerator do
       "xc:transparent",
       # Indigo
       "-draw",
-      random_circles(20, "rgba(99,102,241,0.6)"),
+      random_circles(20, "#6366F1"),
       ")",
       "(",
       "-size",
@@ -50,16 +50,13 @@ defmodule Blog.Content.ImageGenerator do
       "xc:transparent",
       # Violet
       "-draw",
-      random_circles(20, "rgba(139,92,246,0.6)"),
+      random_circles(20, "#8B5CF6"),
       ")",
       "-composite",
       "-composite",
       # Add some noise for texture
-      "-operator",
-      "all",
-      "Add",
-      "2%",
-      "gaussian-noise",
+      "+noise",
+      "Gaussian",
       path
     ]
 
@@ -79,7 +76,7 @@ defmodule Blog.Content.ImageGenerator do
       x = :rand.uniform(1200)
       y = :rand.uniform(630)
       size = :rand.uniform(100) + 50
-      "circle #{x},#{y} #{x + size},#{y} #{color}"
+      "fill #{color} circle #{x},#{y} #{x + size},#{y}"
     end)
     |> Enum.join(" ")
   end
