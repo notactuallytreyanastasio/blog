@@ -146,7 +146,7 @@ defmodule BlogWeb.PostLive do
   def render(assigns) do
     ~H"""
     <div class="px-2 py-3 font-mono text-gray-700" id="post-container">
-      <div class="max-w-full mx-auto">
+      <div class="max-w-3xl mx-auto">
         <div class="flex flex-wrap justify-between items-center text-xs text-gray-500 mb-2">
           <div class="flex items-center space-x-3">
             <div>
