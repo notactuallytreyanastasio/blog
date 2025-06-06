@@ -206,6 +206,13 @@ defmodule BlogWeb.PostLive do
     {:noreply, assign(socket, show_line_numbers: !socket.assigns.show_line_numbers)}
   end
 
+  # Handle mouse movement events (from cursor tracking functionality)
+  def handle_event("mousemove", _params, socket) do
+    # For now, we'll just ignore these events in the post view
+    # This prevents the FunctionClauseError from crashing the page
+    {:noreply, socket}
+  end
+
   def render(assigns) do
     ~H"""
     <article class="min-h-screen bg-gray-50">
