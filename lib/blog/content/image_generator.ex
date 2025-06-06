@@ -26,7 +26,7 @@ defmodule Blog.Content.ImageGenerator do
         Logger.info("ImageMagick convert found at: #{String.trim(convert_path)}")
       _ ->
         Logger.error("ImageMagick convert command not found in PATH")
-        return {:error, "ImageMagick not available"}
+        {:error, "ImageMagick not available"}
     end
     
     # Generate a 1200x630 image (optimal for OpenGraph)
