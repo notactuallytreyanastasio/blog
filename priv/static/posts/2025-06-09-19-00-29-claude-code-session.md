@@ -1,3 +1,6 @@
+title: Claude Code Session
+tags: programming,tech,demo
+
 # Claude Code Session
 
 A recording of a Claude Code session, showcasing the interactive development workflow.
