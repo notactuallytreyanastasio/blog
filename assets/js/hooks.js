@@ -17,11 +17,34 @@ const PostExpander = {
   }
 };
 
+const AsciinemaPlayer = {
+  mounted() {
+    const element = this.el;
+    const src = element.dataset.src;
+    const options = {
+      autoPlay: element.dataset.autoplay === "true",
+      loop: element.dataset.loop === "true",
+      startAt: element.dataset.startAt ? parseFloat(element.dataset.startAt) : 0,
+      speed: element.dataset.speed ? parseFloat(element.dataset.speed) : 1,
+      theme: element.dataset.theme || "asciinema",
+      fit: element.dataset.fit || "width",
+      fontSize: element.dataset.fontSize || "small"
+    };
+
+    if (typeof AsciinemaPlayer !== 'undefined') {
+      AsciinemaPlayer.create(src, element, options);
+    } else {
+      console.error('Asciinema player library not loaded');
+    }
+  }
+};
+
 export default {
   BreakoutGame,
   GameAnimations,
   BezierTriangles,
   MtaBusMap,
   BubbleGame,
-  PostExpander
+  PostExpander,
+  AsciinemaPlayer
 };

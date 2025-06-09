@@ -1677,3 +1677,4 @@ I am going to go out and have a smoke as I walk around the block, and we're gonn
 
 Midway through this, I realize ow things all tie together.
 
+[asciinema:demo.cast autoplay=true theme=monokai speed=1.5 caption="My demo"]

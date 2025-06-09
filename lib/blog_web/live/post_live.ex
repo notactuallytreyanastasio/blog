@@ -55,8 +55,11 @@ defmodule BlogWeb.PostLive do
 
         case Earmark.as_html(content_without_tags, code_class_prefix: "language-", escape: false) do
           {:ok, html, _} ->
-            # Post-process the HTML to handle details blocks
-            processed_html = process_details_in_html(html)
+            # Post-process the HTML to handle details blocks and asciinema embeds
+            processed_html = 
+              html
+              |> process_details_in_html()
+              |> process_asciinema_embeds()
             
             socket =
               assign(socket,
@@ -74,8 +77,11 @@ defmodule BlogWeb.PostLive do
             # Still show the content even if there are markdown errors
             Logger.error("Markdown parsing warnings: #{inspect(errors)}")
             
-            # Still try to process details blocks even if there were errors
-            processed_html = process_details_in_html(html)
+            # Still try to process details blocks and asciinema embeds even if there were errors
+            processed_html = 
+              html
+              |> process_details_in_html()
+              |> process_asciinema_embeds()
 
             socket =
               assign(socket,
@@ -156,6 +162,84 @@ defmodule BlogWeb.PostLive do
     # Return true if it has markdown features and doesn't look like HTML
     (has_markdown_headings or has_markdown_rules or has_markdown_lists or 
      has_markdown_emphasis or has_markdown_code or has_blockquotes) and not has_html_tags
+  end
+
+  # Process asciinema embeds in HTML
+  defp process_asciinema_embeds(html) do
+    # Pattern to match asciinema shortcodes: [asciinema:filename.cast]
+    # or with options: [asciinema:filename.cast autoplay=true theme=monokai]
+    pattern = ~r/\[asciinema:([^\]\s]+)([^\]]*)\]/
+
+    Regex.replace(pattern, html, fn full_match, filename, options_str ->
+      process_asciinema_embed(filename, options_str, full_match)
+    end)
+  end
+
+  # Process a single asciinema embed
+  defp process_asciinema_embed(filename, options_str, _full_match) do
+    # Parse options from the shortcode
+    options = parse_asciinema_options(options_str)
+    
+    # Generate a unique ID for this player
+    player_id = "asciinema-#{:crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)}"
+    
+    # Build the file path
+    src_path = "/assets/asciinema/#{filename}"
+    
+    # Build attributes for the div
+    attrs = [
+      {"id", player_id},
+      {"phx-hook", "AsciinemaPlayer"},
+      {"data-src", src_path},
+      {"class", "border border-gray-300 rounded-lg shadow-sm my-8"}
+    ]
+    
+    # Add option attributes
+    attrs = add_asciinema_option_attrs(attrs, options)
+    
+    # Build the HTML
+    attr_string = Enum.map_join(attrs, " ", fn {key, value} -> ~s(#{key}="#{value}") end)
+    
+    caption_html = case Map.get(options, "caption") do
+      nil -> ""
+      caption -> ~s(<p class="text-sm text-gray-600 mt-2 text-center italic">#{caption}</p>)
+    end
+    
+    ~s(<div class="asciinema-container"><div #{attr_string}></div>#{caption_html}</div>)
+  end
+
+  # Parse options from the asciinema shortcode
+  defp parse_asciinema_options(options_str) do
+    options_str
+    |> String.trim()
+    |> String.split(~r/\s+/, trim: true)
+    |> Enum.reduce(%{}, fn option, acc ->
+      case String.split(option, "=", parts: 2) do
+        [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
+        [key] -> Map.put(acc, String.trim(key), "true")
+        _ -> acc
+      end
+    end)
+  end
+
+  # Add option attributes to the div
+  defp add_asciinema_option_attrs(attrs, options) do
+    option_mappings = [
+      {"autoplay", "data-autoplay"},
+      {"loop", "data-loop"},
+      {"start-at", "data-start-at"},
+      {"speed", "data-speed"},
+      {"theme", "data-theme"},
+      {"fit", "data-fit"},
+      {"font-size", "data-font-size"}
+    ]
+    
+    Enum.reduce(option_mappings, attrs, fn {option_key, attr_key}, acc ->
+      case Map.get(options, option_key) do
+        nil -> acc
+        value -> acc ++ [{attr_key, value}]
+      end
+    end)
   end
 
   defp truncated_post(body) do
