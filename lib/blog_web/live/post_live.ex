@@ -168,7 +168,8 @@ defmodule BlogWeb.PostLive do
   defp process_asciinema_embeds(html) do
     # Pattern to match asciinema shortcodes: [asciinema:filename.cast]
     # or with options: [asciinema:filename.cast autoplay=true theme=monokai]
-    pattern = ~r/\[asciinema:([^\]\s]+)([^\]]*)\]/
+    # Handle potential whitespace around the shortcode
+    pattern = ~r/\s*\[asciinema:([^\]\s]+)([^\]]*)\]\s*/
 
     Regex.replace(pattern, html, fn full_match, filename, options_str ->
       process_asciinema_embed(filename, options_str, full_match)

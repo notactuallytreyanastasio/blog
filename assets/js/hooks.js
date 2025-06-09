@@ -31,8 +31,8 @@ const AsciinemaPlayer = {
       fontSize: element.dataset.fontSize || "small"
     };
 
-    if (typeof AsciinemaPlayer !== 'undefined') {
-      AsciinemaPlayer.create(src, element, options);
+    if (typeof window.AsciinemaPlayer !== 'undefined') {
+      window.AsciinemaPlayer.create(src, element, options);
     } else {
       console.error('Asciinema player library not loaded');
     }
