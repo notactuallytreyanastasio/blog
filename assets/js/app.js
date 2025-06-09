@@ -30,6 +30,7 @@ import MarkdownEditor, { MarkdownInput } from "./hooks/markdown_editor"
 import BezierTriangles from "./hooks/bezier_triangles"
 import MtaBusMap from "./hooks/mta_bus_map"
 import BubbleGame from "./hooks/bubble_game"
+import { AsciinemaPlayer } from "./hooks"
 //# import * as THREE from 'three';
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
@@ -75,6 +76,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     BezierTriangles,
     MtaBusMap,
     BubbleGame,
+    AsciinemaPlayer,
     ...Hooks
   }
 })

@@ -171,9 +171,22 @@ defmodule BlogWeb.PostLive do
     # Handle potential whitespace around the shortcode
     pattern = ~r/\s*\[asciinema:([^\]\s]+)([^\]]*)\]\s*/
 
-    Regex.replace(pattern, html, fn full_match, filename, options_str ->
-      process_asciinema_embed(filename, options_str, full_match)
+    Logger.debug("Processing asciinema embeds in HTML of length: #{String.length(html)}")
+    
+    result = Regex.replace(pattern, html, fn full_match, filename, options_str ->
+      Logger.debug("Found asciinema embed: #{full_match}")
+      processed_html = process_asciinema_embed(filename, options_str, full_match)
+      Logger.debug("Generated HTML: #{processed_html}")
+      processed_html
     end)
+    
+    if result != html do
+      Logger.debug("Asciinema processing made changes")
+    else
+      Logger.debug("No asciinema embeds found or processed")
+    end
+    
+    result
   end
 
   # Process a single asciinema embed
@@ -185,7 +198,7 @@ defmodule BlogWeb.PostLive do
     player_id = "asciinema-#{:crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)}"
     
     # Build the file path
-    src_path = "/assets/asciinema/#{filename}"
+    src_path = "/asciinema/#{filename}"
     
     # Build attributes for the div
     attrs = [
@@ -211,13 +224,25 @@ defmodule BlogWeb.PostLive do
 
   # Parse options from the asciinema shortcode
   defp parse_asciinema_options(options_str) do
+    # Handle quoted values properly
     options_str
     |> String.trim()
-    |> String.split(~r/\s+/, trim: true)
-    |> Enum.reduce(%{}, fn option, acc ->
-      case String.split(option, "=", parts: 2) do
-        [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
-        [key] -> Map.put(acc, String.trim(key), "true")
+    |> parse_key_value_pairs()
+  end
+
+  # Parse key=value pairs, handling quoted values
+  defp parse_key_value_pairs(str) do
+    # Regex to match key=value pairs, where value can be quoted
+    ~r/(\w+)=("([^"]*)"|(\S+))|(\w+)(?=\s|$)/
+    |> Regex.scan(str)
+    |> Enum.reduce(%{}, fn match, acc ->
+      case match do
+        [_, key, _, quoted_value, ""] when quoted_value != "" ->
+          Map.put(acc, key, quoted_value)
+        [_, key, "", "", unquoted_value] when unquoted_value != "" ->
+          Map.put(acc, key, unquoted_value)
+        [_, "", "", "", "", standalone_key] when standalone_key != "" ->
+          Map.put(acc, standalone_key, "true")
         _ -> acc
       end
     end)

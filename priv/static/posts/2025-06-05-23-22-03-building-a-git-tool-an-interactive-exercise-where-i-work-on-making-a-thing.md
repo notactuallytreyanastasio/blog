@@ -9,8 +9,10 @@ This isn't rocket science, but its a vision into how I doink with AI tools to bu
 But the real fun is the friends we make along the way.
 
 # TEESTTTT
-  [asciinema:demo.cast]
-  [asciinema:demo.cast autoplay=true theme=monokai speed=1.5 caption="My demo"]
+
+[asciinema:demo.cast]
+
+[asciinema:demo.cast autoplay=true theme=monokai speed=1.5 caption="My demo"]
 
 # END TEST
 

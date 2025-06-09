@@ -1,4 +1,3 @@
-import BreakoutGame from "./hooks/breakout_game";
 import GameAnimations from "./hooks/game_animations";
 import BezierTriangles from "./hooks/bezier_triangles";
 import MtaBusMap from "./hooks/mta_bus_map";
@@ -21,6 +20,11 @@ const AsciinemaPlayer = {
   mounted() {
     const element = this.el;
     const src = element.dataset.src;
+    
+    console.log('AsciinemaPlayer mounted. Element:', element);
+    console.log('Dataset:', element.dataset);
+    console.log('Src:', src);
+    
     const options = {
       autoPlay: element.dataset.autoplay === "true",
       loop: element.dataset.loop === "true",
@@ -31,16 +35,19 @@ const AsciinemaPlayer = {
       fontSize: element.dataset.fontSize || "small"
     };
 
+    // Check if asciinema player is loaded
     if (typeof window.AsciinemaPlayer !== 'undefined') {
+      console.log('Creating asciinema player with:', { src, options });
       window.AsciinemaPlayer.create(src, element, options);
     } else {
-      console.error('Asciinema player library not loaded');
+      console.error('Asciinema player library not loaded. Available on window:', Object.keys(window).filter(k => k.toLowerCase().includes('asciinema')));
     }
   }
 };
 
+export { AsciinemaPlayer };
+
 export default {
-  BreakoutGame,
   GameAnimations,
   BezierTriangles,
   MtaBusMap,
