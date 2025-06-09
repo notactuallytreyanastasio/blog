@@ -1,4 +1,3 @@
-tags:claude-code,ai,development,session,asciinema,live-coding
 # Claude Code Session
 
 A recording of a Claude Code session, showcasing the interactive development workflow.
