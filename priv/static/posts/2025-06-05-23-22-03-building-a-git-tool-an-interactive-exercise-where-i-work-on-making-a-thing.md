@@ -1,13 +1,18 @@
 tags: git,programming,work,flow,educational,thoughts
 
 # Building A Git Tool - An Interactive Exercise Where I Work On Making A Thing
-
 Let's get started. This one is gonna be fun.
 We're gonna just run through a chaotic path of "bobby makes a thing".
 In the end, we want to make a GUI git client.
 This isn't rocket science, but its a vision into how I doink with AI tools to build real things that might eventually resemble production software.
 
 But the real fun is the friends we make along the way.
+
+# TEESTTTT
+  [asciinema:demo.cast]
+  [asciinema:demo.cast autoplay=true theme=monokai speed=1.5 caption="My demo"]
+
+# END TEST
 
 ## Getting Started: Name It
 I called it Sechel because thats sort of the opposite of a git in yiddish.
