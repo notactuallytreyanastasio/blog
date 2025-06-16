@@ -1,6 +1,14 @@
 tags: law,hobbies,blog,deep_dive,tangent,random
 
 # 327 Years of Tree Law (In the USA)
+I wrote this post with the deep research assistance of Claude.
+
+I used Opus 4 in research mode to compile all of this.
+
+I have put it together here on the website along with citations for anyone else who may enjoy tree law.
+
+Note: IANAL this is not legal advice, its a history, and with AI assisted and could have mistakes but tells an interesting story.
+
 ## The Evolution and Spread of Treble Damages in American Tree Law: From Colonial Massachusetts to Modern Environmental Protection
 
 ### The birth of American treble damages: Massachusetts leads the way
