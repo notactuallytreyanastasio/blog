@@ -1,5 +1,6 @@
 tags: law,hobbies,blog,deep_dive,tangent,random
 
+# Note: Visit [here](https://www.bobbby.online/trees) for the full experience of this research, I made it a more fleshed out page there
 # 327 Years of Tree Law (In the USA)
 I wrote this post with the deep research assistance of Claude.
 

@@ -61,6 +61,7 @@ defmodule BlogWeb.Router do
     live "/nathan_content_farm", NathanContentFarmLive, :index
     live "/nathan_comparison", NathanComparisonLive, :index
     live "/nathan_ascii", NathanAsciiLive, :index
+    live "/trees", TreesLive, :index
     live "/learn", LessonReplLive, :index
   end
 
