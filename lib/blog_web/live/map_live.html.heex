@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= @page_title %></title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #mapid { height: 100vh; width: 100vw; }
+        .spotify-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 10000; /* Ensure it's above the map */
+            border-radius: 8px;
+        }
+        .spotify-modal input[type="text"] {
+            width: 90%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .spotify-modal button {
+            padding: 8px 15px;
+            margin-right: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .spotify-modal button.submit {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .spotify-modal button.cancel {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="mapid"
+         phx-hook="MapHook"
+         phx-update="ignore"
+         data-markers={Jason.encode!(@markers)}
+         data-user-location={if @user_location, do: Jason.encode!(@user_location), else: "null"}
+    >
+    </div>
+
+    <%= if @show_spotify_prompt do %>
+      <div class="spotify-modal">
+        <h3>Enter Spotify Song Link</h3>
+        <form phx-submit="submit_spotify_link">
+          <input type="text" name="spotify_link" placeholder="https://open.spotify.com/track/..." autofocus/>
+          <button type="submit" class="submit">Submit</button>
+          <button type="button" phx-click="cancel_spotify_prompt" class="cancel">Cancel</button>
+        </form>
+      </div>
+    <% end %>
+
+</body>
+</html>

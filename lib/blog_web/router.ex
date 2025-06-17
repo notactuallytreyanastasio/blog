@@ -63,6 +63,7 @@ defmodule BlogWeb.Router do
     live "/nathan_ascii", NathanAsciiLive, :index
     live "/trees", TreesLive, :index
     live "/learn", LessonReplLive, :index
+    live "/map", MapLive
   end
 
   # Other scopes may use custom stacks.

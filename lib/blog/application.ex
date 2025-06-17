@@ -32,6 +32,8 @@ defmodule Blog.Application do
     ensure_skeet_store_initialized()
 
     children = [
+      # Start the Repo
+      Blog.Repo,
       # Start the Telemetry supervisor
       BlogWeb.Telemetry,
       BlueskyHose,
@@ -72,6 +74,8 @@ defmodule Blog.Application do
       ensure_skeet_store_initialized()
 
       children = [
+        # Start the Repo
+        Blog.Repo,
         # Start the Telemetry supervisor
         BlogWeb.Telemetry,
         # Start the PubSub system
