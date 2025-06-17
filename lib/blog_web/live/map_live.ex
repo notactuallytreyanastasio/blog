@@ -25,7 +25,7 @@ defmodule BlogWeb.MapLive do
 
     socket =
       socket
-      |> assign(:page_title, "Tag A Wook (@ your friend and share a song)")
+      |> assign(:page_title, "Tag A Wook")
       |> assign(:user_location, nil)
       |> assign(:clicked_location, nil) # For map click tagging
       |> assign(:show_spotify_prompt, false)

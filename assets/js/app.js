@@ -56,12 +56,9 @@ Hooks.MapHook = {
       console.error(`CRITICAL: Element with ID ${this.el.id} NOT FOUND in DOM at map init time!`);
       return; // Stop if element isn't there
     }
-    console.log(`Attempting L.map('${this.el.id}', ...);`);
+    console.log("Attempting L.map('mapid', ...);");
     try {
-      this.map = L.map(this.el.id, { // Use this.el.id explicitly
-        zoomControl: true,
-        scrollWheelZoom: true
-      }).setView([20, 0], 2); // Default view before location is found
+      this.map = L.map(this.el.id).setView([39.8283, -98.5795], 4); // Default to US view
       console.log("L.map() call successful. Map object:", this.map);
     } catch (e) {
       console.error("CRITICAL ERROR during L.map() initialization:", e);
@@ -106,9 +103,16 @@ Hooks.MapHook = {
       // For example, by pushing an event to the server or showing a message on the client.
     });
 
-    // Request user location and set view
-    console.log("Requesting location via map.locate({maxZoom: 16})... NOTE: setView is false here.");
-    this.map.locate({maxZoom: 16}); // setView: false (or omitted, defaults to false)
+    // Add event listener for a new geolocation button
+    const locateButton = document.getElementById('locate-me-button');
+    if (locateButton) {
+      locateButton.addEventListener('click', () => {
+        console.log("'Locate Me' button clicked. Requesting location...");
+        this.map.locate({setView: true, maxZoom: 16}); // setView: true to move map
+      });
+    } else {
+      console.warn("'locate-me-button' not found in the DOM.");
+    }
 
     // Load initial markers (if any)
     try {
