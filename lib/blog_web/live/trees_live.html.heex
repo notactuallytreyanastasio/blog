@@ -1521,6 +1521,19 @@
         </div>
 
 <style>
+    body .prose {
+        color: #374151; /* Tailwind gray-700 */
+    }
+    .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+        color: #1f2937; /* Tailwind gray-800 */
+    }
+    .prose a {
+        color: #007bff; /* Standard blue for links */
+    }
+    .intro p, .intro li { /* Target intro text specifically if needed */
+        color: #374151 !important; /* gray-700, with !important if prose override is too weak */
+    }
+
     .timeline-container {
         /* Max-width and margins are likely handled by the outer 'prose' div,
            but we can add padding if needed. For now, let's assume it's okay. */
@@ -1709,73 +1722,81 @@
         margin-bottom: 8px;
     }
 
-    @media (max-width: 640px) { /* Responsive adjustments for timeline and modal */
-        .timeline {
-            padding-left: 15px; /* Reduce left padding for the main timeline line */
-        }
-
-        .timeline-item {
-            padding-left: 20px; /* Reduce left padding for items */
-            margin-bottom: 1px; /* Even tighter margin */
-            padding-top: 2px;
-            padding-bottom: 2px;
-        }
-
-        .timeline-item::before { /* Adjust marker position due to reduced padding */
-            left: -5px; 
-        }
-        
-        .timeline-item-header {
-            align-items: flex-start; /* Align to top if they wrap */
-        }
-
-        .year {
-            font-size: 0.75rem; /* Slightly smaller year */
-            line-height: 1.1;
-        }
-
-        .event-title {
-            font-size: 0.8rem; /* Slightly smaller title */
-            line-height: 1.1;
-            white-space: normal; /* Ensure title can wrap */
-        }
-
-        .compressed-years {
-            padding: 8px 0;
-            font-size: 0.7rem;
-        }
-
-        .compressed-years::before {
-            left: -1px; /* Adjust dotted line for compressed years due to reduced padding */
-        }
-        
-        .modal-content {
-            padding: 20px 15px; /* Further reduce padding for very small screens */
-            margin: 10px; /* Reduce margin on small screens */
-            max-height: 90vh; 
-        }
-        .modal-year {
-            font-size: 1em;
-            margin-bottom: 8px;
-        }
-        .modal-title {
-            font-size: 1.3em;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-        }
-        .modal-body {
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
-        .modal-body p {
-            margin-bottom: 12px;
-        }
-        .modal-body h3 {
-            font-size: 1.1em;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
+    @media (max-width: 640px) {
+    .timeline {
+        padding-left: 20px; /* Adjusted padding for the main timeline line */
     }
+    .timeline::before { /* Main vertical line */
+        left: 5px; /* Position 5px into the padding area of .timeline */
+    }
+
+    .timeline-item {
+        padding-left: 15px; /* Space for marker (8px wide) + a small gap */
+        margin-bottom: 4px; /* Slightly more space between items */
+        padding-top: 3px;
+        padding-bottom: 3px;
+    }
+
+    .timeline-item::before { /* Square marker */
+        left: 1px; /* Position marker at the start of .timeline-item's padding area */
+    }
+
+    .timeline-item-header {
+        display: flex;
+        flex-direction: column; /* Stack year and title vertically */
+        align-items: flex-start; /* Align to the start */
+        gap: 2px; /* Small gap between year and title */
+    }
+
+    .year {
+        font-size: 0.7rem;
+        line-height: 1;
+        font-weight: bold; /* Make year slightly bolder for clarity */
+    }
+
+    .event-title {
+        font-size: 0.8rem;
+        line-height: 1.2;
+        white-space: normal; /* Ensure title can wrap */
+    }
+
+    .compressed-years {
+        padding: 8px 0;
+        font-size: 0.7rem;
+        margin-left: -15px; /* Counteract timeline-item's padding-left for centering text */
+    }
+    .compressed-years::before { /* Dotted line for compressed years */
+        left: 5px; /* Align with the main timeline line */
+    }
+
+    /* Modal styles */
+    .modal-content {
+        padding: 20px 15px;
+        margin: 10px;
+        max-height: 90vh;
+    }
+    .modal-year {
+        font-size: 1em;
+        margin-bottom: 8px;
+    }
+    .modal-title {
+        font-size: 1.3em;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+    }
+    .modal-body {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+    .modal-body p {
+        margin-bottom: 12px;
+    }
+    .modal-body h3 {
+        font-size: 1.1em;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+}
 </style>
     <div>
 
