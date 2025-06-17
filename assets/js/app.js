@@ -79,6 +79,12 @@ Hooks.MapHook = {
     console.log("Map object created, CartoDB tiles added.");
     this.songMarkers = []; // Initialize array to store song markers
 
+    // Handle map click
+    this.map.on('click', (e) => {
+      console.log("Map clicked at: ", e.latlng);
+      this.pushEvent("map_clicked", { lat: e.latlng.lat, lng: e.latlng.lng });
+    });
+
     // Handle location found
     this.map.on('locationfound', (e) => {
       console.log("Leaflet 'locationfound' event: ", e);

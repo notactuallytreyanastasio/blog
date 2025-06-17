@@ -181,9 +181,50 @@
                 font-size: 14px;
             }
         }
+        .map-header-text {
+            position: fixed; /* Changed from absolute to fixed for viewport positioning */
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 900; /* Below modals (1000+), above map tiles */
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black background */
+            pointer-events: none; /* Allow clicks to pass through to the map */
+        }
+        .map-header-text h1 {
+            font-size: 2.8em;
+            margin: 0 0 5px 0;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        }
+        .map-header-text p {
+            font-size: 1.2em;
+            margin: 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+
+        @media (max-width: 600px) {
+            .map-header-text h1 {
+                font-size: 2em;
+            }
+            .map-header-text p {
+                font-size: 1em;
+            }
+            .map-header-text {
+                padding: 10px;
+                top: 10px; /* Adjust for smaller screens */
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="map-header-text">
+        <h1>Tag a Wook</h1>
+        <p>@ your friend and share a song</p>
+    </div>
     <div id="mapid"
          phx-hook="MapHook"
          phx-update="ignore"

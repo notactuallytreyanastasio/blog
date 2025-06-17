@@ -27,6 +27,7 @@ defmodule BlogWeb.MapLive do
       socket
       |> assign(:page_title, "Spotify GeoMap")
       |> assign(:user_location, nil)
+      |> assign(:clicked_location, nil) # For map click tagging
       |> assign(:show_spotify_prompt, false)
       |> assign(:show_drawer, false)
       |> assign(:markers, initial_markers)
@@ -64,16 +65,20 @@ defmodule BlogWeb.MapLive do
     end
     Logger.info("[MapLive] Parsed user_name: #{inspect(user_name)}, link: #{inspect(link)}, note: #{inspect(note)}")
 
-    user_location = socket.assigns.user_location
-    Logger.info("[MapLive] User location from assigns: #{inspect(user_location)}")
+    # Prioritize clicked location, then browser's geolocation
+    tag_location = 
+      socket.assigns.clicked_location || 
+      socket.assigns.user_location
 
-    if user_location do
+    Logger.info("[MapLive] Using location for tag: #{inspect(tag_location)}")
+
+    if tag_location && tag_location.lat && tag_location.lng do
       tag_in_attrs = %{
         user_name: user_name,
         spotify_link: link,
         note: note,
-        latitude: user_location.lat,
-        longitude: user_location.lng
+        latitude: tag_location.lat,
+        longitude: tag_location.lng
       }
 
       case GeoMap.create_tag_in(tag_in_attrs) do
@@ -109,13 +114,24 @@ defmodule BlogWeb.MapLive do
       Logger.error("[MapLive] Cannot broadcast 'new_marker': user_location is nil.")
       # Optionally, send a push_event to the client to inform about the error
       # socket = push_event(socket, "error_toast", %{message: "Could not add marker: location unknown."})
-      {:noreply, assign(socket, :show_spotify_prompt, false)} # Still hide prompt
+      {:noreply, assign(socket, show_spotify_prompt: false, clicked_location: nil)}
     end
   end
 
   @impl true
   def handle_event("cancel_spotify_prompt", _payload, socket) do
-    {:noreply, assign(socket, :show_spotify_prompt, false)}
+    {:noreply, assign(socket, show_spotify_prompt: false, clicked_location: nil)}
+  end
+
+  @impl true
+  def handle_event("map_clicked", %{"lat" => lat, "lng" => lng}, socket) do
+    Logger.info("[MapLive] Map clicked at lat: #{lat}, lng: #{lng}")
+    clicked_coords = %{lat: lat, lng: lng}
+    socket = 
+      socket
+      |> assign(:clicked_location, clicked_coords)
+      |> assign(:show_spotify_prompt, true)
+    {:noreply, socket}
   end
 
   @impl true
