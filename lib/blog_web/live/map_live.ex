@@ -45,8 +45,13 @@ defmodule BlogWeb.MapLive do
 
   # Event handler for Spotify link submission
   @impl true
-  def handle_event("submit_spotify_link", %{"spotify_link" => link_param, "note" => note_param}, socket) do
-    Logger.info("[MapLive] handle_event 'submit_spotify_link' called with link_param: #{inspect(link_param)}, note_param: #{inspect(note_param)}")
+  def handle_event("submit_spotify_link", %{"user_name" => name_param, "spotify_link" => link_param, "note" => note_param}, socket) do
+    Logger.info("[MapLive] handle_event 'submit_spotify_link' called with name_param: #{inspect(name_param)}, link_param: #{inspect(link_param)}, note_param: #{inspect(note_param)}")
+
+    user_name = case name_param do
+      n when is_binary(n) and n != "" -> n
+      _ -> "Anonymous Wook" # Default if empty or not a string
+    end
 
     link = case link_param do
       l when is_binary(l) -> l
@@ -56,10 +61,7 @@ defmodule BlogWeb.MapLive do
       n when is_binary(n) -> n
       _ -> ""
     end
-    Logger.info("[MapLive] Parsed link: #{inspect(link)}")
-
-    user_name = "User #{:rand.uniform(1000)}" # Placeholder for user name
-    Logger.info("[MapLive] Generated user_name: #{inspect(user_name)}")
+    Logger.info("[MapLive] Parsed user_name: #{inspect(user_name)}, link: #{inspect(link)}, note: #{inspect(note)}")
 
     user_location = socket.assigns.user_location
     Logger.info("[MapLive] User location from assigns: #{inspect(user_location)}")

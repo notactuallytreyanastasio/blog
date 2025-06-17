@@ -62,8 +62,9 @@
       <div class="spotify-modal">
         <h3>Enter Spotify Song Link</h3>
         <form phx-submit="submit_spotify_link">
+          <input type="text" name="user_name" placeholder="Enter your name/handle..." required style="width: 100%; box-sizing: border-box; margin-bottom: 10px;"/>
           <input type="text" name="spotify_link" placeholder="Enter Spotify track link..." phx-debounce="300" style="width: 100%; box-sizing: border-box;"/>
-          <textarea name="note" placeholder="Enter a note..." rows="3" style="width: 100%; box-sizing: border-box; margin-top: 10px;"></textarea>
+          <textarea name="note" placeholder="Enter a note (optional)..." rows="3" style="width: 100%; box-sizing: border-box; margin-top: 10px;"></textarea>
           <div style="margin-top: 10px;">
             <button type="submit" class="submit">Submit</button>
             <button type="button" phx-click="cancel_spotify_prompt" class="cancel">Cancel</button>
