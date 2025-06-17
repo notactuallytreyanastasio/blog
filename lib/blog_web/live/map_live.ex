@@ -9,7 +9,7 @@ defmodule BlogWeb.MapLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: BlogWeb.Endpoint.subscribe("map_updates")
 
-    initial_markers = 
+    initial_markers =
       GeoMap.list_tag_ins()
       |> Enum.map(fn tag_in ->
         %{
@@ -25,7 +25,7 @@ defmodule BlogWeb.MapLive do
 
     socket =
       socket
-      |> assign(:page_title, "Spotify GeoMap")
+      |> assign(:page_title, "Tag A Wook (@ your friend and share a song)")
       |> assign(:user_location, nil)
       |> assign(:clicked_location, nil) # For map click tagging
       |> assign(:show_spotify_prompt, false)
@@ -66,8 +66,8 @@ defmodule BlogWeb.MapLive do
     Logger.info("[MapLive] Parsed user_name: #{inspect(user_name)}, link: #{inspect(link)}, note: #{inspect(note)}")
 
     # Prioritize clicked location, then browser's geolocation
-    tag_location = 
-      socket.assigns.clicked_location || 
+    tag_location =
+      socket.assigns.clicked_location ||
       socket.assigns.user_location
 
     Logger.info("[MapLive] Using location for tag: #{inspect(tag_location)}")
@@ -85,7 +85,7 @@ defmodule BlogWeb.MapLive do
         {:ok, tag_in} ->
           Logger.info("[MapLive] Successfully created TagIn: #{inspect(tag_in)}")
           embed_url = parse_spotify_link_to_embed_url(tag_in.spotify_link)
-          
+
           new_marker_payload = %{
             id: tag_in.id, # Include the ID
             lat: tag_in.latitude,
@@ -127,7 +127,7 @@ defmodule BlogWeb.MapLive do
   def handle_event("map_clicked", %{"lat" => lat, "lng" => lng}, socket) do
     Logger.info("[MapLive] Map clicked at lat: #{lat}, lng: #{lng}")
     clicked_coords = %{lat: lat, lng: lng}
-    socket = 
+    socket =
       socket
       |> assign(:clicked_location, clicked_coords)
       |> assign(:show_spotify_prompt, true)
