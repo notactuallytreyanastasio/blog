@@ -12,24 +12,18 @@
     <% end %>
 
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
-    </script>
+    <%!-- app.js will be moved down --%>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
     </script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
-    />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js">
+    <!-- Leaflet.markercluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <!-- Leaflet.markercluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js">
     </script>
-    <!-- Add Elixir language support -->
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/elixir.min.js"
-    >
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/heex.min.js">
-    </script>
+    <%!-- app.js will be moved to end of body --%>
+    <%!-- Temporarily removed highlight.js and its language packs for debugging Leaflet issue --%>
   </head>
   <body class="h-full font-mono bg-gradient-to-br from-cyan-50 to-indigo-50">
     <!-- Sidebar Toggle Button -->
@@ -150,10 +144,10 @@
 
     <script>
       document.addEventListener('DOMContentLoaded', (event) => {
-        // Highlight.js initialization
-        document.querySelectorAll('pre code').forEach((block) => {
-          hljs.highlightBlock(block);
-        });
+        // Highlight.js initialization (temporarily removed)
+        // document.querySelectorAll('pre code').forEach((block) => {
+        //   hljs.highlightBlock(block);
+        // });
 
         // Sidebar toggle functionality
         const sidebar = document.getElementById('sidebar');
@@ -176,5 +170,7 @@
         });
       });
     </script>
+    <!-- Main application JavaScript (app.js) -->
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
   </body>
 </html>

@@ -34,6 +34,15 @@ import BubbleGame from "./hooks/bubble_game"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
+// Attempt to capture Leaflet extensions early
+let capturedMarkerClusterGroupFn = null;
+if (window.L && typeof window.L.markerClusterGroup === 'function') {
+  capturedMarkerClusterGroupFn = window.L.markerClusterGroup;
+  console.log('app.js top-level: Successfully captured L.markerClusterGroup function.');
+} else {
+  console.error('app.js top-level: FAILED to capture L.markerClusterGroup function. window.L:', window.L, 'typeof L.markerClusterGroup:', window.L ? typeof window.L.markerClusterGroup : 'L is undefined');
+}
+
 // Hook for scrolling to top when new skeets are loaded
 let Hooks = {}
 
@@ -75,6 +84,26 @@ Hooks.MapHook = {
 
     console.log("Map object created, CartoDB tiles added.");
     this.songMarkers = []; // Initialize array to store song markers
+    console.log("MapHook.mounted: Checking L object and captured function.");
+    console.log("MapHook.mounted: typeof window.L.markerClusterGroup (direct check):", typeof window.L.markerClusterGroup);
+    console.log("MapHook.mounted: typeof capturedMarkerClusterGroupFn (captured check):", typeof capturedMarkerClusterGroupFn);
+
+    if (typeof capturedMarkerClusterGroupFn === 'function') {
+      console.log("MapHook.mounted: Using capturedMarkerClusterGroupFn.");
+      this.markersClusterGroup = capturedMarkerClusterGroupFn(); // Use the captured function
+    } else {
+      console.error("MapHook.mounted: capturedMarkerClusterGroupFn is NOT a function. Falling back to direct check or failing.");
+      if (typeof window.L.markerClusterGroup === 'function') {
+        console.warn("MapHook.mounted: Direct window.L.markerClusterGroup IS a function now, but captured one was not. This is odd.");
+        this.markersClusterGroup = window.L.markerClusterGroup();
+      } else {
+        console.error("MapHook.mounted: Both captured and direct L.markerClusterGroup are not functions. Cannot create cluster group.");
+        // this.el.innerHTML = "<p style='color:red;'>Error: Marker clustering library not available.</p>"; // Optional: inform user
+        return; // Stop if still not usable
+      }
+    }
+    // this.markersClusterGroup = window.L.markerClusterGroup(); // Original attempt
+    this.map.addLayer(this.markersClusterGroup); // Add cluster group to map
 
     // Handle map click
     this.map.on('click', (e) => {
@@ -193,12 +222,13 @@ Hooks.MapHook = {
         }
 
         const marker = L.marker([markerData.lat, markerData.lng])
-          .addTo(this.map)
+          // .addTo(this.map) // Markers are added to the cluster group
           .bindPopup(popupContent, {
             minWidth: 300, // Ensure popup is wide enough for the 300px iframe
             // maxWidth: 320 // Optional: if you want to constrain it further than default
           });
-        this.songMarkers.push(marker);
+        this.markersClusterGroup.addLayer(marker); // Add the marker to the cluster group
+        this.songMarkers.push(marker); // Still keep track if needed for other purposes
         console.log("Added new marker to map with embed/link.");
       } else {
         console.log("Marker already exists, not adding duplicate.", markerData);
