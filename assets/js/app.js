@@ -141,10 +141,32 @@ Hooks.MapHook = {
       );
 
       if (!existing) {
+        let popupContent;
+        if (markerData.embed_url) {
+          // Spotify compact embed is 80px high, or 152px for a taller version. Let's use 152px.
+          // Width can be 100% of popup, Leaflet default max-width for popups is 300px.
+          // The iframe needs a unique title for accessibility if multiple are on the page.
+          const uniqueTitle = `Spotify Embed ${markerData.name || 'track'} ${Date.now()}`;
+          popupContent = 
+            `<iframe title="${uniqueTitle}" style="border-radius:12px" ` +
+            `src="${markerData.embed_url}" ` +
+            `width="300" height="152" frameBorder="0" allowfullscreen="" ` +
+            `allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+        } else {
+          // Fallback to simple link if embed_url is not available
+          popupContent = `<b>${markerData.name || "Anonymous"}</b><br><a href="${markerData.link || "#"}" target="_blank" rel="noopener noreferrer">Listen on Spotify</a>`;
+        }
+
         const marker = L.marker([markerData.lat, markerData.lng])
           .addTo(this.map)
-          .bindPopup(`<b>${markerData.name || "Anonymous"}</b><br><a href="${markerData.link || "#"}" target="_blank" rel="noopener noreferrer">Listen on Spotify</a>`);
+          .bindPopup(popupContent, {
+            minWidth: 300, // Ensure popup is wide enough for the 300px iframe
+            // maxWidth: 320 // Optional: if you want to constrain it further than default
+          });
         this.songMarkers.push(marker);
+        console.log("Added new marker to map with embed/link.");
+      } else {
+        console.log("Marker already exists, not adding duplicate.", markerData);
       }
     } else {
       console.warn("Received invalid marker data:", markerData);

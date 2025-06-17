@@ -47,11 +47,15 @@ defmodule BlogWeb.MapLive do
     Logger.info("[MapLive] User location from assigns: #{inspect(user_location)}")
 
     if user_location do
+      embed_url = parse_spotify_link_to_embed_url(link)
+      Logger.info("[MapLive] Generated embed_url: #{inspect(embed_url)}")
+
       new_marker_payload = %{
         lat: user_location.lat,
         lng: user_location.lng,
-        link: link,
-        name: user_name
+        link: link, # Keep original link for fallback or other uses
+        name: user_name,
+        embed_url: embed_url # Add the embed URL
       }
       Logger.info("[MapLive] Broadcasting 'new_marker' with payload: #{inspect(new_marker_payload)}")
       BlogWeb.Endpoint.broadcast("map_updates", "new_marker", new_marker_payload)
@@ -75,13 +79,15 @@ defmodule BlogWeb.MapLive do
   # Handle broadcasted new markers
   @impl true
   def handle_info(%Broadcast{event: "new_marker", payload: marker_data}, socket) do
+    Logger.info("[MapLive] handle_info 'new_marker' received broadcast with payload: #{inspect(marker_data)}")
     # Ensure marker_data is a map with the expected keys
     new_marker = if is_map(marker_data) and Map.has_key?(marker_data, :lat) and Map.has_key?(marker_data, :lng) do
       %{
         lat: marker_data.lat,
         lng: marker_data.lng,
-        link: Map.get(marker_data, :link, "#"), # Default link if missing
-        name: Map.get(marker_data, :name, "Anonymous") # Default name if missing
+        link: Map.get(marker_data, :link, "#"),
+        name: Map.get(marker_data, :name, "Anonymous"),
+        embed_url: Map.get(marker_data, :embed_url) # Pass through embed_url
       }
     else
       nil # Or handle error appropriately
@@ -104,5 +110,20 @@ defmodule BlogWeb.MapLive do
   # Catch-all for other broadcasts if needed
   def handle_info(_msg, socket) do
     {:noreply, socket}
+  end
+
+  # Helper function to parse Spotify link and create an embed URL
+  defp parse_spotify_link_to_embed_url(link) do
+    # Regex to capture Spotify track ID from various URL formats
+    # Example: https://open.spotify.com/track/TRACK_ID?si=...
+    # Example: https://open.spotify.com/intl-pt/track/TRACK_ID
+    regex = ~r"open\.spotify\.com/(?:[^/]+/)?track/([a-zA-Z0-9]+)"
+
+    case Regex.run(regex, link) do
+      [_, track_id] ->
+        "https://open.spotify.com/embed/track/#{track_id}"
+      _ ->
+        nil # Return nil if no track ID found, client can fallback
+    end
   end
 end
