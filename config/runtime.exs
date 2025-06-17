@@ -56,7 +56,7 @@ if config_env() == :prod do
       "https://salmon-unselfish-aphid.gigalixirapp.com"
     ],
     http: [
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      ip: {0, 0, 0, 0},
       port: port
     ],
     secret_key_base: secret_key_base
