@@ -28,6 +28,7 @@ defmodule BlogWeb.MapLive do
       |> assign(:page_title, "Spotify GeoMap")
       |> assign(:user_location, nil)
       |> assign(:show_spotify_prompt, false)
+      |> assign(:show_drawer, false)
       |> assign(:markers, initial_markers)
     {:ok, socket}
   end
@@ -115,6 +116,16 @@ defmodule BlogWeb.MapLive do
   @impl true
   def handle_event("cancel_spotify_prompt", _payload, socket) do
     {:noreply, assign(socket, :show_spotify_prompt, false)}
+  end
+
+  @impl true
+  def handle_event("toggle_drawer", _payload, socket) do
+    {:noreply, assign(socket, :show_drawer, !socket.assigns.show_drawer)}
+  end
+
+  @impl true
+  def handle_event("close_drawer", _payload, socket) do
+    {:noreply, assign(socket, :show_drawer, false)}
   end
 
   # Handle broadcasted new markers
