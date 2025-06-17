@@ -30,13 +30,13 @@ if config_env() == :prod do
       """
 
   # Parse the DATABASE_URL to extract components
+  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+
   config :blog, Blog.Repo,
+    # ssl: true,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    ssl: true,
-    ssl_opts: [
-      verify: :verify_none
-    ]
+    socket_options: maybe_ipv6
 
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
@@ -56,7 +56,7 @@ if config_env() == :prod do
       "https://salmon-unselfish-aphid.gigalixirapp.com"
     ],
     http: [
-      ip: {0, 0, 0, 0},
+      ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
     secret_key_base: secret_key_base
