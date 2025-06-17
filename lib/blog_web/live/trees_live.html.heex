@@ -1709,11 +1709,71 @@
         margin-bottom: 8px;
     }
 
-    @media (max-width: 768px) { /* Responsive adjustments for modal */
+    @media (max-width: 640px) { /* Responsive adjustments for timeline and modal */
+        .timeline {
+            padding-left: 15px; /* Reduce left padding for the main timeline line */
+        }
+
+        .timeline-item {
+            padding-left: 20px; /* Reduce left padding for items */
+            margin-bottom: 1px; /* Even tighter margin */
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+
+        .timeline-item::before { /* Adjust marker position due to reduced padding */
+            left: -5px; 
+        }
+        
+        .timeline-item-header {
+            align-items: flex-start; /* Align to top if they wrap */
+        }
+
+        .year {
+            font-size: 0.75rem; /* Slightly smaller year */
+            line-height: 1.1;
+        }
+
+        .event-title {
+            font-size: 0.8rem; /* Slightly smaller title */
+            line-height: 1.1;
+            white-space: normal; /* Ensure title can wrap */
+        }
+
+        .compressed-years {
+            padding: 8px 0;
+            font-size: 0.7rem;
+        }
+
+        .compressed-years::before {
+            left: -1px; /* Adjust dotted line for compressed years due to reduced padding */
+        }
+        
         .modal-content {
-            padding: 40px 20px;
-            margin: 20px; /* Add margin on small screens */
-            max-height: 90vh; /* Allow a bit more height on mobile */
+            padding: 20px 15px; /* Further reduce padding for very small screens */
+            margin: 10px; /* Reduce margin on small screens */
+            max-height: 90vh; 
+        }
+        .modal-year {
+            font-size: 1em;
+            margin-bottom: 8px;
+        }
+        .modal-title {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+        }
+        .modal-body {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .modal-body p {
+            margin-bottom: 12px;
+        }
+        .modal-body h3 {
+            font-size: 1.1em;
+            margin-top: 20px;
+            margin-bottom: 10px;
         }
     }
 </style>
