@@ -2,19 +2,33 @@ defmodule BlogWeb.MapLive do
   use BlogWeb, :live_view
   require Logger
   alias Phoenix.Socket.Broadcast
+  alias Blog.GeoMap # Add alias for the new context
+  alias Blog.GeoMap.TagIn # Alias for the schema for convenience
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: BlogWeb.Endpoint.subscribe("map_updates")
 
+    initial_markers = 
+      GeoMap.list_tag_ins()
+      |> Enum.map(fn tag_in ->
+        %{
+          id: tag_in.id, # Pass ID if needed later
+          lat: tag_in.latitude,
+          lng: tag_in.longitude,
+          name: tag_in.user_name,
+          link: tag_in.spotify_link,
+          note: tag_in.note,
+          embed_url: parse_spotify_link_to_embed_url(tag_in.spotify_link)
+        }
+      end)
+
     socket =
       socket
       |> assign(:page_title, "Spotify GeoMap")
-      # Removed: |> assign(:layout, false)
-      |> assign(:user_location, nil) # Will be %{lat: float, lng: float}
+      |> assign(:user_location, nil)
       |> assign(:show_spotify_prompt, false)
-      |> assign(:markers, []) # List of %{lat: float, lng: float, link: string, name: string}
-
+      |> assign(:markers, initial_markers)
     {:ok, socket}
   end
 
@@ -31,11 +45,15 @@ defmodule BlogWeb.MapLive do
 
   # Event handler for Spotify link submission
   @impl true
-  def handle_event("submit_spotify_link", %{"spotify_link" => link_param}, socket) do
-    Logger.info("[MapLive] handle_event 'submit_spotify_link' called with link_param: #{inspect(link_param)}")
+  def handle_event("submit_spotify_link", %{"spotify_link" => link_param, "note" => note_param}, socket) do
+    Logger.info("[MapLive] handle_event 'submit_spotify_link' called with link_param: #{inspect(link_param)}, note_param: #{inspect(note_param)}")
 
     link = case link_param do
       l when is_binary(l) -> l
+      _ -> ""
+    end
+    note = case note_param do
+      n when is_binary(n) -> n
       _ -> ""
     end
     Logger.info("[MapLive] Parsed link: #{inspect(link)}")
@@ -47,22 +65,43 @@ defmodule BlogWeb.MapLive do
     Logger.info("[MapLive] User location from assigns: #{inspect(user_location)}")
 
     if user_location do
-      embed_url = parse_spotify_link_to_embed_url(link)
-      Logger.info("[MapLive] Generated embed_url: #{inspect(embed_url)}")
-
-      new_marker_payload = %{
-        lat: user_location.lat,
-        lng: user_location.lng,
-        link: link, # Keep original link for fallback or other uses
-        name: user_name,
-        embed_url: embed_url # Add the embed URL
+      tag_in_attrs = %{
+        user_name: user_name,
+        spotify_link: link,
+        note: note,
+        latitude: user_location.lat,
+        longitude: user_location.lng
       }
-      Logger.info("[MapLive] Broadcasting 'new_marker' with payload: #{inspect(new_marker_payload)}")
-      BlogWeb.Endpoint.broadcast("map_updates", "new_marker", new_marker_payload)
-      Logger.info("[MapLive] Broadcast sent.")
 
-      socket = assign(socket, :show_spotify_prompt, false)
-      {:noreply, socket}
+      case GeoMap.create_tag_in(tag_in_attrs) do
+        {:ok, tag_in} ->
+          Logger.info("[MapLive] Successfully created TagIn: #{inspect(tag_in)}")
+          embed_url = parse_spotify_link_to_embed_url(tag_in.spotify_link)
+          
+          new_marker_payload = %{
+            id: tag_in.id, # Include the ID
+            lat: tag_in.latitude,
+            lng: tag_in.longitude,
+            link: tag_in.spotify_link,
+            name: tag_in.user_name,
+            note: tag_in.note, # Include the note
+            embed_url: embed_url
+          }
+
+          Logger.info("[MapLive] Broadcasting 'new_marker' with payload: #{inspect(new_marker_payload)}")
+          BlogWeb.Endpoint.broadcast("map_updates", "new_marker", new_marker_payload)
+          Logger.info("[MapLive] Broadcast sent.")
+
+          socket_updated = assign(socket, :show_spotify_prompt, false)
+          {:noreply, socket_updated}
+
+        {:error, changeset} ->
+          Logger.error("[MapLive] Failed to create TagIn: #{inspect(changeset)}")
+          # Optionally, send an error to the user via push_event or flash
+          socket_updated = assign(socket, :show_spotify_prompt, false) # Still hide prompt, or keep open to show error
+          # You might want to add a flash message here: |> put_flash(:error, "Failed to save your tag-in.")
+          {:noreply, socket_updated}
+      end
     else
       Logger.error("[MapLive] Cannot broadcast 'new_marker': user_location is nil.")
       # Optionally, send a push_event to the client to inform about the error
@@ -83,11 +122,13 @@ defmodule BlogWeb.MapLive do
     # Ensure marker_data is a map with the expected keys
     new_marker = if is_map(marker_data) and Map.has_key?(marker_data, :lat) and Map.has_key?(marker_data, :lng) do
       %{
+        id: Map.get(marker_data, :id),
         lat: marker_data.lat,
         lng: marker_data.lng,
         link: Map.get(marker_data, :link, "#"),
         name: Map.get(marker_data, :name, "Anonymous"),
-        embed_url: Map.get(marker_data, :embed_url) # Pass through embed_url
+        note: Map.get(marker_data, :note, ""), # Pass through note
+        embed_url: Map.get(marker_data, :embed_url)
       }
     else
       nil # Or handle error appropriately

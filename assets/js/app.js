@@ -130,6 +130,18 @@ Hooks.MapHook = {
     }, 150); // A slight delay
   },
 
+  // Helper function to escape HTML special characters for security
+  escapeHtml(unsafe) {
+    if (unsafe === null || typeof unsafe === 'undefined') return '';
+    return unsafe
+         .toString()
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+  },
+
   addSongMarkerToMap(markerData) {
     if (markerData && typeof markerData.lat === 'number' && typeof markerData.lng === 'number') {
       // A very basic check to prevent adding the exact same marker if data is identical
@@ -146,14 +158,27 @@ Hooks.MapHook = {
           // Spotify compact embed is 80px high, or 152px for a taller version. Let's use 152px.
           // Width can be 100% of popup, Leaflet default max-width for popups is 300px.
           // The iframe needs a unique title for accessibility if multiple are on the page.
-          const uniqueTitle = `Spotify Embed ${markerData.name || 'track'} ${Date.now()}`;
+          const userName = markerData.name || "Anonymous";
+          const noteContent = markerData.note ? `<p style="margin-bottom: 5px; white-space: pre-wrap;">${this.escapeHtml(markerData.note)}</p>` : "";
+          
+          let spotifyContent;
+          if (markerData.embed_url) {
+            const uniqueTitle = `Spotify Embed ${userName} ${Date.now()}`;
+            spotifyContent = 
+              `<iframe title="${uniqueTitle}" style="border-radius:12px" ` +
+              `src="${markerData.embed_url}" ` +
+              `width="300" height="152" frameBorder="0" allowfullscreen="" ` +
+              `allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+          } else {
+            spotifyContent = `<a href="${markerData.link || "#"}" target="_blank" rel="noopener noreferrer">Listen on Spotify</a>`;
+          }
+
           popupContent = 
-            `<iframe title="${uniqueTitle}" style="border-radius:12px" ` +
-            `src="${markerData.embed_url}" ` +
-            `width="300" height="152" frameBorder="0" allowfullscreen="" ` +
-            `allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+            `<div style="margin-bottom: 8px;"><strong>${this.escapeHtml(userName)}</strong></div>` +
+            noteContent +
+            spotifyContent;
         } else {
-          // Fallback to simple link if embed_url is not available
+          // Fallback for very old markers or if data is incomplete (should ideally not happen with new structure)
           popupContent = `<b>${markerData.name || "Anonymous"}</b><br><a href="${markerData.link || "#"}" target="_blank" rel="noopener noreferrer">Listen on Spotify</a>`;
         }
 
