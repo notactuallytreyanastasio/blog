@@ -17,9 +17,9 @@ defmodule BlogWeb.MapLive do
           lat: tag_in.latitude,
           lng: tag_in.longitude,
           name: tag_in.user_name,
-          link: tag_in.spotify_link,
+          link: tag_in.spotify_link, # This field now stores the original music_link
           note: tag_in.note,
-          embed_url: parse_spotify_link_to_embed_url(tag_in.spotify_link)
+          embed_url: generate_embed_url(tag_in.spotify_link)
         }
       end)
 
@@ -45,10 +45,10 @@ defmodule BlogWeb.MapLive do
     {:noreply, socket}
   end
 
-  # Event handler for Spotify link submission
+  # Event handler for Music link submission
   @impl true
-  def handle_event("submit_spotify_link", %{"user_name" => name_param, "spotify_link" => link_param, "note" => note_param}, socket) do
-    Logger.info("[MapLive] handle_event 'submit_spotify_link' called with name_param: #{inspect(name_param)}, link_param: #{inspect(link_param)}, note_param: #{inspect(note_param)}")
+  def handle_event("submit_music_link", %{"user_name" => name_param, "music_link" => link_param, "note" => note_param}, socket) do
+    Logger.info("[MapLive] handle_event 'submit_music_link' called with name_param: #{inspect(name_param)}, link_param: #{inspect(link_param)}, note_param: #{inspect(note_param)}")
 
     user_name = case name_param do
       n when is_binary(n) and n != "" -> n
@@ -75,7 +75,7 @@ defmodule BlogWeb.MapLive do
     if tag_location && tag_location.lat && tag_location.lng do
       tag_in_attrs = %{
         user_name: user_name,
-        spotify_link: link,
+        spotify_link: link, # Storing the original music_link in this field
         note: note,
         latitude: tag_location.lat,
         longitude: tag_location.lng
@@ -84,7 +84,7 @@ defmodule BlogWeb.MapLive do
       case GeoMap.create_tag_in(tag_in_attrs) do
         {:ok, tag_in} ->
           Logger.info("[MapLive] Successfully created TagIn: #{inspect(tag_in)}")
-          embed_url = parse_spotify_link_to_embed_url(tag_in.spotify_link)
+          embed_url = generate_embed_url(tag_in.spotify_link) # Use general embed generator
 
           new_marker_payload = %{
             id: tag_in.id, # Include the ID
@@ -183,7 +183,7 @@ defmodule BlogWeb.MapLive do
   end
 
   # Helper function to parse Spotify link and create an embed URL
-  defp parse_spotify_link_to_embed_url(link) do
+  defp parse_spotify_link_to_embed_url(link) when is_binary(link) do
     # Regex to capture Spotify track ID from various URL formats
     # Example: https://open.spotify.com/track/TRACK_ID?si=...
     # Example: https://open.spotify.com/intl-pt/track/TRACK_ID
@@ -196,4 +196,37 @@ defmodule BlogWeb.MapLive do
         nil # Return nil if no track ID found, client can fallback
     end
   end
+  defp parse_spotify_link_to_embed_url(_link), do: nil # Catch-all for non-binary links
+
+  # Helper function to parse Apple Music link and create an embed URL
+  defp parse_apple_music_link_to_embed_url(link) when is_binary(link) do
+    # Example: https://music.apple.com/us/album/song-title/123456789?i=987654321
+    # Embed:  https://embed.music.apple.com/us/album/song-title/123456789?i=987654321
+    # Simpler embed (often works): https://embed.music.apple.com/us/album/123456789?i=987654321
+    # Or even just the path: /us/album/song-title/123456789?i=987654321
+
+    uri = URI.parse(link)
+
+    if uri.host == "music.apple.com" and uri.path do
+      # Reconstruct with embed.music.apple.com, keeping the path and query
+      query_string = if uri.query, do: "?#{uri.query}", else: ""
+      "https://embed.music.apple.com#{uri.path}#{query_string}"
+    else
+      nil
+    end
+  end
+  defp parse_apple_music_link_to_embed_url(_link), do: nil
+
+  # General helper to generate embed URL based on link type
+  defp generate_embed_url(link) when is_binary(link) do
+    cond do
+      String.contains?(link, "music.apple.com") ->
+        parse_apple_music_link_to_embed_url(link)
+      String.contains?(link, "open.spotify.com") ->
+        parse_spotify_link_to_embed_url(link)
+      true ->
+        nil # Unknown link type
+    end
+  end
+  defp generate_embed_url(_link), do: nil
 end

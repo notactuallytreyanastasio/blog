@@ -138,25 +138,21 @@
             overflow-y: auto;
         }
 
-        .spotify-embed-container {
-            margin-bottom: 2px; /* Small gap between embeds */
-            /* border-bottom: 1px solid #eee; Removed */
-            /* padding-bottom: 20px; Removed */
+        .song-list-sidebar .song-item {
+            margin-bottom: 0;
+            padding: 0;
+            background-color: transparent;
+            border-radius: 0;
+            box-shadow: none;
         }
 
-        /* .spotify-embed-container:last-child rule is no longer needed */
-
-        .spotify-embed-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
+        .song-list-sidebar .song-item iframe {
+            display: block; /* Good for layout */
+            margin-bottom: 0;
         }
 
-        .spotify-embed-note {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 10px;
-            font-style: italic;
+        .song-list-sidebar .song-item .song-note {
+            display: none; /* Hides notes to allow iframes to touch */
         }
 
         .locate-me-button {
@@ -270,14 +266,19 @@
 
     <%= if @show_spotify_prompt do %>
       <div class="spotify-modal">
-        <form phx-submit="submit_spotify_link">
-          <input type="text" name="user_name" placeholder="your pal's name/handle..." required style="width: 100%; box-sizing: border-box; margin-bottom: 10px;"/>
-          <input type="text" name="spotify_link" placeholder="Spotify link..." phx-debounce="300" style="width: 100%; box-sizing: border-box;"/>
-          <textarea name="note" placeholder="Enter a note (optional)" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 10px;"></textarea>
-          <div style="margin-top: 10px;">
-            <button type="submit" class="submit">Submit</button>
-            <button type="button" phx-click="cancel_spotify_prompt" class="">Just Browse</button>
-          </div>
+        <h3>Add Your Song to the Map</h3>
+        <form phx-submit="submit_music_link">
+          <label for="user_name_music">Your Name/Handle:</label>
+          <input type="text" name="user_name" id="user_name_music" placeholder="Anonymous Wook" value="" />
+          <br />
+          <label for="music_link">Spotify or Apple Music Link:</label>
+          <input type="text" name="music_link" id="music_link" placeholder="spotify or apple link" required />
+          <br />
+          <label for="note_music">Short Note (optional):</label>
+          <input type="text" name="note" id="note_music" placeholder="What's on your mind?" />
+          <br />
+          <button type="submit" class="submit">Add Song</button>
+          <button type="button" phx-click="cancel_spotify_prompt" class="cancel">Cancel</button>
         </form>
       </div>
     <% end %>
