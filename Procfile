@@ -1,1 +1,1 @@
-web: (sleep 5 && eval "Blog.Release.migrate()" || echo "Migration failed but continuing") && _build/prod/rel/blog/bin/blog start
+web: _build/prod/rel/blog/bin/blog start

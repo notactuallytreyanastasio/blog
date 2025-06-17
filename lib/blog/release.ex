@@ -7,6 +7,9 @@ defmodule Blog.Release do
 
   def migrate do
     load_app()
+    
+    # Ensure SSL is started
+    Application.ensure_all_started(:ssl)
 
     for repo <- repos() do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
