@@ -39,3 +39,5 @@ npm-debug.log
 *swn
 *swo
 nathan_for_us/
+
+receipt-printer-emulator/target/*

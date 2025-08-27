@@ -1,0 +1,14 @@
+[Unit]
+Description=Receipt Printer Emulator
+After=network.target
+
+[Service]
+Type=simple
+User=robert.grayson1
+WorkingDirectory=/Users/robert.grayson1/code/blog/receipt-printer-emulator
+ExecStart=/Users/robert.grayson1/code/blog/receipt-printer-emulator/target/release/receipt-printer --port 9100 --output both --output-dir /Users/robert.grayson1/code/blog/printed_receipts
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
