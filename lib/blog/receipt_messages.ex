@@ -36,24 +36,7 @@ defmodule Blog.ReceiptMessages do
     %ReceiptMessage{}
     |> ReceiptMessage.changeset(attrs)
     |> Repo.insert()
-    |> case do
-      {:ok, message} ->
-        # Trigger printing asynchronously
-        Task.start(fn ->
-          try do
-            Blog.ReceiptPrinter.MessageHandler.print_message(message)
-          rescue
-            e ->
-              require Logger
-              Logger.error("Failed to print message: #{inspect(e)}")
-          end
-        end)
-        
-        {:ok, message}
-        
-      error ->
-        error
-    end
+    # Removed automatic printing - let the poller handle it
   end
 
   @doc """
