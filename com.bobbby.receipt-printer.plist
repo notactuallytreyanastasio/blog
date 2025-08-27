@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bobbby.receipt-printer</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/robert.grayson1/code/blog/receipt_printer_service.py</string>
+        <string>--api-url</string>
+        <string>https://www.bobbby.online</string>
+        <string>--auth-token</string>
+        <string>YOUR_TOKEN_HERE</string>
+        <string>--poll-interval</string>
+        <string>10</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/robert.grayson1/code/blog</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/robert.grayson1/code/blog/logs/receipt-printer.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/robert.grayson1/code/blog/logs/receipt-printer-error.log</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

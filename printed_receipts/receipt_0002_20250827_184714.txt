@@ -1,0 +1,37 @@
+RECEIPT #0002
+Date: 2025-08-27 18:47:14
+================================================
+
+NEW MESSAGE
+
+
+From: Local
+Time: 2025-08-27 22:47:14 UTC
+------------------------------------------------
+
+Message:
+  so here it is, a message on my website being
+  jetted over to the database, and locally my
+  printer emulator is polling the endpoint, so
+  when I send this....we will see it print
+  there
+  
+  newlines and all!
+
+------------------------------------------------
+
+Thank you for your message!
+
+[QR CODE]
+[QR CODE]
+[QR CODE]
+[QR CODE]
+Message ID: AAAAAADI
+
+
+
+
+
+- - - - - - - - - - - - - - - - - - - - - - - - 
+================================================
+--- CUT ---

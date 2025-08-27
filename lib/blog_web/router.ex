@@ -69,12 +69,12 @@ defmodule BlogWeb.Router do
   end
 
   # API endpoints for receipt printer
-  scope "/api", BlogWeb do
+  scope "/api", BlogWeb.Api do
     pipe_through :api
     
-    get "/receipt-messages/pending", ReceiptApiController, :pending_messages
-    post "/receipt-messages/:id/printed", ReceiptApiController, :mark_printed
-    post "/receipt-messages/:id/failed", ReceiptApiController, :mark_failed
+    get "/receipt_messages/pending", ReceiptMessageController, :pending
+    post "/receipt_messages/:id/printed", ReceiptMessageController, :mark_printed
+    post "/receipt_messages/:id/failed", ReceiptMessageController, :mark_failed
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
