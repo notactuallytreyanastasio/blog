@@ -12,8 +12,8 @@ defmodule BlogWeb.Endpoint do
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options, :peer_data, :x_headers]],
-    longpoll: [connect_info: [session: @session_options, :peer_data, :x_headers]]
+    websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
 
   socket "/socket", BlogWeb.UserSocket,
     websocket: true,
