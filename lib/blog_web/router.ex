@@ -8,6 +8,7 @@ defmodule BlogWeb.Router do
     plug :put_root_layout, html: {BlogWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
     plug BlogWeb.Plugs.EnsureUserId
   end
 

@@ -3,10 +3,13 @@ defmodule BlogWeb.ReceiptMessageLive do
   alias Blog.ReceiptMessages
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    sender_ip = get_ip_from_socket_or_session(socket, session)
+    
     {:ok,
      socket
      |> assign(:message, "")
+     |> assign(:sender_ip, sender_ip)
      |> assign(:uploaded_files, [])
      |> allow_upload(:image, accept: ~w(.jpg .jpeg .png .gif), max_entries: 1)}
   end
@@ -18,8 +21,8 @@ defmodule BlogWeb.ReceiptMessageLive do
 
   @impl true
   def handle_event("send_message", %{"message" => message}, socket) do
-    # Get sender IP from socket
-    sender_ip = get_sender_ip(socket)
+    # Get sender IP from assigns (already set during mount)
+    sender_ip = socket.assigns.sender_ip
     
     # Handle uploaded image if any
     image_url = consume_uploaded_image(socket)
@@ -50,14 +53,36 @@ defmodule BlogWeb.ReceiptMessageLive do
     {:noreply, cancel_upload(socket, :image, ref)}
   end
   
-  defp get_sender_ip(socket) do
-    case socket.connect_info do
-      %{peer_data: %{address: address}} ->
-        address
-        |> :inet.ntoa()
-        |> to_string()
+  defp get_ip_from_socket_or_session(socket, session) do
+    # First try to get from connect_info if available
+    ip_from_connect = case socket do
+      %{private: %{connect_info: %{peer_data: %{address: address}}}} ->
+        format_ip(address)
+      %{private: %{connect_info: %{x_headers: headers}}} ->
+        get_ip_from_headers(headers)
       _ ->
-        "unknown"
+        nil
+    end
+    
+    # Fall back to session if connect_info not available
+    ip_from_connect || Map.get(session, "remote_ip", "unknown")
+  end
+  
+  defp format_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
+  defp format_ip({a, b, c, d, e, f, g, h}) do
+    "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
+  end
+  defp format_ip(_), do: nil
+  
+  defp get_ip_from_headers(headers) do
+    case List.keyfind(headers, "x-forwarded-for", 0) do
+      {"x-forwarded-for", value} ->
+        value
+        |> String.split(",")
+        |> List.first()
+        |> String.trim()
+      _ ->
+        nil
     end
   end
   
