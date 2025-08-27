@@ -8,6 +8,9 @@ defmodule BlogWeb.ReceiptMessageLive do
     
     {:ok,
      socket
+     |> assign(:page_title, "Send me a very direct message. To my desk..")
+     |> assign(:page_description, "Say hi. This will print directly to my desk on a receipt printer with a note of who it is from and the content. Please be kind.")
+     |> assign(:page_image, "/images/receipt-printer-preview.png")
      |> assign(:message, "")
      |> assign(:sender_ip, sender_ip)
      |> assign(:uploaded_files, [])
