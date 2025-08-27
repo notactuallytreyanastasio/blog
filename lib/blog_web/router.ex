@@ -64,12 +64,17 @@ defmodule BlogWeb.Router do
     live "/trees", TreesLive, :index
     live "/learn", LessonReplLive, :index
     live "/map", MapLive
+    live "/very_direct_message", ReceiptMessageLive, :index
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", BlogWeb do
-  #   pipe_through :api
-  # end
+  # API endpoints for receipt printer
+  scope "/api", BlogWeb do
+    pipe_through :api
+    
+    get "/receipt-messages/pending", ReceiptApiController, :pending_messages
+    post "/receipt-messages/:id/printed", ReceiptApiController, :mark_printed
+    post "/receipt-messages/:id/failed", ReceiptApiController, :mark_failed
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:blog, :dev_routes) do
