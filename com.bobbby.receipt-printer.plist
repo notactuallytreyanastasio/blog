@@ -7,14 +7,8 @@
     
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
-        <string>/Users/robert.grayson1/code/blog/receipt_printer_service.py</string>
-        <string>--api-url</string>
-        <string>https://www.bobbby.online</string>
-        <string>--auth-token</string>
-        <string>YOUR_TOKEN_HERE</string>
-        <string>--poll-interval</string>
-        <string>10</string>
+        <string>/bin/bash</string>
+        <string>/Users/robert.grayson1/code/blog/receipt_poller.sh</string>
     </array>
     
     <key>WorkingDirectory</key>

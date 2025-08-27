@@ -21,6 +21,10 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  # Receipt printer API token
+  config :blog, :receipt_printer_api_token,
+    System.get_env("RECEIPT_PRINTER_API_TOKEN") || "bff5d349110d2f61b0d5ac83630afc687b154ddb18b70bb61362a881abdf0bcb"
+
   # Check if DATABASE_URL is set as environment variable
   database_url =
     System.get_env("DATABASE_URL") ||

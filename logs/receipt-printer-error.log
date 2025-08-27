@@ -1,0 +1,19 @@
+/Users/robert.grayson1/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+2025-08-27 18:52:09,682 - INFO - Starting receipt printer service
+2025-08-27 18:52:09,683 - INFO - API URL: https://www.bobbby.online
+2025-08-27 18:52:09,683 - INFO - Printer: 127.0.0.1:9100
+2025-08-27 18:52:09,683 - INFO - Poll interval: 30 seconds
+2025-08-27 18:52:09,904 - INFO - Found 2 pending message(s)
+2025-08-27 18:52:09,904 - INFO - Processing message 1 from 0:0:0:0:0:FFFF:A38:1D0
+2025-08-27 18:52:09,907 - ERROR - Failed to print: [Errno 61] Connection refused
+2025-08-27 18:52:09,908 - ERROR - Failed to print message 1
+2025-08-27 18:52:11,038 - INFO - Processing message 2 from 0:0:0:0:0:FFFF:A38:A93E
+2025-08-27 18:52:11,041 - ERROR - Failed to print: [Errno 61] Connection refused
+2025-08-27 18:52:11,041 - ERROR - Failed to print message 2
+/Users/robert.grayson1/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+2025-08-27 18:52:41,761 - INFO - Starting receipt printer service
+2025-08-27 18:52:41,761 - INFO - API URL: https://www.bobbby.online
+2025-08-27 18:52:41,761 - INFO - Printer: 127.0.0.1:9100
+2025-08-27 18:52:41,761 - INFO - Poll interval: 30 seconds
