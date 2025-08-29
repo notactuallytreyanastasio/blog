@@ -7,6 +7,8 @@ defmodule Blog.ReceiptMessage do
     field :sender_name, :string
     field :sender_ip, :string
     field :image_url, :string
+    field :image_data, :binary
+    field :image_content_type, :string
     field :printed_at, :utc_datetime
     field :status, :string, default: "pending"
 
@@ -16,7 +18,7 @@ defmodule Blog.ReceiptMessage do
   @doc false
   def changeset(receipt_message, attrs) do
     receipt_message
-    |> cast(attrs, [:content, :sender_name, :sender_ip, :image_url, :status, :printed_at])
+    |> cast(attrs, [:content, :sender_name, :sender_ip, :image_url, :image_data, :image_content_type, :status, :printed_at])
     |> validate_required([:content])
     |> validate_inclusion(:status, ["pending", "printed", "failed"])
   end

@@ -37,6 +37,7 @@ defmodule Blog.Application do
       # Start the Telemetry supervisor
       BlogWeb.Telemetry,
       BlueskyHose,
+      BlueskyJetstream,
       # Start the PubSub system
       {Phoenix.PubSub, name: Blog.PubSub},
       # Start Finch
@@ -78,6 +79,8 @@ defmodule Blog.Application do
         Blog.Repo,
         # Start the Telemetry supervisor
         BlogWeb.Telemetry,
+        BlueskyHose,
+        BlueskyJetstream,
         # Start the PubSub system
         {Phoenix.PubSub, name: Blog.PubSub},
         # Start Finch

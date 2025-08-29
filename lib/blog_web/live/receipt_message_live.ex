@@ -28,20 +28,32 @@ defmodule BlogWeb.ReceiptMessageLive do
     sender_ip = socket.assigns.sender_ip
     
     # Handle uploaded image if any
-    image_url = consume_uploaded_image(socket)
+    {image_data, content_type} = consume_uploaded_image(socket)
     
-    # Create the message
-    case ReceiptMessages.create_receipt_message(%{
+    # Create the message with image binary data
+    attrs = %{
       content: message,
       sender_ip: sender_ip,
-      image_url: image_url,
       status: "pending"
-    }) do
+    }
+    
+    # Add image data if present
+    attrs = if image_data do
+      Map.merge(attrs, %{
+        image_data: image_data,
+        image_content_type: content_type
+      })
+    else
+      attrs
+    end
+    
+    case ReceiptMessages.create_receipt_message(attrs) do
       {:ok, _message} ->
         {:noreply,
          socket
          |> put_flash(:info, "Message sent successfully! It will print on my desk soon.")
-         |> assign(:message, "")}
+         |> assign(:message, "")
+         |> assign(:uploaded_files, [])}
       
       {:error, _changeset} ->
         {:noreply,
@@ -91,11 +103,30 @@ defmodule BlogWeb.ReceiptMessageLive do
   
   defp consume_uploaded_image(socket) do
     case socket.assigns.uploads.image.entries do
-      [] -> nil
+      [] -> 
+        {nil, nil}
       _entries ->
-        # For now, we'll just store a placeholder
-        # In production, you'd want to actually upload to S3 or similar
-        "image_placeholder"
+        # Process the uploaded image and return binary data
+        result = consume_uploaded_entries(socket, :image, fn %{path: path}, entry ->
+          # Read the file content as binary
+          image_binary = File.read!(path)
+          
+          # Determine content type from the file extension
+          content_type = case Path.extname(entry.client_name) |> String.downcase() do
+            ".jpg" -> "image/jpeg"
+            ".jpeg" -> "image/jpeg"
+            ".png" -> "image/png"
+            ".gif" -> "image/gif"
+            _ -> "image/jpeg"  # Default to JPEG
+          end
+          
+          {:ok, {image_binary, content_type}}
+        end)
+        
+        case result do
+          [{image_binary, content_type} | _] -> {image_binary, content_type}
+          _ -> {nil, nil}
+        end
     end
   end
 

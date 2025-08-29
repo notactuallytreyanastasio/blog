@@ -36,12 +36,29 @@ defmodule BlueskyHose do
 
     case msg do
       %{"commit" => record = %{"record" => %{"text" => skeet}}} = _msg ->
-        # IO.puts(skeet)
-        # Broadcast to the general skeet feed
+        # Log if the skeet contains certain keywords for debugging
+        if String.contains?(String.downcase(skeet), "bobby") do
+          Logger.info("FIREHOSE: Bobby post detected: #{String.slice(skeet, 0, 100)}")
+        end
+        
+        # Extract DID from the commit
+        did = case msg do
+          %{"did" => did} -> did
+          _ -> "unknown"
+        end
+        
+        # Broadcast to the general skeet feed with DID (for existing pages)
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
           "bluesky:skeet",
-          {:new_skeet, skeet}
+          {:new_skeet, %{text: skeet, did: did}}
+        )
+        
+        # Also broadcast to relay-specific topic for comparison
+        Phoenix.PubSub.broadcast(
+          Blog.PubSub,
+          "relay:skeet",
+          {:relay_skeet, %{text: skeet, did: did}}
         )
 
         case derive_reddit_embed_link(skeet, record) do

@@ -2,7 +2,7 @@ defmodule BlogWeb.EmojiSkeetsLive do
   use BlogWeb, :live_view
   require Logger
 
-  @max_skeets 10_000
+  @max_skeets 100_000
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -30,9 +30,15 @@ defmodule BlogWeb.EmojiSkeetsLive do
     {:noreply, assign(socket, search_term: search_term, filtered_skeets: filtered_skeets)}
   end
 
-  def handle_info({:new_skeet, skeet}, socket) do
+  def handle_info({:new_skeet, skeet_data}, socket) do
+    # Handle both old format (string) and new format (map with text and did)
+    {skeet_text, did} = case skeet_data do
+      %{text: text, did: did} -> {text, did}
+      text when is_binary(text) -> {text, "unknown"}
+    end
+
     updated_skeets =
-      [skeet | socket.assigns.skeets]
+      [{skeet_text, did} | socket.assigns.skeets]
       |> Enum.take(@max_skeets)
 
     filtered_skeets =
@@ -40,6 +46,32 @@ defmodule BlogWeb.EmojiSkeetsLive do
         updated_skeets,
         socket.assigns.search_term
       )
+
+    # If the new skeet matches the search term, send it to the receipt printer
+    normalized_search = socket.assigns.search_term |> String.trim() |> String.downcase()
+    
+    if normalized_search != "" and String.contains?(String.downcase(skeet_text), normalized_search) do
+        # Format the receipt text with DID
+        receipt_text = """
+        Bluesky Skeet Match!
+        Search: #{socket.assigns.search_term}
+        Time: #{DateTime.utc_now() |> DateTime.to_string()}
+        User: #{did}
+
+        #{skeet_text}
+        """
+        
+        # Execute receipt_printer.py script to print directly via CUPS
+        case System.cmd("python3", [
+          "receipt_printer.py",
+          receipt_text
+        ], cd: File.cwd!(), stderr_to_stdout: true) do
+          {output, 0} ->
+            Logger.info("Printed skeet matching '#{socket.assigns.search_term}'")
+          {error, exit_code} ->
+            Logger.error("Failed to print skeet: #{error}")
+        end
+    end
 
     {:noreply, assign(socket, skeets: updated_skeets, filtered_skeets: filtered_skeets)}
   end
@@ -50,8 +82,11 @@ defmodule BlogWeb.EmojiSkeetsLive do
     if normalized_search_term == "" do
       [] # No search term, show no results
     else
-      Enum.filter(skeets, fn skeet_text ->
-        String.contains?(String.downcase(skeet_text), normalized_search_term)
+      Enum.filter(skeets, fn
+        {skeet_text, _did} ->
+          String.contains?(String.downcase(skeet_text), normalized_search_term)
+        skeet_text when is_binary(skeet_text) ->
+          String.contains?(String.downcase(skeet_text), normalized_search_term)
       end)
     end
   end
@@ -71,7 +106,7 @@ defmodule BlogWeb.EmojiSkeetsLive do
               value={@search_term}
               phx-keyup="update_search_term"
               phx-debounce="300"
-              phx-value-value={@search_term} 
+              phx-value-value={@search_term}
               placeholder="Enter search term (e.g., elixir, phoenix, ❤️)..."
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -116,9 +151,14 @@ defmodule BlogWeb.EmojiSkeetsLive do
               </p>
             </div>
           <% else %>
-            <%= for skeet <- @filtered_skeets do %>
+            <%= for skeet_item <- @filtered_skeets do %>
+              <% {skeet_text, did} = case skeet_item do
+                {text, did} -> {text, did}
+                text when is_binary(text) -> {text, "unknown"}
+              end %>
               <div class="bg-white rounded-lg shadow-md p-4 transition-all hover:shadow-lg">
-                <p class="text-gray-800 whitespace-pre-wrap break-words">{skeet}</p>
+                <p class="text-xs text-gray-500 mb-2">DID: {did}</p>
+                <p class="text-gray-800 whitespace-pre-wrap break-words">{skeet_text}</p>
               </div>
             <% end %>
           <% end %>
