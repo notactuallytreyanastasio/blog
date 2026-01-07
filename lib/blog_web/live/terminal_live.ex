@@ -283,7 +283,7 @@ defmodule BlogWeb.TerminalLive do
         </div>
 
         <!-- Psychedelic Tree (always visible, transparent background) -->
-        <div class="tree-container">
+        <div class="tree-container" id="tree-wrapper" phx-update="ignore">
           <canvas id="psychedelic-tree" phx-hook="PsychedelicTree"></canvas>
         </div>
 
@@ -566,13 +566,10 @@ defmodule BlogWeb.TerminalLive do
       /* Psychedelic tree container */
       .tree-container {
         position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 60vw;
-        height: 70vh;
-        max-width: 600px;
-        max-height: 500px;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
         pointer-events: none;
         z-index: 50;
       }
