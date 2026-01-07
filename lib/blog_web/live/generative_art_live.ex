@@ -91,8 +91,8 @@ defmodule BlogWeb.GenerativeArtLive do
   end
 
   def handle_event("viewport_resize", %{"width" => width, "height" => height}, socket) do
-    width = String.to_integer(width)
-    height = String.to_integer(height)
+    width = width |> String.to_float() |> trunc()
+    height = height |> String.to_float() |> trunc()
 
     # Reset ball position with new viewport dimensions
     ball = %{
