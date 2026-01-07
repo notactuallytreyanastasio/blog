@@ -13,7 +13,9 @@
     <!-- Open Graph Meta Tags -->
     <meta property="og:title" content={assigns[:page_title] || "Thoughts and Tidbits"} />
     <meta property="og:description" content={assigns[:page_description] || "A collection of thoughts, projects, and experiments."} />
-    <meta property="og:image" content={assigns[:page_image] || "/images/default-preview.png"} />
+    <meta property="og:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Thoughts and Tidbits" />
     
@@ -21,7 +23,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={assigns[:page_title] || "Thoughts and Tidbits"} />
     <meta name="twitter:description" content={assigns[:page_description] || "A collection of thoughts, projects, and experiments."} />
-    <meta name="twitter:image" content={assigns[:page_image] || "/images/default-preview.png"} />
+    <meta name="twitter:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
 
     <%= for meta <- assigns[:meta_tags] || [] do %>
       <meta {meta} />
