@@ -678,8 +678,10 @@ details[open] summary {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  width: 400px;
-  height: 500px;
+  width: 480px;
+  height: 70vh;
+  min-height: 500px;
+  max-height: 700px;
   background: #c0c0c0;
   border: 2px outset #c0c0c0;
   font-family: "MS Sans Serif", sans-serif;
@@ -780,9 +782,9 @@ details[open] summary {
 
 .aim-input-box {
   width: 100%;
-  height: 60px;
+  height: 80px;
   border: 1px inset #c0c0c0;
-  padding: 2px;
+  padding: 4px;
   font-family: "Arial", sans-serif;
   font-size: 12px;
   resize: none;

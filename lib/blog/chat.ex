@@ -195,10 +195,10 @@ defmodule Blog.Chat do
     # Log what we found
     Logger.debug("Retrieved #{length(messages)} message structs for room #{room}")
 
-    # Sort and return the messages
+    # Sort and return the messages (ascending so newest appear at bottom in chat)
     sorted_messages =
       messages
-      |> Enum.sort_by(fn msg -> msg.id end, :desc)
+      |> Enum.sort_by(fn msg -> msg.id end, :asc)
       |> Enum.take(50)
 
     Logger.debug("Returning #{length(sorted_messages)} sorted messages")

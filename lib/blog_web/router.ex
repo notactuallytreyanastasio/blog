@@ -27,7 +27,7 @@ defmodule BlogWeb.Router do
     live "/mta-bus-map", MtaBusMapLive, :index
     live "/mta-train", MtaTrainLive, :index
 
-    live "/keylogger", KeyloggerLive
+    live "/typewriter", KeyloggerLive
     live "/gay_chaos", RainbowLive, :index
     live "/mirror", MirrorLive, :index
     live "/reddit-links", RedditLinksLive, :index
@@ -48,7 +48,6 @@ defmodule BlogWeb.Router do
     # live "/breakout", BreakoutLive, :index
     live "/blackjack", BlackjackLive, :index
     live "/war", WarLive, :index
-    live "/skeet-timeline", SkeetTimelineLive, :index
     live "/markdown-editor", MarkdownEditorLive, :index
     live "/lumon-celebration", LumonCelebrationLive, :index
     live "/article/my-custom-article", ArticleLive, :show

@@ -423,6 +423,133 @@ Hooks.MapHook = {
     this.songMarkers = []; // Clear the array of marker instances
   }
 };
+Hooks.PsychedelicTree = {
+  mounted() {
+    const canvas = this.el;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const container = canvas.parentElement;
+    let width = container.offsetWidth;
+    let height = container.offsetHeight;
+    let time = 0;
+
+    const resize = () => {
+      width = container.offsetWidth;
+      height = container.offsetHeight;
+      canvas.width = width;
+      canvas.height = height;
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    this.resizeHandler = resize;
+
+    const colors = ['#ff00ff', '#00ffff', '#ffff00', '#ff6600', '#00ff00', '#ff0099', '#9933ff', '#00ffcc'];
+    const getColor = (i) => colors[i % colors.length];
+
+    const animate = () => {
+      time += 0.005;
+
+      // Clear with transparency to show background through
+      ctx.clearRect(0, 0, width, height);
+
+      const centerX = width / 2;
+      const centerY = height * 0.35;
+      const numSeeds = 200;
+      const scale = Math.min(width, height) * 0.3;
+      const pulseScale = 1 + Math.sin(time * 2) * 0.1;
+
+      // Draw seeds (flower head)
+      for (let i = 0; i < numSeeds; i++) {
+        const angle = i * (Math.PI * (3 - Math.sqrt(5))) + time;
+        const radius = Math.sqrt(i) * (scale / Math.sqrt(numSeeds)) * pulseScale;
+        const waveX = Math.sin(time * 3 + i * 0.05) * 10;
+        const waveY = Math.cos(time * 2 + i * 0.03) * 10;
+        const x = centerX + Math.cos(angle) * radius + waveX;
+        const y = centerY + Math.sin(angle) * radius + waveY;
+        const colorIndex = Math.floor(i + time * 50);
+        const color = getColor(colorIndex);
+        const size = 2 + Math.sin(time * 4 + i * 0.1) * 1.5 + (i / numSeeds) * 2;
+
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6 + Math.sin(time * 3 + i * 0.2) * 0.3;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Spiral arms
+      for (let arm = 0; arm < 5; arm++) {
+        ctx.save();
+        const armColor = getColor(arm + Math.floor(time * 5));
+        ctx.strokeStyle = armColor;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = armColor;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        for (let t = 0; t < 30; t++) {
+          const spiralAngle = t * 0.2 + arm * (Math.PI * 2 / 5) + time;
+          const spiralRadius = t * 5 + 30;
+          const sx = centerX + Math.cos(spiralAngle) * spiralRadius;
+          const sy = centerY + Math.sin(spiralAngle) * spiralRadius;
+          if (t === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Stem
+      ctx.save();
+      const stemColor = '#00ff44';
+      ctx.strokeStyle = stemColor;
+      ctx.lineWidth = 5 + Math.sin(time) * 2;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#33ff77';
+      ctx.globalAlpha = 0.8;
+      ctx.lineCap = 'round';
+      const stemStartY = centerY + scale * 0.4;
+      const stemEndY = height + 20;
+      const stemWave = Math.sin(time * 0.5) * 15;
+      ctx.beginPath();
+      ctx.moveTo(centerX, stemStartY);
+      ctx.bezierCurveTo(
+        centerX + stemWave, stemStartY + (stemEndY - stemStartY) * 0.3,
+        centerX - stemWave, stemStartY + (stemEndY - stemStartY) * 0.6,
+        centerX + stemWave * 0.5, stemEndY
+      );
+      ctx.stroke();
+      ctx.restore();
+
+      this.animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+  },
+  destroyed() {
+    if (this.animationId) cancelAnimationFrame(this.animationId);
+    if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
+  }
+};
+
+Hooks.ChatScroll = {
+  mounted() {
+    this.scrollToBottom();
+  },
+  updated() {
+    this.scrollToBottom();
+  },
+  scrollToBottom() {
+    this.el.scrollTop = this.el.scrollHeight;
+  }
+};
+
 Hooks.ScrollToTop = {
   mounted() {
     this.handleEvent("scroll-to-top", () => {
