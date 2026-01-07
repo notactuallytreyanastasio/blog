@@ -58,7 +58,10 @@ defmodule Blog.MixProject do
       # {:earmark_parser, "~> 1.4"},
       {:mdex, "~> 0.6"},
       {:websockex, "~> 0.4.3"},
-      {:pythonx, "~> 0.4.2"}
+      {:pythonx, "~> 0.4.2"},
+      {:mogrify, "~> 0.9"},
+      {:image, "~> 0.48"},
+      {:exqlite, "~> 0.23", runtime: false}
     ]
   end
 
