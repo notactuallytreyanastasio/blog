@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <!-- Pastel gradient background -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffecd2"/>
+      <stop offset="50%" style="stop-color:#fcb69f"/>
+      <stop offset="100%" style="stop-color:#d4a5ff"/>
+    </linearGradient>
+
+    <!-- Terminal glow -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft shadow -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="3" dy="5" stdDeviation="8" flood-color="#00000030"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGradient)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="80" cy="60" r="40" fill="#a8e6cf" opacity="0.5"/>
+  <circle cx="1120" cy="580" r="60" fill="#ffd3a5" opacity="0.5"/>
+  <circle cx="1100" cy="80" r="30" fill="#c9b1ff" opacity="0.6"/>
+  <circle cx="100" cy="550" r="35" fill="#ffb7b2" opacity="0.5"/>
+
+  <!-- Main Typewriter Group -->
+  <g transform="translate(150, 80)" filter="url(#shadow)">
+
+    <!-- Typewriter base/body - rounded retro shape - taller for full keyboard -->
+    <path d="M50,380 Q0,380 0,350 L0,280 Q0,260 20,260 L880,260 Q900,260 900,280 L900,350 Q900,380 850,380 Z"
+          fill="#98d4bb" stroke="#7bc4a5" stroke-width="2"/>
+
+    <!-- Typewriter top section -->
+    <rect x="40" y="230" width="820" height="40" rx="8" fill="#b8e0d2" stroke="#9dd1bf" stroke-width="2"/>
+
+    <!-- Paper guide/roller -->
+    <rect x="80" y="200" width="740" height="40" rx="6" fill="#d4c5b5" stroke="#c4b5a5" stroke-width="2"/>
+
+    <!-- Paper coming out - styled as terminal -->
+    <rect x="120" y="30" width="660" height="185" rx="6" fill="#1a1a2e" stroke="#2a2f3b" stroke-width="2"/>
+
+    <!-- Terminal text on paper -->
+    <g filter="url(#glow)" font-family="Courier New, monospace" font-size="18">
+      <text x="150" y="70" fill="#98c379">$ whoami</text>
+      <text x="150" y="100" fill="#e5c07b">bobbby.online</text>
+      <text x="150" y="135" fill="#98c379">$ echo "message"</text>
+      <text x="150" y="165" fill="#61afef">I hope you like my toys and tinkering</text>
+      <text x="150" y="200" fill="#98c379">$ _</text>
+    </g>
+
+    <!-- Keyboard area background -->
+    <rect x="50" y="270" width="800" height="100" rx="8" fill="#c9e4d9"/>
+
+    <!-- Keyboard keys - Full 5 rows -->
+    <!-- Row 1 - Number row (14 keys) -->
+    <g transform="translate(70, 278)">
+      <rect x="0" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="32" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="64" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="96" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="128" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="160" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="192" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="224" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="256" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="288" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="320" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="352" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="384" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="416" y="0" width="56" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="476" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="508" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="540" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="572" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="604" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="636" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="668" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="700" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="732" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+    </g>
+
+    <!-- Row 2 - QWERTY row -->
+    <g transform="translate(78, 300)">
+      <rect x="0" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="32" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="64" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="96" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="128" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="160" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="192" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="224" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="256" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="288" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="320" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="352" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="384" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="416" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="448" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="480" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="512" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="544" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="576" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="608" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="640" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="672" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="704" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+    </g>
+
+    <!-- Row 3 - Home row -->
+    <g transform="translate(86, 322)">
+      <rect x="0" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="32" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="64" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="96" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="128" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="160" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="192" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="224" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="256" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="288" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="320" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="352" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="384" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="416" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="448" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="480" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="512" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="544" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="576" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="608" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="640" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="672" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+    </g>
+
+    <!-- Row 4 - Bottom letter row -->
+    <g transform="translate(94, 344)">
+      <rect x="0" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="32" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="64" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="96" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="128" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="160" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="192" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="224" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="256" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="288" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="320" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="352" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="384" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+      <rect x="416" y="0" width="28" height="18" rx="3" fill="#fdffb6"/>
+      <rect x="448" y="0" width="28" height="18" rx="3" fill="#caffbf"/>
+      <rect x="480" y="0" width="28" height="18" rx="3" fill="#9bf6ff"/>
+      <rect x="512" y="0" width="28" height="18" rx="3" fill="#a0c4ff"/>
+      <rect x="544" y="0" width="28" height="18" rx="3" fill="#bdb2ff"/>
+      <rect x="576" y="0" width="28" height="18" rx="3" fill="#ffc6ff"/>
+      <rect x="608" y="0" width="28" height="18" rx="3" fill="#ffcad4"/>
+      <rect x="640" y="0" width="28" height="18" rx="3" fill="#ffd6a5"/>
+    </g>
+
+    <!-- Carriage return lever -->
+    <ellipse cx="860" cy="215" rx="22" ry="7" fill="#ffb7b2"/>
+    <rect x="838" y="215" width="44" height="22" rx="4" fill="#ffb7b2" stroke="#ff9a8d" stroke-width="1"/>
+    <circle cx="860" cy="237" r="7" fill="#ff9a8d"/>
+  </g>
+
+  <!-- Main quote text - below typewriter -->
+  <text x="600" y="530" text-anchor="middle" font-family="Georgia, serif" font-size="32" font-style="italic" fill="#4a4a6a">
+    "What's my schtick? I don't even know man"
+  </text>
+
+  <!-- Site name -->
+  <text x="600" y="570" text-anchor="middle" font-family="Courier New, monospace" font-size="20" fill="#6a6a8a">
+    bobbby.online
+  </text>
+
+  <!-- McDonald's badge -->
+  <g transform="translate(970, 30)">
+    <rect x="0" y="0" width="200" height="80" rx="12" fill="#ffb7b2" stroke="#ff9a8d" stroke-width="2"/>
+    <text x="100" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#fff">TOP 3% WORLDWIDE</text>
+    <text x="100" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#fff">MCDONALD'S UBER EATS</text>
+    <text x="100" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#fff">ORDERER</text>
+  </g>
+
+  <!-- Floating question marks -->
+  <text x="140" y="100" font-family="Comic Sans MS, cursive" font-size="32" fill="#c9b1ff" opacity="0.7">?</text>
+  <text x="50" y="420" font-family="Comic Sans MS, cursive" font-size="38" fill="#a8e6cf" opacity="0.6">?</text>
+  <text x="1140" y="350" font-family="Comic Sans MS, cursive" font-size="28" fill="#ffd3a5" opacity="0.7">?</text>
+</svg>
