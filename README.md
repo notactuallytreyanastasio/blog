@@ -1,3 +1,27 @@
+# thoughts-and-tidbits
+
+**Live:** [bobbby.online](https://bobbby.online) | [salmon-unselfish-aphid.gigalixirapp.com](https://salmon-unselfish-aphid.gigalixirapp.com)
+
+## Documentation
+
+See the [`docs/`](docs/) folder for project documentation:
+
+- [Project Overview](docs/PROJECT_OVERVIEW.md) - Architecture and components
+- [Gigalixir CLI Reference](docs/GIGALIXIR_CLI.md) - All deployment commands
+- [Gigalixir Migrations](docs/GIGALIXIR_MIGRATIONS.md) - Migration workflow
+- [Printer Setup](docs/PRINTER_SETUP.md) - Thermal printer configuration
+
+## Quick Commands
+
+```bash
+gigalixir ps -a salmon-unselfish-aphid          # Status
+gigalixir logs -a salmon-unselfish-aphid        # Logs
+git push gigalixir main                          # Deploy
+gigalixir ps:migrate -a salmon-unselfish-aphid  # Migrations
+```
+
+---
+
 # Writing A Job Runner (In Elixir) (Again) (10 years later)
 Ten years ago, [I wrote a job runner in Elixir after some inspiration from Jose](https://github.com/ybur-yug/genstage_tutorial/blob/master/README.md)
 
