@@ -262,9 +262,19 @@ defmodule BlogWeb.GenerativeArtLive do
 
   def render(assigns) do
     ~H"""
+    <div class="os-desktop-mac">
+      <div class="os-window os-window-mac" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <a href="/" class="os-btn-close"></a>
+          </div>
+          <span class="os-titlebar-title">Generative Art</span>
+          <div class="os-titlebar-spacer"></div>
+        </div>
+        <div class="os-content" style="height: calc(100% - 38px); overflow: hidden; position: relative;">
     <div
       id="generative-art"
-      class="fixed inset-0 overflow-hidden"
+      class="absolute inset-0 overflow-hidden"
       style={"background-color: #{@background_color};"}
       phx-hook="GenerativeArt"
       phx-window-keydown="keydown"
@@ -280,8 +290,8 @@ defmodule BlogWeb.GenerativeArtLive do
           data-bezier={Jason.encode!(@bezier_data)}
         >
         </canvas>
-        
-    <!-- SVG for ball and trail -->
+
+        <!-- SVG for ball and trail -->
         <svg width="100%" height="100%" class="absolute inset-0 pointer-events-none">
           <!-- Ball Trail -->
           <%= for {[x, y], index} <- Enum.with_index(@trail) do %>
@@ -293,8 +303,8 @@ defmodule BlogWeb.GenerativeArtLive do
               opacity={1.0}
             />
           <% end %>
-          
-    <!-- Ball -->
+
+          <!-- Ball -->
           <circle
             cx={@ball.x}
             cy={@ball.y}
@@ -304,6 +314,13 @@ defmodule BlogWeb.GenerativeArtLive do
             stroke-width="2"
           />
         </svg>
+      </div>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Press any key for new curves</span>
+          <span>Curves: {@curve_count}</span>
+        </div>
       </div>
     </div>
     """

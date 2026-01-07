@@ -44,7 +44,6 @@ defmodule BlogWeb.TerminalLive do
 
     # Maps
     %{name: "MTA Map", icon: "🚌", path: "/mta-bus-map"},
-    %{name: "MTA Bus", icon: "🗺️", path: "/mta-bus"},
 
     # Nathan Fielder
     %{name: "Nathan", icon: "😐", path: "/nathan"},

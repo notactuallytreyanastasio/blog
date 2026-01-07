@@ -208,151 +208,168 @@ defmodule BlogWeb.AllowedChatsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-gray-100 p-6">
-      <div class="max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-6">
-          <h1 class="text-3xl font-bold">Community Chat</h1>
-          <div class="bg-white rounded-full px-4 py-2 shadow flex items-center">
-            <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-            <span class="text-sm font-medium">{@online_count} online</span>
+    <div class="os-desktop-win95">
+      <div class="os-window os-window-win95" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">💬 Community Chat - Allowed Words Filter</span>
+          <div class="os-titlebar-buttons">
+            <span class="os-btn">_</span>
+            <span class="os-btn">□</span>
+            <a href="/" class="os-btn">×</a>
           </div>
         </div>
-        <div class="text-sm text-gray-500 mb-6">Your session ID: {@user_id}</div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>Edit</span>
+          <span>View</span>
+          <span>Users ({@online_count} online)</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;">
+          <div class="p-3">
+            <div class="text-xs mb-2" style="color: #000080;">Session ID: {@user_id}</div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <!-- Left sidebar: Allowed words -->
-          <div class="md:col-span-1">
-            <div class="bg-white rounded-lg shadow p-4">
-              <h2 class="text-xl font-semibold mb-4">Community Allowed Words</h2>
-              <p class="text-sm text-gray-600 mb-4">
-                These words are shared by all users. Any message containing these words will be visible to everyone.
-              </p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <!-- Left sidebar: Allowed words -->
+              <div class="md:col-span-1">
+                <div class="bg-white border-2 inset p-3">
+                  <h2 class="font-bold mb-2 text-sm">Community Allowed Words</h2>
+                  <p class="text-xs text-gray-600 mb-3">
+                    These words are shared by all users. Any message containing these words will be visible to everyone.
+                  </p>
 
-              <.form
-                for={@add_word_form}
-                phx-submit="add_word"
-                phx-change="validate_add_word"
-                class="mb-4"
-              >
-                <div class="flex gap-2">
-                  <.input field={@add_word_form[:word]} placeholder="Enter a word" class="flex-grow" />
-                  <button
-                    type="submit"
-                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  <.form
+                    for={@add_word_form}
+                    phx-submit="add_word"
+                    phx-change="validate_add_word"
+                    class="mb-3"
                   >
-                    Add
-                  </button>
-                </div>
-              </.form>
-
-              <div class="mt-4">
-                <div class="flex flex-wrap gap-2">
-                  <%= for word <- @allowed_words do %>
-                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm group relative">
-                      {word}
+                    <div class="flex gap-1">
+                      <.input field={@add_word_form[:word]} placeholder="Enter a word" class="flex-grow text-sm" />
                       <button
-                        phx-click="remove_word"
-                        phx-value-word={word}
-                        class="ml-1 text-blue-500 hover:text-red-500 focus:outline-none"
-                        aria-label={"Remove #{word}"}
+                        type="submit"
+                        class="px-3 py-1 border-2 outset bg-[#c0c0c0] text-sm hover:bg-[#d0d0d0] active:border-inset"
                       >
-                        &times;
+                        Add
                       </button>
-                    </span>
-                  <% end %>
+                    </div>
+                  </.form>
+
+                  <div class="mt-3">
+                    <div class="flex flex-wrap gap-1">
+                      <%= for word <- @allowed_words do %>
+                        <span class="px-2 py-1 bg-[#000080] text-white text-xs">
+                          {word}
+                          <button
+                            phx-click="remove_word"
+                            phx-value-word={word}
+                            class="ml-1 text-yellow-300 hover:text-red-300 focus:outline-none"
+                            aria-label={"Remove #{word}"}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      <% end %>
+                    </div>
+                    <%= if Enum.empty?(@allowed_words) do %>
+                      <p class="text-gray-500 text-xs italic">
+                        No community allowed words yet. Add some!
+                      </p>
+                    <% end %>
+                  </div>
                 </div>
-                <%= if Enum.empty?(@allowed_words) do %>
-                  <p class="text-gray-500 text-sm italic">
-                    No community allowed words yet. Add some!
-                  </p>
-                <% end %>
               </div>
-            </div>
-          </div>
-          
-    <!-- Main content: Messages -->
-          <div class="md:col-span-2">
-            <div class="bg-white rounded-lg shadow p-4 mb-4">
-              <h2 class="text-xl font-semibold mb-4">Messages</h2>
 
-              <.form for={@message_form} phx-submit="send_message" phx-change="validate_message">
-                <div class="flex gap-2">
-                  <.input
-                    field={@message_form[:content]}
-                    placeholder="Type a message..."
-                    class="flex-grow"
-                  />
-                  <button
-                    type="submit"
-                    class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                  >
-                    Send
-                  </button>
+              <!-- Main content: Messages -->
+              <div class="md:col-span-2">
+                <div class="bg-white border-2 inset p-3 mb-3">
+                  <h2 class="font-bold mb-2 text-sm">Send Message</h2>
+
+                  <.form for={@message_form} phx-submit="send_message" phx-change="validate_message">
+                    <div class="flex gap-1">
+                      <.input
+                        field={@message_form[:content]}
+                        placeholder="Type a message..."
+                        class="flex-grow text-sm"
+                      />
+                      <button
+                        type="submit"
+                        class="px-3 py-1 border-2 outset bg-[#c0c0c0] text-sm hover:bg-[#d0d0d0] active:border-inset"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </.form>
                 </div>
-              </.form>
-            </div>
 
-            <div class="bg-white rounded-lg shadow p-4">
-              <h3 class="text-lg font-semibold mb-4">Chat History</h3>
+                <div class="bg-white border-2 inset p-3">
+                  <h3 class="font-bold mb-2 text-sm">Chat History</h3>
 
-              <div class="space-y-4">
-                <%= if Enum.empty?(@messages) do %>
-                  <p class="text-gray-500 text-center py-4">
-                    No messages yet. Start the conversation!
-                  </p>
-                <% else %>
-                  <%= for message <- @messages do %>
-                    <div class={[
-                      "p-3 rounded-lg",
-                      if(message.is_visible,
-                        do: "bg-green-50 border border-green-200",
-                        else: "bg-red-50 border border-red-200"
-                      )
-                    ]}>
-                      <div class="flex justify-between items-start">
-                        <div class="flex-1">
-                          <%= if message.is_visible do %>
-                            <p class="text-gray-800">{message.content}</p>
-                            <%= if message[:matching_words] && length(message.matching_words) > 0 do %>
-                              <p class="text-xs text-green-600 mt-1">
-                                Allowed by:
-                                <%= for {word, i} <- Enum.with_index(message.matching_words) do %>
-                                  <span class="font-semibold">{word}</span>{if i <
-                                                                                 length(
-                                                                                   message.matching_words
-                                                                                 ) - 1,
-                                                                               do: ", "}
-                                <% end %>
-                              </p>
-                            <% end %>
-                          <% else %>
-                            <p class="text-gray-400 italic">
-                              This message is hidden (no allowed words found)
-                            </p>
-                          <% end %>
-                          <p class="text-xs text-gray-500 mt-1">
-                            {Calendar.strftime(message.timestamp, "%B %d, %Y at %I:%M %p")}
-                            <%= if Map.get(message, :user_id) == @user_id do %>
-                              <span class="ml-2 text-blue-500">(You)</span>
-                            <% end %>
-                          </p>
-                        </div>
-                        <span class={[
-                          "text-xs px-2 py-1 rounded-full",
+                  <div class="space-y-2">
+                    <%= if Enum.empty?(@messages) do %>
+                      <p class="text-gray-500 text-center py-4 text-sm">
+                        No messages yet. Start the conversation!
+                      </p>
+                    <% else %>
+                      <%= for message <- @messages do %>
+                        <div class={[
+                          "p-2 border",
                           if(message.is_visible,
-                            do: "bg-green-200 text-green-800",
-                            else: "bg-red-200 text-red-800"
+                            do: "bg-green-100 border-green-400",
+                            else: "bg-red-100 border-red-400"
                           )
                         ]}>
-                          {if message.is_visible, do: "Visible", else: "Hidden"}
-                        </span>
-                      </div>
-                    </div>
-                  <% end %>
-                <% end %>
+                          <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                              <%= if message.is_visible do %>
+                                <p class="text-gray-800 text-sm">{message.content}</p>
+                                <%= if message[:matching_words] && length(message.matching_words) > 0 do %>
+                                  <p class="text-xs text-green-700 mt-1">
+                                    Allowed by:
+                                    <%= for {word, i} <- Enum.with_index(message.matching_words) do %>
+                                      <span class="font-bold">{word}</span>{if i <
+                                                                                   length(
+                                                                                     message.matching_words
+                                                                                   ) - 1,
+                                                                                 do: ", "}
+                                    <% end %>
+                                  </p>
+                                <% end %>
+                              <% else %>
+                                <p class="text-gray-500 italic text-sm">
+                                  This message is hidden (no allowed words found)
+                                </p>
+                              <% end %>
+                              <p class="text-xs text-gray-500 mt-1">
+                                {Calendar.strftime(message.timestamp, "%B %d, %Y at %I:%M %p")}
+                                <%= if Map.get(message, :user_id) == @user_id do %>
+                                  <span class="ml-2 text-blue-600 font-bold">(You)</span>
+                                <% end %>
+                              </p>
+                            </div>
+                            <span class={[
+                              "text-xs px-2 py-1",
+                              if(message.is_visible,
+                                do: "bg-green-600 text-white",
+                                else: "bg-red-600 text-white"
+                              )
+                            ]}>
+                              {if message.is_visible, do: "Visible", else: "Hidden"}
+                            </span>
+                          </div>
+                        </div>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+        </div>
+        <div class="os-statusbar">
+          <div class="os-statusbar-section">Messages: {length(@messages)}</div>
+          <div class="os-statusbar-section">Words: {MapSet.size(@allowed_words)}</div>
+          <div class="os-statusbar-section" style="flex: 1;">{@online_count} user(s) online</div>
         </div>
       </div>
     </div>

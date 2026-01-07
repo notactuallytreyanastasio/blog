@@ -186,7 +186,18 @@ defmodule BlogWeb.BezierTrianglesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="fixed inset-0 bg-gray-900">
+    <div class="os-desktop-winxp">
+      <div class="os-window os-window-winxp" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">Bezier Triangles - Windows Screensaver</span>
+          <div class="os-titlebar-buttons">
+            <div class="os-btn-min"></div>
+            <div class="os-btn-max"></div>
+            <a href="/" class="os-btn-close"></a>
+          </div>
+        </div>
+        <div class="os-content" style="height: calc(100% - 52px); overflow: hidden; position: relative; background: #1a1a2e;">
+    <div class="absolute inset-0 bg-gray-900">
       <div class="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-3 py-2 text-sm rounded z-10">
         <div class="text-xs text-gray-300 mb-1">Bezier Triangles Animation</div>
         <div class="flex flex-col gap-1">
@@ -209,6 +220,12 @@ defmodule BlogWeb.BezierTrianglesLive do
           data-background-lines={Jason.encode!(@background_lines)}
         >
         </canvas>
+      </div>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Frame: {@frame}</span>
+        </div>
       </div>
     </div>
     """

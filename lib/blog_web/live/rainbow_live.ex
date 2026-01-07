@@ -317,14 +317,31 @@ defmodule BlogWeb.RainbowLive do
 
   def render(assigns) do
     ~H"""
+    <div class="os-desktop-win95">
+      <div class="os-window os-window-win95" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">Chaos.exe - Type to Start!</span>
+          <div class="os-titlebar-buttons">
+            <span class="os-btn">_</span>
+            <span class="os-btn">□</span>
+            <a href="/" class="os-btn">×</a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>Chaos</span>
+          <span>Rainbow</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 60px); overflow: hidden; background: #1a1a2e;">
     <div
-      class="flex justify-center items-center min-h-screen bg-gray-900"
+      class="flex justify-center items-center w-full h-full bg-gray-900"
       id="rainbow-container"
       phx-window-keydown="keydown"
       phx-mousemove="mousemove"
       phx-hook="WindowSize"
     >
-      <svg width="100%" height="100vh" viewBox="-300 -200 600 400">
+      <svg width="100%" height="100%" viewBox="-300 -200 600 400">
         <%!-- Exhaust particles --%>
         <%= for particle <- @exhaust_particles do %>
           <circle
@@ -402,6 +419,13 @@ defmodule BlogWeb.RainbowLive do
           </text>
         <% end %>
       </svg>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <div class="os-statusbar-section">Rainbows: {length(@rainbows)}</div>
+          <div class="os-statusbar-section" style="flex: 1;">Press keys for chaos!</div>
+        </div>
+      </div>
     </div>
     """
   end

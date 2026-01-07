@@ -164,26 +164,37 @@ defmodule BlogWeb.HackerNewsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-gray-50">
-      <div class="max-w-5xl mx-auto py-8 px-4">
-        <header class="mb-8">
-          <div class="flex items-center justify-between">
-            <h1 class="text-3xl font-bold text-gray-900">Top Hacker News Stories</h1>
-            <div class="flex items-center">
-              <span class="bg-orange-100 text-orange-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded-full">
-                Live Updates
-              </span>
-              <span class="text-xs text-gray-500">
-                Last updated: {if assigns[:last_updated],
-                  do: Calendar.strftime(@last_updated, "%H:%M:%S"),
-                  else: "loading..."}
-              </span>
-            </div>
+    <div class="os-desktop-osx">
+      <div class="os-window os-window-osx" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <a href="/" class="os-btn-close"></a>
+            <span class="os-btn-min"></span>
+            <span class="os-btn-max"></span>
           </div>
-          <p class="text-gray-600 mt-2">
-            Real-time feed of the top 50 stories from Hacker News, updated every 3 minutes.
-          </p>
-        </header>
+          <span class="os-titlebar-title">Hacker News - Top Stories</span>
+          <div class="os-titlebar-spacer"></div>
+        </div>
+        <div class="os-content" style="height: calc(100% - 60px); overflow-y: auto; background: #f9fafb;">
+          <div class="max-w-5xl mx-auto py-6 px-4">
+            <header class="mb-6">
+              <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold text-gray-900">Top Hacker News Stories</h1>
+                <div class="flex items-center">
+                  <span class="bg-orange-100 text-orange-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded-full">
+                    Live Updates
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    Last updated: {if assigns[:last_updated],
+                      do: Calendar.strftime(@last_updated, "%H:%M:%S"),
+                      else: "loading..."}
+                  </span>
+                </div>
+              </div>
+              <p class="text-gray-600 mt-2 text-sm">
+                Real-time feed of the top 50 stories from Hacker News, updated every 3 minutes.
+              </p>
+            </header>
 
         <div class="bg-white rounded-lg shadow divide-y">
           <%= for story <- @stories do %>
@@ -329,6 +340,12 @@ defmodule BlogWeb.HackerNewsLive do
               </p>
             </div>
           <% end %>
+        </div>
+          </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Stories: {length(@stories)}</span>
+          <span>Updated: {if assigns[:last_updated], do: Calendar.strftime(@last_updated, "%H:%M:%S"), else: "loading..."}</span>
         </div>
       </div>
     </div>

@@ -488,7 +488,24 @@ defmodule BlogWeb.BlackjackLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div id="blackjack-game" class="min-h-screen bg-green-800 p-4 text-white" phx-hook="Blackjack">
+    <div class="os-desktop-win95">
+      <div class="os-window os-window-win95" style="max-width: 900px;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">Blackjack - Microsoft Casino</span>
+          <div class="os-titlebar-buttons">
+            <span class="os-btn">_</span>
+            <span class="os-btn">□</span>
+            <a href="/" class="os-btn">×</a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>Game</span>
+          <span>Bet</span>
+          <span>Options</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="background: #008000;">
+    <div id="blackjack-game" class="min-h-[500px] bg-green-800 p-4 text-white" phx-hook="Blackjack">
       <div class="max-w-4xl mx-auto">
         <h1 class="text-4xl font-bold mb-6 text-center">Blackjack</h1>
 
@@ -671,6 +688,13 @@ defmodule BlogWeb.BlackjackLive do
             <% end %>
           </div>
         <% end %>
+      </div>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <div class="os-statusbar-section">Ready</div>
+          <div class="os-statusbar-section" style="flex: 1;">Players: {map_size(@players_in_lobby)}</div>
+        </div>
       </div>
     </div>
     """

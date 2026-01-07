@@ -133,6 +133,13 @@ defmodule BlogWeb.ReceiptMessageLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <div class="os-desktop-mac">
+      <div class="os-window os-window-mac" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <a href="/" class="os-btn-close"></a>
+          <span class="os-titlebar-title">Receipt Printer - Direct Message</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 50px); overflow-y: auto;">
     <div class="receipt-message-container">
       <style>
         * {
@@ -497,6 +504,13 @@ defmodule BlogWeb.ReceiptMessageLive do
           </div>
         <% end %>
       </form>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Ready to send</span>
+          <span>Characters: {String.length(@message)}</span>
+        </div>
+      </div>
     </div>
     """
   end

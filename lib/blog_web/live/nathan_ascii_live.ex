@@ -7,9 +7,28 @@ defmodule BlogWeb.NathanAsciiLive do
 
   def render(assigns) do
     ~H"""
+    <div class="os-desktop-osx">
+      <div class="os-window os-window-osx" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <a href="/" class="os-btn-close"></a>
+            <span class="os-btn-min"></span>
+            <span class="os-btn-max"></span>
+          </div>
+          <span class="os-titlebar-title">Terminal - Nathan Fielder ASCII</span>
+          <div class="os-titlebar-spacer"></div>
+        </div>
+        <div class="os-content" style="height: calc(100% - 60px); overflow-y: auto; background: #000;">
     <div class="nathan-ascii-container">
       <div class="ascii-content">
         <pre class="ascii-text"><%= raw(nathan_fielder_ascii()) %></pre>
+      </div>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Mode: ASCII Art</span>
+          <span>Subject: Nathan Fielder</span>
+        </div>
       </div>
     </div>
 

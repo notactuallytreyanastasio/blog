@@ -136,14 +136,31 @@ defmodule BlogWeb.MirrorLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-gray-900 text-white p-8">
-      <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold mb-8">
-          Mirror Mirror on the wall, who's the most meta of them all?
-        </h1>
-        <div class="bg-gray-800 rounded-lg p-6 shadow-lg">
-          <pre class="text-sm font-mono" style="tab-size: 2;"><code class="language-elixir"><%= if assigns[:lines] do %><%= for line <- @lines do %><%= for char <- line do %><span style={"display: inline-block; animation: spin#{char.duration} #{char.duration}s linear #{char.delay}ms infinite;"}><%= char.char %></span><% end %>
-          <% end %><% else %>Loading source code...<% end %></code></pre>
+    <div class="os-desktop-osx">
+      <div class="os-window os-window-osx" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <a href="/" class="os-btn-close"></a>
+            <span class="os-btn-min"></span>
+            <span class="os-btn-max"></span>
+          </div>
+          <span class="os-titlebar-title">Mirror.app - Self-Reflecting Code</span>
+          <div class="os-titlebar-spacer"></div>
+        </div>
+        <div class="os-content" style="height: calc(100% - 60px); overflow-y: auto; background: #1a1a2e;">
+          <div class="p-6">
+            <h1 class="text-2xl font-bold mb-6 text-white">
+              Mirror Mirror on the wall, who's the most meta of them all?
+            </h1>
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg">
+              <pre class="text-sm font-mono text-white" style="tab-size: 2;"><code class="language-elixir"><%= if assigns[:lines] do %><%= for line <- @lines do %><%= for char <- line do %><span style={"display: inline-block; animation: spin#{char.duration} #{char.duration}s linear #{char.delay}ms infinite;"}><%= char.char %></span><% end %>
+              <% end %><% else %>Loading source code...<% end %></code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Viewing: mirror_live.ex</span>
+          <span>Mode: Self-Reflection</span>
         </div>
       </div>
     </div>

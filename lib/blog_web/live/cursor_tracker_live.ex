@@ -333,12 +333,29 @@ defmodule BlogWeb.CursorTrackerLive do
 
   def render(assigns) do
     ~H"""
-    <div
-      class="min-h-screen bg-black text-green-500 font-mono p-4"
-      phx-hook="CursorTracker"
-      id="cursor-tracker"
-    >
-      <div class="max-w-4xl mx-auto">
+    <div class="os-desktop-win95">
+      <div class="os-window os-window-win95" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">📍 Cursor Tracker - Multi-User Drawing</span>
+          <div class="os-titlebar-buttons">
+            <span class="os-btn">_</span>
+            <span class="os-btn">□</span>
+            <a href="/" class="os-btn">×</a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>View</span>
+          <span>Users ({map_size(@other_users) + 1})</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #000; color: #00ff00;">
+          <div
+            class="font-mono p-4"
+            phx-hook="CursorTracker"
+            id="cursor-tracker"
+          >
+            <div class="max-w-4xl mx-auto">
         <%= if flash = Phoenix.Flash.get(@flash, :info) do %>
           <div class="mb-4 border border-green-500 bg-green-900 bg-opacity-30 p-3 text-green-300">
             {flash}
@@ -568,6 +585,14 @@ defmodule BlogWeb.CursorTrackerLive do
           }
         }
       </style>
+          </div>
+        </div>
+        <div class="os-statusbar">
+          <div class="os-statusbar-section">Points: {length(@favorite_points)}</div>
+          <div class="os-statusbar-section">X: {@x_pos} Y: {@y_pos}</div>
+          <div class="os-statusbar-section" style="flex: 1;">{map_size(@other_users) + 1} user(s) online</div>
+        </div>
+      </div>
     </div>
     """
   end

@@ -21,8 +21,7 @@ defmodule BlogWeb.PostLive.Index do
       %{title: "300+ Years of Tree Law", description: "A timeline and deep dive on tree law", path: ~p"/trees", category: "Art"},
 
       # Data Viz & Maps
-      %{title: "MTA Bus Tracker", description: "Track Manhattan buses in real-time", path: ~p"/mta-bus-map", category: "Data Visualization"},
-      %{title: "MTA Bus Map", description: "Interactive NYC bus routes map", path: ~p"/mta-bus", category: "Maps"},
+      %{title: "MTA Bus Map", description: "Track Manhattan buses in real-time", path: ~p"/mta-bus-map", category: "Data Visualization"},
 
       # Games
       %{title: "Wordle", description: "Wordle clone with multiplayer viewing", path: ~p"/wordle", category: "Games"},

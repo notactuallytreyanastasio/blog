@@ -1321,3 +1321,522 @@ details[open] summary {
   visibility: visible !important;
   opacity: 1 !important;
 }
+
+/* ============================================
+   CHAOTIC OS WINDOW STYLES
+   Mix of Mac and Windows aesthetics
+   ============================================ */
+
+/* Base window container */
+.os-window {
+  margin: 20px auto;
+  max-width: 95vw;
+  box-sizing: border-box;
+}
+
+/* ---- MAC SYSTEM 7 WINDOW ---- */
+.os-window-mac {
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: 2px 2px 0 #000;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.os-window-mac .os-titlebar {
+  height: 20px;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0px, #fff 1px,
+    #000 1px, #000 2px
+  );
+  border-bottom: 1px solid #000;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.os-window-mac .os-titlebar-buttons {
+  display: flex;
+  gap: 0;
+}
+
+.os-window-mac .os-btn-close {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000;
+  background: #fff;
+  cursor: pointer;
+}
+
+.os-window-mac .os-btn-close:hover {
+  background: #000;
+}
+
+.os-window-mac .os-titlebar-title {
+  flex: 1;
+  text-align: center;
+  background: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 0 8px;
+}
+
+.os-window-mac .os-titlebar-spacer {
+  width: 12px;
+  height: 12px;
+}
+
+.os-window-mac .os-content {
+  background: #fff;
+  min-height: 200px;
+}
+
+.os-window-mac .os-statusbar {
+  height: 18px;
+  border-top: 1px solid #000;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+/* ---- WINDOWS 95 WINDOW ---- */
+.os-window-win95 {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  box-shadow: 1px 1px 0 #000;
+  font-family: "MS Sans Serif", "Tahoma", sans-serif;
+  font-size: 11px;
+}
+
+.os-window-win95 .os-titlebar {
+  height: 18px;
+  background: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.os-window-win95 .os-titlebar-title {
+  flex: 1;
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+  padding-left: 4px;
+  text-shadow: none;
+}
+
+.os-window-win95 .os-titlebar-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.os-window-win95 .os-btn {
+  width: 16px;
+  height: 14px;
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #000;
+}
+
+.os-window-win95 .os-btn:active {
+  border: 1px inset #c0c0c0;
+}
+
+.os-window-win95 .os-menubar {
+  background: #c0c0c0;
+  border-bottom: 1px solid #808080;
+  padding: 2px 4px;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.os-window-win95 .os-menubar span:hover {
+  background: #000080;
+  color: #fff;
+}
+
+.os-window-win95 .os-content {
+  background: #c0c0c0;
+  border: 2px inset #c0c0c0;
+  margin: 2px;
+  min-height: 200px;
+}
+
+.os-window-win95 .os-statusbar {
+  height: 20px;
+  background: #c0c0c0;
+  border-top: 1px solid #808080;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.os-window-win95 .os-statusbar-section {
+  border: 1px inset #c0c0c0;
+  padding: 0 8px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+}
+
+/* ---- WINDOWS 98 WINDOW ---- */
+.os-window-win98 {
+  background: #c0c0c0;
+  border: 2px outset #dfdfdf;
+  box-shadow: 1px 1px 0 #404040;
+  font-family: "Tahoma", "MS Sans Serif", sans-serif;
+  font-size: 11px;
+}
+
+.os-window-win98 .os-titlebar {
+  height: 20px;
+  background: linear-gradient(180deg, #0a246a 0%, #a6caf0 100%);
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+}
+
+.os-window-win98 .os-titlebar-title {
+  flex: 1;
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+  padding-left: 4px;
+}
+
+.os-window-win98 .os-titlebar-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.os-window-win98 .os-btn {
+  width: 16px;
+  height: 14px;
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  font-size: 9px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #000;
+}
+
+.os-window-win98 .os-menubar {
+  background: #c0c0c0;
+  border-bottom: 1px solid #808080;
+  padding: 2px 4px;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.os-window-win98 .os-content {
+  background: #fff;
+  border: 2px inset #c0c0c0;
+  margin: 2px;
+  min-height: 200px;
+}
+
+.os-window-win98 .os-statusbar {
+  height: 22px;
+  background: #c0c0c0;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+}
+
+.os-window-win98 .os-statusbar-section {
+  border: 1px inset #c0c0c0;
+  padding: 0 8px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  background: #c0c0c0;
+}
+
+/* ---- WINDOWS XP WINDOW ---- */
+.os-window-winxp {
+  background: linear-gradient(180deg, #ece9d8 0%, #d4d0c8 100%);
+  border: 1px solid #0054e3;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 0 10px rgba(0, 84, 227, 0.3), 2px 2px 5px rgba(0,0,0,0.2);
+  font-family: "Tahoma", "Segoe UI", sans-serif;
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.os-window-winxp .os-titlebar {
+  height: 30px;
+  background: linear-gradient(180deg, #0058e6 0%, #3a93ff 10%, #0153e3 90%, #0046c8 100%);
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+  border-radius: 6px 6px 0 0;
+}
+
+.os-window-winxp .os-titlebar-title {
+  flex: 1;
+  color: #fff;
+  font-weight: bold;
+  font-size: 13px;
+  padding-left: 4px;
+  text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+}
+
+.os-window-winxp .os-titlebar-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.os-window-winxp .os-btn-min {
+  width: 21px;
+  height: 21px;
+  background: linear-gradient(180deg, #3d95ff 0%, #0057d8 100%);
+  border: 1px solid #003399;
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+}
+
+.os-window-winxp .os-btn-min::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: #fff;
+}
+
+.os-window-winxp .os-btn-max {
+  width: 21px;
+  height: 21px;
+  background: linear-gradient(180deg, #3d95ff 0%, #0057d8 100%);
+  border: 1px solid #003399;
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+}
+
+.os-window-winxp .os-btn-max::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  border: 2px solid #fff;
+  border-top-width: 3px;
+}
+
+.os-window-winxp .os-btn-close {
+  width: 21px;
+  height: 21px;
+  background: linear-gradient(180deg, #e08a7d 0%, #c9302c 50%, #c12e2a 100%);
+  border: 1px solid #560000;
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+}
+
+.os-window-winxp .os-btn-close::before,
+.os-window-winxp .os-btn-close::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 2px;
+  background: #fff;
+}
+
+.os-window-winxp .os-btn-close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.os-window-winxp .os-btn-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.os-window-winxp .os-menubar {
+  background: linear-gradient(180deg, #ece9d8 0%, #d4d0c8 100%);
+  border-bottom: 1px solid #aca899;
+  padding: 2px 4px;
+  display: flex;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.os-window-winxp .os-menubar span {
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.os-window-winxp .os-menubar span:hover {
+  background: linear-gradient(180deg, #b6d6fd 0%, #7ab0f5 100%);
+}
+
+.os-window-winxp .os-content {
+  background: #fff;
+  min-height: 200px;
+}
+
+.os-window-winxp .os-statusbar {
+  height: 22px;
+  background: linear-gradient(180deg, #ece9d8 0%, #d4d0c8 100%);
+  border-top: 1px solid #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+/* ---- MAC OS X AQUA WINDOW ---- */
+.os-window-osx {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%);
+  border: 1px solid #888;
+  border-radius: 6px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.8);
+  font-family: "Lucida Grande", "Helvetica Neue", "Helvetica", sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.os-window-osx .os-titlebar {
+  height: 22px;
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%);
+  border-bottom: 1px solid #aaa;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.os-window-osx .os-titlebar-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.os-window-osx .os-btn-close {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(180deg, #ff6058 0%, #e2473f 100%);
+  border: 1px solid #cf3a32;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.os-window-osx .os-btn-close:hover {
+  background: linear-gradient(180deg, #ff7b74 0%, #e2574f 100%);
+}
+
+.os-window-osx .os-btn-min {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(180deg, #ffbd2e 0%, #e09c1f 100%);
+  border: 1px solid #c98a1c;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.os-window-osx .os-btn-max {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(180deg, #28ca42 0%, #1aab32 100%);
+  border: 1px solid #14962b;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.os-window-osx .os-titlebar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+}
+
+.os-window-osx .os-content {
+  background: #fff;
+  min-height: 200px;
+}
+
+.os-window-osx .os-toolbar {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%);
+  border-bottom: 1px solid #b8b8b8;
+  padding: 4px 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.os-window-osx .os-toolbar-btn {
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%);
+  border: 1px solid #a0a0a0;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.os-window-osx .os-toolbar-btn:hover {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%);
+}
+
+.os-window-osx .os-toolbar-btn:active {
+  background: linear-gradient(180deg, #d0d0d0 0%, #b8b8b8 100%);
+}
+
+/* ---- DESKTOP BACKGROUNDS ---- */
+.os-desktop-mac {
+  background: repeating-linear-gradient(
+    0deg,
+    #a8a8a8,
+    #a8a8a8 1px,
+    #b8b8b8 1px,
+    #b8b8b8 2px
+  );
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.os-desktop-win95 {
+  background: #008080;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.os-desktop-win98 {
+  background: #3a6ea5;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.os-desktop-winxp {
+  background: linear-gradient(180deg, #245edc 0%, #3a8cff 50%, #245edc 100%);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.os-desktop-osx {
+  background: linear-gradient(180deg, #4a90d9 0%, #1c5ba5 50%, #0d4a8a 100%);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* Utility: inner content padding */
+.os-content-padded {
+  padding: 16px;
+}

@@ -1,3 +1,20 @@
+<div class="os-desktop-win98">
+  <div class="os-window os-window-win98" style="max-width: 1000px;">
+    <div class="os-titlebar">
+      <span class="os-titlebar-title">War - Card Game</span>
+      <div class="os-titlebar-buttons">
+        <span class="os-btn">_</span>
+        <span class="os-btn">□</span>
+        <a href="/" class="os-btn">×</a>
+      </div>
+    </div>
+    <div class="os-menubar">
+      <span>Game</span>
+      <span>Players</span>
+      <span>Options</span>
+      <span>Help</span>
+    </div>
+    <div class="os-content">
 <div
   class="mx-auto max-w-6xl px-4 py-8"
   x-data="{
@@ -453,5 +470,12 @@
         <% end %>
       </div>
     <% end %>
+  </div>
+</div>
+    </div>
+    <div class="os-statusbar">
+      <div class="os-statusbar-section">Ready</div>
+      <div class="os-statusbar-section" style="flex: 1;">Players: {map_size(@players)}</div>
+    </div>
   </div>
 </div>

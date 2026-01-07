@@ -543,15 +543,38 @@ defmodule BlogWeb.MarkdownEditorLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-4">Markdown Editor</h1>
-
-      <.live_component
-        module={MarkdownEditorComponent}
-        id="markdown-editor"
-        markdown={@markdown}
-        html={@html}
-      />
+    <div class="os-desktop-winxp">
+      <div class="os-window os-window-winxp" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">📝 Markdown Editor - Untitled Document</span>
+          <div class="os-titlebar-buttons">
+            <div class="os-btn-min"></div>
+            <div class="os-btn-max"></div>
+            <a href="/" class="os-btn-close"></a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>Edit</span>
+          <span>Format</span>
+          <span>View</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto;">
+          <div class="p-4">
+            <.live_component
+              module={MarkdownEditorComponent}
+              id="markdown-editor"
+              markdown={@markdown}
+              html={@html}
+            />
+          </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Characters: {String.length(@markdown)}</span>
+          <span>Markdown Mode</span>
+        </div>
+      </div>
     </div>
     """
   end

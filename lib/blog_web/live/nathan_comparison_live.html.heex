@@ -1,3 +1,20 @@
+<div class="os-desktop-win95">
+  <div class="os-window os-window-win95" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+    <div class="os-titlebar">
+      <span class="os-titlebar-title">Nathan Fielder - Article Comparison Tool</span>
+      <div class="os-titlebar-buttons">
+        <span class="os-btn">_</span>
+        <span class="os-btn">□</span>
+        <a href="/" class="os-btn">×</a>
+      </div>
+    </div>
+    <div class="os-menubar">
+      <span>File</span>
+      <span>View</span>
+      <span>Articles</span>
+      <span>Help</span>
+    </div>
+    <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;">
 <div class="comparison-container">
   <div class="comparison-header">
     <h1>Nathan Fielder Article Comparison</h1>
@@ -37,6 +54,13 @@
         </iframe>
       </div>
     <% end %>
+  </div>
+</div>
+    </div>
+    <div class="os-statusbar">
+      <div class="os-statusbar-section">Articles: {length(@selected_articles)}</div>
+      <div class="os-statusbar-section" style="flex: 1;">Ready</div>
+    </div>
   </div>
 </div>
 

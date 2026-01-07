@@ -760,105 +760,123 @@ defmodule BlogWeb.PongLive do
 
   def render(assigns) do
     ~H"""
-    <div class="w-full h-full flex flex-col justify-center items-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
-      <!-- Game ID display -->
-      <div class="text-white text-xs mb-2 opacity-50">
-        Game ID: {@game_id}
-      </div>
-      
-    <!-- Score display with rainbow gradient -->
-      <div class="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-2xl font-bold mb-4">
-        Wall: {@scores.wall}
-      </div>
-      
-    <!-- AI Control Toggle Button with gradient -->
-      <div class="rounded-lg shadow-md mb-4">
-        <button
-          phx-click="toggle_ai"
-          class="px-4 py-2 rounded-md font-bold transition-colors bg-gray-900 hover:bg-gray-800 text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500"
-        >
-          <%= if @ai_controlled do %>
-            AI Playing (Click to Take Control)
-          <% else %>
-            Manual Control (Click for AI Help)
-          <% end %>
-        </button>
-      </div>
-
-      <div
-        class="relative"
-        style={"width: #{@board.width}px; height: #{@board.height}px;"}
-        phx-window-keydown="keydown"
-        phx-window-keyup="keyup"
-        tabindex="0"
-      >
-        <!-- Game board with gradient border -->
-        <div class="absolute w-full h-full bg-gray-900 rounded-lg overflow-hidden p-0.5 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500">
-          <div class="w-full h-full bg-gray-900 rounded-lg overflow-hidden">
-            <!-- Center line -->
-            <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30">
+    <div class="os-desktop-winxp">
+      <div class="os-window os-window-winxp" style="max-width: 900px;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">Pong.exe - Game ID: {@game_id}</span>
+          <div class="os-titlebar-buttons">
+            <div class="os-btn-min"></div>
+            <div class="os-btn-max"></div>
+            <a href="/" class="os-btn-close"></a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>Game</span>
+          <span>Options</span>
+          <span>View</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content">
+          <div class="w-full flex flex-col justify-center items-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
+            <!-- Score display with rainbow gradient -->
+            <div class="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-2xl font-bold mb-4">
+              Wall: {@scores.wall}
             </div>
-            
-    <!-- Defeat message -->
-            <%= if @show_defeat_message do %>
-              <div class="absolute inset-0 flex items-center justify-center z-10">
-                <div
-                  class="text-center text-4xl font-bold tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500"
-                  style="text-shadow: 0 0 10px rgba(217, 70, 239, 0.5), 0 0 20px rgba(8, 145, 178, 0.5);"
-                >
-                  YOU CONTINUE<br />TO EMBRACE<br />DEFEAT
+
+            <!-- AI Control Toggle Button with gradient -->
+            <div class="rounded-lg shadow-md mb-4">
+              <button
+                phx-click="toggle_ai"
+                class="px-4 py-2 rounded-md font-bold transition-colors bg-gray-900 hover:bg-gray-800 text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500"
+              >
+                <%= if @ai_controlled do %>
+                  AI Playing (Click to Take Control)
+                <% else %>
+                  Manual Control (Click for AI Help)
+                <% end %>
+              </button>
+            </div>
+
+            <div
+              class="relative"
+              style={"width: #{@board.width}px; height: #{@board.height}px;"}
+              phx-window-keydown="keydown"
+              phx-window-keyup="keyup"
+              tabindex="0"
+            >
+              <!-- Game board with gradient border -->
+              <div class="absolute w-full h-full bg-gray-900 rounded-lg overflow-hidden p-0.5 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500">
+                <div class="w-full h-full bg-gray-900 rounded-lg overflow-hidden">
+                  <!-- Center line -->
+                  <div class="absolute left-1/2 top-0 w-0.5 h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 opacity-30">
+                  </div>
+
+                  <!-- Defeat message -->
+                  <%= if @show_defeat_message do %>
+                    <div class="absolute inset-0 flex items-center justify-center z-10">
+                      <div
+                        class="text-center text-4xl font-bold tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500"
+                        style="text-shadow: 0 0 10px rgba(217, 70, 239, 0.5), 0 0 20px rgba(8, 145, 178, 0.5);"
+                      >
+                        YOU CONTINUE<br />TO EMBRACE<br />DEFEAT
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <!-- Trail with enhanced rainbow effect -->
+                  <%= for {pos, index} <- Enum.with_index(@trail) do %>
+                    <div
+                      class="absolute rounded-full"
+                      style={"width: #{@ball_radius * 2 * (1 - index / @trail_length)}px; height: #{@ball_radius * 2 * (1 - index / @trail_length)}px; left: #{pos.x - @ball_radius * (1 - index / @trail_length)}px; top: #{pos.y - @ball_radius * (1 - index / @trail_length)}px; background-color: #{pos.color}; opacity: #{1 - index / @trail_length * 0.7}; filter: blur(#{index / 10}px);"}
+                    >
+                    </div>
+                  <% end %>
+
+                  <!-- Sparkles & Burst Particles -->
+                  <%= for sparkle <- @sparkles do %>
+                    <div
+                      class="absolute"
+                      style={"width: #{sparkle.size}px; height: #{sparkle.size}px; left: #{sparkle.x - sparkle.size/2}px; top: #{sparkle.y - sparkle.size/2}px; background-color: #{sparkle.color}; opacity: #{sparkle.life / @sparkle_life}; border-radius: #{if rem(sparkle.life, 2) == 0, do: "50%", else: "0"}; transform: rotate(#{sparkle.life * 5}deg); filter: blur(1px);"}
+                    >
+                    </div>
+                  <% end %>
+
+                  <!-- Paddle with gradient -->
+                  <div
+                    class="absolute"
+                    style={"width: #{@paddle_width}px; height: #{@paddle_height}px; left: #{@paddle.x}px; top: #{@paddle.y}px;"}
+                  >
+                    <div class="w-full h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 rounded-sm">
+                    </div>
+                  </div>
+
+                  <!-- Ball with gradient -->
+                  <div
+                    class="absolute rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"
+                    style={"width: #{@ball_radius * 2}px; height: #{@ball_radius * 2}px; left: #{@ball.x - @ball_radius}px; top: #{@ball.y - @ball_radius}px; filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.5));"}
+                  >
+                  </div>
                 </div>
               </div>
-            <% end %>
-            
-    <!-- Trail with enhanced rainbow effect -->
-            <%= for {pos, index} <- Enum.with_index(@trail) do %>
-              <div
-                class="absolute rounded-full"
-                style={"width: #{@ball_radius * 2 * (1 - index / @trail_length)}px; height: #{@ball_radius * 2 * (1 - index / @trail_length)}px; left: #{pos.x - @ball_radius * (1 - index / @trail_length)}px; top: #{pos.y - @ball_radius * (1 - index / @trail_length)}px; background-color: #{pos.color}; opacity: #{1 - index / @trail_length * 0.7}; filter: blur(#{index / 10}px);"}
-              >
-              </div>
-            <% end %>
-            
-    <!-- Sparkles & Burst Particles -->
-            <%= for sparkle <- @sparkles do %>
-              <div
-                class="absolute"
-                style={"width: #{sparkle.size}px; height: #{sparkle.size}px; left: #{sparkle.x - sparkle.size/2}px; top: #{sparkle.y - sparkle.size/2}px; background-color: #{sparkle.color}; opacity: #{sparkle.life / @sparkle_life}; border-radius: #{if rem(sparkle.life, 2) == 0, do: "50%", else: "0"}; transform: rotate(#{sparkle.life * 5}deg); filter: blur(1px);"}
-              >
-              </div>
-            <% end %>
-            
-    <!-- Paddle with gradient -->
-            <div
-              class="absolute"
-              style={"width: #{@paddle_width}px; height: #{@paddle_height}px; left: #{@paddle.x}px; top: #{@paddle.y}px;"}
-            >
-              <div class="w-full h-full bg-gradient-to-b from-fuchsia-500 via-purple-500 to-cyan-500 rounded-sm">
-              </div>
             </div>
-            
-    <!-- Ball with gradient -->
-            <div
-              class="absolute rounded-full bg-gradient-to-br from-fuchsia-500 via-purple-500 to-cyan-500"
-              style={"width: #{@ball_radius * 2}px; height: #{@ball_radius * 2}px; left: #{@ball.x - @ball_radius}px; top: #{@ball.y - @ball_radius}px; filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.5));"}
-            >
+
+            <div class="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-sm font-bold mt-4">
+              Use the up and down arrow keys to move the paddle
+            </div>
+
+            <div class="mt-2">
+              <a
+                href={~p"/pong/god"}
+                class="inline-block px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow"
+              >
+                God Mode View
+              </a>
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-sm font-bold mt-4">
-        Use the up and down arrow keys to move the paddle
-      </div>
-
-      <div class="mt-2">
-        <a
-          href={~p"/pong/god"}
-          class="inline-block px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 text-white font-bold hover:shadow-lg transition-shadow"
-        >
-          God Mode View
-        </a>
+        <div class="os-statusbar">
+          <span>Ready</span>
+        </div>
       </div>
     </div>
     """

@@ -93,75 +93,90 @@ defmodule BlogWeb.EmojiSkeetsLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-gray-100 py-8">
-      <div class="max-w-4xl mx-auto px-4">
-        <h1 class="text-3xl font-bold mb-6">Skeet Search</h1>
-
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 class="text-xl font-semibold mb-4">Search Skeets</h2>
-          <div>
-            <input
-              type="text"
-              name="search_term"
-              value={@search_term}
-              phx-keyup="update_search_term"
-              phx-debounce="300"
-              phx-value-value={@search_term}
-              placeholder="Enter search term (e.g., elixir, phoenix, ❤️)..."
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+    <div class="os-desktop-win98">
+      <div class="os-window os-window-win98" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">🦋 Skeet Search - Bluesky Monitor</span>
+          <div class="os-titlebar-buttons">
+            <span class="os-btn">_</span>
+            <span class="os-btn">□</span>
+            <a href="/" class="os-btn">×</a>
           </div>
+        </div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>Search</span>
+          <span>View</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;">
+          <div class="p-4">
+            <div class="bg-white border-2 inset p-4 mb-4">
+              <h2 class="text-lg font-bold mb-3">Search Skeets</h2>
+              <div>
+                <input
+                  type="text"
+                  name="search_term"
+                  value={@search_term}
+                  phx-keyup="update_search_term"
+                  phx-debounce="300"
+                  phx-value-value={@search_term}
+                  placeholder="Enter search term (e.g., elixir, phoenix, ❤️)..."
+                  class="w-full px-3 py-2 border-2 inset bg-white"
+                />
+              </div>
 
-          <div class="mt-4 text-sm text-gray-600">
-            <%= if String.trim(@search_term) == "" do %>
-              <p>
-                Enter a search term to see skeets.
-              </p>
-            <% else %>
-              <p>
-                Filtering for: "<%= @search_term %>"
-              </p>
-            <% end %>
+              <div class="mt-3 text-sm">
+                <%= if String.trim(@search_term) == "" do %>
+                  <p>Enter a search term to see skeets.</p>
+                <% else %>
+                  <p>Filtering for: "<%= @search_term %>"</p>
+                <% end %>
 
-            <div class="mt-2 flex justify-between text-gray-500">
-              <p>Total skeets collected: {length(@skeets)}</p>
-              <%= if String.trim(@search_term) != "" do %>
-                <p>
-                  Showing {length(@filtered_skeets)} of {length(@skeets)} skeets
-                  ({length(@skeets) - length(@filtered_skeets)} filtered out)
-                </p>
+                <div class="mt-2 flex justify-between text-gray-600">
+                  <p>Total skeets collected: {length(@skeets)}</p>
+                  <%= if String.trim(@search_term) != "" do %>
+                    <p>
+                      Showing {length(@filtered_skeets)} of {length(@skeets)} skeets
+                    </p>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <%= if @filtered_skeets == [] do %>
+                <div class="bg-white border-2 inset p-4 text-center">
+                  <p class="text-gray-600">
+                    <%= if @skeets == [] do %>
+                      Waiting for skeets to appear...
+                    <% else %>
+                      <%= if String.trim(@search_term) == "" do %>
+                        Enter a search term above to see skeets.
+                      <% else %>
+                        No skeets match your search term: "<%= @search_term %>".
+                      <% end %>
+                    <% end %>
+                  </p>
+                </div>
+              <% else %>
+                <%= for skeet_item <- @filtered_skeets do %>
+                  <% {skeet_text, did} = case skeet_item do
+                    {text, did} -> {text, did}
+                    text when is_binary(text) -> {text, "unknown"}
+                  end %>
+                  <div class="bg-white border-2 outset p-3 hover:bg-blue-50">
+                    <p class="text-xs text-gray-500 mb-1">DID: {did}</p>
+                    <p class="text-gray-800 whitespace-pre-wrap break-words">{skeet_text}</p>
+                  </div>
+                <% end %>
               <% end %>
             </div>
           </div>
         </div>
-
-        <div class="space-y-4">
-          <%= if @filtered_skeets == [] do %>
-            <div class="bg-white rounded-lg shadow-md p-6 text-center">
-              <p class="text-gray-500">
-                <%= if @skeets == [] do %>
-                  Waiting for skeets to appear...
-                <% else %>
-                  <%= if String.trim(@search_term) == "" do %>
-                    Enter a search term above to see skeets.
-                  <% else %>
-                    No skeets match your search term: "<%= @search_term %>".
-                  <% end %>
-                <% end %>
-              </p>
-            </div>
-          <% else %>
-            <%= for skeet_item <- @filtered_skeets do %>
-              <% {skeet_text, did} = case skeet_item do
-                {text, did} -> {text, did}
-                text when is_binary(text) -> {text, "unknown"}
-              end %>
-              <div class="bg-white rounded-lg shadow-md p-4 transition-all hover:shadow-lg">
-                <p class="text-xs text-gray-500 mb-2">DID: {did}</p>
-                <p class="text-gray-800 whitespace-pre-wrap break-words">{skeet_text}</p>
-              </div>
-            <% end %>
-          <% end %>
+        <div class="os-statusbar">
+          <div class="os-statusbar-section">Skeets: {length(@skeets)}</div>
+          <div class="os-statusbar-section" style="flex: 1;">Matches: {length(@filtered_skeets)}</div>
         </div>
       </div>
     </div>

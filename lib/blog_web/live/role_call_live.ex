@@ -215,6 +215,23 @@ defmodule BlogWeb.RoleCallLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <div class="os-desktop-winxp">
+      <div class="os-window os-window-winxp" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">Role Call - TV Writer Discovery</span>
+          <div class="os-titlebar-buttons">
+            <div class="os-btn-min"></div>
+            <div class="os-btn-max"></div>
+            <a href="/" class="os-btn-close"></a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>Search</span>
+          <span>View</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; position: relative;">
     <canvas id="sunflower-bg" phx-hook="SunflowerBackground"></canvas>
     <div class="role-call">
       <header class="rc-header">
@@ -300,6 +317,13 @@ defmodule BlogWeb.RoleCallLive do
         localStorage.setItem("role_call_tour_completed", "true");
       });
     </script>
+        </div>
+        <div class="os-statusbar">
+          <span>Shows: {MapSet.size(@liked_ids)} liked</span>
+          <span>Ready</span>
+        </div>
+      </div>
+    </div>
     """
   end
 

@@ -41,45 +41,62 @@ defmodule BlogWeb.RedditLinksLive do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto py-8">
-      <h1 class="text-3xl font-bold mb-6">Youtube Links from Bluesky</h1>
-
-      <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <p class="text-blue-800">
-          This page shows Bluesky posts that contain youtube links. New posts will appear automatically.
-        </p>
-      </div>
-
-      <div class="space-y-6">
-        <%= if Enum.empty?(@skeets) do %>
-          <div class="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
-            <p class="text-gray-500">Waiting for posts with Reddit links to appear...</p>
-            <p class="text-sm text-gray-400 mt-2">
-              This could take some time depending on Bluesky activity.
-            </p>
+    <div class="os-desktop-osx">
+      <div class="os-window os-window-osx" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <a href="/" class="os-btn-close"></a>
+            <span class="os-btn-min"></span>
+            <span class="os-btn-max"></span>
           </div>
-        <% end %>
+          <span class="os-titlebar-title">YouTube Links from Bluesky</span>
+          <div class="os-titlebar-spacer"></div>
+        </div>
+        <div class="os-content" style="height: calc(100% - 60px); overflow-y: auto; background: linear-gradient(180deg, #f5f5f5 0%, #e5e5e5 100%);">
+          <div class="p-6">
+            <div class="mb-6 p-4 bg-blue-100 rounded-lg border border-blue-300 shadow-sm">
+              <p class="text-blue-900">
+                This page shows Bluesky posts that contain YouTube links. New posts will appear automatically.
+              </p>
+            </div>
 
-        <%= for skeet <- @skeets do %>
-          <div class="p-4 bg-white rounded-lg shadow-md border border-gray-200 transition-all hover:shadow-lg">
-            <div class="prose prose-sm max-w-none">
-              <%= if youtube_id = extract_youtube_id(skeet) do %>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  <div class="aspect-w-16 aspect-h-9 w-full">
-                    <iframe
-                      src={"https://www.youtube.com/embed/#{youtube_id}"}
-                      frameborder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowfullscreen
-                      class="w-full h-full rounded-lg"
-                    >
-                    </iframe>
+            <div class="space-y-4">
+              <%= if Enum.empty?(@skeets) do %>
+                <div class="p-8 text-center bg-white rounded-lg shadow-md">
+                  <p class="text-gray-500">Waiting for posts with YouTube links to appear...</p>
+                  <p class="text-sm text-gray-400 mt-2">
+                    This could take some time depending on Bluesky activity.
+                  </p>
+                </div>
+              <% end %>
+
+              <%= for skeet <- @skeets do %>
+                <div class="p-4 bg-white rounded-lg shadow-md transition-all hover:shadow-lg">
+                  <div class="prose prose-sm max-w-none">
+                    <%= if youtube_id = extract_youtube_id(skeet) do %>
+                      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div class="aspect-w-16 aspect-h-9 w-full">
+                          <iframe
+                            src={"https://www.youtube.com/embed/#{youtube_id}"}
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen
+                            class="w-full h-full rounded-lg"
+                          >
+                          </iframe>
+                        </div>
+                      </div>
+                    <% end %>
                   </div>
                 </div>
               <% end %>
             </div>
           </div>
-        <% end %>
+        </div>
+        <div class="os-statusbar">
+          <span>Videos: {length(@skeets)}</span>
+          <span>Max: {@max_skeets}</span>
+        </div>
       </div>
     </div>
     """

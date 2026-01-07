@@ -161,7 +161,18 @@ defmodule BlogWeb.WordleLive do
     assigns = assigns |> Map.put_new(:game, default_game_state(assigns.player_id))
 
     ~H"""
-    <div class="fixed inset-0 overflow-hidden bg-gray-50">
+    <div class="os-desktop-osx">
+      <div class="os-window os-window-osx" style="max-width: 95vw; width: 100%; height: calc(100vh - 40px);">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <a href="/" class="os-btn-close"></a>
+            <div class="os-btn-min"></div>
+            <div class="os-btn-max"></div>
+          </div>
+          <span class="os-titlebar-title">Wordle Clone</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 22px); overflow: hidden;">
+    <div class="fixed inset-0 overflow-hidden bg-gray-50" style="position: relative; height: 100%;">
       <!-- Background of other players' games -->
       <%= if map_size(@other_games) > 0 do %>
         <div class="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5 p-0.5 overflow-hidden">
@@ -379,6 +390,9 @@ defmodule BlogWeb.WordleLive do
       <%= if @show_hard_mode_warning do %>
         <.live_component module={__MODULE__.HardModeWarningComponent} id="hard-mode-warning" />
       <% end %>
+    </div>
+        </div>
+      </div>
     </div>
     """
   end

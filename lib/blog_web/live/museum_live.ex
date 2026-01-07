@@ -4,13 +4,6 @@ defmodule BlogWeb.MuseumLive do
   def mount(_params, _session, socket) do
     apps = [
       %{
-        title: "MTA Bus Tracker",
-        description: "Real-time NYC MTA bus tracking with live updates",
-        path: "/mta-bus",
-        category: "Data Visualization",
-        tags: ["Real-time", "NYC", "Transit"]
-      },
-      %{
         title: "MTA Bus Map",
         description: "Interactive map showing NYC bus routes and locations",
         path: "/mta-bus-map",

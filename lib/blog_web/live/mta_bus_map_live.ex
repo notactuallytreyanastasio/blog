@@ -362,7 +362,24 @@ defmodule BlogWeb.MtaBusMapLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="h-screen flex flex-col">
+    <div class="os-desktop-winxp">
+      <div class="os-window os-window-winxp" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">MTA Bus Map - Live Transit Tracker</span>
+          <div class="os-titlebar-buttons">
+            <div class="os-btn-min"></div>
+            <div class="os-btn-max"></div>
+            <a href="/" class="os-btn-close"></a>
+          </div>
+        </div>
+        <div class="os-menubar">
+          <span>File</span>
+          <span>View</span>
+          <span>Routes</span>
+          <span>Help</span>
+        </div>
+        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto;">
+    <div class="h-full flex flex-col">
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -664,6 +681,18 @@ defmodule BlogWeb.MtaBusMapLive do
             z-index: 1;
           }
         </style>
+      </div>
+    </div>
+        </div>
+        <div class="os-statusbar">
+          <span>Routes: {MapSet.size(@selected_routes)}</span>
+          <span>Borough: {case @active_borough do
+            :manhattan -> "Manhattan"
+            :brooklyn -> "Brooklyn"
+            :queens -> "Queens"
+            :all -> "All"
+          end}</span>
+        </div>
       </div>
     </div>
     """
