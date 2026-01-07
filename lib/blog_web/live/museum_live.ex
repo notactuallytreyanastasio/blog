@@ -102,13 +102,6 @@ defmodule BlogWeb.MuseumLive do
         tags: ["Bookmarks", "Organization", "Personal"]
       },
       %{
-        title: "Bookmarks Firehose",
-        description: "Real-time stream of all bookmarks being added",
-        path: "/bookmarks/firehose",
-        category: "Productivity",
-        tags: ["Real-time", "Stream", "Bookmarks"]
-      },
-      %{
         title: "Pong",
         description: "Classic Pong game with modern twist",
         path: "/pong",
@@ -163,13 +156,6 @@ defmodule BlogWeb.MuseumLive do
         path: "/markdown-editor",
         category: "Productivity",
         tags: ["Markdown", "Editor", "Preview"]
-      },
-      %{
-        title: "Bubble Game",
-        description: "Interactive bubble popping game",
-        path: "/bubble-game",
-        category: "Games",
-        tags: ["Bubbles", "Interactive", "Casual"]
       },
       %{
         title: "Nathan Fielder Styles",
