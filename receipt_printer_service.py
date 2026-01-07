@@ -16,6 +16,9 @@ from typing import Optional, Dict, List
 import os
 from pathlib import Path
 
+# Hardcoded API key for receipt printer authentication
+RECEIPT_PRINTER_API_KEY = "67656cfac9eea273fed7a403088874506ab41b700056d01f660537e2be7316f4"
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -234,7 +237,7 @@ def main():
     parser = argparse.ArgumentParser(description='Receipt Printer Polling Service')
     parser.add_argument('--api-url', default='https://www.bobbby.online',
                         help='Blog API URL')
-    parser.add_argument('--auth-token', required=True,
+    parser.add_argument('--auth-token', required=False,
                         help='API authentication token')
     parser.add_argument('--printer-host', default='127.0.0.1',
                         help='Printer host/IP')
@@ -244,11 +247,51 @@ def main():
                         help='Polling interval in seconds')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging')
+    parser.add_argument('--print-text', type=str,
+                        help='Print text directly without using API')
+    parser.add_argument('--api-key', type=str,
+                        help='API key for authentication')
     
     args = parser.parse_args()
     
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Direct print mode - print text and exit
+    if args.print_text:
+        # Verify API key for direct printing
+        if args.api_key != RECEIPT_PRINTER_API_KEY:
+            logger.error("Invalid API key for direct printing")
+            sys.exit(1)
+        
+        service = ReceiptPrinterService(
+            api_url=args.api_url,
+            auth_token='dummy',  # Not needed for direct printing
+            printer_host=args.printer_host,
+            printer_port=args.printer_port,
+            poll_interval=args.poll_interval
+        )
+        
+        # Create a simple message structure for direct printing
+        message = {
+            'id': int(time.time()),  # Use integer for ID
+            'content': args.print_text,
+            'sender_name': 'Direct Print',
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Format and print the receipt
+        receipt_data = service.format_receipt(message)
+        if service.print_to_printer(receipt_data):
+            logger.info("Successfully printed text")
+            sys.exit(0)
+        else:
+            logger.error("Failed to print text")
+            sys.exit(1)
+    
+    # Normal polling mode
+    if not args.auth_token:
+        parser.error("--auth-token is required when not using --print-text")
     
     service = ReceiptPrinterService(
         api_url=args.api_url,

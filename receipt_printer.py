@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+they#!/usr/bin/env python3
 """
 Receipt Printer Interface for EPSON TM-m50
 Handles text formatting, word wrapping, and printing
