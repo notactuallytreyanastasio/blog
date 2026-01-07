@@ -19,7 +19,8 @@ defmodule BlogWeb.Router do
   scope "/", BlogWeb do
     pipe_through :browser
 
-    live "/", PostLive.Index
+    live "/", TerminalLive
+    live "/blog", PostLive.Index
     live "/post/:slug", PostLive
     live "/museum", MuseumLive, :index
     live "/mta-bus", MtaBusLive, :index
@@ -39,7 +40,6 @@ defmodule BlogWeb.Router do
     live "/wordle", WordleLive, :index
     live "/wordle_god", WordleGodLive, :index
     live "/bookmarks", BookmarksLive, :index
-    live "/bookmarks/firehose", BookmarksFirehoseLive, :index
     live "/pong", PongLive, :index
     live "/pong/god", PongGodLive, :index
     live "/chaos-typing", ChaosTypingLive, :index
@@ -51,7 +51,6 @@ defmodule BlogWeb.Router do
     live "/skeet-timeline", SkeetTimelineLive, :index
     live "/markdown-editor", MarkdownEditorLive, :index
     live "/lumon-celebration", LumonCelebrationLive, :index
-    live "/bubble-game", BubbleGameLive
     live "/article/my-custom-article", ArticleLive, :show
     live "/untitled-ai-dev-blogpost", AiDevLive, :index
     live "/nathan", NathanLive, :index
@@ -67,6 +66,7 @@ defmodule BlogWeb.Router do
     live "/map", MapLive
     live "/very_direct_message", ReceiptMessageLive, :index
     live "/jetstream_comparison", JetstreamComparisonLive, :index
+    live "/role-call", RoleCallLive, :index
   end
 
   # API endpoints for receipt printer

@@ -16,126 +16,58 @@ defmodule BlogWeb.PostLive.Index do
     Chat.ensure_started()
 
     demos = [
-      %{
-        title: "327 Years of Tree Law",
-        description: "A timeline and deep dive on tree law in the United States",
-        path: ~p"/trees",
-        category: "Art"
-      },
-      %{
-        title: "MTA Bus Tracker",
-        description: "Track Manhattan buses in real-time",
-        path: ~p"/mta-bus-map",
-        category: "Data Visualization"
-      },
-      %{
-        title: "Bezier Triangles",
-        description: "Trippy animation with bezier curves and spinning triangles",
-        path: ~p"/bezier-triangles",
-        category: "Art"
-      },
-      %{
-        title: "Wordle",
-        description: "Wordle clone with multiplayer viewing",
-        path: ~p"/wordle",
-        category: "Games"
-      },
-      %{
-        title: "Pong God Mode",
-        description: "Watch all infinite pong games",
-        path: ~p"/pong/god",
-        category: "Games"
-      },
-      %{
-        title: "AI Pong",
-        description: "Infinite Pong with AI controls",
-        path: ~p"/pong",
-        category: "Games"
-      },
-      %{
-        title: "Python Playground",
-        description: "Run Python code in your browser",
-        path: ~p"/python-demo",
-        category: "Development"
-      },
-      %{
-        title: "Cursor Tracker",
-        description: "Track cursors and draw favorite spots",
-        path: ~p"/cursor-tracker",
-        category: "Interactive"
-      },
-      %{
-        title: "Rainbow Chaos",
-        description: "SSR animations with keyboard interaction",
-        path: ~p"/gay_chaos",
-        category: "Art"
-      },
-      %{
-        title: "Reddit Links",
-        description: "Live feed of YouTube links from social",
-        path: ~p"/reddit-links",
-        category: "Social"
-      },
-      %{
-        title: "Emoji Skeets",
-        description: "Filter Bluesky firehose by emojis",
-        path: ~p"/emoji-skeets",
-        category: "Social"
-      },
-      %{
-        title: "Hacker News Live",
-        description: "Real-time tech news feed",
-        path: ~p"/hacker-news",
-        category: "News"
-      },
-      %{
-        title: "Blackjack",
-        description: "Classic casino card game",
-        path: ~p"/blackjack",
-        category: "Games"
-      },
-      %{
-        title: "War Card Game",
-        description: "Simple card game of War",
-        path: ~p"/war",
-        category: "Games"
-      },
-      %{
-        title: "Generative Art",
-        description: "Dynamic generative art canvas",
-        path: ~p"/generative-art",
-        category: "Art"
-      },
-      %{
-        title: "Bubble Game",
-        description: "Interactive bubble popping game",
-        path: ~p"/bubble-game",
-        category: "Games"
-      },
-      %{
-        title: "Markdown Editor",
-        description: "Live markdown editor with preview",
-        path: ~p"/markdown-editor",
-        category: "Productivity"
-      },
-      %{
-        title: "Nathan Fielder Archive",
-        description: "Various Nathan Fielder content styles",
-        path: ~p"/nathan",
-        category: "Comedy"
-      },
-      %{
-        title: "Bookmarks",
-        description: "Personal bookmark collection",
-        path: ~p"/bookmarks",
-        category: "Productivity"
-      },
-      %{
-        title: "Museum",
-        description: "Full museum of all projects",
-        path: ~p"/museum",
-        category: "Meta"
-      }
+      # Featured
+      %{title: "Role Call", description: "Discover TV shows through writers you love", path: ~p"/role-call", category: "Discovery"},
+      %{title: "327 Years of Tree Law", description: "A timeline and deep dive on tree law", path: ~p"/trees", category: "Art"},
+
+      # Data Viz & Maps
+      %{title: "MTA Bus Tracker", description: "Track Manhattan buses in real-time", path: ~p"/mta-bus-map", category: "Data Visualization"},
+      %{title: "MTA Bus Map", description: "Interactive NYC bus routes map", path: ~p"/mta-bus", category: "Maps"},
+
+      # Games
+      %{title: "Wordle", description: "Wordle clone with multiplayer viewing", path: ~p"/wordle", category: "Games"},
+      %{title: "Wordle God Mode", description: "Unlimited plays and custom words", path: ~p"/wordle_god", category: "Games"},
+      %{title: "AI Pong", description: "Infinite Pong with AI controls", path: ~p"/pong", category: "Games"},
+      %{title: "Pong God Mode", description: "Watch all infinite pong games", path: ~p"/pong/god", category: "Games"},
+      %{title: "Blackjack", description: "Classic casino card game", path: ~p"/blackjack", category: "Games"},
+      %{title: "War Card Game", description: "Simple card game of War", path: ~p"/war", category: "Games"},
+
+      # Art
+      %{title: "Bezier Triangles", description: "Trippy bezier curves animation", path: ~p"/bezier-triangles", category: "Art"},
+      %{title: "Generative Art", description: "Dynamic generative art canvas", path: ~p"/generative-art", category: "Art"},
+      %{title: "Rainbow Chaos", description: "SSR animations with keyboard", path: ~p"/gay_chaos", category: "Art"},
+
+      # Social
+      %{title: "Emoji Skeets", description: "Filter Bluesky firehose by emojis", path: ~p"/emoji-skeets", category: "Social"},
+      %{title: "Skeet Timeline", description: "BlueSky social media timeline", path: ~p"/skeet-timeline", category: "Social"},
+      %{title: "Reddit Links", description: "Live YouTube links from social", path: ~p"/reddit-links", category: "Social"},
+      %{title: "Allowed Chats", description: "Chat moderation and allowlist", path: ~p"/allowed-chats", category: "Social"},
+
+      # Development
+      %{title: "Python Playground", description: "Run Python code in browser", path: ~p"/python-demo", category: "Development"},
+      %{title: "Markdown Editor", description: "Live markdown editor with preview", path: ~p"/markdown-editor", category: "Productivity"},
+
+      # Interactive
+      %{title: "Cursor Tracker", description: "Track cursors and draw spots", path: ~p"/cursor-tracker", category: "Interactive"},
+      %{title: "Keylogger", description: "Visualize your keystrokes", path: ~p"/keylogger", category: "Analytics"},
+      %{title: "Mirror", description: "A simple mirror application", path: ~p"/mirror", category: "Utility"},
+
+      # News & Productivity
+      %{title: "Hacker News Live", description: "Real-time tech news feed", path: ~p"/hacker-news", category: "News"},
+      %{title: "Bookmarks", description: "Personal bookmark collection", path: ~p"/bookmarks", category: "Productivity"},
+
+      # Comedy - Nathan Fielder
+      %{title: "Nathan Archive", description: "Nathan Fielder content hub", path: ~p"/nathan", category: "Comedy"},
+      %{title: "Nathan Harper's", description: "Harper's Magazine style", path: ~p"/nathan_harpers", category: "Comedy"},
+      %{title: "Nathan Teen Vogue", description: "Teen Vogue style content", path: ~p"/nathan_teen_vogue", category: "Comedy"},
+      %{title: "Nathan BuzzFeed", description: "BuzzFeed style listicles", path: ~p"/nathan_buzzfeed", category: "Comedy"},
+      %{title: "Nathan Usenet", description: "Usenet forum discussions", path: ~p"/nathan_usenet", category: "Comedy"},
+      %{title: "Nathan Content Farm", description: "Content farm SEO style", path: ~p"/nathan_content_farm", category: "Comedy"},
+      %{title: "Nathan Comparison", description: "Compare all styles side by side", path: ~p"/nathan_comparison", category: "Comedy"},
+      %{title: "Nathan ASCII", description: "ASCII art representation", path: ~p"/nathan_ascii", category: "Comedy"},
+
+      # Meta
+      %{title: "Museum", description: "Full museum of all projects", path: ~p"/museum", category: "Meta"}
     ]
 
     reader_id =
