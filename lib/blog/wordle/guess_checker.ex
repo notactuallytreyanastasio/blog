@@ -46,7 +46,7 @@ defmodule Blog.Wordle.GuessChecker do
           :correct
 
         {_, true} ->
-          remaining_target = List.delete(remaining_target, char)
+          _remaining_target = List.delete(remaining_target, char)
           :present
 
         _ ->

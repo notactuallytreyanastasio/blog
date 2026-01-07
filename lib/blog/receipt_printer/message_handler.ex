@@ -144,13 +144,15 @@ defmodule Blog.ReceiptPrinter.MessageHandler do
     |> ReceiptBuilder.blank_lines(1)
     
     # Image indicator if present
-    if image_url do
-      receipt = receipt
+    receipt = if image_url do
+      receipt
       |> ReceiptBuilder.separator()
       |> ReceiptBuilder.center("[📷 Image Attached]")
       |> ReceiptBuilder.blank_lines(1)
+    else
+      receipt
     end
-    
+
     # Footer
     receipt
     |> ReceiptBuilder.separator()

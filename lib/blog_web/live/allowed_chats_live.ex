@@ -30,7 +30,7 @@ defmodule BlogWeb.AllowedChatsLive do
       track_user_presence(user_id)
 
       # Get an updated count after tracking
-      online_count = get_online_count()
+      _online_count = get_online_count()
     end
 
     {:ok,
@@ -190,7 +190,7 @@ defmodule BlogWeb.AllowedChatsLive do
     rescue
       _ ->
         # If tracking fails, log it but continue
-        Logger.warn("Failed to track user presence for user: #{user_id}")
+        Logger.warning("Failed to track user presence for user: #{user_id}")
         :error
     end
   end

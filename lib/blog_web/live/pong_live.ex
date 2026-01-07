@@ -1,6 +1,5 @@
 defmodule BlogWeb.PongLive do
   use BlogWeb, :live_view
-  alias Phoenix.LiveView.Socket
   require Logger
 
   @fps 30
@@ -105,7 +104,7 @@ defmodule BlogWeb.PongLive do
             })
 
           Phoenix.PubSub.subscribe(Blog.PubSub, "pong:#{game_id}")
-          initial_state = updated_state
+          _initial_state = updated_state
       end
 
       # Start the AI timer if AI is enabled
@@ -271,7 +270,7 @@ defmodule BlogWeb.PongLive do
     # Ensure the ball is moving toward the player at a reasonable angle
     # If angle is too steep, adjust it
     if abs(dy) > abs(dx) * 1.5 do
-      dy = sign(dy) * abs(dx) * 1.5
+      _dy = sign(dy) * abs(dx) * 1.5
     end
 
     assign(socket,
@@ -436,7 +435,7 @@ defmodule BlogWeb.PongLive do
     end)
   end
 
-  defp update_paddle_position(paddle, "ArrowUp", board_height, paddle_height) do
+  defp update_paddle_position(paddle, "ArrowUp", _board_height, _paddle_height) do
     new_y = max(0, paddle.y - @paddle_speed)
     %{paddle | y: new_y}
   end
@@ -564,7 +563,7 @@ defmodule BlogWeb.PongLive do
     # Ensure minimum vertical movement to prevent horizontal stalemates
     # But keep it subtle
     if abs(normalized_dy) < speed * 0.05 do
-      normalized_dy = if normalized_dy >= 0, do: speed * 0.05, else: -speed * 0.05
+      _normalized_dy = if normalized_dy >= 0, do: speed * 0.05, else: -speed * 0.05
     end
 
     {normalized_dx, normalized_dy}
@@ -651,11 +650,7 @@ defmodule BlogWeb.PongLive do
         bounce_y = if y + ball_radius >= board_height, do: board_height, else: 0
         bounce_pos = %{x: x, y: bounce_y}
 
-        # Add small random angle change on wall bounce to break patterns
-        # Reduced from 0.3 to 0.15 for more predictable bounces
-        angle_change = (:rand.uniform() - 0.5) * 0.15
-        speed = :math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy)
-        angle = :math.atan2(ball.dy, ball.dx) + angle_change
+        # Note: Random angle adjustment code removed for more predictable bounces
         new_dx = ball.dx
         new_dy = -abs(ball.dy) * sign(ball.dy)
 

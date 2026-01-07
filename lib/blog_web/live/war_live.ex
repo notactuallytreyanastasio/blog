@@ -312,7 +312,7 @@ defmodule BlogWeb.WarLive do
   end
 
   @impl true
-  def handle_info({:name_changed, user_id, _display_name}, socket) do
+  def handle_info({:name_changed, _user_id, _display_name}, socket) do
     # When any player changes their name, refresh the player list
     all_players = get_all_players_from_ets()
 
@@ -404,7 +404,7 @@ defmodule BlogWeb.WarLive do
       end
 
       # Clean up invitations for players who left
-      socket = update_invitations_after_players_left(socket, Map.keys(diff.leaves))
+      _socket = update_invitations_after_players_left(socket, Map.keys(diff.leaves))
     end
 
     # Handle joins - update ETS with new player data

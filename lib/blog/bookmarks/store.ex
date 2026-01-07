@@ -31,6 +31,12 @@ defmodule Blog.Bookmarks.Store do
     end
   end
 
+  def add_bookmark(attrs) when is_map(attrs) do
+    attrs
+    |> Bookmark.new()
+    |> add_bookmark()
+  end
+
   # Chrome extension compatibility
   def add_bookmark(url, title, description, tags, favicon_url, user_id) do
     attrs = %{
@@ -42,12 +48,6 @@ defmodule Blog.Bookmarks.Store do
       user_id: user_id
     }
 
-    attrs
-    |> Bookmark.new()
-    |> add_bookmark()
-  end
-
-  def add_bookmark(attrs) when is_map(attrs) do
     attrs
     |> Bookmark.new()
     |> add_bookmark()

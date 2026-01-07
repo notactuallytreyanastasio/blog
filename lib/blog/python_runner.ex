@@ -10,8 +10,8 @@ defmodule Blog.PythonRunner do
       requires-python = ">=3.8"
       """
 
-      python_path = System.get_env("PYTHONX_PYTHON_PATH", "not set")
-      cache_dir = System.get_env("PYTHONX_CACHE_DIR", "not set")
+      _python_path = System.get_env("PYTHONX_PYTHON_PATH", "not set")
+      _cache_dir = System.get_env("PYTHONX_CACHE_DIR", "not set")
       Pythonx.uv_init(config_str)
       :ok
     rescue

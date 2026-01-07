@@ -45,7 +45,7 @@ defmodule BlogWeb.MarkdownEditorComponent do
         {String.slice(text, 0, selection_start), String.slice(text, selection_start..-1)}
       end
 
-    {new_text, new_selection_start, new_selection_end} =
+    {new_text, _new_selection_start, _new_selection_end} =
       handle_format(
         format,
         before_text,

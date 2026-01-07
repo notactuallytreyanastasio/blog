@@ -22,7 +22,7 @@
   </div>
 
   <div class={"iframe-grid grid-#{length(@selected_articles)}"}>
-    <%= for {article, index} <- Enum.with_index(@selected_articles) do %>
+    <%= for {article, _index} <- Enum.with_index(@selected_articles) do %>
       <div class="iframe-container">
         <div class="iframe-header">
           <span class="iframe-title">{article.name}</span>

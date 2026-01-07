@@ -4,7 +4,6 @@ defmodule BlueskyJetstream do
 
   # Try the public Jetstream endpoint
   @jetstream_url "wss://jetstream2.us-east.bsky.network/subscribe"
-  @max_skeets 100_000
 
   def start_link(opts \\ []) do
     # Subscribe to all events first to see if we connect at all
@@ -26,7 +25,7 @@ defmodule BlueskyJetstream do
   end
 
   def handle_disconnect(reason, state) do
-    Logger.warn("❌ Disconnected from Jetstream: #{inspect(reason)}, attempting to reconnect...")
+    Logger.warning("❌ Disconnected from Jetstream: #{inspect(reason)}, attempting to reconnect...")
     {:reconnect, Map.update(state, :reconnect_attempts, 0, &(&1 + 1))}
   end
 
@@ -53,7 +52,12 @@ defmodule BlueskyJetstream do
         {:ok, state}
     end
   end
-  
+
+  def handle_frame(frame, state) do
+    Logger.debug("Received non-text frame: #{inspect(frame)}")
+    {:ok, state}
+  end
+
   defp handle_decoded_message(%{"kind" => "commit", "commit" => commit}) do
     handle_commit(commit)
   end
@@ -68,11 +72,6 @@ defmodule BlueskyJetstream do
   
   defp handle_decoded_message(data) do
     Logger.debug("Received event type: #{Map.get(data, "kind", "unknown")}")
-  end
-
-  def handle_frame(frame, state) do
-    Logger.debug("Received non-text frame: #{inspect(frame)}")
-    {:ok, state}
   end
 
   defp handle_commit(commit) when is_map(commit) do

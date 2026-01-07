@@ -80,7 +80,7 @@ defmodule Blog.Wordle.Game do
       {false, "Backspace", _length} ->
         game = %{
           game
-          | current_guess: String.slice(game.current_guess, 0..-2),
+          | current_guess: String.slice(game.current_guess, 0..-2//-1),
             last_activity: DateTime.utc_now() |> DateTime.to_iso8601()
         }
 

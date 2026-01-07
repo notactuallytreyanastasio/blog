@@ -66,9 +66,9 @@ defmodule BlogWeb.EmojiSkeetsLive do
           "receipt_printer.py",
           receipt_text
         ], cd: File.cwd!(), stderr_to_stdout: true) do
-          {output, 0} ->
+          {_output, 0} ->
             Logger.info("Printed skeet matching '#{socket.assigns.search_term}'")
-          {error, exit_code} ->
+          {error, _exit_code} ->
             Logger.error("Failed to print skeet: #{error}")
         end
     end

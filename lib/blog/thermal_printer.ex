@@ -101,7 +101,7 @@ defmodule Blog.ThermalPrinter do
     create_minimal_png(pixels, width, height)
   end
 
-  defp create_minimal_png(pixels, width, height) do
+  defp create_minimal_png(_pixels, _width, _height) do
     # Simplified PNG creation - would need proper implementation
     # For now, return a placeholder
     <<137, 80, 78, 71, 13, 10, 26, 10>>  # PNG signature

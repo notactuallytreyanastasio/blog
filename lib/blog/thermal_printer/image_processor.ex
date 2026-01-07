@@ -4,7 +4,7 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   Handles dithering and format conversion for Epson TM-M50-012 printer.
   """
 
-  use Bitwise
+  import Bitwise
   require Logger
 
   @doc """
@@ -54,7 +54,7 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
     end
   end
 
-  defp decode_jpeg(binary) do
+  defp decode_jpeg(_binary) do
     # JPEG decoding is complex - for MVP we'll use a simpler approach
     # Consider using NIFs or Ports for actual JPEG decoding if needed
     {:error, "JPEG decoding not yet implemented - use PNG for now"}
@@ -156,7 +156,7 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   Convert pixel array to binary format for thermal printer.
   Each byte represents 8 horizontal pixels (1 bit per pixel).
   """
-  def pixels_to_binary(pixels, width) do
+  def pixels_to_binary(pixels, _width) do
     pixels
     |> Enum.chunk_every(8, 8, [0, 0, 0, 0, 0, 0, 0, 0])
     |> Enum.map(fn chunk ->

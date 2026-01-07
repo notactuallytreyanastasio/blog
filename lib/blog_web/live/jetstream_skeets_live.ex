@@ -56,7 +56,7 @@ defmodule BlogWeb.JetstreamSkeetsLive do
     end
     
     # Update the appropriate list based on source
-    {updated_socket, matched} = if source == :jetstream do
+    {updated_socket, _matched} = if source == :jetstream do
       updated_skeets = [{skeet_text, did} | socket.assigns.jetstream_skeets] |> Enum.take(@max_skeets)
       filtered = filter_skeets(updated_skeets, socket.assigns.search_term)
       matched = check_match(skeet_text, socket.assigns.search_term)

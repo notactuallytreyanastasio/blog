@@ -4,7 +4,7 @@ defmodule ReceiptPrinterEmulator do
   Captures and processes print commands, rendering them to text/HTML output.
   """
 
-  use Bitwise
+  import Bitwise
 
   defstruct [
     :width,
@@ -104,7 +104,7 @@ defmodule ReceiptPrinterEmulator do
     process_bytes(printer, rest)
   end
 
-  defp process_esc_command(printer, [?@ | rest]) do
+  defp process_esc_command(_printer, [?@ | rest]) do
     # Initialize printer
     new()
     |> process_bytes(rest)
@@ -118,7 +118,7 @@ defmodule ReceiptPrinterEmulator do
     |> process_bytes(rest)
   end
 
-  defp process_esc_command(printer, [?J, n | rest]) do
+  defp process_esc_command(printer, [?J, _n | rest]) do
     # Print and feed n dots
     printer
     |> flush_line()
@@ -151,7 +151,7 @@ defmodule ReceiptPrinterEmulator do
 
   defp process_esc_command(printer, [?!, n | rest]) do
     # Set print modes
-    printer = %{printer |
+    %{printer |
       bold: (n &&& 0x08) != 0,
       double_height: (n &&& 0x10) != 0,
       double_width: (n &&& 0x20) != 0,
@@ -177,7 +177,7 @@ defmodule ReceiptPrinterEmulator do
     process_bytes(printer, rest)
   end
 
-  defp process_gs_command(printer, [?V, m | rest]) do
+  defp process_gs_command(printer, [?V, _m | rest]) do
     # Cut paper
     printer
     |> flush_line()
@@ -271,7 +271,7 @@ defmodule ReceiptPrinterEmulator do
     %{printer | buffer: [barcode_text | printer.buffer]}
   end
 
-  defp extract_barcode_data(bytes, type) do
+  defp extract_barcode_data(bytes, _type) do
     # For simplicity, we'll just extract until we hit a null byte or control character
     {data, rest} = Enum.split_while(bytes, fn b -> b >= 32 end)
     {data, rest}

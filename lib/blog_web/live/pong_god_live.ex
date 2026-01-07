@@ -169,7 +169,7 @@ defmodule BlogWeb.PongGodLive do
 
   # Generate particles based on explosion type
   defp generate_particles(:burst, x, y, size, rainbow_colors) do
-    for i <- 1..@particles_per_explosion do
+    for _ <- 1..@particles_per_explosion do
       angle = :rand.uniform() * 2 * :math.pi()
       distance = :rand.uniform(size * 3)
       particle_x = x + :math.cos(angle) * distance

@@ -2,7 +2,6 @@ defmodule BlogWeb.SkeetTimelineLive do
   use BlogWeb, :live_view
   require Logger
   alias Blog.SkeetStore
-  import Phoenix.LiveView.JS
 
   @impl true
   def mount(_params, _session, socket) do

@@ -24,7 +24,7 @@ defmodule BlogWeb.BookmarkChannel do
         BlogWeb.Endpoint.broadcast("bookmark:firehose", "bookmark_added", bookmark)
         {:reply, {:ok, bookmark}, socket}
 
-      error ->
+      _error ->
         {:reply, {:error, %{reason: "failed to add bookmark"}}, socket}
     end
   end
@@ -67,7 +67,7 @@ defmodule BlogWeb.BookmarkChannel do
         BlogWeb.Endpoint.broadcast("bookmark:firehose", "bookmark_added", bookmark)
         {:reply, {:ok, bookmark}, socket}
 
-      error ->
+      _error ->
         {:reply, {:error, %{reason: "failed to add bookmark"}}, socket}
     end
   end

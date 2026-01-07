@@ -735,7 +735,7 @@ defmodule BlogWeb.BlackjackLive.PubSub do
     Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:request_games, player_id})
   end
 
-  def broadcast_game_info(to_player_id, game_id, game, host_id) do
+  def broadcast_game_info(_to_player_id, game_id, game, host_id) do
     # Direct message to the player who requested game info
     Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_info, game_id, game, host_id})
   end
@@ -749,7 +749,7 @@ defmodule BlogWeb.BlackjackLive.PubSub do
     )
   end
 
-  def broadcast_game_started(player_ids, game_id, game, players_lobby \\ %{}) do
+  def broadcast_game_started(_player_ids, game_id, game, players_lobby \\ %{}) do
     # Broadcast to the main lobby that a game has started
     Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:game_started, game_id, game, players_lobby})
 

@@ -165,7 +165,7 @@ defmodule BlogWeb.WordleLive do
       <!-- Background of other players' games -->
       <%= if map_size(@other_games) > 0 do %>
         <div class="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5 p-0.5 overflow-hidden">
-          <%= for {session_id, game} <- Enum.sort_by(@other_games, fn {_id, game} -> game.last_activity end, :desc) do %>
+          <%= for {_session_id, game} <- Enum.sort_by(@other_games, fn {_id, game} -> game.last_activity end, :desc) do %>
             <div class="bg-white rounded-sm shadow-sm opacity-30 text-xs">
               <div class="flex justify-between items-center px-1 pt-1">
                 <div class="font-bold truncate max-w-[90%] text-xs">
@@ -347,13 +347,13 @@ defmodule BlogWeb.WordleLive do
           <%= if @game && @game.game_over do %>
             <div class="text-center mt-2">
               <%= cond do %>
-                <%# Player won %>
+                <%!-- Player won --%>
                 <% Enum.any?(@game.guesses, fn %{word: word} -> word == @game.target_word end) -> %>
                   <div class="mb-2">
                     <div class="text-green-600 font-bold text-lg">🎉 Congratulations!</div>
                     <div class="text-sm text-gray-600">You found the word!</div>
                   </div>
-                <%# Player lost %>
+                <%!-- Player lost --%>
                 <% true -> %>
                   <div class="mb-2">
                     <div class="text-red-600 font-bold text-lg">Game Over</div>
@@ -384,7 +384,7 @@ defmodule BlogWeb.WordleLive do
   end
 
   # Default game state for rendering before the real game is initialized
-  defp default_game_state(player_id) do
+  defp default_game_state(_player_id) do
     nil
   end
 

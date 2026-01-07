@@ -107,7 +107,7 @@ defmodule Blog.Games.Blackjack do
   """
   def deal_cards(recipient, deck, count) do
     # Start with the recipient's existing hand or an empty list
-    initial_hand = Map.get(recipient, :hand, [])
+    _initial_hand = Map.get(recipient, :hand, [])
 
     Enum.reduce(1..count, {recipient, deck}, fn _, {current_recipient, current_deck} ->
       [card | rest_deck] = current_deck

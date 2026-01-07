@@ -1,7 +1,6 @@
 defmodule BlogWeb.MarkdownEditorLive do
   use BlogWeb, :live_view
   require Logger
-  import Phoenix.LiveView.JS
   alias BlogWeb.MarkdownEditorComponent
 
   @impl true

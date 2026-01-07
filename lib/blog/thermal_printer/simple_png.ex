@@ -4,8 +4,6 @@ defmodule Blog.ThermalPrinter.SimplePNG do
   Handles basic PNG decoding without external dependencies.
   """
 
-  import Bitwise
-  
   @png_signature <<137, 80, 78, 71, 13, 10, 26, 10>>
 
   def decode(binary) do

@@ -2,8 +2,7 @@ defmodule BlogWeb.MapLive do
   use BlogWeb, :live_view
   require Logger
   alias Phoenix.Socket.Broadcast
-  alias Blog.GeoMap # Add alias for the new context
-  alias Blog.GeoMap.TagIn # Alias for the schema for convenience
+  alias Blog.GeoMap
 
   @impl true
   def mount(_params, _session, socket) do

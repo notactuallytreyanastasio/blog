@@ -75,9 +75,7 @@ defmodule Blog.SkeetStore do
     end
   end
 
-  @doc """
-  Trim the table to keep only the most recent @max_skeets entries.
-  """
+  # Trim the table to keep only the most recent @max_skeets entries.
   defp trim_table do
     try do
       table_size = :ets.info(@table_name, :size)

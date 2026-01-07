@@ -38,9 +38,7 @@ defmodule Blog.Chat do
     end
   end
 
-  @doc """
-  Initialize the default rooms with welcome messages.
-  """
+  # Initialize the default rooms with welcome messages.
   defp initialize_rooms do
     # Check if rooms are already initialized
     case get_messages("frontpage") do
@@ -114,7 +112,7 @@ defmodule Blog.Chat do
       end)
 
     if found_banned_word do
-      Logger.warn("Message contained banned word, rejected")
+      Logger.warning("Message contained banned word, rejected")
       {:error, :contains_banned_words}
     else
       {:ok, message}
@@ -149,9 +147,7 @@ defmodule Blog.Chat do
     message
   end
 
-  @doc """
-  Trims messages in a room to keep only the most recent ones.
-  """
+  # Trims messages in a room to keep only the most recent ones.
   defp trim_messages(room) do
     # Count messages in this room using match_object instead of select_count with fun2ms
     messages = :ets.match_object(@table_name, {{room, :_}, :_})

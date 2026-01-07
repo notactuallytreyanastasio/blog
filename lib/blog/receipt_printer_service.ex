@@ -144,7 +144,7 @@ defmodule Blog.ReceiptPrinterService do
     NetworkClient.print_receipt(builder, printer_opts)
   end
   
-  defp print_image_if_available(builder, image_url, printer_opts) do
+  defp print_image_if_available(builder, image_url, _printer_opts) do
     # For now, if image_url is a path or binary data, process it
     # In a real implementation, you'd download the image from URL
     case process_image_for_printing(image_url) do
