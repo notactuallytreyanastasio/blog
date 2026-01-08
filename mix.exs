@@ -61,7 +61,8 @@ defmodule Blog.MixProject do
       {:pythonx, "~> 0.4.2"},
       {:mogrify, "~> 0.9"},
       {:image, "~> 0.48"},
-      {:exqlite, "~> 0.23", runtime: false}
+      {:exqlite, "~> 0.23", runtime: false},
+      {:live_joyride, github: "notactuallytreyanastasio/live_joyride"}
     ]
   end
 

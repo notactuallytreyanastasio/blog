@@ -1,7 +1,6 @@
 defmodule BlogWeb.TerminalLive do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
-  alias BlogWeb.JoyrideComponent
   alias Blog.Chat
   require Logger
 
@@ -383,7 +382,7 @@ defmodule BlogWeb.TerminalLive do
     <div class="mac">
       <%!-- Joyride Tour Component --%>
       <.live_component
-        module={JoyrideComponent}
+        module={LiveJoyride.Component}
         id="site-tour"
         steps={@tour_steps}
         run={@show_tour}
