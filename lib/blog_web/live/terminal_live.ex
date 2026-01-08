@@ -196,9 +196,12 @@ defmodule BlogWeb.TerminalLive do
       total_online: map_size(visitor_list),
       # Tree state
       show_tree: false,
-      # Tour state - auto-start for first-time visitors
+      # Tour state - auto-start for first-time visitors (desktop only)
       show_tour: is_nil(returning_chatter),
-      tour_steps: build_tour_steps(chatter)
+      tour_steps: build_tour_steps(chatter),
+      # Mobile state - which window is active on mobile
+      # Options: :finder, :chat, :name_dialog
+      mobile_window: if(is_nil(chatter), do: :name_dialog, else: :finder)
     )}
   end
 
@@ -252,7 +255,8 @@ defmodule BlogWeb.TerminalLive do
           {:noreply, assign(socket,
             chatter: chatter,
             name_form: %{"name" => chatter.screen_name},
-            tour_steps: build_tour_steps(chatter)
+            tour_steps: build_tour_steps(chatter),
+            mobile_window: :chat
           )}
 
         {:error, _changeset} ->
@@ -283,7 +287,11 @@ defmodule BlogWeb.TerminalLive do
             |> Map.put(:color, chatter.color)
           end)
         end
-        {:noreply, assign(socket, chatter: chatter, tour_steps: build_tour_steps(chatter))}
+        {:noreply, assign(socket,
+          chatter: chatter,
+          tour_steps: build_tour_steps(chatter),
+          mobile_window: :chat
+        )}
 
       {:error, _} ->
         {:noreply, assign(socket, chatter: nil)}
@@ -340,6 +348,12 @@ defmodule BlogWeb.TerminalLive do
     {:noreply, assign(socket, show_tour: true)}
   end
 
+  # Mobile window switching
+  def handle_event("switch_mobile_window", %{"window" => window}, socket) do
+    window_atom = String.to_existing_atom(window)
+    {:noreply, assign(socket, mobile_window: window_atom)}
+  end
+
   # Function component for rendering icon items
   defp icon_item(assigns) do
     # Support optional data-joyride on individual icons
@@ -391,8 +405,8 @@ defmodule BlogWeb.TerminalLive do
 
       <!-- Desktop -->
       <div class="desktop">
-        <!-- Mac Window -->
-        <div class="window">
+        <!-- Mac Window (Finder) -->
+        <div class={"window mobile-window-finder #{if @mobile_window == :finder, do: "mobile-active"}"}>
           <div class="title-bar">
             <div class="close-box"></div>
             <div class="title">bobbby.online</div>
@@ -460,7 +474,7 @@ defmodule BlogWeb.TerminalLive do
         <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
         <!-- Name Dialog - show for new visitors or returning visitors without confirmed chatter -->
         <%= if @reader_id && is_nil(@chatter) && @show_chat do %>
-          <div class="aim-name-dialog" style="top: 80px; right: 40px;" data-joyride="aim-name-dialog">
+          <div class={"aim-name-dialog mobile-window-name_dialog #{if @mobile_window == :name_dialog, do: "mobile-active"}"} style="top: 80px; right: 40px;" data-joyride="aim-name-dialog">
             <div class="aim-name-dialog-titlebar">
               <span><%= if @returning_chatter, do: "Welcome Back!", else: "Enter Screen Name" %></span>
             </div>
@@ -503,7 +517,7 @@ defmodule BlogWeb.TerminalLive do
         </button>
 
         <!-- AIM Chat Container -->
-        <div class={["aim-chat-container", if(@show_chat, do: "open", else: "")]} style="right: 40px; bottom: 40px;" data-joyride="chat-window">
+        <div class={["aim-chat-container", "mobile-window-chat", if(@show_chat, do: "open", else: ""), if(@mobile_window == :chat, do: "mobile-active", else: "")]} style="right: 40px; bottom: 40px;" data-joyride="chat-window">
           <div class="aim-chat-titlebar">
             <span class="aim-chat-title">AIM Chat - Terminal</span>
             <div class="aim-chat-controls">
@@ -558,6 +572,33 @@ defmodule BlogWeb.TerminalLive do
               </.form>
             </div>
           </div>
+        </div>
+
+        <%!-- Mobile Taskbar - only visible on mobile --%>
+        <div class="mobile-taskbar">
+          <button
+            class={"mobile-taskbar-btn #{if @mobile_window == :finder, do: "active"}"}
+            phx-click="switch_mobile_window"
+            phx-value-window="finder"
+          >
+            📁 Finder
+          </button>
+          <%= if is_nil(@chatter) do %>
+            <button
+              class={"mobile-taskbar-btn #{if @mobile_window == :name_dialog, do: "active"}"}
+              phx-click="switch_mobile_window"
+              phx-value-window="name_dialog"
+            >
+              ✏️ Name
+            </button>
+          <% end %>
+          <button
+            class={"mobile-taskbar-btn #{if @mobile_window == :chat, do: "active"}"}
+            phx-click="switch_mobile_window"
+            phx-value-window="chat"
+          >
+            💬 Chat
+          </button>
         </div>
       </div>
     </div>
@@ -766,6 +807,201 @@ defmodule BlogWeb.TerminalLive do
         width: 100%;
         height: 100%;
         display: block;
+      }
+
+      /* Mobile taskbar - hidden on desktop */
+      .mobile-taskbar {
+        display: none;
+      }
+
+      /* ============================================
+         MOBILE STYLES (max-width: 768px)
+         ============================================ */
+      @media (max-width: 768px) {
+        /* Hide menu bar items except time on mobile */
+        .menu-left .menu-item {
+          display: none;
+        }
+
+        /* Desktop padding adjustments for mobile */
+        .desktop {
+          padding: 10px;
+          padding-bottom: 70px; /* Room for taskbar */
+        }
+
+        /* Finder window - full screen on mobile */
+        .window.mobile-window-finder {
+          position: fixed;
+          top: 20px; /* Below menu bar */
+          left: 0;
+          right: 0;
+          bottom: 60px; /* Above taskbar */
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 100;
+          display: none; /* Hidden by default */
+        }
+
+        .window.mobile-window-finder.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .window.mobile-window-finder .window-content {
+          flex: 1;
+          max-height: none;
+          min-height: auto;
+          overflow-y: auto;
+        }
+
+        /* Name dialog - full screen on mobile */
+        .aim-name-dialog.mobile-window-name_dialog {
+          position: fixed !important;
+          top: 20px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 200;
+          display: none; /* Hidden by default */
+          box-sizing: border-box;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog.mobile-active {
+          display: block;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-dialog-content {
+          padding: 20px;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-input {
+          width: 100%;
+          font-size: 16px; /* Prevent zoom on iOS */
+          padding: 12px;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-buttons {
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-btn {
+          width: 100%;
+          padding: 12px;
+          font-size: 16px;
+        }
+
+        /* Chat container - full screen on mobile */
+        .aim-chat-container.mobile-window-chat {
+          position: fixed !important;
+          top: 20px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 150;
+          display: none; /* Hidden by default */
+          box-sizing: border-box;
+        }
+
+        .aim-chat-container.mobile-window-chat.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .aim-chat-container.mobile-window-chat .aim-chat-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .aim-chat-container.mobile-window-chat .aim-messages-area {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .aim-chat-container.mobile-window-chat .aim-input-box {
+          font-size: 16px; /* Prevent zoom on iOS */
+        }
+
+        /* Hide the floating chat toggle on mobile */
+        .aim-toggle-btn {
+          display: none !important;
+        }
+
+        /* Hide tree animation on mobile for performance */
+        .tree-container {
+          display: none;
+        }
+
+        /* Mobile taskbar - fixed at bottom */
+        .mobile-taskbar {
+          display: flex;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 50px;
+          background: linear-gradient(to bottom, #dfdfdf, #c0c0c0);
+          border-top: 2px solid #fff;
+          box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2);
+          z-index: 1000;
+          padding: 5px;
+          gap: 5px;
+        }
+
+        .mobile-taskbar-btn {
+          flex: 1;
+          background: linear-gradient(to bottom, #ececec, #d4d4d4);
+          border: 1px solid #888;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          box-shadow: 1px 1px 0 #fff inset, -1px -1px 0 #888 inset;
+        }
+
+        .mobile-taskbar-btn:active,
+        .mobile-taskbar-btn.active {
+          background: linear-gradient(to bottom, #c0c0c0, #a8a8a8);
+          box-shadow: -1px -1px 0 #fff inset, 1px 1px 0 #888 inset;
+        }
+
+        /* Icon grid adjustments for mobile */
+        .icon-grid {
+          gap: 4px;
+        }
+
+        .icon-section {
+          gap: 8px;
+          padding: 4px;
+        }
+
+        .icon {
+          width: 60px;
+        }
+
+        .icon-image {
+          font-size: 28px;
+          height: 36px;
+        }
+
+        .icon-label {
+          font-size: 9px;
+        }
+
+        /* Hide joyride tour on mobile - too complex for small screens */
+        #site-tour {
+          display: none !important;
+        }
       }
     </style>
     """
