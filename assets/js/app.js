@@ -209,6 +209,61 @@ const CardGrid = {
   }
 };
 
+// Joyride hook - bridges DOM position reading to Elixir (minimal JS)
+const Joyride = {
+  mounted() {
+    this.target = null;
+
+    // Listen for goto events from Elixir
+    this.handleEvent("joyride:goto", ({ target }) => {
+      this.target = target;
+      this.findAndReport();
+    });
+
+    // Update position on resize/scroll
+    this.onResize = () => this.reportPosition();
+    window.addEventListener("resize", this.onResize);
+    window.addEventListener("scroll", this.onResize, true);
+  },
+
+  destroyed() {
+    window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("scroll", this.onResize, true);
+  },
+
+  findAndReport() {
+    if (!this.target) return;
+
+    const el = document.querySelector(`[data-joyride="${this.target}"]`);
+    if (!el) {
+      console.warn("[Joyride] Element not found:", this.target);
+      return;
+    }
+
+    // Scroll into view if needed
+    const rect = el.getBoundingClientRect();
+    if (rect.top < 50 || rect.bottom > window.innerHeight - 50) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => this.reportPosition(), 350);
+    } else {
+      this.reportPosition();
+    }
+  },
+
+  reportPosition() {
+    if (!this.target) return;
+
+    const el = document.querySelector(`[data-joyride="${this.target}"]`);
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    this.pushEventTo(this.el, "rect", {
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      window: { width: window.innerWidth, height: window.innerHeight }
+    });
+  }
+};
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
 // Attempt to capture Leaflet extensions early
@@ -591,6 +646,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     BubbleGame,
     SunflowerBackground,
     CardGrid,
+    Joyride,
     ...Hooks
   }
 })

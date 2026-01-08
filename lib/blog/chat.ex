@@ -1,263 +1,187 @@
 defmodule Blog.Chat do
   @moduledoc """
-  Module for handling chat functionality and message persistence using ETS.
+  Context module for chat functionality with Postgres persistence.
   """
-  require Logger
+  import Ecto.Query
+  alias Blog.Repo
+  alias Blog.Chat.{Chatter, Message}
 
-  @table_name :blog_chat_messages
-  @banned_words_table :blog_chat_banned_words
-  @max_messages_per_room 100
+  @pubsub_topic "terminal_chat"
+
+  def topic, do: @pubsub_topic
+
+  # ============================================================================
+  # Chatter Functions
+  # ============================================================================
 
   @doc """
-  Ensures the ETS table is started. Should be called during application startup.
+  Find an existing chatter by IP hash, or create a new one.
+
+  Sticky screenname logic:
+  1. Look for existing chatter with this IP hash
+  2. If found, optionally update their screen_name if they want to change it
+  3. If screen_name is taken by different IP, append number suffix
+  4. Create new chatter if none exists for this IP
   """
-  def ensure_started do
-    # Initialize message table
-    case :ets.info(@table_name) do
-      :undefined ->
-        :ets.new(@table_name, [:ordered_set, :public, :named_table])
-        Logger.info("Created new chat message ETS table")
-        initialize_rooms()
+  def find_or_create_chatter(screen_name, ip_address) do
+    ip_hash = hash_ip(ip_address)
+    screen_name = String.trim(screen_name)
 
-      _ ->
-        Logger.debug("Chat message ETS table already exists")
-        :ok
-    end
+    case get_chatter_by_ip(ip_hash) do
+      nil ->
+        # New visitor - create chatter with unique screen_name
+        create_chatter_with_unique_name(screen_name, ip_hash)
 
-    # Initialize banned words table
-    case :ets.info(@banned_words_table) do
-      :undefined ->
-        :ets.new(@banned_words_table, [:set, :protected, :named_table])
-        # Add some initial banned words (these should be severe ones)
-        add_banned_word("somedefaultbannedword")
-        Logger.info("Created new banned words ETS table")
-
-      _ ->
-        Logger.debug("Banned words ETS table already exists")
-        :ok
+      existing_chatter ->
+        # Returning visitor - update name if they changed it
+        if existing_chatter.screen_name == screen_name do
+          {:ok, existing_chatter}
+        else
+          update_chatter_name(existing_chatter, screen_name)
+        end
     end
   end
 
-  # Initialize the default rooms with welcome messages.
-  defp initialize_rooms do
-    # Check if rooms are already initialized
-    case get_messages("frontpage") do
-      [] ->
-        # Add welcome messages to each room
-        rooms = ["frontpage"]
-
-        welcome_messages = %{
-          "frontpage" => "Welcome to the frontpage chat! Chat with other visitors in real-time."
-        }
-
-        Enum.each(rooms, fn room ->
-          save_message(%{
-            id: System.os_time(:millisecond),
-            sender_id: "system",
-            sender_name: "ChatBot",
-            sender_color: "hsl(210, 70%, 50%)",
-            content: Map.get(welcome_messages, room),
-            timestamp: DateTime.utc_now(),
-            room: room
-          })
-
-          Logger.info("Initialized #{room} room with welcome message")
-        end)
-
-      _ ->
-        Logger.debug("Rooms already initialized with welcome messages")
-        :ok
-    end
+  @doc "Get a chatter by their IP hash (for returning visitor detection)"
+  def get_chatter_by_ip(ip_hash) do
+    Repo.get_by(Chatter, ip_hash: ip_hash)
   end
 
-  @doc """
-  Adds a word to the banned list.
-  """
-  def add_banned_word(word) when is_binary(word) do
-    lowercase_word = String.downcase(String.trim(word))
+  @doc "Get a chatter by screen name"
+  def get_chatter_by_name(screen_name) do
+    Repo.get_by(Chatter, screen_name: screen_name)
+  end
 
-    if lowercase_word != "" do
-      :ets.insert(@banned_words_table, {lowercase_word, true})
-      Logger.info("Added new banned word: #{lowercase_word}")
-      {:ok, lowercase_word}
+  defp create_chatter_with_unique_name(screen_name, ip_hash) do
+    unique_name = ensure_unique_name(screen_name)
+
+    %Chatter{}
+    |> Chatter.changeset(%{
+      screen_name: unique_name,
+      ip_hash: ip_hash,
+      color: Chatter.random_color()
+    })
+    |> Repo.insert()
+  end
+
+  defp update_chatter_name(chatter, new_name) do
+    unique_name = ensure_unique_name(new_name, chatter.id)
+
+    chatter
+    |> Chatter.changeset(%{screen_name: unique_name})
+    |> Repo.update()
+  end
+
+  defp ensure_unique_name(name, exclude_id \\ nil) do
+    query = from c in Chatter, where: c.screen_name == ^name
+    query = if exclude_id, do: where(query, [c], c.id != ^exclude_id), else: query
+
+    if Repo.exists?(query) do
+      find_available_name(name, 2, exclude_id)
     else
-      {:error, :empty_word}
+      name
     end
   end
 
-  @doc """
-  Gets all banned words.
-  """
-  def get_banned_words do
-    :ets.tab2list(@banned_words_table)
-    |> Enum.map(fn {word, _} -> word end)
-    |> Enum.sort()
-  end
+  defp find_available_name(base_name, suffix, exclude_id) do
+    candidate = "#{base_name}#{suffix}"
+    query = from c in Chatter, where: c.screen_name == ^candidate
+    query = if exclude_id, do: where(query, [c], c.id != ^exclude_id), else: query
 
-  @doc """
-  Checks if a message contains any banned words.
-  Returns {:ok, message} if no banned words are found.
-  Returns {:error, :contains_banned_words} if banned words are found.
-  """
-  def check_for_banned_words(message) when is_binary(message) do
-    lowercase_message = String.downcase(message)
-
-    # Get all banned words
-    banned_words = get_banned_words()
-
-    # Check if any banned word is in the message
-    found_banned_word =
-      Enum.find(banned_words, fn word ->
-        String.contains?(lowercase_message, word)
-      end)
-
-    if found_banned_word do
-      Logger.warning("Message contained banned word, rejected")
-      {:error, :contains_banned_words}
+    if Repo.exists?(query) do
+      find_available_name(base_name, suffix + 1, exclude_id)
     else
-      {:ok, message}
+      candidate
     end
   end
 
-  @doc """
-  Saves a message to ETS storage.
-  """
-  def save_message(message) do
-    # Use room and timestamp as key for ordering
-    key = {message.room, message.id}
+  @doc "Hash an IP address for privacy (SHA256)"
+  def hash_ip(ip_address) when is_binary(ip_address) do
+    :crypto.hash(:sha256, ip_address)
+    |> Base.encode16(case: :lower)
+    |> String.slice(0, 16)  # Just use first 16 chars
+  end
+  def hash_ip(_), do: nil
 
-    # Insert into ETS table
-    result = :ets.insert(@table_name, {key, message})
+  # ============================================================================
+  # Message Functions
+  # ============================================================================
 
-    # Debug the actual key structure to ensure consistency
-    Logger.debug(
-      "Saved message to ETS with key structure: #{inspect(key)}, result: #{inspect(result)}"
-    )
-
-    Logger.debug("Message content: #{inspect(message)}")
-
-    # Debug the current state of the table
-    count = :ets.info(@table_name, :size)
-    Logger.debug("ETS table now has #{count} total messages")
-
-    # Trim messages if we have too many
-    trim_messages(message.room)
-
-    # Return the stored message
-    message
+  @doc "List recent messages for a room with preloaded chatters"
+  def list_messages(room \\ "terminal", limit \\ 50) do
+    Message
+    |> where([m], m.room == ^room)
+    |> order_by([m], asc: m.inserted_at)
+    |> limit(^limit)
+    |> preload(:chatter)
+    |> Repo.all()
   end
 
-  # Trims messages in a room to keep only the most recent ones.
-  defp trim_messages(room) do
-    # Count messages in this room using match_object instead of select_count with fun2ms
-    messages = :ets.match_object(@table_name, {{room, :_}, :_})
-    count = length(messages)
+  @doc "Create a new message and broadcast it"
+  def create_message(%Chatter{} = chatter, content, room \\ "terminal") do
+    attrs = %{
+      content: String.trim(content),
+      room: room,
+      chatter_id: chatter.id
+    }
 
-    Logger.debug("Room #{room} has #{count} messages, max is #{@max_messages_per_room}")
+    case %Message{} |> Message.changeset(attrs) |> Repo.insert() do
+      {:ok, message} ->
+        message = Repo.preload(message, :chatter)
+        broadcast_message(message)
+        {:ok, message}
 
-    if count > @max_messages_per_room do
-      # Sort messages by ID (timestamp)
-      sorted_messages =
-        messages
-        |> Enum.sort_by(fn {{_, id}, _} -> id end)
-
-      # Delete the oldest messages
-      to_delete = Enum.take(sorted_messages, count - @max_messages_per_room)
-
-      Enum.each(to_delete, fn {{r, id}, _} ->
-        :ets.delete(@table_name, {r, id})
-        Logger.debug("Deleted old message with key {#{r}, #{id}}")
-      end)
-
-      Logger.info("Trimmed #{length(to_delete)} old messages from room #{room}")
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 
-  @doc """
-  Gets messages for a specific room.
-  """
-  def get_messages(room) do
-    # Debug the query we're about to run
-    Logger.debug("Fetching messages for room '#{room}' from ETS table #{inspect(@table_name)}")
+  defp broadcast_message(message) do
+    Phoenix.PubSub.broadcast(Blog.PubSub, @pubsub_topic, {:new_chat_message, message})
+  end
 
-    # Use match_object to get all messages for the room
-    all_matching = :ets.match_object(@table_name, {{room, :_}, :_})
-    Logger.debug("Found #{length(all_matching)} raw entries for room #{room}")
+  # ============================================================================
+  # Presence Support
+  # ============================================================================
 
-    # Show raw results for debugging
-    if length(all_matching) > 0 do
-      Logger.debug("First matched entry: #{inspect(hd(all_matching))}")
+  @doc "Get online chatters (for buddy list display)"
+  def list_online_chatters(presence_list) do
+    presence_list
+    |> Enum.map(fn {_id, %{metas: [meta | _]}} -> meta end)
+  end
+
+  # ============================================================================
+  # Backwards Compatibility (for post_live/index.ex using old API)
+  # ============================================================================
+
+  @doc "Backwards compatibility - no-op, Postgres doesn't need ETS initialization"
+  def ensure_started, do: :ok
+
+  @doc "Backwards compatibility - alias for list_messages"
+  def get_messages(room), do: list_messages(room)
+
+  @doc "Backwards compatibility - banned words stub (not implemented in Postgres version)"
+  def add_banned_word(_word), do: {:ok, ""}
+
+  @doc "Backwards compatibility - banned words check stub"
+  def check_for_banned_words(message), do: {:ok, message}
+
+  @doc "Backwards compatibility - save message from old format"
+  def save_message(%{sender_name: name, sender_color: color, content: content, room: room}) do
+    # For backwards compat, create an anonymous chatter if needed
+    {:ok, chatter} = find_or_create_anonymous_chatter(name, color)
+    create_message(chatter, content, room)
+  end
+
+  defp find_or_create_anonymous_chatter(name, color) do
+    case Repo.get_by(Chatter, screen_name: name) do
+      nil ->
+        %Chatter{}
+        |> Chatter.changeset(%{screen_name: name, color: color})
+        |> Repo.insert()
+
+      chatter ->
+        {:ok, chatter}
     end
-
-    # Extract the messages from the match_object results
-    messages = Enum.map(all_matching, fn {_key, msg} -> msg end)
-
-    # Log what we found
-    Logger.debug("Retrieved #{length(messages)} message structs for room #{room}")
-
-    # Sort and return the messages (ascending so newest appear at bottom in chat)
-    sorted_messages =
-      messages
-      |> Enum.sort_by(fn msg -> msg.id end, :asc)
-      |> Enum.take(50)
-
-    Logger.debug("Returning #{length(sorted_messages)} sorted messages")
-    sorted_messages
-  end
-
-  @doc """
-  Debug function to list all messages in all rooms.
-  """
-  def list_all_messages do
-    # Get all objects from the table
-    all_messages = :ets.tab2list(@table_name)
-    Logger.debug("Total messages in ETS: #{length(all_messages)}")
-
-    # Log the raw data
-    if length(all_messages) > 0 do
-      sample = Enum.take(all_messages, 3)
-      Logger.debug("Raw message data sample: #{inspect(sample)}")
-    end
-
-    # Group by room
-    result =
-      all_messages
-      |> Enum.map(fn {{room, _id}, message} -> {room, message} end)
-      |> Enum.group_by(fn {room, _} -> room end, fn {_, message} -> message end)
-
-    # Log the count per room
-    Enum.each(result, fn {room, msgs} ->
-      Logger.debug("Room #{room} has #{length(msgs)} messages")
-    end)
-
-    result
-  end
-
-  @doc """
-  Clears all messages from a room.
-  """
-  def clear_room(room) do
-    # Get all messages in the room
-    messages = :ets.match_object(@table_name, {{room, :_}, :_})
-
-    # Delete them one by one
-    deleted_count =
-      Enum.reduce(messages, 0, fn {{r, id}, _}, acc ->
-        :ets.delete(@table_name, {r, id})
-        acc + 1
-      end)
-
-    Logger.info("Cleared #{deleted_count} messages from room #{room}")
-    deleted_count
-  end
-
-  @doc """
-  Clears all messages from all rooms.
-  """
-  def clear_all do
-    count = :ets.info(@table_name, :size)
-    :ets.delete_all_objects(@table_name)
-    Logger.info("Cleared all #{count} chat messages from all rooms")
-    initialize_rooms()
   end
 end

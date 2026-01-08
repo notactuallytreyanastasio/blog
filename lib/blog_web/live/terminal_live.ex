@@ -1,51 +1,100 @@
 defmodule BlogWeb.TerminalLive do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
+  alias BlogWeb.JoyrideComponent
   alias Blog.Chat
   require Logger
 
   @presence_topic "terminal_presence"
-  @chat_topic "terminal_chat"
 
-  @programs [
-    # Main
-    %{name: "Blog", icon: "📝", path: "/blog"},
-    %{name: "Role Call", icon: "📺", path: "/role-call"},
-    %{name: "300+ Yrs Tree Law", icon: "🌳", path: "/trees"},
+  @tour_steps_base [
+    %{
+      target: "toys-section",
+      title: "Fun Toys & Art",
+      content: "These are fun toys or art generators.",
+      placement: :bottom
+    },
+    %{
+      target: "bluesky-section",
+      title: "Bluesky Feeds",
+      content: "These are atproto firehose toys.",
+      placement: :bottom
+    },
+    %{
+      target: "nathan-section",
+      title: "Nathan Fielder",
+      content: "Writing experiments with regard to Nathan Fielder.",
+      placement: :bottom
+    },
+    %{
+      target: "trees-item",
+      title: "Tree Law",
+      content: "Tree law, brother.",
+      placement: :bottom
+    },
+    %{
+      target: "receipt-item",
+      title: "Receipt Printer",
+      content: "Send me a very literal DM to my desk.",
+      placement: :bottom
+    },
+    %{
+      target: "utilities-section",
+      title: "Utilities",
+      content: "Silly or helpful little utilities.",
+      placement: :bottom
+    }
+  ]
 
-    # Games
+  @name_dialog_step %{
+    target: "aim-name-dialog",
+    title: "Pick Your Screen Name",
+    content: "Choose a name for the chat - it'll stick around for next time!",
+    placement: :left
+  }
+
+  @chat_window_step %{
+    target: "chat-window",
+    title: "Leave a Note!",
+    content: "Say hi in the chatroom - messages persist so I'll see them later!",
+    placement: :left
+  }
+
+  # Build tour steps - include name dialog step only if dialog is visible
+  defp build_tour_steps(chatter) do
+    if is_nil(chatter) do
+      [@name_dialog_step, @chat_window_step | @tour_steps_base]
+    else
+      [@chat_window_step | @tour_steps_base]
+    end
+  end
+
+  # Grouped by tour sections
+  @toys [
     %{name: "Pong", icon: "🏓", path: "/pong"},
     %{name: "Pong God View", icon: "👁️", path: "/pong/god"},
     %{name: "Wordle", icon: "🔤", path: "/wordle"},
     %{name: "Wordle God", icon: "🎯", path: "/wordle_god"},
     %{name: "Blackjack", icon: "🃏", path: "/blackjack"},
     %{name: "War", icon: "⚔️", path: "/war"},
-
-    # Art
     %{name: "Art", icon: "🎨", path: "/generative-art"},
     %{name: "Bezier", icon: "📐", path: "/bezier-triangles"},
     %{name: "Chaos", icon: "🌈", path: "/gay_chaos"},
-
-    # Social
-    %{name: "Emoji Skeets", icon: "😀", path: "/emoji-skeets"},
-    %{name: "Bluesky YT", icon: "📺", path: "/reddit-links"},
-    %{name: "No Words Chat", icon: "💬", path: "/allowed-chats"},
-
-    # Dev & Productivity
-    %{name: "Python", icon: "🐍", path: "/python-demo"},
-    %{name: "Markdown", icon: "✍️", path: "/markdown-editor"},
     %{name: "Cursor", icon: "🖱️", path: "/cursor-tracker"},
     %{name: "Typewriter", icon: "⌨️", path: "/typewriter"},
     %{name: "Code Mirror", icon: "🪞", path: "/mirror"},
+    %{name: "Role Call", icon: "📺", path: "/role-call"},
+    %{name: "Python", icon: "🐍", path: "/python-demo"},
+    %{name: "Markdown", icon: "✍️", path: "/markdown-editor"}
+  ]
 
-    # News & Bookmarks
-    %{name: "HN", icon: "📡", path: "/hacker-news"},
-    %{name: "Bookmarks", icon: "🔖", path: "/bookmarks"},
+  @bluesky [
+    %{name: "Emoji Skeets", icon: "😀", path: "/emoji-skeets"},
+    %{name: "Bluesky YT", icon: "📺", path: "/reddit-links"},
+    %{name: "No Words Chat", icon: "💬", path: "/allowed-chats"}
+  ]
 
-    # Maps
-    %{name: "MTA Map", icon: "🚌", path: "/mta-bus-map"},
-
-    # Nathan Fielder
+  @nathan [
     %{name: "Nathan", icon: "😐", path: "/nathan"},
     %{name: "Nathan HP", icon: "📖", path: "/nathan_harpers"},
     %{name: "Nathan TV", icon: "👗", path: "/nathan_teen_vogue"},
@@ -53,40 +102,65 @@ defmodule BlogWeb.TerminalLive do
     %{name: "Nathan UN", icon: "💻", path: "/nathan_usenet"},
     %{name: "Nathan CF", icon: "🌾", path: "/nathan_content_farm"},
     %{name: "Nathan Cmp", icon: "⚖️", path: "/nathan_comparison"},
-    %{name: "Nathan ASCII", icon: "🔣", path: "/nathan_ascii"},
+    %{name: "Nathan ASCII", icon: "🔣", path: "/nathan_ascii"}
+  ]
 
-    # Misc
-    %{name: "Receipt", icon: "🧾", path: "/very_direct_message"},
+  @trees [
+    %{name: "300+ Yrs Tree Law", icon: "🌳", path: "/trees"}
+  ]
+
+  @receipt [
+    %{name: "Receipt", icon: "🧾", path: "/very_direct_message"}
+  ]
+
+  @utilities [
+    %{name: "HN", icon: "📡", path: "/hacker-news"},
+    %{name: "Bookmarks", icon: "🔖", path: "/bookmarks"},
+    %{name: "MTA Map", icon: "🚌", path: "/mta-bus-map"}
+  ]
+
+  @other [
     %{name: "Trash", icon: "🗑️", path: nil}
   ]
 
-  def mount(_params, _session, socket) do
-    # Ensure ETS chat store is started
-    Chat.ensure_started()
+  @programs @toys ++ @bluesky ++ @nathan ++ @trees ++ @receipt ++ @utilities ++ @other
 
+  def mount(_params, session, socket) do
+    # Get visitor's IP from session (set by RemoteIp plug)
+    visitor_ip = Map.get(session, "remote_ip", "unknown")
+
+    # Check for returning chatter by IP hash
+    ip_hash = Chat.hash_ip(visitor_ip)
+    returning_chatter = if ip_hash, do: Chat.get_chatter_by_ip(ip_hash), else: nil
+
+    # Don't set chatter yet - user needs to confirm their name first via the dialog
+    # We track returning_chatter separately to show "Welcome back!" message
     reader_id =
       if connected?(socket) do
         id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
-        # Generate a random color for this visitor
-        hue = :rand.uniform(360)
-        color = "hsl(#{hue}, 70%, 60%)"
+        # If returning chatter exists, use their color; otherwise generate new
+        color = if returning_chatter, do: returning_chatter.color, else: Blog.Chat.Chatter.random_color()
+        display_name = if returning_chatter, do: returning_chatter.screen_name, else: nil
 
         {:ok, _} =
           Presence.track(self(), @presence_topic, id, %{
             joined_at: DateTime.utc_now(),
             color: color,
-            display_name: nil
+            display_name: display_name
           })
 
         # Subscribe to presence and chat topics
         Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
-        Phoenix.PubSub.subscribe(Blog.PubSub, @chat_topic)
+        Phoenix.PubSub.subscribe(Blog.PubSub, Chat.topic())
 
         id
       else
         nil
       end
+
+    # chatter is nil until they confirm via save_name or skip_name
+    chatter = nil
 
     # Get online users from presence
     visitor_list =
@@ -94,24 +168,37 @@ defmodule BlogWeb.TerminalLive do
       |> Enum.map(fn {id, %{metas: [meta | _]}} -> {id, meta} end)
       |> Enum.into(%{})
 
-    # Get messages for the terminal chat room
-    messages = Chat.get_messages("terminal")
+    # Get messages from Postgres
+    messages = Chat.list_messages("terminal")
 
     {:ok, assign(socket,
       programs: @programs,
+      # Program groups for template
+      toys: @toys,
+      bluesky: @bluesky,
+      nathan: @nathan,
+      trees: @trees,
+      receipt: @receipt,
+      utilities: @utilities,
+      other: @other,
       selected: nil,
       time: format_time(),
       # Chat state
       reader_id: reader_id,
+      visitor_ip: visitor_ip,
+      chatter: chatter,
+      returning_chatter: returning_chatter,
       show_chat: true,
-      name_submitted: false,
-      name_form: %{"name" => ""},
+      name_form: %{"name" => if(returning_chatter, do: returning_chatter.screen_name, else: "")},
       chat_messages: messages,
       chat_form: %{"message" => ""},
       visitor_list: visitor_list,
       total_online: map_size(visitor_list),
       # Tree state
-      show_tree: false
+      show_tree: false,
+      # Tour state
+      show_tour: false,
+      tour_steps: build_tour_steps(chatter)
     )}
   end
 
@@ -148,13 +235,30 @@ defmodule BlogWeb.TerminalLive do
 
   def handle_event("save_name", %{"name" => name}, socket) do
     reader_id = socket.assigns.reader_id
+    visitor_ip = socket.assigns.visitor_ip
     trimmed_name = String.trim(name)
 
     if reader_id && trimmed_name != "" do
-      Presence.update(self(), @presence_topic, reader_id, fn meta ->
-        Map.put(meta, :display_name, trimmed_name)
-      end)
-      {:noreply, assign(socket, name_submitted: true)}
+      # Create or update chatter in Postgres
+      case Chat.find_or_create_chatter(trimmed_name, visitor_ip) do
+        {:ok, chatter} ->
+          # Update presence with the chatter's info
+          Presence.update(self(), @presence_topic, reader_id, fn meta ->
+            meta
+            |> Map.put(:display_name, chatter.screen_name)
+            |> Map.put(:color, chatter.color)
+          end)
+
+          {:noreply, assign(socket,
+            chatter: chatter,
+            name_form: %{"name" => chatter.screen_name},
+            tour_steps: build_tour_steps(chatter)
+          )}
+
+        {:error, _changeset} ->
+          # Handle error - keep dialog open
+          {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
@@ -165,44 +269,42 @@ defmodule BlogWeb.TerminalLive do
   end
 
   def handle_event("skip_name", _params, socket) do
-    {:noreply, assign(socket, name_submitted: true)}
+    # Skip creates an anonymous chatter
+    visitor_ip = socket.assigns.visitor_ip
+    anonymous_name = "Visitor#{:rand.uniform(9999)}"
+
+    case Chat.find_or_create_chatter(anonymous_name, visitor_ip) do
+      {:ok, chatter} ->
+        reader_id = socket.assigns.reader_id
+        if reader_id do
+          Presence.update(self(), @presence_topic, reader_id, fn meta ->
+            meta
+            |> Map.put(:display_name, chatter.screen_name)
+            |> Map.put(:color, chatter.color)
+          end)
+        end
+        {:noreply, assign(socket, chatter: chatter, tour_steps: build_tour_steps(chatter))}
+
+      {:error, _} ->
+        {:noreply, assign(socket, chatter: nil)}
+    end
   end
 
   def handle_event("send_chat_message", %{"message" => message}, socket) do
-    reader_id = socket.assigns.reader_id
+    chatter = socket.assigns.chatter
     trimmed_message = String.trim(message)
 
-    if reader_id && trimmed_message != "" do
-      # Get display name from presence
-      visitor_meta =
-        case Presence.get_by_key(@presence_topic, reader_id) do
-          %{metas: [meta | _]} -> meta
-          _ -> %{display_name: nil, color: "hsl(200, 70%, 60%)"}
-        end
+    if chatter && trimmed_message != "" do
+      # Save to Postgres and broadcast
+      case Chat.create_message(chatter, trimmed_message, "terminal") do
+        {:ok, _message} ->
+          # Get updated messages
+          updated_messages = Chat.list_messages("terminal")
+          {:noreply, assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
 
-      display_name = visitor_meta.display_name || "visitor #{String.slice(reader_id, -4, 4)}"
-      color = visitor_meta.color
-
-      new_message = %{
-        id: System.os_time(:millisecond),
-        sender_id: reader_id,
-        sender_name: display_name,
-        sender_color: color,
-        content: trimmed_message,
-        timestamp: DateTime.utc_now(),
-        room: "terminal"
-      }
-
-      # Save to ETS
-      Chat.save_message(new_message)
-
-      # Broadcast to all clients
-      Phoenix.PubSub.broadcast!(Blog.PubSub, @chat_topic, {:new_chat_message, new_message})
-
-      # Get updated messages
-      updated_messages = Chat.get_messages("terminal")
-
-      {:noreply, assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
+        {:error, _changeset} ->
+          {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
@@ -224,13 +326,55 @@ defmodule BlogWeb.TerminalLive do
 
   # Handle new chat messages
   def handle_info({:new_chat_message, _message}, socket) do
-    updated_messages = Chat.get_messages("terminal")
+    updated_messages = Chat.list_messages("terminal")
     {:noreply, assign(socket, chat_messages: updated_messages)}
+  end
+
+  # Handle Joyride tour completion
+  def handle_info({:tour_complete, _id}, socket) do
+    {:noreply, assign(socket, show_tour: false)}
+  end
+
+  # Tour controls
+  def handle_event("start_tour", _params, socket) do
+    {:noreply, assign(socket, show_tour: true)}
+  end
+
+  # Function component for rendering icon items
+  defp icon_item(assigns) do
+    # Support optional data-joyride on individual icons
+    assigns = assign_new(assigns, :joyride, fn -> nil end)
+
+    ~H"""
+    <div
+      class={"icon #{if @selected == @program.name, do: "selected"}"}
+      phx-click="select"
+      phx-value-name={@program.name}
+      data-joyride={@joyride}
+    >
+      <div
+        class="icon-image"
+        phx-click={if @program.path, do: "open"}
+        phx-value-path={@program.path}
+      >
+        <%= @program.icon %>
+      </div>
+      <div class="icon-label"><%= @program.name %></div>
+    </div>
+    """
   end
 
   def render(assigns) do
     ~H"""
     <div class="mac">
+      <%!-- Joyride Tour Component --%>
+      <.live_component
+        module={JoyrideComponent}
+        id="site-tour"
+        steps={@tour_steps}
+        run={@show_tour}
+      />
+
       <!-- Menu Bar -->
       <div class="menu-bar">
         <div class="menu-left">
@@ -238,7 +382,7 @@ defmodule BlogWeb.TerminalLive do
           <span class="menu-item">File</span>
           <span class="menu-item">Edit</span>
           <span class="menu-item">View</span>
-          <span class="menu-item">Special</span>
+          <span class="menu-item" phx-click="start_tour" style="cursor: pointer;">Tour</span>
         </div>
         <div class="menu-right">
           <span><%= @time %></span>
@@ -256,23 +400,50 @@ defmodule BlogWeb.TerminalLive do
           </div>
           <div class="window-content">
             <div class="icon-grid">
-              <%= for program <- @programs do %>
-                <div
-                  class={"icon #{if @selected == program.name, do: "selected"}"}
-                  phx-click="select"
-                  phx-value-name={program.name}
-                  phx-click={if program.path, do: nil}
-                >
-                  <div
-                    class="icon-image"
-                    phx-click={if program.path, do: "open"}
-                    phx-value-path={program.path}
-                  >
-                    <%= program.icon %>
-                  </div>
-                  <div class="icon-label"><%= program.name %></div>
-                </div>
-              <% end %>
+              <%!-- Fun Toys & Art Generators --%>
+              <div class="icon-section" data-joyride="toys-section">
+                <%= for program <- @toys do %>
+                  <.icon_item program={program} selected={@selected} />
+                <% end %>
+              </div>
+
+              <%!-- Bluesky / ATProto --%>
+              <div class="icon-section" data-joyride="bluesky-section">
+                <%= for program <- @bluesky do %>
+                  <.icon_item program={program} selected={@selected} />
+                <% end %>
+              </div>
+
+              <%!-- Nathan Fielder --%>
+              <div class="icon-section" data-joyride="nathan-section">
+                <%= for program <- @nathan do %>
+                  <.icon_item program={program} selected={@selected} />
+                <% end %>
+              </div>
+
+              <%!-- Single items with individual joyride targets --%>
+              <div class="icon-section">
+                <%= for program <- @trees do %>
+                  <.icon_item program={program} selected={@selected} joyride="trees-item" />
+                <% end %>
+                <%= for program <- @receipt do %>
+                  <.icon_item program={program} selected={@selected} joyride="receipt-item" />
+                <% end %>
+              </div>
+
+              <%!-- Utilities: HN, Bookmarks, MTA --%>
+              <div class="icon-section" data-joyride="utilities-section">
+                <%= for program <- @utilities do %>
+                  <.icon_item program={program} selected={@selected} />
+                <% end %>
+              </div>
+
+              <%!-- Other --%>
+              <div class="icon-section">
+                <%= for program <- @other do %>
+                  <.icon_item program={program} selected={@selected} />
+                <% end %>
+              </div>
             </div>
           </div>
           <div class="status-bar">
@@ -287,15 +458,19 @@ defmodule BlogWeb.TerminalLive do
         </div>
 
         <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
-        <!-- Name Dialog -->
-        <%= if @reader_id && !@name_submitted && @show_chat do %>
-          <div class="aim-name-dialog" style="top: 80px; right: 40px;">
+        <!-- Name Dialog - show for new visitors or returning visitors without confirmed chatter -->
+        <%= if @reader_id && is_nil(@chatter) && @show_chat do %>
+          <div class="aim-name-dialog" style="top: 80px; right: 40px;" data-joyride="aim-name-dialog">
             <div class="aim-name-dialog-titlebar">
-              <span>Enter Screen Name</span>
+              <span><%= if @returning_chatter, do: "Welcome Back!", else: "Enter Screen Name" %></span>
             </div>
             <div class="aim-name-dialog-content">
               <div class="aim-name-dialog-text">
-                Please enter your screen name to join the chat:
+                <%= if @returning_chatter do %>
+                  Welcome back, <strong><%= @returning_chatter.screen_name %></strong>! Change your name or join as:
+                <% else %>
+                  Please enter your screen name to join the chat:
+                <% end %>
               </div>
               <.form for={%{}} phx-submit="save_name" phx-change="validate_name">
                 <input
@@ -308,7 +483,9 @@ defmodule BlogWeb.TerminalLive do
                   autofocus
                 />
                 <div class="aim-name-buttons">
-                  <button type="submit" class="aim-name-btn primary">OK</button>
+                  <button type="submit" class="aim-name-btn primary">
+                    <%= if @returning_chatter, do: "Join as #{@returning_chatter.screen_name}", else: "OK" %>
+                  </button>
                   <button type="button" class="aim-name-btn" phx-click="skip_name">Skip</button>
                 </div>
               </.form>
@@ -326,7 +503,7 @@ defmodule BlogWeb.TerminalLive do
         </button>
 
         <!-- AIM Chat Container -->
-        <div class={["aim-chat-container", if(@show_chat, do: "open", else: "")]} style="right: 40px; bottom: 40px;">
+        <div class={["aim-chat-container", if(@show_chat, do: "open", else: "")]} style="right: 40px; bottom: 40px;" data-joyride="chat-window">
           <div class="aim-chat-titlebar">
             <span class="aim-chat-title">AIM Chat - Terminal</span>
             <div class="aim-chat-controls">
@@ -350,11 +527,11 @@ defmodule BlogWeb.TerminalLive do
             <div class="aim-messages-area" id="aim-chat-messages" phx-hook="ChatScroll">
               <%= for message <- @chat_messages do %>
                 <div class="aim-message">
-                  <span class="aim-message-sender" style={"color: #{message.sender_color};"}>
-                    <%= message.sender_name %>
+                  <span class="aim-message-sender" style={"color: #{if message.chatter, do: message.chatter.color, else: "#666"};"}>
+                    <%= if message.chatter, do: message.chatter.screen_name, else: "Anonymous" %>
                   </span>
                   <span class="aim-message-time">
-                    <%= Calendar.strftime(message.timestamp, "%I:%M %p") %>
+                    <%= Calendar.strftime(message.inserted_at, "%I:%M %p") %>
                   </span>
                   <div class="aim-message-content"><%= message.content %></div>
                 </div>
@@ -514,9 +691,21 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .icon-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, 72px);
-        gap: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .icon-section {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 8px;
+        border-radius: 4px;
+      }
+
+      .icon-section:hover {
+        background: rgba(0, 0, 0, 0.03);
       }
 
       .icon {

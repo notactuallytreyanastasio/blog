@@ -24,9 +24,6 @@ defmodule Blog.Application do
     # Create the ETS tables - in a safe way that handles table already existing
     create_ets_tables()
 
-    # Initialize the chat message store
-    Blog.Chat.MessageStore.init()
-
     # Pre-initialize the SkeetStore
     # This ensures the module is loaded and the table is ready
     ensure_skeet_store_initialized()
@@ -67,9 +64,6 @@ defmodule Blog.Application do
   rescue
     ArgumentError ->
       # Table already exists, continue with startup
-
-      # Initialize the chat message store (we still try this as it checks if tables exist)
-      Blog.Chat.MessageStore.init()
 
       # Pre-initialize the SkeetStore
       ensure_skeet_store_initialized()

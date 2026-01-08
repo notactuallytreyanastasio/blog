@@ -1840,3 +1840,165 @@ details[open] summary {
 .os-content-padded {
   padding: 16px;
 }
+/* ==========================================================================
+   Joyride - Guided Tour Component
+   ========================================================================== */
+
+.joyride-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
+
+.joyride-spotlight {
+  position: fixed;
+  z-index: 9999;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.5),
+    0 0 15px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.joyride-tooltip {
+  position: fixed;
+  z-index: 10000;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  padding: 16px;
+  min-width: 280px;
+  max-width: 320px;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.joyride-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #666;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.joyride-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.joyride-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111;
+  margin-bottom: 8px;
+  padding-right: 24px;
+}
+
+.joyride-content {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.joyride-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.joyride-progress {
+  font-size: 12px;
+  color: #888;
+}
+
+.joyride-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.joyride-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #333;
+  transition: all 0.15s;
+}
+
+.joyride-btn:hover {
+  background: #f5f5f5;
+}
+
+.joyride-btn-skip {
+  border: none;
+  color: #888;
+}
+
+.joyride-btn-skip:hover {
+  color: #555;
+  background: transparent;
+}
+
+.joyride-btn-primary {
+  background: #f04;
+  color: #fff;
+  border-color: #f04;
+}
+
+.joyride-btn-primary:hover {
+  background: #d00;
+  border-color: #d00;
+}
+
+/* Arrow styles */
+.joyride-arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+.joyride-arrow-top {
+  top: -6px;
+  left: 50%;
+  margin-left: -6px;
+  box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.joyride-arrow-bottom {
+  bottom: -6px;
+  left: 50%;
+  margin-left: -6px;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.joyride-arrow-left {
+  left: -6px;
+  top: 50%;
+  margin-top: -6px;
+  box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.joyride-arrow-right {
+  right: -6px;
+  top: 50%;
+  margin-top: -6px;
+  box-shadow: 2px -2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.joyride-arrow-hidden {
+  display: none;
+}
