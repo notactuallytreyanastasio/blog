@@ -196,8 +196,8 @@ defmodule BlogWeb.TerminalLive do
       total_online: map_size(visitor_list),
       # Tree state
       show_tree: false,
-      # Tour state
-      show_tour: false,
+      # Tour state - auto-start for first-time visitors
+      show_tour: is_nil(returning_chatter),
       tour_steps: build_tour_steps(chatter)
     )}
   end
