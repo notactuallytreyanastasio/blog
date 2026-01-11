@@ -3,7 +3,7 @@ defmodule Blog.PokeAround.AI.AxonTagger do
   GenServer that uses a trained Axon model for link tagging.
 
   This is a lightweight alternative to Ollama-based tagging that runs
-  entirely on-device using EXLA/XLA acceleration.
+  entirely on-device using Nx (EXLA optional for acceleration).
 
   ## Usage
 

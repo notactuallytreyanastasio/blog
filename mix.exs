@@ -64,9 +64,9 @@ defmodule Blog.MixProject do
       {:exqlite, "~> 0.23", runtime: false},
       {:live_joyride, "~> 0.1.0"},
       # AI/ML for PokeAround tagger (disabled by default)
+      # Note: exla removed - NIF doesn't work on Gigalixir
       {:nx, "~> 0.9"},
-      {:axon, "~> 0.7"},
-      {:exla, "~> 0.9"}
+      {:axon, "~> 0.7"}
     ]
   end
 

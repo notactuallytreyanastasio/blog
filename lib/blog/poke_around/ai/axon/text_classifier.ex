@@ -344,7 +344,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
     model
     |> Axon.Loop.trainer(loss, optimizer)
     |> Axon.Loop.validate(model, val_data)
-    |> Axon.Loop.run(train_data, %{}, epochs: epochs, compiler: EXLA)
+    |> Axon.Loop.run(train_data, %{}, epochs: epochs)
   end
 
   @doc """
@@ -443,7 +443,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
     encoded = encode_sequence(tokens, vocab)
     input_tensor = Nx.tensor([encoded], type: :s32)
 
-    {_init_fn, predict_fn} = Axon.build(model, compiler: EXLA)
+    {_init_fn, predict_fn} = Axon.build(model)
     predictions = predict_fn.(state, %{"input" => input_tensor})
 
     # Invert tag_index
@@ -467,7 +467,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
     encoded = encode_sequence(tokens, vocab)
     input_tensor = Nx.tensor([encoded], type: :s32)
 
-    {_init_fn, predict_fn} = Axon.build(model, compiler: EXLA)
+    {_init_fn, predict_fn} = Axon.build(model)
     predictions = predict_fn.(state, %{"input" => input_tensor})
 
     # Invert tag_index
