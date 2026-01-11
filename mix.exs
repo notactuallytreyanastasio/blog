@@ -62,7 +62,11 @@ defmodule Blog.MixProject do
       {:mogrify, "~> 0.9"},
       {:image, "~> 0.48"},
       {:exqlite, "~> 0.23", runtime: false},
-      {:live_joyride, "~> 0.1.0"}
+      {:live_joyride, "~> 0.1.0"},
+      # AI/ML for PokeAround tagger (disabled by default)
+      {:nx, "~> 0.9"},
+      {:axon, "~> 0.7"},
+      {:exla, "~> 0.9"}
     ]
   end
 
