@@ -215,62 +215,52 @@ defmodule BlogWeb.PostLive do
 
   def render(assigns) do
     ~H"""
-    <article class="min-h-screen bg-gray-50">
-      <!-- Header with navigation and metadata -->
-      <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div class="max-w-4xl mx-auto px-6 py-4">
-          <div class="flex items-center justify-between">
-            <.link navigate={~p"/"} class="flex items-center text-gray-600 hover:text-gray-900 transition-colors">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-              </svg>
-              Back to posts
-            </.link>
-            
-            <div class="flex items-center space-x-4 text-sm text-gray-500">
-              <%= if @reader_count > 1 do %>
-                <div class="flex items-center">
-                  <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                  {@reader_count - 1} {if @reader_count == 2, do: "other reader", else: "others reading"}
-                </div>
-              <% end %>
-              <div>{@word_count} words</div>
-              <div>{@estimated_read_time}</div>
-            </div>
-          </div>
+    <div class="site-header">
+      <h1 class="site-title">Thoughts & Tidbits</h1>
+      <p class="site-subtitle">
+        <.link navigate={~p"/"} class="hover:text-blue-600 transition-colors">
+          ← Back to all posts
+        </.link>
+      </p>
+      <div class="flex items-center justify-center space-x-4">
+        <div class="reader-count">
+          <div class="reader-dot"></div>
+          <%= if @reader_count > 1 do %>
+            {@reader_count} reading now
+          <% else %>
+            1 reader
+          <% end %>
         </div>
-      </header>
+        <span class="text-gray-500 text-sm">{@word_count} words · {@estimated_read_time}</span>
+      </div>
+    </div>
 
-      <!-- Main content -->
-      <div class="max-w-4xl mx-auto px-6 py-12">
-        <!-- Article header -->
-        <header class="mb-12">
-          <h1 class="text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-6">
-            {@post.title}
-          </h1>
-          
-          <div class="flex items-center justify-between mb-8">
+    <div class="main-container" style="grid-template-columns: 1fr;">
+      <div class="posts-column">
+        <div class="posts-header">
+          {@post.title}
+        </div>
+
+        <div style="padding: 24px;">
+          <!-- Post metadata -->
+          <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
             <time class="text-gray-600 font-medium">
               {Calendar.strftime(@post.written_on, "%B %d, %Y")}
             </time>
-            
-            <div class="flex flex-wrap gap-2">
+
+            <div class="post-tags">
               <%= for tag <- @post.tags do %>
-                <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                  {tag.name}
-                </span>
+                <span class="post-tag">{tag.name}</span>
               <% end %>
             </div>
           </div>
-          
+
           <!-- Reading progress indicator -->
-          <div class="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+          <div class="w-full h-1 bg-gray-200 rounded-full overflow-hidden mb-8">
             <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%" id="reading-progress"></div>
           </div>
-        </header>
 
-        <!-- Article body -->
-        <div class="prose prose-lg prose-gray max-w-none">
+          <!-- Article body -->
           <div
             id="post-content"
             phx-hook="Highlight"
@@ -278,10 +268,20 @@ defmodule BlogWeb.PostLive do
           >
             {raw(@html)}
           </div>
+
+          <!-- Back link at bottom -->
+          <div class="mt-12 pt-8 border-t border-gray-200">
+            <.link navigate={~p"/"} class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+              Back to all posts
+            </.link>
+          </div>
         </div>
       </div>
-    </article>
-    
+    </div>
+
     <script>
       // Reading progress indicator
       window.addEventListener('scroll', function() {
