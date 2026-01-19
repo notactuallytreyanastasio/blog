@@ -7,7 +7,6 @@ defmodule Blog.Content.Post do
     on-making-a-link-blog
     a-me-museum
     a-hilarious-shared-keyboard-key
-    on-what-happened-yesterday
     a-fun-experiment
     i-pulled-the-paul-tickets
     a-quick-typewriter-set-letter-project
