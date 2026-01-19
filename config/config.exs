@@ -63,6 +63,22 @@ config :phoenix, :json_library, Jason
 # Import receipt printer configuration
 import_config "receipt_printer.exs"
 
+# PokeAround (StumbleUpon clone) configuration
+config :blog, Blog.PokeAround.Supervisor,
+  enabled: true
+
+config :blog, Blog.PokeAround.Bluesky.Supervisor,
+  enabled: true
+
+# AI tagger is DISABLED by default - prod postgres too small for this volume
+config :blog, Blog.PokeAround.AI.AxonTagger,
+  enabled: false,
+  model_path: "priv/models/poke_around_tagger",
+  threshold: 0.25,
+  batch_size: 20,
+  interval_ms: 10_000,
+  langs: ["en"]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

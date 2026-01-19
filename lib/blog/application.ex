@@ -48,7 +48,9 @@ defmodule Blog.Application do
       Blog.Wordle.WordStore,
       Blog.Wordle.GameStore,
       # Start the Presence service for real-time user tracking
-      BlogWeb.Presence
+      BlogWeb.Presence,
+      # PokeAround subsystem (StumbleUpon clone)
+      Blog.PokeAround.Supervisor
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -88,7 +90,9 @@ defmodule Blog.Application do
         Blog.Wordle.WordStore,
         Blog.Wordle.GameStore,
         # Start the Presence service for real-time user tracking
-        BlogWeb.Presence
+        BlogWeb.Presence,
+        # PokeAround subsystem (StumbleUpon clone)
+        Blog.PokeAround.Supervisor
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]

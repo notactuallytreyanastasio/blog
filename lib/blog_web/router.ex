@@ -65,6 +65,7 @@ defmodule BlogWeb.Router do
     live "/very_direct_message", ReceiptMessageLive, :index
     live "/jetstream_comparison", JetstreamComparisonLive, :index
     live "/role-call", RoleCallLive, :index
+    live "/stumble", StumbleLive, :index
   end
 
   # API endpoints for receipt printer
