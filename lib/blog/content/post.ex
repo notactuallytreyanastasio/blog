@@ -1,6 +1,23 @@
 defmodule Blog.Content.Post do
   defstruct [:body, :title, :written_on, :tags, :slug]
 
+  # Allowlist of posts to display (excludes cached/deleted posts from old deploys)
+  @allowed_slugs ~w(
+    building-this-blog
+    on-making-a-link-blog
+    a-me-museum
+    a-hilarious-shared-keyboard-key
+    on-what-happened-yesterday
+    a-fun-experiment
+    i-pulled-the-paul-tickets
+    a-quick-typewriter-set-letter-project
+    lets-write-letters
+    whats-my-schtick
+    nathan-fielder
+    a-genstage-tutorial-and-reflection
+    327-years-of-tree-law-in-the-usa-
+  )
+
   def all do
     ((:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md")
     |> Path.wildcard()
@@ -11,6 +28,7 @@ defmodule Blog.Content.Post do
       end
     end)
     |> Enum.map(&parse_post_file/1)
+    |> Enum.filter(fn post -> post.slug in @allowed_slugs end)
     |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
   end
 
