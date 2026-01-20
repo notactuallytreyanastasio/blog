@@ -9,7 +9,11 @@ defmodule BlogWeb.EditorLive do
   def mount(%{"id" => id}, _session, socket) do
     case Editor.get_draft(id) do
       nil ->
-        {:ok, push_navigate(socket, to: ~p"/editor")}
+        {:ok,
+         socket
+         |> assign(:error, nil)
+         |> assign(:draft, nil)
+         |> push_navigate(to: ~p"/editor")}
 
       draft ->
         {:ok,
@@ -56,11 +60,23 @@ defmodule BlogWeb.EditorLive do
         require Logger
         error_msg = inspect(changeset.errors)
         Logger.error("Failed to create draft: #{error_msg}")
-        # Return a simple error page instead of redirecting
+        # Return a simple error page - set all assigns to prevent any access errors
         {:ok,
          socket
          |> assign(:error, "Failed to create draft: #{error_msg}")
-         |> assign(:draft, nil)}
+         |> assign(:draft, %Draft{status: "draft"})
+         |> assign(:content, "")
+         |> assign(:title, "")
+         |> assign(:author_name, "")
+         |> assign(:author_email, "")
+         |> assign(:preview_html, "")
+         |> assign(:last_saved, nil)
+         |> assign(:saving, false)
+         |> assign(:show_preview, false)
+         |> assign(:show_publish_dialog, false)
+         |> assign(:publish_error, nil)
+         |> assign(:cursor_line, 1)
+         |> assign(:cursor_col, 1)}
     end
   end
 
