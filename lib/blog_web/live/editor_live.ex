@@ -26,7 +26,8 @@ defmodule BlogWeb.EditorLive do
          |> assign(:show_publish_dialog, false)
          |> assign(:publish_error, nil)
          |> assign(:cursor_line, 1)
-         |> assign(:cursor_col, 1)}
+         |> assign(:cursor_col, 1)
+         |> assign(:error, nil)}
     end
   end
 
@@ -48,6 +49,7 @@ defmodule BlogWeb.EditorLive do
          |> assign(:publish_error, nil)
          |> assign(:cursor_line, 1)
          |> assign(:cursor_col, 1)
+         |> assign(:error, nil)
          |> push_patch(to: ~p"/editor/#{draft.id}")}
 
       {:error, changeset} ->
