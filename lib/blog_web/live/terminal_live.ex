@@ -723,22 +723,31 @@ defmodule BlogWeb.TerminalLive do
 
       /* Window (Icons/Finder) */
       .window {
-        width: 420px;
-        max-width: 45vw;
+        width: 38%;
+        min-width: 300px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
-        flex-shrink: 0;
+        flex-shrink: 1;
       }
 
       /* Blog Window */
       .blog-window {
-        width: 500px;
-        max-width: 50vw;
+        width: 45%;
+        min-width: 350px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
-        flex-shrink: 0;
+        flex-shrink: 1;
+      }
+
+      /* Hide chat on smaller screens to prioritize main windows */
+      @media (max-width: 1200px) {
+        .aim-chat-container,
+        .aim-name-dialog,
+        .aim-toggle-btn {
+          display: none !important;
+        }
       }
 
       .blog-window .title-bar {
