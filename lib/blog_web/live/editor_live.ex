@@ -106,7 +106,7 @@ defmodule BlogWeb.EditorLive do
      |> assign(:saving, true)}
   end
 
-  def handle_event("update_title", %{"title" => title}, socket) do
+  def handle_event("update_title", %{"value" => title}, socket) do
     if socket.assigns[:save_timer], do: Process.cancel_timer(socket.assigns.save_timer)
     timer = Process.send_after(self(), :save_draft, @save_debounce_ms)
 
@@ -142,14 +142,19 @@ defmodule BlogWeb.EditorLive do
   end
 
   def handle_event("publish", %{"name" => name, "email" => email}, socket) do
-    attrs = %{
-      title: socket.assigns.title,
-      content: socket.assigns.content,
-      author_name: String.trim(name),
-      author_email: String.trim(email)
-    }
+    title = String.trim(socket.assigns.title || "")
 
-    case Editor.publish_draft(socket.assigns.draft, attrs) do
+    if title == "" or title == "Untitled" do
+      {:noreply, assign(socket, publish_error: "Please enter a title for your post")}
+    else
+      attrs = %{
+        title: title,
+        content: socket.assigns.content,
+        author_name: String.trim(name),
+        author_email: String.trim(email)
+      }
+
+      case Editor.publish_draft(socket.assigns.draft, attrs) do
       {:ok, draft} ->
         {:noreply,
          socket
@@ -163,6 +168,7 @@ defmodule BlogWeb.EditorLive do
         errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
         error_msg = errors |> Enum.map(fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end) |> Enum.join("; ")
         {:noreply, assign(socket, publish_error: error_msg)}
+      end
     end
   end
 
