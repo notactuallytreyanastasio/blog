@@ -70,9 +70,22 @@ defmodule Blog.Editor do
 
   @doc """
   Publishes a draft by changing its status to "published".
+  Requires author name and email.
   """
-  def publish_draft(%Draft{} = draft) do
-    update_draft(draft, %{status: "published"})
+  def publish_draft(%Draft{} = draft, attrs \\ %{}) do
+    draft
+    |> Draft.publish_changeset(Map.merge(attrs, %{status: "published"}))
+    |> Repo.update()
+  end
+
+  @doc """
+  Lists all published drafts (guest posts).
+  """
+  def list_published do
+    Draft
+    |> where(status: "published")
+    |> order_by(desc: :updated_at)
+    |> Repo.all()
   end
 
   @doc """

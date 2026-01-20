@@ -8,6 +8,8 @@ defmodule Blog.Editor.Draft do
     field :content, :string
     field :status, :string, default: "draft"
     field :author_id, :string
+    field :author_name, :string
+    field :author_email, :string
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -15,8 +17,20 @@ defmodule Blog.Editor.Draft do
   @doc false
   def changeset(draft, attrs) do
     draft
-    |> cast(attrs, [:title, :slug, :content, :status, :author_id])
+    |> cast(attrs, [:title, :slug, :content, :status, :author_id, :author_name, :author_email])
     |> validate_required([:content])
+    |> validate_inclusion(:status, ["draft", "published"])
+    |> maybe_generate_slug()
+    |> unique_constraint(:slug)
+  end
+
+  @doc "Changeset for publishing - requires author info"
+  def publish_changeset(draft, attrs) do
+    draft
+    |> cast(attrs, [:title, :slug, :content, :status, :author_name, :author_email])
+    |> validate_required([:content, :title, :author_name, :author_email])
+    |> validate_format(:author_email, ~r/@/)
+    |> validate_length(:author_name, min: 1, max: 100)
     |> validate_inclusion(:status, ["draft", "published"])
     |> maybe_generate_slug()
     |> unique_constraint(:slug)

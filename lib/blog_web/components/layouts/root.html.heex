@@ -8,21 +8,21 @@
     <title>{assigns[:page_title] || "Thoughts and Tidbits"}</title>
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content={assigns[:page_description] || "A collection of thoughts, projects, and experiments."} />
-    
+    <meta name="description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
+
     <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content={assigns[:page_title] || "Thoughts and Tidbits"} />
-    <meta property="og:description" content={assigns[:page_description] || "A collection of thoughts, projects, and experiments."} />
+    <meta property="og:title" content={assigns[:page_title] || "Thoughts & Tidbits"} />
+    <meta property="og:description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
     <meta property="og:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Thoughts and Tidbits" />
-    
+    <meta property="og:site_name" content="Thoughts & Tidbits" />
+
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={assigns[:page_title] || "Thoughts and Tidbits"} />
-    <meta name="twitter:description" content={assigns[:page_description] || "A collection of thoughts, projects, and experiments."} />
+    <meta name="twitter:title" content={assigns[:page_title] || "Thoughts & Tidbits"} />
+    <meta name="twitter:description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
     <meta name="twitter:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
 
     <%= for meta <- assigns[:meta_tags] || [] do %>
