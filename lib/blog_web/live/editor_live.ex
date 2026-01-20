@@ -31,24 +31,33 @@ defmodule BlogWeb.EditorLive do
   end
 
   def mount(_params, _session, socket) do
-    {:ok, draft} = Editor.create_draft(%{content: "", title: "Untitled"})
+    case Editor.create_draft(%{content: "", title: "Untitled"}) do
+      {:ok, draft} ->
+        {:ok,
+         socket
+         |> assign(:draft, draft)
+         |> assign(:content, "")
+         |> assign(:title, "Untitled")
+         |> assign(:author_name, "")
+         |> assign(:author_email, "")
+         |> assign(:preview_html, "")
+         |> assign(:last_saved, draft.updated_at)
+         |> assign(:saving, false)
+         |> assign(:show_preview, true)
+         |> assign(:show_publish_dialog, false)
+         |> assign(:publish_error, nil)
+         |> assign(:cursor_line, 1)
+         |> assign(:cursor_col, 1)
+         |> push_patch(to: ~p"/editor/#{draft.id}")}
 
-    {:ok,
-     socket
-     |> assign(:draft, draft)
-     |> assign(:content, "")
-     |> assign(:title, "Untitled")
-     |> assign(:author_name, "")
-     |> assign(:author_email, "")
-     |> assign(:preview_html, "")
-     |> assign(:last_saved, draft.updated_at)
-     |> assign(:saving, false)
-     |> assign(:show_preview, true)
-     |> assign(:show_publish_dialog, false)
-     |> assign(:publish_error, nil)
-     |> assign(:cursor_line, 1)
-     |> assign(:cursor_col, 1)
-     |> push_patch(to: ~p"/editor/#{draft.id}")}
+      {:error, changeset} ->
+        require Logger
+        Logger.error("Failed to create draft: #{inspect(changeset.errors)}")
+        {:ok,
+         socket
+         |> put_flash(:error, "Failed to create draft")
+         |> push_navigate(to: ~p"/")}
+    end
   end
 
   def handle_params(%{"id" => _id}, _uri, socket), do: {:noreply, socket}
