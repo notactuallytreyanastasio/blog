@@ -457,192 +457,291 @@ defmodule BlogWeb.PostLive.Index do
   end
 
   def render(assigns) do
+    posts = (assigns.tech_posts ++ assigns.non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
+    assigns = assign(assigns, :all_posts, posts)
+
     ~H"""
-    <!-- AIM Name Dialog - only show when chat is open and name not yet submitted -->
-    <%= if @reader_id && !@name_submitted && @show_chat do %>
-      <div class="aim-name-dialog">
-        <div class="aim-name-dialog-titlebar">
-          <span>Enter Screen Name</span>
+    <div class="mac-blog">
+      <!-- Menu Bar -->
+      <div class="mac-menu-bar">
+        <div class="menu-left">
+          <span class="apple-menu">&#63743;</span>
+          <span class="menu-item">File</span>
+          <span class="menu-item">Edit</span>
+          <span class="menu-item">View</span>
+          <a href="/" class="menu-item" style="text-decoration: none; color: inherit;">Home</a>
         </div>
-        <div class="aim-name-dialog-content">
-          <div class="aim-name-dialog-text">
-            Please enter your screen name to join the chat room:
-          </div>
-          <.form for={%{}} phx-submit="save_name" phx-change="validate_name">
-            <input
-              type="text"
-              name="name"
-              value={@name_form["name"]}
-              placeholder="Screen Name"
-              maxlength="20"
-              class="aim-name-input"
-              autofocus
-            />
-            <div class="aim-name-buttons">
-              <button type="submit" class="aim-name-btn primary">
-                OK
-              </button>
-              <button type="button" class="aim-name-btn" phx-click="skip_name">
-                Skip
-              </button>
-            </div>
-          </.form>
+        <div class="menu-right">
+          <span><%= @total_readers %> online</span>
         </div>
       </div>
-    <% end %>
 
-    <div class="site-header">
-      <h1 class="site-title">Thoughts & Tidbits</h1>
-      <p class="site-subtitle">
-        A collection of thoughts on technology, life, and weird little things I make
-      </p>
-      <div class="flex items-center justify-center space-x-4">
-        <div class="reader-count">
-          <div class="reader-dot"></div>
-          {@total_readers} {if @total_readers == 1, do: "person", else: "people"} browsing
-        </div>
-        <a href="/post/whats-my-schtick" class="schtick-link">
-          what's my schtick?
-        </a>
-      </div>
-    </div>
-
-    <div class="main-container" phx-hook="PostExpander" id="post-expander">
-      <!-- Left Column: Blog Posts -->
-      <div class="posts-column">
-        <div class="posts-header">
-          Recent Posts
-        </div>
-        <div class="posts-list" id="posts-list">
-          <!-- Quick Links Row -->
-          <div class="post-card" style="background: #f8fafc; border-bottom: 2px solid #e5e7eb;">
-            <div style="padding: 12px 20px; display: flex; gap: 16px; flex-wrap: wrap;">
-              <a href="/post/whats-my-schtick" class="quick-link-btn" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #dbeafe; color: #1e40af; border-radius: 16px; font-size: 13px; font-weight: 500; text-decoration: none; transition: all 0.2s;">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                </svg>
-                what's my schtick?
-              </a>
-            </div>
+      <!-- Desktop -->
+      <div class="mac-desktop">
+        <!-- Blog Posts Window -->
+        <div class="mac-window">
+          <div class="mac-title-bar">
+            <div class="mac-close-box"></div>
+            <div class="mac-title">Thoughts & Tidbits - Blog</div>
+            <div class="mac-resize-box"></div>
           </div>
-          <%= for post <- (@tech_posts ++ @non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime}) do %>
-            <div class="post-card" id={"post-#{post.slug}"}>
-              <a href={~p"/post/#{post.slug}"} class="post-link">
-                <div class="post-info">
-                  <h3 class="post-title">{post.title}</h3>
-                  <div class="post-meta">
-                    {Calendar.strftime(post.written_on, "%B %d, %Y")}
+          <div class="mac-window-content">
+            <div class="blog-posts-list">
+              <%= for post <- @all_posts do %>
+                <a href={~p"/post/#{post.slug}"} class="blog-post-row">
+                  <div class="blog-post-icon">📝</div>
+                  <div class="blog-post-info">
+                    <div class="blog-post-title"><%= post.title %></div>
+                    <div class="blog-post-meta">
+                      <%= Calendar.strftime(post.written_on, "%B %d, %Y") %>
+                      <%= if length(post.tags) > 0 do %>
+                        <span class="blog-post-tags">
+                          <%= for tag <- post.tags do %>
+                            <span class="blog-tag"><%= tag.name %></span>
+                          <% end %>
+                        </span>
+                      <% end %>
+                    </div>
                   </div>
-                  <div class="post-tags">
-                    <%= for tag <- post.tags do %>
-                      <span class="post-tag">{tag.name}</span>
-                    <% end %>
-                  </div>
-                </div>
-              </a>
+                </a>
+              <% end %>
             </div>
-          <% end %>
-        </div>
-      </div>
-
-    <!-- Right Column: Museum/Projects -->
-      <div class="museum-column">
-        <div class="museum-header">
-          🏛️ Project Museum
-        </div>
-        <div class="museum-content">
-          <div class="category-filter">
-            <%= for category <- ["All" | get_demo_categories(@demos)] do %>
-              <button
-                class={["category-btn", if(@selected_category == category, do: "active", else: "")]}
-                phx-click="filter_category"
-                phx-value-category={category}
-              >
-                {category}
-              </button>
-            <% end %>
           </div>
-
-          <div class="projects-grid">
-            <%= for demo <- filter_demos(@demos, @selected_category || "All") do %>
-              <a href={demo.path} class="project-card">
-                <div class="project-title">{demo.title}</div>
-                <div class="project-description">{demo.description}</div>
-                <div class="project-category">{demo.category || "Demo"}</div>
-              </a>
-            <% end %>
+          <div class="mac-status-bar">
+            <span><%= length(@all_posts) %> posts</span>
+            <span><%= @total_readers %> <%= if @total_readers == 1, do: "reader", else: "readers" %></span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- AIM Style Chat -->
-    <button
-      class="aim-toggle-btn"
-      phx-click="toggle_chat"
-      style={if @show_chat, do: "display: none;", else: ""}
-    >
-      Chat Room
-    </button>
+    <style>
+      .mac-blog {
+        height: 100vh;
+        background: #a8a8a8;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 12px;
+        cursor: default;
+        -webkit-font-smoothing: none;
+        overflow: hidden;
+      }
 
-    <div class={["aim-chat-container", if(@show_chat, do: "open", else: "")]}>
-      <div class="aim-chat-titlebar">
-        <span class="aim-chat-title">General Chat Room</span>
-        <div class="aim-chat-controls">
-          <button class="aim-control-btn" phx-click="toggle_chat">×</button>
-        </div>
-      </div>
+      .mac-menu-bar {
+        height: 20px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+      }
 
-      <div class="aim-chat-content">
-        <div class="aim-buddy-list-title">Online ({@total_readers})</div>
-        <div class="aim-buddy-list">
-          <%= for {_id, user} <- @visitor_cursors do %>
-            <div class="aim-buddy">
-              <div class="aim-buddy-status"></div>
-              <span class="aim-buddy-name">
-                {if Map.get(user, :display_name), do: Map.get(user, :display_name), else: "Anonymous"}
-              </span>
-            </div>
-          <% end %>
-        </div>
+      .mac-blog .menu-left {
+        display: flex;
+        gap: 16px;
+      }
 
-        <div class="aim-messages-area" id="aim-chat-messages" phx-hook="ChatScroll">
-          <%= for message <- @chat_messages do %>
-            <div class="aim-message">
-              <span class="aim-message-sender" style={"color: #{message.sender_color};"}>
-                {message.sender_name}
-              </span>
-              <span class="aim-message-time">
-                {Calendar.strftime(message.timestamp, "%I:%M %p")}
-              </span>
-              <div class="aim-message-content">
-                {raw(format_message_with_links(message.content))}
-              </div>
-            </div>
-          <% end %>
-          <%= if Enum.empty?(@chat_messages) do %>
-            <div class="aim-message">
-              <span class="aim-message-sender" style="color: #000080;">ChatBot</span>
-              <div class="aim-message-content">Welcome to the chat room! Say hello!</div>
-            </div>
-          <% end %>
-        </div>
+      .mac-blog .apple-menu {
+        font-family: system-ui;
+        font-size: 14px;
+      }
 
-        <div class="aim-input-area">
-          <.form for={%{}} phx-submit="send_chat_message" phx-change="validate_chat_message">
-            <textarea
-              name="message"
-              class="aim-input-box"
-              placeholder="Type a message..."
-              maxlength="500"
-              autocomplete="off"
-            >{@chat_form["message"]}</textarea>
-            <button type="submit" class="aim-send-btn">Send</button>
-            <div style="clear: both;"></div>
-          </.form>
-        </div>
-      </div>
-    </div>
+      .mac-blog .menu-item {
+        cursor: default;
+      }
+
+      .mac-blog .menu-item:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .mac-blog .menu-right {
+        font-size: 11px;
+      }
+
+      .mac-desktop {
+        height: calc(100vh - 20px);
+        padding: 20px;
+        background: repeating-linear-gradient(
+          0deg,
+          #a8a8a8,
+          #a8a8a8 1px,
+          #b8b8b8 1px,
+          #b8b8b8 2px
+        );
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+
+      .mac-window {
+        width: 600px;
+        max-width: 95vw;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        margin-top: 20px;
+      }
+
+      .mac-title-bar {
+        height: 20px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        background: repeating-linear-gradient(
+          90deg,
+          #fff 0px,
+          #fff 1px,
+          #000 1px,
+          #000 2px,
+          #fff 2px,
+          #fff 3px
+        );
+      }
+
+      .mac-close-box {
+        width: 12px;
+        height: 12px;
+        border: 1px solid #000;
+        background: #fff;
+        margin-right: 8px;
+        cursor: pointer;
+      }
+
+      .mac-close-box:hover {
+        background: #000;
+      }
+
+      .mac-title {
+        flex: 1;
+        text-align: center;
+        background: #fff;
+        padding: 0 8px;
+        font-weight: bold;
+      }
+
+      .mac-resize-box {
+        width: 12px;
+        height: 12px;
+      }
+
+      .mac-window-content {
+        padding: 0;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .blog-posts-list {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .blog-post-row {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid #ccc;
+        text-decoration: none;
+        color: inherit;
+        cursor: default;
+      }
+
+      .blog-post-row:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .blog-post-row:hover .blog-tag {
+        background: #333;
+        color: #fff;
+      }
+
+      .blog-post-icon {
+        font-size: 24px;
+        margin-right: 12px;
+        width: 32px;
+        text-align: center;
+      }
+
+      .blog-post-info {
+        flex: 1;
+      }
+
+      .blog-post-title {
+        font-weight: bold;
+        font-size: 13px;
+        margin-bottom: 2px;
+      }
+
+      .blog-post-meta {
+        font-size: 10px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .blog-post-row:hover .blog-post-meta {
+        color: #ccc;
+      }
+
+      .blog-post-tags {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+
+      .blog-tag {
+        background: #e0e0e0;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 9px;
+      }
+
+      .mac-status-bar {
+        height: 20px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 10px;
+      }
+
+      @media (max-width: 768px) {
+        .mac-desktop {
+          padding: 10px;
+        }
+
+        .mac-window {
+          width: 100%;
+          margin-top: 10px;
+        }
+
+        .mac-blog .menu-item {
+          display: none;
+        }
+
+        .mac-blog .menu-item:last-child {
+          display: inline;
+        }
+
+        .blog-post-icon {
+          font-size: 20px;
+          margin-right: 8px;
+          width: 24px;
+        }
+
+        .blog-post-title {
+          font-size: 12px;
+        }
+      }
+    </style>
     """
   end
 
