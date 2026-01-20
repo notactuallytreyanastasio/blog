@@ -250,6 +250,9 @@ defmodule BlogWeb.PostLive do
             <!-- Post metadata bar -->
             <div class="post-meta-bar">
               <span class="post-date"><%= Calendar.strftime(@post.written_on, "%B %d, %Y") %></span>
+              <%= if @post.is_guest_post && @post.author_name do %>
+                <span class="post-author">by <%= @post.author_name %></span>
+              <% end %>
               <span class="post-stats"><%= @word_count %> words · <%= @estimated_read_time %></span>
               <div class="post-tags-inline">
                 <%= for tag <- @post.tags do %>
@@ -417,6 +420,11 @@ defmodule BlogWeb.PostLive do
 
       .mac-post .post-date {
         font-weight: bold;
+      }
+
+      .mac-post .post-author {
+        color: #0066cc;
+        font-style: italic;
       }
 
       .mac-post .post-stats {

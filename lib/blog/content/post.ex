@@ -1,5 +1,5 @@
 defmodule Blog.Content.Post do
-  defstruct [:body, :title, :written_on, :tags, :slug]
+  defstruct [:body, :title, :written_on, :tags, :slug, :author_name, :is_guest_post]
 
   # Allowlist of posts to display (excludes cached/deleted posts from old deploys)
   @allowed_slugs ~w(
@@ -18,23 +18,55 @@ defmodule Blog.Content.Post do
   )
 
   def all do
-    ((:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md")
-    |> Path.wildcard()
-    |> Enum.reject(fn file ->
-      case file |> String.split("-") |> List.last() |> String.length() do
-        35 -> true
-        _ -> false
-      end
-    end)
-    |> Enum.map(&parse_post_file/1)
-    |> Enum.filter(fn post -> post.slug in @allowed_slugs end)
+    file_posts =
+      ((:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md")
+      |> Path.wildcard()
+      |> Enum.reject(fn file ->
+        case file |> String.split("-") |> List.last() |> String.length() do
+          35 -> true
+          _ -> false
+        end
+      end)
+      |> Enum.map(&parse_post_file/1)
+      |> Enum.filter(fn post -> post.slug in @allowed_slugs end)
+
+    guest_posts = list_published_drafts()
+
+    (file_posts ++ guest_posts)
     |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
+  end
+
+  defp list_published_drafts do
+    Blog.Editor.list_published()
+    |> Enum.map(&draft_to_post/1)
+  end
+
+  defp draft_to_post(draft) do
+    %__MODULE__{
+      body: draft.content || "",
+      title: draft.title || "Untitled",
+      written_on: draft.updated_at |> DateTime.to_naive(),
+      slug: draft.slug,
+      tags: [%Blog.Content.Tag{name: "guest-post"}],
+      author_name: draft.author_name,
+      is_guest_post: true
+    }
   end
 
   @spec get_by_slug(any()) :: any()
   def get_by_slug(slug) do
-    all()
-    |> Enum.find(&(&1.slug == slug))
+    # First check file-based posts
+    case all() |> Enum.find(&(&1.slug == slug)) do
+      nil ->
+        # Check if it's a published draft
+        case Blog.Editor.get_draft_by_slug(slug) do
+          %{status: "published"} = draft -> draft_to_post(draft)
+          _ -> nil
+        end
+
+      post ->
+        post
+    end
   end
 
   defp parse_post_file(file) do

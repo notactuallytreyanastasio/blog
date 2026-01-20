@@ -176,7 +176,7 @@ defmodule BlogWeb.EditorLive do
           <a href="/" class="menu-item">Home</a>
         </div>
         <div class="menu-right">
-          <span class="save-indicator <%= if @saving, do: "saving" %>">
+          <span class={"save-indicator #{if @saving, do: "saving"}"}>
             <%= if @saving, do: "●", else: "○" %>
           </span>
           <%= format_time(@last_saved) %>
@@ -301,7 +301,7 @@ Use ::bsky[url] to embed Bluesky posts."
             <span class="status-item"><%= word_count(@content) %> words</span>
             <span class="status-item"><%= String.length(@content) %> chars</span>
             <span class="status-spacer"></span>
-            <span class="status-item status-<%= @draft.status %>"><%= @draft.status %></span>
+            <span class={"status-item status-#{@draft.status}"}><%= @draft.status %></span>
           </div>
         </div>
 
