@@ -605,6 +605,94 @@ Hooks.ChatScroll = {
   }
 };
 
+Hooks.Draggable = {
+  mounted() {
+    const el = this.el;
+    const titleBar = el.querySelector('.title-bar, .aim-chat-titlebar, .aim-name-dialog-titlebar');
+    if (!titleBar) return;
+
+    let isDragging = false;
+    let startX, startY, initialX, initialY;
+
+    // Make element positioned if not already
+    const style = window.getComputedStyle(el);
+    if (style.position === 'static') {
+      el.style.position = 'relative';
+    }
+
+    titleBar.style.cursor = 'grab';
+
+    const onMouseDown = (e) => {
+      // Don't drag if clicking buttons
+      if (e.target.closest('button, .close-box, .aim-control-btn')) return;
+
+      isDragging = true;
+      titleBar.style.cursor = 'grabbing';
+
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = el.getBoundingClientRect();
+      initialX = rect.left;
+      initialY = rect.top;
+
+      // Convert to fixed positioning for dragging
+      el.style.position = 'fixed';
+      el.style.left = initialX + 'px';
+      el.style.top = initialY + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+      el.style.zIndex = '1000';
+
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      el.style.left = (initialX + dx) + 'px';
+      el.style.top = (initialY + dy) + 'px';
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      titleBar.style.cursor = 'grab';
+    };
+
+    titleBar.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    // Touch support for mobile
+    titleBar.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button, .close-box, .aim-control-btn')) return;
+      const touch = e.touches[0];
+      onMouseDown({ clientX: touch.clientX, clientY: touch.clientY, target: e.target, preventDefault: () => {} });
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      onMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+    }, { passive: true });
+
+    document.addEventListener('touchend', onMouseUp);
+
+    this.cleanup = () => {
+      titleBar.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  },
+  destroyed() {
+    if (this.cleanup) this.cleanup();
+  }
+};
+
 Hooks.ScrollToTop = {
   mounted() {
     this.handleEvent("scroll-to-top", () => {

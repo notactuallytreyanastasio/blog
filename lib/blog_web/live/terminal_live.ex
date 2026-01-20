@@ -193,7 +193,7 @@ defmodule BlogWeb.TerminalLive do
       visitor_ip: visitor_ip,
       chatter: chatter,
       returning_chatter: returning_chatter,
-      show_chat: true,
+      show_chat: false,
       name_form: %{"name" => if(returning_chatter, do: returning_chatter.screen_name, else: "")},
       chat_messages: messages,
       chat_form: %{"message" => ""},
@@ -206,7 +206,7 @@ defmodule BlogWeb.TerminalLive do
       tour_steps: build_tour_steps(chatter),
       # Mobile state - which window is active on mobile
       # Options: :finder, :chat, :name_dialog, :blog
-      mobile_window: if(is_nil(chatter), do: :name_dialog, else: :finder)
+      mobile_window: :finder
     )}
   end
 
@@ -238,7 +238,15 @@ defmodule BlogWeb.TerminalLive do
 
   # Chat event handlers
   def handle_event("toggle_chat", _params, socket) do
-    {:noreply, assign(socket, show_chat: !socket.assigns.show_chat)}
+    new_show_chat = !socket.assigns.show_chat
+    # When opening chat on mobile, show name dialog if no chatter set
+    mobile_window =
+      if new_show_chat && is_nil(socket.assigns.chatter) do
+        :name_dialog
+      else
+        socket.assigns.mobile_window
+      end
+    {:noreply, assign(socket, show_chat: new_show_chat, mobile_window: mobile_window)}
   end
 
   def handle_event("save_name", %{"name" => name}, socket) do
@@ -356,7 +364,20 @@ defmodule BlogWeb.TerminalLive do
   # Mobile window switching
   def handle_event("switch_mobile_window", %{"window" => window}, socket) do
     window_atom = String.to_existing_atom(window)
-    {:noreply, assign(socket, mobile_window: window_atom)}
+
+    # If switching to chat but user hasn't set name, show name dialog first
+    {window_atom, show_chat} =
+      if window_atom == :chat do
+        if is_nil(socket.assigns.chatter) do
+          {:name_dialog, true}
+        else
+          {:chat, true}
+        end
+      else
+        {window_atom, socket.assigns.show_chat}
+      end
+
+    {:noreply, assign(socket, mobile_window: window_atom, show_chat: show_chat)}
   end
 
   # Function component for rendering icon items
@@ -411,7 +432,7 @@ defmodule BlogWeb.TerminalLive do
       <!-- Desktop -->
       <div class="desktop">
         <!-- Mac Window (Finder) -->
-        <div class={"window mobile-window-finder #{if @mobile_window == :finder, do: "mobile-active"}"}>
+        <div class={"window mobile-window-finder #{if @mobile_window == :finder, do: "mobile-active"}"} phx-hook="Draggable" id="finder-window">
           <div class="title-bar">
             <div class="close-box"></div>
             <div class="title">bobbby.online</div>
@@ -472,7 +493,7 @@ defmodule BlogWeb.TerminalLive do
         </div>
 
         <!-- Blog Posts Window -->
-        <div class={"blog-window mobile-window-blog #{if @mobile_window == :blog, do: "mobile-active"}"}>
+        <div class={"blog-window mobile-window-blog #{if @mobile_window == :blog, do: "mobile-active"}"} phx-hook="Draggable" id="blog-window">
           <div class="title-bar">
             <div class="close-box"></div>
             <div class="title">Thoughts & Tidbits - Blog</div>
@@ -514,7 +535,7 @@ defmodule BlogWeb.TerminalLive do
         <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
         <!-- Name Dialog - show for new visitors or returning visitors without confirmed chatter -->
         <%= if @reader_id && is_nil(@chatter) && @show_chat do %>
-          <div class={"aim-name-dialog mobile-window-name_dialog #{if @mobile_window == :name_dialog, do: "mobile-active"}"} style="top: 80px; right: 40px;" data-joyride="aim-name-dialog">
+          <div class={"aim-name-dialog mobile-window-name_dialog #{if @mobile_window == :name_dialog, do: "mobile-active"}"} style="top: 80px; right: 40px;" data-joyride="aim-name-dialog" phx-hook="Draggable" id="name-dialog-window">
             <div class="aim-name-dialog-titlebar">
               <span><%= if @returning_chatter, do: "Welcome Back!", else: "Enter Screen Name" %></span>
             </div>
@@ -557,7 +578,7 @@ defmodule BlogWeb.TerminalLive do
         </button>
 
         <!-- AIM Chat Container -->
-        <div class={["aim-chat-container", "mobile-window-chat", if(@show_chat, do: "open", else: ""), if(@mobile_window == :chat, do: "mobile-active", else: "")]} style="right: 40px; bottom: 40px;" data-joyride="chat-window">
+        <div class={["aim-chat-container", "mobile-window-chat", if(@show_chat, do: "open", else: ""), if(@mobile_window == :chat, do: "mobile-active", else: "")]} style="right: 40px; bottom: 40px;" data-joyride="chat-window" phx-hook="Draggable" id="chat-window">
           <div class="aim-chat-titlebar">
             <span class="aim-chat-title">AIM Chat - Terminal</span>
             <div class="aim-chat-controls">
