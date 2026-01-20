@@ -92,7 +92,7 @@ defmodule BlogWeb.EditorLive do
   def handle_params(%{"id" => _id}, _uri, socket), do: {:noreply, socket}
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
-  def handle_event("update_content", %{"content" => content}, socket) do
+  def handle_event("update_content", %{"value" => content}, socket) do
     preview_html = Editor.render_markdown(content)
 
     if socket.assigns[:save_timer], do: Process.cancel_timer(socket.assigns.save_timer)
@@ -789,8 +789,24 @@ Use ::bsky[url] to embed Bluesky posts."
         color: #333;
       }
 
-      .preview-body h1, .preview-body h2, .preview-body h3 {
+      .preview-body h1 {
         font-family: 'Chicago', 'Geneva', sans-serif;
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 1.5rem 0 0.75rem 0;
+      }
+
+      .preview-body h2 {
+        font-family: 'Chicago', 'Geneva', sans-serif;
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin: 1.5rem 0 0.75rem 0;
+      }
+
+      .preview-body h3 {
+        font-family: 'Chicago', 'Geneva', sans-serif;
+        font-size: 1.25rem;
+        font-weight: bold;
         margin: 1.5rem 0 0.75rem 0;
       }
 
