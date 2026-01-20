@@ -18,7 +18,7 @@ defmodule Blog.Editor.Draft do
   def changeset(draft, attrs) do
     draft
     |> cast(attrs, [:title, :slug, :content, :status, :author_id, :author_name, :author_email])
-    |> validate_required([:content])
+    # Don't require content for drafts - allow empty drafts
     |> validate_inclusion(:status, ["draft", "published"])
     |> maybe_generate_slug()
     |> unique_constraint(:slug)
