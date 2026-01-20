@@ -70,7 +70,7 @@ defmodule BlogWeb.TerminalLive do
 
   # Grouped by tour sections
   @toys [
-    %{name: "Blog", icon: "📝", path: "/"},
+    %{name: "Blog", icon: "📝", path: "/blog"},
     %{name: "Pong", icon: "🏓", path: "/pong"},
     %{name: "Pong God View", icon: "👁️", path: "/pong/god"},
     %{name: "Wordle", icon: "🔤", path: "/wordle"},
