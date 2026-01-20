@@ -1,7 +1,140 @@
 // Markdown editor hook for handling functionality like cursor position tracking
 const MarkdownEditor = {
   mounted() {
-    // Will be implemented if needed in the future
+    this.setupImagePaste();
+    this.setupKeyboardShortcuts();
+    this.setupDragDrop();
+  },
+
+  setupImagePaste() {
+    this.el.addEventListener('paste', (event) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          event.preventDefault();
+          const blob = items[i].getAsFile();
+          this.handleImageFile(blob);
+          break;
+        }
+      }
+    });
+  },
+
+  setupDragDrop() {
+    this.el.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      this.el.classList.add('drag-over');
+    });
+
+    this.el.addEventListener('dragleave', () => {
+      this.el.classList.remove('drag-over');
+    });
+
+    this.el.addEventListener('drop', (event) => {
+      event.preventDefault();
+      this.el.classList.remove('drag-over');
+
+      const files = event.dataTransfer?.files;
+      if (!files) return;
+
+      for (let i = 0; i < files.length; i++) {
+        if (files[i].type.indexOf('image') !== -1) {
+          this.handleImageFile(files[i]);
+          break;
+        }
+      }
+    });
+  },
+
+  handleImageFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      // Insert at cursor position
+      const textarea = this.el;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      const imageMd = `![image](${dataUrl})`;
+
+      textarea.value = text.substring(0, start) + imageMd + text.substring(end);
+
+      // Move cursor after the inserted image
+      const newPos = start + imageMd.length;
+      textarea.setSelectionRange(newPos, newPos);
+
+      // Trigger the update event
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      this.pushEvent("update_content", { content: textarea.value });
+    };
+    reader.readAsDataURL(file);
+  },
+
+  setupKeyboardShortcuts() {
+    this.el.addEventListener('keydown', (event) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+
+      const textarea = this.el;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = textarea.value.substring(start, end);
+      let replacement = null;
+      let newCursorPos = null;
+
+      switch (event.key.toLowerCase()) {
+        case 'b': // Bold
+          if (selectedText) {
+            replacement = `**${selectedText}**`;
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '****';
+            newCursorPos = start + 2;
+          }
+          break;
+        case 'i': // Italic
+          if (selectedText) {
+            replacement = `*${selectedText}*`;
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '**';
+            newCursorPos = start + 1;
+          }
+          break;
+        case 'k': // Link
+          if (selectedText) {
+            replacement = `[${selectedText}](url)`;
+            newCursorPos = start + selectedText.length + 3;
+          } else {
+            replacement = '[](url)';
+            newCursorPos = start + 1;
+          }
+          break;
+        case '`': // Code
+          if (selectedText) {
+            if (selectedText.includes('\n')) {
+              replacement = `\`\`\`\n${selectedText}\n\`\`\``;
+            } else {
+              replacement = `\`${selectedText}\``;
+            }
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '``';
+            newCursorPos = start + 1;
+          }
+          break;
+      }
+
+      if (replacement !== null) {
+        event.preventDefault();
+        const text = textarea.value;
+        textarea.value = text.substring(0, start) + replacement + text.substring(end);
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        this.pushEvent("update_content", { content: textarea.value });
+      }
+    });
   }
 }
 

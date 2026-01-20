@@ -3,6 +3,7 @@ import GameAnimations from "./hooks/game_animations";
 import BezierTriangles from "./hooks/bezier_triangles";
 import MtaBusMap from "./hooks/mta_bus_map";
 import BubbleGame from "./hooks/bubble_game";
+import { MarkdownEditor } from "./hooks/markdown_editor";
 import { Joyride } from "../../deps/live_joyride/assets/js";
 
 // Sunflower Background Animation
@@ -258,5 +259,6 @@ export default {
   TourSpotlight,
   CardGrid,
   SunflowerBackground,
+  MarkdownEditor,
   Joyride
 };
