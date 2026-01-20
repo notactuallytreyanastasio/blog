@@ -52,11 +52,13 @@ defmodule BlogWeb.EditorLive do
 
       {:error, changeset} ->
         require Logger
-        Logger.error("Failed to create draft: #{inspect(changeset.errors)}")
+        error_msg = inspect(changeset.errors)
+        Logger.error("Failed to create draft: #{error_msg}")
+        # Return a simple error page instead of redirecting
         {:ok,
          socket
-         |> put_flash(:error, "Failed to create draft")
-         |> push_navigate(to: ~p"/")}
+         |> assign(:error, "Failed to create draft: #{error_msg}")
+         |> assign(:draft, nil)}
     end
   end
 
@@ -174,6 +176,13 @@ defmodule BlogWeb.EditorLive do
 
   def render(assigns) do
     ~H"""
+    <%= if assigns[:error] do %>
+      <div style="padding: 40px; max-width: 600px; margin: 0 auto; font-family: monospace;">
+        <h1 style="color: red;">Editor Error</h1>
+        <pre style="background: #f0f0f0; padding: 20px; overflow: auto;"><%= @error %></pre>
+        <a href="/" style="color: blue;">Return to homepage</a>
+      </div>
+    <% else %>
     <div class="mac-editor-retro">
       <!-- Menu Bar -->
       <div class="menu-bar">
@@ -380,6 +389,7 @@ Use ::bsky[url] to embed Bluesky posts."
         </div>
       <% end %>
     </div>
+    <% end %>
 
     <style>
       @font-face {
