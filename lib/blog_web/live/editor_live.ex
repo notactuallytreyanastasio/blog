@@ -55,7 +55,7 @@ defmodule BlogWeb.EditorLive do
            |> assign(:cursor_line, 1)
            |> assign(:cursor_col, 1)
            |> assign(:error, nil)
-           |> push_patch(to: ~p"/editor/#{draft.id}")}
+           |> push_navigate(to: ~p"/editor/#{draft.id}")}
 
         {:error, changeset} ->
           require Logger
@@ -87,7 +87,6 @@ defmodule BlogWeb.EditorLive do
     |> assign(:publish_error, nil)
     |> assign(:cursor_line, 1)
     |> assign(:cursor_col, 1)
-  end
   end
 
   def handle_params(%{"id" => _id}, _uri, socket), do: {:noreply, socket}
