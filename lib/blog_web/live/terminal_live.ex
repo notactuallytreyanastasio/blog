@@ -171,6 +171,9 @@ defmodule BlogWeb.TerminalLive do
     # Get messages from Postgres
     messages = Chat.list_messages("terminal")
 
+    # Get blog posts
+    blog_posts = Blog.Content.Post.all() |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
+
     {:ok, assign(socket,
       programs: @programs,
       # Program groups for template
@@ -183,6 +186,8 @@ defmodule BlogWeb.TerminalLive do
       other: @other,
       selected: nil,
       time: format_time(),
+      # Blog posts
+      blog_posts: blog_posts,
       # Chat state
       reader_id: reader_id,
       visitor_ip: visitor_ip,
@@ -200,7 +205,7 @@ defmodule BlogWeb.TerminalLive do
       show_tour: is_nil(returning_chatter),
       tour_steps: build_tour_steps(chatter),
       # Mobile state - which window is active on mobile
-      # Options: :finder, :chat, :name_dialog
+      # Options: :finder, :chat, :name_dialog, :blog
       mobile_window: if(is_nil(chatter), do: :name_dialog, else: :finder)
     )}
   end
@@ -466,6 +471,41 @@ defmodule BlogWeb.TerminalLive do
           </div>
         </div>
 
+        <!-- Blog Posts Window -->
+        <div class={"blog-window mobile-window-blog #{if @mobile_window == :blog, do: "mobile-active"}"}>
+          <div class="title-bar">
+            <div class="close-box"></div>
+            <div class="title">Thoughts & Tidbits - Blog</div>
+            <div class="resize-box"></div>
+          </div>
+          <div class="blog-window-content">
+            <div class="blog-posts-list">
+              <%= for post <- @blog_posts do %>
+                <a href={~p"/post/#{post.slug}"} class="blog-post-row">
+                  <div class="blog-post-icon">📝</div>
+                  <div class="blog-post-info">
+                    <div class="blog-post-title"><%= post.title %></div>
+                    <div class="blog-post-meta">
+                      <%= Calendar.strftime(post.written_on, "%B %d, %Y") %>
+                      <%= if length(post.tags) > 0 do %>
+                        <span class="blog-post-tags">
+                          <%= for tag <- post.tags do %>
+                            <span class="blog-tag"><%= tag.name %></span>
+                          <% end %>
+                        </span>
+                      <% end %>
+                    </div>
+                  </div>
+                </a>
+              <% end %>
+            </div>
+          </div>
+          <div class="status-bar">
+            <span><%= length(@blog_posts) %> posts</span>
+            <span><%= @total_online %> <%= if @total_online == 1, do: "reader", else: "readers" %></span>
+          </div>
+        </div>
+
         <!-- Psychedelic Tree (always visible, transparent background) -->
         <div class="tree-container" id="tree-wrapper" phx-update="ignore">
           <canvas id="psychedelic-tree" phx-hook="PsychedelicTree"></canvas>
@@ -581,7 +621,14 @@ defmodule BlogWeb.TerminalLive do
             phx-click="switch_mobile_window"
             phx-value-window="finder"
           >
-            📁 Finder
+            📁 Apps
+          </button>
+          <button
+            class={"mobile-taskbar-btn #{if @mobile_window == :blog, do: "active"}"}
+            phx-click="switch_mobile_window"
+            phx-value-window="blog"
+          >
+            📝 Blog
           </button>
           <%= if is_nil(@chatter) do %>
             <button
@@ -669,15 +716,152 @@ defmodule BlogWeb.TerminalLive do
           #b8b8b8 1px,
           #b8b8b8 2px
         );
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
       }
 
-      /* Window */
+      /* Window (Icons/Finder) */
       .window {
-        width: 700px;
-        max-width: 95vw;
+        width: 420px;
+        max-width: 45vw;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
+        flex-shrink: 0;
+      }
+
+      /* Blog Window */
+      .blog-window {
+        width: 500px;
+        max-width: 50vw;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        flex-shrink: 0;
+      }
+
+      .blog-window .title-bar {
+        height: 20px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        background: repeating-linear-gradient(
+          90deg,
+          #fff 0px,
+          #fff 1px,
+          #000 1px,
+          #000 2px,
+          #fff 2px,
+          #fff 3px
+        );
+      }
+
+      .blog-window .close-box {
+        width: 12px;
+        height: 12px;
+        border: 1px solid #000;
+        background: #fff;
+        margin-right: 8px;
+      }
+
+      .blog-window .title {
+        flex: 1;
+        text-align: center;
+        background: #fff;
+        padding: 0 8px;
+        font-weight: bold;
+      }
+
+      .blog-window-content {
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .blog-posts-list {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .blog-post-row {
+        display: flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-bottom: 1px solid #ccc;
+        text-decoration: none;
+        color: inherit;
+        cursor: default;
+      }
+
+      .blog-post-row:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .blog-post-row:hover .blog-tag {
+        background: #333;
+        color: #fff;
+      }
+
+      .blog-post-row:hover .blog-post-meta {
+        color: #ccc;
+      }
+
+      .blog-post-icon {
+        font-size: 20px;
+        margin-right: 10px;
+        width: 24px;
+        text-align: center;
+      }
+
+      .blog-post-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .blog-post-title {
+        font-weight: bold;
+        font-size: 12px;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .blog-post-meta {
+        font-size: 10px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .blog-post-tags {
+        display: flex;
+        gap: 3px;
+        flex-wrap: wrap;
+      }
+
+      .blog-tag {
+        background: #e0e0e0;
+        padding: 1px 5px;
+        border-radius: 2px;
+        font-size: 9px;
+      }
+
+      .blog-window .status-bar {
+        height: 20px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 10px;
       }
 
       .title-bar {
@@ -851,6 +1035,30 @@ defmodule BlogWeb.TerminalLive do
           flex: 1;
           max-height: none;
           min-height: auto;
+          overflow-y: auto;
+        }
+
+        /* Blog window - full screen on mobile */
+        .blog-window.mobile-window-blog {
+          position: fixed;
+          top: 20px;
+          left: 0;
+          right: 0;
+          bottom: 60px;
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 100;
+          display: none;
+        }
+
+        .blog-window.mobile-window-blog.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .blog-window.mobile-window-blog .blog-window-content {
+          flex: 1;
+          max-height: none;
           overflow-y: auto;
         }
 
