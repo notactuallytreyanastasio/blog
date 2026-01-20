@@ -1,0 +1,50 @@
+# Gigalixir aliases for salmon-unselfish-aphid
+# Source this file: source /Users/robertgrayson/code/blog/.gigalixir_aliases
+# Or add to ~/.zshrc: source ~/code/blog/.gigalixir_aliases
+
+APP_NAME="salmon-unselfish-aphid"
+
+# Status & Info
+alias gx-status="gigalixir ps -a $APP_NAME"
+alias gx-info="gigalixir apps:info -a $APP_NAME"
+alias gx-config="gigalixir config -a $APP_NAME"
+
+# Logs
+alias gx-logs="gigalixir logs -a $APP_NAME"
+alias gx-logs-tail="gigalixir logs -a $APP_NAME -n 100"
+
+# Deployment
+alias gx-deploy="git push gigalixir main"
+alias gx-restart="gigalixir ps:restart -a $APP_NAME"
+
+# Database & Migrations
+alias gx-migrate="gigalixir ps:migrate -a $APP_NAME"
+alias gx-psql="gigalixir pg:psql -a $APP_NAME"
+alias gx-db="gigalixir pg -a $APP_NAME"
+alias gx-backups="gigalixir pg:backups -a $APP_NAME"
+
+# Remote Access
+alias gx-console="gigalixir ps:remote_console -a $APP_NAME"
+alias gx-ssh="gigalixir ps:ssh -a $APP_NAME"
+
+# Releases
+alias gx-releases="gigalixir releases -a $APP_NAME"
+alias gx-rollback="gigalixir releases:rollback -a $APP_NAME"
+
+# Run commands
+gx-run() {
+    gigalixir ps:run -a $APP_NAME -- "$@"
+}
+
+# Activity & Monitoring
+alias gx-activity="gigalixir apps:activity -a $APP_NAME"
+
+# Maintenance mode
+alias gx-maintenance-on="gigalixir maintenance:on -a $APP_NAME"
+alias gx-maintenance-off="gigalixir maintenance:off -a $APP_NAME"
+
+# Open app in browser
+alias gx-open="open https://salmon-unselfish-aphid.gigalixirapp.com"
+alias gx-open-prod="open https://bobbby.online"
+
+echo "Gigalixir aliases loaded for $APP_NAME"

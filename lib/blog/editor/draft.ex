@@ -40,8 +40,10 @@ defmodule Blog.Editor.Draft do
     case get_field(changeset, :slug) do
       nil ->
         title = get_field(changeset, :title) || "untitled"
-        timestamp = DateTime.utc_now() |> DateTime.to_unix()
-        slug = slugify(title) <> "-#{timestamp}"
+        # Use microseconds + random suffix to ensure uniqueness
+        timestamp = DateTime.utc_now() |> DateTime.to_unix(:microsecond)
+        random = :rand.uniform(9999)
+        slug = slugify(title) <> "-#{timestamp}-#{random}"
         put_change(changeset, :slug, slug)
 
       _ ->
