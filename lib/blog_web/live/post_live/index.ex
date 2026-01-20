@@ -514,6 +514,17 @@ defmodule BlogWeb.PostLive.Index do
           Recent Posts
         </div>
         <div class="posts-list" id="posts-list">
+          <!-- Quick Links Row -->
+          <div class="post-card" style="background: #f8fafc; border-bottom: 2px solid #e5e7eb;">
+            <div style="padding: 12px 20px; display: flex; gap: 16px; flex-wrap: wrap;">
+              <a href="/post/whats-my-schtick" class="quick-link-btn" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #dbeafe; color: #1e40af; border-radius: 16px; font-size: 13px; font-weight: 500; text-decoration: none; transition: all 0.2s;">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                </svg>
+                what's my schtick?
+              </a>
+            </div>
+          </div>
           <%= for post <- (@tech_posts ++ @non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime}) do %>
             <div class="post-card" id={"post-#{post.slug}"}>
               <a href={~p"/post/#{post.slug}"} class="post-link">

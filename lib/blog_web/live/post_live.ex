@@ -218,9 +218,7 @@ defmodule BlogWeb.PostLive do
     <div class="site-header">
       <h1 class="site-title">Thoughts & Tidbits</h1>
       <p class="site-subtitle">
-        <.link navigate={~p"/"} class="hover:text-blue-600 transition-colors">
-          ← Back to all posts
-        </.link>
+        A collection of thoughts on technology, life, and weird little things I make
       </p>
       <div class="flex items-center justify-center space-x-4">
         <div class="reader-count">
@@ -231,7 +229,9 @@ defmodule BlogWeb.PostLive do
             1 reader
           <% end %>
         </div>
-        <span class="text-gray-500 text-sm">{@word_count} words · {@estimated_read_time}</span>
+        <.link navigate={~p"/"} class="schtick-link">
+          ← back to posts
+        </.link>
       </div>
     </div>
 
@@ -248,10 +248,13 @@ defmodule BlogWeb.PostLive do
               {Calendar.strftime(@post.written_on, "%B %d, %Y")}
             </time>
 
-            <div class="post-tags">
-              <%= for tag <- @post.tags do %>
-                <span class="post-tag">{tag.name}</span>
-              <% end %>
+            <div class="flex items-center gap-4">
+              <span class="text-gray-500 text-sm">{@word_count} words · {@estimated_read_time}</span>
+              <div class="post-tags">
+                <%= for tag <- @post.tags do %>
+                  <span class="post-tag">{tag.name}</span>
+                <% end %>
+              </div>
             </div>
           </div>
 
