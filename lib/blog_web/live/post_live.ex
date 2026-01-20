@@ -215,90 +215,378 @@ defmodule BlogWeb.PostLive do
 
   def render(assigns) do
     ~H"""
-    <div class="site-header">
-      <h1 class="site-title">Thoughts & Tidbits</h1>
-      <p class="site-subtitle">
-        A collection of thoughts on technology, life, and weird little things I make
-      </p>
-      <div class="flex items-center justify-center space-x-4">
-        <div class="reader-count">
-          <div class="reader-dot"></div>
-          <%= if @reader_count > 1 do %>
-            {@reader_count} reading now
-          <% else %>
-            1 reader
-          <% end %>
+    <div class="mac-post">
+      <!-- Menu Bar -->
+      <div class="mac-menu-bar">
+        <div class="menu-left">
+          <span class="apple-menu">&#63743;</span>
+          <span class="menu-item">File</span>
+          <span class="menu-item">Edit</span>
+          <span class="menu-item">View</span>
+          <a href="/" class="menu-item" style="text-decoration: none; color: inherit;">Home</a>
+          <a href="/blog" class="menu-item" style="text-decoration: none; color: inherit;">Blog</a>
         </div>
-        <.link navigate={~p"/"} class="schtick-link">
-          ← back to posts
-        </.link>
+        <div class="menu-right">
+          <span>
+            <%= if @reader_count > 1 do %>
+              <%= @reader_count %> reading
+            <% else %>
+              1 reader
+            <% end %>
+          </span>
+        </div>
       </div>
-    </div>
 
-    <div class="main-container" style="grid-template-columns: 1fr;">
-      <div class="posts-column">
-        <div class="posts-header">
-          {@post.title}
-        </div>
-
-        <div style="padding: 24px;">
-          <!-- Post metadata -->
-          <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-            <time class="text-gray-600 font-medium">
-              {Calendar.strftime(@post.written_on, "%B %d, %Y")}
-            </time>
-
-            <div class="flex items-center gap-4">
-              <span class="text-gray-500 text-sm">{@word_count} words · {@estimated_read_time}</span>
-              <div class="post-tags">
+      <!-- Desktop -->
+      <div class="mac-desktop">
+        <!-- Post Window -->
+        <div class="mac-window">
+          <div class="mac-title-bar">
+            <a href="/blog" class="mac-close-box"></a>
+            <div class="mac-title"><%= @post.title %></div>
+            <div class="mac-resize-box"></div>
+          </div>
+          <div class="mac-window-content">
+            <!-- Post metadata bar -->
+            <div class="post-meta-bar">
+              <span class="post-date"><%= Calendar.strftime(@post.written_on, "%B %d, %Y") %></span>
+              <span class="post-stats"><%= @word_count %> words · <%= @estimated_read_time %></span>
+              <div class="post-tags-inline">
                 <%= for tag <- @post.tags do %>
-                  <span class="post-tag">{tag.name}</span>
+                  <span class="mac-tag"><%= tag.name %></span>
                 <% end %>
               </div>
             </div>
-          </div>
 
-          <!-- Reading progress indicator -->
-          <div class="w-full h-1 bg-gray-200 rounded-full overflow-hidden mb-8">
-            <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%" id="reading-progress"></div>
-          </div>
+            <!-- Article body -->
+            <div
+              id="post-content"
+              phx-hook="Highlight"
+              class="article-content"
+            >
+              {raw(@html)}
+            </div>
 
-          <!-- Article body -->
-          <div
-            id="post-content"
-            phx-hook="Highlight"
-            class="article-content"
-          >
-            {raw(@html)}
+            <!-- Back link at bottom -->
+            <div class="post-footer">
+              <a href="/blog" class="back-link">← Back to all posts</a>
+            </div>
           </div>
-
-          <!-- Back link at bottom -->
-          <div class="mt-12 pt-8 border-t border-gray-200">
-            <.link navigate={~p"/"} class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-              </svg>
-              Back to all posts
-            </.link>
+          <div class="mac-status-bar">
+            <span><%= @word_count %> words</span>
+            <span><%= @estimated_read_time %></span>
           </div>
         </div>
       </div>
     </div>
 
-    <script>
-      // Reading progress indicator
-      window.addEventListener('scroll', function() {
-        const article = document.querySelector('.article-content');
-        const progress = document.getElementById('reading-progress');
-        if (article && progress) {
-          const articleHeight = article.offsetHeight;
-          const windowHeight = window.innerHeight;
-          const scrollTop = window.pageYOffset;
-          const scrollPercent = (scrollTop / (articleHeight + windowHeight - window.innerHeight)) * 100;
-          progress.style.width = Math.min(100, Math.max(0, scrollPercent)) + '%';
+    <style>
+      .mac-post {
+        min-height: 100vh;
+        background: #a8a8a8;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 12px;
+        cursor: default;
+        -webkit-font-smoothing: none;
+      }
+
+      .mac-post .mac-menu-bar {
+        height: 20px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .mac-post .menu-left {
+        display: flex;
+        gap: 16px;
+      }
+
+      .mac-post .apple-menu {
+        font-family: system-ui;
+        font-size: 14px;
+      }
+
+      .mac-post .menu-item {
+        cursor: default;
+      }
+
+      .mac-post .menu-item:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .mac-post .menu-right {
+        font-size: 11px;
+      }
+
+      .mac-post .mac-desktop {
+        min-height: calc(100vh - 20px);
+        padding: 20px;
+        background: repeating-linear-gradient(
+          0deg,
+          #a8a8a8,
+          #a8a8a8 1px,
+          #b8b8b8 1px,
+          #b8b8b8 2px
+        );
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+
+      .mac-post .mac-window {
+        width: 800px;
+        max-width: 95vw;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 2px 2px 0 #000;
+        margin-top: 10px;
+        margin-bottom: 40px;
+      }
+
+      .mac-post .mac-title-bar {
+        height: 20px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        background: repeating-linear-gradient(
+          90deg,
+          #fff 0px,
+          #fff 1px,
+          #000 1px,
+          #000 2px,
+          #fff 2px,
+          #fff 3px
+        );
+      }
+
+      .mac-post .mac-close-box {
+        width: 12px;
+        height: 12px;
+        border: 1px solid #000;
+        background: #fff;
+        margin-right: 8px;
+        cursor: pointer;
+        display: block;
+      }
+
+      .mac-post .mac-close-box:hover {
+        background: #000;
+      }
+
+      .mac-post .mac-title {
+        flex: 1;
+        text-align: center;
+        background: #fff;
+        padding: 0 8px;
+        font-weight: bold;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .mac-post .mac-resize-box {
+        width: 12px;
+        height: 12px;
+      }
+
+      .mac-post .mac-window-content {
+        padding: 20px;
+        background: #fff;
+      }
+
+      .mac-post .post-meta-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        padding-bottom: 12px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid #ccc;
+        font-size: 11px;
+      }
+
+      .mac-post .post-date {
+        font-weight: bold;
+      }
+
+      .mac-post .post-stats {
+        color: #666;
+      }
+
+      .mac-post .post-tags-inline {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+
+      .mac-post .mac-tag {
+        background: #e0e0e0;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 10px;
+      }
+
+      .mac-post .post-footer {
+        margin-top: 32px;
+        padding-top: 16px;
+        border-top: 1px solid #ccc;
+      }
+
+      .mac-post .back-link {
+        color: #000;
+        text-decoration: underline;
+        font-size: 12px;
+      }
+
+      .mac-post .back-link:hover {
+        background: #000;
+        color: #fff;
+        text-decoration: none;
+      }
+
+      .mac-post .mac-status-bar {
+        height: 20px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 10px;
+      }
+
+      /* Article content styling within Mac window */
+      .mac-post .article-content {
+        font-family: 'Charter', 'Georgia', serif;
+        font-size: 16px;
+        line-height: 1.7;
+        color: #1f2937;
+      }
+
+      .mac-post .article-content h1 {
+        display: none;
+      }
+
+      .mac-post .article-content h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 2rem 0 1rem 0;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+      }
+
+      .mac-post .article-content h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.75rem 0;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+      }
+
+      .mac-post .article-content p {
+        margin: 1rem 0;
+      }
+
+      .mac-post .article-content a {
+        color: #000;
+        text-decoration: underline;
+      }
+
+      .mac-post .article-content a:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .mac-post .article-content pre {
+        background: #1f2937;
+        padding: 1rem;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: 1rem 0;
+        border: 1px solid #000;
+      }
+
+      .mac-post .article-content code {
+        font-family: 'Monaco', 'Courier New', monospace;
+        font-size: 0.9em;
+      }
+
+      .mac-post .article-content :not(pre) > code {
+        background: #e0e0e0;
+        padding: 2px 4px;
+        border-radius: 2px;
+      }
+
+      .mac-post .article-content blockquote {
+        border-left: 3px solid #000;
+        padding-left: 1rem;
+        margin: 1rem 0;
+        font-style: italic;
+        color: #444;
+      }
+
+      .mac-post .article-content ul, .mac-post .article-content ol {
+        margin: 1rem 0;
+        padding-left: 2rem;
+      }
+
+      .mac-post .article-content li {
+        margin: 0.5rem 0;
+      }
+
+      .mac-post .article-content img {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #000;
+      }
+
+      .mac-post .article-content hr {
+        border: none;
+        border-top: 1px solid #000;
+        margin: 2rem 0;
+      }
+
+      @media (max-width: 768px) {
+        .mac-post .mac-desktop {
+          padding: 10px;
         }
-      });
-    </script>
+
+        .mac-post .mac-window {
+          width: 100%;
+          margin-top: 10px;
+        }
+
+        .mac-post .menu-item {
+          display: none;
+        }
+
+        .mac-post .menu-item:nth-last-child(-n+2) {
+          display: inline;
+        }
+
+        .mac-post .mac-window-content {
+          padding: 12px;
+        }
+
+        .mac-post .article-content {
+          font-size: 15px;
+        }
+
+        .mac-post .post-meta-bar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+        }
+      }
+    </style>
     """
   end
 
