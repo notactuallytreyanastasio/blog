@@ -106,7 +106,8 @@ defmodule BlogWeb.EditorLive do
      |> assign(:saving, true)}
   end
 
-  def handle_event("update_title", %{"value" => title}, socket) do
+  def handle_event("update_title", params, socket) do
+    title = params["value"] || params["title"] || ""
     if socket.assigns[:save_timer], do: Process.cancel_timer(socket.assigns.save_timer)
     timer = Process.send_after(self(), :save_draft, @save_debounce_ms)
 
