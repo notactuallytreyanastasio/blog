@@ -36,48 +36,58 @@ defmodule BlogWeb.EditorLive do
   end
 
   def mount(_params, _session, socket) do
-    case Editor.create_draft(%{content: "", title: "Untitled"}) do
-      {:ok, draft} ->
-        {:ok,
-         socket
-         |> assign(:draft, draft)
-         |> assign(:content, "")
-         |> assign(:title, "Untitled")
-         |> assign(:author_name, "")
-         |> assign(:author_email, "")
-         |> assign(:preview_html, "")
-         |> assign(:last_saved, draft.updated_at)
-         |> assign(:saving, false)
-         |> assign(:show_preview, true)
-         |> assign(:show_publish_dialog, false)
-         |> assign(:publish_error, nil)
-         |> assign(:cursor_line, 1)
-         |> assign(:cursor_col, 1)
-         |> assign(:error, nil)
-         |> push_patch(to: ~p"/editor/#{draft.id}")}
+    try do
+      case Editor.create_draft(%{content: "", title: "Untitled"}) do
+        {:ok, draft} ->
+          {:ok,
+           socket
+           |> assign(:draft, draft)
+           |> assign(:content, "")
+           |> assign(:title, "Untitled")
+           |> assign(:author_name, "")
+           |> assign(:author_email, "")
+           |> assign(:preview_html, "")
+           |> assign(:last_saved, draft.updated_at)
+           |> assign(:saving, false)
+           |> assign(:show_preview, true)
+           |> assign(:show_publish_dialog, false)
+           |> assign(:publish_error, nil)
+           |> assign(:cursor_line, 1)
+           |> assign(:cursor_col, 1)
+           |> assign(:error, nil)
+           |> push_patch(to: ~p"/editor/#{draft.id}")}
 
-      {:error, changeset} ->
+        {:error, changeset} ->
+          require Logger
+          error_msg = inspect(changeset.errors)
+          Logger.error("Failed to create draft: #{error_msg}")
+          {:ok, error_socket(socket, "Failed to create draft: #{error_msg}")}
+      end
+    rescue
+      e ->
         require Logger
-        error_msg = inspect(changeset.errors)
-        Logger.error("Failed to create draft: #{error_msg}")
-        # Return a simple error page - set all assigns to prevent any access errors
-        {:ok,
-         socket
-         |> assign(:error, "Failed to create draft: #{error_msg}")
-         |> assign(:draft, %Draft{status: "draft"})
-         |> assign(:content, "")
-         |> assign(:title, "")
-         |> assign(:author_name, "")
-         |> assign(:author_email, "")
-         |> assign(:preview_html, "")
-         |> assign(:last_saved, nil)
-         |> assign(:saving, false)
-         |> assign(:show_preview, false)
-         |> assign(:show_publish_dialog, false)
-         |> assign(:publish_error, nil)
-         |> assign(:cursor_line, 1)
-         |> assign(:cursor_col, 1)}
+        Logger.error("Exception in editor mount: #{Exception.message(e)}")
+        {:ok, error_socket(socket, "Exception: #{Exception.message(e)}")}
     end
+  end
+
+  defp error_socket(socket, error_msg) do
+    socket
+    |> assign(:error, error_msg)
+    |> assign(:draft, %Draft{status: "draft"})
+    |> assign(:content, "")
+    |> assign(:title, "")
+    |> assign(:author_name, "")
+    |> assign(:author_email, "")
+    |> assign(:preview_html, "")
+    |> assign(:last_saved, nil)
+    |> assign(:saving, false)
+    |> assign(:show_preview, false)
+    |> assign(:show_publish_dialog, false)
+    |> assign(:publish_error, nil)
+    |> assign(:cursor_line, 1)
+    |> assign(:cursor_col, 1)
+  end
   end
 
   def handle_params(%{"id" => _id}, _uri, socket), do: {:noreply, socket}
