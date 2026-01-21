@@ -93,6 +93,7 @@ defmodule Blog.Editor do
   Supports:
   - Standard markdown via Earmark
   - Bluesky post embeds via ::bsky[url] syntax
+  - YouTube video embeds via ::youtube[url] syntax
   """
   def render_markdown(nil), do: ""
   def render_markdown(""), do: ""
@@ -101,6 +102,7 @@ defmodule Blog.Editor do
     # First, process custom embed syntax
     content
     |> process_bluesky_embeds()
+    |> process_youtube_embeds()
     |> render_earmark()
   end
 
@@ -146,6 +148,53 @@ defmodule Blog.Editor do
     case Regex.run(~r|bsky\.app/profile/([^/]+)/post/([^/\s]+)|, url) do
       [_, handle, rkey] -> {:ok, handle, rkey}
       _ -> :error
+    end
+  end
+
+  @youtube_embed_regex ~r/::youtube\[([^\]]+)\]/
+
+  defp process_youtube_embeds(content) do
+    Regex.replace(@youtube_embed_regex, content, fn _, url ->
+      render_youtube_embed(url)
+    end)
+  end
+
+  defp render_youtube_embed(url) do
+    case parse_youtube_url(url) do
+      {:ok, video_id} ->
+        """
+        <div class="youtube-embed">
+          <iframe
+            src="https://www.youtube.com/embed/#{video_id}"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen>
+          </iframe>
+        </div>
+        """
+
+      :error ->
+        # Return as a simple link if parsing fails
+        "[YouTube Video](#{url})"
+    end
+  end
+
+  defp parse_youtube_url(url) do
+    cond do
+      # youtube.com/watch?v=VIDEO_ID
+      match = Regex.run(~r|youtube\.com/watch\?v=([a-zA-Z0-9_-]+)|, url) ->
+        {:ok, Enum.at(match, 1)}
+
+      # youtu.be/VIDEO_ID
+      match = Regex.run(~r|youtu\.be/([a-zA-Z0-9_-]+)|, url) ->
+        {:ok, Enum.at(match, 1)}
+
+      # youtube.com/embed/VIDEO_ID
+      match = Regex.run(~r|youtube\.com/embed/([a-zA-Z0-9_-]+)|, url) ->
+        {:ok, Enum.at(match, 1)}
+
+      true ->
+        :error
     end
   end
 end
