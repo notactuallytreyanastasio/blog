@@ -155,9 +155,21 @@ const MarkdownEditor = {
   },
 
   handleImageFile(file) {
+    // Limit image size to prevent OOM (max 500KB)
+    const MAX_SIZE = 500 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert(`Image too large (${Math.round(file.size/1024)}KB). Max size is 500KB.`);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target.result;
+      // Double-check base64 size
+      if (dataUrl.length > 700000) {
+        alert('Image too large after encoding. Please use a smaller image.');
+        return;
+      }
       // Insert at cursor position
       const textarea = this.el;
       const start = textarea.selectionStart;
