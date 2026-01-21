@@ -4,6 +4,112 @@ const MarkdownEditor = {
     this.setupImagePaste();
     this.setupKeyboardShortcuts();
     this.setupDragDrop();
+    this.setupFormatHandler();
+  },
+
+  setupFormatHandler() {
+    this.handleEvent("apply_format", ({ type }) => {
+      const textarea = this.el;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = textarea.value.substring(start, end);
+      const text = textarea.value;
+      let replacement = null;
+      let newCursorPos = null;
+
+      switch (type) {
+        case 'bold':
+          if (selectedText) {
+            replacement = `**${selectedText}**`;
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '****';
+            newCursorPos = start + 2;
+          }
+          break;
+        case 'italic':
+          if (selectedText) {
+            replacement = `*${selectedText}*`;
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '**';
+            newCursorPos = start + 1;
+          }
+          break;
+        case 'underline':
+          if (selectedText) {
+            replacement = `<u>${selectedText}</u>`;
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '<u></u>';
+            newCursorPos = start + 3;
+          }
+          break;
+        case 'h1':
+          replacement = selectedText ? `# ${selectedText}` : '# ';
+          newCursorPos = start + replacement.length;
+          break;
+        case 'h2':
+          replacement = selectedText ? `## ${selectedText}` : '## ';
+          newCursorPos = start + replacement.length;
+          break;
+        case 'h3':
+          replacement = selectedText ? `### ${selectedText}` : '### ';
+          newCursorPos = start + replacement.length;
+          break;
+        case 'bullet':
+          replacement = selectedText ? `- ${selectedText}` : '- ';
+          newCursorPos = start + replacement.length;
+          break;
+        case 'number':
+          replacement = selectedText ? `1. ${selectedText}` : '1. ';
+          newCursorPos = start + replacement.length;
+          break;
+        case 'quote':
+          replacement = selectedText ? `> ${selectedText}` : '> ';
+          newCursorPos = start + replacement.length;
+          break;
+        case 'code':
+          if (selectedText) {
+            if (selectedText.includes('\n')) {
+              replacement = `\`\`\`\n${selectedText}\n\`\`\``;
+            } else {
+              replacement = `\`${selectedText}\``;
+            }
+            newCursorPos = start + replacement.length;
+          } else {
+            replacement = '``';
+            newCursorPos = start + 1;
+          }
+          break;
+        case 'link':
+          if (selectedText) {
+            replacement = `[${selectedText}](url)`;
+            newCursorPos = start + selectedText.length + 3;
+          } else {
+            replacement = '[](url)';
+            newCursorPos = start + 1;
+          }
+          break;
+        case 'image':
+          if (selectedText) {
+            replacement = `![${selectedText}](url)`;
+            newCursorPos = start + selectedText.length + 4;
+          } else {
+            replacement = '![](url)';
+            newCursorPos = start + 2;
+          }
+          break;
+      }
+
+      if (replacement !== null) {
+        textarea.value = text.substring(0, start) + replacement + text.substring(end);
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        textarea.focus();
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        this.pushEvent("update_content", { value: textarea.value });
+      }
+    });
   },
 
   setupImagePaste() {
@@ -67,7 +173,7 @@ const MarkdownEditor = {
 
       // Trigger the update event
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
-      this.pushEvent("update_content", { content: textarea.value });
+      this.pushEvent("update_content", { value: textarea.value });
     };
     reader.readAsDataURL(file);
   },
@@ -132,7 +238,7 @@ const MarkdownEditor = {
         textarea.value = text.substring(0, start) + replacement + text.substring(end);
         textarea.setSelectionRange(newCursorPos, newCursorPos);
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        this.pushEvent("update_content", { content: textarea.value });
+        this.pushEvent("update_content", { value: textarea.value });
       }
     });
   }
