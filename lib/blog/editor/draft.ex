@@ -31,6 +31,7 @@ defmodule Blog.Editor.Draft do
     |> validate_required([:content, :title, :author_name, :author_email])
     |> validate_format(:author_email, ~r/@/)
     |> validate_length(:author_name, min: 1, max: 100)
+    |> validate_length(:content, max: 60_000, message: "is too long (max ~10,000 words)")
     |> validate_inclusion(:status, ["draft", "published"])
     |> maybe_generate_slug()
     |> unique_constraint(:slug)
