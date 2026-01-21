@@ -1,6 +1,8 @@
 defmodule BlogWeb.PostLive do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
+  alias Blog.Comments
+  alias Blog.Comments.Comment
   require Logger
 
   @presence_topic "blog_presence"
@@ -59,13 +61,15 @@ defmodule BlogWeb.PostLive do
             processed_html = process_details_in_html(html)
             
             socket =
-              assign(socket,
+              socket
+              |> assign(
                 html: processed_html,
                 reader_count: get_reader_count(slug),
                 word_count: word_count(content_without_tags),
                 estimated_read_time: estimated_read_time(content_without_tags),
-                # Default to showing line numbers
-                show_line_numbers: true
+                show_line_numbers: true,
+                comments: Comments.list_comments(slug),
+                comment_form: to_form(Comments.change_comment(%Comment{}, %{}))
               )
 
             {:ok, socket}
@@ -78,13 +82,16 @@ defmodule BlogWeb.PostLive do
             processed_html = process_details_in_html(html)
 
             socket =
-              assign(socket,
+              socket
+              |> assign(
                 html: processed_html,
                 post: post,
                 reader_count: get_reader_count(slug),
                 word_count: word_count(content_without_tags),
                 estimated_read_time: estimated_read_time(content_without_tags),
-                show_line_numbers: true
+                show_line_numbers: true,
+                comments: Comments.list_comments(slug),
+                comment_form: to_form(Comments.change_comment(%Comment{}, %{}))
               )
 
             {:ok, socket}
@@ -213,6 +220,35 @@ defmodule BlogWeb.PostLive do
     {:noreply, socket}
   end
 
+  # Handle comment submission
+  def handle_event("submit_comment", %{"comment" => comment_params}, socket) do
+    comment_params = Map.put(comment_params, "post_slug", socket.assigns.post.slug)
+
+    case Comments.create_comment(comment_params) do
+      {:ok, _comment} ->
+        socket =
+          socket
+          |> assign(
+            comments: Comments.list_comments(socket.assigns.post.slug),
+            comment_form: to_form(Comments.change_comment(%Comment{}, %{}))
+          )
+
+        {:noreply, socket}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, comment_form: to_form(changeset))}
+    end
+  end
+
+  def handle_event("validate_comment", %{"comment" => comment_params}, socket) do
+    changeset =
+      %Comment{}
+      |> Comments.change_comment(comment_params)
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, comment_form: to_form(changeset))}
+  end
+
   def render(assigns) do
     ~H"""
     <div class="mac-post">
@@ -268,6 +304,53 @@ defmodule BlogWeb.PostLive do
               class="article-content"
             >
               {raw(@html)}
+            </div>
+
+            <!-- Comments Section -->
+            <div class="comments-section">
+              <h3 class="comments-header">Comments (<%= length(@comments) %>)</h3>
+
+              <!-- Comment Form -->
+              <.form for={@comment_form} phx-submit="submit_comment" phx-change="validate_comment" class="comment-form">
+                <div class="form-group">
+                  <label for={@comment_form[:author_name].id}>Name</label>
+                  <input
+                    type="text"
+                    id={@comment_form[:author_name].id}
+                    name={@comment_form[:author_name].name}
+                    value={@comment_form[:author_name].value}
+                    placeholder="Your name"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for={@comment_form[:content].id}>Comment</label>
+                  <textarea
+                    id={@comment_form[:content].id}
+                    name={@comment_form[:content].name}
+                    placeholder="Write a comment..."
+                    rows="3"
+                    required
+                  ><%= @comment_form[:content].value %></textarea>
+                </div>
+                <button type="submit" class="submit-btn">Post Comment</button>
+              </.form>
+
+              <!-- Comments List -->
+              <div class="comments-list">
+                <%= for comment <- @comments do %>
+                  <div class="comment">
+                    <div class="comment-header">
+                      <span class="comment-author"><%= comment.author_name %></span>
+                      <span class="comment-date"><%= Calendar.strftime(comment.inserted_at, "%b %d, %Y at %I:%M %p") %></span>
+                    </div>
+                    <div class="comment-body"><%= comment.content %></div>
+                  </div>
+                <% end %>
+                <%= if Enum.empty?(@comments) do %>
+                  <p class="no-comments">No comments yet. Be the first to comment!</p>
+                <% end %>
+              </div>
             </div>
 
             <!-- Back link at bottom -->
@@ -560,6 +643,120 @@ defmodule BlogWeb.PostLive do
         border: none;
         border-top: 1px solid #000;
         margin: 2rem 0;
+      }
+
+      /* Comments Section */
+      .mac-post .comments-section {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 2px solid #000;
+      }
+
+      .mac-post .comments-header {
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 16px;
+      }
+
+      .mac-post .comment-form {
+        background: #f5f5f5;
+        padding: 16px;
+        border: 1px solid #000;
+        margin-bottom: 24px;
+      }
+
+      .mac-post .comment-form .form-group {
+        margin-bottom: 12px;
+      }
+
+      .mac-post .comment-form label {
+        display: block;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 11px;
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+
+      .mac-post .comment-form input[type="text"],
+      .mac-post .comment-form textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #000;
+        font-family: 'Charter', 'Georgia', serif;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+
+      .mac-post .comment-form textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+
+      .mac-post .comment-form .submit-btn {
+        background: #fff;
+        border: 1px solid #000;
+        padding: 6px 16px;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 12px;
+        cursor: pointer;
+        box-shadow: 1px 1px 0 #000;
+      }
+
+      .mac-post .comment-form .submit-btn:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .mac-post .comment-form .submit-btn:active {
+        box-shadow: none;
+        transform: translate(1px, 1px);
+      }
+
+      .mac-post .comments-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .mac-post .comment {
+        background: #fff;
+        border: 1px solid #000;
+        padding: 12px;
+      }
+
+      .mac-post .comment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #ccc;
+      }
+
+      .mac-post .comment-author {
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      .mac-post .comment-date {
+        font-size: 10px;
+        color: #666;
+      }
+
+      .mac-post .comment-body {
+        font-family: 'Charter', 'Georgia', serif;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+
+      .mac-post .no-comments {
+        color: #666;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
       }
 
       @media (max-width: 768px) {
