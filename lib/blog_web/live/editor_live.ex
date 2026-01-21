@@ -389,7 +389,7 @@ Use ::bsky[url] to embed Bluesky posts."
       <!-- Publish Dialog -->
       <%= if @show_publish_dialog do %>
         <div class="dialog-overlay" phx-click="hide_publish_dialog">
-          <div class="publish-dialog" phx-click-away="hide_publish_dialog">
+          <div class="publish-dialog" onclick="event.stopPropagation()">
             <div class="dialog-titlebar">
               <span>Publish Your Post</span>
               <button class="dialog-close" phx-click="hide_publish_dialog">×</button>
