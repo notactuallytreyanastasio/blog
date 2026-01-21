@@ -2,7 +2,6 @@ defmodule BlogWeb.PostLive do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
   alias Blog.Comments
-  alias Blog.Comments.Comment
   require Logger
 
   @presence_topic "blog_presence"
@@ -69,7 +68,7 @@ defmodule BlogWeb.PostLive do
                 estimated_read_time: estimated_read_time(content_without_tags),
                 show_line_numbers: true,
                 comments: Comments.list_comments(slug),
-                comment_form: to_form(Comments.change_comment(%Comment{}, %{}))
+                comment_form: %{"author_name" => "", "content" => ""}
               )
 
             {:ok, socket}
@@ -91,7 +90,7 @@ defmodule BlogWeb.PostLive do
                 estimated_read_time: estimated_read_time(content_without_tags),
                 show_line_numbers: true,
                 comments: Comments.list_comments(slug),
-                comment_form: to_form(Comments.change_comment(%Comment{}, %{}))
+                comment_form: %{"author_name" => "", "content" => ""}
               )
 
             {:ok, socket}
@@ -221,8 +220,12 @@ defmodule BlogWeb.PostLive do
   end
 
   # Handle comment submission
-  def handle_event("submit_comment", %{"comment" => comment_params}, socket) do
-    comment_params = Map.put(comment_params, "post_slug", socket.assigns.post.slug)
+  def handle_event("submit_comment", %{"author_name" => name, "content" => content}, socket) do
+    comment_params = %{
+      "post_slug" => socket.assigns.post.slug,
+      "author_name" => name,
+      "content" => content
+    }
 
     case Comments.create_comment(comment_params) do
       {:ok, _comment} ->
@@ -230,23 +233,23 @@ defmodule BlogWeb.PostLive do
           socket
           |> assign(
             comments: Comments.list_comments(socket.assigns.post.slug),
-            comment_form: to_form(Comments.change_comment(%Comment{}, %{}))
+            comment_form: %{"author_name" => "", "content" => ""}
           )
 
         {:noreply, socket}
 
-      {:error, changeset} ->
-        {:noreply, assign(socket, comment_form: to_form(changeset))}
+      {:error, _changeset} ->
+        {:noreply, socket}
     end
   end
 
-  def handle_event("validate_comment", %{"comment" => comment_params}, socket) do
-    changeset =
-      %Comment{}
-      |> Comments.change_comment(comment_params)
-      |> Map.put(:action, :validate)
+  def handle_event("validate_comment", params, socket) do
+    comment_form = %{
+      "author_name" => params["author_name"] || "",
+      "content" => params["content"] || ""
+    }
 
-    {:noreply, assign(socket, comment_form: to_form(changeset))}
+    {:noreply, assign(socket, comment_form: comment_form)}
   end
 
   def render(assigns) do
@@ -311,27 +314,27 @@ defmodule BlogWeb.PostLive do
               <h3 class="comments-header">Comments (<%= length(@comments) %>)</h3>
 
               <!-- Comment Form -->
-              <.form for={@comment_form} phx-submit="submit_comment" phx-change="validate_comment" class="comment-form">
+              <.form for={%{}} phx-submit="submit_comment" phx-change="validate_comment" class="comment-form">
                 <div class="form-group">
-                  <label for={@comment_form[:author_name].id}>Name</label>
+                  <label for="author_name">Name</label>
                   <input
                     type="text"
-                    id={@comment_form[:author_name].id}
-                    name={@comment_form[:author_name].name}
-                    value={@comment_form[:author_name].value}
+                    id="author_name"
+                    name="author_name"
+                    value={@comment_form["author_name"]}
                     placeholder="Your name"
                     required
                   />
                 </div>
                 <div class="form-group">
-                  <label for={@comment_form[:content].id}>Comment</label>
+                  <label for="content">Comment</label>
                   <textarea
-                    id={@comment_form[:content].id}
-                    name={@comment_form[:content].name}
+                    id="content"
+                    name="content"
                     placeholder="Write a comment..."
                     rows="3"
                     required
-                  ><%= @comment_form[:content].value %></textarea>
+                  ><%= @comment_form["content"] %></textarea>
                 </div>
                 <button type="submit" class="submit-btn">Post Comment</button>
               </.form>
