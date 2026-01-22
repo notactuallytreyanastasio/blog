@@ -107,7 +107,13 @@ defmodule Blog.Editor do
   end
 
   defp render_earmark(content) do
-    case Earmark.as_html(content, code_class_prefix: "language-", escape: false) do
+    opts = %Earmark.Options{
+      code_class_prefix: "language-",
+      escape: false,
+      breaks: true
+    }
+
+    case Earmark.as_html(content, opts) do
       {:ok, html, _} -> html
       {:error, html, _} -> html
     end
