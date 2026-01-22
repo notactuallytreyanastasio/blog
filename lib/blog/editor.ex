@@ -99,12 +99,12 @@ defmodule Blog.Editor do
   def render_markdown(""), do: ""
 
   def render_markdown(content) do
-    # Process markdown first, then replace embed syntax in the resulting HTML
-    # This prevents Earmark from interfering with our embed HTML
+    # Process embeds BEFORE Earmark, wrapping them with blank lines
+    # so Earmark treats them as HTML blocks and passes them through unchanged
     content
-    |> render_earmark()
     |> process_bluesky_embeds()
     |> process_youtube_embeds()
+    |> render_earmark()
   end
 
   defp render_earmark(content) do
@@ -132,8 +132,8 @@ defmodule Blog.Editor do
     # Extract post info from URL like https://bsky.app/profile/user.bsky.social/post/abc123
     case parse_bluesky_url(url) do
       {:ok, handle, rkey} ->
-        # Single line to avoid breaks: true converting newlines to <br>
-        ~s(<div class="bsky-embed" data-handle="#{handle}" data-rkey="#{rkey}"><div class="bsky-embed-inner"><div class="bsky-embed-header"><span class="bsky-icon">🦋</span><a href="#{url}" target="_blank" rel="noopener">@#{handle}</a></div><div class="bsky-embed-loading">Loading post...</div></div></div>)
+        # Wrap with blank lines so Earmark treats as HTML block, single line content
+        "\n\n" <> ~s(<div class="bsky-embed" data-handle="#{handle}" data-rkey="#{rkey}"><div class="bsky-embed-inner"><div class="bsky-embed-header"><span class="bsky-icon">🦋</span><a href="#{url}" target="_blank" rel="noopener">@#{handle}</a></div><div class="bsky-embed-loading">Loading post...</div></div></div>) <> "\n\n"
 
       :error ->
         # Return as a simple link if parsing fails
@@ -160,8 +160,8 @@ defmodule Blog.Editor do
   defp render_youtube_embed(url) do
     case parse_youtube_url(url) do
       {:ok, video_id} ->
-        # Single line to avoid breaks: true converting newlines to <br>
-        ~s(<div class="youtube-embed"><iframe src="https://www.youtube.com/embed/#{video_id}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>)
+        # Wrap with blank lines so Earmark treats as HTML block
+        "\n\n" <> ~s(<div class="youtube-embed"><iframe src="https://www.youtube.com/embed/#{video_id}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>) <> "\n\n"
 
       :error ->
         # Return as a simple link if parsing fails
