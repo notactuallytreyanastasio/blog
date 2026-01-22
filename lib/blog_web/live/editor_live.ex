@@ -844,12 +844,26 @@ Use ::bsky[url] to embed Bluesky posts."
         border-radius: 4px;
       }
 
+      .preview-body p {
+        margin: 1rem 0;
+      }
+
+      .preview-body p:first-child {
+        margin-top: 0;
+      }
+
       .preview-body blockquote {
         border-left: 4px solid #666;
         padding-left: 16px;
         margin: 1rem 0;
         color: #555;
         font-style: italic;
+      }
+
+      .preview-body br {
+        display: block;
+        content: "";
+        margin: 0.75em 0;
       }
 
       .preview-footer {

@@ -648,6 +648,12 @@ defmodule BlogWeb.PostLive do
         margin: 2rem 0;
       }
 
+      .mac-post .article-content br {
+        display: block;
+        content: "";
+        margin: 0.75em 0;
+      }
+
       /* Comments Section */
       .mac-post .comments-section {
         margin-top: 32px;
