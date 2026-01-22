@@ -99,11 +99,12 @@ defmodule Blog.Editor do
   def render_markdown(""), do: ""
 
   def render_markdown(content) do
-    # First, process custom embed syntax
+    # Process markdown first, then replace embed syntax in the resulting HTML
+    # This prevents Earmark from interfering with our embed HTML
     content
+    |> render_earmark()
     |> process_bluesky_embeds()
     |> process_youtube_embeds()
-    |> render_earmark()
   end
 
   defp render_earmark(content) do
