@@ -131,17 +131,8 @@ defmodule Blog.Editor do
     # Extract post info from URL like https://bsky.app/profile/user.bsky.social/post/abc123
     case parse_bluesky_url(url) do
       {:ok, handle, rkey} ->
-        """
-        <div class="bsky-embed" data-handle="#{handle}" data-rkey="#{rkey}">
-          <div class="bsky-embed-inner">
-            <div class="bsky-embed-header">
-              <span class="bsky-icon">🦋</span>
-              <a href="#{url}" target="_blank" rel="noopener">@#{handle}</a>
-            </div>
-            <div class="bsky-embed-loading">Loading post...</div>
-          </div>
-        </div>
-        """
+        # Single line to avoid breaks: true converting newlines to <br>
+        ~s(<div class="bsky-embed" data-handle="#{handle}" data-rkey="#{rkey}"><div class="bsky-embed-inner"><div class="bsky-embed-header"><span class="bsky-icon">🦋</span><a href="#{url}" target="_blank" rel="noopener">@#{handle}</a></div><div class="bsky-embed-loading">Loading post...</div></div></div>)
 
       :error ->
         # Return as a simple link if parsing fails
@@ -168,16 +159,8 @@ defmodule Blog.Editor do
   defp render_youtube_embed(url) do
     case parse_youtube_url(url) do
       {:ok, video_id} ->
-        """
-        <div class="youtube-embed">
-          <iframe
-            src="https://www.youtube.com/embed/#{video_id}"
-            frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen>
-          </iframe>
-        </div>
-        """
+        # Single line to avoid breaks: true converting newlines to <br>
+        ~s(<div class="youtube-embed"><iframe src="https://www.youtube.com/embed/#{video_id}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>)
 
       :error ->
         # Return as a simple link if parsing fails
