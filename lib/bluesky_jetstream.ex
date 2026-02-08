@@ -74,6 +74,8 @@ defmodule BlueskyJetstream do
     Logger.debug("Received event type: #{Map.get(data, "kind", "unknown")}")
   end
 
+  defp handle_commit(nil), do: :ok
+
   defp handle_commit(commit) when is_map(commit) do
     # Log ALL commits to see what we're getting
     collection = Map.get(commit, "collection", "unknown")
@@ -118,6 +120,10 @@ defmodule BlueskyJetstream do
   defp handle_identity(%{"did" => did, "handle" => handle}) do
     # Identity update - could cache DID to handle mappings here
     Logger.debug("Identity update: #{did} -> #{handle}")
+    :ok
+  end
+
+  defp handle_identity(_identity) do
     :ok
   end
 
