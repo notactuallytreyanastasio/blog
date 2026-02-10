@@ -92,12 +92,19 @@ defmodule BlueskyJetstream do
     # Handle post creates
     if collection == "app.bsky.feed.post" and operation == "create" do
       if record = Map.get(commit, "record") do
-        handle_post_create(record, did)
+        handle_post_create(record, did, %{"commit" => commit, "did" => did})
       end
     end
   end
 
-  defp handle_post_create(record, did) do
+  defp handle_post_create(record, did, full_event) do
+    # Broadcast raw event for PokeAround fallback when Turbostream is down
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "jetstream:firehose:fallback",
+      {:jetstream_post, full_event}
+    )
+
     # Extract text from the post record
     case record do
       %{"text" => text} when is_binary(text) ->
@@ -105,14 +112,14 @@ defmodule BlueskyJetstream do
         if String.contains?(String.downcase(text), "bobby") do
           Logger.info("JETSTREAM: Bobby post detected from #{did}: #{String.slice(text, 0, 100)}")
         end
-        
+
         # Broadcast to jetstream-specific topic with unique message
         Phoenix.PubSub.broadcast(
           Blog.PubSub,
           "jetstream:skeet",
           {:jetstream_skeet, %{text: text, did: did}}
         )
-        
+
       _ ->
         # Post without text (might be just images/links)
         :ok

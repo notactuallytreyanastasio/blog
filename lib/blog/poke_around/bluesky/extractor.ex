@@ -125,6 +125,7 @@ defmodule Blog.PokeAround.Bluesky.Extractor do
     # Allow disabling PubSub subscription for testing
     unless opts[:subscribe] == false do
       Phoenix.PubSub.subscribe(Blog.PubSub, "poke_around:firehose:events")
+      Phoenix.PubSub.subscribe(Blog.PubSub, "jetstream:firehose:fallback")
     end
 
     schedule_stats_log()
@@ -142,8 +143,20 @@ defmodule Blog.PokeAround.Bluesky.Extractor do
 
   @impl GenServer
   def handle_info({:post, event}, state) do
+    # Turbostream event — always process
     state = process_post(event, state)
     {:noreply, state}
+  end
+
+  @impl GenServer
+  def handle_info({:jetstream_post, event}, state) do
+    # Jetstream fallback — only process when Turbostream is down
+    if Blog.HoseMonitor.status()[:turbostream] == :down do
+      state = process_post(event, state)
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
   end
 
   @impl GenServer
