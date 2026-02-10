@@ -11,6 +11,12 @@ defmodule BlogWeb.PostLive do
       # Subscribe first to get presence updates
       Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
 
+      # Subscribe to live draft updates for this post
+      Phoenix.PubSub.subscribe(Blog.PubSub, "live_draft:#{slug}")
+
+      # Schedule staleness checks for live drafts
+      Process.send_after(self(), :check_draft_staleness, 30_000)
+
       # Generate a random ID for this reader
       reader_id = "reader_#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
 
@@ -58,11 +64,20 @@ defmodule BlogWeb.PostLive do
           {:ok, html, _} ->
             # Post-process the HTML to handle details blocks
             processed_html = process_details_in_html(html)
-            
+
+            # Check for active live draft
+            {display_html, live_draft_active} =
+              case Blog.LiveDraft.get(slug) do
+                {:ok, draft_html, _updated_at} -> {draft_html, true}
+                _ -> {processed_html, false}
+              end
+
             socket =
               socket
               |> assign(
-                html: processed_html,
+                html: display_html,
+                static_html: processed_html,
+                live_draft_active: live_draft_active,
                 reader_count: get_reader_count(slug),
                 word_count: word_count(content_without_tags),
                 estimated_read_time: estimated_read_time(content_without_tags),
@@ -76,14 +91,22 @@ defmodule BlogWeb.PostLive do
           {:error, html, errors} ->
             # Still show the content even if there are markdown errors
             Logger.error("Markdown parsing warnings: #{inspect(errors)}")
-            
+
             # Still try to process details blocks even if there were errors
             processed_html = process_details_in_html(html)
+
+            {display_html, live_draft_active} =
+              case Blog.LiveDraft.get(slug) do
+                {:ok, draft_html, _updated_at} -> {draft_html, true}
+                _ -> {processed_html, false}
+              end
 
             socket =
               socket
               |> assign(
-                html: processed_html,
+                html: display_html,
+                static_html: processed_html,
+                live_draft_active: live_draft_active,
                 post: post,
                 reader_count: get_reader_count(slug),
                 word_count: word_count(content_without_tags),
@@ -177,6 +200,32 @@ defmodule BlogWeb.PostLive do
         reader_count: get_reader_count(socket.assigns.post.slug)
       )
 
+    {:noreply, socket}
+  end
+
+  def handle_info({:live_draft_update, _slug, rendered_html, _updated_at}, socket) do
+    {:noreply, assign(socket, html: rendered_html, live_draft_active: true)}
+  end
+
+  def handle_info({:live_draft_cleared, _slug}, socket) do
+    {:noreply, assign(socket, html: socket.assigns.static_html, live_draft_active: false)}
+  end
+
+  def handle_info(:check_draft_staleness, socket) do
+    slug = socket.assigns.post.slug
+
+    socket =
+      if socket.assigns.live_draft_active do
+        case Blog.LiveDraft.get(slug) do
+          :stale -> assign(socket, html: socket.assigns.static_html, live_draft_active: false)
+          :none -> assign(socket, html: socket.assigns.static_html, live_draft_active: false)
+          _ -> socket
+        end
+      else
+        socket
+      end
+
+    Process.send_after(self(), :check_draft_staleness, 30_000)
     {:noreply, socket}
   end
 
@@ -282,7 +331,12 @@ defmodule BlogWeb.PostLive do
         <div class="mac-window">
           <div class="mac-title-bar">
             <a href="/blog" class="mac-close-box"></a>
-            <div class="mac-title"><%= @post.title %></div>
+            <div class="mac-title">
+              <%= @post.title %>
+              <%= if @live_draft_active do %>
+                <span class="live-badge">LIVE</span>
+              <% end %>
+            </div>
             <div class="mac-resize-box"></div>
           </div>
           <div class="mac-window-content">
@@ -481,6 +535,23 @@ defmodule BlogWeb.PostLive do
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      .mac-post .live-badge {
+        display: inline-block;
+        background: #ff0000;
+        color: #fff;
+        font-size: 9px;
+        padding: 1px 6px;
+        border-radius: 3px;
+        margin-left: 8px;
+        animation: live-pulse 1.5s ease-in-out infinite;
+        vertical-align: middle;
+      }
+
+      @keyframes live-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
       }
 
       .mac-post .mac-resize-box {

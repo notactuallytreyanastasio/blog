@@ -39,6 +39,8 @@ defmodule Blog.Application do
       BlueskyJetstream,
       # Start the PubSub system
       {Phoenix.PubSub, name: Blog.PubSub},
+      # Live draft streaming from editor
+      Blog.LiveDraft,
       # Start Finch
       {Finch, name: Blog.Finch},
       # Start the Endpoint (http/https)

@@ -60,6 +60,9 @@ config :logger, :console,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Live draft API token (dev default)
+config :blog, :live_draft_api_token, "dev-live-draft-token"
+
 # Import receipt printer configuration
 import_config "receipt_printer.exs"
 

@@ -78,6 +78,8 @@ defmodule BlogWeb.Router do
     get "/receipt_messages/pending", ReceiptMessageController, :pending
     post "/receipt_messages/:id/printed", ReceiptMessageController, :mark_printed
     post "/receipt_messages/:id/failed", ReceiptMessageController, :mark_failed
+
+    post "/live-draft", LiveDraftController, :update
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
