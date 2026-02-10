@@ -12,7 +12,7 @@ defmodule BlueskyHose do
       "wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post",
       __MODULE__,
       :fake_state,
-      opts
+      opts ++ [handle_initial_conn_failure: true]
     )
   rescue
     ArgumentError ->
@@ -21,13 +21,13 @@ defmodule BlueskyHose do
         "wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post",
         __MODULE__,
         :fake_state,
-        opts
+        opts ++ [handle_initial_conn_failure: true]
       )
   end
 
   def handle_connect(_conn, _state) do
     Logger.info("Connected!")
-    # IO.puts("#{DateTime.utc_now()}")
+    Blog.HoseMonitor.report_up(:bluesky_hose)
     {:ok, 0}
   end
 
@@ -162,10 +162,12 @@ defmodule BlueskyHose do
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}")
+    Blog.HoseMonitor.report_down(:bluesky_hose)
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
+    Blog.HoseMonitor.report_down(:bluesky_hose)
     super(disconnect_map, state)
   end
 

@@ -15,17 +15,19 @@ defmodule BlueskyJetstream do
       url,
       __MODULE__,
       %{reconnect_attempts: 0, message_count: 0},
-      opts ++ [name: __MODULE__]
+      opts ++ [name: __MODULE__, handle_initial_conn_failure: true]
     )
   end
 
   def handle_connect(_conn, state) do
-    Logger.info("✅ Connected to Bluesky Jetstream!")
+    Logger.info("Connected to Bluesky Jetstream!")
+    Blog.HoseMonitor.report_up(:jetstream)
     {:ok, Map.put(state, :reconnect_attempts, 0)}
   end
 
   def handle_disconnect(reason, state) do
-    Logger.warning("❌ Disconnected from Jetstream: #{inspect(reason)}, attempting to reconnect...")
+    Logger.warning("Disconnected from Jetstream: #{inspect(reason)}, attempting to reconnect...")
+    Blog.HoseMonitor.report_down(:jetstream)
     {:reconnect, Map.update(state, :reconnect_attempts, 0, &(&1 + 1))}
   end
 

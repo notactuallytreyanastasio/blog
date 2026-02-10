@@ -83,6 +83,7 @@ defmodule Blog.PokeAround.Bluesky.Firehose do
   @impl WebSockex
   def handle_connect(_conn, state) do
     Logger.info("Connected to Turbostream")
+    Blog.HoseMonitor.report_up(:turbostream)
     schedule_stats_log()
     {:ok, state}
   end
@@ -90,6 +91,7 @@ defmodule Blog.PokeAround.Bluesky.Firehose do
   @impl WebSockex
   def handle_disconnect(disconnect_map, state) do
     Logger.warning("Disconnected from Turbostream: #{inspect(disconnect_map[:reason])}")
+    Blog.HoseMonitor.report_down(:turbostream)
     Process.sleep(5_000)
     {:reconnect, state}
   end

@@ -31,6 +31,25 @@ defmodule BlogWeb.Layouts do
     |> Enum.map(fn {tag_name, posts} -> {tag_name, Enum.take(posts, 2)} end)
   end
 
+  def hose_banner do
+    try do
+      if Blog.HoseMonitor.any_down?() do
+        down = Blog.HoseMonitor.down_hoses()
+        names = Enum.map_join(down, ", ", &hose_display_name/1)
+        {:down, names}
+      else
+        :all_good
+      end
+    rescue
+      _ -> :all_good
+    end
+  end
+
+  defp hose_display_name(:bluesky_hose), do: "Relay"
+  defp hose_display_name(:jetstream), do: "Jetstream"
+  defp hose_display_name(:turbostream), do: "Turbostream"
+  defp hose_display_name(other), do: to_string(other)
+
   def total_readers do
     try do
       count =

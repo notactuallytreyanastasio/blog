@@ -44,6 +44,13 @@
     <%!-- Temporarily removed highlight.js and its language packs for debugging Leaflet issue --%>
   </head>
   <body class="h-full font-mono bg-gradient-to-br from-cyan-50 to-indigo-50">
+    <%= case hose_banner() do %>
+      <% {:down, names} -> %>
+        <div style="background: #1a1a2e; color: #ff6b6b; text-align: center; padding: 6px 12px; font-family: monospace; font-size: 13px; border-bottom: 2px solid #ff6b6b; position: relative; z-index: 100;">
+          ALL THE HOSES AIN'T FLOWIN BOB — down: <%= names %>
+        </div>
+      <% _ -> %>
+    <% end %>
     <!-- Sidebar Toggle Button -->
     <button
       id="sidebar-toggle"

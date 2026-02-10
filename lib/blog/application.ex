@@ -33,6 +33,8 @@ defmodule Blog.Application do
       Blog.Repo,
       # Start the Telemetry supervisor
       BlogWeb.Telemetry,
+      # Track hose connection status (must start before hoses)
+      Blog.HoseMonitor,
       BlueskyHose,
       BlueskyJetstream,
       # Start the PubSub system
