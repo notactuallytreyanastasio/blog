@@ -15,6 +15,7 @@ defmodule Blog.Content.Post do
     nathan-fielder
     a-genstage-tutorial-and-reflection
     327-years-of-tree-law-in-the-usa-
+    many-layer-dips-i-decided-to-try-making-a-robot-llm-post-like-me
   )
 
   def all do

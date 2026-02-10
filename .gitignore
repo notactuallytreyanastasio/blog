@@ -42,3 +42,4 @@ nathan_for_us/
 
 receipt-printer-emulator/target/*
 live_joyride/
+.live-draft.json
