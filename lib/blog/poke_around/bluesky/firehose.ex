@@ -51,7 +51,7 @@ defmodule Blog.PokeAround.Bluesky.Firehose do
     }
 
     Logger.info("Connecting to Turbostream: #{url}")
-    WebSockex.start_link(url, __MODULE__, state, name: name)
+    WebSockex.start_link(url, __MODULE__, state, name: name, handle_initial_conn_failure: true)
   end
 
   def child_spec(opts) do

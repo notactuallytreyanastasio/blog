@@ -48,8 +48,9 @@ defmodule BlogWeb.Router do
     live "/blackjack", BlackjackLive, :index
     live "/war", WarLive, :index
     live "/markdown-editor", MarkdownEditorLive, :index
-    live "/editor", EditorLive, :new
-    live "/editor/:id", EditorLive, :edit
+    # Editor disabled - guest posts are no longer accepted
+    # live "/editor", EditorLive, :new
+    # live "/editor/:id", EditorLive, :edit
     live "/lumon-celebration", LumonCelebrationLive, :index
     live "/article/my-custom-article", ArticleLive, :show
     live "/untitled-ai-dev-blogpost", AiDevLive, :index
