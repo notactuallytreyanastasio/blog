@@ -30,6 +30,7 @@ import MarkdownEditor, { MarkdownInput } from "./hooks/markdown_editor"
 import BezierTriangles from "./hooks/bezier_triangles"
 import MtaBusMap from "./hooks/mta_bus_map"
 import BubbleGame from "./hooks/bubble_game"
+import FlipCard from "./hooks/flip_card"
 //# import * as THREE from 'three';
 
 // Sunflower Background Animation
@@ -732,6 +733,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     BezierTriangles,
     MtaBusMap,
     BubbleGame,
+    FlipCard,
     SunflowerBackground,
     CardGrid,
     Joyride,

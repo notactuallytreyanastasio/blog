@@ -54,7 +54,10 @@ defmodule Blog.Application do
       # Start the Presence service for real-time user tracking
       BlogWeb.Presence,
       # PokeAround subsystem (StumbleUpon clone)
-      Blog.PokeAround.Supervisor
+      Blog.PokeAround.Supervisor,
+      # Smart Steps session management
+      {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
+      {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one}
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -96,7 +99,10 @@ defmodule Blog.Application do
         # Start the Presence service for real-time user tracking
         BlogWeb.Presence,
         # PokeAround subsystem (StumbleUpon clone)
-        Blog.PokeAround.Supervisor
+        Blog.PokeAround.Supervisor,
+        # Smart Steps session management
+        {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
+        {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one}
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]

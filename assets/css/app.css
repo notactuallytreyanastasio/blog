@@ -2002,3 +2002,148 @@ details[open] summary {
 .joyride-arrow-hidden {
   display: none;
 }
+
+/* ============================================
+   Smart Steps - Theme & Animations
+   ============================================ */
+
+.ss-page {
+  background-color: #FAFAF8;
+  color: #2D3436;
+  min-height: 100vh;
+}
+
+/* Animations */
+@keyframes ss-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ss-fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ss-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(66, 165, 245, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(66, 165, 245, 0); }
+}
+
+.ss-fade-in {
+  animation: ss-fade-in 0.4s ease-out both;
+}
+
+.ss-fade-in-up {
+  animation: ss-fade-in-up 0.5s ease-out both;
+}
+
+/* Stagger children */
+.ss-stagger > * { animation: ss-fade-in-up 0.4s ease-out both; }
+.ss-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.ss-stagger > *:nth-child(2) { animation-delay: 80ms; }
+.ss-stagger > *:nth-child(3) { animation-delay: 160ms; }
+.ss-stagger > *:nth-child(4) { animation-delay: 240ms; }
+.ss-stagger > *:nth-child(5) { animation-delay: 320ms; }
+.ss-stagger > *:nth-child(6) { animation-delay: 400ms; }
+.ss-stagger > *:nth-child(7) { animation-delay: 480ms; }
+
+/* Hover lift */
+.ss-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ss-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================
+   Smart Steps - Flip Card
+   ============================================ */
+
+.flip-card {
+  perspective: 600px;
+  width: 100%;
+}
+
+.flip-inner {
+  position: relative;
+  width: 100%;
+  height: 10rem; /* h-40 */
+  transition: transform 0.5s ease;
+  transform-style: preserve-3d;
+  cursor: pointer;
+}
+
+.flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-front,
+.flip-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  border: 2px solid #E0E0E0;
+  overflow: hidden;
+}
+
+.flip-front {
+  background-color: #F5F5F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.flip-back {
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+/* Risk-level back colors */
+.flip-back.risk-low { border-color: #66BB6A; background-color: #C8E6C9; }
+.flip-back.risk-medium { border-color: #FFEE58; background-color: #FFF9C4; }
+.flip-back.risk-high { border-color: #EC407A; background-color: #F8BBD0; }
+.flip-back.risk-critical { border-color: #9b59b6; background-color: #f3e5f5; }
+
+/* Selected card */
+.flip-card.selected .flip-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-card.selected .flip-back {
+  ring: 2px solid #42A5F5;
+  box-shadow: 0 0 0 2px #42A5F5;
+}
+
+/* Peer glow — facilitator sees participant peeking */
+.flip-card.peer-glow .flip-front {
+  border-color: #42A5F5;
+  box-shadow: 0 0 0 0 rgba(66, 165, 245, 0.4);
+  animation: ss-peer-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ss-peer-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(66, 165, 245, 0.3), 0 0 24px rgba(66, 165, 245, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(66, 165, 245, 0.5), 0 0 40px rgba(66, 165, 245, 0.25);
+  }
+}
+
+/* Hover hint (before flipped) */
+.flip-card:not(.selected):not(.flipped) .flip-front:hover {
+  border-color: #42A5F5;
+}
+
+/* Focus ring */
+.flip-card:focus-visible {
+  outline: 2px solid #A5D6A7;
+  outline-offset: 2px;
+  border-radius: 12px;
+}
