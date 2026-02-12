@@ -483,21 +483,11 @@ defmodule BlogWeb.ReceiptMessageLive do
         ><%= @message %></textarea>
 
         <div class="button-container">
-          <label class="image-button">
-            <svg class="image-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <circle cx="8.5" cy="8.5" r="1.5"></circle>
-              <polyline points="21 15 16 10 5 21"></polyline>
-            </svg>
-            Add Image
-            <.live_file_input upload={@uploads.image} style="display: none;" />
-          </label>
-          
           <button class="send-button" type="submit" disabled={@message == ""}>
             Send Message
           </button>
         </div>
-        
+
         <%= for entry <- @uploads.image.entries do %>
           <div>
             <%= entry.client_name %>
