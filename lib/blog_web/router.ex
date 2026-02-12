@@ -66,9 +66,20 @@ defmodule BlogWeb.Router do
     live "/learn", LessonReplLive, :index
     live "/map", MapLive
     live "/very_direct_message", ReceiptMessageLive, :index
+    live "/privacy", PrivacyLive, :index
+    live "/terms", TermsLive, :index
     live "/jetstream_comparison", JetstreamComparisonLive, :index
     live "/role-call", RoleCallLive, :index
     live "/stumble", StumbleLive, :index
+
+    # Smart Steps scenario system
+    live "/smart-steps", SmartStepsLive.Index, :index
+    live "/smart-steps/play/:session_id", SmartStepsLive.Play, :play
+    live "/smart-steps/results/:session_id", SmartStepsLive.Results, :results
+    live "/smart-steps/dashboard", SmartStepsLive.Dashboard, :dashboard
+    live "/smart-steps/connect", SmartStepsLive.Connect, :connect
+    live "/smart-steps/designer", SmartStepsLive.Designer, :designer
+    live "/smart-steps/demo", SmartStepsLive.Demo, :demo
   end
 
   # API endpoints for receipt printer
