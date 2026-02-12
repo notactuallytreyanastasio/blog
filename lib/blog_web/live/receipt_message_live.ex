@@ -5,7 +5,7 @@ defmodule BlogWeb.ReceiptMessageLive do
   @impl true
   def mount(_params, session, socket) do
     sender_ip = get_ip_from_socket_or_session(socket, session)
-    
+
     {:ok,
      socket
      |> assign(:page_title, "Send me a very direct message. To my desk..")
@@ -27,17 +27,17 @@ defmodule BlogWeb.ReceiptMessageLive do
   def handle_event("send_message", %{"message" => message}, socket) do
     # Get sender IP from assigns (already set during mount)
     sender_ip = socket.assigns.sender_ip
-    
+
     # Handle uploaded image if any
     {image_data, content_type} = consume_uploaded_image(socket)
-    
+
     # Create the message with image binary data
     attrs = %{
       content: message,
       sender_ip: sender_ip,
       status: "pending"
     }
-    
+
     # Add image data if present
     attrs = if image_data do
       Map.merge(attrs, %{
@@ -47,7 +47,7 @@ defmodule BlogWeb.ReceiptMessageLive do
     else
       attrs
     end
-    
+
     case ReceiptMessages.create_receipt_message(attrs) do
       {:ok, _message} ->
         {:noreply,
@@ -55,7 +55,7 @@ defmodule BlogWeb.ReceiptMessageLive do
          |> put_flash(:info, "Message sent successfully! It will print on my desk soon.")
          |> assign(:message, "")
          |> assign(:uploaded_files, [])}
-      
+
       {:error, _changeset} ->
         {:noreply,
          socket
@@ -68,7 +68,7 @@ defmodule BlogWeb.ReceiptMessageLive do
   def handle_event("cancel-upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :image, ref)}
   end
-  
+
   defp get_ip_from_socket_or_session(socket, session) do
     # First try to get from connect_info if available
     ip_from_connect = case socket do
@@ -79,17 +79,17 @@ defmodule BlogWeb.ReceiptMessageLive do
       _ ->
         nil
     end
-    
+
     # Fall back to session if connect_info not available
     ip_from_connect || Map.get(session, "remote_ip", "unknown")
   end
-  
+
   defp format_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
   defp format_ip({a, b, c, d, e, f, g, h}) do
     "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
   end
   defp format_ip(_), do: nil
-  
+
   defp get_ip_from_headers(headers) do
     case List.keyfind(headers, "x-forwarded-for", 0) do
       {"x-forwarded-for", value} ->
@@ -101,17 +101,17 @@ defmodule BlogWeb.ReceiptMessageLive do
         nil
     end
   end
-  
+
   defp consume_uploaded_image(socket) do
     case socket.assigns.uploads.image.entries do
-      [] -> 
+      [] ->
         {nil, nil}
       _entries ->
         # Process the uploaded image and return binary data
         result = consume_uploaded_entries(socket, :image, fn %{path: path}, entry ->
           # Read the file content as binary
           image_binary = File.read!(path)
-          
+
           # Determine content type from the file extension
           content_type = case Path.extname(entry.client_name) |> String.downcase() do
             ".jpg" -> "image/jpeg"
@@ -120,10 +120,10 @@ defmodule BlogWeb.ReceiptMessageLive do
             ".gif" -> "image/gif"
             _ -> "image/jpeg"  # Default to JPEG
           end
-          
+
           {:ok, {image_binary, content_type}}
         end)
-        
+
         case result do
           [{image_binary, content_type} | _] -> {image_binary, content_type}
           _ -> {nil, nil}
@@ -478,10 +478,10 @@ defmodule BlogWeb.ReceiptMessageLive do
         <textarea
           class="message-input"
           name="message"
-          placeholder="Type your message here..."
+          placeholder="Type your message here...please leave your name or handle, its anonymous otherwise"
           phx-debounce="100"
         ><%= @message %></textarea>
-        
+
         <div class="button-container">
           <label class="image-button">
             <svg class="image-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
