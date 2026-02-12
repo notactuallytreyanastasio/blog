@@ -6,7 +6,7 @@ import threading
 from asyncio import Queue
 
 class PhoenixClient:
-    def __init__(self, uri="wss://thoughts-and-tidbits.fly.dev/socket/websocket"):
+    def __init__(self, uri="wss://salmon-unselfish-aphid.gigalixirapp.com/socket/websocket"):
         self.uri = uri
         self.ref = 0
         self.running = False

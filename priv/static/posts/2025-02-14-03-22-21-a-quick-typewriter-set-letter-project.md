@@ -150,7 +150,7 @@ Then if we key up or down, we redefine whats viewable here, and the rest are jus
 
 What we end up with is beautifully simple looking.
 
-You can check it out [here](https://thoughts-and-tidbits.fly.dev/vim).
+You can check it out [here](https://salmon-unselfish-aphid.gigalixirapp.com/vim).
 
 ## Making this
 This all was fun, and inspired something else:
