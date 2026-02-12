@@ -10,7 +10,7 @@ defmodule BlogWeb.ReceiptMessageLive do
      socket
      |> assign(:page_title, "Send me a very direct message. To my desk..")
      |> assign(:page_description, "Want to send Bobby a VERY direct message? Get it to his desk right now. This page will allow you to send text and images directly to the receipt printer sitting next to his laptops on his desk at home in New York City. Please be kind. The service will be shut off if someone tries to send anything hurtful, offensive, or mean. I love you, have fun.")
-     |> assign(:page_image, "/images/receipt-printer-preview.png")
+     |> assign(:page_image, "https://www.bobbby.online/images/og-image.png")
      |> assign(:message, "")
      |> assign(:sender_ip, sender_ip)
      |> assign(:uploaded_files, [])
