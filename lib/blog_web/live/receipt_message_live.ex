@@ -18,7 +18,8 @@ defmodule BlogWeb.ReceiptMessageLive do
   end
 
   @impl true
-  def handle_event("validate", %{"message" => message}, socket) do
+  def handle_event("validate", params, socket) do
+    message = Map.get(params, "message", socket.assigns.message)
     {:noreply, assign(socket, :message, message)}
   end
 
@@ -474,12 +475,12 @@ defmodule BlogWeb.ReceiptMessageLive do
 
       <form class="message-form" phx-submit="send_message" phx-change="validate">
         <h2 class="form-title">Write your message below</h2>
-        <textarea 
-          class="message-input" 
-          name="message" 
+        <textarea
+          class="message-input"
+          name="message"
           placeholder="Type your message here..."
-          value={@message}
-        ></textarea>
+          phx-debounce="100"
+        ><%= @message %></textarea>
         
         <div class="button-container">
           <label class="image-button">
