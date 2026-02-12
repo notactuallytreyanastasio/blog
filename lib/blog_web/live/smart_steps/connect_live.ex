@@ -39,14 +39,23 @@ defmodule BlogWeb.SmartStepsLive.Connect do
     ~H"""
     <div class="ss-page flex items-center justify-center">
       <div class="max-w-sm w-full px-4 py-20 text-center">
-        <.link
-          navigate={~p"/smart-steps"}
-          class="inline-flex items-center gap-1 text-xs mb-8 transition-colors"
-          style="color: #636E72;"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-          Back
-        </.link>
+        <div class="flex items-center justify-between mb-8">
+          <.link
+            navigate={~p"/smart-steps"}
+            class="inline-flex items-center gap-1 text-xs transition-colors"
+            style="color: #636E72;"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+            Back
+          </.link>
+          <span
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide"
+            style="background-color: #BBDEFB; color: #1565c0;"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+            Participant
+          </span>
+        </div>
 
         <h1 class="text-2xl font-bold mb-2" style="color: #2D3436;">Join a Session</h1>
         <p class="text-sm mb-8" style="color: #636E72;">

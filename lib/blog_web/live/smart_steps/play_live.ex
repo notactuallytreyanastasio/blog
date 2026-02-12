@@ -199,14 +199,24 @@ defmodule BlogWeb.SmartStepsLive.Play do
     <div class="ss-page">
       <div class="max-w-5xl mx-auto px-4 py-6">
         <%!-- Back button --%>
-        <.link
-          navigate={~p"/smart-steps"}
-          class="inline-flex items-center gap-1 text-xs mb-4 transition-colors"
-          style="color: #636E72;"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-          Exit Session
-        </.link>
+        <div class="flex items-center justify-between mb-4">
+          <.link
+            navigate={~p"/smart-steps"}
+            class="inline-flex items-center gap-1 text-xs transition-colors"
+            style="color: #636E72;"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+            Exit Session
+          </.link>
+          <span
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide"
+            style={if @role == :facilitator, do: "background-color: #C8E6C9; color: #2e7d32;", else: "background-color: #BBDEFB; color: #1565c0;"}
+          >
+            <svg :if={@role == :facilitator} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <svg :if={@role == :participant} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+            <%= if @role == :facilitator, do: "Facilitator View", else: "Participant" %>
+          </span>
+        </div>
 
         <div class="flex gap-6">
           <div class="flex-1">
