@@ -150,13 +150,14 @@ defmodule BlogWeb.ReceiptMessageLive do
           flex-direction: column;
           align-items: center;
           padding: 20px 20px 30px;
+          padding-top: 140px;
           font-family: Georgia, serif;
           color: #5d4e37;
         }
 
         .typewriter-container {
           margin-bottom: 30px;
-          margin-top: 10px;
+          margin-top: 0;
           position: relative;
           animation: float 3s ease-in-out infinite;
         }
