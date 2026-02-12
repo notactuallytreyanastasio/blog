@@ -341,7 +341,7 @@ defmodule BlogWeb.ReceiptMessageLive do
 
         .message-form {
           width: 100%;
-          max-width: 500px;
+          max-width: 800px;
           background-color: #fff8e7;
           padding: 40px;
           border-radius: 20px;
@@ -358,16 +358,30 @@ defmodule BlogWeb.ReceiptMessageLive do
 
         .message-input {
           width: 100%;
-          min-height: 150px;
-          padding: 15px;
+          min-height: 300px;
+          padding: 20px;
           border: 2px solid #e0d5c7;
           border-radius: 10px;
           font-family: Georgia, serif;
-          font-size: 16px;
+          font-size: 18px;
+          line-height: 1.6;
           resize: vertical;
           background-color: #fffef9;
           color: #5d4e37;
           transition: border-color 0.3s ease;
+        }
+
+        @media (max-width: 640px) {
+          .message-form {
+            padding: 20px;
+            border-radius: 12px;
+          }
+
+          .message-input {
+            min-height: 200px;
+            padding: 15px;
+            font-size: 16px;
+          }
         }
 
         .message-input:focus {
