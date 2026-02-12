@@ -135,46 +135,28 @@ defmodule BlogWeb.ReceiptMessageLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-mac">
-      <div class="os-window os-window-mac" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div class="os-window os-window-mac" id="dm-window" phx-hook="Draggable" style="width: 90vw; max-width: 1100px;">
         <div class="os-titlebar">
           <a href="/" class="os-btn-close"></a>
-          <span class="os-titlebar-title">Receipt Printer - Direct Message</span>
+          <span class="os-titlebar-title">Very Direct Message</span>
         </div>
-        <div class="os-content" style="height: calc(100% - 50px); overflow-y: auto;">
+        <div class="os-content" style="overflow-y: auto; max-height: calc(100vh - 100px);">
     <div class="receipt-message-container">
       <style>
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        body {
-          font-family: Georgia, serif;
-          background-color: #fdf6e3;
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 40px 20px;
-          color: #5d4e37;
-        }
-
         .receipt-message-container {
           width: 100%;
-          min-height: 100vh;
           background-color: #fdf6e3;
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: 40px 20px;
+          padding: 20px 20px 30px;
           font-family: Georgia, serif;
           color: #5d4e37;
         }
 
         .typewriter-container {
-          margin-bottom: 60px;
-          margin-top: 100px;
+          margin-bottom: 30px;
+          margin-top: 10px;
           position: relative;
           animation: float 3s ease-in-out infinite;
         }

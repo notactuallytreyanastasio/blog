@@ -609,7 +609,7 @@ Hooks.ChatScroll = {
 Hooks.Draggable = {
   mounted() {
     const el = this.el;
-    const titleBar = el.querySelector('.title-bar, .aim-chat-titlebar, .aim-name-dialog-titlebar');
+    const titleBar = el.querySelector('.title-bar, .aim-chat-titlebar, .aim-name-dialog-titlebar, .os-titlebar');
     if (!titleBar) return;
 
     let isDragging = false;
@@ -625,7 +625,7 @@ Hooks.Draggable = {
 
     const onMouseDown = (e) => {
       // Don't drag if clicking buttons
-      if (e.target.closest('button, .close-box, .aim-control-btn')) return;
+      if (e.target.closest('button, a, .close-box, .aim-control-btn, .os-btn-close')) return;
 
       isDragging = true;
       titleBar.style.cursor = 'grabbing';
@@ -670,7 +670,7 @@ Hooks.Draggable = {
 
     // Touch support for mobile
     titleBar.addEventListener('touchstart', (e) => {
-      if (e.target.closest('button, .close-box, .aim-control-btn')) return;
+      if (e.target.closest('button, a, .close-box, .aim-control-btn, .os-btn-close')) return;
       const touch = e.touches[0];
       onMouseDown({ clientX: touch.clientX, clientY: touch.clientY, target: e.target, preventDefault: () => {} });
     }, { passive: true });
