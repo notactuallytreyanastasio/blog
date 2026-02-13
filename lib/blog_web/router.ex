@@ -89,6 +89,7 @@ defmodule BlogWeb.Router do
     get "/receipt_messages/pending", ReceiptMessageController, :pending
     post "/receipt_messages/:id/printed", ReceiptMessageController, :mark_printed
     post "/receipt_messages/:id/failed", ReceiptMessageController, :mark_failed
+    post "/receipt_messages/:id/retry", ReceiptMessageController, :mark_pending
 
     post "/live-draft", LiveDraftController, :update
   end

@@ -70,6 +70,28 @@ defmodule BlogWeb.Api.ReceiptMessageController do
     end
   end
 
+  def mark_pending(conn, %{"id" => id} = params) do
+    auth_token = params["auth_token"] || get_req_header(conn, "x-auth-token") |> List.first()
+
+    if authorized?(auth_token) do
+      message = ReceiptMessages.get_receipt_message!(id)
+
+      case ReceiptMessages.update_receipt_message(message, %{status: "pending", printed_at: nil}) do
+        {:ok, updated_message} ->
+          json(conn, %{status: "ok", message: format_message(updated_message)})
+
+        {:error, _changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to reset message status"})
+      end
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{error: "Invalid or missing auth token"})
+    end
+  end
+
   defp format_message(%ReceiptMessage{} = msg) do
     response = %{
       id: msg.id,
