@@ -418,7 +418,7 @@ defmodule BlogWeb.SmartStepsLive.Play do
     <div class="max-w-3xl mx-auto ss-fade-in">
       <div class="bg-white rounded-2xl p-6 text-center" style="border: 1px solid #E0E0E0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 class="text-2xl font-bold mb-4" style="color: #2D3436;">Session Complete!</h2>
-        <p :if={@game_state[:game_over_reason]} class="mb-6" style="color: #636E72;">
+        <p :if={@game_state.game_over_reason} class="mb-6" style="color: #636E72;">
           <%= @game_state.game_over_reason %>
         </p>
         <button

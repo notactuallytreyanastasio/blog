@@ -55,7 +55,7 @@ defmodule BlogWeb.SmartStepsLive.Results do
           <div :if={@final_scenario && @final_scenario.outcome_type} class="ss-fade-in">
             <.outcome_banner
               outcome_type={@final_scenario.outcome_type}
-              game_over_reason={@game_state[:game_over_reason]}
+              game_over_reason={@game_state.game_over_reason}
             />
           </div>
 
