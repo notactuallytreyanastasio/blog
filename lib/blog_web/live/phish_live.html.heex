@@ -193,6 +193,58 @@
                     </div>
                   </div>
                 <% end %>
+                <%!-- Streaks --%>
+                <%= if stats.jc_streak > 0 do %>
+                  <div style="margin-top: 8px; text-align: left;">
+                    <div style="font-size: 11px; color: #333; font-weight: 700;">
+                      <span style="color: #ef4444;">🔥</span> JC Streak: <%= stats.jc_streak %>
+                    </div>
+                  </div>
+                <% end %>
+                <%= if stats.recent_form do %>
+                  <% {last_jc, last_n} = stats.recent_form %>
+                  <div style="margin-top: 4px; text-align: left;">
+                    <div style="font-size: 10px; color: #888;">
+                      Recent form: <strong style="color: #333;"><%= last_jc %>/<%= last_n %> JC</strong> (last <%= last_n %>)
+                    </div>
+                  </div>
+                <% end %>
+                <%!-- Duration trend --%>
+                <%= if stats.dur_trend do %>
+                  <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ccc; text-align: left;">
+                    <div style="font-size: 11px; color: #333; font-weight: 700;">
+                      <%= case stats.dur_trend do %>
+                        <% :longer -> %>↑ Getting longer
+                        <% :shorter -> %>↓ Getting shorter
+                        <% :stable -> %>→ Steady duration
+                      <% end %>
+                    </div>
+                    <div style="font-size: 10px; color: #888; margin-top: 1px;">
+                      Recent avg <%= Float.round(stats.recent_avg_dur / 60000, 1) %>m vs overall <%= Float.round(stats.avg_dur / 60000, 1) %>m
+                    </div>
+                  </div>
+                <% end %>
+                <%= if stats.total_hours > 0.1 do %>
+                  <div style="margin-top: 4px; text-align: left;">
+                    <div style="font-size: 10px; color: #888;">
+                      Total jam time: <strong style="color: #333;"><%= Float.round(stats.total_hours, 1) %> hours</strong>
+                    </div>
+                  </div>
+                <% end %>
+                <%!-- Venue stats --%>
+                <%= if stats.top_venue do %>
+                  <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ccc; text-align: left;">
+                    <div style="font-size: 11px; color: #333; font-weight: 700;">
+                      📍 Most played: <%= stats.top_venue %> (<%= stats.top_venue_count %>×)
+                    </div>
+                    <%= if stats.best_venue && stats.best_venue != stats.top_venue && stats.best_venue_pct > 0 do %>
+                      <div style="font-size: 10px; color: #888; margin-top: 2px;">
+                        Best JC rate: <%= stats.best_venue %> (<%= round(stats.best_venue_pct) %>%)
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+                <%!-- Notable quote --%>
                 <%= if stats.notable_quote do %>
                   <div style="margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;">
                     "<%= stats.notable_quote %>"

@@ -205,7 +205,12 @@ defmodule BlogWeb.PhishLive do
   end
 
   # Computed stats for mobile card
-  def song_stats(nil), do: %{jc_count: 0, avg_dur: 0, longest_ms: 0, longest_track: nil, most_loved_track: nil, notable_quote: nil}
+  def song_stats(nil), do: %{
+    jc_count: 0, avg_dur: 0, longest_ms: 0, longest_track: nil,
+    most_loved_track: nil, notable_quote: nil, total_hours: 0.0,
+    recent_form: nil, dur_trend: nil, recent_avg_dur: 0, jc_streak: 0,
+    top_venue: nil, top_venue_count: 0, best_venue: nil, best_venue_pct: 0.0
+  }
 
   def song_stats(%{tracks: tracks}) do
     jc_count = Enum.count(tracks, fn t -> t.is_jamchart == 1 end)
@@ -224,13 +229,70 @@ defmodule BlogWeb.PhishLive do
         q -> if String.length(q) > 80, do: String.slice(q, 0, 80) <> "...", else: q
       end
 
+    # Total jam time in hours
+    total_hours = total_dur / 3_600_000
+
+    # Recent form: last 5 tracks JC rate
+    last5 = Enum.take(tracks, -5)
+    last5_jc = Enum.count(last5, fn t -> t.is_jamchart == 1 end)
+    recent_form = if length(last5) > 0, do: {last5_jc, length(last5)}, else: nil
+
+    # Duration trend: compare last 5 avg to overall avg
+    recent_avg_dur =
+      if length(last5) > 0 do
+        Enum.reduce(last5, 0, fn t, acc -> acc + (t.duration_ms || 0) end) / length(last5)
+      else
+        0
+      end
+
+    dur_trend =
+      cond do
+        avg_dur == 0 or length(tracks) < 6 -> nil
+        recent_avg_dur > avg_dur * 1.1 -> :longer
+        recent_avg_dur < avg_dur * 0.9 -> :shorter
+        true -> :stable
+      end
+
+    # JC streak: consecutive jamcharts from most recent backwards
+    jc_streak =
+      tracks
+      |> Enum.reverse()
+      |> Enum.take_while(fn t -> t.is_jamchart == 1 end)
+      |> length()
+
+    # Venue stats
+    venue_groups = Enum.group_by(tracks, fn t -> t.venue end)
+
+    {top_venue, top_venue_count} =
+      venue_groups
+      |> Enum.max_by(fn {_v, ts} -> length(ts) end, fn -> {nil, []} end)
+      |> then(fn {v, ts} -> {v, length(ts)} end)
+
+    {best_venue, best_venue_pct} =
+      venue_groups
+      |> Enum.filter(fn {_v, ts} -> length(ts) >= 2 end)
+      |> Enum.map(fn {v, ts} ->
+        jc = Enum.count(ts, fn t -> t.is_jamchart == 1 end)
+        {v, if(length(ts) > 0, do: 100.0 * jc / length(ts), else: 0.0)}
+      end)
+      |> Enum.max_by(fn {_v, pct} -> pct end, fn -> {nil, 0.0} end)
+
     %{
       jc_count: jc_count,
       avg_dur: avg_dur,
       longest_ms: if(longest, do: longest.duration_ms, else: 0),
       longest_track: longest,
       most_loved_track: most_loved,
-      notable_quote: notable_quote
+      notable_quote: notable_quote,
+      total_hours: total_hours,
+      recent_form: recent_form,
+      dur_trend: dur_trend,
+      recent_avg_dur: recent_avg_dur,
+      jc_streak: jc_streak,
+      top_venue: top_venue,
+      top_venue_count: top_venue_count,
+      best_venue: best_venue,
+      best_venue_pct: best_venue_pct
     }
   end
 
