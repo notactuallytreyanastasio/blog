@@ -2289,7 +2289,7 @@ details[open] summary {
 .phish-card-back {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px);
+  max-height: calc(100vh - 200px);
   overflow: hidden;
   cursor: default;
 }
@@ -2559,6 +2559,6 @@ details[open] summary {
 /* Mobile responsive */
 @media (max-width: 768px) {
   .phish-card-back {
-    height: calc(100vh - 240px);
+    max-height: calc(100vh - 240px);
   }
 }
