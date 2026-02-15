@@ -7,7 +7,9 @@ defmodule BlogWeb.PhishLive do
 
     {:ok,
      assign(socket,
-       page_title: "Song Deep Dive",
+       page_title: "phstats — Phish 3.0 Jamchart Analysis",
+       page_description: "A site for dorking out with phish stats on jams. 3.0 only, just cuz I know that'll bother some of you. Doink around.",
+       page_image: "https://www.bobbby.online/images/og-phish.png",
        years: years,
        year: "all",
        song_list: [],
