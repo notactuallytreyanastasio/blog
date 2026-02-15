@@ -31,6 +31,8 @@ import BezierTriangles from "./hooks/bezier_triangles"
 import MtaBusMap from "./hooks/mta_bus_map"
 import BubbleGame from "./hooks/bubble_game"
 import FlipCard from "./hooks/flip_card"
+import PhishChart from "./hooks/phish_chart"
+import PhishAudio from "./hooks/phish_audio"
 //# import * as THREE from 'three';
 
 // Sunflower Background Animation
@@ -737,6 +739,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
     SunflowerBackground,
     CardGrid,
     Joyride,
+    PhishChart,
+    PhishAudio,
     ...Hooks
   }
 })
