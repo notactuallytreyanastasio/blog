@@ -211,7 +211,6 @@ defmodule BlogWeb.PhishLive do
     jc_count: 0, avg_dur: 0, longest_ms: 0, longest_track: nil,
     most_loved_track: nil, notable_quote: nil, total_hours: 0.0,
     recent_form: nil, dur_trend: nil, recent_avg_dur: 0, jc_streak: 0,
-    top_venue: nil, top_venue_count: 0, best_venue: nil, best_venue_pct: 0.0
   }
 
   def song_stats(%{tracks: tracks}) do
@@ -262,23 +261,6 @@ defmodule BlogWeb.PhishLive do
       |> Enum.take_while(fn t -> t.is_jamchart == 1 end)
       |> length()
 
-    # Venue stats
-    venue_groups = Enum.group_by(tracks, fn t -> t.venue end)
-
-    {top_venue, top_venue_count} =
-      venue_groups
-      |> Enum.max_by(fn {_v, ts} -> length(ts) end, fn -> {nil, []} end)
-      |> then(fn {v, ts} -> {v, length(ts)} end)
-
-    {best_venue, best_venue_pct} =
-      venue_groups
-      |> Enum.filter(fn {_v, ts} -> length(ts) >= 2 end)
-      |> Enum.map(fn {v, ts} ->
-        jc = Enum.count(ts, fn t -> t.is_jamchart == 1 end)
-        {v, if(length(ts) > 0, do: 100.0 * jc / length(ts), else: 0.0)}
-      end)
-      |> Enum.max_by(fn {_v, pct} -> pct end, fn -> {nil, 0.0} end)
-
     %{
       jc_count: jc_count,
       avg_dur: avg_dur,
@@ -290,11 +272,7 @@ defmodule BlogWeb.PhishLive do
       recent_form: recent_form,
       dur_trend: dur_trend,
       recent_avg_dur: recent_avg_dur,
-      jc_streak: jc_streak,
-      top_venue: top_venue,
-      top_venue_count: top_venue_count,
-      best_venue: best_venue,
-      best_venue_pct: best_venue_pct
+      jc_streak: jc_streak
     }
   end
 

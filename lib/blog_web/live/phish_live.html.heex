@@ -231,19 +231,6 @@
                     </div>
                   </div>
                 <% end %>
-                <%!-- Venue stats --%>
-                <%= if stats.top_venue do %>
-                  <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ccc; text-align: left;">
-                    <div style="font-size: 11px; color: #333; font-weight: 700;">
-                      📍 Most played: <%= stats.top_venue %> (<%= stats.top_venue_count %>×)
-                    </div>
-                    <%= if stats.best_venue && stats.best_venue != stats.top_venue && stats.best_venue_pct > 0 do %>
-                      <div style="font-size: 10px; color: #888; margin-top: 2px;">
-                        Best JC rate: <%= stats.best_venue %> (<%= round(stats.best_venue_pct) %>%)
-                      </div>
-                    <% end %>
-                  </div>
-                <% end %>
                 <%!-- Notable quote --%>
                 <%= if stats.notable_quote do %>
                   <div style="margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;">
