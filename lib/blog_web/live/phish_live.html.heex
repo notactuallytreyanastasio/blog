@@ -172,6 +172,32 @@
                   <span style="color: #999;">·</span>
                   <span>Peak <%= fmt_duration(stats.longest_ms) %></span>
                 </div>
+                <%!-- Extended stats --%>
+                <%= if stats.longest_track do %>
+                  <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #ccc; text-align: left;">
+                    <div style="font-size: 11px; color: #333; font-weight: 700;">
+                      <span style="color: #ef4444;">★</span> Longest: <%= fmt_duration(stats.longest_track.duration_ms) %>
+                    </div>
+                    <div style="font-size: 10px; color: #888; margin-top: 1px;">
+                      <%= stats.longest_track.show_date %> · <%= stats.longest_track.venue %>
+                    </div>
+                  </div>
+                <% end %>
+                <%= if stats.most_loved_track && stats.most_loved_track.likes > 0 do %>
+                  <div style="margin-top: 8px; text-align: left;">
+                    <div style="font-size: 11px; color: #333; font-weight: 700;">
+                      <span style="color: #ef4444;">♥</span> Most Loved: <%= stats.most_loved_track.likes %> likes
+                    </div>
+                    <div style="font-size: 10px; color: #888; margin-top: 1px;">
+                      <%= stats.most_loved_track.show_date %> · <%= stats.most_loved_track.venue %>
+                    </div>
+                  </div>
+                <% end %>
+                <%= if stats.notable_quote do %>
+                  <div style="margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;">
+                    "<%= stats.notable_quote %>"
+                  </div>
+                <% end %>
                 <div class="phish-card-tap-hint">TAP TO SEE AND PLAY JAMS</div>
               </div>
             <% else %>

@@ -205,15 +205,33 @@ defmodule BlogWeb.PhishLive do
   end
 
   # Computed stats for mobile card
-  def song_stats(nil), do: %{jc_count: 0, avg_dur: 0, longest_ms: 0}
+  def song_stats(nil), do: %{jc_count: 0, avg_dur: 0, longest_ms: 0, longest_track: nil, most_loved_track: nil, notable_quote: nil}
 
   def song_stats(%{tracks: tracks}) do
     jc_count = Enum.count(tracks, fn t -> t.is_jamchart == 1 end)
     total_dur = Enum.reduce(tracks, 0, fn t, acc -> acc + (t.duration_ms || 0) end)
     avg_dur = if length(tracks) > 0, do: total_dur / length(tracks), else: 0
-    longest_ms = Enum.reduce(tracks, 0, fn t, acc -> max(acc, t.duration_ms || 0) end)
+    longest = Enum.max_by(tracks, fn t -> t.duration_ms || 0 end, fn -> nil end)
+    most_loved = Enum.max_by(tracks, fn t -> t.likes || 0 end, fn -> nil end)
 
-    %{jc_count: jc_count, avg_dur: avg_dur, longest_ms: longest_ms}
+    notable_quote =
+      tracks
+      |> Enum.filter(fn t -> t.is_jamchart == 1 and t.jam_notes != "" end)
+      |> Enum.map(fn t -> t.jam_notes end)
+      |> List.first()
+      |> case do
+        nil -> nil
+        q -> if String.length(q) > 80, do: String.slice(q, 0, 80) <> "...", else: q
+      end
+
+    %{
+      jc_count: jc_count,
+      avg_dur: avg_dur,
+      longest_ms: if(longest, do: longest.duration_ms, else: 0),
+      longest_track: longest,
+      most_loved_track: most_loved,
+      notable_quote: notable_quote
+    }
   end
 
   def filtered_tracks(nil, _filter), do: []
