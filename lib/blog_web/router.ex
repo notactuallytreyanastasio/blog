@@ -71,6 +71,7 @@ defmodule BlogWeb.Router do
     live "/jetstream_comparison", JetstreamComparisonLive, :index
     live "/role-call", RoleCallLive, :index
     live "/stumble", StumbleLive, :index
+    live "/phish", PhishLive, :index
 
     # Smart Steps scenario system
     live "/smart-steps", SmartStepsLive.Index, :index

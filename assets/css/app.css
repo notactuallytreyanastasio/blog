@@ -2147,3 +2147,418 @@ details[open] summary {
   outline-offset: 2px;
   border-radius: 12px;
 }
+
+/* ============================================
+   Phish Deep Dive - System 7 Style
+   ============================================ */
+
+.phish-hint {
+  color: #666;
+  font-size: 11px;
+  margin: 0 0 8px;
+}
+
+.phish-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  background: #eee;
+  border: 1px solid #000;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+}
+
+.phish-label {
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.phish-select {
+  padding: 2px 4px;
+  font-size: 11px;
+  border: 2px inset #999;
+  background: #fff;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.phish-input {
+  padding: 2px 4px;
+  font-size: 11px;
+  border: 2px inset #999;
+  background: #fff;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+/* Mobile controls */
+.phish-mobile-controls {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  padding: 8px;
+  border-bottom: 1px solid #000;
+}
+
+/* Sort pills */
+.phish-sort-pill {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px outset #ccc;
+  background: #ddd;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.phish-sort-pill.active {
+  border: 2px inset #999;
+  background: #000;
+  color: #fff;
+}
+
+/* Baseball card */
+.phish-card {
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 #000;
+  background: #fff;
+  cursor: pointer;
+}
+
+.phish-card-front {
+  padding: 20px;
+  text-align: center;
+}
+
+.phish-card-song-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.phish-card-divider {
+  width: 40px;
+  height: 2px;
+  background: #ef4444;
+  margin: 0 auto 12px;
+}
+
+.phish-card-avg {
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ef4444;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.phish-card-avg-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.phish-card-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #333;
+}
+
+.phish-card-tap-hint {
+  font-size: 10px;
+  color: #22c55e;
+  margin-top: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Card back */
+.phish-card-back {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+  overflow: hidden;
+  cursor: default;
+}
+
+.phish-card-back-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #000;
+  cursor: pointer;
+  text-align: center;
+  background: #eee;
+}
+
+/* Filter pills */
+.phish-filter-pills {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #000;
+  align-items: center;
+  background: #f5f5f5;
+}
+
+.phish-filter-pill {
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border: 2px outset #ccc;
+  background: #ddd;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.phish-filter-pill.active {
+  border: 2px inset #999;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Jam list */
+.phish-jam-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  padding: 2px 0;
+}
+
+.phish-jam-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #eee;
+  border-left: 3px solid transparent;
+}
+
+.phish-jam-row.jamchart {
+  border-left-color: #ef4444;
+}
+
+.phish-jam-duration {
+  font-size: 14px;
+  font-weight: 900;
+  color: #999;
+  font-variant-numeric: tabular-nums;
+}
+
+.phish-jam-duration.jamchart {
+  color: #ef4444;
+}
+
+.phish-duration-bar-bg {
+  height: 2px;
+  background: #eee;
+  border-radius: 1px;
+  margin-top: 2px;
+}
+
+.phish-duration-bar {
+  height: 100%;
+  border-radius: 1px;
+  background: #ccc;
+}
+
+.phish-duration-bar.jamchart {
+  background: #ef4444;
+}
+
+/* Jam notes */
+.phish-jam-notes {
+  margin-top: 3px;
+  font-size: 10px;
+  color: #888;
+  line-height: 1.3;
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.phish-jam-notes.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+/* Play button */
+.phish-play-btn {
+  background: #22c55e;
+  color: white;
+  border: 2px outset #16a34a;
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phish-play-btn:active {
+  border-style: inset;
+}
+
+/* Tooltip (desktop chart) */
+.phish-tooltip {
+  position: fixed;
+  background: #fff;
+  color: #000;
+  padding: 8px 10px;
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 #000;
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 280px;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+/* Modal overlay */
+.phish-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phish-modal-dialog {
+  background: #fff;
+  border: 2px solid #000;
+  box-shadow: 4px 4px 0 #000;
+  min-width: 280px;
+  max-width: 360px;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.phish-modal-dialog .os-titlebar {
+  height: 20px;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0px, #fff 1px,
+    #000 1px, #000 2px
+  );
+  border-bottom: 1px solid #000;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.phish-modal-play-btn {
+  width: 100%;
+  padding: 10px;
+  background: #22c55e;
+  color: white;
+  border: 2px outset #16a34a;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.phish-modal-play-btn:active {
+  border-style: inset;
+}
+
+/* Audio player bar */
+.phish-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #000;
+  color: #fff;
+  border-top: 2px solid #333;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.5);
+  z-index: 1200;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.phish-player-progress-bg {
+  height: 4px;
+  background: #333;
+  cursor: pointer;
+}
+
+.phish-player-progress-fill {
+  height: 100%;
+  background: #22c55e;
+  transition: width 0.2s linear;
+}
+
+.phish-player-inner {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.phish-player-stop {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.phish-player-icon {
+  color: #22c55e;
+  font-size: 16px;
+}
+
+.phish-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.phish-player-song {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phish-player-time {
+  font-size: 10px;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+
+.phish-player-via {
+  color: #555;
+  font-size: 10px;
+  margin-left: auto;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .phish-card-back {
+    height: calc(100vh - 240px);
+  }
+}

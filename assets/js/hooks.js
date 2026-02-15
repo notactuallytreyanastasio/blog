@@ -5,6 +5,8 @@ import MtaBusMap from "./hooks/mta_bus_map";
 import BubbleGame from "./hooks/bubble_game";
 import { MarkdownEditor } from "./hooks/markdown_editor";
 import { Joyride } from "../../deps/live_joyride/assets/js";
+import PhishChart from "./hooks/phish_chart";
+import PhishAudio from "./hooks/phish_audio";
 
 // Sunflower Background Animation
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -260,5 +262,7 @@ export default {
   CardGrid,
   SunflowerBackground,
   MarkdownEditor,
-  Joyride
+  Joyride,
+  PhishChart,
+  PhishAudio
 };
