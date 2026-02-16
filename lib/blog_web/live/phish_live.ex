@@ -2,51 +2,33 @@ defmodule BlogWeb.PhishLive do
   use BlogWeb, :live_view
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(_params, _session, socket) do
     years = Blog.Phish.list_years()
-    embed = Map.get(session, "embed", false)
 
-    song_list = Blog.Phish.song_list("all")
-
-    socket =
-      assign(socket,
-        embed: embed,
-        page_title: "phstats — Phish 3.0 Jamchart Analysis",
-        page_description: "A site for dorking out with phish stats on jams. 3.0 only, just cuz I know that'll bother some of you. Doink around.",
-        page_image: "https://www.bobbby.online/images/og-phish.png",
-        years: years,
-        year: "all",
-        song_list: song_list,
-        sorted_songs: [],
-        selected_song: nil,
-        song_history: nil,
-        sort_by: "avg",
-        min_played: 5,
-        filter: "",
-        card_flipped: false,
-        list_filter: "jamcharts",
-        expanded_idx: nil
-      )
-
-    # For embedded child LiveViews, handle_params is not called,
-    # so we need to load data here
-    socket =
-      if embed do
-        socket
-        |> assign_sorted_songs()
-        |> then(fn s ->
-          selected = default_song(s.assigns.sorted_songs)
-          s |> assign(selected_song: selected) |> load_song_history()
-        end)
-      else
-        socket
-      end
-
-    {:ok, socket}
+    {:ok,
+     assign(socket,
+       embed: false,
+       page_title: "phstats — Phish 3.0 Jamchart Analysis",
+       page_description: "A site for dorking out with phish stats on jams. 3.0 only, just cuz I know that'll bother some of you. Doink around.",
+       page_image: "https://www.bobbby.online/images/og-phish.png",
+       years: years,
+       year: "all",
+       song_list: [],
+       sorted_songs: [],
+       selected_song: nil,
+       song_history: nil,
+       sort_by: "avg",
+       min_played: 5,
+       filter: "",
+       card_flipped: false,
+       list_filter: "jamcharts",
+       expanded_idx: nil
+     )}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
+    embed = params["embed"] == "true"
     year = params["year"] || "all"
     sort_by = params["sort"] || "avg"
     min_played = parse_int(params["min"], 5)
@@ -56,7 +38,7 @@ defmodule BlogWeb.PhishLive do
 
     socket =
       socket
-      |> assign(year: year, sort_by: sort_by, min_played: min_played, filter: filter, song_list: song_list)
+      |> assign(embed: embed, year: year, sort_by: sort_by, min_played: min_played, filter: filter, song_list: song_list)
       |> assign_sorted_songs()
 
     selected_song = params["song"] || default_song(socket.assigns.sorted_songs)
