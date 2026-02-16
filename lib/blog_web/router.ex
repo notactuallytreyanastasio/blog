@@ -12,6 +12,17 @@ defmodule BlogWeb.Router do
     plug BlogWeb.Plugs.EnsureUserId
   end
 
+  pipeline :phangraphs do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :phangraphs_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.EnsureUserId
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -71,8 +82,6 @@ defmodule BlogWeb.Router do
     live "/jetstream_comparison", JetstreamComparisonLive, :index
     live "/role-call", RoleCallLive, :index
     live "/stumble", StumbleLive, :index
-    live "/phish", PhishLive, :index
-
     # Smart Steps scenario system
     live "/smart-steps", SmartStepsLive.Index, :index
     live "/smart-steps/play/:session_id", SmartStepsLive.Play, :play
@@ -81,6 +90,12 @@ defmodule BlogWeb.Router do
     live "/smart-steps/connect", SmartStepsLive.Connect, :connect
     live "/smart-steps/designer", SmartStepsLive.Designer, :designer
     live "/smart-steps/demo", SmartStepsLive.Demo, :demo
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :phangraphs
+
+    live "/phish", PhishLive, :index
   end
 
   # API endpoints for receipt printer

@@ -557,15 +557,15 @@ defmodule BlogWeb.TerminalLive do
           <div class={"phish-embed-window mobile-window-phish #{if @mobile_window == :phish, do: "mobile-active"}"} phx-hook="Draggable" id="phish-window">
             <div class="title-bar">
               <div class="close-box" phx-click="toggle_phish"></div>
-              <div class="title">Song Deep Dive — Phish 3.0</div>
+              <div class="title">phangraphs — Phish 3.0 Jam Analytics</div>
               <div class="resize-box"></div>
             </div>
             <div class="phish-embed-content">
               <.live_component module={BlogWeb.PhishComponent} id="phish-embed" />
             </div>
             <div class="status-bar">
-              <span>phstats</span>
-              <span>Phish 3.0 Jamchart Analysis</span>
+              <span>phangraphs</span>
+              <span>Phish 3.0 Jam Analytics</span>
             </div>
           </div>
         <% end %>

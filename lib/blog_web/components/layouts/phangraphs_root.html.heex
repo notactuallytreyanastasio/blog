@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <title>{assigns[:page_title] || "phangraphs"}</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009." />
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="phangraphs — Phish 3.0 Jam Analytics" />
+    <meta property="og:description" content="Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009." />
+    <meta property="og:image" content="https://www.bobbby.online/images/og-phangraphs.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="phangraphs" />
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="phangraphs — Phish 3.0 Jam Analytics" />
+    <meta name="twitter:description" content="Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009." />
+    <meta name="twitter:image" content="https://www.bobbby.online/images/og-phangraphs.png" />
+
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+  </head>
+  <body class="h-full font-mono" style="background: #1a1a2e;">
+    <main class="h-full">
+      {@inner_content}
+    </main>
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
+  </body>
+</html>
