@@ -485,7 +485,7 @@ defmodule BlogWeb.PostLive do
       }
 
       .mac-post .mac-window {
-        width: 800px;
+        width: 1100px;
         max-width: 95vw;
         background: #fff;
         border: 1px solid #000;
@@ -633,7 +633,7 @@ defmodule BlogWeb.PostLive do
       /* Article content styling within Mac window */
       .mac-post .article-content {
         font-family: 'Charter', 'Georgia', serif;
-        font-size: 2rem;
+        font-size: 1.30rem;
         line-height: 1.7;
         color: #1f2937;
       }
