@@ -1065,6 +1065,7 @@ defmodule BlogWeb.TerminalLive do
         box-shadow: 1px 1px 0 #000;
         flex-shrink: 0;
         align-self: flex-start;
+        margin-left: auto;
       }
 
       .phish-embed-content {
