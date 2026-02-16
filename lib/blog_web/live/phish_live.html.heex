@@ -193,41 +193,35 @@
                     </div>
                   </div>
                 <% end %>
-                <%!-- Streaks --%>
-                <%= if stats.jc_streak > 0 do %>
+                <%!-- Set placement --%>
+                <%= if stats.dominant_set do %>
                   <div style="margin-top: 8px; text-align: left;">
                     <div style="font-size: 11px; color: #333; font-weight: 700;">
-                      <span style="color: #ef4444;">🔥</span> JC Streak: <%= stats.jc_streak %>
+                      📊 <%= stats.dominant_set_pct %>% <%= fmt_set(stats.dominant_set) %><%= if stats.jc_set_note, do: " · #{stats.jc_set_note}" %>
                     </div>
                   </div>
                 <% end %>
-                <%= if stats.recent_form do %>
-                  <% {last_jc, last_n} = stats.recent_form %>
+                <%!-- Gap --%>
+                <%= if stats.last_played do %>
                   <div style="margin-top: 4px; text-align: left;">
                     <div style="font-size: 10px; color: #888;">
-                      Recent form: <strong style="color: #333;"><%= last_jc %>/<%= last_n %> JC</strong> (last <%= last_n %>)
+                      Last: <strong style="color: #333;"><%= stats.last_played %></strong> (<%= stats.days_since %>d ago)<%= if stats.avg_gap_days, do: " · avg every #{stats.avg_gap_days}d" %>
                     </div>
                   </div>
                 <% end %>
-                <%!-- Duration trend --%>
-                <%= if stats.dur_trend do %>
-                  <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ccc; text-align: left;">
-                    <div style="font-size: 11px; color: #333; font-weight: 700;">
-                      <%= case stats.dur_trend do %>
-                        <% :longer -> %>↑ Getting longer
-                        <% :shorter -> %>↓ Getting shorter
-                        <% :stable -> %>→ Steady duration
-                      <% end %>
-                    </div>
-                    <div style="font-size: 10px; color: #888; margin-top: 1px;">
-                      Recent avg <%= Float.round(stats.recent_avg_dur / 60000, 1) %>m vs overall <%= Float.round(stats.avg_dur / 60000, 1) %>m
-                    </div>
-                  </div>
-                <% end %>
-                <%= if stats.total_hours > 0.1 do %>
+                <%!-- Best year --%>
+                <%= if stats.best_year && stats.best_year_jc > 0 do %>
                   <div style="margin-top: 4px; text-align: left;">
                     <div style="font-size: 10px; color: #888;">
-                      Total jam time: <strong style="color: #333;"><%= Float.round(stats.total_hours, 1) %> hours</strong>
+                      Best year: <strong style="color: #333;"><%= stats.best_year %></strong> — <%= stats.best_year_jc %>/<%= stats.best_year_total %> JC
+                    </div>
+                  </div>
+                <% end %>
+                <%!-- JC Streak --%>
+                <%= if stats.jc_streak > 0 do %>
+                  <div style="margin-top: 4px; text-align: left;">
+                    <div style="font-size: 10px; color: #888;">
+                      🔥 JC Streak: <strong style="color: #333;"><%= stats.jc_streak %></strong> in a row
                     </div>
                   </div>
                 <% end %>

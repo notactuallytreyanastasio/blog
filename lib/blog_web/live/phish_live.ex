@@ -209,8 +209,10 @@ defmodule BlogWeb.PhishLive do
   # Computed stats for mobile card
   def song_stats(nil), do: %{
     jc_count: 0, avg_dur: 0, longest_ms: 0, longest_track: nil,
-    most_loved_track: nil, notable_quote: nil, total_hours: 0.0,
-    recent_form: nil, dur_trend: nil, recent_avg_dur: 0, jc_streak: 0,
+    most_loved_track: nil, notable_quote: nil, jc_streak: 0,
+    dominant_set: nil, dominant_set_pct: 0, jc_set_note: nil,
+    last_played: nil, days_since: nil, avg_gap_days: nil,
+    best_year: nil, best_year_jc: 0, best_year_total: 0
   }
 
   def song_stats(%{tracks: tracks}) do
@@ -230,36 +232,66 @@ defmodule BlogWeb.PhishLive do
         q -> if String.length(q) > 80, do: String.slice(q, 0, 80) <> "...", else: q
       end
 
-    # Total jam time in hours
-    total_hours = total_dur / 3_600_000
-
-    # Recent form: last 5 tracks JC rate
-    last5 = Enum.take(tracks, -5)
-    last5_jc = Enum.count(last5, fn t -> t.is_jamchart == 1 end)
-    recent_form = if length(last5) > 0, do: {last5_jc, length(last5)}, else: nil
-
-    # Duration trend: compare last 5 avg to overall avg
-    recent_avg_dur =
-      if length(last5) > 0 do
-        Enum.reduce(last5, 0, fn t, acc -> acc + (t.duration_ms || 0) end) / length(last5)
-      else
-        0
-      end
-
-    dur_trend =
-      cond do
-        avg_dur == 0 or length(tracks) < 6 -> nil
-        recent_avg_dur > avg_dur * 1.1 -> :longer
-        recent_avg_dur < avg_dur * 0.9 -> :shorter
-        true -> :stable
-      end
-
     # JC streak: consecutive jamcharts from most recent backwards
     jc_streak =
       tracks
       |> Enum.reverse()
       |> Enum.take_while(fn t -> t.is_jamchart == 1 end)
       |> length()
+
+    # Set placement
+    set_groups = Enum.group_by(tracks, fn t -> t.set_name end)
+
+    {dominant_set, dominant_set_pct} =
+      set_groups
+      |> Enum.max_by(fn {_s, ts} -> length(ts) end, fn -> {nil, []} end)
+      |> then(fn {s, ts} -> {s, if(length(tracks) > 0, do: round(100 * length(ts) / length(tracks)), else: 0)} end)
+
+    jc_tracks = Enum.filter(tracks, fn t -> t.is_jamchart == 1 end)
+
+    jc_set_note =
+      if length(jc_tracks) >= 2 do
+        jc_set_groups = Enum.group_by(jc_tracks, fn t -> t.set_name end)
+        {top_jc_set, top_jc_ts} = Enum.max_by(jc_set_groups, fn {_s, ts} -> length(ts) end)
+        pct = round(100 * length(top_jc_ts) / length(jc_tracks))
+        if pct >= 75, do: "#{length(top_jc_ts)}/#{length(jc_tracks)} JCs from #{fmt_set(top_jc_set)}", else: nil
+      else
+        nil
+      end
+
+    # Gap / last played
+    last_played = if length(tracks) > 0, do: List.last(tracks).show_date, else: nil
+
+    days_since =
+      if last_played do
+        Date.diff(Date.utc_today(), Date.from_iso8601!(last_played))
+      else
+        nil
+      end
+
+    avg_gap_days =
+      if length(tracks) > 1 do
+        first = Date.from_iso8601!(hd(tracks).show_date)
+        last = Date.from_iso8601!(List.last(tracks).show_date)
+        round(Date.diff(last, first) / (length(tracks) - 1))
+      else
+        nil
+      end
+
+    # Best year by JC rate (min 2 plays)
+    year_groups =
+      tracks
+      |> Enum.group_by(fn t -> String.slice(t.show_date, 0, 4) end)
+      |> Enum.filter(fn {_yr, ts} -> length(ts) >= 2 end)
+      |> Enum.map(fn {yr, ts} ->
+        jc = Enum.count(ts, fn t -> t.is_jamchart == 1 end)
+        {yr, jc, length(ts), jc / length(ts)}
+      end)
+
+    {best_year, best_year_jc, best_year_total} =
+      year_groups
+      |> Enum.max_by(fn {_yr, _jc, _total, pct} -> pct end, fn -> {nil, 0, 0, 0} end)
+      |> then(fn {yr, jc, total, _pct} -> {yr, jc, total} end)
 
     %{
       jc_count: jc_count,
@@ -268,13 +300,25 @@ defmodule BlogWeb.PhishLive do
       longest_track: longest,
       most_loved_track: most_loved,
       notable_quote: notable_quote,
-      total_hours: total_hours,
-      recent_form: recent_form,
-      dur_trend: dur_trend,
-      recent_avg_dur: recent_avg_dur,
-      jc_streak: jc_streak
+      jc_streak: jc_streak,
+      dominant_set: dominant_set,
+      dominant_set_pct: dominant_set_pct,
+      jc_set_note: jc_set_note,
+      last_played: last_played,
+      days_since: days_since,
+      avg_gap_days: avg_gap_days,
+      best_year: best_year,
+      best_year_jc: best_year_jc,
+      best_year_total: best_year_total
     }
   end
+
+  defp fmt_set("SET 1"), do: "Set 1"
+  defp fmt_set("SET 2"), do: "Set 2"
+  defp fmt_set("SET 3"), do: "Set 3"
+  defp fmt_set("ENCORE"), do: "Encore"
+  defp fmt_set("ENCORE 2"), do: "Encore 2"
+  defp fmt_set(other), do: other
 
   def filtered_tracks(nil, _filter), do: []
 
