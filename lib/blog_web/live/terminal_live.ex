@@ -1053,11 +1053,8 @@ defmodule BlogWeb.TerminalLive do
       .phish-embed-window {
         position: absolute;
         top: 40px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 80%;
-        max-width: 1100px;
-        min-width: 400px;
+        right: 20px;
+        width: 320px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 2px 2px 0 #000;

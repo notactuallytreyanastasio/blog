@@ -641,6 +641,7 @@ Hooks.Draggable = {
 
       // Convert to fixed positioning for dragging
       el.style.position = 'fixed';
+      el.style.transform = 'none';
       el.style.left = initialX + 'px';
       el.style.top = initialY + 'px';
       el.style.right = 'auto';

@@ -1,341 +1,268 @@
 <div class="phish-embed-inner">
   <div style="padding: 8px;">
-
-    <%!-- ========== DESKTOP VIEW ========== --%>
-    <div class="hidden md:block">
-      <p class="phish-hint">
-        Duration timeline <%= if @year == "all", do: "for any Phish 3.0 song", else: "for #{@year}" %>.
-        Larger red dots with stars = jamchart selections. Hover for details, click for more.
-      </p>
-
-      <%!-- Controls bar --%>
-      <div class="phish-controls">
-        <label class="phish-label">
-          Year:
-          <select phx-change="change-year" phx-target={@myself} name="year" class="phish-select" style="width: 120px;">
-            <option value="all" selected={@year == "all"}>All 3.0</option>
-            <%= for y <- @years do %>
-              <option value={to_string(y)} selected={to_string(y) == @year}><%= y %></option>
-            <% end %>
-          </select>
-        </label>
-
-        <label class="phish-label">
-          Filter:
-          <input
-            type="text"
-            placeholder="Song name..."
-            value={@filter}
-            phx-keyup="change-filter-text"
-            phx-target={@myself}
-            name="filter"
-            class="phish-input"
-            style="width: 140px;"
-          />
-        </label>
-
-        <label class="phish-label">
-          Min played:
-          <input
-            type="range"
-            min="1"
-            max="50"
-            value={@min_played}
-            phx-change="change-min"
-            phx-target={@myself}
-            name="min"
-            style="width: 80px; vertical-align: middle;"
-          />
-          <span style="min-width: 20px; text-align: center; font-weight: bold;"><%= @min_played %></span>
-        </label>
-
-        <label class="phish-label">
-          Sort:
-          <select phx-change="change-sort" phx-target={@myself} name="sort" class="phish-select">
-            <option value="avg" selected={@sort_by == "avg"}>Batting Avg</option>
-            <option value="jc" selected={@sort_by == "jc"}>Jamchart Count</option>
-            <option value="played" selected={@sort_by == "played"}>Times Played</option>
-          </select>
-        </label>
-
-        <select phx-change="change-song" phx-target={@myself} name="song" class="phish-select" style="max-width: 380px;">
-          <%= for s <- @sorted_songs do %>
-            <option value={s.song_name} selected={s.song_name == @selected_song}>
-              <%= fmt_avg(s) %> — <%= s.song_name %> (<%= s.jamchart_count %> JC, <%= s.times_played %>×)
-            </option>
+    <%!-- Controls --%>
+    <div class="phish-mobile-controls">
+      <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+        <span style="font-weight: 800; font-size: 14px;">phstats</span>
+        <select
+          phx-change="change-year"
+          phx-target={@myself}
+          name="year"
+          class="phish-select"
+          style="margin-left: auto; font-size: 12px;"
+        >
+          <option value="all" selected={@year == "all"}>All 3.0</option>
+          <%= for y <- @years do %>
+            <option value={to_string(y)} selected={to_string(y) == @year}><%= y %></option>
           <% end %>
         </select>
-
-        <%= if @song_history == nil && @selected_song do %>
-          <span style="color: #999; font-size: 11px;">Loading...</span>
-        <% end %>
       </div>
 
-      <%!-- D3 Chart container --%>
-      <div id="phish-chart-embed" phx-hook="PhishChart" phx-update="ignore" style="overflow-x: auto; margin-top: 8px;">
-        <svg style="width: 100%; max-width: 960px;"></svg>
+      <select
+        phx-change="change-song"
+        phx-target={@myself}
+        name="song"
+        class="phish-select"
+        style="width: 100%; font-size: 14px; padding: 8px;"
+      >
+        <%= for s <- @sorted_songs do %>
+          <option value={s.song_name} selected={s.song_name == @selected_song}>
+            <%= fmt_avg(s) %> — <%= s.song_name %> (<%= s.jamchart_count %> JC / <%= s.times_played %>×)
+          </option>
+        <% end %>
+      </select>
+
+      <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
+        <%= for mode <- ["avg", "jc", "played"] do %>
+          <button
+            phx-click="change-sort"
+            phx-target={@myself}
+            phx-value-sort={mode}
+            class={"phish-sort-pill #{if @sort_by == mode, do: "active"}"}
+          >
+            <%= case mode do %>
+              <% "avg" -> %>AVG
+              <% "jc" -> %>JC
+              <% "played" -> %>PLAYED
+            <% end %>
+          </button>
+        <% end %>
+        <select
+          phx-change="change-min"
+          phx-target={@myself}
+          name="min"
+          class="phish-select"
+          style="margin-left: auto; font-size: 11px; padding: 3px 4px;"
+        >
+          <%= for n <- [1, 2, 3, 5, 8, 10, 15, 20, 30, 50] do %>
+            <option value={to_string(n)} selected={n == @min_played}>Min <%= n %>×</option>
+          <% end %>
+        </select>
       </div>
     </div>
 
-    <%!-- ========== MOBILE VIEW ========== --%>
-    <div class="md:hidden">
-      <%!-- Sticky mobile controls --%>
-      <div class="phish-mobile-controls">
-        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-          <span style="font-weight: 800; font-size: 14px;">phstats</span>
-          <select
-            phx-change="change-year"
-            phx-target={@myself}
-            name="year"
-            class="phish-select"
-            style="margin-left: auto; font-size: 12px;"
-          >
-            <option value="all" selected={@year == "all"}>All 3.0</option>
-            <%= for y <- @years do %>
-              <option value={to_string(y)} selected={to_string(y) == @year}><%= y %></option>
-            <% end %>
-          </select>
-        </div>
+    <%!-- Loading --%>
+    <%= if @song_history == nil && @selected_song do %>
+      <div style="text-align: center; padding: 40px; color: #999; font-size: 12px;">Loading...</div>
+    <% end %>
 
-        <select
-          phx-change="change-song"
-          phx-target={@myself}
-          name="song"
-          class="phish-select"
-          style="width: 100%; font-size: 14px; padding: 8px;"
-        >
-          <%= for s <- @sorted_songs do %>
-            <option value={s.song_name} selected={s.song_name == @selected_song}>
-              <%= fmt_avg(s) %> — <%= s.song_name %> (<%= s.jamchart_count %> JC / <%= s.times_played %>×)
-            </option>
-          <% end %>
-        </select>
+    <%!-- Baseball Card --%>
+    <%= if @song_history do %>
+      <% current = Enum.find(@song_list, fn s -> s.song_name == @selected_song end) %>
+      <% stats = song_stats(@song_history) %>
 
-        <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
-          <%= for mode <- ["avg", "jc", "played"] do %>
-            <button
-              phx-click="change-sort"
-              phx-target={@myself}
-              phx-value-sort={mode}
-              class={"phish-sort-pill #{if @sort_by == mode, do: "active"}"}
-            >
-              <%= case mode do %>
-                <% "avg" -> %>AVG
-                <% "jc" -> %>JC
-                <% "played" -> %>PLAYED
-              <% end %>
-            </button>
-          <% end %>
-          <select
-            phx-change="change-min"
-            phx-target={@myself}
-            name="min"
-            class="phish-select"
-            style="margin-left: auto; font-size: 11px; padding: 3px 4px;"
-          >
-            <%= for n <- [1, 2, 3, 5, 8, 10, 15, 20, 30, 50] do %>
-              <option value={to_string(n)} selected={n == @min_played}>Min <%= n %>×</option>
-            <% end %>
-          </select>
-        </div>
-      </div>
-
-      <%!-- Loading --%>
-      <%= if @song_history == nil && @selected_song do %>
-        <div style="text-align: center; padding: 40px; color: #999; font-size: 12px;">Loading...</div>
-      <% end %>
-
-      <%!-- Baseball Card --%>
-      <%= if @song_history do %>
-        <% current = Enum.find(@song_list, fn s -> s.song_name == @selected_song end) %>
-        <% stats = song_stats(@song_history) %>
-
-        <div style="margin: 8px;">
-          <%= if !@card_flipped do %>
-            <%!-- CARD FRONT --%>
-            <div phx-click="flip-card" phx-target={@myself} class="phish-card phish-card-front">
-              <div class="phish-card-song-name"><%= @song_history.song_name %></div>
-              <div class="phish-card-divider"></div>
-              <%= if current do %>
-                <div class="phish-card-avg"><%= fmt_avg(current) %></div>
-                <div class="phish-card-avg-label">BATTING AVG</div>
-                <div class="phish-card-stats-row">
-                  <span><strong style="color: #ef4444;"><%= current.jamchart_count %></strong> JC</span>
-                  <span style="color: #999;">·</span>
-                  <span><strong><%= current.times_played %></strong>× played</span>
-                </div>
-              <% end %>
-              <div class="phish-card-stats-row" style="font-size: 12px; color: #666; margin-top: 4px;">
-                <span>Avg <%= Float.round(stats.avg_dur / 60000, 1) %>m</span>
+      <div style="margin: 8px;">
+        <%= if !@card_flipped do %>
+          <%!-- CARD FRONT --%>
+          <div phx-click="flip-card" phx-target={@myself} class="phish-card phish-card-front">
+            <div class="phish-card-song-name"><%= @song_history.song_name %></div>
+            <div class="phish-card-divider"></div>
+            <%= if current do %>
+              <div class="phish-card-avg"><%= fmt_avg(current) %></div>
+              <div class="phish-card-avg-label">BATTING AVG</div>
+              <div class="phish-card-stats-row">
+                <span><strong style="color: #ef4444;"><%= current.jamchart_count %></strong> JC</span>
                 <span style="color: #999;">·</span>
-                <span>Peak <%= fmt_duration(stats.longest_ms) %></span>
-                <span style="color: #999;">·</span>
-                <span style={if stats.audio_count == 0, do: "color: #ef4444", else: ""}>🎧 <%= stats.audio_count %>/<%= stats.track_count %></span>
+                <span><strong><%= current.times_played %></strong>× played</span>
               </div>
-              <%!-- Extended stats --%>
-              <%= if stats.longest_track do %>
-                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #ccc; text-align: left;">
-                  <div style="font-size: 11px; color: #333; font-weight: 700;">
-                    <span style="color: #ef4444;">★</span> Longest: <%= fmt_duration(stats.longest_track.duration_ms) %>
-                  </div>
-                  <div style="font-size: 10px; color: #888; margin-top: 1px;">
-                    <%= stats.longest_track.show_date %> · <%= stats.longest_track.venue %>
-                  </div>
-                </div>
-              <% end %>
-              <%= if stats.most_loved_track && stats.most_loved_track.likes > 0 do %>
-                <div style="margin-top: 8px; text-align: left;">
-                  <div style="font-size: 11px; color: #333; font-weight: 700;">
-                    <span style="color: #ef4444;">♥</span> Most Loved: <%= stats.most_loved_track.likes %> likes
-                  </div>
-                  <div style="font-size: 10px; color: #888; margin-top: 1px;">
-                    <%= stats.most_loved_track.show_date %> · <%= stats.most_loved_track.venue %>
-                  </div>
-                </div>
-              <% end %>
-              <%!-- Set placement --%>
-              <%= if stats.dominant_set do %>
-                <div style="margin-top: 8px; text-align: left;">
-                  <div style="font-size: 11px; color: #333; font-weight: 700;">
-                    📊 <%= stats.dominant_set_pct %>% <%= fmt_set(stats.dominant_set) %><%= if stats.jc_set_note, do: " · #{stats.jc_set_note}" %>
-                  </div>
-                </div>
-              <% end %>
-              <%!-- Gap --%>
-              <%= if stats.last_played do %>
-                <div style="margin-top: 4px; text-align: left;">
-                  <div style="font-size: 10px; color: #888;">
-                    Last: <strong style="color: #333;"><%= stats.last_played %></strong> (<%= stats.days_since %>d ago)<%= if stats.avg_gap_days, do: " · avg every #{stats.avg_gap_days}d" %>
-                  </div>
-                </div>
-              <% end %>
-              <%!-- Best year --%>
-              <%= if stats.best_year && stats.best_year_jc > 0 do %>
-                <div style="margin-top: 4px; text-align: left;">
-                  <div style="font-size: 10px; color: #888;">
-                    Best year: <strong style="color: #333;"><%= stats.best_year %></strong> — <%= stats.best_year_jc %>/<%= stats.best_year_total %> JC
-                  </div>
-                </div>
-              <% end %>
-              <%!-- JC Streak --%>
-              <%= if stats.jc_streak > 0 do %>
-                <div style="margin-top: 4px; text-align: left;">
-                  <div style="font-size: 10px; color: #888;">
-                    🔥 JC Streak: <strong style="color: #333;"><%= stats.jc_streak %></strong> in a row
-                  </div>
-                </div>
-              <% end %>
-              <%!-- Notable quote --%>
-              <%= if stats.notable_quote do %>
-                <div style="margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;">
-                  "<%= stats.notable_quote %>"
-                </div>
-              <% end %>
-              <div class="phish-card-tap-hint">TAP TO SEE AND PLAY JAMS</div>
+            <% end %>
+            <div class="phish-card-stats-row" style="font-size: 12px; color: #666; margin-top: 4px;">
+              <span>Avg <%= Float.round(stats.avg_dur / 60000, 1) %>m</span>
+              <span style="color: #999;">·</span>
+              <span>Peak <%= fmt_duration(stats.longest_ms) %></span>
+              <span style="color: #999;">·</span>
+              <span style={if stats.audio_count == 0, do: "color: #ef4444", else: ""}>🎧 <%= stats.audio_count %>/<%= stats.track_count %></span>
             </div>
-          <% else %>
-            <%!-- CARD BACK --%>
-            <div class="phish-card phish-card-back">
-              <%!-- Header --%>
-              <div phx-click="flip-card" phx-target={@myself} class="phish-card-back-header">
-                <div style="font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
-                  <%= @song_history.song_name %>
-                  <%= if current do %>
-                    <span style="color: #ef4444; margin-left: 6px;"><%= fmt_avg(current) %></span>
-                  <% end %>
+            <%!-- Extended stats --%>
+            <%= if stats.longest_track do %>
+              <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #ccc; text-align: left;">
+                <div style="font-size: 11px; color: #333; font-weight: 700;">
+                  <span style="color: #ef4444;">★</span> Longest: <%= fmt_duration(stats.longest_track.duration_ms) %>
                 </div>
-                <div style="font-size: 9px; color: #999; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px;">
-                  TAP TO FLIP BACK
+                <div style="font-size: 10px; color: #888; margin-top: 1px;">
+                  <%= stats.longest_track.show_date %> · <%= stats.longest_track.venue %>
                 </div>
               </div>
-
-              <%!-- Filter pills --%>
-              <div class="phish-filter-pills">
-                <button
-                  phx-click="change-list-filter"
-                  phx-target={@myself}
-                  phx-value-filter="all"
-                  class={"phish-filter-pill #{if @list_filter == "all", do: "active"}"}
-                >
-                  All (<%= length(@song_history.tracks) %>)
-                </button>
-                <button
-                  phx-click="change-list-filter"
-                  phx-target={@myself}
-                  phx-value-filter="jamcharts"
-                  class={"phish-filter-pill #{if @list_filter == "jamcharts", do: "active"}"}
-                >
-                  Jamcharts (<%= stats.jc_count %>)
-                </button>
-                <span style="margin-left: auto; font-size: 11px; color: #999;">
-                  <%= length(filtered_tracks(@song_history, @list_filter)) %> jams
-                </span>
+            <% end %>
+            <%= if stats.most_loved_track && stats.most_loved_track.likes > 0 do %>
+              <div style="margin-top: 8px; text-align: left;">
+                <div style="font-size: 11px; color: #333; font-weight: 700;">
+                  <span style="color: #ef4444;">♥</span> Most Loved: <%= stats.most_loved_track.likes %> likes
+                </div>
+                <div style="font-size: 10px; color: #888; margin-top: 1px;">
+                  <%= stats.most_loved_track.show_date %> · <%= stats.most_loved_track.venue %>
+                </div>
               </div>
+            <% end %>
+            <%!-- Set placement --%>
+            <%= if stats.dominant_set do %>
+              <div style="margin-top: 8px; text-align: left;">
+                <div style="font-size: 11px; color: #333; font-weight: 700;">
+                  📊 <%= stats.dominant_set_pct %>% <%= fmt_set(stats.dominant_set) %><%= if stats.jc_set_note, do: " · #{stats.jc_set_note}" %>
+                </div>
+              </div>
+            <% end %>
+            <%!-- Gap --%>
+            <%= if stats.last_played do %>
+              <div style="margin-top: 4px; text-align: left;">
+                <div style="font-size: 10px; color: #888;">
+                  Last: <strong style="color: #333;"><%= stats.last_played %></strong> (<%= stats.days_since %>d ago)<%= if stats.avg_gap_days, do: " · avg every #{stats.avg_gap_days}d" %>
+                </div>
+              </div>
+            <% end %>
+            <%!-- Best year --%>
+            <%= if stats.best_year && stats.best_year_jc > 0 do %>
+              <div style="margin-top: 4px; text-align: left;">
+                <div style="font-size: 10px; color: #888;">
+                  Best year: <strong style="color: #333;"><%= stats.best_year %></strong> — <%= stats.best_year_jc %>/<%= stats.best_year_total %> JC
+                </div>
+              </div>
+            <% end %>
+            <%!-- JC Streak --%>
+            <%= if stats.jc_streak > 0 do %>
+              <div style="margin-top: 4px; text-align: left;">
+                <div style="font-size: 10px; color: #888;">
+                  🔥 JC Streak: <strong style="color: #333;"><%= stats.jc_streak %></strong> in a row
+                </div>
+              </div>
+            <% end %>
+            <%!-- Notable quote --%>
+            <%= if stats.notable_quote do %>
+              <div style="margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;">
+                "<%= stats.notable_quote %>"
+              </div>
+            <% end %>
+            <div class="phish-card-tap-hint">TAP TO SEE AND PLAY JAMS</div>
+          </div>
+        <% else %>
+          <%!-- CARD BACK --%>
+          <div class="phish-card phish-card-back">
+            <%!-- Header --%>
+            <div phx-click="flip-card" phx-target={@myself} class="phish-card-back-header">
+              <div style="font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
+                <%= @song_history.song_name %>
+                <%= if current do %>
+                  <span style="color: #ef4444; margin-left: 6px;"><%= fmt_avg(current) %></span>
+                <% end %>
+              </div>
+              <div style="font-size: 9px; color: #999; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px;">
+                TAP TO FLIP BACK
+              </div>
+            </div>
 
-              <%!-- Scrollable jam list --%>
-              <div class="phish-jam-list">
-                <%= for {t, i} <- Enum.with_index(filtered_tracks(@song_history, @list_filter)) do %>
-                  <% is_jc = t.is_jamchart == 1 %>
-                  <div class={"phish-jam-row #{if is_jc, do: "jamchart"}"}>
-                    <div
-                      style={"flex: 1; min-width: 0; cursor: #{if t.jam_notes != "", do: "pointer", else: "default"};"}
-                      phx-click={if t.jam_notes != "", do: "toggle-notes"}
-                      phx-target={@myself}
-                      phx-value-idx={to_string(i)}
-                    >
-                      <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <span style="font-size: 13px; font-weight: 700;">
-                          <%= if is_jc do %><span style="color: #ef4444;">★</span><% end %>
-                          <%= t.show_date %>
-                        </span>
-                        <span class={"phish-jam-duration #{if is_jc, do: "jamchart"}"}>
-                          <%= fmt_duration(t.duration_ms) %>
-                        </span>
-                      </div>
-                      <%!-- Duration bar --%>
-                      <%= if stats.longest_ms > 0 && t.duration_ms > 0 do %>
-                        <div class="phish-duration-bar-bg">
-                          <div
-                            class={"phish-duration-bar #{if is_jc, do: "jamchart"}"}
-                            style={"width: #{round(100 * t.duration_ms / stats.longest_ms)}%"}
-                          >
-                          </div>
-                        </div>
-                      <% end %>
-                      <div style="font-size: 10px; color: #888; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        <%= t.venue %> · <%= t.location %>
-                      </div>
-                      <%!-- Jam notes (expandable) --%>
-                      <%= if t.jam_notes != "" do %>
-                        <div class={"phish-jam-notes #{if @expanded_idx == i, do: "expanded"}"}>
-                          <%= t.jam_notes %>
-                        </div>
-                      <% end %>
+            <%!-- Filter pills --%>
+            <div class="phish-filter-pills">
+              <button
+                phx-click="change-list-filter"
+                phx-target={@myself}
+                phx-value-filter="all"
+                class={"phish-filter-pill #{if @list_filter == "all", do: "active"}"}
+              >
+                All (<%= length(@song_history.tracks) %>)
+              </button>
+              <button
+                phx-click="change-list-filter"
+                phx-target={@myself}
+                phx-value-filter="jamcharts"
+                class={"phish-filter-pill #{if @list_filter == "jamcharts", do: "active"}"}
+              >
+                Jamcharts (<%= stats.jc_count %>)
+              </button>
+              <span style="margin-left: auto; font-size: 11px; color: #999;">
+                <%= length(filtered_tracks(@song_history, @list_filter)) %> jams
+              </span>
+            </div>
+
+            <%!-- Scrollable jam list --%>
+            <div class="phish-jam-list">
+              <%= for {t, i} <- Enum.with_index(filtered_tracks(@song_history, @list_filter)) do %>
+                <% is_jc = t.is_jamchart == 1 %>
+                <div class={"phish-jam-row #{if is_jc, do: "jamchart"}"}>
+                  <div
+                    style={"flex: 1; min-width: 0; cursor: #{if t.jam_notes != "", do: "pointer", else: "default"};"}
+                    phx-click={if t.jam_notes != "", do: "toggle-notes"}
+                    phx-target={@myself}
+                    phx-value-idx={to_string(i)}
+                  >
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                      <span style="font-size: 13px; font-weight: 700;">
+                        <%= if is_jc do %><span style="color: #ef4444;">★</span><% end %>
+                        <%= t.show_date %>
+                      </span>
+                      <span class={"phish-jam-duration #{if is_jc, do: "jamchart"}"}>
+                        <%= fmt_duration(t.duration_ms) %>
+                      </span>
                     </div>
-                    <%= if t.jam_url != "" do %>
-                      <button
-                        phx-click="play-jam"
-                        phx-target={@myself}
-                        phx-value-url={t.jam_url}
-                        phx-value-date={t.show_date}
-                        phx-value-song={t.song_name}
-                        class="phish-play-btn"
-                      >
-                        ▶
-                      </button>
+                    <%!-- Duration bar --%>
+                    <%= if stats.longest_ms > 0 && t.duration_ms > 0 do %>
+                      <div class="phish-duration-bar-bg">
+                        <div
+                          class={"phish-duration-bar #{if is_jc, do: "jamchart"}"}
+                          style={"width: #{round(100 * t.duration_ms / stats.longest_ms)}%"}
+                        >
+                        </div>
+                      </div>
+                    <% end %>
+                    <div style="font-size: 10px; color: #888; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      <%= t.venue %> · <%= t.location %>
+                    </div>
+                    <%!-- Jam notes (expandable) --%>
+                    <%= if t.jam_notes != "" do %>
+                      <div class={"phish-jam-notes #{if @expanded_idx == i, do: "expanded"}"}>
+                        <%= t.jam_notes %>
+                      </div>
                     <% end %>
                   </div>
-                <% end %>
-                <%= if filtered_tracks(@song_history, @list_filter) == [] do %>
-                  <div style="text-align: center; padding: 24px; color: #999; font-size: 12px;">
-                    No performances match this filter
-                  </div>
-                <% end %>
-              </div>
+                  <%= if t.jam_url != "" do %>
+                    <button
+                      phx-click="play-jam"
+                      phx-target={@myself}
+                      phx-value-url={t.jam_url}
+                      phx-value-date={t.show_date}
+                      phx-value-song={t.song_name}
+                      class="phish-play-btn"
+                    >
+                      ▶
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+              <%= if filtered_tracks(@song_history, @list_filter) == [] do %>
+                <div style="text-align: center; padding: 24px; color: #999; font-size: 12px;">
+                  No performances match this filter
+                </div>
+              <% end %>
             </div>
-          <% end %>
-        </div>
-      <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%!-- CTA to full page --%>
+    <div style="text-align: center; padding: 8px 0 4px;">
+      <a href="/phish" style="font-size: 11px; color: #666; text-decoration: none; letter-spacing: 0.5px;">
+        Open full page with graphs →
+      </a>
     </div>
 
     <%!-- Audio hook container --%>
