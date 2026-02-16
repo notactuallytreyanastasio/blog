@@ -554,7 +554,7 @@ defmodule BlogWeb.TerminalLive do
               <div class="resize-box"></div>
             </div>
             <div class="phish-embed-content">
-              <iframe src="/phish?embed=true" style="width: 100%; height: 100%; border: none;"></iframe>
+              <.live_component module={BlogWeb.PhishComponent} id="phish-embed" />
             </div>
             <div class="status-bar">
               <span>phstats</span>

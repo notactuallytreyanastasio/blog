@@ -28,7 +28,6 @@ defmodule BlogWeb.PhishLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    embed = params["embed"] == "true"
     year = params["year"] || "all"
     sort_by = params["sort"] || "avg"
     min_played = parse_int(params["min"], 5)
@@ -38,7 +37,7 @@ defmodule BlogWeb.PhishLive do
 
     socket =
       socket
-      |> assign(embed: embed, year: year, sort_by: sort_by, min_played: min_played, filter: filter, song_list: song_list)
+      |> assign(year: year, sort_by: sort_by, min_played: min_played, filter: filter, song_list: song_list)
       |> assign_sorted_songs()
 
     selected_song = params["song"] || default_song(socket.assigns.sorted_songs)
