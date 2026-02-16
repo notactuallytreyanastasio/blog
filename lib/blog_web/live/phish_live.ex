@@ -212,7 +212,8 @@ defmodule BlogWeb.PhishLive do
     most_loved_track: nil, notable_quote: nil, jc_streak: 0,
     dominant_set: nil, dominant_set_pct: 0, jc_set_note: nil,
     last_played: nil, days_since: nil, avg_gap_days: nil,
-    best_year: nil, best_year_jc: 0, best_year_total: 0
+    best_year: nil, best_year_jc: 0, best_year_total: 0,
+    audio_count: 0, track_count: 0
   }
 
   def song_stats(%{tracks: tracks}) do
@@ -309,7 +310,9 @@ defmodule BlogWeb.PhishLive do
       avg_gap_days: avg_gap_days,
       best_year: best_year,
       best_year_jc: best_year_jc,
-      best_year_total: best_year_total
+      best_year_total: best_year_total,
+      audio_count: Enum.count(tracks, fn t -> t.jam_url != "" end),
+      track_count: length(tracks)
     }
   end
 

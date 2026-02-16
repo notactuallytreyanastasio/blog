@@ -171,6 +171,8 @@
                   <span>Avg <%= Float.round(stats.avg_dur / 60000, 1) %>m</span>
                   <span style="color: #999;">·</span>
                   <span>Peak <%= fmt_duration(stats.longest_ms) %></span>
+                  <span style="color: #999;">·</span>
+                  <span style={if stats.audio_count == 0, do: "color: #ef4444", else: ""}>🎧 <%= stats.audio_count %>/<%= stats.track_count %></span>
                 </div>
                 <%!-- Extended stats --%>
                 <%= if stats.longest_track do %>
