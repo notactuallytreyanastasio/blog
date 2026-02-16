@@ -9,7 +9,6 @@
         <span style="font-weight: 800; font-size: 14px;">phstats</span>
         <select
           phx-change="change-year"
-          phx-target={@myself}
           name="year"
           class="phish-select"
           style="margin-left: auto; font-size: 12px;"
@@ -23,7 +22,6 @@
 
       <select
         phx-change="change-song"
-        phx-target={@myself}
         name="song"
         class="phish-select"
         style="width: 100%; font-size: 14px; padding: 8px;"
@@ -39,7 +37,6 @@
         <%= for mode <- ["avg", "jc", "played"] do %>
           <button
             phx-click="change-sort"
-            phx-target={@myself}
             phx-value-sort={mode}
             class={"phish-sort-pill #{if @sort_by == mode, do: "active"}"}
           >
@@ -52,7 +49,6 @@
         <% end %>
         <select
           phx-change="change-min"
-          phx-target={@myself}
           name="min"
           class="phish-select"
           style="margin-left: auto; font-size: 11px; padding: 3px 4px;"
@@ -74,7 +70,7 @@
       <div style="margin: 8px;">
         <%= if !@card_flipped do %>
           <%!-- CARD FRONT --%>
-          <div phx-click="flip-card" phx-target={@myself} class="phish-card phish-card-front">
+          <div phx-click="flip-card" class="phish-card phish-card-front">
             <div class="phish-card-song-name"><%= @song_history.song_name %></div>
             <div class="phish-card-divider"></div>
             <%= if @current_song do %>
@@ -158,7 +154,7 @@
           <%!-- CARD BACK --%>
           <div class="phish-card phish-card-back">
             <%!-- Header --%>
-            <div phx-click="flip-card" phx-target={@myself} class="phish-card-back-header">
+            <div phx-click="flip-card" class="phish-card-back-header">
               <div style="font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
                 <%= @song_history.song_name %>
                 <%= if @current_song do %>
@@ -174,7 +170,6 @@
             <div class="phish-filter-pills">
               <button
                 phx-click="change-list-filter"
-                phx-target={@myself}
                 phx-value-filter="all"
                 class={"phish-filter-pill #{if @list_filter == "all", do: "active"}"}
               >
@@ -182,7 +177,6 @@
               </button>
               <button
                 phx-click="change-list-filter"
-                phx-target={@myself}
                 phx-value-filter="jamcharts"
                 class={"phish-filter-pill #{if @list_filter == "jamcharts", do: "active"}"}
               >
@@ -200,7 +194,6 @@
                   <div
                     style={"flex: 1; min-width: 0; cursor: #{if t.jam_notes != "", do: "pointer", else: "default"};"}
                     phx-click={if t.jam_notes != "", do: "toggle-notes"}
-                    phx-target={@myself}
                     phx-value-idx={to_string(i)}
                   >
                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
@@ -235,7 +228,6 @@
                   <%= if t.jam_url != "" do %>
                     <button
                       phx-click="play-jam"
-                      phx-target={@myself}
                       phx-value-url={t.jam_url}
                       phx-value-date={t.show_date}
                       phx-value-song={t.song_name}

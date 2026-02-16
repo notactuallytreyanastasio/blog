@@ -39,6 +39,17 @@ defmodule BlogWeb.PhishComponent do
     {:ok, socket}
   end
 
+  # Receive events forwarded from parent LiveView via send_update
+  @impl true
+  def update(%{__event__: event, __params__: params}, socket) do
+    {:noreply, socket} = handle_event(event, params, socket)
+    {:ok, socket}
+  end
+
+  def update(assigns, socket) do
+    {:ok, assign(socket, assigns)}
+  end
+
   @impl true
   def handle_event("change-year", %{"year" => year}, socket) do
     song_list = Blog.Phish.song_list(year)

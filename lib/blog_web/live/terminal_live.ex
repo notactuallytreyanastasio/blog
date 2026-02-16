@@ -390,6 +390,13 @@ defmodule BlogWeb.TerminalLive do
     {:noreply, assign(socket, mobile_window: window_atom, show_chat: show_chat, show_phish: show_phish)}
   end
 
+  # Forward phish component events via send_update
+  @phish_events ~w(change-year change-song change-sort change-min change-filter-text flip-card change-list-filter toggle-notes play-jam)
+  def handle_event(event, params, socket) when event in @phish_events do
+    send_update(BlogWeb.PhishComponent, id: "phish-embed", __event__: event, __params__: params)
+    {:noreply, socket}
+  end
+
   # Function component for rendering icon items
   defp icon_item(assigns) do
     # Support optional data-joyride on individual icons
