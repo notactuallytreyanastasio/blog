@@ -339,7 +339,7 @@ details[open] summary {
 /* Article Content Styling - "Good Read" Typography */
 .article-content {
   font-family: 'Charter', 'Georgia', serif;
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   line-height: 1.75;
   color: #1f2937;
 }
@@ -552,7 +552,7 @@ details[open] summary {
 /* Mobile responsive adjustments */
 @media (max-width: 768px) {
   .article-content {
-    font-size: 1rem;
+    font-size: 1.125rem;
     line-height: 1.7;
   }
   
