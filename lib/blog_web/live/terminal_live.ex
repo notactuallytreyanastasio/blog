@@ -546,8 +546,7 @@ defmodule BlogWeb.TerminalLive do
         </div>
 
         <!-- Phish Jamchart Window -->
-        <%= if @show_phish do %>
-          <div class={"phish-embed-window mobile-window-phish #{if @mobile_window == :phish, do: "mobile-active"}"} phx-hook="Draggable" id="phish-window">
+          <div class={"phish-embed-window mobile-window-phish #{if @mobile_window == :phish, do: "mobile-active"}"} style={if !@show_phish, do: "display: none"} phx-hook="Draggable" id="phish-window">
             <div class="title-bar">
               <div class="close-box" phx-click="toggle_phish"></div>
               <div class="title">Song Deep Dive — Phish 3.0</div>
@@ -561,7 +560,6 @@ defmodule BlogWeb.TerminalLive do
               <span>Phish 3.0 Jamchart Analysis</span>
             </div>
           </div>
-        <% end %>
 
         <!-- Psychedelic Tree (always visible, transparent background) -->
         <div class="tree-container" id="tree-wrapper" phx-update="ignore">
