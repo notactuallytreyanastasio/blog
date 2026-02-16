@@ -805,8 +805,8 @@ defmodule BlogWeb.TerminalLive do
       /* Blog Window */
       .blog-window {
         flex: 0.5;
-        min-width: 200px;
-        max-width: 280px;
+        min-width: 300px;
+        max-width: 560px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
