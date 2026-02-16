@@ -15,6 +15,7 @@ defmodule Blog.Content.Post do
     nathan-fielder
     a-genstage-tutorial-and-reflection
     327-years-of-tree-law-in-the-usa-
+    vibe-coding-rescue-missions
   )
 
   def all do
