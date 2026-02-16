@@ -26,6 +26,13 @@ defmodule BlogWeb.LiveDraftChannel do
   end
 
   @impl true
+  def handle_in("draft:diff", %{"ops" => ops}, socket) do
+    slug = socket.assigns.slug
+    {:ok, _html} = Blog.LiveDraft.apply_diff(slug, ops)
+    {:reply, :ok, socket}
+  end
+
+  @impl true
   def handle_in("draft:clear", _params, socket) do
     slug = socket.assigns.slug
     Blog.LiveDraft.clear(slug)

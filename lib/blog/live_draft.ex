@@ -7,6 +7,7 @@ defmodule Blog.LiveDraft do
 
   @table :live_drafts
   @staleness_seconds 120
+  @posts_dir (:code.priv_dir(:blog) |> to_string()) <> "/static/posts/"
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
@@ -21,11 +22,13 @@ defmodule Blog.LiveDraft do
     {:ok, %{}}
   end
 
-  @doc "Store a live draft and broadcast it via PubSub"
+  @doc "Store a live draft, persist to disk, and broadcast via PubSub"
   def update(slug, content) do
     rendered_html = render_markdown(content)
     now = DateTime.utc_now()
     :ets.insert(@table, {slug, content, rendered_html, now})
+
+    persist_to_file(slug, content)
 
     Phoenix.PubSub.broadcast!(
       Blog.PubSub,
@@ -34,6 +37,21 @@ defmodule Blog.LiveDraft do
     )
 
     {:ok, rendered_html}
+  end
+
+  @doc "Apply a line-level diff to the stored content for a slug"
+  def apply_diff(slug, ops) do
+    current_content =
+      case :ets.lookup(@table, slug) do
+        [{^slug, content, _html, _at}] -> content
+        [] -> ""
+      end
+
+    current_lines = String.split(current_content, "\n")
+    new_lines = apply_ops(current_lines, ops)
+    new_content = Enum.join(new_lines, "\n")
+
+    update(slug, new_content)
   end
 
   @doc "Get the current live draft for a slug, or :stale/:none"
@@ -62,6 +80,39 @@ defmodule Blog.LiveDraft do
     )
 
     :ok
+  end
+
+  defp apply_ops(lines, ops) do
+    {result, _remaining} =
+      Enum.reduce(ops, {[], lines}, fn
+        ["eq", n], {acc, remaining} ->
+          {eq, rest} = Enum.split(remaining, n)
+          {acc ++ eq, rest}
+
+        ["del", n], {acc, remaining} ->
+          {_deleted, rest} = Enum.split(remaining, n)
+          {acc, rest}
+
+        ["ins", new_lines], {acc, remaining} ->
+          {acc ++ new_lines, remaining}
+      end)
+
+    result
+  end
+
+  defp find_post_file(slug) do
+    Path.wildcard(@posts_dir <> "*-#{slug}.md")
+    |> Enum.reject(fn file ->
+      file |> Path.basename(".md") |> String.split("-") |> List.last() |> String.length() == 32
+    end)
+    |> List.first()
+  end
+
+  defp persist_to_file(slug, content) do
+    case find_post_file(slug) do
+      nil -> :ok
+      path -> File.write(path, content)
+    end
   end
 
   defp render_markdown(content) do

@@ -208,7 +208,8 @@ defmodule BlogWeb.PostLive do
   end
 
   def handle_info({:live_draft_cleared, _slug}, socket) do
-    {:noreply, assign(socket, html: socket.assigns.static_html, live_draft_active: false)}
+    fresh_html = reload_post_html(socket.assigns.post.slug)
+    {:noreply, assign(socket, html: fresh_html, live_draft_active: false, static_html: fresh_html)}
   end
 
   def handle_info(:check_draft_staleness, socket) do
@@ -217,9 +218,16 @@ defmodule BlogWeb.PostLive do
     socket =
       if socket.assigns.live_draft_active do
         case Blog.LiveDraft.get(slug) do
-          :stale -> assign(socket, html: socket.assigns.static_html, live_draft_active: false)
-          :none -> assign(socket, html: socket.assigns.static_html, live_draft_active: false)
-          _ -> socket
+          :stale ->
+            fresh_html = reload_post_html(slug)
+            assign(socket, html: fresh_html, live_draft_active: false, static_html: fresh_html)
+
+          :none ->
+            fresh_html = reload_post_html(slug)
+            assign(socket, html: fresh_html, live_draft_active: false, static_html: fresh_html)
+
+          _ ->
+            socket
         end
       else
         socket
@@ -227,6 +235,22 @@ defmodule BlogWeb.PostLive do
 
     Process.send_after(self(), :check_draft_staleness, 30_000)
     {:noreply, socket}
+  end
+
+  defp reload_post_html(slug) do
+    case Blog.Content.Post.get_by_slug(slug) do
+      nil ->
+        ""
+
+      post ->
+        post.body
+        |> remove_tags_line()
+        |> Earmark.as_html(code_class_prefix: "language-", escape: false)
+        |> case do
+          {:ok, html, _} -> process_details_in_html(html)
+          {:error, html, _} -> process_details_in_html(html)
+        end
+    end
   end
 
   defp get_reader_count(slug) do
