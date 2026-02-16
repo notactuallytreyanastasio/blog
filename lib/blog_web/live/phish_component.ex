@@ -1,5 +1,6 @@
 defmodule BlogWeb.PhishComponent do
   use BlogWeb, :live_component
+  require Logger
 
   import BlogWeb.PhishLive, only: [batting_avg: 1, fmt_avg: 1, fmt_duration: 1, song_stats: 1, filtered_tracks: 2]
 
@@ -55,11 +56,14 @@ defmodule BlogWeb.PhishComponent do
   end
 
   def handle_event("change-song", %{"song" => song}, socket) do
+    Logger.error("PhishComponent change-song: #{song}")
+
     socket =
       socket
-      |> assign(selected_song: song)
+      |> assign(selected_song: song, card_flipped: false, expanded_idx: nil)
       |> load_song_history()
 
+    Logger.error("PhishComponent song_history loaded: #{socket.assigns.song_history.song_name}")
     {:noreply, socket}
   end
 
@@ -110,19 +114,6 @@ defmodule BlogWeb.PhishComponent do
     {:noreply, push_event(socket, "play-jam", %{url: url, date: date, song: song})}
   end
 
-  def handle_event("chart-mounted", _params, socket) do
-    case socket.assigns.song_history do
-      nil ->
-        {:noreply, socket}
-
-      history ->
-        {:noreply,
-         push_event(socket, "song-data", %{
-           song_name: history.song_name,
-           tracks: history.tracks
-         })}
-    end
-  end
 
   # Helpers
 
@@ -133,13 +124,7 @@ defmodule BlogWeb.PhishComponent do
 
       song ->
         history = Blog.Phish.song_history(song, socket.assigns.year)
-
-        socket
-        |> assign(song_history: history)
-        |> push_event("song-data", %{
-          song_name: history.song_name,
-          tracks: history.tracks
-        })
+        assign(socket, song_history: history)
     end
   end
 
