@@ -2,11 +2,13 @@ defmodule BlogWeb.PhishLive do
   use BlogWeb, :live_view
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     years = Blog.Phish.list_years()
+    embed = Map.get(session, "embed", false)
 
     {:ok,
      assign(socket,
+       embed: embed,
        page_title: "phstats — Phish 3.0 Jamchart Analysis",
        page_description: "A site for dorking out with phish stats on jams. 3.0 only, just cuz I know that'll bother some of you. Doink around.",
        page_image: "https://www.bobbby.online/images/og-phish.png",

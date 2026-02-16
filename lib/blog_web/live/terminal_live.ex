@@ -199,13 +199,15 @@ defmodule BlogWeb.TerminalLive do
       chat_form: %{"message" => ""},
       visitor_list: visitor_list,
       total_online: map_size(visitor_list),
+      # Phish window state
+      show_phish: false,
       # Tree state
       show_tree: false,
       # Tour state - auto-start for first-time visitors (desktop only)
       show_tour: is_nil(returning_chatter),
       tour_steps: build_tour_steps(chatter),
       # Mobile state - which window is active on mobile
-      # Options: :finder, :chat, :name_dialog, :blog
+      # Options: :finder, :chat, :name_dialog, :blog, :phish
       mobile_window: :finder
     )}
   end
@@ -229,6 +231,11 @@ defmodule BlogWeb.TerminalLive do
 
   def handle_event("open", _params, socket) do
     {:noreply, socket}
+  end
+
+  # Phish window toggle
+  def handle_event("toggle_phish", _params, socket) do
+    {:noreply, assign(socket, show_phish: !socket.assigns.show_phish)}
   end
 
   # Tree event handler
@@ -366,18 +373,21 @@ defmodule BlogWeb.TerminalLive do
     window_atom = String.to_existing_atom(window)
 
     # If switching to chat but user hasn't set name, show name dialog first
-    {window_atom, show_chat} =
-      if window_atom == :chat do
-        if is_nil(socket.assigns.chatter) do
-          {:name_dialog, true}
-        else
-          {:chat, true}
-        end
-      else
-        {window_atom, socket.assigns.show_chat}
+    {window_atom, show_chat, show_phish} =
+      cond do
+        window_atom == :chat ->
+          if is_nil(socket.assigns.chatter) do
+            {:name_dialog, true, socket.assigns.show_phish}
+          else
+            {:chat, true, socket.assigns.show_phish}
+          end
+        window_atom == :phish ->
+          {:phish, socket.assigns.show_chat, true}
+        true ->
+          {window_atom, socket.assigns.show_chat, socket.assigns.show_phish}
       end
 
-    {:noreply, assign(socket, mobile_window: window_atom, show_chat: show_chat)}
+    {:noreply, assign(socket, mobile_window: window_atom, show_chat: show_chat, show_phish: show_phish)}
   end
 
   # Function component for rendering icon items
@@ -478,6 +488,14 @@ defmodule BlogWeb.TerminalLive do
                 <% end %>
               </div>
 
+              <%!-- Music --%>
+              <div class="icon-section">
+                <div class="icon" phx-click="toggle_phish">
+                  <div class="icon-image">🐟</div>
+                  <div class={"icon-label #{if @show_phish, do: "selected-label"}"}>Phish Stats</div>
+                </div>
+              </div>
+
               <%!-- Other --%>
               <div class="icon-section">
                 <%= for program <- @other do %>
@@ -526,6 +544,24 @@ defmodule BlogWeb.TerminalLive do
             <span><%= @total_online %> <%= if @total_online == 1, do: "reader", else: "readers" %></span>
           </div>
         </div>
+
+        <!-- Phish Jamchart Window -->
+        <%= if @show_phish do %>
+          <div class={"phish-embed-window mobile-window-phish #{if @mobile_window == :phish, do: "mobile-active"}"} phx-hook="Draggable" id="phish-window">
+            <div class="title-bar">
+              <div class="close-box" phx-click="toggle_phish"></div>
+              <div class="title">Song Deep Dive — Phish 3.0</div>
+              <div class="resize-box"></div>
+            </div>
+            <div class="phish-embed-content">
+              <%= live_render(@socket, BlogWeb.PhishLive, id: "phish-embed", session: %{"embed" => true}) %>
+            </div>
+            <div class="status-bar">
+              <span>phstats</span>
+              <span>Phish 3.0 Jamchart Analysis</span>
+            </div>
+          </div>
+        <% end %>
 
         <!-- Psychedelic Tree (always visible, transparent background) -->
         <div class="tree-container" id="tree-wrapper" phx-update="ignore">
@@ -660,6 +696,13 @@ defmodule BlogWeb.TerminalLive do
               ✏️ Name
             </button>
           <% end %>
+          <button
+            class={"mobile-taskbar-btn #{if @mobile_window == :phish, do: "active"}"}
+            phx-click="switch_mobile_window"
+            phx-value-window="phish"
+          >
+            🐟 Phish
+          </button>
           <button
             class={"mobile-taskbar-btn #{if @mobile_window == :chat, do: "active"}"}
             phx-click="switch_mobile_window"
@@ -1006,6 +1049,43 @@ defmodule BlogWeb.TerminalLive do
         cursor: pointer;
       }
 
+      /* Phish embed window */
+      .phish-embed-window {
+        position: absolute;
+        top: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80%;
+        max-width: 1100px;
+        min-width: 400px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 2px 2px 0 #000;
+        z-index: 200;
+      }
+
+      .phish-embed-content {
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .phish-embed-window .status-bar {
+        height: 20px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 10px;
+      }
+
+      .selected-label {
+        background: #000;
+        color: #fff;
+      }
+
       /* Psychedelic tree container */
       .tree-container {
         position: fixed;
@@ -1234,6 +1314,32 @@ defmodule BlogWeb.TerminalLive do
 
         .icon-label {
           font-size: 9px;
+        }
+
+        /* Phish window - full screen on mobile */
+        .phish-embed-window.mobile-window-phish {
+          position: fixed !important;
+          top: 20px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          transform: none !important;
+          z-index: 200;
+          display: none;
+        }
+
+        .phish-embed-window.mobile-window-phish.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .phish-embed-window.mobile-window-phish .phish-embed-content {
+          flex: 1;
+          max-height: none;
+          overflow-y: auto;
         }
 
         /* Hide joyride tour on mobile - too complex for small screens */
