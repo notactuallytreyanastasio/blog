@@ -42,7 +42,8 @@ defmodule BlogWeb.PhishComponent do
   # Receive events forwarded from parent LiveView via send_update
   @impl true
   def update(%{__event__: event, __params__: params}, socket) do
-    {:noreply, socket} = handle_event(event, params, socket)
+    Logger.warning("PhishComponent update (forwarded): #{event}")
+    {:noreply, socket} = do_handle_event(event, params, socket)
     {:ok, socket}
   end
 
@@ -51,7 +52,12 @@ defmodule BlogWeb.PhishComponent do
   end
 
   @impl true
-  def handle_event("change-year", %{"year" => year}, socket) do
+  def handle_event(event, params, socket) do
+    Logger.warning("PhishComponent handle_event: #{event} params=#{inspect(params)}")
+    do_handle_event(event, params, socket)
+  end
+
+  defp do_handle_event("change-year", %{"year" => year}, socket) do
     song_list = Blog.Phish.song_list(year)
 
     socket =
@@ -70,7 +76,7 @@ defmodule BlogWeb.PhishComponent do
     {:noreply, socket}
   end
 
-  def handle_event("change-song", %{"song" => song}, socket) do
+  defp do_handle_event("change-song", %{"song" => song}, socket) do
     socket =
       socket
       |> update(:debug_counter, &(&1 + 1))
@@ -80,7 +86,7 @@ defmodule BlogWeb.PhishComponent do
     {:noreply, socket}
   end
 
-  def handle_event("change-sort", %{"sort" => sort}, socket) do
+  defp do_handle_event("change-sort", %{"sort" => sort}, socket) do
     socket =
       socket
       |> update(:debug_counter, &(&1 + 1))
@@ -90,7 +96,7 @@ defmodule BlogWeb.PhishComponent do
     {:noreply, socket}
   end
 
-  def handle_event("change-min", %{"min" => min_str}, socket) do
+  defp do_handle_event("change-min", %{"min" => min_str}, socket) do
     min = parse_int(min_str, 5)
 
     socket =
@@ -102,7 +108,7 @@ defmodule BlogWeb.PhishComponent do
     {:noreply, socket}
   end
 
-  def handle_event("change-filter-text", %{"value" => filter}, socket) do
+  defp do_handle_event("change-filter-text", %{"value" => filter}, socket) do
     socket =
       socket
       |> update(:debug_counter, &(&1 + 1))
@@ -112,21 +118,21 @@ defmodule BlogWeb.PhishComponent do
     {:noreply, socket}
   end
 
-  def handle_event("flip-card", _params, socket) do
+  defp do_handle_event("flip-card", _params, socket) do
     {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> assign(card_flipped: !socket.assigns.card_flipped)}
   end
 
-  def handle_event("change-list-filter", %{"filter" => filter}, socket) do
+  defp do_handle_event("change-list-filter", %{"filter" => filter}, socket) do
     {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> assign(list_filter: filter, expanded_idx: nil)}
   end
 
-  def handle_event("toggle-notes", %{"idx" => idx_str}, socket) do
+  defp do_handle_event("toggle-notes", %{"idx" => idx_str}, socket) do
     idx = String.to_integer(idx_str)
     current = socket.assigns.expanded_idx
     {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> assign(expanded_idx: if(current == idx, do: nil, else: idx))}
   end
 
-  def handle_event("play-jam", %{"url" => url, "date" => date, "song" => song}, socket) do
+  defp do_handle_event("play-jam", %{"url" => url, "date" => date, "song" => song}, socket) do
     {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> push_event("play-jam", %{url: url, date: date, song: song})}
   end
 
