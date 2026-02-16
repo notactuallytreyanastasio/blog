@@ -294,6 +294,7 @@ pre {
   padding: 1em;
   border-radius: 0.5em;
   background: #282c34;
+  color: #e5e7eb;
   overflow-x: auto;
 }
 
@@ -420,6 +421,7 @@ details[open] summary {
   margin: 2rem 0;
   padding: 1.5rem;
   background: #1f2937;
+  color: #e5e7eb;
   border-radius: 8px;
   overflow-x: auto;
   font-size: 0.875rem;
