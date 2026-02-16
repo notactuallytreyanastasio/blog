@@ -1,12 +1,10 @@
 <div class="phish-embed-inner">
   <div style="padding: 8px;">
     <%!-- Controls --%>
-    <div class="phish-mobile-controls">
+    <form phx-change="controls-changed" phx-target={@myself} class="phish-mobile-controls">
       <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
         <span style="font-weight: 800; font-size: 14px;">phstats</span>
         <select
-          phx-change="change-year"
-          phx-target={@myself}
           name="year"
           class="phish-select"
           style="margin-left: auto; font-size: 12px;"
@@ -19,8 +17,6 @@
       </div>
 
       <select
-        phx-change="change-song"
-        phx-target={@myself}
         name="song"
         class="phish-select"
         style="width: 100%; font-size: 14px; padding: 8px;"
@@ -35,6 +31,7 @@
       <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
         <%= for mode <- ["avg", "jc", "played"] do %>
           <button
+            type="button"
             phx-click="change-sort"
             phx-target={@myself}
             phx-value-sort={mode}
@@ -48,8 +45,6 @@
           </button>
         <% end %>
         <select
-          phx-change="change-min"
-          phx-target={@myself}
           name="min"
           class="phish-select"
           style="margin-left: auto; font-size: 11px; padding: 3px 4px;"
@@ -59,7 +54,7 @@
           <% end %>
         </select>
       </div>
-    </div>
+    </form>
 
     <%!-- Loading --%>
     <%= if @song_history == nil && @selected_song do %>

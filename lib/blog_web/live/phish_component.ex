@@ -24,8 +24,7 @@ defmodule BlogWeb.PhishComponent do
         filter: "",
         card_flipped: false,
         list_filter: "jamcharts",
-        expanded_idx: nil,
-        debug_counter: 0
+        expanded_idx: nil
       )
       |> assign_sorted_songs()
 
@@ -39,103 +38,80 @@ defmodule BlogWeb.PhishComponent do
     {:ok, socket}
   end
 
-  # Receive events forwarded from parent LiveView via send_update
   @impl true
-  def update(%{__event__: event, __params__: params}, socket) do
-    Logger.warning("PhishComponent update (forwarded): #{event}")
-    {:noreply, socket} = do_handle_event(event, params, socket)
-    {:ok, socket}
-  end
-
   def update(assigns, socket) do
     {:ok, assign(socket, assigns)}
   end
 
   @impl true
-  def handle_event(event, params, socket) do
-    Logger.warning("PhishComponent handle_event: #{event} params=#{inspect(params)}")
-    do_handle_event(event, params, socket)
+  def handle_event("controls-changed", params, socket) do
+    target = params["_target"] |> List.first()
+
+    case target do
+      "year" ->
+        year = params["year"]
+        song_list = Blog.Phish.song_list(year)
+
+        socket =
+          socket
+          |> assign(year: year, song_list: song_list)
+          |> assign_sorted_songs()
+
+        selected = default_song(socket.assigns.sorted_songs)
+
+        socket =
+          socket
+          |> assign(selected_song: selected)
+          |> load_song_history()
+
+        {:noreply, socket}
+
+      "song" ->
+        song = params["song"]
+
+        socket =
+          socket
+          |> assign(selected_song: song, card_flipped: false, expanded_idx: nil)
+          |> load_song_history()
+
+        {:noreply, socket}
+
+      "min" ->
+        min = parse_int(params["min"], 5)
+
+        socket =
+          socket
+          |> assign(min_played: min)
+          |> assign_sorted_songs()
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
-  defp do_handle_event("change-year", %{"year" => year}, socket) do
-    song_list = Blog.Phish.song_list(year)
-
-    socket =
-      socket
-      |> update(:debug_counter, &(&1 + 1))
-      |> assign(year: year, song_list: song_list)
-      |> assign_sorted_songs()
-
-    selected = default_song(socket.assigns.sorted_songs)
-
-    socket =
-      socket
-      |> assign(selected_song: selected)
-      |> load_song_history()
-
-    {:noreply, socket}
+  def handle_event("change-sort", %{"sort" => sort}, socket) do
+    {:noreply, socket |> assign(sort_by: sort) |> assign_sorted_songs()}
   end
 
-  defp do_handle_event("change-song", %{"song" => song}, socket) do
-    socket =
-      socket
-      |> update(:debug_counter, &(&1 + 1))
-      |> assign(selected_song: song, card_flipped: false, expanded_idx: nil)
-      |> load_song_history()
-
-    {:noreply, socket}
+  def handle_event("flip-card", _params, socket) do
+    {:noreply, assign(socket, card_flipped: !socket.assigns.card_flipped)}
   end
 
-  defp do_handle_event("change-sort", %{"sort" => sort}, socket) do
-    socket =
-      socket
-      |> update(:debug_counter, &(&1 + 1))
-      |> assign(sort_by: sort)
-      |> assign_sorted_songs()
-
-    {:noreply, socket}
+  def handle_event("change-list-filter", %{"filter" => filter}, socket) do
+    {:noreply, assign(socket, list_filter: filter, expanded_idx: nil)}
   end
 
-  defp do_handle_event("change-min", %{"min" => min_str}, socket) do
-    min = parse_int(min_str, 5)
-
-    socket =
-      socket
-      |> update(:debug_counter, &(&1 + 1))
-      |> assign(min_played: min)
-      |> assign_sorted_songs()
-
-    {:noreply, socket}
-  end
-
-  defp do_handle_event("change-filter-text", %{"value" => filter}, socket) do
-    socket =
-      socket
-      |> update(:debug_counter, &(&1 + 1))
-      |> assign(filter: filter)
-      |> assign_sorted_songs()
-
-    {:noreply, socket}
-  end
-
-  defp do_handle_event("flip-card", _params, socket) do
-    {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> assign(card_flipped: !socket.assigns.card_flipped)}
-  end
-
-  defp do_handle_event("change-list-filter", %{"filter" => filter}, socket) do
-    {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> assign(list_filter: filter, expanded_idx: nil)}
-  end
-
-  defp do_handle_event("toggle-notes", %{"idx" => idx_str}, socket) do
+  def handle_event("toggle-notes", %{"idx" => idx_str}, socket) do
     idx = String.to_integer(idx_str)
     current = socket.assigns.expanded_idx
-    {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> assign(expanded_idx: if(current == idx, do: nil, else: idx))}
+    {:noreply, assign(socket, expanded_idx: if(current == idx, do: nil, else: idx))}
   end
 
-  defp do_handle_event("play-jam", %{"url" => url, "date" => date, "song" => song}, socket) do
-    {:noreply, socket |> update(:debug_counter, &(&1 + 1)) |> push_event("play-jam", %{url: url, date: date, song: song})}
+  def handle_event("play-jam", %{"url" => url, "date" => date, "song" => song}, socket) do
+    {:noreply, push_event(socket, "play-jam", %{url: url, date: date, song: song})}
   end
-
 
   # Helpers
 
