@@ -38,4 +38,11 @@ defmodule BlogWeb.LiveDraftChannel do
     Blog.LiveDraft.clear(slug)
     {:reply, :ok, socket}
   end
+
+  # Ignore PubSub broadcasts that arrive back at the channel process
+  @impl true
+  def handle_info({:live_draft_update, _slug, _html, _at}, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_info({:live_draft_cleared, _slug}, socket), do: {:noreply, socket}
 end

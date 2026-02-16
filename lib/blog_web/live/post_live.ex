@@ -663,7 +663,10 @@ defmodule BlogWeb.PostLive do
       }
 
       .mac-post .article-content h1 {
-        display: none;
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0 0 0.5rem 0;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
       }
 
       .mac-post .article-content h2 {

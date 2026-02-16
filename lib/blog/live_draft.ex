@@ -19,7 +19,23 @@ defmodule Blog.LiveDraft do
       :ets.new(@table, [:named_table, :set, :public, read_concurrency: true])
     end
 
-    {:ok, %{}}
+    {:ok, %{commit_timers: %{}}}
+  end
+
+  @impl true
+  def handle_cast({:schedule_commit, slug}, %{commit_timers: timers} = state) do
+    if timer = Map.get(timers, slug) do
+      Process.cancel_timer(timer)
+    end
+
+    timer = Process.send_after(self(), {:git_commit, slug}, 10_000)
+    {:noreply, %{state | commit_timers: Map.put(timers, slug, timer)}}
+  end
+
+  @impl true
+  def handle_info({:git_commit, slug}, %{commit_timers: timers} = state) do
+    git_commit_post(slug)
+    {:noreply, %{state | commit_timers: Map.delete(timers, slug)}}
   end
 
   @doc "Store a live draft, persist to disk, and broadcast via PubSub"
@@ -29,6 +45,7 @@ defmodule Blog.LiveDraft do
     :ets.insert(@table, {slug, content, rendered_html, now})
 
     persist_to_file(slug, content)
+    GenServer.cast(__MODULE__, {:schedule_commit, slug})
 
     Phoenix.PubSub.broadcast!(
       Blog.PubSub,
@@ -83,21 +100,21 @@ defmodule Blog.LiveDraft do
   end
 
   defp apply_ops(lines, ops) do
-    {result, _remaining} =
+    {result, remaining} =
       Enum.reduce(ops, {[], lines}, fn
-        ["eq", n], {acc, remaining} ->
-          {eq, rest} = Enum.split(remaining, n)
+        ["eq", n], {acc, rem} ->
+          {eq, rest} = Enum.split(rem, n)
           {acc ++ eq, rest}
 
-        ["del", n], {acc, remaining} ->
-          {_deleted, rest} = Enum.split(remaining, n)
+        ["del", n], {acc, rem} ->
+          {_deleted, rest} = Enum.split(rem, n)
           {acc, rest}
 
-        ["ins", new_lines], {acc, remaining} ->
-          {acc ++ new_lines, remaining}
+        ["ins", new_lines], {acc, rem} ->
+          {acc ++ new_lines, rem}
       end)
 
-    result
+    result ++ remaining
   end
 
   defp find_post_file(slug) do
@@ -112,6 +129,34 @@ defmodule Blog.LiveDraft do
     case find_post_file(slug) do
       nil -> :ok
       path -> File.write(path, content)
+    end
+  end
+
+  defp git_commit_post(slug) do
+    case find_post_file(slug) do
+      nil ->
+        :ok
+
+      path ->
+        try do
+          dir = Path.dirname(path)
+
+          case System.cmd("git", ["rev-parse", "--show-toplevel"], cd: dir, stderr_to_stdout: true) do
+            {root, 0} ->
+              root = String.trim(root)
+              System.cmd("git", ["add", path], cd: root, stderr_to_stdout: true)
+
+              System.cmd("git", ["commit", "-m", "live draft: update #{slug}"],
+                cd: root,
+                stderr_to_stdout: true
+              )
+
+            _ ->
+              :ok
+          end
+        rescue
+          _ -> :ok
+        end
     end
   end
 
