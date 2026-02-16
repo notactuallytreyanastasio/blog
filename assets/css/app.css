@@ -2222,12 +2222,48 @@ details[open] summary {
   color: #fff;
 }
 
-/* Baseball card */
+/* Baseball card - 3D flip */
+.phish-card-scene {
+  perspective: 800px;
+  height: 420px;
+}
+
+.phish-card-scene .phish-card-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform 0.5s ease;
+  transform-style: preserve-3d;
+}
+
+.phish-card-scene .phish-card-front {
+  transform: rotateY(0deg);
+}
+
+.phish-card-scene .phish-card-back {
+  transform: rotateY(180deg);
+}
+
+.phish-card-scene.flipped .phish-card-front {
+  transform: rotateY(-180deg);
+}
+
+.phish-card-scene.flipped .phish-card-back {
+  transform: rotateY(0deg);
+}
+
 .phish-card {
   border: 2px solid #000;
   box-shadow: 2px 2px 0 #000;
   background: #fff;
   cursor: pointer;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
 }
 
 .phish-card-front {
@@ -2289,7 +2325,7 @@ details[open] summary {
 .phish-card-back {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 200px);
+  height: 100%;
   overflow: hidden;
   cursor: default;
 }

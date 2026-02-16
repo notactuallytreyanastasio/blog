@@ -61,12 +61,12 @@
       <div style="text-align: center; padding: 40px; color: #999; font-size: 12px;">Loading...</div>
     <% end %>
 
-    <%!-- Baseball Card --%>
+    <%!-- Baseball Card with 3D Flip --%>
     <%= if @song_history do %>
-      <div style="margin: 8px;">
-        <%= if !@card_flipped do %>
+      <div style="margin: 8px;" phx-click="flip-card" phx-target={@myself}>
+        <div class={"phish-card-scene #{if @card_flipped, do: "flipped"}"}>
           <%!-- CARD FRONT --%>
-          <div phx-click="flip-card" phx-target={@myself} class="phish-card phish-card-front">
+          <div class="phish-card phish-card-front phish-card-face">
             <div class="phish-card-song-name"><%= @song_history.song_name %></div>
             <div class="phish-card-divider"></div>
             <%= if @current_song do %>
@@ -146,11 +146,11 @@
             <% end %>
             <div class="phish-card-tap-hint">TAP TO SEE AND PLAY JAMS</div>
           </div>
-        <% else %>
+
           <%!-- CARD BACK --%>
-          <div class="phish-card phish-card-back">
+          <div class="phish-card phish-card-back phish-card-face">
             <%!-- Header --%>
-            <div phx-click="flip-card" phx-target={@myself} class="phish-card-back-header">
+            <div class="phish-card-back-header">
               <div style="font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
                 <%= @song_history.song_name %>
                 <%= if @current_song do %>
@@ -165,6 +165,7 @@
             <%!-- Filter pills --%>
             <div class="phish-filter-pills">
               <button
+                type="button"
                 phx-click="change-list-filter"
                 phx-target={@myself}
                 phx-value-filter="all"
@@ -173,6 +174,7 @@
                 All (<%= length(@song_history.tracks) %>)
               </button>
               <button
+                type="button"
                 phx-click="change-list-filter"
                 phx-target={@myself}
                 phx-value-filter="jamcharts"
@@ -245,7 +247,7 @@
               <% end %>
             </div>
           </div>
-        <% end %>
+        </div>
       </div>
     <% end %>
 
