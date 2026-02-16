@@ -17,6 +17,8 @@ defmodule BlogWeb.PhishComponent do
         sorted_songs: [],
         selected_song: nil,
         song_history: nil,
+        current_song: nil,
+        song_stats: song_stats(nil),
         sort_by: "avg",
         min_played: 5,
         filter: "",
@@ -56,14 +58,11 @@ defmodule BlogWeb.PhishComponent do
   end
 
   def handle_event("change-song", %{"song" => song}, socket) do
-    Logger.error("PhishComponent change-song: #{song}")
-
     socket =
       socket
       |> assign(selected_song: song, card_flipped: false, expanded_idx: nil)
       |> load_song_history()
 
-    Logger.error("PhishComponent song_history loaded: #{socket.assigns.song_history.song_name}")
     {:noreply, socket}
   end
 
@@ -120,11 +119,13 @@ defmodule BlogWeb.PhishComponent do
   defp load_song_history(socket) do
     case socket.assigns.selected_song do
       nil ->
-        assign(socket, song_history: nil)
+        assign(socket, song_history: nil, current_song: nil, song_stats: song_stats(nil))
 
       song ->
         history = Blog.Phish.song_history(song, socket.assigns.year)
-        assign(socket, song_history: history)
+        current = Enum.find(socket.assigns.song_list, fn s -> s.song_name == song end)
+        stats = song_stats(history)
+        assign(socket, song_history: history, current_song: current, song_stats: stats)
     end
   end
 

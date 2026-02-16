@@ -68,88 +68,85 @@
 
     <%!-- Baseball Card --%>
     <%= if @song_history do %>
-      <% current = Enum.find(@song_list, fn s -> s.song_name == @selected_song end) %>
-      <% stats = song_stats(@song_history) %>
-
       <div style="margin: 8px;">
         <%= if !@card_flipped do %>
           <%!-- CARD FRONT --%>
           <div phx-click="flip-card" phx-target={@myself} class="phish-card phish-card-front">
             <div class="phish-card-song-name"><%= @song_history.song_name %></div>
             <div class="phish-card-divider"></div>
-            <%= if current do %>
-              <div class="phish-card-avg"><%= fmt_avg(current) %></div>
+            <%= if @current_song do %>
+              <div class="phish-card-avg"><%= fmt_avg(@current_song) %></div>
               <div class="phish-card-avg-label">BATTING AVG</div>
               <div class="phish-card-stats-row">
-                <span><strong style="color: #ef4444;"><%= current.jamchart_count %></strong> JC</span>
+                <span><strong style="color: #ef4444;"><%= @current_song.jamchart_count %></strong> JC</span>
                 <span style="color: #999;">·</span>
-                <span><strong><%= current.times_played %></strong>× played</span>
+                <span><strong><%= @current_song.times_played %></strong>× played</span>
               </div>
             <% end %>
             <div class="phish-card-stats-row" style="font-size: 12px; color: #666; margin-top: 4px;">
-              <span>Avg <%= Float.round(stats.avg_dur / 60000, 1) %>m</span>
+              <span>Avg <%= Float.round(@song_stats.avg_dur / 60000, 1) %>m</span>
               <span style="color: #999;">·</span>
-              <span>Peak <%= fmt_duration(stats.longest_ms) %></span>
+              <span>Peak <%= fmt_duration(@song_stats.longest_ms) %></span>
               <span style="color: #999;">·</span>
-              <span style={if stats.audio_count == 0, do: "color: #ef4444", else: ""}>🎧 <%= stats.audio_count %>/<%= stats.track_count %></span>
+              <span style={if @song_stats.audio_count == 0, do: "color: #ef4444", else: ""}>🎧 <%= @song_stats.audio_count %>/<%= @song_stats.track_count %></span>
             </div>
             <%!-- Extended stats --%>
-            <%= if stats.longest_track do %>
+            <%= if @song_stats.longest_track do %>
               <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #ccc; text-align: left;">
                 <div style="font-size: 11px; color: #333; font-weight: 700;">
-                  <span style="color: #ef4444;">★</span> Longest: <%= fmt_duration(stats.longest_track.duration_ms) %>
+                  <span style="color: #ef4444;">★</span> Longest: <%= fmt_duration(@song_stats.longest_track.duration_ms) %>
                 </div>
                 <div style="font-size: 10px; color: #888; margin-top: 1px;">
-                  <%= stats.longest_track.show_date %> · <%= stats.longest_track.venue %>
+                  <%= @song_stats.longest_track.show_date %> · <%= @song_stats.longest_track.venue %>
                 </div>
               </div>
             <% end %>
-            <%= if stats.most_loved_track && stats.most_loved_track.likes > 0 do %>
+            <%= if @song_stats.most_loved_track && @song_stats.most_loved_track.likes > 0 do %>
               <div style="margin-top: 8px; text-align: left;">
                 <div style="font-size: 11px; color: #333; font-weight: 700;">
-                  <span style="color: #ef4444;">♥</span> Most Loved: <%= stats.most_loved_track.likes %> likes
+                  <span style="color: #ef4444;">♥</span> Most Loved: <%= @song_stats.most_loved_track.likes %> likes
                 </div>
                 <div style="font-size: 10px; color: #888; margin-top: 1px;">
-                  <%= stats.most_loved_track.show_date %> · <%= stats.most_loved_track.venue %>
+                  <%= @song_stats.most_loved_track.show_date %> · <%= @song_stats.most_loved_track.venue %>
                 </div>
               </div>
             <% end %>
             <%!-- Set placement --%>
-            <%= if stats.dominant_set do %>
+            <%= if @song_stats.dominant_set do %>
               <div style="margin-top: 8px; text-align: left;">
                 <div style="font-size: 11px; color: #333; font-weight: 700;">
-                  📊 <%= stats.dominant_set_pct %>% <%= fmt_set(stats.dominant_set) %><%= if stats.jc_set_note, do: " · #{stats.jc_set_note}" %>
+                  📊 <%= @song_stats.dominant_set_pct %>% <%= fmt_set(@song_stats.dominant_set) %><%= if @song_stats.jc_set_note, do: " · #{@song_stats.jc_set_note}" %>
                 </div>
               </div>
             <% end %>
             <%!-- Gap --%>
-            <%= if stats.last_played do %>
+            <%= if @song_stats.last_played do %>
               <div style="margin-top: 4px; text-align: left;">
                 <div style="font-size: 10px; color: #888;">
-                  Last: <strong style="color: #333;"><%= stats.last_played %></strong> (<%= stats.days_since %>d ago)<%= if stats.avg_gap_days, do: " · avg every #{stats.avg_gap_days}d" %>
+                  Last: <strong style="color: #333;"><%= @song_stats.last_played %></strong> (<%= @song_stats.days_since %>d ago)<%= if @song_stats.avg_gap_days, do: " · avg every #{@song_stats.avg_gap_days}d" %>
                 </div>
               </div>
             <% end %>
             <%!-- Best year --%>
-            <%= if stats.best_year && stats.best_year_jc > 0 do %>
+            <%= if @song_stats.best_year && @song_stats.best_year_jc > 0 do %>
               <div style="margin-top: 4px; text-align: left;">
                 <div style="font-size: 10px; color: #888;">
-                  Best year: <strong style="color: #333;"><%= stats.best_year %></strong> — <%= stats.best_year_jc %>/<%= stats.best_year_total %> JC
+                  Best year: <strong style="color: #333;"><%= @song_stats.best_year %></strong> — <%= @song_stats.best_year_jc %>/<%= @song_stats.best_year_total %> JC
                 </div>
               </div>
             <% end %>
             <%!-- JC Streak --%>
-            <%= if stats.jc_streak > 0 do %>
+            <%= if @song_stats.jc_streak > 0 do %>
               <div style="margin-top: 4px; text-align: left;">
                 <div style="font-size: 10px; color: #888;">
-                  🔥 JC Streak: <strong style="color: #333;"><%= stats.jc_streak %></strong> in a row
+                  🔥 JC Streak: <strong style="color: #333;"><%= @song_stats.jc_streak %></strong> in a row
                 </div>
               </div>
             <% end %>
             <%!-- Notable quote --%>
-            <%= if stats.notable_quote do %>
+            <%= if @song_stats.notable_quote do %>
               <div style="margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;">
-                "<%= stats.notable_quote %>"
+                "<%= @song_stats.notable_quote %>"
               </div>
             <% end %>
             <div class="phish-card-tap-hint">TAP TO SEE AND PLAY JAMS</div>
@@ -161,8 +158,8 @@
             <div phx-click="flip-card" phx-target={@myself} class="phish-card-back-header">
               <div style="font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
                 <%= @song_history.song_name %>
-                <%= if current do %>
-                  <span style="color: #ef4444; margin-left: 6px;"><%= fmt_avg(current) %></span>
+                <%= if @current_song do %>
+                  <span style="color: #ef4444; margin-left: 6px;"><%= fmt_avg(@current_song) %></span>
                 <% end %>
               </div>
               <div style="font-size: 9px; color: #999; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px;">
@@ -186,7 +183,7 @@
                 phx-value-filter="jamcharts"
                 class={"phish-filter-pill #{if @list_filter == "jamcharts", do: "active"}"}
               >
-                Jamcharts (<%= stats.jc_count %>)
+                Jamcharts (<%= @song_stats.jc_count %>)
               </button>
               <span style="margin-left: auto; font-size: 11px; color: #999;">
                 <%= length(filtered_tracks(@song_history, @list_filter)) %> jams
@@ -196,8 +193,7 @@
             <%!-- Scrollable jam list --%>
             <div class="phish-jam-list">
               <%= for {t, i} <- Enum.with_index(filtered_tracks(@song_history, @list_filter)) do %>
-                <% is_jc = t.is_jamchart == 1 %>
-                <div class={"phish-jam-row #{if is_jc, do: "jamchart"}"}>
+                <div class={"phish-jam-row #{if t.is_jamchart == 1, do: "jamchart"}"}>
                   <div
                     style={"flex: 1; min-width: 0; cursor: #{if t.jam_notes != "", do: "pointer", else: "default"};"}
                     phx-click={if t.jam_notes != "", do: "toggle-notes"}
@@ -206,19 +202,19 @@
                   >
                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
                       <span style="font-size: 13px; font-weight: 700;">
-                        <%= if is_jc do %><span style="color: #ef4444;">★</span><% end %>
+                        <%= if t.is_jamchart == 1 do %><span style="color: #ef4444;">★</span><% end %>
                         <%= t.show_date %>
                       </span>
-                      <span class={"phish-jam-duration #{if is_jc, do: "jamchart"}"}>
+                      <span class={"phish-jam-duration #{if t.is_jamchart == 1, do: "jamchart"}"}>
                         <%= fmt_duration(t.duration_ms) %>
                       </span>
                     </div>
                     <%!-- Duration bar --%>
-                    <%= if stats.longest_ms > 0 && t.duration_ms > 0 do %>
+                    <%= if @song_stats.longest_ms > 0 && t.duration_ms > 0 do %>
                       <div class="phish-duration-bar-bg">
                         <div
-                          class={"phish-duration-bar #{if is_jc, do: "jamchart"}"}
-                          style={"width: #{round(100 * t.duration_ms / stats.longest_ms)}%"}
+                          class={"phish-duration-bar #{if t.is_jamchart == 1, do: "jamchart"}"}
+                          style={"width: #{round(100 * t.duration_ms / @song_stats.longest_ms)}%"}
                         >
                         </div>
                       </div>
