@@ -787,22 +787,21 @@ defmodule BlogWeb.TerminalLive do
 
       /* Window (Icons/Finder) */
       .window {
-        width: 38%;
-        min-width: 300px;
+        width: 260px;
+        min-width: 240px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
-        flex-shrink: 1;
+        flex-shrink: 0;
       }
 
       /* Blog Window */
       .blog-window {
-        width: 45%;
-        min-width: 350px;
+        flex: 1;
+        min-width: 300px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
-        flex-shrink: 1;
       }
 
       /* Hide chat on smaller screens to prioritize main windows */
@@ -981,8 +980,8 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .window-content {
-        padding: 16px;
-        min-height: 450px;
+        padding: 10px;
+        min-height: 300px;
         max-height: 70vh;
         overflow-y: auto;
         background: #fff;
@@ -997,8 +996,8 @@ defmodule BlogWeb.TerminalLive do
       .icon-section {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
-        padding: 8px;
+        gap: 6px;
+        padding: 6px;
         border-radius: 4px;
       }
 
@@ -1007,9 +1006,9 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .icon {
-        width: 72px;
+        width: 56px;
         text-align: center;
-        padding: 4px;
+        padding: 2px;
         cursor: default;
       }
 
@@ -1019,16 +1018,16 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .icon-image {
-        font-size: 32px;
-        height: 40px;
+        font-size: 26px;
+        height: 32px;
         display: flex;
         align-items: center;
         justify-content: center;
       }
 
       .icon-label {
-        font-size: 10px;
-        margin-top: 2px;
+        font-size: 9px;
+        margin-top: 1px;
         padding: 1px 2px;
         word-wrap: break-word;
       }
@@ -1051,14 +1050,13 @@ defmodule BlogWeb.TerminalLive do
 
       /* Phish embed window */
       .phish-embed-window {
-        position: absolute;
-        top: 40px;
-        right: 20px;
         width: 320px;
+        min-width: 300px;
         background: #fff;
         border: 1px solid #000;
-        box-shadow: 2px 2px 0 #000;
-        z-index: 200;
+        box-shadow: 1px 1px 0 #000;
+        flex-shrink: 0;
+        align-self: flex-start;
       }
 
       .phish-embed-content {
