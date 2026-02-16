@@ -633,7 +633,7 @@ defmodule BlogWeb.PostLive do
       /* Article content styling within Mac window */
       .mac-post .article-content {
         font-family: 'Charter', 'Georgia', serif;
-        font-size: 16px;
+        font-size: 2rem;
         line-height: 1.7;
         color: #1f2937;
       }
@@ -862,7 +862,7 @@ defmodule BlogWeb.PostLive do
         }
 
         .mac-post .article-content {
-          font-size: 15px;
+          font-size: 1.75rem;
         }
 
         .mac-post .post-meta-bar {
