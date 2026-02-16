@@ -200,7 +200,7 @@ defmodule BlogWeb.TerminalLive do
       visitor_list: visitor_list,
       total_online: map_size(visitor_list),
       # Phish window state
-      show_phish: false,
+      show_phish: true,
       # Tree state
       show_tree: false,
       # Tour state - auto-start for first-time visitors (desktop only)
