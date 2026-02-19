@@ -103,6 +103,7 @@ defmodule BlogWeb.Router do
     pipe_through :api
     
     get "/receipt_messages/pending", ReceiptMessageController, :pending
+    get "/receipt_messages/:id/image", ReceiptMessageController, :image
     post "/receipt_messages/:id/printed", ReceiptMessageController, :mark_printed
     post "/receipt_messages/:id/failed", ReceiptMessageController, :mark_failed
     post "/receipt_messages/:id/retry", ReceiptMessageController, :mark_pending

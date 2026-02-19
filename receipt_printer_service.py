@@ -11,10 +11,13 @@ import requests
 import logging
 import argparse
 import sys
+import base64
+import io
 from datetime import datetime
 from typing import Optional, Dict, List
 import os
 from pathlib import Path
+from PIL import Image, ImageOps, ImageEnhance
 
 # Hardcoded API key for receipt printer authentication
 RECEIPT_PRINTER_API_KEY = "67656cfac9eea273fed7a403088874506ab41b700056d01f660537e2be7316f4"
@@ -118,27 +121,42 @@ class ReceiptPrinterService:
         
         commands += b'\n'
         
-        # Image indicator
-        if message.get('image_url'):
+        # Print image if present
+        image_printed = False
+        if message.get('image_data'):
+            try:
+                raw_image = base64.b64decode(message['image_data'])
+                processed = self.process_image(raw_image)
+                commands += b'-' * 48 + b'\n'
+                commands += self.image_to_esc_pos(processed)
+                commands += b'\n'
+                image_printed = True
+                logger.info(f"Image processed: {processed.size[0]}x{processed.size[1]}px")
+            except Exception as e:
+                logger.error(f"Failed to process image: {e}")
+                commands += ESC + b'a\x01'
+                commands += b'[Image could not be printed]\n'
+                commands += ESC + b'a\x00'
+        elif message.get('image_url'):
             commands += b'-' * 48 + b'\n'
-            commands += ESC + b'a\x01'  # Center
-            commands += b'[Image Attached]\n'
-            commands += ESC + b'a\x00'  # Left
+            commands += ESC + b'a\x01'
+            commands += b'[Image Attached - URL only]\n'
+            commands += ESC + b'a\x00'
             commands += b'\n'
-        
+
         # Footer
         commands += b'-' * 48 + b'\n\n'
         commands += ESC + b'a\x01'  # Center
         commands += b'Thank you for your message!\n\n'
-        
+
         # Message ID
         message_id = f"ID: MSG{message.get('id', 0):06d}\n"
         commands += message_id.encode('utf-8')
-        
-        # Cut paper
-        commands += b'\n' * 3
-        commands += GS + b'V\x42\x00'  # Partial cut
-        
+
+        # Feed paper then cut - extra feed ensures cut clears the print area
+        commands += b'\n' * 5
+        commands += GS + b'V\x42\x03'  # Partial cut with 3-dot feed
+
         return commands
     
     def wrap_text(self, text: str, width: int) -> List[str]:
@@ -166,13 +184,89 @@ class ReceiptPrinterService:
         
         return lines
     
+    def process_image(self, image_data: bytes, width: int = 576) -> Image.Image:
+        """Process raw image bytes for thermal printing with Floyd-Steinberg dithering."""
+        img = Image.open(io.BytesIO(image_data))
+
+        # Convert to RGB if necessary (handles RGBA, palette, etc.)
+        if img.mode not in ('L', '1'):
+            img = img.convert('RGB')
+
+        # Resize maintaining aspect ratio
+        aspect_ratio = img.height / img.width
+        new_height = int(width * aspect_ratio)
+        img = img.resize((width, new_height), Image.Resampling.LANCZOS)
+
+        # Convert to grayscale
+        if img.mode != 'L':
+            img = img.convert('L')
+
+        # Enhance for thermal printing
+        img = ImageOps.autocontrast(img, cutoff=1)
+        enhancer = ImageEnhance.Brightness(img)
+        img = enhancer.enhance(1.1)
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.2)
+
+        # Floyd-Steinberg dithering to 1-bit
+        img = img.convert('1', dither=Image.Dither.FLOYDSTEINBERG)
+        return img
+
+    def image_to_esc_pos(self, img: Image.Image) -> bytes:
+        """Convert a 1-bit PIL Image to ESC/POS raster bitmap commands (GS v 0)."""
+        ESC = b'\x1b'
+        GS = b'\x1d'
+
+        width, height = img.size
+
+        # Ensure width is multiple of 8
+        if width % 8 != 0:
+            new_width = (width // 8 + 1) * 8
+            new_img = Image.new('1', (new_width, height), 255)
+            new_img.paste(img, (0, 0))
+            img = new_img
+            width = new_width
+
+        # Center the image
+        command = ESC + b'a\x01'
+
+        # GS v 0 - raster bit image
+        m = 0  # Normal size
+        xL = (width // 8) % 256
+        xH = (width // 8) // 256
+        yL = height % 256
+        yH = height // 256
+        command += GS + b'v0' + bytes([m, xL, xH, yL, yH])
+
+        # Convert pixels to bytes - black pixels (0) set bits to 1 (print)
+        pixels = img.load()
+        for y in range(height):
+            row_data = bytearray()
+            for x in range(0, width, 8):
+                byte = 0
+                for bit in range(8):
+                    if x + bit < width and pixels[x + bit, y] == 0:
+                        byte |= (1 << (7 - bit))
+                row_data.append(byte)
+            command += bytes(row_data)
+
+        # Reset to left alignment
+        command += ESC + b'a\x00'
+        return command
+
     def print_to_printer(self, data: bytes) -> bool:
         """Send data to the printer via TCP"""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(5)
+                sock.settimeout(10)
                 sock.connect((self.printer_host, self.printer_port))
-                sock.sendall(data)
+                # Send in chunks to avoid overwhelming the printer
+                chunk_size = 4096
+                for i in range(0, len(data), chunk_size):
+                    sock.sendall(data[i:i + chunk_size])
+                    time.sleep(0.01)
+                # Give the printer time to process before closing
+                time.sleep(0.5)
                 logger.info(f"Successfully sent {len(data)} bytes to printer")
                 return True
         except Exception as e:

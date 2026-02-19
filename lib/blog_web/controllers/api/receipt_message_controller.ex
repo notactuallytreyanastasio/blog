@@ -92,25 +92,51 @@ defmodule BlogWeb.Api.ReceiptMessageController do
     end
   end
 
+  def image(conn, %{"id" => id} = params) do
+    auth_token = params["auth_token"] || get_req_header(conn, "x-auth-token") |> List.first()
+
+    if authorized?(auth_token) do
+      message = ReceiptMessages.get_receipt_message!(id)
+
+      if message.image_data && byte_size(message.image_data) > 0 do
+        content_type = message.image_content_type || "image/jpeg"
+
+        conn
+        |> put_resp_content_type(content_type)
+        |> send_resp(200, message.image_data)
+      else
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "No image for this message"})
+      end
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{error: "Invalid or missing auth token"})
+    end
+  end
+
   defp format_message(%ReceiptMessage{} = msg) do
     response = %{
       id: msg.id,
       content: msg.content,
       sender_name: msg.sender_name,
       sender_ip: msg.sender_ip,
-      image_url: msg.image_url,
       status: msg.status,
       created_at: msg.inserted_at,
       printed_at: msg.printed_at
     }
 
-    if msg.image_data && byte_size(msg.image_data) > 0 do
-      Map.merge(response, %{
-        image_data: Base.encode64(msg.image_data),
-        image_content_type: msg.image_content_type
-      })
-    else
-      response
+    # Provide image_url pointing to the image endpoint instead of base64 data
+    has_upload = msg.image_data && byte_size(msg.image_data) > 0
+
+    cond do
+      has_upload ->
+        Map.put(response, :image_url, "/api/receipt_messages/#{msg.id}/image")
+      msg.image_url ->
+        Map.put(response, :image_url, msg.image_url)
+      true ->
+        response
     end
   end
 
