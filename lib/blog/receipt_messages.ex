@@ -17,6 +17,13 @@ defmodule Blog.ReceiptMessages do
   @doc """
   Returns the list of pending receipt_messages.
   """
+  def list_recent_messages(limit \\ 10) do
+    ReceiptMessage
+    |> order_by([m], desc: m.inserted_at)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
   def list_pending_messages do
     ReceiptMessage
     |> where([m], m.status == "pending")

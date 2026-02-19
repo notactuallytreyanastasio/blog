@@ -14,6 +14,8 @@ defmodule BlogWeb.ReceiptMessageLive do
      |> assign(:message, "")
      |> assign(:sender_ip, sender_ip)
      |> assign(:uploaded_files, [])
+     |> assign(:show_queue, false)
+     |> assign(:queue_messages, [])
      |> allow_upload(:image, accept: ~w(.jpg .jpeg .png .gif), max_entries: 1)}
   end
 
@@ -62,6 +64,13 @@ defmodule BlogWeb.ReceiptMessageLive do
          |> put_flash(:error, "Failed to send message. Please try again.")
          |> assign(:message, "")}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_queue", _params, socket) do
+    show = !socket.assigns.show_queue
+    messages = if show, do: ReceiptMessages.list_recent_messages(10), else: []
+    {:noreply, socket |> assign(:show_queue, show) |> assign(:queue_messages, messages)}
   end
 
   @impl true
@@ -425,9 +434,76 @@ defmodule BlogWeb.ReceiptMessageLive do
           cursor: not-allowed;
         }
 
-        .image-icon {
+        .image-icon, .queue-icon {
           width: 20px;
           height: 20px;
+        }
+
+        .queue-button {
+          background-color: #f4e4c1;
+          color: #8b7355;
+          flex: 0 0 auto;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .queue-button:hover {
+          background-color: #e8d4a9;
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .queue-panel {
+          margin-top: 20px;
+          background-color: #fffef9;
+          border: 2px solid #e0d5c7;
+          border-radius: 10px;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+
+        .queue-header {
+          font-size: 16px;
+          color: #8b7355;
+          padding: 12px 16px;
+          border-bottom: 1px solid #e0d5c7;
+          font-family: Georgia, serif;
+          position: sticky;
+          top: 0;
+          background-color: #fffef9;
+        }
+
+        .queue-item {
+          padding: 10px 16px;
+          border-bottom: 1px solid #f0e8db;
+          font-family: Georgia, serif;
+          font-size: 14px;
+          color: #5d4e37;
+        }
+
+        .queue-item:last-child {
+          border-bottom: none;
+        }
+
+        .queue-item-content {
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+
+        .queue-item-meta {
+          font-size: 12px;
+          color: #b8a590;
+          margin-top: 4px;
+          display: flex;
+          gap: 12px;
+        }
+
+        .queue-empty {
+          padding: 20px 16px;
+          text-align: center;
+          color: #b8a590;
+          font-family: Georgia, serif;
         }
 
         .typewriter-text {
@@ -480,6 +556,26 @@ defmodule BlogWeb.ReceiptMessageLive do
         ><%= @message %></textarea>
 
         <div class="button-container">
+          <label class="image-button">
+            <svg class="image-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            Add Image
+            <.live_file_input upload={@uploads.image} style="display: none;" />
+          </label>
+          <button class="image-button queue-button" type="button" phx-click="toggle_queue">
+            <svg class="queue-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <%= if @show_queue, do: "Hide Queue", else: "View Queue" %>
+          </button>
           <button class="send-button" type="submit" disabled={@message == ""}>
             Send Message
           </button>
@@ -489,6 +585,25 @@ defmodule BlogWeb.ReceiptMessageLive do
           <div>
             <%= entry.client_name %>
             <button type="button" phx-click="cancel-upload" phx-value-ref={entry.ref}>Cancel</button>
+          </div>
+        <% end %>
+
+        <%= if @show_queue do %>
+          <div class="queue-panel">
+            <div class="queue-header">Recent Messages</div>
+            <%= if @queue_messages == [] do %>
+              <div class="queue-empty">No messages yet</div>
+            <% else %>
+              <%= for msg <- @queue_messages do %>
+                <div class="queue-item">
+                  <div class="queue-item-content"><%= msg.content %></div>
+                  <div class="queue-item-meta">
+                    <span><%= msg.status %></span>
+                    <span><%= Calendar.strftime(msg.inserted_at, "%b %d, %I:%M %p") %></span>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
           </div>
         <% end %>
       </form>
