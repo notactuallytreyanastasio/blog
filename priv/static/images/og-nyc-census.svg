@@ -127,21 +127,21 @@
   <circle cx="200" cy="400" r="7" fill="#93c5fd" opacity="0.6"/>
 
   <!-- Title text -->
-  <text x="750" y="240" font-family="system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" fill="#f8fafc" text-anchor="middle">
+  <text x="750" y="220" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" fill="#f8fafc" text-anchor="middle">
     NYC Census &amp;
   </text>
-  <text x="750" y="295" font-family="system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" fill="#f8fafc" text-anchor="middle">
+  <text x="750" y="295" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" fill="#f8fafc" text-anchor="middle">
     Density Explorer
   </text>
 
   <!-- Subtitle -->
-  <text x="750" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#94a3b8" text-anchor="middle">
+  <text x="750" y="360" font-family="system-ui, -apple-system, sans-serif" font-size="32" fill="#cbd5e1" text-anchor="middle">
     Draw a shape. Get a population estimate.
   </text>
 
   <!-- Data source badge -->
-  <rect x="645" y="370" width="210" height="30" rx="15" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1" opacity="0.8"/>
-  <text x="750" y="390" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#93c5fd" text-anchor="middle">
+  <rect x="620" y="390" width="260" height="40" rx="20" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1" opacity="0.8"/>
+  <text x="750" y="416" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#93c5fd" text-anchor="middle">
     PLUTO Tax Lots + 2020 Census
   </text>
 </svg>
