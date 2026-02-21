@@ -2599,3 +2599,204 @@ details[open] summary {
     max-height: calc(100vh - 240px);
   }
 }
+
+/* ===== NYC Census & PLUTO Map ===== */
+
+.nyc-map-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+.nyc-map {
+  width: 100%;
+  height: 100%;
+}
+
+.nyc-results-panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  max-width: 300px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.nyc-results-panel .nyc-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: #1a1a2e;
+}
+
+.nyc-results-panel .nyc-subtitle {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0 0 8px;
+}
+
+.nyc-results-panel .nyc-loading {
+  text-align: center;
+  padding: 12px 0;
+  color: #3b82f6;
+}
+
+.nyc-results-panel .nyc-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: nyc-spin 0.6s linear infinite;
+  margin: 0 auto 8px;
+}
+
+@keyframes nyc-spin {
+  to { transform: rotate(360deg); }
+}
+
+.nyc-results-panel .nyc-error {
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.nyc-stat.nyc-primary {
+  text-align: center;
+  padding: 12px 0 8px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 12px;
+}
+
+.nyc-stat.nyc-primary .nyc-stat-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1a1a2e;
+  line-height: 1;
+}
+
+.nyc-stat.nyc-primary .nyc-stat-label {
+  font-size: 0.8rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nyc-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.nyc-stat-grid .nyc-stat {
+  text-align: center;
+}
+
+.nyc-stat-grid .nyc-stat-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.nyc-stat-grid .nyc-stat-label {
+  font-size: 0.7rem;
+  color: #888;
+}
+
+.nyc-clear-btn {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.nyc-clear-btn:hover {
+  background: #e5e7eb;
+}
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  transition: opacity 0.3s;
+}
+
+.onboarding-overlay.fade-out {
+  opacity: 0;
+}
+
+.onboarding-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 420px;
+  margin: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.onboarding-modal h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: #1a1a2e;
+}
+
+.onboarding-modal p {
+  color: #555;
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+}
+
+.onboarding-modal ol {
+  padding-left: 20px;
+  margin: 0 0 16px;
+}
+
+.onboarding-modal li {
+  margin-bottom: 8px;
+  color: #444;
+  font-size: 0.9rem;
+}
+
+.onboarding-modal .modal-note {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.onboarding-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.onboarding-btn:hover {
+  background: #2563eb;
+}

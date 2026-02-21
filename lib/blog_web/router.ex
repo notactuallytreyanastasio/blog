@@ -82,6 +82,7 @@ defmodule BlogWeb.Router do
     live "/jetstream_comparison", JetstreamComparisonLive, :index
     live "/role-call", RoleCallLive, :index
     live "/stumble", StumbleLive, :index
+    live "/nyc_census_and_pluto", NycCensusAndPlutoLive, :index
     # Smart Steps scenario system
     live "/smart-steps", SmartStepsLive.Index, :index
     live "/smart-steps/play/:session_id", SmartStepsLive.Play, :play

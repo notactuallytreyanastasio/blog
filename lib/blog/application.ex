@@ -57,7 +57,9 @@ defmodule Blog.Application do
       Blog.PokeAround.Supervisor,
       # Smart Steps session management
       {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
-      {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one}
+      {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
+      # Census population cache for NYC map
+      Blog.Census.Cache
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -102,7 +104,9 @@ defmodule Blog.Application do
         Blog.PokeAround.Supervisor,
         # Smart Steps session management
         {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
-        {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one}
+        {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
+        # Census population cache for NYC map
+        Blog.Census.Cache
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
