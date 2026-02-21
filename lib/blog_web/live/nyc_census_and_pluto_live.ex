@@ -6,7 +6,17 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, loading: false, results: nil, error: nil)}
+    {:ok,
+     assign(socket,
+       loading: false,
+       results: nil,
+       error: nil,
+       page_title: "NYC Census & Density Explorer",
+       page_description:
+         "Draw a shape on the map and get a population estimate. " <>
+           "Powered by NYC PLUTO tax lot data and the 2020 US Census.",
+       page_image: "https://www.bobbby.online/images/og-nyc-census.png"
+     )}
   end
 
   @impl true

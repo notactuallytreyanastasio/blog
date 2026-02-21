@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="60%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#2d4a6f"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a3a5c"/>
+      <stop offset="100%" stop-color="#0c2340"/>
+    </linearGradient>
+    <linearGradient id="bldg1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#374151"/>
+      <stop offset="100%" stop-color="#1f2937"/>
+    </linearGradient>
+    <linearGradient id="bldg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4b5563"/>
+      <stop offset="100%" stop-color="#374151"/>
+    </linearGradient>
+    <linearGradient id="polygon-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="1200" height="630" fill="url(#sky)"/>
+
+  <!-- Stars -->
+  <circle cx="100" cy="60" r="1.5" fill="#e2e8f0" opacity="0.6"/>
+  <circle cx="250" cy="40" r="1" fill="#e2e8f0" opacity="0.5"/>
+  <circle cx="400" cy="80" r="1.5" fill="#e2e8f0" opacity="0.7"/>
+  <circle cx="550" cy="30" r="1" fill="#e2e8f0" opacity="0.4"/>
+  <circle cx="700" cy="70" r="1.5" fill="#e2e8f0" opacity="0.6"/>
+  <circle cx="850" cy="50" r="1" fill="#e2e8f0" opacity="0.5"/>
+  <circle cx="1000" cy="45" r="1.5" fill="#e2e8f0" opacity="0.7"/>
+  <circle cx="1100" cy="75" r="1" fill="#e2e8f0" opacity="0.4"/>
+  <circle cx="180" cy="100" r="1" fill="#e2e8f0" opacity="0.3"/>
+  <circle cx="650" cy="110" r="1" fill="#e2e8f0" opacity="0.3"/>
+  <circle cx="950" cy="95" r="1.5" fill="#e2e8f0" opacity="0.5"/>
+
+  <!-- Water -->
+  <rect x="0" y="480" width="1200" height="150" fill="url(#water)"/>
+
+  <!-- Manhattan skyline buildings (from left to right) -->
+  <!-- Far left buildings -->
+  <rect x="30" y="340" width="35" height="140" fill="url(#bldg1)" rx="1"/>
+  <rect x="72" y="300" width="28" height="180" fill="url(#bldg2)" rx="1"/>
+  <rect x="108" y="360" width="40" height="120" fill="url(#bldg1)" rx="1"/>
+
+  <!-- Midtown left -->
+  <rect x="160" y="260" width="32" height="220" fill="url(#bldg2)" rx="1"/>
+  <rect x="198" y="230" width="38" height="250" fill="url(#bldg1)" rx="1"/>
+  <rect x="242" y="280" width="30" height="200" fill="url(#bldg2)" rx="1"/>
+
+  <!-- Empire State-ish -->
+  <rect x="285" y="140" width="42" height="340" fill="url(#bldg1)" rx="1"/>
+  <rect x="296" y="120" width="20" height="30" fill="#4b5563" rx="1"/>
+  <rect x="303" y="90" width="6" height="35" fill="#6b7280"/>
+
+  <!-- Midtown center -->
+  <rect x="340" y="250" width="35" height="230" fill="url(#bldg2)" rx="1"/>
+  <rect x="382" y="210" width="40" height="270" fill="url(#bldg1)" rx="1"/>
+  <rect x="430" y="270" width="30" height="210" fill="url(#bldg2)" rx="1"/>
+
+  <!-- One WTC-ish -->
+  <rect x="475" y="100" width="36" height="380" fill="url(#bldg2)" rx="1"/>
+  <polygon points="483,100 493,60 503,100" fill="#6b7280"/>
+
+  <!-- More buildings -->
+  <rect x="520" y="240" width="38" height="240" fill="url(#bldg1)" rx="1"/>
+  <rect x="565" y="290" width="30" height="190" fill="url(#bldg2)" rx="1"/>
+  <rect x="602" y="260" width="35" height="220" fill="url(#bldg1)" rx="1"/>
+  <rect x="644" y="310" width="28" height="170" fill="url(#bldg2)" rx="1"/>
+  <rect x="678" y="280" width="40" height="200" fill="url(#bldg1)" rx="1"/>
+
+  <!-- Brooklyn-ish right side -->
+  <rect x="730" y="340" width="35" height="140" fill="url(#bldg2)" rx="1"/>
+  <rect x="772" y="360" width="28" height="120" fill="url(#bldg1)" rx="1"/>
+  <rect x="808" y="350" width="32" height="130" fill="url(#bldg2)" rx="1"/>
+  <rect x="848" y="370" width="25" height="110" fill="url(#bldg1)" rx="1"/>
+
+  <!-- Window lights on buildings -->
+  <g fill="#fbbf24" opacity="0.7">
+    <!-- Empire State windows -->
+    <rect x="292" y="160" width="3" height="3" rx="0.5"/><rect x="300" y="160" width="3" height="3" rx="0.5"/>
+    <rect x="308" y="175" width="3" height="3" rx="0.5"/><rect x="292" y="200" width="3" height="3" rx="0.5"/>
+    <rect x="316" y="190" width="3" height="3" rx="0.5"/><rect x="300" y="220" width="3" height="3" rx="0.5"/>
+    <rect x="308" y="250" width="3" height="3" rx="0.5"/><rect x="292" y="280" width="3" height="3" rx="0.5"/>
+    <rect x="316" y="300" width="3" height="3" rx="0.5"/><rect x="300" y="340" width="3" height="3" rx="0.5"/>
+    <!-- One WTC windows -->
+    <rect x="482" y="130" width="3" height="3" rx="0.5"/><rect x="490" y="150" width="3" height="3" rx="0.5"/>
+    <rect x="498" y="170" width="3" height="3" rx="0.5"/><rect x="482" y="200" width="3" height="3" rx="0.5"/>
+    <rect x="498" y="230" width="3" height="3" rx="0.5"/><rect x="490" y="260" width="3" height="3" rx="0.5"/>
+    <rect x="482" y="300" width="3" height="3" rx="0.5"/><rect x="498" y="340" width="3" height="3" rx="0.5"/>
+    <!-- Other building windows -->
+    <rect x="205" y="260" width="3" height="3" rx="0.5"/><rect x="220" y="290" width="3" height="3" rx="0.5"/>
+    <rect x="388" y="240" width="3" height="3" rx="0.5"/><rect x="400" y="280" width="3" height="3" rx="0.5"/>
+    <rect x="528" y="270" width="3" height="3" rx="0.5"/><rect x="540" y="310" width="3" height="3" rx="0.5"/>
+    <rect x="612" y="290" width="3" height="3" rx="0.5"/><rect x="620" y="330" width="3" height="3" rx="0.5"/>
+    <rect x="690" y="310" width="3" height="3" rx="0.5"/><rect x="700" y="350" width="3" height="3" rx="0.5"/>
+    <rect x="165" y="300" width="3" height="3" rx="0.5"/><rect x="350" y="310" width="3" height="3" rx="0.5"/>
+    <rect x="440" y="310" width="3" height="3" rx="0.5"/><rect x="575" y="330" width="3" height="3" rx="0.5"/>
+    <rect x="740" y="370" width="3" height="3" rx="0.5"/><rect x="815" y="380" width="3" height="3" rx="0.5"/>
+  </g>
+  <g fill="#93c5fd" opacity="0.4">
+    <rect x="296" y="240" width="3" height="3" rx="0.5"/><rect x="312" y="320" width="3" height="3" rx="0.5"/>
+    <rect x="486" y="180" width="3" height="3" rx="0.5"/><rect x="494" y="290" width="3" height="3" rx="0.5"/>
+    <rect x="394" y="260" width="3" height="3" rx="0.5"/><rect x="210" y="320" width="3" height="3" rx="0.5"/>
+    <rect x="534" y="290" width="3" height="3" rx="0.5"/><rect x="684" y="330" width="3" height="3" rx="0.5"/>
+  </g>
+
+  <!-- Drawn polygon overlay (the "draw a shape" concept) -->
+  <polygon points="150,380 320,300 500,350 480,460 200,450"
+    fill="url(#polygon-fill)" stroke="#3b82f6" stroke-width="2.5" stroke-dasharray="8,4"/>
+
+  <!-- Population dots inside polygon -->
+  <circle cx="220" cy="380" r="6" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="280" cy="350" r="9" fill="#60a5fa" opacity="0.7"/>
+  <circle cx="350" cy="370" r="5" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="320" cy="400" r="11" fill="#93c5fd" opacity="0.6"/>
+  <circle cx="400" cy="390" r="7" fill="#3b82f6" opacity="0.7"/>
+  <circle cx="250" cy="420" r="8" fill="#60a5fa" opacity="0.7"/>
+  <circle cx="380" cy="420" r="5" fill="#93c5fd" opacity="0.8"/>
+  <circle cx="440" cy="410" r="6" fill="#3b82f6" opacity="0.7"/>
+  <circle cx="300" cy="440" r="4" fill="#60a5fa" opacity="0.8"/>
+  <circle cx="200" cy="400" r="7" fill="#93c5fd" opacity="0.6"/>
+
+  <!-- Title text -->
+  <text x="750" y="240" font-family="system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" fill="#f8fafc" text-anchor="middle">
+    NYC Census &amp;
+  </text>
+  <text x="750" y="295" font-family="system-ui, -apple-system, sans-serif" font-size="46" font-weight="800" fill="#f8fafc" text-anchor="middle">
+    Density Explorer
+  </text>
+
+  <!-- Subtitle -->
+  <text x="750" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#94a3b8" text-anchor="middle">
+    Draw a shape. Get a population estimate.
+  </text>
+
+  <!-- Data source badge -->
+  <rect x="645" y="370" width="210" height="30" rx="15" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1" opacity="0.8"/>
+  <text x="750" y="390" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#93c5fd" text-anchor="middle">
+    PLUTO Tax Lots + 2020 Census
+  </text>
+</svg>
