@@ -9,6 +9,7 @@ defmodule Blog.Finder.Item do
     field :sort_order, :integer, default: 0
     field :joyride_target, :string
     field :action, :string
+    field :description, :string
     field :visible, :boolean, default: true
 
     belongs_to :section, Blog.Finder.Section
@@ -18,7 +19,7 @@ defmodule Blog.Finder.Item do
 
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:name, :icon, :path, :sort_order, :joyride_target, :action, :visible, :section_id])
+    |> cast(attrs, [:name, :icon, :path, :sort_order, :joyride_target, :action, :description, :visible, :section_id])
     |> validate_required([:name, :icon, :sort_order, :section_id])
     |> foreign_key_constraint(:section_id)
   end

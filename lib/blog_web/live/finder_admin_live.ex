@@ -111,6 +111,7 @@ defmodule BlogWeb.FinderAdminLive do
       icon: params["icon"],
       path: nilify(params["path"]),
       action: nilify(params["action"]),
+      description: nilify(params["description"]),
       sort_order: max_order + 1,
       section_id: section_id
     }
@@ -138,6 +139,7 @@ defmodule BlogWeb.FinderAdminLive do
       icon: params["icon"],
       path: nilify(params["path"]),
       action: nilify(params["action"]),
+      description: nilify(params["description"]),
       joyride_target: nilify(params["joyride_target"]),
       visible: params["visible"] == "true"
     }
@@ -435,6 +437,7 @@ defmodule BlogWeb.FinderAdminLive do
                   <input type="text" name="icon" placeholder="Emoji icon" required />
                   <input type="text" name="path" placeholder="Path (e.g. /pong)" />
                   <input type="text" name="action" placeholder="Action (e.g. toggle_phish)" />
+                  <input type="text" name="description" placeholder="Tooltip description" />
                   <button type="submit" class="btn btn-primary">Add</button>
                   <button type="button" class="btn" phx-click="toggle_add_item" phx-value-section-id={section.id}>Cancel</button>
                 </form>
@@ -487,6 +490,8 @@ defmodule BlogWeb.FinderAdminLive do
                 <input type="text" name="path" value={@editing_item.path || ""} />
                 <label>Action</label>
                 <input type="text" name="action" value={@editing_item.action || ""} />
+                <label>Description (tooltip)</label>
+                <input type="text" name="description" value={@editing_item.description || ""} />
                 <label>Joyride Target</label>
                 <input type="text" name="joyride_target" value={@editing_item.joyride_target || ""} />
                 <label>Visible</label>

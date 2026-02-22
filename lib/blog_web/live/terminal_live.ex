@@ -351,6 +351,7 @@ defmodule BlogWeb.TerminalLive do
       phx-click="select"
       phx-value-name={@program.name}
       data-joyride={@joyride}
+      title={@program.description}
     >
       <div
         class="icon-image"
@@ -402,16 +403,19 @@ defmodule BlogWeb.TerminalLive do
             <div class="icon-grid">
               <%= for section <- @sections do %>
                 <div class="icon-section" data-joyride={section.joyride_target}>
-                  <%= for item <- section.items do %>
-                    <%= if item.action do %>
-                      <div class="icon" phx-click={item.action} data-joyride={item.joyride_target}>
-                        <div class="icon-image"><%= item.icon %></div>
-                        <div class={"icon-label #{if item.action == "toggle_phish" && @show_phish, do: "selected-label"}"}><%= item.name %></div>
-                      </div>
-                    <% else %>
-                      <.icon_item program={item} selected={@selected} joyride={item.joyride_target} />
+                  <div class="section-label"><%= section.label || section.name %></div>
+                  <div class="section-items">
+                    <%= for item <- section.items do %>
+                      <%= if item.action do %>
+                        <div class="icon" phx-click={item.action} data-joyride={item.joyride_target} title={item.description}>
+                          <div class="icon-image"><%= item.icon %></div>
+                          <div class={"icon-label #{if item.action == "toggle_phish" && @show_phish, do: "selected-label"}"}><%= item.name %></div>
+                        </div>
+                      <% else %>
+                        <.icon_item program={item} selected={@selected} joyride={item.joyride_target} />
+                      <% end %>
                     <% end %>
-                  <% end %>
+                  </div>
                 </div>
               <% end %>
             </div>
@@ -907,15 +911,28 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .icon-section {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
         padding: 6px;
         border-radius: 4px;
       }
 
       .icon-section:hover {
         background: rgba(0, 0, 0, 0.03);
+      }
+
+      .section-label {
+        font-size: 10px;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #666;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+        padding-left: 2px;
+      }
+
+      .section-items {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
       }
 
       .icon {
