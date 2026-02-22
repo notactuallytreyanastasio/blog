@@ -351,7 +351,9 @@ defmodule BlogWeb.TerminalLive do
       phx-click="select"
       phx-value-name={@program.name}
       data-joyride={@joyride}
-      title={@program.description}
+      phx-hook={if @program.description, do: "Tooltip"}
+      data-tooltip={@program.description}
+      id={if @program.description, do: "icon-#{@program.id}"}
     >
       <div
         class="icon-image"
@@ -407,7 +409,14 @@ defmodule BlogWeb.TerminalLive do
                   <div class="section-items">
                     <%= for item <- section.items do %>
                       <%= if item.action do %>
-                        <div class="icon" phx-click={item.action} data-joyride={item.joyride_target} title={item.description}>
+                        <div
+                          class="icon"
+                          phx-click={item.action}
+                          data-joyride={item.joyride_target}
+                          phx-hook={if item.description, do: "Tooltip"}
+                          data-tooltip={item.description}
+                          id={if item.description, do: "icon-#{item.id}"}
+                        >
                           <div class="icon-image"><%= item.icon %></div>
                           <div class={"icon-label #{if item.action == "toggle_phish" && @show_phish, do: "selected-label"}"}><%= item.name %></div>
                         </div>
@@ -917,6 +926,19 @@ defmodule BlogWeb.TerminalLive do
 
       .icon-section:hover {
         background: rgba(0, 0, 0, 0.03);
+      }
+
+      /* Tippy tooltip theme */
+      .tippy-box[data-theme~='finder'] {
+        background: #000;
+        color: #fff;
+        font-size: 11px;
+        font-family: "Geneva", "Chicago", "Helvetica Neue", sans-serif;
+        border-radius: 2px;
+        padding: 2px 4px;
+      }
+      .tippy-box[data-theme~='finder'] > .tippy-arrow::before {
+        color: #000;
       }
 
       .section-label {

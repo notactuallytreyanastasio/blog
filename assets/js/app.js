@@ -34,6 +34,8 @@ import FlipCard from "./hooks/flip_card"
 import PhishChart from "./hooks/phish_chart"
 import PhishAudio from "./hooks/phish_audio"
 import NycMap from "./hooks/nyc_map"
+import tippy from "tippy.js"
+import "tippy.js/dist/tippy.css"
 //# import * as THREE from 'three';
 
 // Sunflower Background Animation
@@ -723,6 +725,31 @@ Hooks.ScrollToTop = {
   }
 }
 
+// Tippy.js tooltips for finder icons
+const Tooltip = {
+  mounted() {
+    this.initTippy()
+  },
+  updated() {
+    if (this._tippy) this._tippy.destroy()
+    this.initTippy()
+  },
+  destroyed() {
+    if (this._tippy) this._tippy.destroy()
+  },
+  initTippy() {
+    const content = this.el.dataset.tooltip
+    if (content) {
+      this._tippy = tippy(this.el, {
+        content: content,
+        placement: "bottom",
+        delay: [200, 0],
+        theme: "finder"
+      })
+    }
+  }
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
@@ -744,6 +771,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     PhishChart,
     PhishAudio,
     NycMap,
+    Tooltip,
     ...Hooks
   }
 })
