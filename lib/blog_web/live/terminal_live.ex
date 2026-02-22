@@ -928,17 +928,43 @@ defmodule BlogWeb.TerminalLive do
         background: rgba(0, 0, 0, 0.03);
       }
 
-      /* Tippy tooltip theme */
-      .tippy-box[data-theme~='finder'] {
-        background: #000;
+      /* Tippy.js base styles */
+      .tippy-box {
+        position: relative;
+        background-color: #000;
         color: #fff;
+        border-radius: 2px;
         font-size: 11px;
         font-family: "Geneva", "Chicago", "Helvetica Neue", sans-serif;
-        border-radius: 2px;
-        padding: 2px 4px;
+        line-height: 1.4;
+        outline: 0;
+        padding: 4px 8px;
       }
-      .tippy-box[data-theme~='finder'] > .tippy-arrow::before {
+      .tippy-box[data-placement^='top'] > .tippy-arrow { bottom: 0; }
+      .tippy-box[data-placement^='top'] > .tippy-arrow::before {
+        bottom: -7px; left: 0;
+        border-width: 8px 8px 0;
+        border-top-color: #000;
+      }
+      .tippy-box[data-placement^='bottom'] > .tippy-arrow { top: 0; }
+      .tippy-box[data-placement^='bottom'] > .tippy-arrow::before {
+        top: -7px; left: 0;
+        border-width: 0 8px 8px;
+        border-bottom-color: #000;
+      }
+      .tippy-arrow {
+        width: 16px; height: 16px;
         color: #000;
+      }
+      .tippy-arrow::before {
+        content: '';
+        position: absolute;
+        border-color: transparent;
+        border-style: solid;
+      }
+      .tippy-content {
+        position: relative;
+        z-index: 1;
       }
 
       .section-label {

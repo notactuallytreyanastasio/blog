@@ -35,7 +35,6 @@ import PhishChart from "./hooks/phish_chart"
 import PhishAudio from "./hooks/phish_audio"
 import NycMap from "./hooks/nyc_map"
 import tippy from "tippy.js"
-import "tippy.js/dist/tippy.css"
 //# import * as THREE from 'three';
 
 // Sunflower Background Animation
@@ -744,7 +743,7 @@ const Tooltip = {
         content: content,
         placement: "bottom",
         delay: [200, 0],
-        theme: "finder"
+        appendTo: document.body
       })
     }
   }
