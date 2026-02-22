@@ -28,6 +28,10 @@ if config_env() == :prod do
   # Live draft API token (for streaming posts from editor)
   config :blog, :live_draft_api_token, System.get_env("LIVE_DRAFT_TOKEN")
 
+  # Finder admin password
+  config :blog, :finder_admin_password,
+    System.get_env("FINDER_ADMIN_PASSWORD") || "letmein"
+
   # Check if DATABASE_URL is set as environment variable
   database_url =
     System.get_env("DATABASE_URL") ||

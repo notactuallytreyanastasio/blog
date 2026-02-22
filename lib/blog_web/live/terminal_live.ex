@@ -68,62 +68,8 @@ defmodule BlogWeb.TerminalLive do
     end
   end
 
-  # Grouped by tour sections
-  @toys [
-    %{name: "Blog", icon: "📝", path: "/blog"},
-    %{name: "Pong", icon: "🏓", path: "/pong"},
-    %{name: "Pong God View", icon: "👁️", path: "/pong/god"},
-    %{name: "Wordle", icon: "🔤", path: "/wordle"},
-    %{name: "Wordle God", icon: "🎯", path: "/wordle_god"},
-    %{name: "Blackjack", icon: "🃏", path: "/blackjack"},
-    %{name: "War", icon: "⚔️", path: "/war"},
-    %{name: "Art", icon: "🎨", path: "/generative-art"},
-    %{name: "Bezier", icon: "📐", path: "/bezier-triangles"},
-    %{name: "Chaos", icon: "🌈", path: "/gay_chaos"},
-    %{name: "Cursor", icon: "🖱️", path: "/cursor-tracker"},
-    %{name: "Typewriter", icon: "⌨️", path: "/typewriter"},
-    %{name: "Code Mirror", icon: "🪞", path: "/mirror"},
-    %{name: "Role Call", icon: "📺", path: "/role-call"},
-    %{name: "Python", icon: "🐍", path: "/python-demo"},
-    %{name: "Markdown", icon: "✍️", path: "/markdown-editor"}
-  ]
-
-  @bluesky [
-    %{name: "Emoji Skeets", icon: "😀", path: "/emoji-skeets"},
-    %{name: "Bluesky YT", icon: "📺", path: "/reddit-links"},
-    %{name: "No Words Chat", icon: "💬", path: "/allowed-chats"}
-  ]
-
-  @nathan [
-    %{name: "Nathan", icon: "😐", path: "/nathan"},
-    %{name: "Nathan HP", icon: "📖", path: "/nathan_harpers"},
-    %{name: "Nathan TV", icon: "👗", path: "/nathan_teen_vogue"},
-    %{name: "Nathan BF", icon: "📋", path: "/nathan_buzzfeed"},
-    %{name: "Nathan UN", icon: "💻", path: "/nathan_usenet"},
-    %{name: "Nathan CF", icon: "🌾", path: "/nathan_content_farm"},
-    %{name: "Nathan Cmp", icon: "⚖️", path: "/nathan_comparison"},
-    %{name: "Nathan ASCII", icon: "🔣", path: "/nathan_ascii"}
-  ]
-
-  @trees [
-    %{name: "300+ Yrs Tree Law", icon: "🌳", path: "/trees"}
-  ]
-
-  @receipt [
-    %{name: "Receipt", icon: "🧾", path: "/very_direct_message"}
-  ]
-
-  @utilities [
-    %{name: "HN", icon: "📡", path: "/hacker-news"},
-    %{name: "Bookmarks", icon: "🔖", path: "/bookmarks"},
-    %{name: "MTA Map", icon: "🚌", path: "/mta-bus-map"}
-  ]
-
-  @other [
-    %{name: "Trash", icon: "🗑️", path: nil}
-  ]
-
-  @programs @toys ++ @bluesky ++ @nathan ++ @trees ++ @receipt ++ @utilities ++ @other
+  # Icon sections and items are now loaded from the database.
+  # Manage them at /admin/finder
 
   def mount(_params, session, socket) do
     # Get visitor's IP from session (set by RemoteIp plug)
@@ -174,16 +120,13 @@ defmodule BlogWeb.TerminalLive do
     # Get blog posts
     blog_posts = Blog.Content.Post.all() |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
 
+    # Load icon sections from database
+    sections = Blog.Finder.list_sections_with_items()
+    all_items = Enum.flat_map(sections, & &1.items)
+
     {:ok, assign(socket,
-      programs: @programs,
-      # Program groups for template
-      toys: @toys,
-      bluesky: @bluesky,
-      nathan: @nathan,
-      trees: @trees,
-      receipt: @receipt,
-      utilities: @utilities,
-      other: @other,
+      sections: sections,
+      programs: all_items,
       selected: nil,
       time: format_time(),
       # Blog posts
@@ -457,58 +400,20 @@ defmodule BlogWeb.TerminalLive do
           </div>
           <div class="window-content">
             <div class="icon-grid">
-              <%!-- Fun Toys & Art Generators --%>
-              <div class="icon-section" data-joyride="toys-section">
-                <%= for program <- @toys do %>
-                  <.icon_item program={program} selected={@selected} />
-                <% end %>
-              </div>
-
-              <%!-- Bluesky / ATProto --%>
-              <div class="icon-section" data-joyride="bluesky-section">
-                <%= for program <- @bluesky do %>
-                  <.icon_item program={program} selected={@selected} />
-                <% end %>
-              </div>
-
-              <%!-- Nathan Fielder --%>
-              <div class="icon-section" data-joyride="nathan-section">
-                <%= for program <- @nathan do %>
-                  <.icon_item program={program} selected={@selected} />
-                <% end %>
-              </div>
-
-              <%!-- Single items with individual joyride targets --%>
-              <div class="icon-section">
-                <%= for program <- @trees do %>
-                  <.icon_item program={program} selected={@selected} joyride="trees-item" />
-                <% end %>
-                <%= for program <- @receipt do %>
-                  <.icon_item program={program} selected={@selected} joyride="receipt-item" />
-                <% end %>
-              </div>
-
-              <%!-- Utilities: HN, Bookmarks, MTA --%>
-              <div class="icon-section" data-joyride="utilities-section">
-                <%= for program <- @utilities do %>
-                  <.icon_item program={program} selected={@selected} />
-                <% end %>
-              </div>
-
-              <%!-- Music --%>
-              <div class="icon-section">
-                <div class="icon" phx-click="toggle_phish">
-                  <div class="icon-image">🐟</div>
-                  <div class={"icon-label #{if @show_phish, do: "selected-label"}"}>Phish Stats</div>
+              <%= for section <- @sections do %>
+                <div class="icon-section" data-joyride={section.joyride_target}>
+                  <%= for item <- section.items do %>
+                    <%= if item.action do %>
+                      <div class="icon" phx-click={item.action} data-joyride={item.joyride_target}>
+                        <div class="icon-image"><%= item.icon %></div>
+                        <div class={"icon-label #{if item.action == "toggle_phish" && @show_phish, do: "selected-label"}"}><%= item.name %></div>
+                      </div>
+                    <% else %>
+                      <.icon_item program={item} selected={@selected} joyride={item.joyride_target} />
+                    <% end %>
+                  <% end %>
                 </div>
-              </div>
-
-              <%!-- Other --%>
-              <div class="icon-section">
-                <%= for program <- @other do %>
-                  <.icon_item program={program} selected={@selected} />
-                <% end %>
-              </div>
+              <% end %>
             </div>
           </div>
           <div class="status-bar">
@@ -516,6 +421,24 @@ defmodule BlogWeb.TerminalLive do
             <span><%= @total_online %> online</span>
           </div>
         </div>
+
+        <!-- Phish Jamchart Window -->
+        <%= if @show_phish do %>
+          <div class={"phish-embed-window mobile-window-phish #{if @mobile_window == :phish, do: "mobile-active"}"} phx-hook="Draggable" id="phish-window">
+            <div class="title-bar">
+              <div class="close-box" phx-click="toggle_phish"></div>
+              <div class="title">phangraphs — Phish 3.0 Jam Analytics</div>
+              <div class="resize-box"></div>
+            </div>
+            <div class="phish-embed-content">
+              <.live_component module={BlogWeb.PhishComponent} id="phish-embed" />
+            </div>
+            <div class="status-bar">
+              <span>phangraphs</span>
+              <span>Phish 3.0 Jam Analytics</span>
+            </div>
+          </div>
+        <% end %>
 
         <!-- Blog Posts Window -->
         <div class={"blog-window mobile-window-blog #{if @mobile_window == :blog, do: "mobile-active"}"} phx-hook="Draggable" id="blog-window">
@@ -551,24 +474,6 @@ defmodule BlogWeb.TerminalLive do
             <span><%= @total_online %> <%= if @total_online == 1, do: "reader", else: "readers" %></span>
           </div>
         </div>
-
-        <!-- Phish Jamchart Window -->
-        <%= if @show_phish do %>
-          <div class={"phish-embed-window mobile-window-phish #{if @mobile_window == :phish, do: "mobile-active"}"} phx-hook="Draggable" id="phish-window">
-            <div class="title-bar">
-              <div class="close-box" phx-click="toggle_phish"></div>
-              <div class="title">phangraphs — Phish 3.0 Jam Analytics</div>
-              <div class="resize-box"></div>
-            </div>
-            <div class="phish-embed-content">
-              <.live_component module={BlogWeb.PhishComponent} id="phish-embed" />
-            </div>
-            <div class="status-bar">
-              <span>phangraphs</span>
-              <span>Phish 3.0 Jam Analytics</span>
-            </div>
-          </div>
-        <% end %>
 
         <!-- Psychedelic Tree (always visible, transparent background) -->
         <div class="tree-container" id="tree-wrapper" phx-update="ignore">
@@ -737,14 +642,14 @@ defmodule BlogWeb.TerminalLive do
         height: 100vh;
         background: #a8a8a8;
         font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
-        font-size: 12px;
+        font-size: 14px;
         cursor: default;
         -webkit-font-smoothing: none;
       }
 
       /* Menu Bar */
       .menu-bar {
-        height: 20px;
+        height: 24px;
         background: #fff;
         border-bottom: 1px solid #000;
         display: flex;
@@ -760,7 +665,7 @@ defmodule BlogWeb.TerminalLive do
 
       .apple-menu {
         font-family: system-ui;
-        font-size: 14px;
+        font-size: 16px;
       }
 
       .menu-item {
@@ -773,12 +678,12 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .menu-right {
-        font-size: 11px;
+        font-size: 13px;
       }
 
       /* Desktop */
       .desktop {
-        height: calc(100vh - 20px);
+        height: calc(100vh - 24px);
         padding: 20px;
         background: repeating-linear-gradient(
           0deg,
@@ -794,8 +699,8 @@ defmodule BlogWeb.TerminalLive do
 
       /* Window (Icons/Finder) */
       .window {
-        width: 260px;
-        min-width: 240px;
+        width: 780px;
+        min-width: 720px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
@@ -822,7 +727,7 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .blog-window .title-bar {
-        height: 20px;
+        height: 24px;
         background: #fff;
         border-bottom: 1px solid #000;
         display: flex;
@@ -869,7 +774,7 @@ defmodule BlogWeb.TerminalLive do
       .blog-post-row {
         display: flex;
         align-items: center;
-        padding: 6px 10px;
+        padding: 8px 12px;
         border-bottom: 1px solid #ccc;
         text-decoration: none;
         color: inherit;
@@ -891,9 +796,9 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .blog-post-icon {
-        font-size: 20px;
+        font-size: 22px;
         margin-right: 10px;
-        width: 24px;
+        width: 26px;
         text-align: center;
       }
 
@@ -904,7 +809,7 @@ defmodule BlogWeb.TerminalLive do
 
       .blog-post-title {
         font-weight: bold;
-        font-size: 12px;
+        font-size: 14px;
         margin-bottom: 2px;
         white-space: nowrap;
         overflow: hidden;
@@ -912,7 +817,7 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .blog-post-meta {
-        font-size: 10px;
+        font-size: 12px;
         color: #666;
         display: flex;
         align-items: center;
@@ -930,22 +835,22 @@ defmodule BlogWeb.TerminalLive do
         background: #e0e0e0;
         padding: 1px 5px;
         border-radius: 2px;
-        font-size: 9px;
+        font-size: 11px;
       }
 
       .blog-window .status-bar {
-        height: 20px;
+        height: 22px;
         border-top: 1px solid #000;
         background: #fff;
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 0 8px;
-        font-size: 10px;
+        font-size: 12px;
       }
 
       .title-bar {
-        height: 20px;
+        height: 24px;
         background: #fff;
         border-bottom: 1px solid #000;
         display: flex;
@@ -1026,29 +931,29 @@ defmodule BlogWeb.TerminalLive do
       }
 
       .icon-image {
-        font-size: 26px;
-        height: 32px;
+        font-size: 28px;
+        height: 34px;
         display: flex;
         align-items: center;
         justify-content: center;
       }
 
       .icon-label {
-        font-size: 9px;
+        font-size: 11px;
         margin-top: 1px;
         padding: 1px 2px;
         word-wrap: break-word;
       }
 
       .status-bar {
-        height: 20px;
+        height: 22px;
         border-top: 1px solid #000;
         background: #fff;
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 0 8px;
-        font-size: 10px;
+        font-size: 12px;
       }
 
       /* Double click to open */
@@ -1065,7 +970,6 @@ defmodule BlogWeb.TerminalLive do
         box-shadow: 1px 1px 0 #000;
         flex-shrink: 0;
         align-self: flex-start;
-        margin-left: auto;
       }
 
       .phish-embed-content {

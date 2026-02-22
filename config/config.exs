@@ -63,6 +63,9 @@ config :phoenix, :json_library, Jason
 # Live draft API token (dev default)
 config :blog, :live_draft_api_token, "dev-live-draft-token"
 
+# Finder admin password (override in prod via FINDER_ADMIN_PASSWORD env var)
+config :blog, :finder_admin_password, "letmein"
+
 # Import receipt printer configuration
 import_config "receipt_printer.exs"
 

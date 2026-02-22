@@ -91,6 +91,8 @@ defmodule BlogWeb.Router do
     live "/smart-steps/connect", SmartStepsLive.Connect, :connect
     live "/smart-steps/designer", SmartStepsLive.Designer, :designer
     live "/smart-steps/demo", SmartStepsLive.Demo, :demo
+
+    live "/admin/finder", FinderAdminLive, :index
   end
 
   scope "/", BlogWeb do
