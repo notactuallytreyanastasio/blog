@@ -81,6 +81,10 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
         <h1 class="nyc-title">How Many People Live Here?</h1>
         <p class="nyc-subtitle">Draw a shape on the map to estimate population.</p>
 
+        <button id="heatmap-toggle" class="nyc-heatmap-btn">
+          Show Density Heatmap
+        </button>
+
         <div :if={@loading} class="nyc-loading">
           <div class="nyc-spinner"></div>
           <p>Estimating population...</p>

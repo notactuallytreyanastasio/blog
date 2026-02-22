@@ -215,34 +215,36 @@ const NycMap = {
     if (!points || !points.length) return
 
     this.heatLayer = L.heatLayer(points, {
-      radius: 25,
-      blur: 20,
-      maxZoom: 15,
+      radius: 14,
+      blur: 8,
+      maxZoom: 18,
       max: Math.max(...points.map((p) => p[2])),
-      gradient: { 0.2: "#3b82f6", 0.4: "#06b6d4", 0.6: "#22c55e", 0.8: "#eab308", 1.0: "#ef4444" },
+      gradient: {
+        0.1: "#312e81",
+        0.2: "#3b82f6",
+        0.3: "#06b6d4",
+        0.4: "#10b981",
+        0.5: "#22c55e",
+        0.6: "#84cc16",
+        0.7: "#eab308",
+        0.8: "#f97316",
+        0.9: "#ef4444",
+        1.0: "#991b1b",
+      },
     })
     this.heatmapVisible = false
 
-    this.addHeatmapControl()
+    this.wireHeatmapButton()
   },
 
-  addHeatmapControl() {
-    const HeatmapToggle = L.Control.extend({
-      options: { position: "bottomright" },
-      onAdd: () => {
-        const container = L.DomUtil.create("div", "leaflet-bar nyc-heatmap-toggle")
-        container.innerHTML = '<a href="#" title="Toggle population heatmap">&#x1f525;</a>'
-        container.querySelector("a").addEventListener("click", (e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          this.toggleHeatmap()
-          container.classList.toggle("active", this.heatmapVisible)
-        })
-        L.DomEvent.disableClickPropagation(container)
-        return container
-      },
+  wireHeatmapButton() {
+    const btn = document.getElementById("heatmap-toggle")
+    if (!btn) return
+    btn.addEventListener("click", () => {
+      this.toggleHeatmap()
+      btn.classList.toggle("active", this.heatmapVisible)
+      btn.textContent = this.heatmapVisible ? "Hide Density Heatmap" : "Show Density Heatmap"
     })
-    this.map.addControl(new HeatmapToggle())
   },
 
   toggleHeatmap() {
@@ -250,7 +252,7 @@ const NycMap = {
     if (this.heatmapVisible) {
       this.map.removeLayer(this.heatLayer)
     } else {
-      this.heatLayer.setOptions({ opacity: 0.3 })
+      this.heatLayer.setOptions({ opacity: 0.35 })
       this.heatLayer.addTo(this.map)
     }
     this.heatmapVisible = !this.heatmapVisible
