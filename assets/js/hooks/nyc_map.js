@@ -9,6 +9,12 @@ const NycMap = {
       this.clearMarkers()
       this.renderMarkers(data.lots)
     })
+
+    this.handleEvent("heatmap_data", (data) => {
+      this.loadHeatPlugin().then(() => {
+        this.buildHeatmap(data.points)
+      })
+    })
   },
 
   loadLeaflet() {
@@ -190,6 +196,64 @@ const NycMap = {
 
       this.markers.addLayer(marker)
     })
+  },
+
+  // Heatmap
+
+  loadHeatPlugin() {
+    return new Promise((resolve) => {
+      if (window.L && window.L.heatLayer) { resolve(); return }
+
+      const script = document.createElement("script")
+      script.src = "https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+      script.onload = () => resolve()
+      document.head.appendChild(script)
+    })
+  },
+
+  buildHeatmap(points) {
+    if (!points || !points.length) return
+
+    this.heatLayer = L.heatLayer(points, {
+      radius: 25,
+      blur: 20,
+      maxZoom: 15,
+      max: Math.max(...points.map((p) => p[2])),
+      gradient: { 0.2: "#3b82f6", 0.4: "#06b6d4", 0.6: "#22c55e", 0.8: "#eab308", 1.0: "#ef4444" },
+    })
+    this.heatmapVisible = false
+
+    this.addHeatmapControl()
+  },
+
+  addHeatmapControl() {
+    const HeatmapToggle = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd: () => {
+        const container = L.DomUtil.create("div", "leaflet-bar nyc-heatmap-toggle")
+        container.innerHTML = '<a href="#" title="Toggle population heatmap">&#x1f525;</a>'
+        container.querySelector("a").addEventListener("click", (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          this.toggleHeatmap()
+          container.classList.toggle("active", this.heatmapVisible)
+        })
+        L.DomEvent.disableClickPropagation(container)
+        return container
+      },
+    })
+    this.map.addControl(new HeatmapToggle())
+  },
+
+  toggleHeatmap() {
+    if (!this.heatLayer) return
+    if (this.heatmapVisible) {
+      this.map.removeLayer(this.heatLayer)
+    } else {
+      this.heatLayer.setOptions({ opacity: 0.3 })
+      this.heatLayer.addTo(this.map)
+    }
+    this.heatmapVisible = !this.heatmapVisible
   },
 
   popColor(intensity) {

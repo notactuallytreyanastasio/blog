@@ -40,4 +40,25 @@ defmodule Blog.Pluto do
     |> Repo.all()
     |> Map.new()
   end
+
+  @doc """
+  Returns census tract centroids with total residential units.
+
+  Computes avg(lat), avg(lng) for lots in each tract.
+  Returns list of `%{bct2020, lat, lng, units}`.
+  """
+  @spec tract_centroids() :: [%{bct2020: String.t(), lat: float(), lng: float(), units: integer()}]
+  def tract_centroids do
+    Lot
+    |> where([l], not is_nil(l.bct2020) and l.bct2020 != "")
+    |> where([l], not is_nil(l.latitude) and not is_nil(l.longitude))
+    |> group_by([l], l.bct2020)
+    |> select([l], %{
+      bct2020: l.bct2020,
+      lat: avg(l.latitude),
+      lng: avg(l.longitude),
+      units: sum(l.units_res)
+    })
+    |> Repo.all()
+  end
 end

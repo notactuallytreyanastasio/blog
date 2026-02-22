@@ -2800,3 +2800,25 @@ details[open] summary {
 .onboarding-btn:hover {
   background: #2563eb;
 }
+
+.nyc-heatmap-toggle a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+  text-decoration: none;
+  background: white;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.nyc-heatmap-toggle a:hover {
+  opacity: 1;
+}
+
+.nyc-heatmap-toggle.active a {
+  background: #1e3a5f;
+  opacity: 1;
+}
