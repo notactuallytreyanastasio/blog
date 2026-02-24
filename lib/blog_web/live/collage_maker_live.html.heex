@@ -1,0 +1,300 @@
+<div class="flex items-start justify-center min-h-screen p-4 pt-8">
+  <div class="os-window-mac" style="width: 640px; max-width: 95vw;">
+    <div class="os-titlebar">
+      <a href="/" class="os-btn-close" title="Close"></a>
+      <div class="os-titlebar-title">Collage Maker</div>
+    </div>
+
+    <div class="os-content" style="padding: 0;">
+      <%!-- Menu bar --%>
+      <div style="border-bottom: 1px solid #000; background: #fff; padding: 2px 8px; display: flex; gap: 16px; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px;">
+        <span style="font-weight: bold;">File</span>
+        <span>Edit</span>
+        <span style="color: #999;">View</span>
+        <span style="margin-left: auto; color: #666;">
+          <%= case @step do %>
+            <% :upload -> %>Step 1 of 4
+            <% :configure -> %>Step 2 of 4
+            <% :captcha -> %>Step 3 of 4
+            <% :processing -> %>Working...
+            <% :result -> %>Complete
+          <% end %>
+        </span>
+      </div>
+
+      <div style="padding: 12px; background: #fff;">
+        <%!-- Error display --%>
+        <%= if @error do %>
+          <div style="border: 2px solid #000; padding: 8px 12px; margin-bottom: 10px; background: #fff; display: flex; gap: 8px; align-items: center; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px;">
+            <span style="font-size: 20px;">&#x26A0;</span>
+            <span>{@error}</span>
+          </div>
+        <% end %>
+
+        <%!-- STEP: Upload --%>
+        <%= if @step == :upload do %>
+          <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-bottom: 10px;">
+            Select images to include in your collage.
+          </div>
+
+          <form id="upload-form" phx-change="validate_uploads" phx-submit="next_configure">
+            <%!-- Drop zone styled as an inset well --%>
+            <div
+              phx-drop-target={@uploads.images.ref}
+              style="border: 2px inset #c0c0c0; background: #eee; padding: 20px; text-align: center; margin-bottom: 8px;"
+            >
+              <.live_file_input upload={@uploads.images} style="display: none;" />
+              <label for={@uploads.images.ref} style="cursor: pointer; display: block;">
+                <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 24px; margin-bottom: 4px;">&#x1F4C1;</div>
+                <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; font-weight: bold;">
+                  Drop files here or click to browse
+                </div>
+                <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #666; margin-top: 2px;">
+                  JPEG, PNG, WebP &middot; Up to 36 files &middot; 20 MB each
+                </div>
+              </label>
+            </div>
+
+            <%!-- Upload errors --%>
+            <%= for entry <- @uploads.images.entries do %>
+              <%= for err <- upload_errors(@uploads.images, entry) do %>
+                <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #900; margin-bottom: 2px;">
+                  {entry.client_name}: {error_to_string(err)}
+                </div>
+              <% end %>
+            <% end %>
+
+            <%!-- File list in an inset well --%>
+            <%= if length(@uploads.images.entries) > 0 do %>
+              <div style="border: 2px inset #c0c0c0; background: #fff; padding: 6px; margin-bottom: 8px; max-height: 200px; overflow-y: auto;">
+                <%= for entry <- @uploads.images.entries do %>
+                  <div style="display: flex; align-items: center; gap: 6px; padding: 2px 4px; font-family: Geneva, Helvetica, sans-serif; font-size: 11px; border-bottom: 1px solid #eee;">
+                    <span style="flex-shrink: 0;">&#x1F5BC;</span>
+                    <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      {entry.client_name}
+                    </span>
+                    <span style="color: #666; flex-shrink: 0;">
+                      {Float.round(entry.client_size / 1_000_000, 1)} MB
+                    </span>
+                    <%= if entry.progress > 0 and entry.progress < 100 do %>
+                      <span style="color: #333; flex-shrink: 0; min-width: 30px; text-align: right;">
+                        {entry.progress}%
+                      </span>
+                    <% end %>
+                    <button type="button" phx-click="remove_image" phx-value-ref={entry.ref}
+                      style="border: 1px solid #999; background: #eee; font-size: 10px; padding: 0 4px; cursor: pointer; flex-shrink: 0;">
+                      &times;
+                    </button>
+                  </div>
+                <% end %>
+              </div>
+
+              <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #333; margin-bottom: 8px;">
+                {length(@uploads.images.entries)} item{if length(@uploads.images.entries) != 1, do: "s"}
+              </div>
+            <% end %>
+
+            <%!-- Button bar with separator line --%>
+            <div style="border-top: 1px solid #999; padding-top: 8px; text-align: right;">
+              <button type="submit" class="gm-btn gm-btn-primary" disabled={length(@uploads.images.entries) < 2}>
+                Continue
+              </button>
+            </div>
+          </form>
+        <% end %>
+
+        <%!-- STEP: Configure --%>
+        <%= if @step == :configure do %>
+          <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-bottom: 10px;">
+            Choose how to arrange your {length(@uploads.images.entries)} images.
+          </div>
+
+          <%!-- Settings group box --%>
+          <div style="border: 1px solid #000; padding: 10px 12px; margin-bottom: 10px; position: relative;">
+            <div style="position: absolute; top: -8px; left: 10px; background: #fff; padding: 0 4px; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 11px; font-weight: bold;">
+              Grid Settings
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-top: 4px;">
+              <label>Columns:</label>
+              <input
+                type="range"
+                min="1"
+                max="8"
+                value={@columns}
+                phx-change="set_columns"
+                name="columns"
+                class="cm-slider"
+              />
+              <span style="font-weight: bold; min-width: 16px; text-align: center;">{@columns}</span>
+            </div>
+
+            <% count = length(@uploads.images.entries) %>
+            <% rows = ceil(count / @columns) %>
+            <% last_row_count = count - (@columns * (rows - 1)) %>
+
+            <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #333; margin-top: 6px;">
+              {@columns} &times; {rows} grid
+              <%= if last_row_count < @columns do %>
+                &middot; last row: {last_row_count} image{if last_row_count != 1, do: "s"}, centered
+              <% end %>
+            </div>
+          </div>
+
+          <%!-- Preview in inset well --%>
+          <div style="border: 2px inset #c0c0c0; background: #eee; padding: 8px; margin-bottom: 10px;">
+            <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #666; margin-bottom: 4px;">Preview:</div>
+            <div style={"display: grid; grid-template-columns: repeat(#{@columns}, 1fr); gap: 2px; max-width: 320px; margin: 0 auto;"}>
+              <%= for i <- 0..(count - 1) do %>
+                <div class="cm-preview-cell">{i + 1}</div>
+              <% end %>
+            </div>
+          </div>
+
+          <%!-- Button bar --%>
+          <div style="border-top: 1px solid #999; padding-top: 8px; display: flex; justify-content: space-between;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" class="gm-btn" phx-click="back_to_upload">Back</button>
+              <button type="button" class="gm-btn" phx-click="randomize">Shuffle</button>
+              <%= if @shuffle_count && @shuffle_count > 0 do %>
+                <span style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #666;">
+                  Shuffled {if @shuffle_count > 1, do: "#{@shuffle_count}x", else: ""}&#x2713;
+                </span>
+              <% end %>
+            </div>
+            <button type="button" class="gm-btn gm-btn-primary" phx-click="next_captcha">Continue</button>
+          </div>
+        <% end %>
+
+        <%!-- STEP: CAPTCHA (System 7 alert dialog) --%>
+        <%= if @step == :captcha do %>
+          <div style="padding: 20px 0;">
+            <div style="border: 2px solid #000; box-shadow: 3px 3px 0 #000; background: #fff; max-width: 360px; margin: 0 auto; padding: 16px;">
+              <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <%!-- System 7 caution icon --%>
+                <div style="width: 32px; height: 32px; border: 2px solid #000; display: flex; align-items: center; justify-content: center; font-family: Chicago, sans-serif; font-size: 22px; font-weight: bold; flex-shrink: 0;">
+                  !
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+                    Before we begin, a quick check:
+                  </div>
+                  <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-bottom: 10px;">
+                    What is <strong>{@captcha_question}</strong>?
+                  </div>
+                  <form phx-submit="verify_captcha" style="display: flex; align-items: center; gap: 6px;">
+                    <input
+                      type="text"
+                      name="answer"
+                      value={@captcha_answer}
+                      phx-change="update_captcha"
+                      class="gm-input"
+                      style="width: 70px;"
+                      autofocus
+                      autocomplete="off"
+                    />
+                    <button type="submit" class="gm-btn gm-btn-primary">OK</button>
+                    <button type="button" class="gm-btn" phx-click="back_to_configure">Cancel</button>
+                  </form>
+                  <%= if @captcha_error do %>
+                    <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #900; margin-top: 6px;">
+                      {@captcha_error}
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- STEP: Processing --%>
+        <%= if @step == :processing do %>
+          <div style="padding: 24px 12px; text-align: center;">
+            <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-bottom: 12px;">
+              {@processing_message || "Processing..."}
+            </div>
+            <%!-- System 7 barber-pole progress bar --%>
+            <div style="border: 1px solid #000; height: 16px; width: 70%; margin: 0 auto; background: #fff; overflow: hidden;">
+              <div style="height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #000 0px, #000 4px, #fff 4px, #fff 6px); animation: cm-pulse 1.5s ease-in-out infinite;"></div>
+            </div>
+            <div style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #666; margin-top: 8px;">
+              Please wait&hellip;
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- STEP: Result --%>
+        <%= if @step == :result do %>
+          <%= if @collage && @collage.status == "ready" do %>
+            <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-bottom: 10px;">
+              <strong>Collage complete.</strong>
+              {if @collage.collage_width, do: "#{@collage.collage_width} x #{@collage.collage_height} pixels"}
+              {if @collage.collage_file_size, do: " (#{Float.round(@collage.collage_file_size / 1_000_000, 1)} MB)"}
+            </div>
+
+            <%!-- Preview in inset well --%>
+            <div style="border: 2px inset #c0c0c0; background: #808080; padding: 4px; margin-bottom: 10px;">
+              <img
+                src={Blog.Storage.url(@collage.collage_s3_key)}
+                alt="Collage"
+                style="width: 100%; height: auto; display: block;"
+              />
+            </div>
+
+            <%!-- Action buttons --%>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+              <a
+                href={Blog.Storage.url(@collage.collage_s3_key)}
+                download="collage.jpg"
+                target="_blank"
+                class="gm-btn gm-btn-primary"
+                style="text-decoration: none;"
+              >
+                Save to Disk
+              </a>
+              <a
+                href={~p"/collage/#{@collage.share_token}"}
+                target="_blank"
+                class="gm-btn"
+                style="text-decoration: none;"
+              >
+                Open Viewer
+              </a>
+            </div>
+
+            <%!-- Share info in inset well --%>
+            <div style="border: 2px inset #c0c0c0; background: #fff; padding: 6px 8px; margin-bottom: 10px; font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #333;">
+              Share: <span style="font-family: Monaco, Courier, monospace;">{@share_url}</span>
+              <br/>This link expires in 24 hours.
+            </div>
+
+            <div style="border-top: 1px solid #999; padding-top: 8px;">
+              <button type="button" class="gm-btn" phx-click="start_over">New Collage</button>
+            </div>
+          <% else %>
+            <div style="padding: 24px 12px; text-align: center;">
+              <div style="border: 2px solid #000; box-shadow: 3px 3px 0 #000; display: inline-block; padding: 16px 24px; background: #fff;">
+                <div style="font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; margin-bottom: 10px;">
+                  <strong>An error occurred:</strong>
+                  <br/>{@error || "Unknown error"}
+                </div>
+                <button type="button" class="gm-btn gm-btn-primary" phx-click="start_over">OK</button>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="os-statusbar">
+      <span style="font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #333;">
+        <%= case @step do %>
+          <% :upload -> %>{length(@uploads.images.entries)} items
+          <% :configure -> %>{@columns} columns
+          <% :captcha -> %>Verification required
+          <% :processing -> %>{@processing_message}
+          <% :result -> %>Ready
+        <% end %>
+      </span>
+    </div>
+  </div>
+</div>
