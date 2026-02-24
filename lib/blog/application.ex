@@ -67,7 +67,10 @@ defmodule Blog.Application do
       # Collage Maker subsystem
       {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
       Blog.CollageMaker.Processor,
-      Blog.CollageMaker.Cleanup
+      Blog.CollageMaker.Cleanup,
+      # HoseLinks - Viral Link Detector
+      Blog.HoseLinks.Listener,
+      Blog.HoseLinks.Cleanup
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -122,7 +125,10 @@ defmodule Blog.Application do
         # Collage Maker subsystem
         {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
         Blog.CollageMaker.Processor,
-        Blog.CollageMaker.Cleanup
+        Blog.CollageMaker.Cleanup,
+        # HoseLinks - Viral Link Detector
+        Blog.HoseLinks.Listener,
+        Blog.HoseLinks.Cleanup
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
