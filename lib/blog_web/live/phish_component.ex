@@ -7,12 +7,13 @@ defmodule BlogWeb.PhishComponent do
   @impl true
   def mount(socket) do
     years = Blog.Phish.list_years()
-    song_list = Blog.Phish.song_list("all")
+    year = Enum.random(years)
+    song_list = Blog.Phish.song_list(year)
 
     socket =
       assign(socket,
         years: years,
-        year: "all",
+        year: year,
         song_list: song_list,
         sorted_songs: [],
         selected_song: nil,
@@ -22,13 +23,13 @@ defmodule BlogWeb.PhishComponent do
         sort_by: "avg",
         min_played: 5,
         filter: "",
-        card_flipped: false,
+        card_flipped: true,
         list_filter: "jamcharts",
         expanded_idx: nil
       )
       |> assign_sorted_songs()
 
-    selected = default_song(socket.assigns.sorted_songs)
+    selected = random_top_song(socket.assigns.sorted_songs)
 
     socket =
       socket
@@ -57,7 +58,7 @@ defmodule BlogWeb.PhishComponent do
           |> assign(year: year, song_list: song_list)
           |> assign_sorted_songs()
 
-        selected = default_song(socket.assigns.sorted_songs)
+        selected = random_top_song(socket.assigns.sorted_songs)
 
         socket =
           socket
@@ -158,8 +159,11 @@ defmodule BlogWeb.PhishComponent do
     assign(socket, sorted_songs: sorted)
   end
 
-  defp default_song([first | _]), do: first.song_name
-  defp default_song([]), do: nil
+  defp random_top_song(sorted_songs) when length(sorted_songs) > 0 do
+    sorted_songs |> Enum.take(10) |> Enum.random() |> Map.get(:song_name)
+  end
+
+  defp random_top_song(_), do: nil
 
   defp parse_int(nil, default), do: default
 

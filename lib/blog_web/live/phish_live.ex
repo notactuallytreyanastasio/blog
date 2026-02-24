@@ -20,7 +20,7 @@ defmodule BlogWeb.PhishLive do
        sort_by: "avg",
        min_played: 5,
        filter: "",
-       card_flipped: false,
+       card_flipped: true,
        list_filter: "jamcharts",
        expanded_idx: nil
      )}
@@ -28,7 +28,7 @@ defmodule BlogWeb.PhishLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    year = params["year"] || "all"
+    year = params["year"] || Enum.random(socket.assigns.years)
     sort_by = params["sort"] || "avg"
     min_played = parse_int(params["min"], 5)
     filter = params["filter"] || ""
@@ -40,7 +40,7 @@ defmodule BlogWeb.PhishLive do
       |> assign(year: year, sort_by: sort_by, min_played: min_played, filter: filter, song_list: song_list)
       |> assign_sorted_songs()
 
-    selected_song = params["song"] || default_song(socket.assigns.sorted_songs)
+    selected_song = params["song"] || random_top_song(socket.assigns.sorted_songs)
 
     socket =
       socket
@@ -155,8 +155,11 @@ defmodule BlogWeb.PhishLive do
     assign(socket, sorted_songs: sorted)
   end
 
-  defp default_song([first | _]), do: first.song_name
-  defp default_song([]), do: nil
+  defp random_top_song(sorted_songs) when length(sorted_songs) > 0 do
+    sorted_songs |> Enum.take(10) |> Enum.random() |> Map.get(:song_name)
+  end
+
+  defp random_top_song(_), do: nil
 
   defp push_params(socket, new_params) do
     current = %{

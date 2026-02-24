@@ -84,7 +84,11 @@ defmodule Blog.Population.Estimator do
             units: lot.units_res || 0,
             estimated_pop: estimated_pop,
             bbl: lot.bbl,
-            bldg_class: lot.bldg_class
+            bldg_class: lot.bldg_class,
+            num_floors: lot.num_floors,
+            year_built: lot.year_built,
+            tract_pop: tract_pop,
+            tract_units: total_units
           }
         end)
       end)
