@@ -187,12 +187,33 @@ const NycMap = {
 
       const address = lot.address || "Unknown"
       const units = lot.units || 0
-      marker.bindPopup(
-        `<strong>${address}</strong><br/>` +
-        `Est. population: <strong>${Math.round(pop)}</strong><br/>` +
-        `Residential units: ${units}<br/>` +
-        `BBL: ${lot.bbl || "N/A"}`
-      )
+      const floors = lot.num_floors
+      const yearBuilt = lot.year_built
+      const tractPop = lot.tract_pop || 0
+      const tractUnits = lot.tract_units || 0
+
+      let details = `<strong>${address}</strong><br/>`
+      details += `Est. population: <strong>${Math.round(pop)}</strong><br/>`
+      details += `Residential units: <strong>${units}</strong><br/>`
+
+      if (units > 0 && pop > 0) {
+        const ppu = (pop / units).toFixed(1)
+        const pct = tractUnits > 0 ? ((units / tractUnits) * 100).toFixed(1) : null
+        details += `<span style="color:#6b7280;font-size:12px">`
+        details += `~${ppu} people per unit`
+        if (pct !== null) {
+          details += ` &middot; ${pct}% of tract's ${tractUnits.toLocaleString()} units`
+        }
+        details += `</span><br/>`
+      } else if (units === 0) {
+        details += `<span style="color:#6b7280;font-size:12px">Non-residential lot</span><br/>`
+      }
+
+      if (floors) details += `Floors: ${floors}<br/>`
+      if (yearBuilt && yearBuilt > 0) details += `Built: ${yearBuilt}<br/>`
+      details += `<span style="color:#9ca3af;font-size:11px">BBL: ${lot.bbl || "N/A"}</span>`
+
+      marker.bindPopup(details)
 
       this.markers.addLayer(marker)
     })

@@ -1,5 +1,8 @@
 {
   "dependencies": {
+    "@deck.gl/core": "^9.2.9",
+    "@deck.gl/extensions": "^9.2.9",
+    "@deck.gl/layers": "^9.2.9",
     "d3": "^7.9.0",
     "tippy.js": "^6.3.7"
   }

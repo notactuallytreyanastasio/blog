@@ -34,6 +34,10 @@ import FlipCard from "./hooks/flip_card"
 import PhishChart from "./hooks/phish_chart"
 import PhishAudio from "./hooks/phish_audio"
 import NycMap from "./hooks/nyc_map"
+import GifMakerFrames from "./hooks/gif_maker_frames"
+import CollageViewer from "./hooks/collage_viewer"
+import SkyMap from "./hooks/sky_map"
+import LeicaViewer from "./hooks/leica_viewer"
 import tippy from "tippy.js"
 //# import * as THREE from 'three';
 
@@ -598,6 +602,74 @@ Hooks.PsychedelicTree = {
   }
 };
 
+Hooks.Sortable = {
+  mounted() {
+    const container = this.el;
+    let dragEl = null;
+    let placeholder = null;
+
+    const getItems = () => Array.from(container.querySelectorAll("[data-sort-id]"));
+
+    const onDragStart = (e) => {
+      const row = e.target.closest("[data-sort-id]");
+      if (!row) return;
+      dragEl = row;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", "");
+      requestAnimationFrame(() => {
+        dragEl.style.opacity = "0.4";
+        placeholder = document.createElement("div");
+        placeholder.style.height = dragEl.offsetHeight + "px";
+        placeholder.style.background = "#d0e8ff";
+        placeholder.style.border = "2px dashed #4a90d9";
+        placeholder.style.boxSizing = "border-box";
+        placeholder.dataset.placeholder = "true";
+      });
+    };
+
+    const onDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (!dragEl) return;
+      const target = e.target.closest("[data-sort-id]");
+      if (!target || target === dragEl || target.dataset.placeholder) return;
+      const rect = target.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        container.insertBefore(dragEl, target);
+      } else {
+        container.insertBefore(dragEl, target.nextSibling);
+      }
+    };
+
+    const onDragEnd = (e) => {
+      if (!dragEl) return;
+      dragEl.style.opacity = "1";
+      if (placeholder && placeholder.parentNode) {
+        placeholder.parentNode.removeChild(placeholder);
+      }
+      placeholder = null;
+      // Collect new order
+      const ids = getItems().map(el => el.dataset.sortId);
+      this.pushEvent("reorder_projects", { ids: ids });
+      dragEl = null;
+    };
+
+    container.addEventListener("dragstart", onDragStart);
+    container.addEventListener("dragover", onDragOver);
+    container.addEventListener("dragend", onDragEnd);
+
+    this._sortCleanup = () => {
+      container.removeEventListener("dragstart", onDragStart);
+      container.removeEventListener("dragover", onDragOver);
+      container.removeEventListener("dragend", onDragEnd);
+    };
+  },
+  destroyed() {
+    if (this._sortCleanup) this._sortCleanup();
+  }
+};
+
 Hooks.ChatScroll = {
   mounted() {
     this.scrollToBottom();
@@ -743,7 +815,11 @@ const Tooltip = {
         content: content,
         placement: "bottom",
         delay: [200, 0],
-        appendTo: document.body
+        appendTo: () => this.el.closest('.icon-section') || document.body,
+        popperOptions: {
+          strategy: 'fixed',
+          modifiers: [{ name: 'preventOverflow', options: { boundary: 'viewport' } }]
+        }
       })
     }
   }
@@ -770,6 +846,10 @@ let liveSocket = new LiveSocket("/live", Socket, {
     PhishChart,
     PhishAudio,
     NycMap,
+    GifMakerFrames,
+    CollageViewer,
+    SkyMap,
+    LeicaViewer,
     Tooltip,
     ...Hooks
   }
@@ -778,7 +858,16 @@ let liveSocket = new LiveSocket("/live", Socket, {
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+window.addEventListener("phx:page-loading-stop", _info => {
+  topbar.hide()
+  // Track LiveView navigations in GA4
+  if (typeof gtag === "function") {
+    gtag("event", "page_view", {
+      page_path: window.location.pathname,
+      page_title: document.title
+    })
+  }
+})
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

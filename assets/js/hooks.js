@@ -8,6 +8,8 @@ import { Joyride } from "../../deps/live_joyride/assets/js";
 import PhishChart from "./hooks/phish_chart";
 import PhishAudio from "./hooks/phish_audio";
 import NycMap from "./hooks/nyc_map";
+import SkyMap from "./hooks/sky_map";
+import LeicaViewer from "./hooks/leica_viewer";
 
 // Sunflower Background Animation
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -266,5 +268,7 @@ export default {
   Joyride,
   PhishChart,
   PhishAudio,
-  NycMap
+  NycMap,
+  SkyMap,
+  LeicaViewer
 };
