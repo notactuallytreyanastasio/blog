@@ -2,7 +2,11 @@ tags: blog,coding,vibe-coding
 
 # Vibe Coding Rescue Missions
 
-With the hubub that has been going around for the past year of Vibe Coding™️ or so, there have been few people offering solutions to vibe coded code that makes it to production in any meaningful way.
+With the hubub that has been going around for the past year of Vibe Coding™️ or so, there have been few people
+
+# Vibe Coding Rescue Missions
+
+offering solutions to vibe coded code that makes it to production in any meaningful way.
 It seems to be a simple reality that this code is going to make it to production, and you are going to have to work with it.
 I tend to use the robot, but very much try to write high quality work that I'd turn in written myself, albeit much slower.
 However, sometimes there are spikes or experiments or whatever else, and they graduate.
@@ -41,3 +45,12 @@ My goal started off as something resembling Henry's.
 My [blog code](https://github.com/notactuallytreyanastasio/blog) consumes the entire Bluesky firehose live.
 So, since I was getting the entire network, I figured I'd start with printing any messages coming over it with @bobbby.online or #bobby to then print at my desk.
 It was a Friday night I did this, and it ended up becoming a bit of a party.
+I received a TON of messages that night (not just random ones from the hashtag either) [like this](https://bsky.app/profile/underwriter4hire.pro/post/3lxj6fra4c22p) and it was quite enjoyable.
+
+Now, to do all this, I had to start off writing some code.
+
+I didn't care about the code.
+
+I had never interfaced with a receipt printer before.
+
+I was working with a mac, then later a raspberry pi

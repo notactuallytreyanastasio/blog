@@ -1,174 +1,56 @@
-# Advanced Charlie Work: Guiding The Robot Good (For Your Health)
+# Vibe Coding Rescue Missions
 
-## Why You Are Here
+With the hubub that has been going around for the past year of Vibe Coding™️ or so, there have been few people offering solutions to vibe coded code that makes it to production in any meaningful way.
+It seems to be a simple reality that this code is going to make it to production, and you are going to have to work with it.
+I tend to use the robot, but very much try to write high quality work that I'd turn in written myself, albeit much slower.
+However, sometimes there are spikes or experiments or whatever else, and they graduate.
 
-In general, it's difficult to work with LLMs and the related tooling to write software.
+Today we are going to take a look at an absolute mess of a vibe coded codebase, and find a means to untangle the mess and rot, while telling a bit of a fun story about a project that I took up.
 
-In general, it's also true that LLMs have become *very* good at writing code.
+I hope this will actually be useful to some people in a professional capacity.
+My goal here isn't to bemoan vibe coding.
+It is simply to offer insights into how to deliver more reliable and maintainable software in a changing world.
 
-Why are so many developers struggling to get real utility out of them? What leads to so many not impressed, but some thinking its the beginning of a revolution?
+With that said, let's paint a bit of a picture.
 
-**In short: I think a big part of this is simply a skill issue.**
+## Part 1: How did we even write all this shit? What is the mess?
 
-LLMs are very much like an inverted computer compared to what we are used to. This leads us to a situation in which we have to start thinking and learning in new ways. The LLM doesn't think in 1s and 0s, in fact its bad at math. The interface its best at is *token prediction*. So sometimes, people just start brushing strokes in the wrong way and get bad results in their first forays.
+### I Got A Receipt Printer (first one) and wanted it to print me things
 
-I am not here to tell people what is good practice, what is bad practice, and who is doing things wrong or right.
+I was at an ATProto meetup in Brooklyn and met [Henry Zoo](https://bsky.app/profile/henryzoo.com) and he had a receipt printer.
+During the event, it was printing off all the @'s to him from Bluesky on the receipt printer.
+I had kind of had an obsession with these things since the game boy camera, and I love using things in ways they were not intended to be.
 
-What I will do is share a collection of observations that, when coupled together, have proven quite effective in my day to day engineering work.
+I spoke to Henry a bit about his setup (he is a super nice guy, and you should check out his projects sometime. He maintained Babel for a long time. He has a lot of other just cool stuff going on in general) and he quickly let me know the basics and had a Github gist to share with the dead basics of getting set up.
 
-## What We Will Do
+Assuming there would be some hardware difficulty I bought the _exact_ same model as him: an Epson TM-M50 with bluetooth/wifi.
 
-Today we are going to take an open problem and come up with definable inputs for an LLM.
+This was a great start, if I could have gotten the bluetooth or wifi to work.
+I had to pick up a USB B cable.
+At this point I was using my Macbook Pro from work, but decided it would be easier/smarter to just work with a raspberry pi I had laying around.
+My wife tends to buy me 1-2 of them every year or so knowing that they all end up being used in weird little projects, so I just had the hardware there and figured why not give it something dedicated so I could have it always on.
+My work laptop didn't offer a chance to do anything like that.
 
-We will approach this in an agnostic manner. It doesn't matter what tools you use, or what models you use, because we are thinking about a holistic methodology for approaching this, and that goes beyond what a model might excel at. What models excel at is certainly *still important* but it is not the only component.
+So, now I had a computer always attached to the thing.
+I started with a pi zero.
 
-So, the way we approach this is making an app.
+My goal started off as something resembling Henry's.
 
-We will get started below workshopping it, then dive straight into tools and building something real.
+My [blog code](https://github.com/notactuallytreyanastasio/blog) consumes the entire Bluesky firehose live.
+So, since I was getting the entire network, I figured I'd start with printing any messages coming over it with @bobbby.online or #bobby to then print at my desk.
+It was a Friday night I did this, and it ended up becoming a bit of a party.
 
-## Interactive Example
+I kept running with the code as things evolved, and eventually ended up with a [portable photo booth inside of a shoebox with the printer and power inside with a keyboard duct taped to the side.](TODO_BSKY_LINK).
 
-See the process in action with this simplified demonstration:
+Now, getting there, I didn't exactly keep a clean git history and I also ended up with about 500 experiments in various files and scattered docs often covering the same thing but one would be "newer".
 
-### Step 0: Ask broadly
+There were also no tests, no organization, and it barely even did package management.
 
-We want to begin with something that is approachable from a high level. This can be something as simple as a premise, but its better to drill things in a little more. For our example, we are going to be trying to get on to building a clone of a popular old link sharing website, del.icio.us. This first step we will utilize Claude Opus 4. Any reasoning model will do, though. o3 is especially impressive, too. Grok also can hold its own here (though I do not endorse using it).
+It was a mess of a vibe coded codebase.
+In the absolute worst way.
+So, I set out to make it better, and truly passable, and that process is what we will explore today.
+_Even a vibe coded mess can become production code with some added precision and deeper thought._
 
-**We can start with a simple prompt:**
+## Taking a Look at the Repository
 
-```
-I need to design an application. I am choosing to use the Elixir programming language and Phoenix framework because I have heard they have some features with real-time capabilities that may be of use to me. The application is a social bookmarking service. It features several core concepts.
-
-- A chrome extension. This simple extension saves a URL, a page title, a description, and some tags describing the page. It does this by communicating with our server.
-- A backend service with several features: saving bookmarks, tagging them, browsing them once saved, sharing them with others, upvoting/downvoting, commenting, or more.
-
-Can you help me structure a CLAUDE.md file to give Claude code instructions on getting started here?
-
-I need a detailed specification, because I ultimately am going to feed this into another model. Please engineer this output to be structured in a way that it is a plan Claude Sonnet 4 is ready to implement.
-```
-
-## Implementation: Claude Code
-
-We will begin by getting some real outputs and go from there. We will use claude code for those. So, let's begin. I am going to start an empty phoenix project, and populate it with my standard empty stuff to get started. You could really augment this piece to be any web framework and language you choose.
-
-It's worth noting Phoenix is somewhat niche, but I am still confident I can get high quality outputs here.
-
-```bash
-mix phx.new tasty --live
-```
-
-And with this, we can begin.
-
-I have added a github repository that will keep track of the code for this endeavour along the way [here](https://github.com/notactuallytreyanastasio/tasty)
-
-The first commit with the app created is [here](https://github.com/notactuallytreyanastasio/tasty/commit/eb1eebdc4c567f812449fa6a0701d63f32edf770)
-
-If we examine [commit d4566a519663047e6831c0b8f46614299fffc033](https://github.com/notactuallytreyanastasio/tasty/commit/d4566a519663047e6831c0b8f46614299fffc033) we see that we get a pretty broad top level specification. 357 lines!
-
-The core idea here is clear though: we use our tool to build inputs for our tool.
-
-### Ideal 1: Use The Tool To Make More Tools TM
-
-We can see the diff here, I simply decided to strike things to keep this in scope for a tutorial we can fit in the size of a single post here:
-
-Once we have removed this, we can begin to start to talk about tools and what inputs like this mean as an aside before we get to more hacking.
-
-From here, we now have a real working base. At this point, I am going to let Claude Code rip away with what we have created, but you can choose other tools, and we will dive into using some other tools (such as an editor, or a Desktop client). With this, we end up in a world where we have fundamentally created something that has a lot of moving parts and bells and whistles quite quickly.
-
-I just let claude go and kept hitting yes for about 30 minutes. It got pretty far.
-
-You can see the entire log [here](fake_link)
-
-We can look at this Github Gist to see the entire run log, if you are curious. It shows quite a bit of the methodical approach Claude was allowed to take because of our prior instructions working over having an error-prone person go through this step by step.
-
-From here, we are at a point where we largely have what looks like a real project?! That is pretty hardcore. I thought our goal here was to get *correct* and *refined* and *focused* inputs.
-
-Well, that really is the goal. But first I had to impress you, and also give us a stage to work from that will give us a reasonable jumping off point to have an open problem and some actual real life style nebulous complexity.
-
-But first, let's take a look at what Claude really has made for me. We will want to check in from your end and make sure we have roughly gotten to the same point in your framework of choice once you begin following along.
-
-[Here is the log for anyone wondering](https://gist.github.com/notactuallytreyanastasio/db1c23114eeb01c394285299d8c31bfb#file-claude_session_2-md)
-
-### What we have:
-
-1. Database schemas for everything
-2. Backend relationships all set up
-3. Channels set up for pubsub
-4. Users and Auth
-5. Interfaces to all major domain entities
-
-At this point, things look pretty good. We can see the state of the world.
-
-For good measure, at this point, I also had Claude deploy my application to my provider of choice.
-
-I also had it write tests for all functionality it just generated.
-
-## Conquering these steps
-
-So great for me, right? This all just came together. But you are trying to make a working piece of software, and you might not have luckily just one-shotted it.
-
-What do you do if it fails?
-
-### Honestly: try again
-
-These outputs are nondeterministic and its a feature. Let's use it.
-
-As you iterate, keep one thing in mind: it all can be thrown away fast.
-
-## Refining our first LiveView with Claude Code
-
-We are going to review a session with claude here where we ultimately implement this LiveView: (use attached image)
-
-But how do we get there?
-
-Well, there are a few approaches. But with Claude Code, we are going to take the most "freestyle" approach possible. Instead of reaching for a specification, we are going to let it YOLO its way to something functional. In this case, we start off with a pretty simple prompt
-
-> now let's make a liveview. this will be our first one. it will view a random sampling of bookmarks from the database that are labeled public. To get the database off we will seed it with 100 random reddit links. it should also have an ability to click a tag at the top and select it then only show bookmarks with that tag in the feed
-
-This is a bit more of a tall order! I let it run and it started to cook.
-
-```
-⏺ Update Todos
-
-  ⎿  ☐ Create database seeding script with 100 Reddit bookmarks
-     ☐ Update Bookmarks context for public bookmark queries
-     ☐ Create BookmarkLive for browsing public bookmarks
-     ☐ Add tag filtering functionality to LiveView
-     ☐ Add LiveView routes and test the implementation
-```
-
-This is totally a reasonable start, but each of these tasks are pretty large! I guess we can just let it run though, and I did. So here are some highlights of what came next.
-
-> ✻ Thinking…
-> Let me also add different source types based on the URL to make it more realistic.
-> Let me update the source badge logic to show different types based on the bookmark URL.
-
-So, we can see its reaching to add some color here and that isn't necessarily the worst thing.
-
-We do end up in a position where we have a pretty clear path.
-
-So, I gave it some light prompts for refinement. Here they are:
-
->  lets start off by writing tests for all the context modules and schemas we have created so far. This is pretty lacking in this first implementation. You can keep them all in one isolated commit if that is easy for you.
-
-This is a pretty good step just to ensure the logic is all thought out. It's an excuse to look at the tests, especially. If we cover the implementations right now, they are pretty well documented and make sense as to how they'd tie together. But let's see if we are actually doing the work described.
-
-Unsurprisingly, its super good at this and the testing loop goes quickly.
-
-> now let's make a liveview. this will be our first one. it will view a random sampling of bookmarks from the database that are labeled public. To get the database off we will seed it with 100 random reddit links. it should also have an ability to click a tag at the top and select it then only show bookmarks with that tag in the feed
-
-This was the next big step and we are really going to get to cooking now that we're giving it input this wide. And this is where our next step comes in.
-
-### Ideal 2: Introduce constraints. Early and often.
-
-I followed up here asking it to compact the UI in various ways. What we ended up with is pretty nice as a start. It even nailed the sorting by tags, which it wrote tests for as well. Everything at this point, I would say, is actually by my judgement decent Elixir code. This is pretty impressive. But its only the beginning. From here, we will move on to having a data layer.
-
-But now that we have gotten some stuff onto a page, we are going to try to get to the same point using another tool.
-
-Once we get to this point with 3 different tools, then we will choose our own adventure to finish this exercise.
-
-## Getting Started With Claude Desktop: Look Mom No Editor
-
-Why on earth write an application with absolutely no text editor?
-
-Because we live in the future. That is the tool that primitive people used to make software. We do not have such constraints.
+## How do we start cleaning this code up?
