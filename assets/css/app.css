@@ -2106,6 +2106,39 @@ details[open] summary {
   padding: 20px;
 }
 
+/* ---- MIRROR LIVE ---- */
+.mirror-window {
+  width: 100%;
+  height: calc(100vh - 40px);
+  max-width: none;
+}
+
+.mirror-content {
+  height: calc(100% - 60px);
+  overflow-y: auto;
+  background: #1a1a2e;
+}
+
+.mirror-code {
+  tab-size: 2;
+}
+
+.mirror-char {
+  display: inline-block;
+}
+
+@keyframes mirror-spin-5  { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes mirror-spin-6  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes mirror-spin-7  { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes mirror-spin-8  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes mirror-spin-9  { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes mirror-spin-10 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes mirror-spin-11 { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes mirror-spin-12 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes mirror-spin-13 { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes mirror-spin-14 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes mirror-spin-15 { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
 /* Utility: inner content padding */
 .os-content-padded {
   padding: 16px;

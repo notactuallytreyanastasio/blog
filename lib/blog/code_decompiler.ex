@@ -1,12 +1,26 @@
-defmodule CodeDecompiler do
+defmodule Blog.CodeDecompiler do
+  @moduledoc """
+  Decompiles BEAM modules back to Elixir source code.
+
+  Uses BEAM abstract code chunks to reconstruct quoted Elixir expressions,
+  then formats them as source strings. Used by MirrorLive to display
+  its own source code.
+  """
+
+  @doc """
+  Decompiles a loaded BEAM module to an Elixir source string.
+
+  Returns the source code as a string on success, or `{:error, reason}` on failure.
+  """
+  @spec decompile_to_string(module()) :: String.t() | {:error, term()}
   def decompile_to_string(module) when is_atom(module) do
     path = :code.which(module)
 
     case :beam_lib.chunks(path, [:abstract_code]) do
       {:ok, {_, [{:abstract_code, {:raw_abstract_v1, abstract_code}}]}} ->
-        # Convert the abstract format to quoted expressions
         quoted =
-          Enum.map(abstract_code, &abstract_code_to_quoted/1)
+          abstract_code
+          |> Enum.map(&abstract_code_to_quoted/1)
           |> Enum.reject(&is_nil/1)
           |> wrap_in_module(module)
 
@@ -49,9 +63,22 @@ defmodule CodeDecompiler do
   # Skip compile attributes
   defp abstract_code_to_quoted({:attribute, _, :compile, _}), do: nil
 
+  defp abstract_code_to_quoted({:attribute, _, :spec, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :type, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :opaque, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :callback, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :optional_callbacks, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :behaviour, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :dialyzer, _}), do: nil
+  defp abstract_code_to_quoted({:attribute, _, :file, _}), do: nil
+
   defp abstract_code_to_quoted({:attribute, line, name, value}) do
-    quote line: normalize_line(line) do
-      Module.put_attribute(__MODULE__, unquote(name), unquote(convert_attribute_value(value)))
+    try do
+      quote line: normalize_line(line) do
+        Module.put_attribute(__MODULE__, unquote(name), unquote(convert_attribute_value(value)))
+      end
+    rescue
+      _ -> nil
     end
   end
 
@@ -66,15 +93,22 @@ defmodule CodeDecompiler do
         nil
 
       name when is_atom(name) ->
-        function_clauses = Enum.map(clauses, &clause_to_quoted/1)
+        try do
+          function_clauses = Enum.map(clauses, &clause_to_quoted/1)
 
-        quote line: normalize_line(line) do
-          def unquote(name)(unquote_splicing(make_vars(arity))) do
-            unquote(function_clauses)
+          quote line: normalize_line(line) do
+            def unquote(name)(unquote_splicing(make_vars(arity))) do
+              unquote(function_clauses)
+            end
           end
+        rescue
+          _ -> nil
         end
     end
   end
+
+  # Catch-all for unrecognized abstract code forms
+  defp abstract_code_to_quoted(_), do: nil
 
   # Function clauses
   defp clause_to_quoted({:clause, line, params, guards, body}) do
