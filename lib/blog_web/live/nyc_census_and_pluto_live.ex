@@ -2,8 +2,6 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
   @moduledoc "Interactive NYC map with population estimation using PLUTO + Census data."
   use BlogWeb, :live_view
 
-  alias Blog.Census.Cache, as: CensusCache
-  alias Blog.Pluto
   alias Blog.Population.Estimator
 
   @impl true
@@ -35,6 +33,7 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
     {:noreply, assign(socket, task_ref: task.ref)}
   end
 
+  @impl true
   def handle_event("clear_shape", _params, socket) do
     {:noreply, assign(socket, results: nil, error: nil, loading: false)}
   end
@@ -65,7 +64,7 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
   end
 
   def handle_info(:load_heatmap, socket) do
-    points = build_heatmap_points()
+    points = Estimator.heatmap_points()
     {:noreply, push_event(socket, "heatmap_data", %{points: points})}
   end
 
@@ -122,20 +121,6 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
       </div>
     </div>
     """
-  end
-
-  defp build_heatmap_points do
-    centroids = Pluto.tract_centroids()
-    geoids = Enum.map(centroids, &Estimator.bct2020_to_geoid(&1.bct2020)) |> Enum.reject(&is_nil/1)
-    census_pops = CensusCache.get_populations(geoids)
-
-    centroids
-    |> Enum.map(fn c ->
-      geoid = Estimator.bct2020_to_geoid(c.bct2020)
-      pop = Map.get(census_pops, geoid, 0)
-      [c.lat, c.lng, pop]
-    end)
-    |> Enum.reject(fn [_, _, pop] -> pop == 0 end)
   end
 
   defp format_number(n) when is_float(n), do: n |> round() |> format_number()

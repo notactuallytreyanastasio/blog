@@ -61,11 +61,17 @@ defmodule Blog.Population.Estimator do
   @spec compute_populations([Lot.t()]) :: result()
   def compute_populations(lots) do
     tract_groups = Enum.group_by(lots, & &1.bct2020)
-    tract_codes = Map.keys(tract_groups) |> Enum.reject(&(&1 == "" or is_nil(&1)))
+    tract_codes =
+      tract_groups
+      |> Map.keys()
+      |> Enum.reject(&(&1 == "" or is_nil(&1)))
 
     total_units_by_tract = Pluto.tract_total_units(tract_codes)
 
-    geoids = Enum.map(tract_codes, &bct2020_to_geoid/1) |> Enum.reject(&is_nil/1)
+    geoids =
+      tract_codes
+      |> Enum.map(&bct2020_to_geoid/1)
+      |> Enum.reject(&is_nil/1)
     census_pops = CensusCache.get_populations(geoids)
 
     lot_results =
@@ -119,6 +125,31 @@ defmodule Blog.Population.Estimator do
   end
 
   def bct2020_to_geoid(_), do: nil
+
+  @doc """
+  Builds heatmap data points from tract centroids and census populations.
+
+  Returns a list of `[lat, lng, population]` triples, excluding tracts with zero population.
+  """
+  @spec heatmap_points() :: [[number()]]
+  def heatmap_points do
+    centroids = Pluto.tract_centroids()
+
+    geoids =
+      centroids
+      |> Enum.map(&bct2020_to_geoid(&1.bct2020))
+      |> Enum.reject(&is_nil/1)
+
+    census_pops = CensusCache.get_populations(geoids)
+
+    centroids
+    |> Enum.map(fn c ->
+      geoid = bct2020_to_geoid(c.bct2020)
+      pop = Map.get(census_pops, geoid, 0)
+      [c.lat, c.lng, pop]
+    end)
+    |> Enum.reject(fn [_, _, pop] -> pop == 0 end)
+  end
 
   @spec proportional_pop(non_neg_integer(), non_neg_integer(), non_neg_integer()) :: float()
   defp proportional_pop(_lot_units, 0, _tract_pop), do: 0.0
