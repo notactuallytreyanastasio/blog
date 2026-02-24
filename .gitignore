@@ -1,6 +1,9 @@
 # The directory Mix will write compiled artifacts to.
 /_build/
 
+# YouTube cookies (contains auth session - never commit)
+cookies.txt
+
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
@@ -43,3 +46,9 @@ nathan_for_us/
 receipt-printer-emulator/target/*
 live_joyride/
 .live-draft.json
+
+# Deciduous database (local)
+.deciduous/
+
+# Environment secrets (never commit)
+.env

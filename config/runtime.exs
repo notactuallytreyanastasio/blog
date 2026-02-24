@@ -56,15 +56,14 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
+  host = System.get_env("PHX_HOST") || "bobbby.online"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
   config :blog, BlogWeb.Endpoint,
-    url: [host: "bobbby.online", port: 443],
+    url: [host: host, port: 443],
     check_origin: [
-      "https://bobbby.online",
-      "https://www.bobbby.online",
-      # Add your Gigalixir app URL
-      "https://salmon-unselfish-aphid.gigalixirapp.com"
+      "https://#{host}",
+      "https://www.#{host}"
     ],
     http: [
       # Enable IPv6 and bind on all interfaces.
@@ -129,4 +128,16 @@ if config_env() == :prod do
   config :blog, :nats,
     host: System.get_env("NATS_HOST", "localhost"),
     port: String.to_integer(System.get_env("NATS_PORT", "4222"))
+
+  config :blog, :s3_bucket, System.get_env("S3_BUCKET", "bobbby-media")
+end
+
+# Google Analytics (all environments — blank means disabled)
+config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
+
+# Hetzner S3 credentials (all environments)
+if s3_access = System.get_env("S3_ACCESS_KEY") do
+  config :ex_aws,
+    access_key_id: s3_access,
+    secret_access_key: System.get_env("S3_SECRET_KEY")
 end

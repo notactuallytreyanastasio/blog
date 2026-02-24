@@ -59,7 +59,15 @@ defmodule Blog.Application do
       {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
       {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
       # Census population cache for NYC map
-      Blog.Census.Cache
+      Blog.Census.Cache,
+      # GIF Maker subsystem
+      {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
+      Blog.GifMaker.Processor,
+      Blog.GifMaker.Cleanup,
+      # Collage Maker subsystem
+      {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
+      Blog.CollageMaker.Processor,
+      Blog.CollageMaker.Cleanup
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -106,7 +114,15 @@ defmodule Blog.Application do
         {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
         {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
         # Census population cache for NYC map
-        Blog.Census.Cache
+        Blog.Census.Cache,
+        # GIF Maker subsystem
+        {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
+        Blog.GifMaker.Processor,
+        Blog.GifMaker.Cleanup,
+        # Collage Maker subsystem
+        {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
+        Blog.CollageMaker.Processor,
+        Blog.CollageMaker.Cleanup
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
@@ -122,7 +138,9 @@ defmodule Blog.Application do
         {:bookmarks_table, [:set, :public, read_concurrency: true]},
         {:pong_games, [:set, :public]},
         {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]},
-        {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]}
+        {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]},
+        {:gif_maker_rate_limits, [:set, :public, read_concurrency: true, write_concurrency: true]},
+        {:collage_maker_rate_limits, [:set, :public, read_concurrency: true, write_concurrency: true]}
       ],
       fn {table_name, table_opts} ->
         # Only create if it doesn't exist

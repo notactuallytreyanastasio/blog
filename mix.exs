@@ -67,7 +67,11 @@ defmodule Blog.MixProject do
       # Note: exla removed - NIF doesn't work on Gigalixir
       {:nx, "~> 0.9"},
       {:axon, "~> 0.7"},
-      {:nimble_csv, "~> 1.1"}
+      {:nimble_csv, "~> 1.1"},
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:hackney, "~> 1.9"},
+      {:sweet_xml, "~> 0.7"}
     ]
   end
 

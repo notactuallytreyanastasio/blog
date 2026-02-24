@@ -11,17 +11,13 @@
 #   - https://pkgs.org/ - resource for finding needed packages
 #   - Ex: hexpm/elixir:1.15.7-erlang-26.0.2-debian-bullseye-20230612-slim
 #
-ARG ELIXIR_VERSION=1.15.7
-ARG OTP_VERSION=26.0.2
-ARG DEBIAN_VERSION=bullseye-20230612-slim
+ARG BUILDER_IMAGE="hexpm/elixir:1.18.1-erlang-27.3.4.8-debian-bookworm-20260202-slim"
+ARG RUNNER_IMAGE="debian:bookworm-20260202-slim"
 
-ARG BUILDER_IMAGE="hexpm/elixir:1.15.7-erlang-26.1.2-debian-bullseye-20231009-slim"
-ARG RUNNER_IMAGE="debian:bullseye-20231009-slim"
-
-FROM ${BUILDER_IMAGE} as builder
+FROM ${BUILDER_IMAGE} AS builder
 
 # Install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get install -y build-essential git nodejs npm \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Prepare build dir
@@ -42,7 +38,7 @@ RUN mkdir config
 # Copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
 # to be re-compiled.
-COPY config/config.exs config/${MIX_ENV}.exs config/
+COPY config/config.exs config/${MIX_ENV}.exs config/receipt_printer.exs config/
 RUN mix deps.compile
 
 COPY priv priv
@@ -50,6 +46,9 @@ COPY priv priv
 COPY lib lib
 
 COPY assets assets
+
+# Install npm dependencies
+RUN cd assets && npm install
 
 # Compile assets
 RUN mix assets.deploy
@@ -67,7 +66,9 @@ RUN mix release
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE}
 
-RUN apt-get update -y && apt-get install -y libstdc++6 openssl libncurses5 locales imagemagick \
+RUN apt-get update -y && \
+  apt-get install -y libstdc++6 openssl libncurses5 locales imagemagick python3 python3-pip ffmpeg nodejs \
+  && pip3 install --break-system-packages yt-dlp \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale

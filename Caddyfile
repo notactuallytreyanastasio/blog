@@ -1,0 +1,21 @@
+bobbby.online, www.bobbby.online {
+	reverse_proxy app:4000
+
+	encode gzip zstd
+
+	header {
+		# WebSocket support (LiveView)
+		X-Forwarded-Proto {scheme}
+	}
+}
+
+gifmaker.bobbby.online {
+	reverse_proxy nathan:4001
+
+	encode gzip zstd
+
+	header {
+		# WebSocket support (LiveView)
+		X-Forwarded-Proto {scheme}
+	}
+}

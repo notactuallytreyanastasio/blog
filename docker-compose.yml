@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:17
+    restart: always
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    environment:
+      POSTGRES_USER: blog
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: blog_prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # Not exposed to host - only accessible from app containers
+
+  app:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./cookies.txt:/app/cookies.txt:ro
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/blog_prod
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      PHX_HOST: ${PHX_HOST:-bobbby.online}
+      PORT: "4000"
+      POOL_SIZE: "15"
+      RECEIPT_PRINTER_API_TOKEN: ${RECEIPT_PRINTER_API_TOKEN:-}
+      LIVE_DRAFT_TOKEN: ${LIVE_DRAFT_TOKEN:-}
+      FINDER_ADMIN_PASSWORD: ${FINDER_ADMIN_PASSWORD:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-bobbby-media}
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
+  nathan:
+    build:
+      context: /opt/nathan
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/nathan_for_us_prod
+      SECRET_KEY_BASE: ${NATHAN_SECRET_KEY_BASE}
+      PHX_HOST: gifmaker.bobbby.online
+      PORT: "4001"
+      POOL_SIZE: "10"
+      PHX_SERVER: "true"
+      BLUESKY_USERNAME: ${BLUESKY_USERNAME:-}
+      BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
+      GOOGLE_ANALYTICS_ID: ${NATHAN_GOOGLE_ANALYTICS_ID:-}
+    # Not exposed to host - Caddy proxies to port 4001 via Docker network
+
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

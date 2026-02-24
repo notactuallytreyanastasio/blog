@@ -35,7 +35,7 @@ config :esbuild,
   version: "0.17.11",
   blog: [
     args:
-      ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/* --external:leaflet),
+      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets --external:/fonts/* --external:/images/* --external:leaflet),
     cd: Path.expand("../assets", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
@@ -84,6 +84,15 @@ config :blog, Blog.PokeAround.AI.AxonTagger,
   batch_size: 20,
   interval_ms: 10_000,
   langs: ["en"]
+
+# Hetzner S3-compatible Object Storage
+config :ex_aws,
+  json_codec: Jason
+
+config :ex_aws, :s3,
+  scheme: "https://",
+  host: "fsn1.your-objectstorage.com",
+  region: "fsn1"
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

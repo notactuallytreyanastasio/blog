@@ -19,7 +19,7 @@ config :blog, Blog.Repo,
 config :blog, BlogWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -83,3 +83,9 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# yt-dlp cookies for YouTube downloads (export from browser with a cookies extension)
+# Set to nil to skip cookies (works from residential IPs, not cloud/datacenter)
+config :blog, :yt_dlp_cookies_path, System.get_env("YT_DLP_COOKIES") || "cookies.txt"
+
+# Hetzner S3 credentials for dev - set in .env, loaded at runtime below
