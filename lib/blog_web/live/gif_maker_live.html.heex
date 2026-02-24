@@ -1,0 +1,280 @@
+<div style="display: flex; justify-content: center; align-items: flex-start; padding: 24px 12px; min-height: 100vh;">
+  <div class="os-window-mac" style="width: 95vw; max-width: 860px;">
+    <%!-- Title Bar --%>
+    <div class="os-titlebar">
+      <div class="os-titlebar-buttons">
+        <a href="/" class="os-btn-close" title="Back to home"></a>
+      </div>
+      <span class="os-titlebar-title">Concert GIF Maker</span>
+      <div class="os-titlebar-spacer"></div>
+    </div>
+
+    <%!-- Content --%>
+    <div class="os-content" style="padding: 16px; min-height: 300px; font-family: 'Chicago', 'Geneva', 'Helvetica', sans-serif; font-size: 12px;">
+
+      <%!-- Error Banner --%>
+      <%= if @error do %>
+        <div class="gm-alert-inline">
+          <span style="font-size: 16px; margin-right: 6px;">&#9888;</span>
+          {@error}
+        </div>
+      <% end %>
+
+      <%!-- ====== STEP 1: URL INPUT ====== --%>
+      <%= if @step == :url_input do %>
+        <div style="text-align: center; padding: 24px 0;">
+          <div style="font-size: 14px; font-weight: bold; margin-bottom: 16px;">
+            Paste a YouTube concert video URL
+          </div>
+          <div style="font-size: 11px; color: #666; margin-bottom: 20px;">
+            Bring in up to 3 minutes of video, then pick exactly the frames you want.
+          </div>
+
+          <form phx-submit="load_video" style="max-width: 500px; margin: 0 auto;">
+            <input
+              type="text"
+              name="url"
+              value={@url_input}
+              placeholder="https://youtube.com/watch?v=..."
+              phx-change="update_url"
+              phx-debounce="300"
+              class="gm-input"
+              style="width: 100%; margin-bottom: 12px;"
+              autocomplete="off"
+            />
+            <button type="submit" class="gm-btn gm-btn-primary" disabled={@loading}>
+              <%= if @loading, do: "Loading...", else: "Load Video" %>
+            </button>
+          </form>
+        </div>
+      <% end %>
+
+      <%!-- ====== STEP 2: TIME SELECTION ====== --%>
+      <%= if @step == :time_select do %>
+        <div style="padding: 8px 0;">
+          <div class="gm-info-box">
+            <strong>{@video_metadata.title}</strong>
+            <div style="color: #666; margin-top: 4px;">
+              Duration: {format_duration(@video_metadata.duration_seconds)}
+            </div>
+          </div>
+
+          <div style="font-weight: bold; margin: 16px 0 8px;">
+            Select segment (3 min max):
+          </div>
+
+          <form phx-submit="submit_time" phx-change="update_time">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div>
+                <label style="font-size: 11px;">Start</label>
+                <div style="display: flex; align-items: center; gap: 2px;">
+                  <input type="number" name="start_min" value={@start_min} min="0" max="999" class="gm-input gm-input-time" />
+                  <span>:</span>
+                  <input type="number" name="start_sec" value={@start_sec} min="0" max="59" class="gm-input gm-input-time" />
+                </div>
+              </div>
+
+              <div style="font-size: 16px; padding-top: 14px;">&#9654;</div>
+
+              <div>
+                <label style="font-size: 11px;">End</label>
+                <div style="display: flex; align-items: center; gap: 2px;">
+                  <input type="number" name="end_min" value={@end_min} min="0" max="999" class="gm-input gm-input-time" />
+                  <span>:</span>
+                  <input type="number" name="end_sec" value={@end_sec} min="0" max="59" class="gm-input gm-input-time" />
+                </div>
+              </div>
+
+              <button type="submit" class="gm-btn gm-btn-primary" style="margin-top: 14px;">
+                Continue
+              </button>
+            </div>
+          </form>
+
+          <div style="margin-top: 12px;">
+            <button phx-click="start_over" class="gm-btn" style="font-size: 10px;">
+              &#8592; Different Video
+            </button>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- ====== STEP 3: CAPTCHA ====== --%>
+      <%= if @step == :captcha do %>
+        <div style="display: flex; justify-content: center; padding: 32px 0;">
+          <div class="gm-dialog">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+              <div style="font-size: 32px; line-height: 1;">&#9888;</div>
+              <div style="flex: 1;">
+                <div style="font-weight: bold; margin-bottom: 8px;">Quick check before we start</div>
+                <div style="margin-bottom: 12px;">
+                  Solve this to prove you're a real concertgoer:
+                </div>
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 12px; font-family: monospace;">
+                  {@captcha_question} = ?
+                </div>
+
+                <%= if @captcha_error do %>
+                  <div style="color: #c00; margin-bottom: 8px; font-size: 11px;">{@captcha_error}</div>
+                <% end %>
+
+                <form phx-submit="submit_captcha">
+                  <input
+                    type="text"
+                    name="answer"
+                    value={@captcha_answer}
+                    phx-change="update_captcha"
+                    phx-debounce="100"
+                    class="gm-input"
+                    style="width: 80px; text-align: center; font-size: 16px;"
+                    autocomplete="off"
+                    autofocus
+                  />
+                  <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button type="button" phx-click="start_over" class="gm-btn">Cancel</button>
+                    <button type="submit" class="gm-btn gm-btn-primary">OK</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- ====== STEP 4: PROCESSING ====== --%>
+      <%= if @step == :processing do %>
+        <div style="text-align: center; padding: 40px 0;">
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 16px;">
+            Processing your video...
+          </div>
+
+          <div class="gm-progress-bar" style="max-width: 400px; margin: 0 auto 16px;">
+            <div class="gm-progress-fill" style={"width: #{progress_pct(@processing_status)}%;"}></div>
+          </div>
+
+          <div style="font-size: 11px; color: #666;">
+            {@processing_message || "Starting..."}
+          </div>
+
+          <div style="margin-top: 24px; font-size: 10px; color: #999;">
+            This may take a minute. Don't close this window.
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- ====== STEP 5: FRAME BROWSER ====== --%>
+      <%= if @step == :frame_browse do %>
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <strong>{length(@frames)}</strong> frames &mdash;
+              <strong>{MapSet.size(@selected_indices)}</strong> selected
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button phx-click="select_all" class="gm-btn" style="font-size: 10px;">Select All</button>
+              <button phx-click="select_none" class="gm-btn" style="font-size: 10px;">Select None</button>
+            </div>
+          </div>
+
+          <div style="font-size: 10px; color: #666; margin-bottom: 8px;">
+            Click frames to toggle selection. Selected frames become your GIF.
+          </div>
+
+          <div id="frame-grid" class="gm-frame-grid" phx-hook="GifMakerFrames">
+            <%= for frame <- @frames do %>
+              <div
+                class={"gm-frame #{if MapSet.member?(@selected_indices, frame.frame_number), do: "gm-frame-selected", else: ""}"}
+                phx-click="toggle_frame"
+                phx-value-index={frame.frame_number}
+              >
+                <img
+                  loading="lazy"
+                  src={"/api/gif-maker/frames/#{frame.id}"}
+                  alt={"Frame #{frame.frame_number}"}
+                  style="width: 100%; height: auto; display: block;"
+                />
+                <div class="gm-frame-label">
+                  {div(frame.timestamp_ms, 1000)}s
+                </div>
+              </div>
+            <% end %>
+          </div>
+
+          <div style="margin-top: 12px; padding: 8px; border: 1px solid #999; background: #eee;">
+            <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">
+              Caption (optional):
+            </label>
+            <input
+              type="text"
+              value={@overlay_text}
+              phx-change="update_overlay_text"
+              phx-debounce="300"
+              name="text"
+              placeholder="e.g. MSG 2/28/03 Tweezer"
+              maxlength="80"
+              class="gm-input"
+              style="width: 100%; max-width: 400px;"
+            />
+            <div style="font-size: 9px; color: #888; margin-top: 2px;">
+              White text with black outline at the bottom of the GIF. 80 char max.
+            </div>
+          </div>
+
+          <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button
+              phx-click="generate_gif"
+              class="gm-btn gm-btn-primary"
+              disabled={@gif_generating or MapSet.size(@selected_indices) < 2}
+            >
+              <%= if @gif_generating, do: "Generating...", else: "Generate GIF" %>
+            </button>
+            <button phx-click="start_over" class="gm-btn" style="font-size: 10px;">Start Over</button>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- ====== STEP 6: GIF PREVIEW ====== --%>
+      <%= if @step == :gif_preview do %>
+        <div style="text-align: center; padding: 8px 0;">
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 12px;">
+            Your GIF is ready
+          </div>
+
+          <div style="border: 1px solid #000; display: inline-block; background: #000;">
+            <img
+              src={"data:image/gif;base64,#{@generated_gif}"}
+              alt="Generated GIF"
+              style="max-width: 100%; height: auto; display: block;"
+            />
+          </div>
+
+          <div style="margin-top: 16px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <a
+              href={"/api/gif-maker/gifs/#{@generated_gif_id}"}
+              download="concert.gif"
+              class="gm-btn gm-btn-primary"
+              style="text-decoration: none;"
+            >
+              Download GIF
+            </a>
+            <button phx-click="try_different" class="gm-btn">Pick Different Frames</button>
+            <button phx-click="start_over" class="gm-btn">Start Over</button>
+          </div>
+        </div>
+      <% end %>
+
+    </div>
+
+    <%!-- Status Bar --%>
+    <div class="os-statusbar">
+      <span>Step {step_number(@step)} &mdash; {step_label(@step)}</span>
+      <span>
+        <%= if @video_metadata do %>
+          {@video_metadata.title |> String.slice(0, 40)}
+        <% else %>
+          No video loaded
+        <% end %>
+      </span>
+    </div>
+  </div>
+</div>
