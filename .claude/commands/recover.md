@@ -22,6 +22,9 @@ deciduous edges
 
 # What commands were recently run?
 deciduous commands
+
+# Check for attached documents
+deciduous doc list
 ```
 
 **Branch-scoped context**: If working on a feature branch, filter nodes to see only decisions relevant to this branch. Main branch nodes are tagged with `[branch: main]`.
@@ -38,11 +41,12 @@ deciduous nodes | tail -n+3 | awk '{print $1}' | while read id; do
 done
 ```
 
-**Review each flagged node:**
+**Review each flagged node (flow: goal -> options -> decision -> actions -> outcomes):**
 - Root `goal` nodes are VALID without parents
-- `outcome` nodes MUST link back to their action/goal
-- `action` nodes MUST link to their parent goal/decision
-- `option` nodes MUST link to their parent decision
+- `option` nodes MUST link to their parent goal
+- `decision` nodes MUST link from the option(s) being chosen
+- `action` nodes MUST link to their parent decision
+- `outcome` nodes MUST link back to their action
 
 **Fix missing connections:**
 ```bash
@@ -70,7 +74,8 @@ cat git.log | tail -30
 3. **Recent decisions** (especially pending/active ones)
 4. **Last actions** from git log and command log
 5. **Open questions** or unresolved observations
-6. **Suggested next steps**
+6. **Attached documents** - diagrams, specs, or screenshots on key nodes
+7. **Suggested next steps**
 
 ### Branch Configuration
 
@@ -159,29 +164,21 @@ SESSION END -> Final audit
 
 ## Multi-User Sync
 
-If working in a team, check for and apply patches from teammates:
+If working in a team, sync decision graphs automatically via events:
 
 ```bash
-# Check for unapplied patches
-deciduous diff status
+# Check sync status
+deciduous events status
 
-# Apply all patches (idempotent - safe to run multiple times)
-deciduous diff apply .deciduous/patches/*.json
+# Apply teammate events (after git pull)
+deciduous events rebuild
 
-# Preview before applying
-deciduous diff apply --dry-run .deciduous/patches/teammate-feature.json
+# Periodic maintenance (compact old events)
+deciduous events checkpoint --clear-events
 ```
 
-Before pushing your branch, export your decisions for teammates:
-
-```bash
-# Export your branch's decisions as a patch
-deciduous diff export --branch $(git rev-parse --abbrev-ref HEAD) \
-  -o .deciduous/patches/$(whoami)-$(git rev-parse --abbrev-ref HEAD).json
-
-# Commit the patch file
-git add .deciduous/patches/
-```
+Events are auto-emitted when you use `add`, `link`, `status`, etc.
+Git handles merging everyone's event files automatically.
 
 ## Why This Matters
 

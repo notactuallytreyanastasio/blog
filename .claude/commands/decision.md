@@ -136,10 +136,30 @@ The graph viewer shows a branch dropdown in the stats bar:
 ### Create Edges
 - `link <from> <to> [reason]` -> `deciduous link <from> <to> -r "<reason>"`
 
+### Document Attachments
+- `doc attach <node_id> <file>` -> `deciduous doc attach <node_id> <file>`
+- `doc attach <node_id> <file> -d "desc"` -> attach with description
+- `doc attach <node_id> <file> --ai-describe` -> attach with AI-generated description
+- `doc list` -> `deciduous doc list` (all documents)
+- `doc list <node_id>` -> `deciduous doc list <node_id>` (documents for one node)
+- `doc show <id>` -> `deciduous doc show <id>`
+- `doc describe <id> "desc"` -> `deciduous doc describe <id> "desc"`
+- `doc describe <id> --ai` -> AI-generate description
+- `doc open <id>` -> `deciduous doc open <id>` (open in default app)
+- `doc detach <id>` -> `deciduous doc detach <id>` (soft-delete)
+- `doc gc` -> `deciduous doc gc` (garbage-collect orphaned files)
+
 ### Sync Graph
 - `sync` -> `deciduous sync`
 
-### Multi-User Sync (Diff/Patch)
+### Multi-User Sync (Event-Based) - RECOMMENDED
+- `events init` -> `deciduous events init` (initialize event-based sync)
+- `events status` -> `deciduous events status` (show pending events)
+- `events rebuild` -> `deciduous events rebuild` (apply teammate events)
+- `events checkpoint` -> `deciduous events checkpoint` (create snapshot)
+- `events checkpoint --clear-events` -> snapshot and clear old events
+
+### Multi-User Sync (Legacy Diff/Patch)
 - `diff export -o <file>` -> `deciduous diff export -o <file>` (export nodes as patch)
 - `diff export --nodes 1-10 -o <file>` -> export specific nodes
 - `diff export --branch feature-x -o <file>` -> export nodes from branch
@@ -182,23 +202,24 @@ The graph viewer shows a branch dropdown in the stats bar:
 
 **Every node MUST be logically connected.** Floating nodes break the graph's value.
 
-### Connection Rules
+### Connection Rules (goal -> options -> decision -> actions -> outcomes)
 | Node Type | MUST connect to | Example |
 |-----------|----------------|---------|
-| `outcome` | The action/goal it resolves | "JWT working" -> links FROM "Implementing JWT" |
-| `action` | The decision/goal that spawned it | "Implementing JWT" -> links FROM "Add auth" |
-| `option` | Its parent decision | "Use JWT" -> links FROM "Choose auth method" |
-| `observation` | Related goal/action/decision | "Found existing code" -> links TO relevant node |
-| `decision` | Parent goal (if any) | "Choose auth" -> links FROM "Add auth feature" |
-| `revisit` | The decision/outcome being reconsidered | "Reconsidering auth" -> links FROM original decision |
 | `goal` | Can be a root (no parent needed) | Root goals are valid orphans |
+| `option` | Its parent goal | "Use JWT" -> links FROM "Add auth" |
+| `decision` | The option(s) it chose between | "Choose JWT" -> links FROM "Use JWT" option |
+| `action` | The decision that spawned it | "Implementing JWT" -> links FROM "Choose JWT" |
+| `outcome` | The action that produced it | "JWT working" -> links FROM "Implementing JWT" |
+| `observation` | Related goal/action/decision | "Found existing code" -> links TO relevant node |
+| `revisit` | The decision/outcome being reconsidered | "Reconsidering auth" -> links FROM original decision |
 
 ### Audit Checklist
 Ask yourself after creating nodes:
-1. Does every **outcome** link back to what caused it?
-2. Does every **action** link to why you did it?
-3. Does every **option** link to its decision?
-4. Are there **dangling outcomes** with no parent action/goal?
+1. Does every **outcome** link back to the action that produced it?
+2. Does every **action** link to the decision that spawned it?
+3. Does every **option** link to its parent goal?
+4. Does every **decision** link from the option(s) being chosen?
+5. Are there **dangling outcomes** with no parent action?
 
 ### Find Disconnected Nodes
 ```bash
@@ -244,45 +265,41 @@ deciduous link <parent_id> <child_id> -r "Retroactive connection - <why>"
 
 **Problem**: Multiple users work on the same codebase, each with a local `.deciduous/deciduous.db` (gitignored). How to share decisions?
 
-**Solution**: jj-inspired dual-ID model. Each node has:
-- `id` (integer): Local database primary key, different per machine
-- `change_id` (UUID): Globally unique, stable across all databases
+**Solution**: Event-based sync with append-only logs. Each user has their own event file that git merges automatically.
 
-### Export Workflow
+### Event-Based Sync (Recommended)
+
+**Setup (once per repo):**
 ```bash
-# Export nodes from your branch as a patch file
-deciduous diff export --branch feature-x -o .deciduous/patches/alice-feature.json
-
-# Or export specific node IDs
-deciduous diff export --nodes 172-188 -o .deciduous/patches/alice-feature.json --author alice
+deciduous events init
+git add .deciduous/sync/
+git commit -m "feat: enable event-based sync"
 ```
 
-### Apply Workflow
+**Daily workflow:**
 ```bash
-# Apply patches from teammates (idempotent - safe to re-apply)
+git pull                    # Get teammate events
+deciduous events rebuild    # Apply to local DB
+# Work normally - events auto-emit on add/link/etc.
+git add .deciduous/sync/ && git commit -m "sync" && git push
+```
+
+**Periodic maintenance:**
+```bash
+deciduous events checkpoint --clear-events  # Compact old events
+git add .deciduous/sync/ && git commit -m "checkpoint"
+```
+
+### Legacy Patch Workflow
+
+For manual control, use the older patch system:
+
+```bash
+# Export nodes as a patch file
+deciduous diff export --branch feature-x -o .deciduous/patches/my-feature.json
+
+# Apply patches from teammates
 deciduous diff apply .deciduous/patches/*.json
-
-# Preview what would change
-deciduous diff apply --dry-run .deciduous/patches/bob-refactor.json
-```
-
-### PR Workflow
-1. Create nodes locally while working
-2. Export: `deciduous diff export --branch my-feature -o .deciduous/patches/my-feature.json`
-3. Commit the patch file (NOT the database)
-4. Open PR with patch file included
-5. Teammates pull and apply: `deciduous diff apply .deciduous/patches/my-feature.json`
-6. **Idempotent**: Same patch applied twice = no duplicates
-
-### Patch Format (JSON)
-```json
-{
-  "version": "1.0",
-  "author": "alice",
-  "branch": "feature/auth",
-  "nodes": [{ "change_id": "uuid...", "title": "...", ... }],
-  "edges": [{ "from_change_id": "uuid1", "to_change_id": "uuid2", ... }]
-}
 ```
 
 ## The Rule

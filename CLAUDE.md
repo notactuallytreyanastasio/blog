@@ -4,6 +4,45 @@
 
 **THIS IS MANDATORY. Log decisions IN REAL-TIME, not retroactively.**
 
+### Available Slash Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/decision` | Manage decision graph - add nodes, link edges, sync |
+| `/recover` | Recover context from decision graph on session start |
+| `/work` | Start a work transaction - creates goal node before implementation |
+| `/document` | Generate comprehensive documentation for a file or directory |
+| `/build-test` | Build the project and run the test suite |
+| `/serve-ui` | Start the decision graph web viewer |
+| `/sync-graph` | Export decision graph to GitHub Pages |
+| `/decision-graph` | Build a decision graph from commit history |
+| `/sync` | Multi-user sync - pull events, rebuild, push |
+
+### Available Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `/pulse` | Map current design as decisions (Now mode) |
+| `/narratives` | Understand how the system evolved (History mode) |
+| `/archaeology` | Transform narratives into queryable graph |
+
+### The Node Flow Rule - CRITICAL
+
+The canonical flow through the decision graph is:
+
+```
+goal -> options -> decision -> actions -> outcomes
+```
+
+- **Goals** lead to **options** (possible approaches to explore)
+- **Options** lead to a **decision** (choosing which option to pursue)
+- **Decisions** lead to **actions** (implementing the chosen approach)
+- **Actions** lead to **outcomes** (results of the implementation)
+- **Observations** attach anywhere relevant
+- Goals do NOT lead directly to decisions -- there must be options first
+- Options do NOT come after decisions -- options come BEFORE decisions
+- Decision nodes should only be created when an option is actually chosen, not prematurely
+
 ### The Core Rule
 
 ```
@@ -18,10 +57,45 @@ AUDIT regularly -> Check for missing connections
 | Trigger | Log Type | Example |
 |---------|----------|---------|
 | User asks for a new feature | `goal` **with -p** | "Add dark mode" |
+| Exploring possible approaches | `option` | "Use Redux for state" |
 | Choosing between approaches | `decision` | "Choose state management" |
 | About to write/edit code | `action` | "Implementing Redux store" |
 | Something worked or failed | `outcome` | "Redux integration successful" |
 | Notice something interesting | `observation` | "Existing code uses hooks" |
+
+### Document Attachments
+
+Attach files (images, PDFs, diagrams, specs, screenshots) to decision graph nodes for rich context.
+
+```bash
+# Attach a file to a node
+deciduous doc attach <node_id> <file_path>
+deciduous doc attach <node_id> <file_path> -d "Architecture diagram"
+deciduous doc attach <node_id> <file_path> --ai-describe
+
+# List documents
+deciduous doc list              # All documents
+deciduous doc list <node_id>    # Documents for a specific node
+
+# Manage documents
+deciduous doc show <doc_id>     # Show document details
+deciduous doc describe <doc_id> "Updated description"
+deciduous doc describe <doc_id> --ai   # AI-generate description
+deciduous doc open <doc_id>     # Open in default application
+deciduous doc detach <doc_id>   # Soft-delete (recoverable)
+deciduous doc gc                # Remove orphaned files from disk
+```
+
+**When to suggest document attachment:**
+
+| Situation | Action |
+|-----------|--------|
+| User shares an image or screenshot | Ask: "Want me to attach this to the current goal/action node?" |
+| User references an external document | Ask: "Should I attach a copy to the decision graph?" |
+| Architecture diagram is discussed | Suggest attaching it to the relevant goal node |
+| Files not in the project are dropped in | Attach to the most relevant active node |
+
+**Do NOT aggressively prompt for documents.** Only suggest when files are directly relevant to a decision node. Files are stored in `.deciduous/documents/` with content-hash naming for deduplication.
 
 ### CRITICAL: Capture VERBATIM User Prompts
 
@@ -67,9 +141,10 @@ Prompts are viewable in the web viewer.
 
 | When you create... | IMMEDIATELY link to... |
 |-------------------|------------------------|
-| `outcome` | The action/goal it resolves |
-| `action` | The goal/decision that spawned it |
-| `option` | Its parent decision |
+| `outcome` | The action that produced it |
+| `action` | The decision that spawned it |
+| `decision` | The option(s) it chose between |
+| `option` | Its parent goal |
 | `observation` | Related goal/action |
 | `revisit` | The decision/outcome being reconsidered |
 
@@ -167,22 +242,23 @@ auto_detect = true
 deciduous check-update    # Update needed? Run 'deciduous update' if yes
 deciduous nodes           # What decisions exist?
 deciduous edges           # How are they connected? Any gaps?
+deciduous doc list        # Any attached documents to review?
 git status                # Current state
 ```
 
 ### Multi-User Sync
 
-Share decisions across teammates:
+Sync decisions with teammates via event logs:
 
 ```bash
-# Export your branch's decisions
-deciduous diff export --branch feature-x -o .deciduous/patches/my-feature.json
+# Check sync status
+deciduous events status
 
-# Apply patches from teammates (idempotent)
-deciduous diff apply .deciduous/patches/*.json
+# Apply teammate events (after git pull)
+deciduous events rebuild
 
-# Preview before applying
-deciduous diff apply --dry-run .deciduous/patches/teammate.json
+# Compact old events periodically
+deciduous events checkpoint --clear-events
 ```
 
-PR workflow: Export patch -> commit patch file -> PR -> teammates apply.
+Events auto-emit on add/link/status commands. Git merges event files automatically.
