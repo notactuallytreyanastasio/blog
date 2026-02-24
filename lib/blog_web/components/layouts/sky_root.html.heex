@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <title>{assigns[:page_title] || "Fill The Sky"}</title>
+
+    <meta name="description" content="An interactive map of Bluesky communities — 545K people, 418 communities, discovered by graph analysis." />
+    <meta property="og:title" content="Fill The Sky" />
+    <meta property="og:description" content="An interactive map of Bluesky communities — 545K people, 418 communities, discovered by graph analysis." />
+    <meta property="og:type" content="website" />
+
+    <.google_analytics />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+  </head>
+  <body class="h-full font-mono" style="background: #a8a8a8; background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%); background-size: 2px 2px;">
+    <main class="h-full">
+      {@inner_content}
+    </main>
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
+  </body>
+</html>
