@@ -12,6 +12,24 @@ defmodule BlogWeb.Layouts do
 
   embed_templates "layouts/*"
 
+  def google_analytics(assigns) do
+    measurement_id = Application.get_env(:blog, :ga_measurement_id, "")
+
+    assigns = assign(assigns, :measurement_id, measurement_id)
+
+    ~H"""
+    <%= if @measurement_id != "" do %>
+      <script async src={"https://www.googletagmanager.com/gtag/js?id=#{@measurement_id}"}></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{@measurement_id}');
+      </script>
+    <% end %>
+    """
+  end
+
   def recent_posts do
     Blog.Content.Post.all()
     |> Enum.map(fn post ->

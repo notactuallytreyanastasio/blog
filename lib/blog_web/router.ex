@@ -12,6 +12,39 @@ defmodule BlogWeb.Router do
     plug BlogWeb.Plugs.EnsureUserId
   end
 
+  pipeline :gif_maker do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :gif_maker_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.EnsureUserId
+  end
+
+  pipeline :sky do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :sky_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.EnsureUserId
+  end
+
+  pipeline :collage_maker do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :collage_maker_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.EnsureUserId
+  end
+
   pipeline :phangraphs do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -33,7 +66,6 @@ defmodule BlogWeb.Router do
     live "/", TerminalLive
     live "/blog", PostLive.Index
     live "/post/:slug", PostLive
-    live "/museum", MuseumLive, :index
     live "/mta-bus-map", MtaBusMapLive, :index
     live "/mta-train", MtaTrainLive, :index
 
@@ -93,6 +125,26 @@ defmodule BlogWeb.Router do
     live "/smart-steps/demo", SmartStepsLive.Demo, :demo
 
     live "/admin/finder", FinderAdminLive, :index
+    live "/admin/museum", MuseumAdminLive, :index
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :gif_maker
+
+    live "/gif-maker", GifMakerLive, :index
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :sky
+
+    live "/sky", SkyLive, :index
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :collage_maker
+
+    live "/collage-maker", CollageMakerLive, :index
+    live "/collage/:token", CollageViewerLive, :show
   end
 
   scope "/", BlogWeb do
@@ -110,6 +162,11 @@ defmodule BlogWeb.Router do
     post "/receipt_messages/:id/printed", ReceiptMessageController, :mark_printed
     post "/receipt_messages/:id/failed", ReceiptMessageController, :mark_failed
     post "/receipt_messages/:id/retry", ReceiptMessageController, :mark_pending
+
+    get "/gif-maker/frames/:frame_id", GifMakerController, :frame_image
+    get "/gif-maker/gifs/:gif_id", GifMakerController, :gif_download
+
+    get "/collage-maker/:collage_id/download", CollageMakerController, :download
 
     post "/live-draft", LiveDraftController, :update
   end
