@@ -3150,3 +3150,238 @@ details[open] summary {
   z-index: 1;
 }
 
+/* ============================================
+   Mac System 7 Blog Index
+   Extracted from PostLive.Index inline styles
+   ============================================ */
+
+.mac-blog {
+  height: 100vh;
+  background: #a8a8a8;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  font-size: 12px;
+  cursor: default;
+  -webkit-font-smoothing: none;
+  overflow: hidden;
+}
+
+.mac-menu-bar {
+  height: 20px;
+  background: #fff;
+  border-bottom: 1px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.mac-blog .menu-left {
+  display: flex;
+  gap: 16px;
+}
+
+.mac-blog .apple-menu {
+  font-family: system-ui;
+  font-size: 14px;
+}
+
+.mac-blog .menu-item {
+  cursor: default;
+}
+
+.mac-blog .menu-item:hover {
+  background: #000;
+  color: #fff;
+}
+
+.mac-blog .menu-right {
+  font-size: 11px;
+}
+
+.mac-home-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.mac-desktop {
+  height: calc(100vh - 20px);
+  padding: 20px;
+  background: repeating-linear-gradient(
+    0deg,
+    #a8a8a8,
+    #a8a8a8 1px,
+    #b8b8b8 1px,
+    #b8b8b8 2px
+  );
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.mac-window {
+  width: 600px;
+  max-width: 95vw;
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: 1px 1px 0 #000;
+  margin-top: 20px;
+}
+
+.mac-title-bar {
+  height: 20px;
+  border-bottom: 1px solid #000;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0px,
+    #fff 1px,
+    #000 1px,
+    #000 2px,
+    #fff 2px,
+    #fff 3px
+  );
+}
+
+.mac-close-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000;
+  background: #fff;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.mac-close-box:hover {
+  background: #000;
+}
+
+.mac-title {
+  flex: 1;
+  text-align: center;
+  background: #fff;
+  padding: 0 8px;
+  font-weight: bold;
+}
+
+.mac-resize-box {
+  width: 12px;
+  height: 12px;
+}
+
+.mac-window-content {
+  padding: 0;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  background: #fff;
+}
+
+.blog-posts-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.blog-post-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ccc;
+  text-decoration: none;
+  color: inherit;
+  cursor: default;
+}
+
+.blog-post-row:hover {
+  background: #000;
+  color: #fff;
+}
+
+.blog-post-row:hover .blog-tag {
+  background: #333;
+  color: #fff;
+}
+
+.blog-post-icon {
+  font-size: 24px;
+  margin-right: 12px;
+  width: 32px;
+  text-align: center;
+}
+
+.blog-post-info {
+  flex: 1;
+}
+
+.blog-post-title {
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.blog-post-meta {
+  font-size: 10px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.blog-post-row:hover .blog-post-meta {
+  color: #ccc;
+}
+
+.blog-post-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.blog-tag {
+  background: #e0e0e0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.mac-status-bar {
+  height: 20px;
+  border-top: 1px solid #000;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+@media (max-width: 768px) {
+  .mac-desktop {
+    padding: 10px;
+  }
+
+  .mac-window {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .mac-blog .menu-item {
+    display: none;
+  }
+
+  .mac-blog .menu-item:last-child {
+    display: inline;
+  }
+
+  .blog-post-icon {
+    font-size: 20px;
+    margin-right: 8px;
+    width: 24px;
+  }
+
+  .blog-post-title {
+    font-size: 12px;
+  }
+}
+
