@@ -6,10 +6,9 @@ defmodule BlogWeb.WorkLogLive do
   @impl true
   def mount(_params, _session, socket) do
     {events, last_updated} =
-      try do
-        Blog.GitHub.WorkLogPoller.get_events()
-      catch
-        :exit, _ -> {[], nil}
+      case GenServer.whereis(Blog.GitHub.WorkLogPoller) do
+        nil -> {[], nil}
+        _pid -> Blog.GitHub.WorkLogPoller.get_events()
       end
 
     if connected?(socket) do

@@ -30,23 +30,21 @@ defmodule Blog.GitHub.WorkLogPoller do
   @impl true
   def handle_info(:poll, state) do
     state =
-      try do
-        case fetch_events() do
-          :unchanged ->
-            state
+      case fetch_events() do
+        {:ok, events} ->
+          {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
+          enriched = Enum.filter(enriched, fn e ->
+            not is_nil(e.stats) and (e.stats.additions >= 10 or e.stats.deletions >= 10)
+          end)
+          now = DateTime.utc_now()
+          Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
+          %{state | events: enriched, last_updated: now, compare_cache: new_cache}
 
-          events when is_list(events) ->
-            {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
-            enriched = Enum.filter(enriched, fn e ->
-              not is_nil(e.stats) and (e.stats.additions >= 10 or e.stats.deletions >= 10)
-            end)
-            now = DateTime.utc_now()
-            Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
-            %{state | events: enriched, last_updated: now, compare_cache: new_cache}
-        end
-      rescue
-        e ->
-          Logger.warning("WorkLog poll failed: #{inspect(e)}")
+        :unchanged ->
+          state
+
+        {:error, reason} ->
+          Logger.warning("WorkLog poll failed: #{reason}")
           state
       end
 
@@ -57,20 +55,20 @@ defmodule Blog.GitHub.WorkLogPoller do
   defp fetch_events do
     case Req.get(@events_url, headers: [{"user-agent", "bobbby-work-log"}]) do
       {:ok, %{status: 200, body: body}} when is_list(body) ->
-        body
-        |> Enum.filter(&(&1["type"] == "PushEvent"))
-        |> Enum.map(&parse_push_event/1)
+        events =
+          body
+          |> Enum.filter(&(&1["type"] == "PushEvent"))
+          |> Enum.map(&parse_push_event/1)
+        {:ok, events}
 
       {:ok, %{status: 304}} ->
         :unchanged
 
       {:ok, %{status: status}} ->
-        Logger.warning("GitHub Events API returned #{status}")
-        []
+        {:error, "GitHub Events API returned #{status}"}
 
       {:error, error} ->
-        Logger.error("GitHub Events API failed: #{inspect(error)}")
-        []
+        {:error, "GitHub Events API failed: #{inspect(error)}"}
     end
   end
 
