@@ -6,7 +6,7 @@ defmodule Blog.GitHub.WorkLogPoller do
   @github_username "notactuallytreyanastasio"
   @events_url "https://api.github.com/users/#{@github_username}/events/public"
   @topic "github:work_log"
-  @max_stats_per_cycle 5
+  @max_stats_per_cycle 10
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -36,9 +36,9 @@ defmodule Blog.GitHub.WorkLogPoller do
 
       events when is_list(events) ->
         {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
-        # Filter out events with no diff
+        # Filter out events with no diff or no data yet
         enriched = Enum.filter(enriched, fn e ->
-          is_nil(e.stats) or e.stats.additions > 0 or e.stats.deletions > 0
+          not is_nil(e.stats) and (e.stats.additions > 0 or e.stats.deletions > 0)
         end)
         now = DateTime.utc_now()
         Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
