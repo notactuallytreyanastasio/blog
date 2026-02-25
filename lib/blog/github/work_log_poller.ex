@@ -126,13 +126,15 @@ defmodule Blog.GitHub.WorkLogPoller do
       before_sha: event["payload"]["before"] || "",
       head_sha: event["payload"]["head"] || "",
       commits:
-        Enum.map(event["payload"]["commits"] || [], fn c ->
+        (event["payload"]["commits"] || [])
+        |> Enum.map(fn c ->
           %{
             sha: String.slice(c["sha"] || "", 0..6),
             message: c["message"] |> to_string() |> String.split("\n") |> List.first(),
             author: get_in(c, ["author", "name"])
           }
-        end),
+        end)
+        |> Enum.filter(fn c -> c.message != nil and String.trim(c.message) != "" end),
       created_at: parse_datetime(event["created_at"]),
       stats: nil
     }
