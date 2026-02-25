@@ -29,22 +29,29 @@ defmodule Blog.GitHub.WorkLogPoller do
 
   @impl true
   def handle_info(:poll, state) do
-    case fetch_events() do
-      :unchanged ->
-        Process.send_after(self(), :poll, @poll_interval)
-        {:noreply, state}
+    state =
+      try do
+        case fetch_events() do
+          :unchanged ->
+            state
 
-      events when is_list(events) ->
-        {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
-        # Only show events with meaningful diffs (at least +10 or -10)
-        enriched = Enum.filter(enriched, fn e ->
-          not is_nil(e.stats) and (e.stats.additions >= 10 or e.stats.deletions >= 10)
-        end)
-        now = DateTime.utc_now()
-        Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
-        Process.send_after(self(), :poll, @poll_interval)
-        {:noreply, %{state | events: enriched, last_updated: now, compare_cache: new_cache}}
-    end
+          events when is_list(events) ->
+            {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
+            enriched = Enum.filter(enriched, fn e ->
+              not is_nil(e.stats) and (e.stats.additions >= 10 or e.stats.deletions >= 10)
+            end)
+            now = DateTime.utc_now()
+            Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
+            %{state | events: enriched, last_updated: now, compare_cache: new_cache}
+        end
+      rescue
+        e ->
+          Logger.warning("WorkLog poll failed: #{inspect(e)}")
+          state
+      end
+
+    Process.send_after(self(), :poll, @poll_interval)
+    {:noreply, state}
   end
 
   defp fetch_events do

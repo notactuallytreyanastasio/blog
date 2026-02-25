@@ -5,7 +5,12 @@ defmodule BlogWeb.WorkLogLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {events, last_updated} = Blog.GitHub.WorkLogPoller.get_events()
+    {events, last_updated} =
+      try do
+        Blog.GitHub.WorkLogPoller.get_events()
+      catch
+        :exit, _ -> {[], nil}
+      end
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Blog.PubSub, @topic)
