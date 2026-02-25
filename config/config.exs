@@ -66,9 +66,6 @@ config :blog, :live_draft_api_token, "dev-live-draft-token"
 # Finder admin password (override in prod via FINDER_ADMIN_PASSWORD env var)
 config :blog, :finder_admin_password, "letmein"
 
-# HoseLinks - Viral Link Detector threshold (observations needed for breakthrough)
-config :blog, :hose_links_threshold, 100
-
 # Import receipt printer configuration
 import_config "receipt_printer.exs"
 
