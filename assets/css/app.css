@@ -3128,3 +3128,25 @@ details[open] summary {
   border-color: #3b52a8;
 }
 
+/* ---- MTA BUS MAP ---- */
+.mta-bus-window {
+  width: 100%;
+  height: calc(100vh - 40px);
+  max-width: none;
+}
+
+.mta-bus-content {
+  height: calc(100% - 80px);
+  overflow-y: auto;
+}
+
+.mta-bus-map-container {
+  min-height: calc(100vh - 180px);
+}
+
+.mta-bus-map-container .leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+

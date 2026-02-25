@@ -106,8 +106,6 @@ defmodule BlogWeb.Router do
     live "/smart-steps/designer", SmartStepsLive.Designer, :designer
     live "/smart-steps/demo", SmartStepsLive.Demo, :demo
 
-    live "/hose-links", HoseLinksLive, :index
-
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index
   end
