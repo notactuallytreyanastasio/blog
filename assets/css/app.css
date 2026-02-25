@@ -3150,3 +3150,464 @@ details[open] summary {
   z-index: 1;
 }
 
+/* ============================================
+   PostLive — Mac System 7 Post View
+   ============================================ */
+
+.mac-post {
+  min-height: 100vh;
+  background: #a8a8a8;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  font-size: 12px;
+  cursor: default;
+  -webkit-font-smoothing: none;
+}
+
+.mac-post .mac-menu-bar {
+  height: 20px;
+  background: #fff;
+  border-bottom: 1px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.mac-post .menu-left {
+  display: flex;
+  gap: 16px;
+}
+
+.mac-post .apple-menu {
+  font-family: system-ui;
+  font-size: 14px;
+}
+
+.mac-post .menu-item {
+  cursor: default;
+}
+
+.mac-post .menu-item:hover {
+  background: #000;
+  color: #fff;
+}
+
+.mac-post .menu-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.mac-post .menu-right {
+  font-size: 11px;
+}
+
+.mac-post .mac-desktop {
+  min-height: calc(100vh - 20px);
+  padding: 20px;
+  background: repeating-linear-gradient(
+    0deg,
+    #a8a8a8,
+    #a8a8a8 1px,
+    #b8b8b8 1px,
+    #b8b8b8 2px
+  );
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.mac-post .mac-window {
+  width: 1100px;
+  max-width: 95vw;
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: 2px 2px 0 #000;
+  margin-top: 10px;
+  margin-bottom: 40px;
+}
+
+.mac-post .mac-title-bar {
+  height: 20px;
+  background: #fff;
+  border-bottom: 1px solid #000;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0px,
+    #fff 1px,
+    #000 1px,
+    #000 2px,
+    #fff 2px,
+    #fff 3px
+  );
+}
+
+.mac-post .mac-close-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000;
+  background: #fff;
+  margin-right: 8px;
+  cursor: pointer;
+  display: block;
+}
+
+.mac-post .mac-close-box:hover {
+  background: #000;
+}
+
+.mac-post .mac-title {
+  flex: 1;
+  text-align: center;
+  background: #fff;
+  padding: 0 8px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mac-post .live-badge {
+  display: inline-block;
+  background: #ff0000;
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+  animation: live-pulse 1.5s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.mac-post .mac-resize-box {
+  width: 12px;
+  height: 12px;
+}
+
+.mac-post .mac-window-content {
+  padding: 20px;
+  background: #fff;
+}
+
+.mac-post .post-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #ccc;
+  font-size: 11px;
+}
+
+.mac-post .post-date {
+  font-weight: bold;
+}
+
+.mac-post .post-author {
+  color: #0066cc;
+  font-style: italic;
+}
+
+.mac-post .post-stats {
+  color: #666;
+}
+
+.mac-post .post-tags-inline {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.mac-post .mac-tag {
+  background: #e0e0e0;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.mac-post .post-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid #ccc;
+}
+
+.mac-post .back-link {
+  color: #000;
+  text-decoration: underline;
+  font-size: 12px;
+}
+
+.mac-post .back-link:hover {
+  background: #000;
+  color: #fff;
+  text-decoration: none;
+}
+
+.mac-post .mac-status-bar {
+  height: 20px;
+  border-top: 1px solid #000;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+/* Article content styling within Mac window */
+.mac-post .article-content {
+  font-family: 'Charter', 'Georgia', serif;
+  font-size: 1.30rem;
+  line-height: 1.7;
+  color: #1f2937;
+}
+
+.mac-post .article-content h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 0 0 0.5rem 0;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.mac-post .article-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 2rem 0 1rem 0;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.mac-post .article-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.75rem 0;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+}
+
+.mac-post .article-content p {
+  margin: 1rem 0;
+}
+
+.mac-post .article-content a {
+  color: #000;
+  text-decoration: underline;
+}
+
+.mac-post .article-content a:hover {
+  background: #000;
+  color: #fff;
+}
+
+.mac-post .article-content pre {
+  background: #1f2937;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1rem 0;
+  border: 1px solid #000;
+}
+
+.mac-post .article-content code {
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.mac-post .article-content :not(pre) > code {
+  background: #e0e0e0;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.mac-post .article-content blockquote {
+  border-left: 3px solid #000;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #444;
+}
+
+.mac-post .article-content ul,
+.mac-post .article-content ol {
+  margin: 1rem 0;
+  padding-left: 2rem;
+}
+
+.mac-post .article-content li {
+  margin: 0.5rem 0;
+}
+
+.mac-post .article-content img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #000;
+}
+
+.mac-post .article-content hr {
+  border: none;
+  border-top: 1px solid #000;
+  margin: 2rem 0;
+}
+
+.mac-post .article-content br {
+  display: block;
+  content: "";
+  margin: 0.75em 0;
+}
+
+/* Comments Section */
+.mac-post .comments-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 2px solid #000;
+}
+
+.mac-post .comments-header {
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.mac-post .comment-form {
+  background: #f5f5f5;
+  padding: 16px;
+  border: 1px solid #000;
+  margin-bottom: 24px;
+}
+
+.mac-post .comment-form .form-group {
+  margin-bottom: 12px;
+}
+
+.mac-post .comment-form label {
+  display: block;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.mac-post .comment-form input[type="text"],
+.mac-post .comment-form textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #000;
+  font-family: 'Charter', 'Georgia', serif;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.mac-post .comment-form textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.mac-post .comment-form .submit-btn {
+  background: #fff;
+  border: 1px solid #000;
+  padding: 6px 16px;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 #000;
+}
+
+.mac-post .comment-form .submit-btn:hover {
+  background: #000;
+  color: #fff;
+}
+
+.mac-post .comment-form .submit-btn:active {
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.mac-post .comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mac-post .comment {
+  background: #fff;
+  border: 1px solid #000;
+  padding: 12px;
+}
+
+.mac-post .comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ccc;
+}
+
+.mac-post .comment-author {
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.mac-post .comment-date {
+  font-size: 10px;
+  color: #666;
+}
+
+.mac-post .comment-body {
+  font-family: 'Charter', 'Georgia', serif;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.mac-post .no-comments {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  .mac-post .mac-desktop {
+    padding: 10px;
+  }
+
+  .mac-post .mac-window {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .mac-post .menu-item {
+    display: none;
+  }
+
+  .mac-post .menu-item:nth-last-child(-n+2) {
+    display: inline;
+  }
+
+  .mac-post .mac-window-content {
+    padding: 12px;
+  }
+
+  .mac-post .article-content {
+    font-size: 1.75rem;
+  }
+
+  .mac-post .post-meta-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
