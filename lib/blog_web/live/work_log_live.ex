@@ -2,6 +2,7 @@ defmodule BlogWeb.WorkLogLive do
   use BlogWeb, :live_view
 
   @topic "github:work_log"
+  @max_files_shown 12
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,32 +25,71 @@ defmodule BlogWeb.WorkLogLive do
     {:noreply, assign(socket, events: events, last_updated: last_updated)}
   end
 
-  defp format_time(nil), do: ""
-  defp format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %H:%M")
+  defp format_git_date(nil), do: ""
+
+  defp format_git_date(%DateTime{} = dt) do
+    Calendar.strftime(dt, "%a %b %d %H:%M:%S %Y +0000")
+  end
 
   defp repo_url(repo_name), do: "https://github.com/#{repo_name}"
   defp commit_url(repo_name, sha), do: "https://github.com/#{repo_name}/commit/#{sha}"
   defp short_repo(full_name), do: full_name |> String.split("/") |> List.last()
 
+  defp head_url(repo, before_sha, head_sha) do
+    if before_sha == "0000000000000000000000000000000000000000" do
+      "https://github.com/#{repo}/commit/#{head_sha}"
+    else
+      "https://github.com/#{repo}/compare/#{before_sha}...#{head_sha}"
+    end
+  end
+
+  defp short_sha(nil), do: ""
+  defp short_sha(""), do: ""
+  defp short_sha(sha), do: String.slice(sha, 0..10)
+
+  defp stat_bar(additions, deletions) do
+    total = additions + deletions
+    max_w = 20
+
+    if total == 0 do
+      %{plus: "", minus: ""}
+    else
+      scale = min(total, max_w) / total
+      pn = if additions > 0, do: max(1, round(additions * scale)), else: 0
+      mn = if deletions > 0, do: max(1, round(deletions * scale)), else: 0
+      %{plus: String.duplicate("+", pn), minus: String.duplicate("-", mn)}
+    end
+  end
+
+  defp short_path(path) do
+    if String.length(path) > 50 do
+      "..." <> String.slice(path, -47..-1)
+    else
+      path
+    end
+  end
+
+  defp visible_files(files), do: Enum.take(files, @max_files_shown)
+
+  defp hidden_file_count(files), do: max(0, length(files) - @max_files_shown)
+
+  defp pluralize(1, singular, _plural), do: "1 #{singular}"
+  defp pluralize(n, _singular, plural), do: "#{n} #{plural}"
+
   @impl true
   def render(assigns) do
     ~H"""
     <style>
-      .work-log-desktop {
+      .wl-desktop {
         min-height: 100vh;
         background: repeating-linear-gradient(
-          0deg,
-          #a8a8a8,
-          #a8a8a8 1px,
-          #b8b8b8 1px,
-          #b8b8b8 2px
+          0deg, #a8a8a8, #a8a8a8 1px, #b8b8b8 1px, #b8b8b8 2px
         );
-        padding: 0;
+        padding: 20px;
         font-family: "Chicago", "Geneva", "Helvetica Neue", sans-serif;
         font-size: 12px;
       }
-
-      .work-log-menubar {
+      .wl-menubar {
         height: 24px;
         background: #fff;
         border-bottom: 1px solid #000;
@@ -58,107 +98,82 @@ defmodule BlogWeb.WorkLogLive do
         padding: 0 12px;
         font-size: 13px;
         font-weight: bold;
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        z-index: 10;
       }
-
-      .work-log-menubar a {
-        color: #000;
-        text-decoration: none;
-        margin-right: 16px;
-      }
-
-      .work-log-menubar .menu-right {
+      .wl-menubar a { color: #000; text-decoration: none; margin-right: 16px; }
+      .wl-menubar .menu-right {
         margin-left: auto;
         font-weight: normal;
         font-size: 11px;
         color: #666;
       }
-
-      .work-log-content {
-        max-width: 700px;
-        margin: 20px auto;
-        padding: 0 20px;
+      .wl-body { padding-top: 34px; padding-bottom: 32px; }
+      .wl-window {
+        max-width: 860px;
+        margin: 0 auto;
+        border: 2px solid #000;
+        box-shadow: 2px 2px 0 #000;
       }
-
-      .work-log-header {
-        font-size: 11px;
-        color: #666;
-        margin-bottom: 16px;
-      }
-
-      .push-event {
-        border: 1px solid #000;
-        margin-bottom: 8px;
-        background: #fff;
-        box-shadow: 1px 1px 0 #000;
-      }
-
-      .push-event-titlebar {
-        height: 18px;
+      .wl-titlebar {
+        height: 20px;
         background: repeating-linear-gradient(
-          90deg,
-          #fff 0px, #fff 1px,
-          #000 1px, #000 2px
+          90deg, #fff 0px, #fff 1px, #000 1px, #000 2px
         );
         display: flex;
         align-items: center;
         padding: 0 6px;
+        border-bottom: 2px solid #000;
       }
-
-      .push-event-repo {
+      .wl-close {
+        width: 12px; height: 12px;
+        border: 1px solid #000;
         background: #fff;
-        padding: 0 4px;
+        flex-shrink: 0;
+        display: block;
+        text-decoration: none;
+      }
+      .wl-title {
+        flex: 1;
+        text-align: center;
         font-size: 11px;
         font-weight: bold;
-      }
-
-      .push-event-repo a {
-        color: #000;
-        text-decoration: none;
-      }
-
-      .push-event-branch {
-        font-weight: normal;
-        color: #666;
-      }
-
-      .push-event-time {
-        margin-left: auto;
         background: #fff;
-        padding: 0 4px;
-        font-size: 10px;
-        color: #666;
-      }
-
-      .push-event-commits {
-        padding: 6px 8px;
-      }
-
-      .commit-row {
-        margin-bottom: 3px;
-        font-size: 11px;
-        display: flex;
-        gap: 6px;
-      }
-
-      .commit-sha {
-        font-family: monospace;
-        font-size: 10px;
-        color: #000;
-        text-decoration: none;
-        flex-shrink: 0;
-      }
-
-      .commit-sha:hover {
-        text-decoration: underline;
-      }
-
-      .commit-message {
-        overflow: hidden;
-        text-overflow: ellipsis;
+        padding: 0 8px;
+        margin: 0 40px;
         white-space: nowrap;
       }
-
-      .work-log-statusbar {
+      .wl-term {
+        background: #1a1a2e;
+        color: #c8c8c8;
+        font-family: "Monaco", "Menlo", "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        padding: 12px 16px;
+        min-height: 300px;
+        max-height: 80vh;
+        overflow-y: auto;
+        overflow-x: auto;
+      }
+      .wl-term .ln { white-space: pre; }
+      .wl-term .blank { height: 0.7em; }
+      .wl-term .prompt { color: #8888aa; }
+      .wl-term .sha { color: #e8a838; }
+      .wl-term .sha a { color: #e8a838; text-decoration: none; }
+      .wl-term .sha a:hover { text-decoration: underline; }
+      .wl-term .ref { color: #5ccccc; }
+      .wl-term .ref a { color: #5ccccc; text-decoration: none; }
+      .wl-term .ref a:hover { text-decoration: underline; }
+      .wl-term .msg { color: #fff; }
+      .wl-term .msg a { color: #e8a838; text-decoration: none; }
+      .wl-term .msg a:hover { text-decoration: underline; }
+      .wl-term .fname { color: #c8c8c8; }
+      .wl-term .plus { color: #5ce65c; }
+      .wl-term .minus { color: #e65c5c; }
+      .wl-term .summary { color: #888; }
+      .wl-term .empty-msg { color: #8888aa; padding: 40px 0; text-align: center; }
+      .wl-statusbar {
         height: 22px;
         border-top: 1px solid #000;
         background: #fff;
@@ -168,20 +183,13 @@ defmodule BlogWeb.WorkLogLive do
         padding: 0 12px;
         font-size: 11px;
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        bottom: 0; left: 0; right: 0;
       }
-
-      .work-log-empty {
-        text-align: center;
-        padding: 60px 20px;
-        color: #666;
-      }
+      .log-entry { margin-bottom: 8px; }
     </style>
 
-    <div class="work-log-desktop">
-      <div class="work-log-menubar">
+    <div class="wl-desktop">
+      <div class="wl-menubar">
         <a href="/">bobbby.online</a>
         <span>Work Log</span>
         <span class="menu-right">
@@ -191,43 +199,46 @@ defmodule BlogWeb.WorkLogLive do
         </span>
       </div>
 
-      <div class="work-log-content">
-        <div class="work-log-header">
-          Recent pushes by notactuallytreyanastasio. Live-updates every 60s.
-        </div>
-
-        <%= if Enum.empty?(@events) do %>
-          <div class="work-log-empty">
-            <p>No recent push events.</p>
+      <div class="wl-body">
+        <div class="wl-window">
+          <div class="wl-titlebar">
+            <a href="/" class="wl-close"></a>
+            <span class="wl-title">Work Log — git log --stat</span>
           </div>
-        <% else %>
-          <%= for event <- @events do %>
-            <div class="push-event">
-              <div class="push-event-titlebar">
-                <span class="push-event-repo">
-                  <a href={repo_url(event.repo)} target="_blank">
-                    {short_repo(event.repo)}
-                  </a>
-                  <span class="push-event-branch">/{event.branch}</span>
-                </span>
-                <span class="push-event-time">{format_time(event.created_at)}</span>
-              </div>
-              <div class="push-event-commits">
-                <%= for commit <- event.commits do %>
-                  <div class="commit-row">
-                    <a class="commit-sha" href={commit_url(event.repo, commit.sha)} target="_blank">
-                      {commit.sha}
-                    </a>
-                    <span class="commit-message">{commit.message}</span>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-          <% end %>
-        <% end %>
+          <div class="wl-term">
+            <div class="ln"><span class="prompt">$ git log --stat</span></div>
+            <div class="blank"></div>
+            <%= if Enum.empty?(@events) do %>
+              <div class="empty-msg">No recent push events.</div>
+            <% else %>
+              <%= for event <- @events do %>
+                <div class="log-entry">
+                  <div class="ln"><span class="sha">commit <a href={head_url(event.repo, event.before_sha, event.head_sha)} target="_blank">{short_sha(event.head_sha)}</a></span> <span class="ref">(<a href={repo_url(event.repo)} target="_blank">{short_repo(event.repo)}</a>/{event.branch})</span></div>
+                  <div class="ln">Author: {(List.first(event.commits) || %{})[:author] || "notactuallytreyanastasio"}</div>
+                  <div class="ln">Date:   {format_git_date(event.created_at)}</div>
+                  <div class="blank"></div>
+                  <%= for commit <- event.commits do %>
+                    <div class="ln msg">    <a href={commit_url(event.repo, commit.sha)} target="_blank">{commit.sha}</a> {commit.message}</div>
+                  <% end %>
+                  <div class="blank"></div>
+                  <%= if event.stats do %>
+                    <%= for file <- visible_files(event.stats.files) do %>
+                      <% bar = stat_bar(file.additions, file.deletions) %>
+                      <div class="ln"><span class="fname"> {short_path(file.filename)}</span> | {file.additions + file.deletions} <span class="plus">{bar.plus}</span><span class="minus">{bar.minus}</span></div>
+                    <% end %>
+                    <%= if hidden_file_count(event.stats.files) > 0 do %>
+                      <div class="ln summary"> ... and {hidden_file_count(event.stats.files)} more files</div>
+                    <% end %>
+                    <div class="ln summary"> {pluralize(length(event.stats.files), "file changed", "files changed")}, {event.stats.additions} insertions(+), {event.stats.deletions} deletions(-)</div>
+                  <% end %>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
       </div>
 
-      <div class="work-log-statusbar">
+      <div class="wl-statusbar">
         <span>{length(@events)} push events</span>
         <span>github.com/notactuallytreyanastasio</span>
       </div>
