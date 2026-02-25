@@ -35,6 +35,10 @@ defmodule Blog.GitHub.WorkLogPoller do
         {:noreply, state}
 
       events when is_list(events) ->
+        Enum.each(events, fn e ->
+          Logger.info("WorkLog event #{e.event_id}: #{length(e.commits)} commits, repo=#{e.repo}")
+          Enum.each(e.commits, fn c -> Logger.info("  commit #{c.sha}: #{String.slice(c.message, 0..60)}") end)
+        end)
         {enriched, new_cache} = enrich_with_stats(events, state.stats_cache)
         now = DateTime.utc_now()
         Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
@@ -130,7 +134,7 @@ defmodule Blog.GitHub.WorkLogPoller do
         |> Enum.map(fn c ->
           %{
             sha: String.slice(c["sha"] || "", 0..6),
-            message: c["message"] |> to_string() |> String.split("\n") |> List.first(),
+            message: c["message"] |> to_string() |> String.trim(),
             author: get_in(c, ["author", "name"])
           }
         end)
