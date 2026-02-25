@@ -36,9 +36,9 @@ defmodule Blog.GitHub.WorkLogPoller do
 
       events when is_list(events) ->
         {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
-        # Filter out events with no diff or no data yet
+        # Only show events with meaningful diffs (at least +10 or -10)
         enriched = Enum.filter(enriched, fn e ->
-          not is_nil(e.stats) and (e.stats.additions > 0 or e.stats.deletions > 0)
+          not is_nil(e.stats) and (e.stats.additions >= 10 or e.stats.deletions >= 10)
         end)
         now = DateTime.utc_now()
         Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
