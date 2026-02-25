@@ -6,25 +6,20 @@ defmodule Blog.GitHub.WorkLogPoller do
   @github_username "notactuallytreyanastasio"
   @events_url "https://api.github.com/users/#{@github_username}/events/public"
   @topic "github:work_log"
-  @max_stats_per_cycle 10
+  @max_compares_per_cycle 10
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   def get_events do
-    GenServer.call(__MODULE__, :get_events)
+    Blog.GitHub.WorkLog.list_recent()
   end
 
   @impl true
   def init(_opts) do
     send(self(), :poll)
-    {:ok, %{events: [], last_updated: nil, compare_cache: %{}}}
-  end
-
-  @impl true
-  def handle_call(:get_events, _from, state) do
-    {:reply, {state.events, state.last_updated}, state}
+    {:ok, %{seen_event_ids: MapSet.new()}}
   end
 
   @impl true
@@ -32,13 +27,9 @@ defmodule Blog.GitHub.WorkLogPoller do
     state =
       case fetch_events() do
         {:ok, events} ->
-          {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
-          enriched = Enum.filter(enriched, fn e ->
-            not is_nil(e.stats) and (e.stats.additions >= 10 or e.stats.deletions >= 10)
-          end)
-          now = DateTime.utc_now()
-          Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
-          %{state | events: enriched, last_updated: now, compare_cache: new_cache}
+          {new_seen, _} = process_events(events, state.seen_event_ids)
+          Phoenix.PubSub.broadcast(Blog.PubSub, @topic, :work_log_updated)
+          %{state | seen_event_ids: new_seen}
 
         :unchanged ->
           state
@@ -72,34 +63,32 @@ defmodule Blog.GitHub.WorkLogPoller do
     end
   end
 
-  defp enrich_with_compare(events, cache) do
-    needs_compare =
+  defp process_events(events, seen) do
+    new_events =
       events
       |> Enum.filter(fn e ->
-        not Map.has_key?(cache, e.event_id) and
+        not MapSet.member?(seen, e.event_id) and
           e.before_sha != "0000000000000000000000000000000000000000"
       end)
-      |> Enum.take(@max_stats_per_cycle)
+      |> Enum.take(@max_compares_per_cycle)
 
-    new_entries =
-      needs_compare
-      |> Enum.map(fn event -> {event.event_id, fetch_compare(event)} end)
-      |> Enum.into(%{})
+    new_seen =
+      Enum.reduce(new_events, seen, fn event, acc ->
+        case fetch_compare(event) do
+          {:ok, compare_data} ->
+            Blog.GitHub.WorkLog.upsert_from_compare(
+              event.repo, event.branch, event.event_id, compare_data
+            )
+            MapSet.put(acc, event.event_id)
 
-    updated_cache = Map.merge(cache, new_entries)
-
-    enriched =
-      Enum.map(events, fn event ->
-        case Map.get(updated_cache, event.event_id) do
-          nil ->
-            event
-
-          compare ->
-            %{event | stats: compare.stats, commits: compare.commits}
+          {:error, _} ->
+            acc
         end
       end)
 
-    {enriched, updated_cache}
+    # Also mark all current event IDs as seen
+    all_seen = Enum.reduce(events, new_seen, fn e, acc -> MapSet.put(acc, e.event_id) end)
+    {all_seen, new_events}
   end
 
   defp fetch_compare(%{repo: repo, before_sha: before_sha, head_sha: head_sha}) do
@@ -115,25 +104,17 @@ defmodule Blog.GitHub.WorkLogPoller do
           (body["commits"] || [])
           |> Enum.map(fn c ->
             msg = get_in(c, ["commit", "message"]) |> to_string() |> String.trim()
-            %{
-              sha: String.slice(c["sha"] || "", 0..6),
-              message: msg
-            }
+            %{sha: String.slice(c["sha"] || "", 0..6), message: msg}
           end)
           |> Enum.filter(fn c -> c.message != "" end)
 
-        %{
-          stats: %{additions: additions, deletions: deletions},
-          commits: commits
-        }
+        {:ok, %{stats: %{additions: additions, deletions: deletions}, commits: commits}}
 
       {:ok, %{status: status}} ->
-        Logger.debug("GitHub Compare API returned #{status} for #{repo}")
-        nil
+        {:error, "Compare API returned #{status}"}
 
       {:error, error} ->
-        Logger.debug("GitHub Compare API failed: #{inspect(error)}")
-        nil
+        {:error, "Compare API failed: #{inspect(error)}"}
     end
   end
 
@@ -144,18 +125,7 @@ defmodule Blog.GitHub.WorkLogPoller do
       branch: (event["payload"]["ref"] || "") |> String.replace("refs/heads/", ""),
       before_sha: event["payload"]["before"] || "",
       head_sha: event["payload"]["head"] || "",
-      commits: [],
-      created_at: parse_datetime(event["created_at"]),
-      stats: nil
+      created_at: event["created_at"]
     }
-  end
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(str) do
-    case DateTime.from_iso8601(str) do
-      {:ok, dt, _offset} -> dt
-      _ -> nil
-    end
   end
 end

@@ -5,27 +5,18 @@ defmodule BlogWeb.WorkLogLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {events, last_updated} =
-      case GenServer.whereis(Blog.GitHub.WorkLogPoller) do
-        nil -> {[], nil}
-        _pid -> Blog.GitHub.WorkLogPoller.get_events()
-      end
+    events = Blog.GitHub.WorkLog.list_recent()
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Blog.PubSub, @topic)
     end
 
-    {:ok,
-     assign(socket,
-       page_title: "Work Log",
-       events: events,
-       last_updated: last_updated
-     )}
+    {:ok, assign(socket, page_title: "Work Log", events: events)}
   end
 
   @impl true
-  def handle_info({:work_log_updated, events, last_updated}, socket) do
-    {:noreply, assign(socket, events: events, last_updated: last_updated)}
+  def handle_info(:work_log_updated, socket) do
+    {:noreply, assign(socket, events: Blog.GitHub.WorkLog.list_recent())}
   end
 
   defp short_date(nil), do: ""
@@ -34,18 +25,6 @@ defmodule BlogWeb.WorkLogLive do
   defp repo_url(repo_name), do: "https://github.com/#{repo_name}"
   defp commit_url(repo_name, sha), do: "https://github.com/#{repo_name}/commit/#{sha}"
   defp short_repo(full_name), do: full_name |> String.split("/") |> List.last()
-
-  defp head_url(repo, before_sha, head_sha) do
-    if before_sha == "0000000000000000000000000000000000000000" do
-      "https://github.com/#{repo}/commit/#{head_sha}"
-    else
-      "https://github.com/#{repo}/compare/#{before_sha}...#{head_sha}"
-    end
-  end
-
-  defp short_sha(nil), do: ""
-  defp short_sha(""), do: ""
-  defp short_sha(sha), do: String.slice(sha, 0..6)
 
   @impl true
   def render(assigns) do
@@ -97,7 +76,6 @@ defmodule BlogWeb.WorkLogLive do
       .push-header:first-child { margin-top: 0; }
       .push-header .sha { color: #e8a838; }
       .push-header .sha a { color: #e8a838; }
-      .push-header .stats { color: #888; }
       .push-header .stats .p { color: #5ce65c; }
       .push-header .stats .m { color: #e65c5c; }
       .push-header .ref { color: #5ccccc; }
@@ -120,11 +98,6 @@ defmodule BlogWeb.WorkLogLive do
       <div class="wl-menubar">
         <a href="/">bobbby.online</a>
         <span>Work Log</span>
-        <span class="menu-right">
-          <%= if @last_updated do %>
-            updated {Calendar.strftime(@last_updated, "%H:%M:%S UTC")}
-          <% end %>
-        </span>
       </div>
 
       <div class="wl-body">
@@ -139,7 +112,7 @@ defmodule BlogWeb.WorkLogLive do
               <div class="empty-msg">No recent push events.</div>
             <% else %>
               <%= for event <- @events do %>
-                <div class="push-header"><span class="sha"><a href={head_url(event.repo, event.before_sha, event.head_sha)} target="_blank">{short_sha(event.head_sha)}</a></span> <%= if event.stats do %><span class="stats"><span class="p">+{event.stats.additions}</span>/<span class="m">-{event.stats.deletions}</span></span> <% end %><span class="ref"><a href={repo_url(event.repo)} target="_blank">{short_repo(event.repo)}</a>/{event.branch}</span> <span class="dt">{short_date(event.created_at)}</span></div>
+                <div class="push-header"><span class="sha"><a href={repo_url(event.repo)} target="_blank">{String.slice(List.first(event.commits)[:sha] || "", 0..6)}</a></span> <span class="stats"><span class="p">+{event.additions}</span>/<span class="m">-{event.deletions}</span></span> <span class="ref"><a href={repo_url(event.repo)} target="_blank">{short_repo(event.repo)}</a>/{event.branch}</span> <span class="dt">{short_date(event.committed_at)}</span></div>
                 <%= for commit <- event.commits do %>
                   <div class="commit-line"><span class="sha"><a href={commit_url(event.repo, commit.sha)} target="_blank">{commit.sha}</a></span> {commit.message}</div>
                 <% end %>

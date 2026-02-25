@@ -103,6 +103,7 @@ defmodule BlogWeb.TerminalLive do
         # Subscribe to presence and chat topics
         Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
         Phoenix.PubSub.subscribe(Blog.PubSub, Chat.topic())
+        Phoenix.PubSub.subscribe(Blog.PubSub, "github:work_log")
 
         id
       else
@@ -168,6 +169,9 @@ defmodule BlogWeb.TerminalLive do
        show_phish: true,
        # Tree state
        show_tree: false,
+       # Work Log
+       show_work_log: false,
+       work_log_events: Blog.GitHub.WorkLog.list_recent(),
        # Leica collage viewer state: false | :warning | :loading | :viewing
        # ?leica=1 skips warning and starts loading immediately
        show_leica: if(params["leica"], do: :loading, else: false),
@@ -208,6 +212,11 @@ defmodule BlogWeb.TerminalLive do
   # Phish window toggle
   def handle_event("toggle_phish", _params, socket) do
     {:noreply, assign(socket, show_phish: !socket.assigns.show_phish)}
+  end
+
+  # Work Log window toggle
+  def handle_event("toggle_work_log", _params, socket) do
+    {:noreply, assign(socket, show_work_log: !socket.assigns.show_work_log)}
   end
 
   # Museum events
@@ -396,6 +405,10 @@ defmodule BlogWeb.TerminalLive do
   # Handle Joyride tour completion
   def handle_info({:tour_complete, _id}, socket) do
     {:noreply, assign(socket, show_tour: false)}
+  end
+
+  def handle_info(:work_log_updated, socket) do
+    {:noreply, assign(socket, work_log_events: Blog.GitHub.WorkLog.list_recent())}
   end
 
   # Tour controls
@@ -700,6 +713,27 @@ defmodule BlogWeb.TerminalLive do
             </div>
           <% end %>
 
+          <%!-- Work Log Desktop Icon --%>
+          <div class="desktop-icon-worklog" phx-click="toggle_work_log">
+            <div class="desktop-icon-img">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="48" height="48" style="image-rendering: pixelated;">
+                <rect x="6" y="4" width="20" height="24" fill="#1a1a2e"/>
+                <rect x="7" y="5" width="18" height="22" fill="#1a1a2e" stroke="#e8a838" stroke-width="1"/>
+                <rect x="9" y="8" width="5" height="1" fill="#e8a838"/>
+                <rect x="15" y="8" width="8" height="1" fill="#5ce65c"/>
+                <rect x="9" y="11" width="5" height="1" fill="#e8a838"/>
+                <rect x="15" y="11" width="6" height="1" fill="#e65c5c"/>
+                <rect x="9" y="14" width="5" height="1" fill="#e8a838"/>
+                <rect x="15" y="14" width="7" height="1" fill="#5ce65c"/>
+                <rect x="9" y="17" width="5" height="1" fill="#e8a838"/>
+                <rect x="15" y="17" width="4" height="1" fill="#fff"/>
+                <rect x="9" y="20" width="5" height="1" fill="#e8a838"/>
+                <rect x="15" y="20" width="9" height="1" fill="#5ce65c"/>
+              </svg>
+            </div>
+            <div class="desktop-icon-label">WORK<br/>LOG</div>
+          </div>
+
           <%!-- Leica Desktop Icon --%>
           <div class="desktop-icon-leica" phx-click="toggle_leica">
             <div class="desktop-icon-img">
@@ -914,7 +948,35 @@ defmodule BlogWeb.TerminalLive do
           <div class="tree-container" id="tree-wrapper" phx-update="ignore">
             <canvas id="psychedelic-tree" phx-hook="PsychedelicTree"></canvas>
           </div>
-          
+
+    <!-- Work Log Window -->
+          <%= if @show_work_log do %>
+            <div class="work-log-window" phx-hook="Draggable" id="work-log-window">
+              <div class="title-bar">
+                <div class="close-box" phx-click="toggle_work_log"></div>
+                <div class="title">Work Log — git log</div>
+                <div class="resize-box"></div>
+              </div>
+              <div class="work-log-term">
+                <div style="color: #8888aa;">$ git log</div>
+                <%= if Enum.empty?(@work_log_events) do %>
+                  <div style="color: #8888aa; text-align: center; padding: 20px 0;">Loading commits...</div>
+                <% else %>
+                  <%= for event <- @work_log_events do %>
+                    <div class="wl-push-header"><span class="wl-sha"><a href={"https://github.com/#{event.repo}"} target="_blank">{String.slice((List.first(event.commits) || %{sha: ""})[:sha] || "", 0..6)}</a></span> <span class="wl-plus">+{event.additions}</span>/<span class="wl-minus">-{event.deletions}</span> <span class="wl-ref"><a href={"https://github.com/#{event.repo}"} target="_blank">{event.repo |> String.split("/") |> List.last()}</a>/{event.branch}</span></div>
+                    <%= for commit <- event.commits do %>
+                      <div class="wl-commit">    <span class="wl-sha"><a href={"https://github.com/#{event.repo}/commit/#{commit.sha}"} target="_blank">{commit.sha}</a></span> {commit.message}</div>
+                    <% end %>
+                  <% end %>
+                <% end %>
+              </div>
+              <div class="status-bar">
+                <span>{length(@work_log_events)} pushes</span>
+                <span>github.com/notactuallytreyanastasio</span>
+              </div>
+            </div>
+          <% end %>
+
     <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
         <!-- Name Dialog - show for new visitors or returning visitors without confirmed chatter -->
           <%= if @reader_id && is_nil(@chatter) && @show_chat do %>
@@ -1484,6 +1546,47 @@ defmodule BlogWeb.TerminalLive do
       }
 
       /* Phish embed window */
+      /* Work Log Window */
+      .work-log-window {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 520px;
+        max-width: 90vw;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        z-index: 120;
+        display: flex;
+        flex-direction: column;
+        max-height: 70vh;
+      }
+      .work-log-term {
+        background: #1a1a2e;
+        color: #c8c8c8;
+        font-family: "Monaco", "Menlo", "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.4;
+        padding: 8px 12px;
+        overflow-y: auto;
+        overflow-x: auto;
+        flex: 1;
+        min-height: 0;
+        max-height: 50vh;
+      }
+      .work-log-term a { color: inherit; text-decoration: none; }
+      .work-log-term a:hover { text-decoration: underline; }
+      .wl-push-header { color: #c8c8c8; margin-top: 6px; white-space: nowrap; }
+      .wl-push-header:first-of-type { margin-top: 4px; }
+      .wl-sha { color: #e8a838; }
+      .wl-sha a { color: #e8a838; }
+      .wl-plus { color: #5ce65c; }
+      .wl-minus { color: #e65c5c; }
+      .wl-ref { color: #5ccccc; }
+      .wl-ref a { color: #5ccccc; }
+      .wl-commit { padding-left: 4ch; color: #fff; white-space: pre-wrap; word-break: break-word; }
+
       .phish-embed-window {
         width: 100%;
         max-width: 420px;
@@ -2116,11 +2219,25 @@ defmodule BlogWeb.TerminalLive do
          ======================================== */
 
       /* Desktop icon */
-      .desktop-icon-leica {
+      .desktop-icon-worklog {
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+        text-align: center;
+        cursor: pointer;
+        z-index: 10;
+        padding: 8px;
+        border-radius: 4px;
+      }
+      .desktop-icon-worklog:hover {
+        background: rgba(0,0,0,0.1);
+      }
+      .desktop-icon-leica {
+        position: absolute;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
         text-align: center;
         cursor: pointer;
         z-index: 10;
