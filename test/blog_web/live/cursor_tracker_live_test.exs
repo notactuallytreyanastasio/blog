@@ -1,16 +1,181 @@
+defmodule BlogWeb.CursorTrackerLive.PureFunctionTest do
+  @moduledoc """
+  Unit tests for extracted pure functions in CursorTrackerLive.
+  These tests require no database or LiveView connection.
+  """
+  use ExUnit.Case, async: true
+  alias BlogWeb.CursorTrackerLive
+
+  # --------------------------------------------------------------------------
+  # generate_user_color/1
+  # --------------------------------------------------------------------------
+
+  describe "generate_user_color/1" do
+    test "returns an rgb string" do
+      color = CursorTrackerLive.generate_user_color("abc123")
+      assert color =~ ~r/^rgb\(\d+, \d+, \d+\)$/
+    end
+
+    test "is deterministic for the same user ID" do
+      assert CursorTrackerLive.generate_user_color("user1") ==
+               CursorTrackerLive.generate_user_color("user1")
+    end
+
+    test "produces different colors for different user IDs" do
+      refute CursorTrackerLive.generate_user_color("user1") ==
+               CursorTrackerLive.generate_user_color("user2")
+    end
+
+    test "ensures minimum brightness (r, g, b >= 100)" do
+      color = CursorTrackerLive.generate_user_color("zero")
+      [r, g, b] = parse_rgb(color)
+      assert r >= 100
+      assert g >= 100
+      assert b >= 100
+    end
+
+    test "clamps values at 255" do
+      color = CursorTrackerLive.generate_user_color("high_values")
+      [r, g, b] = parse_rgb(color)
+      assert r <= 255
+      assert g <= 255
+      assert b <= 255
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # calculate_next_clear/0
+  # --------------------------------------------------------------------------
+
+  describe "calculate_next_clear/0" do
+    test "returns a map with hours, minutes, seconds, and total_seconds" do
+      result = CursorTrackerLive.calculate_next_clear()
+
+      assert is_integer(result.hours)
+      assert is_integer(result.minutes)
+      assert is_integer(result.seconds)
+      assert is_integer(result.total_seconds)
+    end
+
+    test "total_seconds is consistent with h/m/s components" do
+      result = CursorTrackerLive.calculate_next_clear()
+      computed = result.hours * 3600 + result.minutes * 60 + result.seconds
+      assert computed == result.total_seconds
+    end
+
+    test "values are within expected ranges" do
+      result = CursorTrackerLive.calculate_next_clear()
+
+      assert result.hours in 0..0
+      assert result.minutes in 0..59
+      assert result.seconds in 0..59
+      assert result.total_seconds > 0
+      assert result.total_seconds <= 3600
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # build_point/1
+  # --------------------------------------------------------------------------
+
+  describe "build_point/1" do
+    test "creates a point map from assigns" do
+      assigns = %{
+        relative_x: 42,
+        relative_y: 99,
+        user_color: "rgb(100, 200, 150)",
+        user_id: "u1"
+      }
+
+      point = CursorTrackerLive.build_point(assigns)
+
+      assert point.x == 42
+      assert point.y == 99
+      assert point.color == "rgb(100, 200, 150)"
+      assert point.user_id == "u1"
+      assert %DateTime{} = point.timestamp
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # format_time_component/1
+  # --------------------------------------------------------------------------
+
+  describe "format_time_component/1" do
+    test "pads single digits" do
+      assert CursorTrackerLive.format_time_component(5) == "05"
+    end
+
+    test "leaves double digits as-is" do
+      assert CursorTrackerLive.format_time_component(42) == "42"
+    end
+
+    test "handles zero" do
+      assert CursorTrackerLive.format_time_component(0) == "00"
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # point_author_label/2
+  # --------------------------------------------------------------------------
+
+  describe "point_author_label/2" do
+    test "returns 'you' when IDs match" do
+      assert CursorTrackerLive.point_author_label("abc", "abc") == "you"
+    end
+
+    test "returns truncated ID when IDs differ" do
+      assert CursorTrackerLive.point_author_label("abcdef1234", "other") == "abcdef"
+    end
+
+    test "handles nil point user_id" do
+      assert CursorTrackerLive.point_author_label(nil, "other") == ""
+    end
+
+    test "handles nil current user_id" do
+      assert CursorTrackerLive.point_author_label("abc", nil) == ""
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # Helpers
+  # --------------------------------------------------------------------------
+
+  defp parse_rgb(color_string) do
+    ~r/rgb\((\d+), (\d+), (\d+)\)/
+    |> Regex.run(color_string, capture: :all_but_first)
+    |> Enum.map(&String.to_integer/1)
+  end
+end
+
 defmodule BlogWeb.CursorTrackerLiveTest do
+  @moduledoc """
+  LiveView integration tests for CursorTrackerLive.
+  """
   use BlogWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
   alias Blog.CursorPoints
 
   setup do
-    # Ensure CursorPoints is started and clear any existing data
-    CursorPoints.start_link([])
+    # Stop any existing CursorPoints process to avoid ETS table conflicts
+    case GenServer.whereis(CursorPoints) do
+      nil -> :ok
+      pid -> GenServer.stop(pid, :normal, 5_000)
+    end
+
+    # Allow ETS table cleanup to complete
+    Process.sleep(10)
+
+    start_supervised!(CursorPoints)
     CursorPoints.clear_points()
     :ok
   end
 
-  describe "CursorTrackerLive" do
+  # --------------------------------------------------------------------------
+  # Mount and render
+  # --------------------------------------------------------------------------
+
+  describe "mount and render" do
     test "disconnected and connected render", %{conn: conn} do
       {:ok, page_live, disconnected_html} = live(conn, ~p"/cursor-tracker")
 
@@ -31,89 +196,57 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       assert html =~ "SYSTEM LOG"
     end
 
-    test "has correct CSS classes and styling", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      assert html =~ "min-h-screen bg-black text-green-500 font-mono"
-      assert html =~ "glitch-text"
-      assert html =~ "border border-green-500"
-      assert html =~ "cursor-crosshair"
-    end
-
-    test "includes glitch animation CSS", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      assert html =~ "@keyframes glitch"
-      assert html =~ "text-shadow:"
-      assert html =~ "animation: glitch 500ms infinite"
-    end
-
     test "displays initial coordinates as 0", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      # Should show initial coordinates
-      # X and Y coordinates
       assert html =~ ">0<"
     end
 
     test "shows active users count", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      # Should show at least 1 user (the current user)
       assert html =~ "ACTIVE USERS: 1"
     end
 
-    test "displays visualization area", %{conn: conn} do
+    test "displays visualization area prompt", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
 
       assert html =~ "Move cursor here to visualize position"
       assert html =~ "Click anywhere in the visualization area to save a point"
-      assert html =~ "h-64"
     end
 
     test "has auto-clear timer display", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
 
-      # Should show time format HH:MM:SS
       assert html =~ ~r/\d{2}:\d{2}:\d{2}/
       assert html =~ "AUTO-CLEAR IN:"
     end
-  end
 
-  describe "mount/3" do
-    test "sets correct initial assigns when disconnected", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      # Check initial values are reflected in the UI
-      # x_pos and y_pos
-      assert html =~ ">0<"
-      # Should show at least current user
-      assert html =~ "ACTIVE USERS: 1"
-    end
-
-    test "generates user ID and color when connected", %{conn: conn} do
+    test "generates user color when connected", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # After connection, should have generated user color
       html = render(page_live)
       assert html =~ "background-color: rgb("
       assert html =~ "YOU"
     end
 
-    test "includes meta attributes for SEO", %{conn: conn} do
+    test "has glitch-text CSS class", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
+      assert html =~ "glitch-text"
+    end
 
-      # The meta attributes should be included in the page (though not directly visible in render)
-      # We test this indirectly by ensuring the mount function sets them
-      assert html =~ "CURSOR POSITION TRACKER"
+    test "uses crosshair cursor in visualization area", %{conn: conn} do
+      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
+      assert html =~ "cursor-crosshair"
     end
   end
+
+  # --------------------------------------------------------------------------
+  # Mousemove
+  # --------------------------------------------------------------------------
 
   describe "handle_event mousemove" do
     test "updates cursor position", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Send mousemove event
       page_live
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{"x" => 100, "y" => 200})
@@ -126,7 +259,6 @@ defmodule BlogWeb.CursorTrackerLiveTest do
     test "handles relative coordinates", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Send mousemove with relative coordinates
       page_live
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{
@@ -138,7 +270,6 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       })
 
       html = render(page_live)
-      # Should show relative coordinates
       assert html =~ "X: 50, Y: 75"
     end
 
@@ -177,11 +308,14 @@ defmodule BlogWeb.CursorTrackerLiveTest do
     end
   end
 
+  # --------------------------------------------------------------------------
+  # Save point
+  # --------------------------------------------------------------------------
+
   describe "handle_event save_point" do
     test "saves point when in visualization area", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # First move cursor into visualization area
       page_live
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{
@@ -192,9 +326,8 @@ defmodule BlogWeb.CursorTrackerLiveTest do
         "inVisualization" => true
       })
 
-      # Then save point
       page_live
-      |> element("div", text: "CURSOR VISUALIZATION")
+      |> element("#visualization-area")
       |> render_click()
 
       html = render(page_live)
@@ -202,22 +335,20 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       assert html =~ "Point 1:"
     end
 
-    test "doesn't save point when outside visualization area", %{conn: conn} do
+    test "does not save point when outside visualization area", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Try to save point without being in visualization area
       page_live
-      |> element("div", text: "CURSOR VISUALIZATION")
+      |> element("#visualization-area")
       |> render_click()
 
       html = render(page_live)
       refute html =~ "Saved points:"
     end
 
-    test "point appears in visualization", %{conn: conn} do
+    test "saved point appears in visualization with correct style", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Move into visualization and save point
       page_live
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{
@@ -229,21 +360,23 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       })
 
       page_live
-      |> element("div", text: "CURSOR VISUALIZATION")
+      |> element("#visualization-area")
       |> render_click()
 
       html = render(page_live)
-      # Should show the saved point in visualization
       assert html =~ "left: 50px; top: 75px"
       assert html =~ "rounded-full"
     end
   end
 
+  # --------------------------------------------------------------------------
+  # Clear points
+  # --------------------------------------------------------------------------
+
   describe "handle_event clear_points" do
     test "clears all saved points", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Add a point first
       page_live
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{
@@ -255,27 +388,21 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       })
 
       page_live
-      |> element("div", text: "CURSOR VISUALIZATION")
+      |> element("#visualization-area")
       |> render_click()
 
-      # Verify point was added
-      html = render(page_live)
-      assert html =~ "Saved points: 1"
+      assert render(page_live) =~ "Saved points: 1"
 
-      # Clear points
       page_live
-      |> element("button", text: "CLEAR POINTS")
+      |> element("button", "CLEAR POINTS")
       |> render_click()
 
-      # Verify points were cleared
-      html = render(page_live)
-      refute html =~ "Saved points:"
+      refute render(page_live) =~ "Saved points:"
     end
 
     test "clears points from ETS storage", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Add point via ETS directly
       point = %{
         x: 50,
         y: 75,
@@ -285,27 +412,24 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       }
 
       CursorPoints.add_point(point)
+      assert length(CursorPoints.get_points()) == 1
 
-      # Verify point exists in ETS
-      points = CursorPoints.get_points()
-      assert length(points) == 1
-
-      # Clear via UI
       page_live
-      |> element("button", text: "CLEAR POINTS")
+      |> element("button", "CLEAR POINTS")
       |> render_click()
 
-      # Verify ETS was cleared
-      points = CursorPoints.get_points()
-      assert length(points) == 0
+      assert CursorPoints.get_points() == []
     end
   end
 
+  # --------------------------------------------------------------------------
+  # handle_info messages
+  # --------------------------------------------------------------------------
+
   describe "handle_info messages" do
-    test "handles new point messages", %{conn: conn} do
+    test "handles new point messages from other users", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Send new point message
       new_point = %{
         x: 100,
         y: 150,
@@ -316,14 +440,12 @@ defmodule BlogWeb.CursorTrackerLiveTest do
 
       send(page_live.pid, {:new_point, new_point})
 
-      html = render(page_live)
-      assert html =~ "Saved points: 1"
+      assert render(page_live) =~ "Saved points: 1"
     end
 
-    test "handles clear points messages", %{conn: conn} do
+    test "handles clear points messages from other users", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Add a point first through message
       new_point = %{
         x: 100,
         y: 150,
@@ -333,31 +455,28 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       }
 
       send(page_live.pid, {:new_point, new_point})
-      html = render(page_live)
-      assert html =~ "Saved points: 1"
+      assert render(page_live) =~ "Saved points: 1"
 
-      # Clear points via message
-      send(page_live.pid, {:clear_points, "some_user"})
+      send(page_live.pid, {:clear_points, %{user_id: "other_user"}})
 
-      html = render(page_live)
-      refute html =~ "Saved points:"
+      refute render(page_live) =~ "Saved points:"
     end
 
     test "handles tick messages for timer updates", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Get initial timer display
       initial_html = render(page_live)
       assert initial_html =~ ~r/\d{2}:\d{2}:\d{2}/
 
-      # Send tick message
       send(page_live.pid, :tick)
 
-      # Timer should still be displayed (exact value may change)
-      html = render(page_live)
-      assert html =~ ~r/\d{2}:\d{2}:\d{2}/
+      assert render(page_live) =~ ~r/\d{2}:\d{2}:\d{2}/
     end
   end
+
+  # --------------------------------------------------------------------------
+  # System log display
+  # --------------------------------------------------------------------------
 
   describe "system log display" do
     test "shows current position in log", %{conn: conn} do
@@ -367,8 +486,7 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{"x" => 123, "y" => 456})
 
-      html = render(page_live)
-      assert html =~ "Current position: X:123 Y:456"
+      assert render(page_live) =~ "Current position: X:123 Y:456"
     end
 
     test "shows visualization area coordinates when in area", %{conn: conn} do
@@ -384,14 +502,12 @@ defmodule BlogWeb.CursorTrackerLiveTest do
         "inVisualization" => true
       })
 
-      html = render(page_live)
-      assert html =~ "Cursor in visualization area: X:50 Y:75"
+      assert render(page_live) =~ "Cursor in visualization area: X:50 Y:75"
     end
 
     test "shows saved points count and details", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Add point
       page_live
       |> element("#cursor-tracker")
       |> render_hook("mousemove", %{
@@ -403,7 +519,7 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       })
 
       page_live
-      |> element("div", text: "CURSOR VISUALIZATION")
+      |> element("#visualization-area")
       |> render_click()
 
       html = render(page_live)
@@ -414,13 +530,12 @@ defmodule BlogWeb.CursorTrackerLiveTest do
     test "limits displayed points to 5 with overflow message", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/cursor-tracker")
 
-      # Add 7 points via messages
       for i <- 1..7 do
         point = %{
           x: i * 10,
           y: i * 15,
           color: "rgb(100, 255, 100)",
-          user_id: "test_user",
+          user_id: "other_user",
           timestamp: DateTime.utc_now()
         }
 
@@ -440,31 +555,16 @@ defmodule BlogWeb.CursorTrackerLiveTest do
     end
   end
 
-  describe "user color system" do
-    test "generates consistent colors for users", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      # Should show user with generated color
-      assert html =~ "background-color: rgb("
-      assert html =~ "YOU"
-    end
-
-    test "displays user indicator with color", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      assert html =~ "w-4 h-4 rounded-full"
-      assert html =~ "background-color:"
-    end
-  end
+  # --------------------------------------------------------------------------
+  # Accessibility and UX
+  # --------------------------------------------------------------------------
 
   describe "accessibility and UX" do
-    test "has proper ARIA labels and semantic HTML", %{conn: conn} do
+    test "has proper semantic HTML", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
 
-      # Check for semantic structure
       assert html =~ "<h1"
       assert html =~ "<button"
-      # Visual hierarchy
       assert html =~ "text-xs opacity-70"
     end
 
@@ -473,12 +573,6 @@ defmodule BlogWeb.CursorTrackerLiveTest do
 
       assert html =~ "Click anywhere in the visualization area to save a point"
       assert html =~ "Move cursor here to visualize position"
-    end
-
-    test "uses appropriate cursor styles", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/cursor-tracker")
-
-      assert html =~ "cursor-crosshair"
     end
   end
 end
