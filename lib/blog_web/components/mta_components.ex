@@ -1,4 +1,8 @@
 defmodule BlogWeb.MTAComponents do
+  @moduledoc """
+  Shared UI components for the MTA Bus Map feature.
+  """
+
   use Phoenix.Component
 
   @doc """
