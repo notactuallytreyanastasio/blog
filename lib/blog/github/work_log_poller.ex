@@ -6,7 +6,7 @@ defmodule Blog.GitHub.WorkLogPoller do
   @github_username "notactuallytreyanastasio"
   @events_url "https://api.github.com/users/#{@github_username}/events/public"
   @topic "github:work_log"
-  @max_stats_per_cycle 3
+  @max_stats_per_cycle 5
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -19,7 +19,7 @@ defmodule Blog.GitHub.WorkLogPoller do
   @impl true
   def init(_opts) do
     send(self(), :poll)
-    {:ok, %{events: [], last_updated: nil, stats_cache: %{}}}
+    {:ok, %{events: [], last_updated: nil, compare_cache: %{}}}
   end
 
   @impl true
@@ -35,15 +35,15 @@ defmodule Blog.GitHub.WorkLogPoller do
         {:noreply, state}
 
       events when is_list(events) ->
-        Enum.each(events, fn e ->
-          Logger.info("WorkLog event #{e.event_id}: #{length(e.commits)} commits, repo=#{e.repo}")
-          Enum.each(e.commits, fn c -> Logger.info("  commit #{c.sha}: #{String.slice(c.message, 0..60)}") end)
+        {enriched, new_cache} = enrich_with_compare(events, state.compare_cache)
+        # Filter out events with no diff
+        enriched = Enum.filter(enriched, fn e ->
+          is_nil(e.stats) or e.stats.additions > 0 or e.stats.deletions > 0
         end)
-        {enriched, new_cache} = enrich_with_stats(events, state.stats_cache)
         now = DateTime.utc_now()
         Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {:work_log_updated, enriched, now})
         Process.send_after(self(), :poll, @poll_interval)
-        {:noreply, %{state | events: enriched, last_updated: now, stats_cache: new_cache}}
+        {:noreply, %{state | events: enriched, last_updated: now, compare_cache: new_cache}}
     end
   end
 
@@ -67,8 +67,8 @@ defmodule Blog.GitHub.WorkLogPoller do
     end
   end
 
-  defp enrich_with_stats(events, cache) do
-    needs_stats =
+  defp enrich_with_compare(events, cache) do
+    needs_compare =
       events
       |> Enum.filter(fn e ->
         not Map.has_key?(cache, e.event_id) and
@@ -77,39 +77,49 @@ defmodule Blog.GitHub.WorkLogPoller do
       |> Enum.take(@max_stats_per_cycle)
 
     new_entries =
-      needs_stats
-      |> Enum.map(fn event -> {event.event_id, fetch_compare_stats(event)} end)
+      needs_compare
+      |> Enum.map(fn event -> {event.event_id, fetch_compare(event)} end)
       |> Enum.into(%{})
 
     updated_cache = Map.merge(cache, new_entries)
 
     enriched =
       Enum.map(events, fn event ->
-        %{event | stats: Map.get(updated_cache, event.event_id)}
+        case Map.get(updated_cache, event.event_id) do
+          nil ->
+            event
+
+          compare ->
+            %{event | stats: compare.stats, commits: compare.commits}
+        end
       end)
 
     {enriched, updated_cache}
   end
 
-  defp fetch_compare_stats(%{repo: repo, before_sha: before_sha, head_sha: head_sha}) do
+  defp fetch_compare(%{repo: repo, before_sha: before_sha, head_sha: head_sha}) do
     url = "https://api.github.com/repos/#{repo}/compare/#{before_sha}...#{head_sha}"
 
     case Req.get(url, headers: [{"user-agent", "bobbby-work-log"}]) do
       {:ok, %{status: 200, body: body}} ->
-        files =
-          (body["files"] || [])
-          |> Enum.map(fn f ->
+        files = body["files"] || []
+        additions = files |> Enum.map(&((&1["additions"] || 0))) |> Enum.sum()
+        deletions = files |> Enum.map(&((&1["deletions"] || 0))) |> Enum.sum()
+
+        commits =
+          (body["commits"] || [])
+          |> Enum.map(fn c ->
+            msg = get_in(c, ["commit", "message"]) |> to_string() |> String.trim()
             %{
-              filename: f["filename"] || "",
-              additions: f["additions"] || 0,
-              deletions: f["deletions"] || 0
+              sha: String.slice(c["sha"] || "", 0..6),
+              message: msg
             }
           end)
+          |> Enum.filter(fn c -> c.message != "" end)
 
         %{
-          files: files,
-          additions: Enum.sum(Enum.map(files, & &1.additions)),
-          deletions: Enum.sum(Enum.map(files, & &1.deletions))
+          stats: %{additions: additions, deletions: deletions},
+          commits: commits
         }
 
       {:ok, %{status: status}} ->
@@ -129,16 +139,7 @@ defmodule Blog.GitHub.WorkLogPoller do
       branch: (event["payload"]["ref"] || "") |> String.replace("refs/heads/", ""),
       before_sha: event["payload"]["before"] || "",
       head_sha: event["payload"]["head"] || "",
-      commits:
-        (event["payload"]["commits"] || [])
-        |> Enum.map(fn c ->
-          %{
-            sha: String.slice(c["sha"] || "", 0..6),
-            message: c["message"] |> to_string() |> String.trim(),
-            author: get_in(c, ["author", "name"])
-          }
-        end)
-        |> Enum.filter(fn c -> c.message != nil and String.trim(c.message) != "" end),
+      commits: [],
       created_at: parse_datetime(event["created_at"]),
       stats: nil
     }
