@@ -173,6 +173,12 @@ defmodule BlogWeb.WorkLogLive do
       .wl-term .minus { color: #e65c5c; }
       .wl-term .summary { color: #888; }
       .wl-term .empty-msg { color: #8888aa; padding: 40px 0; text-align: center; }
+      .log-entry { margin-bottom: 0; }
+      .log-divider {
+        border: none;
+        border-top: 1px dashed #333355;
+        margin: 12px 0;
+      }
       .wl-statusbar {
         height: 22px;
         border-top: 1px solid #000;
@@ -185,7 +191,7 @@ defmodule BlogWeb.WorkLogLive do
         position: fixed;
         bottom: 0; left: 0; right: 0;
       }
-      .log-entry { margin-bottom: 8px; }
+      .log-entry-old { display: none; }
     </style>
 
     <div class="wl-desktop">
@@ -211,16 +217,20 @@ defmodule BlogWeb.WorkLogLive do
             <%= if Enum.empty?(@events) do %>
               <div class="empty-msg">No recent push events.</div>
             <% else %>
-              <%= for event <- @events do %>
+              <%= for {event, idx} <- Enum.with_index(@events) do %>
+                <%= if idx > 0 do %>
+                  <hr class="log-divider" />
+                <% end %>
                 <div class="log-entry">
                   <div class="ln"><span class="sha">commit <a href={head_url(event.repo, event.before_sha, event.head_sha)} target="_blank">{short_sha(event.head_sha)}</a></span> <span class="ref">(<a href={repo_url(event.repo)} target="_blank">{short_repo(event.repo)}</a>/{event.branch})</span></div>
                   <div class="ln">Author: {(List.first(event.commits) || %{})[:author] || "notactuallytreyanastasio"}</div>
                   <div class="ln">Date:   {format_git_date(event.created_at)}</div>
                   <div class="blank"></div>
                   <%= for commit <- event.commits do %>
-                    <div class="ln msg">    <a href={commit_url(event.repo, commit.sha)} target="_blank">{commit.sha}</a> {commit.message}</div>
+                    <div class="ln msg">    <span class="sha"><a href={commit_url(event.repo, commit.sha)} target="_blank">{commit.sha}</a></span></div>
+                    <div class="ln msg">    {commit.message}</div>
+                    <div class="blank"></div>
                   <% end %>
-                  <div class="blank"></div>
                   <%= if event.stats do %>
                     <%= for file <- visible_files(event.stats.files) do %>
                       <% bar = stat_bar(file.additions, file.deletions) %>
