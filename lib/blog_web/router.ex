@@ -96,6 +96,7 @@ defmodule BlogWeb.Router do
     live "/role-call", RoleCallLive, :index
     live "/stumble", StumbleLive, :index
     live "/nyc_census_and_pluto", NycCensusAndPlutoLive, :index
+    live "/work-log", WorkLogLive, :index
 
     # Smart Steps scenario system
     live "/smart-steps", SmartStepsLive.Index, :index

@@ -67,7 +67,9 @@ defmodule Blog.Application do
       # Collage Maker subsystem
       {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
       Blog.CollageMaker.Processor,
-      Blog.CollageMaker.Cleanup
+      Blog.CollageMaker.Cleanup,
+      # GitHub work log poller
+      Blog.GitHub.WorkLogPoller
     ]
 
     # Pre-load the Games modules to ensure they're available
@@ -122,7 +124,9 @@ defmodule Blog.Application do
         # Collage Maker subsystem
         {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
         Blog.CollageMaker.Processor,
-        Blog.CollageMaker.Cleanup
+        Blog.CollageMaker.Cleanup,
+        # GitHub work log poller
+        Blog.GitHub.WorkLogPoller
       ]
 
       opts = [strategy: :one_for_one, name: Blog.Supervisor]
