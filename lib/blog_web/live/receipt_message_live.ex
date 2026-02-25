@@ -2,6 +2,13 @@ defmodule BlogWeb.ReceiptMessageLive do
   use BlogWeb, :live_view
   alias Blog.ReceiptMessages
 
+  @content_types %{
+    ".jpg" => "image/jpeg",
+    ".jpeg" => "image/jpeg",
+    ".png" => "image/png",
+    ".gif" => "image/gif"
+  }
+
   @impl true
   def mount(_params, session, socket) do
     sender_ip = get_ip_from_socket_or_session(socket, session)
@@ -27,28 +34,9 @@ defmodule BlogWeb.ReceiptMessageLive do
 
   @impl true
   def handle_event("send_message", %{"message" => message}, socket) do
-    # Get sender IP from assigns (already set during mount)
-    sender_ip = socket.assigns.sender_ip
-
-    # Handle uploaded image if any
+    attrs = build_message_attrs(message, socket.assigns.sender_ip)
     {image_data, content_type} = consume_uploaded_image(socket)
-
-    # Create the message with image binary data
-    attrs = %{
-      content: message,
-      sender_ip: sender_ip,
-      status: "pending"
-    }
-
-    # Add image data if present
-    attrs = if image_data do
-      Map.merge(attrs, %{
-        image_data: image_data,
-        image_content_type: content_type
-      })
-    else
-      attrs
-    end
+    attrs = maybe_add_image(attrs, image_data, content_type)
 
     case ReceiptMessages.create_receipt_message(attrs) do
       {:ok, _message} ->
@@ -78,60 +66,92 @@ defmodule BlogWeb.ReceiptMessageLive do
     {:noreply, cancel_upload(socket, :image, ref)}
   end
 
-  defp get_ip_from_socket_or_session(socket, session) do
-    # First try to get from connect_info if available
-    ip_from_connect = case socket do
-      %{private: %{connect_info: %{peer_data: %{address: address}}}} ->
-        format_ip(address)
-      %{private: %{connect_info: %{x_headers: headers}}} ->
-        get_ip_from_headers(headers)
-      _ ->
-        nil
-    end
+  # Pure functions - testable without LiveView
 
-    # Fall back to session if connect_info not available
-    ip_from_connect || Map.get(session, "remote_ip", "unknown")
+  @doc """
+  Builds the base message attributes map from content and sender IP.
+  """
+  def build_message_attrs(content, sender_ip) do
+    %{content: content, sender_ip: sender_ip, status: "pending"}
   end
 
-  defp format_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
-  defp format_ip({a, b, c, d, e, f, g, h}) do
-    "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
-  end
-  defp format_ip(_), do: nil
+  @doc """
+  Adds image data to message attributes if present.
+  """
+  def maybe_add_image(attrs, nil, _content_type), do: attrs
 
-  defp get_ip_from_headers(headers) do
+  def maybe_add_image(attrs, image_data, content_type) do
+    Map.merge(attrs, %{image_data: image_data, image_content_type: content_type})
+  end
+
+  @doc """
+  Determines the content type for an uploaded file based on its extension.
+  Returns \"image/jpeg\" as a default for unrecognized extensions.
+  """
+  def content_type_for_extension(filename) when is_binary(filename) do
+    ext = filename |> Path.extname() |> String.downcase()
+    Map.get(@content_types, ext, "image/jpeg")
+  end
+
+  @doc """
+  Formats an IP address tuple into a human-readable string.
+
+  Supports IPv4 (4-element tuple) and IPv6 (8-element tuple).
+  Returns nil for unrecognized formats.
+  """
+  def format_ip(address)
+  def format_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
+
+  def format_ip({a, b, c, d, e, f, g, h}) do
+    [a, b, c, d, e, f, g, h]
+    |> Enum.map_join(":", &Integer.to_string(&1, 16))
+  end
+
+  def format_ip(_), do: nil
+
+  @doc """
+  Extracts the first IP from an x-forwarded-for header value list.
+  """
+  def extract_forwarded_ip(headers) when is_list(headers) do
     case List.keyfind(headers, "x-forwarded-for", 0) do
       {"x-forwarded-for", value} ->
-        value
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
+        value |> String.split(",") |> List.first() |> String.trim()
+
       _ ->
         nil
     end
+  end
+
+  # Private helpers
+
+  defp get_ip_from_socket_or_session(socket, session) do
+    ip_from_connect =
+      case socket do
+        %{private: %{connect_info: %{peer_data: %{address: address}}}} ->
+          format_ip(address)
+
+        %{private: %{connect_info: %{x_headers: headers}}} ->
+          extract_forwarded_ip(headers)
+
+        _ ->
+          nil
+      end
+
+    ip_from_connect || Map.get(session, "remote_ip", "unknown")
   end
 
   defp consume_uploaded_image(socket) do
     case socket.assigns.uploads.image.entries do
       [] ->
         {nil, nil}
+
       _entries ->
-        # Process the uploaded image and return binary data
-        result = consume_uploaded_entries(socket, :image, fn %{path: path}, entry ->
-          # Read the file content as binary
-          image_binary = File.read!(path)
-
-          # Determine content type from the file extension
-          content_type = case Path.extname(entry.client_name) |> String.downcase() do
-            ".jpg" -> "image/jpeg"
-            ".jpeg" -> "image/jpeg"
-            ".png" -> "image/png"
-            ".gif" -> "image/gif"
-            _ -> "image/jpeg"  # Default to JPEG
-          end
-
-          {:ok, {image_binary, content_type}}
-        end)
+        result =
+          consume_uploaded_entries(socket, :image, fn %{path: path}, entry ->
+            image_binary = File.read!(path)
+            content_type = content_type_for_extension(entry.client_name)
+            {:ok, {image_binary, content_type}}
+          end)
 
         case result do
           [{image_binary, content_type} | _] -> {image_binary, content_type}
@@ -151,373 +171,6 @@ defmodule BlogWeb.ReceiptMessageLive do
         </div>
         <div class="os-content" style="overflow-y: auto; max-height: calc(100vh - 100px);">
     <div class="receipt-message-container">
-      <style>
-        .receipt-message-container {
-          width: 100%;
-          background-color: #fdf6e3;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 20px 20px 30px;
-          padding-top: 140px;
-          font-family: Georgia, serif;
-          color: #5d4e37;
-        }
-
-        .typewriter-container {
-          margin-bottom: 30px;
-          margin-top: 0;
-          position: relative;
-          animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-
-        .typewriter {
-          width: 320px;
-          height: 180px;
-          position: relative;
-        }
-
-        .typewriter-body {
-          width: 100%;
-          height: 140px;
-          background-color: #6b5d4f;
-          border-radius: 10px;
-          position: absolute;
-          bottom: 0;
-          box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        .carriage {
-          position: absolute;
-          top: -20px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 280px;
-          height: 40px;
-          background-color: #4a3f36;
-          border-radius: 20px;
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .roller {
-          position: absolute;
-          top: 5px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 260px;
-          height: 30px;
-          background-color: #2d2520;
-          border-radius: 15px;
-        }
-
-        .paper {
-          width: 220px;
-          height: 140px;
-          background-color: #fffef9;
-          position: absolute;
-          top: -120px;
-          left: 50%;
-          transform: translateX(-50%);
-          box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-          padding: 30px 20px;
-          font-family: 'Courier New', monospace;
-          font-size: 18px;
-          text-align: center;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          animation: paperSlide 2s ease-out;
-          z-index: 1;
-        }
-
-        @keyframes paperSlide {
-          from {
-            top: -40px;
-            opacity: 0;
-          }
-          to {
-            top: -120px;
-            opacity: 1;
-          }
-        }
-
-        .paper::before,
-        .paper::after {
-          content: '';
-          position: absolute;
-          left: 15px;
-          right: 15px;
-          height: 1px;
-          background-color: #e0d5c7;
-        }
-
-        .paper::before {
-          top: 25px;
-        }
-
-        .paper::after {
-          bottom: 25px;
-        }
-
-        .keyboard {
-          position: absolute;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 280px;
-          height: 80px;
-          background-color: #4a3f36;
-          border-radius: 8px;
-          padding: 10px;
-          box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
-        }
-
-        .key-row {
-          display: flex;
-          justify-content: center;
-          gap: 4px;
-          margin-bottom: 4px;
-        }
-
-        .key {
-          width: 22px;
-          height: 22px;
-          background-color: #f4e4c1;
-          border-radius: 50%;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-          position: relative;
-        }
-
-        .key::after {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 12px;
-          height: 12px;
-          background-color: #2d2520;
-          border-radius: 50%;
-        }
-
-        .space-bar {
-          width: 120px;
-          height: 18px;
-          background-color: #f4e4c1;
-          border-radius: 9px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-          margin: 0 auto;
-        }
-
-        .side-panel {
-          position: absolute;
-          width: 30px;
-          height: 100px;
-          background-color: #8b7355;
-          bottom: 10px;
-          border-radius: 5px;
-        }
-
-        .side-panel.left {
-          left: 10px;
-        }
-
-        .side-panel.right {
-          right: 10px;
-        }
-
-        .message-form {
-          width: 100%;
-          max-width: 800px;
-          background-color: #fff8e7;
-          padding: 40px;
-          border-radius: 20px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-        }
-
-        .form-title {
-          font-size: 24px;
-          color: #8b7355;
-          margin-bottom: 25px;
-          text-align: center;
-          font-weight: normal;
-        }
-
-        .message-input {
-          width: 100%;
-          min-height: 300px;
-          padding: 20px;
-          border: 2px solid #e0d5c7;
-          border-radius: 10px;
-          font-family: Georgia, serif;
-          font-size: 18px;
-          line-height: 1.6;
-          resize: vertical;
-          background-color: #fffef9;
-          color: #5d4e37;
-          transition: border-color 0.3s ease;
-        }
-
-        @media (max-width: 640px) {
-          .message-form {
-            padding: 20px;
-            border-radius: 12px;
-          }
-
-          .message-input {
-            min-height: 200px;
-            padding: 15px;
-            font-size: 16px;
-          }
-        }
-
-        .message-input:focus {
-          outline: none;
-          border-color: #d4a574;
-        }
-
-        .message-input::placeholder {
-          color: #b8a590;
-        }
-
-        .button-container {
-          display: flex;
-          gap: 15px;
-          margin-top: 20px;
-        }
-
-        .image-button, .send-button {
-          padding: 12px 25px;
-          border: none;
-          border-radius: 8px;
-          font-size: 16px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          font-family: Georgia, serif;
-        }
-
-        .image-button {
-          background-color: #f4e4c1;
-          color: #8b7355;
-          flex: 0 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .image-button:hover {
-          background-color: #e8d4a9;
-          transform: translateY(-2px);
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .send-button {
-          background-color: #d4a574;
-          color: white;
-          flex: 1;
-          font-weight: bold;
-        }
-
-        .send-button:hover {
-          background-color: #c69963;
-          transform: translateY(-2px);
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-        }
-
-        .send-button:disabled {
-          background-color: #ccc;
-          cursor: not-allowed;
-        }
-
-        .image-icon, .queue-icon {
-          width: 20px;
-          height: 20px;
-        }
-
-        .queue-button {
-          background-color: #f4e4c1;
-          color: #8b7355;
-          flex: 0 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .queue-button:hover {
-          background-color: #e8d4a9;
-          transform: translateY(-2px);
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .queue-panel {
-          margin-top: 20px;
-          background-color: #fffef9;
-          border: 2px solid #e0d5c7;
-          border-radius: 10px;
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        .queue-header {
-          font-size: 16px;
-          color: #8b7355;
-          padding: 12px 16px;
-          border-bottom: 1px solid #e0d5c7;
-          font-family: Georgia, serif;
-          position: sticky;
-          top: 0;
-          background-color: #fffef9;
-        }
-
-        .queue-item {
-          padding: 10px 16px;
-          border-bottom: 1px solid #f0e8db;
-          font-family: Georgia, serif;
-          font-size: 14px;
-          color: #5d4e37;
-        }
-
-        .queue-item:last-child {
-          border-bottom: none;
-        }
-
-        .queue-item-content {
-          white-space: pre-wrap;
-          word-break: break-word;
-        }
-
-        .queue-item-meta {
-          font-size: 12px;
-          color: #b8a590;
-          margin-top: 4px;
-          display: flex;
-          gap: 12px;
-        }
-
-        .queue-empty {
-          padding: 20px 16px;
-          text-align: center;
-          color: #b8a590;
-          font-family: Georgia, serif;
-        }
-
-        .typewriter-text {
-          overflow: hidden;
-          white-space: nowrap;
-          animation: typing 2s steps(30, end);
-        }
-
-        @keyframes typing {
-          from { width: 0; }
-          to { width: 100%; }
-        }
-      </style>
-
       <div class="typewriter-container">
         <div class="typewriter">
           <div class="typewriter-body">
