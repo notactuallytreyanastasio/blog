@@ -1,4 +1,12 @@
 defmodule Blog.CursorPoints do
+  @moduledoc """
+  GenServer-backed ETS store for shared cursor drawing points.
+
+  Points are stored in a public ETS table for fast reads from LiveView
+  processes. The GenServer owns the table and handles writes, trimming,
+  and scheduled hourly clears.
+  """
+
   use GenServer
   require Logger
 
