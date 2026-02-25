@@ -103,6 +103,7 @@ defmodule BlogWeb.TerminalLive do
         # Subscribe to presence and chat topics
         Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
         Phoenix.PubSub.subscribe(Blog.PubSub, Chat.topic())
+        Phoenix.PubSub.subscribe(Blog.PubSub, "github:work_log")
 
         id
       else
@@ -166,8 +167,9 @@ defmodule BlogWeb.TerminalLive do
        total_online: map_size(visitor_list),
        # Phish window state
        show_phish: true,
-       # Tree state
-       show_tree: false,
+       # Work Log
+       show_work_log: true,
+       work_log_events: Blog.GitHub.WorkLog.list_recent(),
        # Leica collage viewer state: false | :warning | :loading | :viewing
        # ?leica=1 skips warning and starts loading immediately
        show_leica: if(params["leica"], do: :loading, else: false),
@@ -210,6 +212,11 @@ defmodule BlogWeb.TerminalLive do
     {:noreply, assign(socket, show_phish: !socket.assigns.show_phish)}
   end
 
+  # Work Log window toggle
+  def handle_event("toggle_work_log", _params, socket) do
+    {:noreply, assign(socket, show_work_log: !socket.assigns.show_work_log)}
+  end
+
   # Museum events
   def handle_event("museum_select", %{"slug" => slug}, socket) do
     project = Blog.Museum.Projects.get_by_slug(slug)
@@ -246,11 +253,6 @@ defmodule BlogWeb.TerminalLive do
 
   def handle_event("skip_splash", _params, socket) do
     {:noreply, assign(socket, boot_phase: :desktop)}
-  end
-
-  # Tree event handler
-  def handle_event("toggle_tree", _params, socket) do
-    {:noreply, assign(socket, show_tree: !socket.assigns.show_tree)}
   end
 
   # Leica collage viewer
@@ -396,6 +398,10 @@ defmodule BlogWeb.TerminalLive do
   # Handle Joyride tour completion
   def handle_info({:tour_complete, _id}, socket) do
     {:noreply, assign(socket, show_tour: false)}
+  end
+
+  def handle_info(:work_log_updated, socket) do
+    {:noreply, assign(socket, work_log_events: Blog.GitHub.WorkLog.list_recent())}
   end
 
   # Tour controls
@@ -845,6 +851,35 @@ defmodule BlogWeb.TerminalLive do
             <% end %>
           </div>
 
+          <%!-- Work Log Window --%>
+          <%= if @show_work_log do %>
+            <div class="work-log-window" phx-hook="Draggable" id="work-log-window">
+              <div class="title-bar">
+                <div class="close-box" phx-click="toggle_work_log"></div>
+                <div class="title">Work Log — Recent Commits</div>
+                <div class="resize-box"></div>
+              </div>
+              <div class="work-log-term">
+                <%= if Enum.empty?(@work_log_events) do %>
+                  <div style="color: #888; padding: 12px;">No recent commits with significant changes.</div>
+                <% else %>
+                  <%= for event <- @work_log_events do %>
+                    <div class="wl-push">
+                      <div class="wl-push-header"><span class="wl-plus">+<%= event.additions %></span><span class="wl-minus">-<%= event.deletions %></span> <span class="wl-ref"><%= event.repo %>/<%= event.branch %></span> <span class="wl-date"><%= if event.committed_at, do: Calendar.strftime(event.committed_at, "%b %d %H:%M"), else: "" %></span></div>
+                      <%= for c <- event.commits do %>
+                        <div class="wl-commit"><a href={"https://github.com/notactuallytreyanastasio/#{event.repo}/commit/#{c.sha}"} target="_blank" class="wl-sha"><%= String.slice(c.sha, 0..6) %></a> <%= if c.message && c.message != "" do %><span class="wl-msg"><%= c.message %></span><% end %></div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                <% end %>
+              </div>
+              <div class="status-bar">
+                <span><%= length(@work_log_events) %> pushes</span>
+                <span>github.com/notactuallytreyanastasio</span>
+              </div>
+            </div>
+          <% end %>
+
           <%!-- Far right column: blog + phish stacked --%>
           <div class="far-right-column">
             <!-- Blog Posts Window -->
@@ -909,13 +944,8 @@ defmodule BlogWeb.TerminalLive do
             <% end %>
           </div>
           <%!-- end far-right-column --%>
-          
-    <!-- Psychedelic Tree (always visible, transparent background) -->
-          <div class="tree-container" id="tree-wrapper" phx-update="ignore">
-            <canvas id="psychedelic-tree" phx-hook="PsychedelicTree"></canvas>
-          </div>
-          
-    <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
+
+          <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
         <!-- Name Dialog - show for new visitors or returning visitors without confirmed chatter -->
           <%= if @reader_id && is_nil(@chatter) && @show_chat do %>
             <div
@@ -1519,23 +1549,6 @@ defmodule BlogWeb.TerminalLive do
         color: #fff;
       }
 
-      /* Psychedelic tree container */
-      .tree-container {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        pointer-events: none;
-        z-index: 50;
-      }
-
-      .tree-container canvas {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-
       /* Mobile taskbar - hidden on desktop */
       .mobile-taskbar {
         display: none;
@@ -1682,11 +1695,6 @@ defmodule BlogWeb.TerminalLive do
         /* Hide the floating chat toggle on mobile */
         .aim-toggle-btn {
           display: none !important;
-        }
-
-        /* Hide tree animation on mobile for performance */
-        .tree-container {
-          display: none;
         }
 
         /* Mobile taskbar - fixed at bottom */
@@ -1991,7 +1999,6 @@ defmodule BlogWeb.TerminalLive do
         width: 420px;
         min-width: 320px;
         max-width: 420px;
-        margin-left: auto;
         align-self: flex-start;
         height: calc(100vh - 64px);
         flex-shrink: 0;
@@ -2115,12 +2122,83 @@ defmodule BlogWeb.TerminalLive do
          LEICA COLLAGE VIEWER
          ======================================== */
 
-      /* Desktop icon */
+      /* Work Log window */
+      .work-log-window {
+        width: 340px;
+        min-width: 280px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        display: flex;
+        flex-direction: column;
+        align-self: flex-start;
+        flex-shrink: 0;
+        height: calc(100vh - 64px);
+        margin-left: auto;
+      }
+
+      .work-log-term {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 12px;
+        font-family: "Monaco", "Menlo", "Courier New", monospace;
+        font-size: 12px;
+        color: #000;
+        background: #fff;
+        min-height: 200px;
+      }
+
+      .wl-push {
+        margin-bottom: 8px;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 6px;
+      }
+
+      .wl-push:last-child {
+        border-bottom: none;
+      }
+
+      .wl-push-header {
+        white-space: nowrap;
+        margin-bottom: 2px;
+      }
+
+      .wl-plus { color: #1a7f1a; margin-right: 4px; }
+      .wl-minus { color: #cc0000; margin-right: 8px; }
+      .wl-ref { color: #666; }
+      .wl-date { color: #999; margin-left: 8px; }
+
+      .wl-commit {
+        padding-left: 16px;
+      }
+
+      .wl-sha {
+        color: #0066cc;
+        text-decoration: none;
+        font-size: 11px;
+      }
+
+      .wl-sha:hover {
+        text-decoration: underline;
+        color: #0044aa;
+      }
+
+      .wl-msg {
+        display: inline;
+        white-space: pre-wrap;
+        font-family: inherit;
+        font-size: 12px;
+        color: #333;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Desktop icon - Leica */
       .desktop-icon-leica {
         position: absolute;
-        top: 50%;
+        bottom: 40px;
         left: 50%;
-        transform: translate(-50%, -50%);
+        transform: translateX(-50%);
         text-align: center;
         cursor: pointer;
         z-index: 10;
