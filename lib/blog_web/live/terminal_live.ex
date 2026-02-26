@@ -2196,9 +2196,9 @@ defmodule BlogWeb.TerminalLive do
       /* Desktop icon - Leica */
       .desktop-icon-leica {
         position: absolute;
-        bottom: 40px;
-        left: 50%;
-        transform: translateX(-50%);
+        bottom: 50%;
+        left: 760px;
+        transform: translateY(50%);
         text-align: center;
         cursor: pointer;
         z-index: 10;

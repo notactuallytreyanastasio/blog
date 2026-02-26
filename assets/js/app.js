@@ -699,6 +699,8 @@ Hooks.Draggable = {
 
     titleBar.style.cursor = 'grab';
 
+    let placeholder = null;
+
     const onMouseDown = (e) => {
       // Don't drag if clicking buttons
       if (e.target.closest('button, a, .close-box, .aim-control-btn, .os-btn-close')) return;
@@ -713,6 +715,24 @@ Hooks.Draggable = {
       initialX = rect.left;
       initialY = rect.top;
 
+      // Insert a placeholder to prevent flex reflow when we go fixed
+      if (!placeholder && el.parentNode) {
+        placeholder = document.createElement('div');
+        placeholder.style.width = rect.width + 'px';
+        placeholder.style.height = rect.height + 'px';
+        placeholder.style.minWidth = rect.width + 'px';
+        placeholder.style.flexShrink = '0';
+        placeholder.style.visibility = 'hidden';
+        // getComputedStyle resolves auto to pixels, so check class for margin-left: auto
+        if (el.classList.contains('work-log-window') || el.style.marginLeft === 'auto') {
+          placeholder.style.marginLeft = 'auto';
+        } else {
+          placeholder.style.marginLeft = window.getComputedStyle(el).marginLeft;
+        }
+        placeholder.style.alignSelf = window.getComputedStyle(el).alignSelf;
+        el.parentNode.insertBefore(placeholder, el);
+      }
+
       // Convert to fixed positioning for dragging
       el.style.position = 'fixed';
       el.style.transform = 'none';
@@ -721,6 +741,8 @@ Hooks.Draggable = {
       el.style.right = 'auto';
       el.style.bottom = 'auto';
       el.style.zIndex = '1000';
+      // Preserve width so it doesn't collapse when taken out of flex
+      el.style.width = rect.width + 'px';
 
       e.preventDefault();
     };
@@ -764,6 +786,10 @@ Hooks.Draggable = {
       titleBar.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      if (placeholder && placeholder.parentNode) {
+        placeholder.parentNode.removeChild(placeholder);
+        placeholder = null;
+      }
     };
   },
   destroyed() {

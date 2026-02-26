@@ -107,6 +107,7 @@ defmodule BlogWeb.Router do
     live "/smart-steps/demo", SmartStepsLive.Demo, :demo
 
     live "/work-log", WorkLogLive, :index
+    live "/cairn", CairnLive, :index
 
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index
@@ -151,6 +152,10 @@ defmodule BlogWeb.Router do
     get "/gif-maker/gifs/:gif_id", GifMakerController, :gif_download
 
     get "/collage-maker/:collage_id/download", CollageMakerController, :download
+
+    # Cairn annotations
+    post "/cairn/annotations", CairnController, :create
+    get "/cairn/annotations", CairnController, :index
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

@@ -38,6 +38,12 @@ config :esbuild,
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets --external:/fonts/* --external:/images/* --external:leaflet),
     cd: Path.expand("../assets", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ],
+  cairn: [
+    args:
+      ~w(js/cairn.js --bundle --target=es2022 --outdir=../priv/static/assets --minify),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
 
 # Configure tailwind (the version is required)
@@ -65,6 +71,9 @@ config :blog, :live_draft_api_token, "dev-live-draft-token"
 
 # Finder admin password (override in prod via FINDER_ADMIN_PASSWORD env var)
 config :blog, :finder_admin_password, "letmein"
+
+# Cairn annotation API token
+config :blog, :cairn_api_token, "dev-cairn-token"
 
 # Import receipt printer configuration
 import_config "receipt_printer.exs"

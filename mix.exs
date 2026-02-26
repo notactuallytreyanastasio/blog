@@ -72,7 +72,8 @@ defmodule Blog.MixProject do
       {:ex_aws_s3, "~> 2.5"},
       {:hackney, "~> 1.9"},
       {:sweet_xml, "~> 0.7"},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:cors_plug, "~> 3.0"}
     ]
   end
 
@@ -89,8 +90,8 @@ defmodule Blog.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind blog", "esbuild blog"],
-      "assets.deploy": ["tailwind blog --minify", "esbuild blog --minify", "phx.digest"]
+      "assets.build": ["tailwind blog", "esbuild blog", "esbuild cairn"],
+      "assets.deploy": ["tailwind blog --minify", "esbuild blog --minify", "esbuild cairn --minify", "phx.digest"]
     ]
   end
 end

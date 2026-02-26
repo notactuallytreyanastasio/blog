@@ -32,6 +32,9 @@ if config_env() == :prod do
   config :blog, :finder_admin_password,
     System.get_env("FINDER_ADMIN_PASSWORD") || "letmein"
 
+  # Cairn annotation API token
+  config :blog, :cairn_api_token, System.get_env("CAIRN_API_TOKEN")
+
   # Check if DATABASE_URL is set as environment variable
   database_url =
     System.get_env("DATABASE_URL") ||
