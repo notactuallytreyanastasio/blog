@@ -2143,18 +2143,6 @@ details[open] summary {
 .os-content-padded {
   padding: 16px;
 }
-
-/* Markdown Editor window layout */
-.markdown-editor-window {
-  width: 100%;
-  height: calc(100vh - 40px);
-  max-width: none;
-}
-
-.markdown-editor-content {
-  height: calc(100% - 80px);
-  overflow-y: auto;
-}
 /* ==========================================================================
    Joyride - Guided Tour Component
    ========================================================================== */
