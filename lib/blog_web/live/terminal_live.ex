@@ -2124,8 +2124,8 @@ defmodule BlogWeb.TerminalLive do
 
       /* Work Log window */
       .work-log-window {
-        width: 680px;
-        min-width: 560px;
+        width: 340px;
+        min-width: 280px;
         background: #fff;
         border: 1px solid #000;
         box-shadow: 1px 1px 0 #000;
