@@ -75,6 +75,8 @@ defmodule BlogWeb.TerminalLive do
     # Get visitor's IP from session (set by RemoteIp plug)
     visitor_ip = Map.get(session, "remote_ip", "unknown")
 
+    # TODO: visitor IP logging - flash returning visitors, tour for new ones
+
     # Check for returning chatter by IP hash
     ip_hash = Chat.hash_ip(visitor_ip)
     returning_chatter = if ip_hash, do: Chat.get_chatter_by_ip(ip_hash), else: nil
@@ -118,6 +120,8 @@ defmodule BlogWeb.TerminalLive do
       Presence.list(@presence_topic)
       |> Enum.map(fn {id, %{metas: [meta | _]}} -> {id, meta} end)
       |> Enum.into(%{})
+
+    # TODO: marquee flash showing online user names (old school scrolling banner)
 
     # Get messages from Postgres
     messages = Chat.list_messages("terminal")
@@ -709,16 +713,22 @@ defmodule BlogWeb.TerminalLive do
           <%!-- Leica Desktop Icon --%>
           <div class="desktop-icon-leica" phx-click="toggle_leica">
             <div class="desktop-icon-img">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="48" height="48" style="image-rendering: pixelated;">
-                <rect x="4" y="8" width="24" height="16" fill="#000"/>
-                <rect x="6" y="10" width="20" height="12" fill="#333"/>
-                <rect x="12" y="12" width="8" height="8" rx="4" fill="#666"/>
-                <rect x="14" y="14" width="4" height="4" rx="2" fill="#999"/>
-                <rect x="8" y="9" width="4" height="2" fill="#555"/>
-                <rect x="24" y="10" width="2" height="2" fill="#c00"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 32 32"
+                width="48"
+                height="48"
+                style="image-rendering: pixelated;"
+              >
+                <rect x="4" y="8" width="24" height="16" fill="#000" />
+                <rect x="6" y="10" width="20" height="12" fill="#333" />
+                <rect x="12" y="12" width="8" height="8" rx="4" fill="#666" />
+                <rect x="14" y="14" width="4" height="4" rx="2" fill="#999" />
+                <rect x="8" y="9" width="4" height="2" fill="#555" />
+                <rect x="24" y="10" width="2" height="2" fill="#c00" />
               </svg>
             </div>
-            <div class="desktop-icon-label">MY FAV<br/>LEICA SHOTS</div>
+            <div class="desktop-icon-label">MY FAV<br />LEICA SHOTS</div>
           </div>
 
           <%!-- Leica Warning Dialog --%>
@@ -734,12 +744,19 @@ defmodule BlogWeb.TerminalLive do
                   <div class="leica-warning-icon">&#9888;</div>
                   <div class="leica-warning-text">
                     <strong>Large File Warning</strong>
-                    <p>This collage is <strong>110 MB</strong> at full resolution (30,846 &times; 20,550 pixels).</p>
-                    <p>It will take a while to download and may use significant memory. Not recommended on mobile devices.</p>
+                    <p>
+                      This collage is <strong>110 MB</strong>
+                      at full resolution (30,846 &times; 20,550 pixels).
+                    </p>
+                    <p>
+                      It will take a while to download and may use significant memory. Not recommended on mobile devices.
+                    </p>
                     <p>Once loaded, you can zoom and pan around the full-resolution image.</p>
                   </div>
                   <div class="leica-warning-buttons">
-                    <button class="leica-btn primary" phx-click="confirm_leica">Load Full Resolution</button>
+                    <button class="leica-btn primary" phx-click="confirm_leica">
+                      Load Full Resolution
+                    </button>
                     <button class="leica-btn" phx-click="close_leica">Cancel</button>
                   </div>
                 </div>
@@ -755,11 +772,20 @@ defmodule BlogWeb.TerminalLive do
                 <div class="title">MY FAV LEICA SHOTS — 30,846 × 20,550</div>
                 <div class="resize-box"></div>
               </div>
-              <div class="leica-viewer-container" phx-hook="LeicaViewer" id="leica-viewer" phx-update="ignore">
+              <div
+                class="leica-viewer-container"
+                phx-hook="LeicaViewer"
+                id="leica-viewer"
+                phx-update="ignore"
+              >
                 <div class="leica-loading">
                   <div class="leica-loading-text">Downloading 110 MB...</div>
                   <div class="boot-progress" style="width: 200px; margin: 12px auto;">
-                    <div class="boot-progress-bar" style="animation: boot-fill 15s ease-in-out forwards;"></div>
+                    <div
+                      class="boot-progress-bar"
+                      style="animation: boot-fill 15s ease-in-out forwards;"
+                    >
+                    </div>
                   </div>
                   <div class="leica-loading-hint">This may take a minute</div>
                 </div>
@@ -779,7 +805,9 @@ defmodule BlogWeb.TerminalLive do
                     class="leica-ctrl-btn"
                     title="Download full resolution"
                     target="_blank"
-                  >&#x2B73; Save</a>
+                  >
+                    &#x2B73; Save
+                  </a>
                 </div>
               </div>
               <div class="status-bar">
@@ -861,20 +889,41 @@ defmodule BlogWeb.TerminalLive do
               </div>
               <div class="work-log-term">
                 <%= if Enum.empty?(@work_log_events) do %>
-                  <div style="color: #888; padding: 12px;">No recent commits with significant changes.</div>
+                  <div style="color: #888; padding: 12px;">
+                    No recent commits with significant changes.
+                  </div>
                 <% else %>
                   <%= for event <- @work_log_events do %>
                     <div class="wl-push">
-                      <div class="wl-push-header"><span class="wl-plus">+<%= event.additions %></span><span class="wl-minus">-<%= event.deletions %></span> <span class="wl-ref"><%= event.repo %>/<%= event.branch %></span> <span class="wl-date"><%= if event.committed_at, do: Calendar.strftime(event.committed_at, "%b %d %H:%M"), else: "" %></span></div>
+                      <div class="wl-push-header">
+                        <span class="wl-plus">+{event.additions}</span><span class="wl-minus">-<%= event.deletions %></span>
+                        <span class="wl-ref">{event.repo}/{event.branch}</span>
+                        <span class="wl-date">
+                          {if event.committed_at,
+                            do: Calendar.strftime(event.committed_at, "%b %d %H:%M"),
+                            else: ""}
+                        </span>
+                      </div>
                       <%= for c <- event.commits do %>
-                        <div class="wl-commit"><a href={"https://github.com/notactuallytreyanastasio/#{event.repo}/commit/#{c.sha}"} target="_blank" class="wl-sha"><%= String.slice(c.sha, 0..6) %></a> <%= if c.message && c.message != "" do %><span class="wl-msg"><%= c.message %></span><% end %></div>
+                        <div class="wl-commit">
+                          <a
+                            href={"https://github.com/notactuallytreyanastasio/#{event.repo}/commit/#{c.sha}"}
+                            target="_blank"
+                            class="wl-sha"
+                          >
+                            {String.slice(c.sha, 0..6)}
+                          </a>
+                          <%= if c.message && c.message != "" do %>
+                            <span class="wl-msg">{c.message}</span>
+                          <% end %>
+                        </div>
                       <% end %>
                     </div>
                   <% end %>
                 <% end %>
               </div>
               <div class="status-bar">
-                <span><%= length(@work_log_events) %> pushes</span>
+                <span>{length(@work_log_events)} pushes</span>
                 <span>github.com/notactuallytreyanastasio</span>
               </div>
             </div>
@@ -944,8 +993,8 @@ defmodule BlogWeb.TerminalLive do
             <% end %>
           </div>
           <%!-- end far-right-column --%>
-
-          <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
+          
+    <!-- AIM Chat Window (Windows 95 style overlaid on Mac) -->
         <!-- Name Dialog - show for new visitors or returning visitors without confirmed chatter -->
           <%= if @reader_id && is_nil(@chatter) && @show_chat do %>
             <div

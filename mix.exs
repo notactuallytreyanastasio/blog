@@ -10,8 +10,7 @@ defmodule Blog.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      compile_options: [:debug_info],
-      elixirc_options: [debug_info: true]
+      compile_options: [:debug_info]
     ]
   end
 
@@ -57,7 +56,7 @@ defmodule Blog.MixProject do
       {:earmark, "~> 1.4"},
       # {:earmark_parser, "~> 1.4"},
       {:mdex, "~> 0.6"},
-      {:websockex, "~> 0.4.3"},
+      {:websockex, "~> 0.4.3", override: true},
       {:pythonx, "~> 0.4.2"},
       {:mogrify, "~> 0.9"},
       {:image, "~> 0.48"},
@@ -90,8 +89,8 @@ defmodule Blog.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind blog", "esbuild blog", "esbuild cairn"],
-      "assets.deploy": ["tailwind blog --minify", "esbuild blog --minify", "esbuild cairn --minify", "phx.digest"]
+      "assets.build": ["tailwind blog", "esbuild blog"],
+      "assets.deploy": ["tailwind blog --minify", "esbuild blog --minify", "phx.digest"]
     ]
   end
 end
