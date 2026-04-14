@@ -63,9 +63,9 @@ defmodule BlogWeb.EmojiSkeetsLive do
         
         # Execute receipt_printer.py script to print directly via CUPS
         case System.cmd("python3", [
-          "receipt_printer.py",
+          Application.app_dir(:blog, "priv/scripts/receipt_printer.py"),
           receipt_text
-        ], cd: File.cwd!(), stderr_to_stdout: true) do
+        ], stderr_to_stdout: true) do
           {_output, 0} ->
             Logger.info("Printed skeet matching '#{socket.assigns.search_term}'")
           {error, _exit_code} ->

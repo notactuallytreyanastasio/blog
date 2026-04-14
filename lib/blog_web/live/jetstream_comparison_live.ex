@@ -103,9 +103,9 @@ defmodule BlogWeb.JetstreamComparisonLive do
     
     # Execute receipt_printer.py script
     case System.cmd("python3", [
-      "receipt_printer.py",
+      Application.app_dir(:blog, "priv/scripts/receipt_printer.py"),
       receipt_text
-    ], cd: File.cwd!(), stderr_to_stdout: true) do
+    ], stderr_to_stdout: true) do
       {output, 0} ->
         Logger.info("Printed #{source} match. Output: #{output}")
       {error, exit_code} ->
