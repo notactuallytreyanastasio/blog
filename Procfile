@@ -1,1 +1,0 @@
-web: _build/prod/rel/blog/bin/blog start
