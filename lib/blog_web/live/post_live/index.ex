@@ -29,12 +29,6 @@ defmodule BlogWeb.PostLive.Index do
       %{title: "AI Pong", description: "Infinite Pong with AI controls", path: ~p"/pong", category: "Games"},
       %{title: "Pong God View", description: "Watch all infinite pong games", path: ~p"/pong/god", category: "Games"},
       %{title: "Blackjack", description: "Classic casino card game", path: ~p"/blackjack", category: "Games"},
-      %{title: "War Card Game", description: "Simple card game of War", path: ~p"/war", category: "Games"},
-
-      # Art
-      %{title: "Bezier Triangles", description: "Trippy bezier curves animation", path: ~p"/bezier-triangles", category: "Art"},
-      %{title: "Generative Art", description: "Dynamic generative art canvas", path: ~p"/generative-art", category: "Art"},
-      %{title: "Rainbow Chaos", description: "SSR animations with keyboard", path: ~p"/gay_chaos", category: "Art"},
 
       # Social
       %{title: "Emoji Skeets", description: "Filter Bluesky firehose by emojis", path: ~p"/emoji-skeets", category: "Social"},
@@ -56,13 +50,6 @@ defmodule BlogWeb.PostLive.Index do
 
       # Comedy - Nathan Fielder
       %{title: "Nathan Archive", description: "Nathan Fielder content hub", path: ~p"/nathan", category: "Comedy"},
-      %{title: "Nathan Harper's", description: "Harper's Magazine style", path: ~p"/nathan_harpers", category: "Comedy"},
-      %{title: "Nathan Teen Vogue", description: "Teen Vogue style content", path: ~p"/nathan_teen_vogue", category: "Comedy"},
-      %{title: "Nathan BuzzFeed", description: "BuzzFeed style listicles", path: ~p"/nathan_buzzfeed", category: "Comedy"},
-      %{title: "Nathan Usenet", description: "Usenet forum discussions", path: ~p"/nathan_usenet", category: "Comedy"},
-      %{title: "Nathan Content Farm", description: "Content farm SEO style", path: ~p"/nathan_content_farm", category: "Comedy"},
-      %{title: "Nathan Comparison", description: "Compare all styles side by side", path: ~p"/nathan_comparison", category: "Comedy"},
-      %{title: "Nathan ASCII", description: "ASCII art representation", path: ~p"/nathan_ascii", category: "Comedy"},
 
     ]
 

@@ -1,6 +1,5 @@
 defmodule BlogWeb.EnhancedMediaComponent do
   use BlogWeb, :live_component
-  alias EarmarkParser
 
   # Props: id, title, content, media_url
   def render(assigns) do

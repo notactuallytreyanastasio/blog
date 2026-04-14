@@ -16,7 +16,7 @@ defmodule BlogWeb.MarkdownEditorComponent do
 
   @impl true
   def handle_event("update_markdown", %{"markdown" => markdown}, socket) do
-    # Parse the markdown to HTML using EarmarkParser
+    # Parse the markdown to HTML
     html = MDEx.to_html!(markdown)
 
     # Send the updated content back to the parent LiveView
