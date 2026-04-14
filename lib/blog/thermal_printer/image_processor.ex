@@ -5,7 +5,6 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   """
 
   import Bitwise
-  require Logger
 
   @doc """
   Process an uploaded image binary for thermal printing.

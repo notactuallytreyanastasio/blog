@@ -28,8 +28,6 @@ defmodule Mix.Tasks.PokeAround.Migrate do
 
   use Mix.Task
 
-  require Logger
-
   @shortdoc "Migrates data from poke_around database to blog database"
 
   @impl Mix.Task
@@ -89,7 +87,7 @@ defmodule Mix.Tasks.PokeAround.Migrate do
       Mix.shell().info("[DRY RUN] Would migrate #{result.num_rows} tags")
     else
       inserted = Enum.reduce(result.rows, 0, fn row, count ->
-        [id, name, slug, usage_count, inserted_at, updated_at] = row
+        [_id, name, slug, usage_count, inserted_at, updated_at] = row
 
         attrs = %{
           name: name,
@@ -143,7 +141,7 @@ defmodule Mix.Tasks.PokeAround.Migrate do
       Mix.shell().info("[DRY RUN] Would migrate #{result.num_rows} links")
     else
       inserted = Enum.reduce(result.rows, 0, fn row, count ->
-        [id, url, url_hash, post_uri, post_text, post_created_at,
+        [_id, url, url_hash, post_uri, post_text, post_created_at,
          author_did, author_handle, author_display_name, author_followers_count,
          score, domain, tags, langs, stumble_count, tagged_at, inserted_at, updated_at] = row
 

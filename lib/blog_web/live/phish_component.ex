@@ -1,6 +1,5 @@
 defmodule BlogWeb.PhishComponent do
   use BlogWeb, :live_component
-  require Logger
 
   import BlogWeb.PhishLive, only: [batting_avg: 1, fmt_avg: 1, fmt_duration: 1, song_stats: 1, filtered_tracks: 2]
 

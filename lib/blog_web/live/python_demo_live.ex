@@ -1,6 +1,5 @@
 defmodule BlogWeb.PythonDemoLive do
   use BlogWeb, :live_view
-  require Logger
 
   @impl true
   def mount(_params, _session, socket) do

@@ -1,6 +1,5 @@
 defmodule BlogWeb.SkeetChannel do
   use Phoenix.Channel
-  require Logger
 
   @max_body_length 250
   @max_handle_length 16

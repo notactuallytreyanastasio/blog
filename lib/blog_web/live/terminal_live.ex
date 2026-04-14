@@ -2,7 +2,6 @@ defmodule BlogWeb.TerminalLive do
   use BlogWeb, :live_view
   alias BlogWeb.Presence
   alias Blog.Chat
-  require Logger
 
   @presence_topic "terminal_presence"
 

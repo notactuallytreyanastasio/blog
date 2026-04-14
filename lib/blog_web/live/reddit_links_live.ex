@@ -1,6 +1,5 @@
 defmodule BlogWeb.RedditLinksLive do
   use BlogWeb, :live_view
-  require Logger
 
   @max_skeets 50
 

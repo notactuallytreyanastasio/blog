@@ -24,7 +24,7 @@ defmodule Blog.ThermalPrinter.SimplePNG do
   defp parse_chunks(<<>>, acc), do: {:ok, Enum.reverse(acc)}
   
   defp parse_chunks(<<length::32, type::binary-size(4), rest::binary>>, acc) do
-    <<data::binary-size(length), _crc::32, remaining::binary>> = rest
+    <<data::binary-size(^length), _crc::32, remaining::binary>> = rest
     chunk = %{type: type, data: data}
     
     if type == "IEND" do
@@ -82,7 +82,7 @@ defmodule Blog.ThermalPrinter.SimplePNG do
     
     # Process each scanline (includes filter byte)
     {pixels, _} = Enum.reduce(0..(height - 1), {[], data}, fn _y, {acc_pixels, remaining} ->
-      <<filter_type::8, scanline::binary-size(scanline_length), rest::binary>> = remaining
+      <<filter_type::8, scanline::binary-size(^scanline_length), rest::binary>> = remaining
       
       # For simplicity, only handle filter type 0 (None)
       pixels = if filter_type == 0 do

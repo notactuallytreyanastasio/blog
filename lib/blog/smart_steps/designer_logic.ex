@@ -4,7 +4,7 @@ defmodule Blog.SmartSteps.DesignerLogic do
   Used by the designer to check tree integrity.
   """
 
-  alias Blog.SmartSteps.Types.{ScenarioTree, Scenario}
+  alias Blog.SmartSteps.Types.ScenarioTree
 
   @doc """
   Validate a scenario tree. Returns `{:ok, []}` if valid,
