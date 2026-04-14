@@ -20,7 +20,9 @@ defmodule Blog.SmartSteps.StoryDemo do
   Weights: critical=5, high=4, medium=2, low=1.
   Optional `random` parameter should be in [0, 1).
   """
-  def pick_weighted_choice([], _random \\ nil),
+  def pick_weighted_choice(choices, random \\ nil)
+
+  def pick_weighted_choice([], _random),
     do: raise(ArgumentError, "Cannot pick from empty choices list")
 
   def pick_weighted_choice([choice], _random), do: choice

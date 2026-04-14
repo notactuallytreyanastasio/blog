@@ -156,9 +156,6 @@ defmodule BlueskyHose do
     end
   end
 
-  defp generate_id do
-    :crypto.strong_rand_bytes(10) |> Base.encode16(case: :lower)
-  end
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}")

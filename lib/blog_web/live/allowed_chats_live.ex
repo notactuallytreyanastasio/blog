@@ -172,11 +172,6 @@ defmodule BlogWeb.AllowedChatsLive do
     end
   end
 
-  # For backward compatibility with older messages
-  defp message_visible?(content, allowed_words) do
-    {is_visible, _matching_words} = message_visible_with_words(content, allowed_words)
-    is_visible
-  end
 
   # Generate a unique user ID
   defp generate_user_id do

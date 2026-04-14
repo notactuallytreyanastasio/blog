@@ -1,7 +1,7 @@
 defmodule BlogWeb.SmartStepsLive.Play do
   use BlogWeb, :live_view
 
-  alias Blog.SmartSteps.{SessionServer, Trees, Types}
+  alias Blog.SmartSteps.{SessionServer, Trees}
   alias Blog.SmartSteps.Types.Metrics
 
   @impl true

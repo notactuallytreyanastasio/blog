@@ -1,8 +1,6 @@
 defmodule BlogWeb.PongGodLive do
   use BlogWeb, :live_view
   alias BlogWeb.PongLive
-  require Logger
-
   @refresh_interval 50
   @max_explosions 20
   @explosion_interval 50
@@ -246,10 +244,6 @@ defmodule BlogWeb.PongGodLive do
     end
   end
 
-  # Calculate the scaled position for the preview
-  defp scale_position(value, dimension, preview_dimension) do
-    value / dimension * preview_dimension
-  end
 
   # Get frequency for a musical note
   defp get_note_frequency(note) do
