@@ -7,130 +7,45 @@ defmodule Blog.Application do
 
   @impl true
   def start(_type, _args) do
-    # Start :inets application - needed by Pythonx
     :ok = Application.ensure_started(:inets)
 
-    # Configure Pythonx environment variables
-    # Point to Python executable found via SSH
+    # Pythonx config for PythonDemoLive
     System.put_env("PYTHONX_PYTHON_PATH", "/usr/bin/python3")
-    # Use a directory with write permissions - changed from /tmp/pythonx_cache to /tmp
     System.put_env("PYTHONX_CACHE_DIR", "/tmp")
-    # Disable download of binaries (use system Python)
     System.put_env("PYTHONX_SKIP_DOWNLOAD", "true")
 
-    # Create cache directory with proper permissions
-    File.mkdir_p!("/tmp/pythonx_venv")
-
-    # Create the ETS tables - in a safe way that handles table already existing
     create_ets_tables()
-
-    # Pre-initialize the SkeetStore
-    # This ensures the module is loaded and the table is ready
     ensure_skeet_store_initialized()
 
     children = [
-      # Start the Repo
       Blog.Repo,
-      # Start the Telemetry supervisor
       BlogWeb.Telemetry,
-      # Track hose connection status (must start before hoses)
       Blog.HoseMonitor,
       BlueskyHose,
       BlueskyJetstream,
-      # Start the PubSub system
       {Phoenix.PubSub, name: Blog.PubSub},
-      # Live draft streaming from editor
       Blog.LiveDraft,
-      # Start Finch
       {Finch, name: Blog.Finch},
-      # Start the Endpoint (http/https)
       BlogWeb.Endpoint,
-      # Start a worker by calling: Blog.Worker.start_link(arg)
-      # {Blog.Worker, arg}
       Blog.RedditBookmarkProcessor,
-      # Start the Wordle stores
       Blog.Wordle.WordStore,
       Blog.Wordle.GameStore,
-      # Start the Presence service for real-time user tracking
       BlogWeb.Presence,
-      # PokeAround subsystem (StumbleUpon clone)
       Blog.PokeAround.Supervisor,
-      # Smart Steps session management
       {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
       {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
-      # Census population cache for NYC map
       Blog.Census.Cache,
-      # GIF Maker subsystem
       {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
       Blog.GifMaker.Processor,
       Blog.GifMaker.Cleanup,
-      # Collage Maker subsystem
       {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
       Blog.CollageMaker.Processor,
       Blog.CollageMaker.Cleanup,
-      # Work Log - GitHub commit poller
       Blog.GitHub.WorkLogPoller
     ]
 
-    # Pre-load the Games modules to ensure they're available
-    _ = Blog.Games
-    _ = Blog.Games.Blackjack
-    # Pre-load SkeetStore module
-    _ = Blog.SkeetStore
-
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
-  rescue
-    ArgumentError ->
-      # Table already exists, continue with startup
-
-      # Pre-initialize the SkeetStore
-      ensure_skeet_store_initialized()
-
-      children = [
-        # Start the Repo
-        Blog.Repo,
-        # Start the Telemetry supervisor
-        BlogWeb.Telemetry,
-        BlueskyHose,
-        BlueskyJetstream,
-        # Start the PubSub system
-        {Phoenix.PubSub, name: Blog.PubSub},
-        # Start Finch
-        {Finch, name: Blog.Finch},
-        # Start the Endpoint (http/https)
-        BlogWeb.Endpoint,
-        # Start a worker by calling: Blog.Worker.start_link(arg)
-        # {Blog.Worker, arg}
-        Blog.RedditBookmarkProcessor,
-        # Start the Wordle stores
-        Blog.Wordle.WordStore,
-        Blog.Wordle.GameStore,
-        # Start the Presence service for real-time user tracking
-        BlogWeb.Presence,
-        # PokeAround subsystem (StumbleUpon clone)
-        Blog.PokeAround.Supervisor,
-        # Smart Steps session management
-        {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
-        {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
-        # Census population cache for NYC map
-        Blog.Census.Cache,
-        # GIF Maker subsystem
-        {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
-        Blog.GifMaker.Processor,
-        Blog.GifMaker.Cleanup,
-        # Collage Maker subsystem
-        {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
-        Blog.CollageMaker.Processor,
-        Blog.CollageMaker.Cleanup,
-        # Work Log - GitHub commit poller
-        Blog.GitHub.WorkLogPoller
-      ]
-
-      opts = [strategy: :one_for_one, name: Blog.Supervisor]
-      Supervisor.start_link(children, opts)
   end
 
   # Create all ETS tables safely
@@ -141,7 +56,6 @@ defmodule Blog.Application do
         {:reddit_links, [:ordered_set, :public, read_concurrency: true]},
         {:bookmarks_table, [:set, :public, read_concurrency: true]},
         {:pong_games, [:set, :public]},
-        {:war_players, [:set, :public, read_concurrency: true, write_concurrency: true]},
         {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]},
         {:gif_maker_rate_limits, [:set, :public, read_concurrency: true, write_concurrency: true]},
         {:collage_maker_rate_limits, [:set, :public, read_concurrency: true, write_concurrency: true]}
