@@ -11,6 +11,7 @@ defmodule BlogWeb.PostLive.Index do
   @url_regex ~r/(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})/i
 
   # TODO add meta tags
+  @impl true
   def mount(params, _session, socket) do
     # Ensure ETS chat store is started
     Chat.ensure_started()
@@ -154,6 +155,7 @@ defmodule BlogWeb.PostLive.Index do
      )}
   end
 
+  @impl true
   def handle_info(%{event: "presence_diff"}, socket) do
     visitor_cursors =
       Presence.list(@presence_topic)
@@ -183,6 +185,7 @@ defmodule BlogWeb.PostLive.Index do
      )}
   end
 
+  @impl true
   def handle_info({:new_chat_message, message}, socket) do
     Logger.debug(
       "Received new chat message: #{inspect(message.id)} in room #{message.room} from #{message.sender_name}"
@@ -207,6 +210,7 @@ defmodule BlogWeb.PostLive.Index do
     end
   end
 
+  @impl true
   def handle_event("mousemove", %{"x" => x, "y" => y}, socket) do
     reader_id = socket.assigns.reader_id
 
@@ -258,13 +262,8 @@ defmodule BlogWeb.PostLive.Index do
 
   def handle_event("add_banned_word", %{"word" => word, "password" => password}, socket) do
     if password == socket.assigns.mod_password do
-      case Chat.add_banned_word(word) do
-        {:ok, _} ->
-          {:noreply, assign(socket, banned_word_form: %{"word" => ""})}
-
-        {:error, _} ->
-          {:noreply, socket}
-      end
+      {:ok, _} = Chat.add_banned_word(word)
+      {:noreply, assign(socket, banned_word_form: %{"word" => ""})}
     else
       {:noreply, socket}
     end
@@ -301,72 +300,53 @@ defmodule BlogWeb.PostLive.Index do
     Logger.debug("Handling send_chat_message event for #{reader_id} in room #{current_room}")
 
     if reader_id && trimmed_message != "" do
-      # Check for banned words
-      case Chat.check_for_banned_words(trimmed_message) do
-        {:ok, _} ->
-          # Message is clean, proceed with sending
-          # Get display name from presence
-          visitor_meta =
-            case Presence.get_by_key(@presence_topic, reader_id) do
-              %{metas: [meta | _]} -> meta
-              _ -> %{display_name: nil, color: "hsl(200, 70%, 60%)"}
-            end
+      # Check for banned words (currently always returns {:ok, _})
+      {:ok, _} = Chat.check_for_banned_words(trimmed_message)
 
-          display_name = visitor_meta.display_name || "visitor #{String.slice(reader_id, -4, 4)}"
-          color = visitor_meta.color
+      # Message is clean, proceed with sending
+      # Get display name from presence
+      visitor_meta =
+        case Presence.get_by_key(@presence_topic, reader_id) do
+          %{metas: [meta | _]} -> meta
+          _ -> %{display_name: nil, color: "hsl(200, 70%, 60%)"}
+        end
 
-          # Create the message
-          new_message = %{
-            id: System.os_time(:millisecond),
-            sender_id: reader_id,
-            sender_name: display_name,
-            sender_color: color,
-            content: trimmed_message,
-            timestamp: DateTime.utc_now(),
-            room: current_room
-          }
+      display_name = visitor_meta.display_name || "visitor #{String.slice(reader_id, -4, 4)}"
+      color = visitor_meta.color
 
-          # Save message to ETS
-          saved_message = Chat.save_message(new_message)
-          Logger.debug("Saved new message to ETS with ID: #{inspect(saved_message.id)}")
+      # Create the message
+      new_message = %{
+        id: System.os_time(:millisecond),
+        sender_id: reader_id,
+        sender_name: display_name,
+        sender_color: color,
+        content: trimmed_message,
+        timestamp: DateTime.utc_now(),
+        room: current_room
+      }
 
-          # Broadcast the message to all clients - use broadcast! to raise errors
-          Phoenix.PubSub.broadcast!(
-            Blog.PubSub,
-            @chat_topic,
-            {:new_chat_message, saved_message}
-          )
+      # Save message to DB
+      {:ok, saved_message} = Chat.save_message(new_message)
+      Logger.debug("Saved new message with ID: #{inspect(saved_message.id)}")
 
-          Logger.debug("Broadcast message to topic #{@chat_topic} succeeded")
+      # Broadcast the message to all clients - use broadcast! to raise errors
+      Phoenix.PubSub.broadcast!(
+        Blog.PubSub,
+        @chat_topic,
+        {:new_chat_message, saved_message}
+      )
 
-          # Get updated messages from ETS to ensure consistency
-          updated_messages = Chat.get_messages(current_room)
+      Logger.debug("Broadcast message to topic #{@chat_topic} succeeded")
 
-          Logger.debug(
-            "After sending: room #{current_room} has #{length(updated_messages)} messages"
-          )
+      # Get updated messages to ensure consistency
+      updated_messages = Chat.get_messages(current_room)
 
-          {:noreply,
-           assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
+      Logger.debug(
+        "After sending: room #{current_room} has #{length(updated_messages)} messages"
+      )
 
-        {:error, :contains_banned_words} ->
-          # Message contains banned words, reject it
-          system_message = %{
-            id: System.os_time(:millisecond),
-            sender_id: "system",
-            sender_name: "ChatBot",
-            sender_color: "hsl(0, 100%, 50%)",
-            content: "Your message was not sent because it contains prohibited words.",
-            timestamp: DateTime.utc_now(),
-            room: current_room
-          }
-
-          # Only show the warning to the sender
-          updated_messages = [system_message | socket.assigns.chat_messages] |> Enum.take(50)
-
-          {:noreply,
-           assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
-      end
+      {:noreply,
+       assign(socket, chat_form: %{"message" => ""}, chat_messages: updated_messages)}
     else
       {:noreply, socket}
     end
@@ -374,6 +354,21 @@ defmodule BlogWeb.PostLive.Index do
 
   def handle_event("validate_chat_message", %{"message" => message}, socket) do
     {:noreply, assign(socket, chat_form: %{"message" => message})}
+  end
+
+  # Handle modal open event
+  def handle_event("open_mobile_modal", %{"content" => content}, socket) do
+    {:noreply, push_patch(socket, to: ~p"/?modal=#{content}")}
+  end
+
+  # Handle modal close event
+  def handle_event("close_mobile_modal", _params, socket) do
+    {:noreply, push_patch(socket, to: ~p"/")}
+  end
+
+  # Handle category filter event
+  def handle_event("filter_category", %{"category" => category}, socket) do
+    {:noreply, assign(socket, selected_category: category)}
   end
 
   # Function to format message text and make URLs clickable
@@ -413,22 +408,7 @@ defmodule BlogWeb.PostLive.Index do
     socket
   end
 
-  # Handle modal open event
-  def handle_event("open_mobile_modal", %{"content" => content}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/?modal=#{content}")}
-  end
-
-  # Handle modal close event
-  def handle_event("close_mobile_modal", _params, socket) do
-    {:noreply, push_patch(socket, to: ~p"/")}
-  end
-
-
-  # Handle category filter event
-  def handle_event("filter_category", %{"category" => category}, socket) do
-    {:noreply, assign(socket, selected_category: category)}
-  end
-
+  @impl true
   def render(assigns) do
     posts = (assigns.tech_posts ++ assigns.non_tech_posts) |> Enum.sort_by(& &1.written_on, {:desc, NaiveDateTime})
     assigns = assign(assigns, :all_posts, posts)
