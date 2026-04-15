@@ -8,6 +8,7 @@ defmodule BlogWeb.AsideComponent do
   end
 
   # Props: id, title, content
+  @impl true
   def render(assigns) do
     ~H"""
     <aside id={@id} class="aside-component bg-gray-100 p-4 rounded-md mb-4">

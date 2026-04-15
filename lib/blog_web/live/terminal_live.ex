@@ -194,8 +194,29 @@ defmodule BlogWeb.TerminalLive do
     {:noreply, assign(socket, time: format_time())}
   end
 
-  defp format_time do
-    Calendar.strftime(DateTime.utc_now(), "%I:%M %p")
+  # Handle presence updates
+  def handle_info(%{event: "presence_diff"}, socket) do
+    visitor_list =
+      Presence.list(@presence_topic)
+      |> Enum.map(fn {id, %{metas: [meta | _]}} -> {id, meta} end)
+      |> Enum.into(%{})
+
+    {:noreply, assign(socket, visitor_list: visitor_list, total_online: map_size(visitor_list))}
+  end
+
+  # Handle new chat messages
+  def handle_info({:new_chat_message, _message}, socket) do
+    updated_messages = Chat.list_messages("terminal")
+    {:noreply, assign(socket, chat_messages: updated_messages)}
+  end
+
+  # Handle Joyride tour completion
+  def handle_info({:tour_complete, _id}, socket) do
+    {:noreply, assign(socket, show_tour: false)}
+  end
+
+  def handle_info(:work_log_updated, socket) do
+    {:noreply, assign(socket, work_log_events: Blog.GitHub.WorkLog.list_recent())}
   end
 
   def handle_event("select", %{"name" => name}, socket) do
@@ -382,31 +403,6 @@ defmodule BlogWeb.TerminalLive do
     {:noreply, assign(socket, chat_form: %{"message" => message})}
   end
 
-  # Handle presence updates
-  def handle_info(%{event: "presence_diff"}, socket) do
-    visitor_list =
-      Presence.list(@presence_topic)
-      |> Enum.map(fn {id, %{metas: [meta | _]}} -> {id, meta} end)
-      |> Enum.into(%{})
-
-    {:noreply, assign(socket, visitor_list: visitor_list, total_online: map_size(visitor_list))}
-  end
-
-  # Handle new chat messages
-  def handle_info({:new_chat_message, _message}, socket) do
-    updated_messages = Chat.list_messages("terminal")
-    {:noreply, assign(socket, chat_messages: updated_messages)}
-  end
-
-  # Handle Joyride tour completion
-  def handle_info({:tour_complete, _id}, socket) do
-    {:noreply, assign(socket, show_tour: false)}
-  end
-
-  def handle_info(:work_log_updated, socket) do
-    {:noreply, assign(socket, work_log_events: Blog.GitHub.WorkLog.list_recent())}
-  end
-
   # Tour controls
   def handle_event("start_tour", _params, socket) do
     {:noreply, assign(socket, show_tour: true)}
@@ -460,6 +456,10 @@ defmodule BlogWeb.TerminalLive do
   def handle_event(event, params, socket) when event in @phish_events do
     send_update(BlogWeb.PhishComponent, id: "phish-embed", __event__: event, __params__: params)
     {:noreply, socket}
+  end
+
+  defp format_time do
+    Calendar.strftime(DateTime.utc_now(), "%I:%M %p")
   end
 
   # Function component for rendering icon items

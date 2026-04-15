@@ -24,6 +24,22 @@ defmodule BlogWeb.PythonDemoLive do
   end
 
   @impl true
+  def handle_event("reset", _params, socket) do
+    {:noreply,
+     assign(socket,
+       code: """
+       def hello_world():
+           return "Hello from Python! 🐍"
+
+       result = hello_world()
+       result
+       """,
+       result: nil,
+       error: nil
+     )}
+  end
+
+  @impl true
   def handle_info({:execute_python, code}, socket) do
     result = Blog.PythonRunner.run_python_code(code)
 
@@ -153,19 +169,4 @@ defmodule BlogWeb.PythonDemoLive do
     """
   end
 
-  @impl true
-  def handle_event("reset", _params, socket) do
-    {:noreply,
-     assign(socket,
-       code: """
-       def hello_world():
-           return "Hello from Python! 🐍"
-
-       result = hello_world()
-       result
-       """,
-       result: nil,
-       error: nil
-     )}
-  end
 end

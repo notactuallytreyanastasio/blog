@@ -195,7 +195,6 @@ defmodule BlogWeb.MapLive do
         nil # Return nil if no track ID found, client can fallback
     end
   end
-  defp parse_spotify_link_to_embed_url(_link), do: nil # Catch-all for non-binary links
 
   # Helper function to parse Apple Music link and create an embed URL
   defp parse_apple_music_link_to_embed_url(link) when is_binary(link) do
@@ -214,7 +213,6 @@ defmodule BlogWeb.MapLive do
       nil
     end
   end
-  defp parse_apple_music_link_to_embed_url(_link), do: nil
 
   # General helper to generate embed URL based on link type
   defp generate_embed_url(link) when is_binary(link) do

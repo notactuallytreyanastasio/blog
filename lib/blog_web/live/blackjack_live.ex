@@ -295,40 +295,6 @@ defmodule BlogWeb.BlackjackLive do
     process_game_info(game_id, game, host_id, %{}, socket)
   end
 
-  # Helper to process game info in a consistent way
-  defp process_game_info(game_id, game, host_id, players_lobby, socket) do
-    # Don't add our own game to the list
-    if host_id != socket.assigns.player_id do
-      # Get host name from provided players_lobby or current lobby
-      host_name =
-        if Map.has_key?(players_lobby, host_id) do
-          players_lobby[host_id].name
-        else
-          get_player_name(socket.assigns.players_in_lobby, host_id)
-        end
-
-      # Merge any provided player names into our lobby
-      updated_players_lobby = Map.merge(socket.assigns.players_in_lobby, players_lobby)
-
-      # Add game to active games list
-      socket =
-        socket
-        |> assign(:players_in_lobby, updated_players_lobby)
-        |> update(:active_games, fn games ->
-          Map.put(games, game_id, %{
-            host_id: host_id,
-            host_name: host_name,
-            player_count: map_size(game.players),
-            created_at: System.system_time(:second)
-          })
-        end)
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
-    end
-  end
-
   @impl true
   def handle_info({:player_joined_game, player_id, player_name}, socket) do
     # Only process if we have a game
@@ -400,6 +366,40 @@ defmodule BlogWeb.BlackjackLive do
     {:noreply, socket}
   end
 
+  # Helper to process game info in a consistent way
+  defp process_game_info(game_id, game, host_id, players_lobby, socket) do
+    # Don't add our own game to the list
+    if host_id != socket.assigns.player_id do
+      # Get host name from provided players_lobby or current lobby
+      host_name =
+        if Map.has_key?(players_lobby, host_id) do
+          players_lobby[host_id].name
+        else
+          get_player_name(socket.assigns.players_in_lobby, host_id)
+        end
+
+      # Merge any provided player names into our lobby
+      updated_players_lobby = Map.merge(socket.assigns.players_in_lobby, players_lobby)
+
+      # Add game to active games list
+      socket =
+        socket
+        |> assign(:players_in_lobby, updated_players_lobby)
+        |> update(:active_games, fn games ->
+          Map.put(games, game_id, %{
+            host_id: host_id,
+            host_name: host_name,
+            player_count: map_size(game.players),
+            created_at: System.system_time(:second)
+          })
+        end)
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
   # Helper functions
 
   defp maybe_show_game_over_flash(socket, %{status: :game_over} = game) do
@@ -438,7 +438,7 @@ defmodule BlogWeb.BlackjackLive do
 
   # Render functions
 
-  defp render_player_hand(hand, status, score, hide_second_card \\ false) do
+  defp render_player_hand(hand, status, score, hide_second_card) do
     # Make sure we're working with the correct hand for this player
     cards =
       case {hand, hide_second_card} do

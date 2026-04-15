@@ -36,11 +36,6 @@ defmodule BlogWeb.CoreComponents do
       </.modal>
 
   """
-  attr :id, :string, required: true
-  attr :show, :boolean, default: false
-  attr :on_cancel, JS, default: %JS{}
-  slot :inner_block, required: true
-
   attr :meta_attrs, :list, required: true
   attr :page_title, :string, required: true
 
@@ -57,6 +52,11 @@ defmodule BlogWeb.CoreComponents do
     <title>{@page_title}</title>
     """
   end
+
+  attr :id, :string, required: true
+  attr :show, :boolean, default: false
+  attr :on_cancel, JS, default: %JS{}
+  slot :inner_block, required: true
 
   def modal(assigns) do
     ~H"""

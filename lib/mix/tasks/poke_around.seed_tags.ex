@@ -83,10 +83,8 @@ defmodule Mix.Tasks.PokeAround.SeedTags do
     total_tagged = Enum.reduce(domain_tags, 0, fn {domain, tag_names}, acc ->
       links = Repo.all(from l in Link, where: l.domain == ^domain)
 
-      for link <- links, tag_name <- tag_names do
-        if tag = created_tags[tag_name] do
-          Tags.tag_link(link.id, tag.id, "domain_auto")
-        end
+      for link <- links do
+        Tags.tag_link(link, tag_names, source: "domain_auto")
       end
 
       count = length(links)
