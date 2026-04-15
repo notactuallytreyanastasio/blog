@@ -1,5 +1,6 @@
 # Project Instructions
 
+<!-- deciduous:start -->
 ## Decision Graph Workflow
 
 **THIS IS MANDATORY. Log decisions IN REAL-TIME, not retroactively.**
@@ -62,6 +63,29 @@ AUDIT regularly -> Check for missing connections
 | About to write/edit code | `action` | "Implementing Redux store" |
 | Something worked or failed | `outcome` | "Redux integration successful" |
 | Notice something interesting | `observation` | "Existing code uses hooks" |
+
+### What NOT to Log - CRITICAL
+
+**The decision graph records the USER'S project decisions, not your internal process.**
+
+Nodes should capture what the user is building, choosing, and accomplishing. Do NOT create nodes for your own thinking, planning, or tooling steps.
+
+**DO NOT create nodes for:**
+- Reading/exploring the codebase ("Analyzing project structure", "Reading config files")
+- Your planning process ("Planning implementation approach", "Evaluating options internally")
+- Tool usage ("Running tests to check status", "Checking git log")
+- Context gathering ("Understanding existing auth code", "Reviewing PR comments")
+- Meta-commentary ("Starting work on this task", "Preparing to implement")
+
+**DO create nodes for:**
+- What the user asked for (goals)
+- Concrete approaches being considered (options)
+- Choices made between approaches (decisions)
+- Code being written or changed (actions)
+- Results of implementation (outcomes)
+- Technical findings that affect decisions (observations)
+
+**Rule of thumb:** If a node describes something the user would put on a project timeline or in a PR description, log it. If it describes your internal process of reading and thinking, don't.
 
 ### Document Attachments
 
@@ -240,6 +264,7 @@ auto_detect = true
 
 ```bash
 deciduous check-update    # Update needed? Run 'deciduous update' if yes
+                          # (auto-checked every 24h if auto-update is on)
 deciduous nodes           # What decisions exist?
 deciduous edges           # How are they connected? Any gaps?
 deciduous doc list        # Any attached documents to review?
@@ -262,3 +287,4 @@ deciduous events checkpoint --clear-events
 ```
 
 Events auto-emit on add/link/status commands. Git merges event files automatically.
+<!-- deciduous:end -->

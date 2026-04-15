@@ -20,6 +20,24 @@ argument-hint: <action> [args...]
 | Finished something | `outcome` | `/decision add outcome "JWT working"` |
 | Reconsidering a past decision | `revisit` | `/decision add revisit "Reconsidering auth"` |
 
+## What NOT to Log - CRITICAL
+
+**The decision graph records the USER'S project decisions, not your internal process.**
+
+Do NOT create nodes for your own thinking, planning, reading, or tooling steps. Only log things the user would recognize as project milestones or decisions.
+
+**Skip these (meta/process noise):**
+- "Reading codebase to understand structure"
+- "Planning implementation approach"
+- "Running tests to check status"
+- "Analyzing existing code"
+
+**Log these (user-visible project work):**
+- "Add user authentication" (goal)
+- "Use JWT tokens" (option)
+- "Implemented JWT middleware" (action)
+- "JWT auth working, all tests pass" (outcome)
+
 ## Quick Commands
 
 Based on $ARGUMENTS:
@@ -35,12 +53,14 @@ Based on $ARGUMENTS:
 - `add decision <title>` -> `deciduous add decision "<title>" -c 75`
 - `add option <title>` -> `deciduous add option "<title>" -c 70`
 - `add action <title>` -> `deciduous add action "<title>" -c 85`
-- `add obs <title>` -> `deciduous add observation "<title>" -c 80`
+- `add obs <title> -d <description>` -> `deciduous add observation "<title>" -c 80 -d "<description>"`
+  - **Observations MUST have both a title (short summary) and description (full detail)**
 - `add outcome <title>` -> `deciduous add outcome "<title>" -c 90`
 - `add revisit <title>` -> `deciduous add revisit "<title>" -c 75`
 
 ### Optional Flags for Nodes
 - `-c, --confidence <0-100>` - Confidence level
+- `-d, --description "..."` - Description (**REQUIRED for observations** - the detail behind the title)
 - `-p, --prompt "..."` - Store the user prompt that triggered this node
 - `-f, --files "file1.rs,file2.rs"` - Associate files with this node
 - `-b, --branch <name>` - Git branch (auto-detected by default)
@@ -184,7 +204,7 @@ The graph viewer shows a branch dropdown in the stats bar:
 | `option` | Possible approach | "Use JWT tokens" |
 | `action` | Something implemented | "Added JWT middleware" |
 | `outcome` | Result of action | "JWT auth working" |
-| `observation` | Finding or data point | "Existing code uses sessions" |
+| `observation` | Finding or data point (title + description) | Title: "Existing code uses sessions", -d: "The legacy auth uses express-session with cookie store, not token-based" |
 | `revisit` | Pivot point / reconsideration | "Reconsidering auth approach" |
 
 ## Edge Types
