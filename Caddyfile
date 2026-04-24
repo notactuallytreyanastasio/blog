@@ -19,3 +19,50 @@ gifmaker.bobbby.online {
 		X-Forwarded-Proto {scheme}
 	}
 }
+
+deciduous.dev, www.deciduous.dev {
+	root * /srv/deciduous
+	file_server
+
+	encode gzip zstd
+
+	header {
+		Cache-Control "public, max-age=3600"
+	}
+}
+
+donny.bobbby.online {
+	root * /srv/donny
+	file_server
+
+	encode gzip zstd
+
+	header {
+		Cache-Control "public, max-age=300"
+	}
+}
+
+blimp.bobbby.online {
+	root * /srv/blimp
+	file_server
+
+	encode gzip zstd
+
+	header {
+		Cache-Control "public, max-age=300"
+	}
+}
+
+phishjamexplorer.com, www.phishjamexplorer.com {
+	root * /srv/phstats
+	file_server
+
+	encode gzip zstd
+
+	header {
+		Cache-Control "public, max-age=3600"
+	}
+
+	# SPA fallback - serve index.html for all routes
+	try_files {path} /index.html
+}

@@ -68,6 +68,10 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - /opt/deciduous-site:/srv/deciduous:ro
+      - /opt/phstats:/srv/phstats:ro
+      - /opt/donny:/srv/donny:ro
+      - /opt/blimp:/srv/blimp:ro
 
 volumes:
   pgdata:
