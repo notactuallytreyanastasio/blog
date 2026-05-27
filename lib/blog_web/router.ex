@@ -108,6 +108,7 @@ defmodule BlogWeb.Router do
 
     live "/work-log", WorkLogLive, :index
     live "/cairn", CairnLive, :index
+    live "/2048", Twenty48Live, :index
 
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index
