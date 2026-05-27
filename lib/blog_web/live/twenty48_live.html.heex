@@ -55,9 +55,9 @@
       <%= if @blitz do %>
         <div class="blitz-bar-wrap">
           <div
+            id={"blitz-bar-#{@timer_gen}"}
             class={"blitz-bar #{if @game.game_over, do: "stopped"}"}
             style={"animation-duration: #{@blitz_ms}ms;"}
-            key={@timer_gen}
           ></div>
         </div>
       <% end %>
