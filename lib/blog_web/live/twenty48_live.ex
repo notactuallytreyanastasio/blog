@@ -19,7 +19,10 @@ defmodule BlogWeb.Twenty48Live do
      |> assign(:timer_ref, nil)
      |> assign(:blitz_ms, @default_blitz_ms)
      |> assign(:time_left, @default_blitz_ms)
-     |> assign(:best, 0)}
+     |> assign(:best, 0)
+     |> assign(:page_title, "2048 — Blitz Edition")
+     |> assign(:page_description, "The classic 2048 puzzle with a twist: Blitz mode gives you 2 seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.")
+     |> assign(:page_image, "https://www.bobbby.online/images/og-2048.png")}
   end
 
   @impl true
