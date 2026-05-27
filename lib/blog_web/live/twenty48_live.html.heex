@@ -1,0 +1,157 @@
+<div id="twenty48-container" phx-hook="Swipe" phx-window-keydown="keydown" class="twenty48-wrap">
+  <div class="mac-window">
+    <div class="mac-title-bar">
+      <div class="mac-close-box"></div>
+      <div class="mac-title-stripes"></div>
+      <div class="mac-title-text">2048</div>
+      <div class="mac-title-stripes"></div>
+    </div>
+
+    <div class="mac-body">
+      <div class="score-row">
+        <div class="score-box">
+          <div class="label">SCORE</div>
+          <div>{@game.score}</div>
+        </div>
+        <div class="score-box">
+          <div class="label">BEST</div>
+          <div>{@best}</div>
+        </div>
+        <button class="mac-btn" phx-click="new_game">New Game</button>
+      </div>
+
+      <div class="controls-row">
+        <label class="blitz-check" phx-click="toggle_blitz">
+          <input type="checkbox" checked={@blitz} readonly tabindex="-1" />
+          BLITZ
+        </label>
+
+        <%= if @blitz do %>
+          <%= for ms <- @blitz_options do %>
+            <button
+              class={"mac-btn size-btn #{if ms == @blitz_ms, do: "active"}"}
+              phx-click="set_blitz_time"
+              phx-value-ms={ms}
+            >
+              {div(ms, 1000)}s
+            </button>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="controls-row">
+        <span style="font-size:13px;color:#555;">Board:</span>
+        <%= for s <- @sizes do %>
+          <button
+            class={"mac-btn size-btn #{if s == @size, do: "active"}"}
+            phx-click="set_size"
+            phx-value-size={s}
+          >
+            {s}
+          </button>
+        <% end %>
+      </div>
+
+      <%= if @blitz do %>
+        <div class="blitz-bar-wrap">
+          <div
+            class={"blitz-bar #{if @time_left < 600, do: "danger"}"}
+            style={"width: #{blitz_bar_pct(@time_left, @blitz_ms)}%"}
+          ></div>
+        </div>
+      <% end %>
+
+      <%= if @game.won and not @game.game_over do %>
+        <div class="won-banner">YOU HIT 2048!</div>
+      <% end %>
+
+      <div class="board-container">
+        <div
+          class="board-grid"
+          style={"grid-template-columns: repeat(#{@game.size}, 1fr);"}
+        >
+          <%= for r <- 0..(@game.size - 1) do %>
+            <%= for c <- 0..(@game.size - 1) do %>
+              <% val = @game.board[{r, c}] %>
+              <% anim =
+                cond do
+                  @game.new_tile == {r, c} -> "tile-new"
+                  MapSet.member?(@game.merged_tiles, {r, c}) -> "tile-merged"
+                  true -> ""
+                end
+              %>
+              <div
+                class={"tile #{tile_class(val)} #{anim}"}
+                style={tile_font_size(val, @game.size)}
+              >
+                {if val > 0, do: val}
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+
+        <%= if @game.game_over do %>
+          <div class="game-over-overlay">
+            <h2>{if @blitz_expired, do: "TIME'S UP!", else: "GAME OVER"}</h2>
+            <p>Score: {@game.score}</p>
+            <button class="mac-btn" phx-click="new_game">Play Again</button>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="dpad">
+        <div class="dpad-grid">
+          <div class="dpad-spacer"></div>
+          <button class="dpad-btn" phx-click="swipe" phx-value-direction="up">&#9650;</button>
+          <div class="dpad-spacer"></div>
+          <button class="dpad-btn" phx-click="swipe" phx-value-direction="left">&#9664;</button>
+          <div class="dpad-spacer"></div>
+          <button class="dpad-btn" phx-click="swipe" phx-value-direction="right">&#9654;</button>
+          <div class="dpad-spacer"></div>
+          <button class="dpad-btn" phx-click="swipe" phx-value-direction="down">&#9660;</button>
+          <div class="dpad-spacer"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <%= if @show_howto do %>
+    <div class="howto-overlay">
+      <div class="howto-window">
+        <div class="mac-title-bar">
+          <div class="mac-close-box"></div>
+          <div class="mac-title-stripes"></div>
+          <div class="mac-title-text">How To Play</div>
+          <div class="mac-title-stripes"></div>
+        </div>
+        <div class="howto-body">
+          <h2>2048 BLITZ</h2>
+
+          <div class="rule">
+            <b>SWIPE or ARROW KEYS</b>
+            Slide all tiles in one direction. Matching numbers merge and add up.
+          </div>
+
+          <div class="rule">
+            <b>GOAL</b>
+            Reach the 2048 tile. Keep going for a high score.
+          </div>
+
+          <div class="rule">
+            <b>BLITZ MODE</b>
+            Make each move before time runs out or it's game over.
+            5s is normal, 3s is challenging, 2s is brutal. Pick your pain.
+          </div>
+
+          <div class="rule">
+            <b>BOARD SIZE</b>
+            Play on 4x4, 8x8, 10x10, or 12x12. Bigger boards, more room, more chaos.
+          </div>
+
+          <button class="howto-start" phx-click="start_game">START</button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

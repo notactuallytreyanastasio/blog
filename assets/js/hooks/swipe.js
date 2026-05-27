@@ -1,5 +1,7 @@
 const Swipe = {
   mounted() {
+    document.documentElement.classList.add("twenty48-page");
+
     let startX = 0;
     let startY = 0;
     let swiped = false;
@@ -20,8 +22,8 @@ const Swipe = {
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
 
-      // Fire as soon as finger moves 20px in a clear direction
-      if (Math.max(absDx, absDy) < 20) return;
+      // Fire as soon as finger moves 12px in a clear direction
+      if (Math.max(absDx, absDy) < 12) return;
 
       // Prevent page scroll when swiping on the game board
       e.preventDefault();
@@ -37,6 +39,10 @@ const Swipe = {
 
       this.pushEvent("swipe", { direction });
     }, { passive: false });
+  },
+
+  destroyed() {
+    document.documentElement.classList.remove("twenty48-page");
   }
 };
 

@@ -21,13 +21,25 @@ defmodule Blog.Games.Twenty48 do
     {new_board, score_gained, merged_positions} = shift(game.board, game.size, direction)
 
     if new_board == game.board do
-      game
+      # Board didn't change — check if ANY direction works, otherwise game over
+      if any_moves_left?(game) do
+        game
+      else
+        %{game | game_over: true}
+      end
     else
       %{game | board: new_board, score: game.score + score_gained, merged_tiles: merged_positions}
       |> add_random_tile()
       |> check_won()
       |> check_game_over()
     end
+  end
+
+  defp any_moves_left?(game) do
+    Enum.any?([:left, :right, :up, :down], fn dir ->
+      {new_board, _, _} = shift(game.board, game.size, dir)
+      new_board != game.board
+    end)
   end
 
   defp blank_board(size) do

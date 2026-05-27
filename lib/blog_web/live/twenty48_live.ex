@@ -21,6 +21,9 @@ defmodule BlogWeb.Twenty48Live do
      |> assign(:time_left, @default_blitz_ms)
      |> assign(:best, 0)
      |> assign(:show_howto, true)
+     |> assign(:timer_gen, 0)
+     |> assign(:sizes, @sizes)
+     |> assign(:blitz_options, @blitz_options)
      |> assign(:page_title, "2048 — Blitz Edition")
      |> assign(:page_description, "The classic 2048 puzzle with a twist: Blitz mode gives you 2 seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.")
      |> assign(:page_image, "https://www.bobbby.online/images/og-2048.png")}
@@ -54,12 +57,16 @@ defmodule BlogWeb.Twenty48Live do
   end
 
   def handle_event("start_game", _params, socket) do
-    socket =
-      socket
-      |> assign(:show_howto, false)
-      |> start_blitz_timer()
+    game = Twenty48.new(socket.assigns.size)
 
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:show_howto, false)
+     |> assign(:game, game)
+     |> assign(:blitz_expired, false)
+     |> assign(:timer_ref, nil)
+     |> assign(:time_left, socket.assigns.blitz_ms)
+     |> maybe_start_blitz_timer()}
   end
 
   def handle_event("new_game", _params, socket) do
@@ -120,26 +127,31 @@ defmodule BlogWeb.Twenty48Live do
   end
 
   @impl true
-  def handle_info(:blitz_tick, socket) do
-    time_left = socket.assigns.time_left - 100
-
-    if time_left <= 0 do
-      game = %{socket.assigns.game | game_over: true}
-
-      {:noreply,
-       socket
-       |> assign(:game, game)
-       |> assign(:blitz_expired, true)
-       |> assign(:time_left, 0)
-       |> assign(:timer_ref, nil)
-       |> update_best()}
+  def handle_info({:blitz_tick, gen}, socket) do
+    # Ignore stale ticks from a previous timer generation
+    if gen != socket.assigns.timer_gen do
+      {:noreply, socket}
     else
-      ref = Process.send_after(self(), :blitz_tick, 100)
+      time_left = socket.assigns.time_left - 100
 
-      {:noreply,
-       socket
-       |> assign(:time_left, time_left)
-       |> assign(:timer_ref, ref)}
+      if time_left <= 0 do
+        game = %{socket.assigns.game | game_over: true}
+
+        {:noreply,
+         socket
+         |> assign(:game, game)
+         |> assign(:blitz_expired, true)
+         |> assign(:time_left, 0)
+         |> assign(:timer_ref, nil)
+         |> update_best()}
+      else
+        ref = Process.send_after(self(), {:blitz_tick, gen}, 100)
+
+        {:noreply,
+         socket
+         |> assign(:time_left, time_left)
+         |> assign(:timer_ref, ref)}
+      end
     end
   end
 
@@ -178,8 +190,9 @@ defmodule BlogWeb.Twenty48Live do
   end
 
   defp start_blitz_timer(socket) do
-    ref = Process.send_after(self(), :blitz_tick, 100)
-    assign(socket, timer_ref: ref, time_left: socket.assigns.blitz_ms)
+    gen = socket.assigns.timer_gen + 1
+    ref = Process.send_after(self(), {:blitz_tick, gen}, 100)
+    assign(socket, timer_ref: ref, time_left: socket.assigns.blitz_ms, timer_gen: gen)
   end
 
   defp reset_blitz_timer(socket) do
@@ -222,537 +235,4 @@ defmodule BlogWeb.Twenty48Live do
   defp tile_font_size(_val, _size), do: ""
 
   defp blitz_bar_pct(time_left, blitz_ms), do: time_left / blitz_ms * 100
-
-  @impl true
-  def render(assigns) do
-    assigns = assigns |> assign(:sizes, @sizes) |> assign(:blitz_options, @blitz_options)
-
-    ~H"""
-    <div id="twenty48-container" phx-hook="Swipe" phx-window-keydown="keydown" class="twenty48-wrap">
-      <style>
-        /* Lock the page — no scroll on mobile */
-        html, body { overflow: hidden !important; height: 100vh !important; height: 100dvh !important; position: fixed !important; width: 100% !important; }
-
-        /* === 1980s Macintosh Aesthetic === */
-        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
-
-        .twenty48-wrap {
-          font-family: 'VT323', 'Chicago', 'Geneva', monospace;
-          background: #c0c0c0;
-          height: 100vh;
-          height: 100dvh;
-          display: flex;
-          align-items: flex-start;
-          justify-content: center;
-          padding: 12px;
-          box-sizing: border-box;
-          -webkit-user-select: none;
-          user-select: none;
-          image-rendering: pixelated;
-          overflow: hidden;
-          touch-action: none;
-        }
-        .mac-window {
-          background: #fff;
-          border: 2px solid #000;
-          box-shadow: 2px 2px 0px #000;
-          width: 100%;
-          max-width: 520px;
-        }
-        .mac-title-bar {
-          background: #fff;
-          border-bottom: 2px solid #000;
-          padding: 3px 8px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          height: 22px;
-        }
-        .mac-close-box {
-          width: 12px;
-          height: 12px;
-          border: 1px solid #000;
-          flex-shrink: 0;
-        }
-        .mac-title-stripes {
-          flex: 1;
-          height: 12px;
-          background: repeating-linear-gradient(
-            to bottom,
-            #000 0px, #000 1px,
-            #fff 1px, #fff 3px
-          );
-        }
-        .mac-title-text {
-          font-size: 14px;
-          font-weight: bold;
-          padding: 0 8px;
-          background: #fff;
-          white-space: nowrap;
-        }
-        .mac-body {
-          padding: 12px;
-        }
-
-        /* Score row */
-        .score-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 10px;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .score-box {
-          border: 1px solid #000;
-          padding: 3px 10px;
-          text-align: center;
-          font-size: 18px;
-        }
-        .score-box .label {
-          font-size: 12px;
-          letter-spacing: 1px;
-        }
-
-        /* Controls */
-        .controls-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 10px;
-          flex-wrap: wrap;
-        }
-        .mac-btn {
-          font-family: 'VT323', monospace;
-          font-size: 16px;
-          background: #fff;
-          border: 2px solid #000;
-          border-radius: 6px;
-          padding: 3px 14px;
-          cursor: pointer;
-          box-shadow: 1px 1px 0 #000;
-          white-space: nowrap;
-        }
-        .mac-btn:active {
-          box-shadow: none;
-          transform: translate(1px, 1px);
-        }
-        .mac-btn.active {
-          background: #000;
-          color: #fff;
-        }
-        .size-btn {
-          min-width: 36px;
-          text-align: center;
-        }
-
-        /* Blitz checkbox */
-        .blitz-check {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          cursor: pointer;
-          font-size: 16px;
-        }
-        .blitz-check input[type="checkbox"] {
-          appearance: none;
-          -webkit-appearance: none;
-          width: 14px;
-          height: 14px;
-          border: 1px solid #000;
-          background: #fff;
-          cursor: pointer;
-          position: relative;
-        }
-        .blitz-check input[type="checkbox"]:checked::after {
-          content: "X";
-          position: absolute;
-          top: -2px;
-          left: 1px;
-          font-size: 14px;
-          font-family: 'VT323', monospace;
-          line-height: 1;
-        }
-
-        /* Blitz timer bar */
-        .blitz-bar-wrap {
-          height: 8px;
-          border: 1px solid #000;
-          margin-bottom: 8px;
-          background: #fff;
-        }
-        .blitz-bar {
-          height: 100%;
-          background: #000;
-          transition: width 0.1s linear;
-        }
-        .blitz-bar.danger {
-          background: repeating-linear-gradient(
-            45deg,
-            #000 0px, #000 3px,
-            #fff 3px, #fff 6px
-          );
-        }
-
-        /* Board */
-        .board-grid {
-          display: grid;
-          gap: 2px;
-          border: 2px solid #000;
-          background: #000;
-          padding: 2px;
-          aspect-ratio: 1;
-        }
-        .tile {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          font-size: 8vmin;
-          aspect-ratio: 1;
-          border: 1px solid #888;
-          box-sizing: border-box;
-          overflow: hidden;
-          transition: background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-                     color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-                     border-color 0.25s ease;
-        }
-        @keyframes tile-pop {
-          0% { transform: scale(0); opacity: 0; }
-          40% { transform: scale(1.15); opacity: 1; }
-          70% { transform: scale(0.95); }
-          100% { transform: scale(1); }
-        }
-        @keyframes tile-merge {
-          0% { transform: scale(1); }
-          30% { transform: scale(1.2); }
-          100% { transform: scale(1); }
-        }
-        .tile-new {
-          animation: tile-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-        }
-        .tile-merged {
-          animation: tile-merge 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-        }
-        .tile-empty { background: #e8e8e8; color: transparent; }
-        .tile-2     { background: #fff; color: #000; }
-        .tile-4     { background: #f0f0f0; color: #000; }
-        .tile-8     { background: #d0d0d0; color: #000; }
-        .tile-16    { background: #b0b0b0; color: #000; }
-        .tile-32    { background: #909090; color: #fff; }
-        .tile-64    { background: #707070; color: #fff; }
-        .tile-128   { background: #505050; color: #fff; border: 1px solid #fff; }
-        .tile-256   { background: #383838; color: #fff; border: 1px solid #fff; }
-        .tile-512   { background: #202020; color: #fff; border: 1px solid #fff; }
-        .tile-1024  { background: #101010; color: #fff; border: 1px solid #aaa; }
-        .tile-2048  { background: #000; color: #fff; border: 2px solid #fff; }
-        .tile-super { background: #000; color: #fff; border: 2px dashed #fff; }
-
-        /* Game over overlay */
-        .game-over-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(255,255,255,0.85);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          z-index: 10;
-        }
-        .game-over-overlay h2 {
-          font-size: 32px;
-          margin: 0 0 4px;
-          font-family: 'VT323', monospace;
-        }
-        .game-over-overlay p {
-          font-size: 20px;
-          margin: 0 0 12px;
-          font-family: 'VT323', monospace;
-        }
-        .board-container {
-          position: relative;
-        }
-
-        /* Won banner */
-        .won-banner {
-          text-align: center;
-          font-size: 20px;
-          border: 2px solid #000;
-          padding: 4px;
-          margin-bottom: 8px;
-          background: #fff;
-          letter-spacing: 2px;
-        }
-
-        /* D-pad for mobile */
-        .dpad {
-          display: none;
-          margin-top: 12px;
-        }
-        .dpad-grid {
-          display: grid;
-          grid-template-columns: 50px 50px 50px;
-          grid-template-rows: 50px 50px 50px;
-          gap: 3px;
-          margin: 0 auto;
-          width: fit-content;
-        }
-        .dpad-btn {
-          font-family: 'VT323', monospace;
-          font-size: 24px;
-          background: #fff;
-          border: 2px solid #000;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 1px 1px 0 #000;
-        }
-        .dpad-btn:active {
-          box-shadow: none;
-          transform: translate(1px, 1px);
-          background: #000;
-          color: #fff;
-        }
-        .dpad-spacer { visibility: hidden; }
-
-        /* How-to modal */
-        .howto-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 100;
-          padding: 16px;
-          box-sizing: border-box;
-        }
-        .howto-window {
-          background: #fff;
-          border: 2px solid #000;
-          box-shadow: 4px 4px 0px #000;
-          max-width: 420px;
-          width: 100%;
-        }
-        .howto-body {
-          padding: 16px;
-        }
-        .howto-body h2 {
-          font-size: 28px;
-          margin: 0 0 12px;
-          text-align: center;
-        }
-        .howto-body p {
-          font-size: 18px;
-          margin: 0 0 10px;
-          line-height: 1.3;
-        }
-        .howto-body .rule {
-          border: 1px solid #000;
-          padding: 8px 10px;
-          margin-bottom: 8px;
-          background: #f5f5f5;
-          font-size: 17px;
-          line-height: 1.3;
-        }
-        .howto-body .rule b {
-          display: block;
-          margin-bottom: 2px;
-        }
-        .howto-start {
-          display: block;
-          width: 100%;
-          font-family: 'VT323', monospace;
-          font-size: 24px;
-          background: #000;
-          color: #fff;
-          border: 2px solid #000;
-          border-radius: 6px;
-          padding: 8px;
-          cursor: pointer;
-          margin-top: 14px;
-          text-align: center;
-        }
-        .howto-start:active {
-          background: #333;
-        }
-
-        @media (max-width: 600px) {
-          .twenty48-wrap { padding: 4px; }
-          .mac-window { max-width: 100%; max-height: 100vh; max-height: 100dvh; overflow: hidden; }
-          .mac-body { padding: 6px; }
-          .dpad { display: block; }
-          .score-box { font-size: 16px; padding: 2px 8px; }
-          .controls-row { margin-bottom: 4px; }
-          .score-row { margin-bottom: 4px; }
-          .board-grid { font-size: 14vmin; }
-          .howto-body { padding: 12px; }
-          .howto-body h2 { font-size: 24px; }
-          .howto-body p, .howto-body .rule { font-size: 16px; }
-        }
-
-        @media (hover: none) and (pointer: coarse) {
-          .dpad { display: block; }
-        }
-      </style>
-
-      <div class="mac-window">
-        <div class="mac-title-bar">
-          <div class="mac-close-box"></div>
-          <div class="mac-title-stripes"></div>
-          <div class="mac-title-text">2048</div>
-          <div class="mac-title-stripes"></div>
-        </div>
-
-        <div class="mac-body">
-          <div class="score-row">
-            <div class="score-box">
-              <div class="label">SCORE</div>
-              <div><%= @game.score %></div>
-            </div>
-            <div class="score-box">
-              <div class="label">BEST</div>
-              <div><%= @best %></div>
-            </div>
-            <button class="mac-btn" phx-click="new_game">New Game</button>
-          </div>
-
-          <div class="controls-row">
-            <label class="blitz-check" phx-click="toggle_blitz">
-              <input type="checkbox" checked={@blitz} readonly tabindex="-1" />
-              BLITZ
-            </label>
-
-            <%= if @blitz do %>
-              <%= for ms <- @blitz_options do %>
-                <button
-                  class={"mac-btn size-btn #{if ms == @blitz_ms, do: "active"}"}
-                  phx-click="set_blitz_time"
-                  phx-value-ms={ms}
-                >
-                  <%= div(ms, 1000) %>s
-                </button>
-              <% end %>
-            <% end %>
-          </div>
-
-          <div class="controls-row">
-            <span style="font-size:13px;color:#555;">Board:</span>
-            <%= for s <- @sizes do %>
-              <button
-                class={"mac-btn size-btn #{if s == @size, do: "active"}"}
-                phx-click="set_size"
-                phx-value-size={s}
-              >
-                <%= s %>
-              </button>
-            <% end %>
-          </div>
-
-          <%= if @blitz do %>
-            <div class="blitz-bar-wrap">
-              <div
-                class={"blitz-bar #{if @time_left < 600, do: "danger"}"}
-                style={"width: #{blitz_bar_pct(@time_left, @blitz_ms)}%"}
-              ></div>
-            </div>
-          <% end %>
-
-          <%= if @game.won and not @game.game_over do %>
-            <div class="won-banner">YOU HIT 2048!</div>
-          <% end %>
-
-          <div class="board-container">
-            <div
-              class="board-grid"
-              style={"grid-template-columns: repeat(#{@game.size}, 1fr);"}
-            >
-              <%= for r <- 0..(@game.size - 1) do %>
-                <%= for c <- 0..(@game.size - 1) do %>
-                  <% val = @game.board[{r, c}] %>
-                  <% anim =
-                    cond do
-                      @game.new_tile == {r, c} -> "tile-new"
-                      MapSet.member?(@game.merged_tiles, {r, c}) -> "tile-merged"
-                      true -> ""
-                    end
-                  %>
-                  <div
-                    class={"tile #{tile_class(val)} #{anim}"}
-                    style={tile_font_size(val, @game.size)}
-                  >
-                    <%= if val > 0, do: val %>
-                  </div>
-                <% end %>
-              <% end %>
-            </div>
-
-            <%= if @game.game_over do %>
-              <div class="game-over-overlay">
-                <h2><%= if @blitz_expired, do: "TIME'S UP!", else: "GAME OVER" %></h2>
-                <p>Score: <%= @game.score %></p>
-                <button class="mac-btn" phx-click="new_game">Play Again</button>
-              </div>
-            <% end %>
-          </div>
-
-          <div class="dpad">
-            <div class="dpad-grid">
-              <div class="dpad-spacer"></div>
-              <button class="dpad-btn" phx-click="swipe" phx-value-direction="up">&#9650;</button>
-              <div class="dpad-spacer"></div>
-              <button class="dpad-btn" phx-click="swipe" phx-value-direction="left">&#9664;</button>
-              <div class="dpad-spacer"></div>
-              <button class="dpad-btn" phx-click="swipe" phx-value-direction="right">&#9654;</button>
-              <div class="dpad-spacer"></div>
-              <button class="dpad-btn" phx-click="swipe" phx-value-direction="down">&#9660;</button>
-              <div class="dpad-spacer"></div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <%= if @show_howto do %>
-        <div class="howto-overlay">
-          <div class="howto-window">
-            <div class="mac-title-bar">
-              <div class="mac-close-box"></div>
-              <div class="mac-title-stripes"></div>
-              <div class="mac-title-text">How To Play</div>
-              <div class="mac-title-stripes"></div>
-            </div>
-            <div class="howto-body">
-              <h2>2048 BLITZ</h2>
-
-              <div class="rule">
-                <b>SWIPE or ARROW KEYS</b>
-                Slide all tiles in one direction. Matching numbers merge and add up.
-              </div>
-
-              <div class="rule">
-                <b>GOAL</b>
-                Reach the 2048 tile. Keep going for a high score.
-              </div>
-
-              <div class="rule">
-                <b>BLITZ MODE</b>
-                Make each move before time runs out or it's game over.
-                5s is normal, 3s is challenging, 2s is brutal. Pick your pain.
-              </div>
-
-              <div class="rule">
-                <b>BOARD SIZE</b>
-                Play on 4x4, 8x8, 10x10, or 12x12. Bigger boards, more room, more chaos.
-              </div>
-
-              <button class="howto-start" phx-click="start_game">START</button>
-            </div>
-          </div>
-        </div>
-      <% end %>
-    </div>
-    """
-  end
 end
