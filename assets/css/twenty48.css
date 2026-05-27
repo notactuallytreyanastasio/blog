@@ -170,18 +170,22 @@ html.twenty48-page, html.twenty48-page body {
   background: #fff;
 }
 
+@keyframes blitz-drain {
+  0% { width: 100%; }
+  100% { width: 0%; }
+}
+
 .twenty48-wrap .blitz-bar {
   height: 100%;
   background: #000;
-  transition: width 0.1s linear;
+  width: 100%;
+  animation: blitz-drain linear forwards;
 }
 
-.twenty48-wrap .blitz-bar.danger {
-  background: repeating-linear-gradient(
-    45deg,
-    #000 0px, #000 3px,
-    #fff 3px, #fff 6px
-  );
+.twenty48-wrap .blitz-bar.stopped {
+  animation-play-state: paused;
+  width: 0%;
+  animation: none;
 }
 
 /* Board */
@@ -194,12 +198,37 @@ html.twenty48-page, html.twenty48-page body {
   aspect-ratio: 1;
 }
 
+.board-4  { grid-template-columns: repeat(4, 1fr); }
+.board-8  { grid-template-columns: repeat(8, 1fr); }
+.board-10 { grid-template-columns: repeat(10, 1fr); }
+.board-12 { grid-template-columns: repeat(12, 1fr); }
+
+/* Font sizes by board size and digit count */
+.board-4  .tile { font-size: 8vmin; }
+.board-4  .tile.d3 { font-size: 6vmin; }
+.board-4  .tile.d4 { font-size: 5vmin; }
+.board-4  .tile.d5 { font-size: 4vmin; }
+
+.board-8  .tile { font-size: 4.2vmin; }
+.board-8  .tile.d3 { font-size: 3.6vmin; }
+.board-8  .tile.d4 { font-size: 3vmin; }
+.board-8  .tile.d5 { font-size: 2.4vmin; }
+
+.board-10 .tile { font-size: 3.2vmin; }
+.board-10 .tile.d3 { font-size: 2.8vmin; }
+.board-10 .tile.d4 { font-size: 2.2vmin; }
+.board-10 .tile.d5 { font-size: 1.8vmin; }
+
+.board-12 .tile { font-size: 2.6vmin; }
+.board-12 .tile.d3 { font-size: 2.2vmin; }
+.board-12 .tile.d4 { font-size: 1.8vmin; }
+.board-12 .tile.d5 { font-size: 1.4vmin; }
+
 .twenty48-wrap .tile {
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 8vmin;
   aspect-ratio: 1;
   border: 1px solid #888;
   box-sizing: border-box;
@@ -398,7 +427,6 @@ html.twenty48-page, html.twenty48-page body {
   .twenty48-wrap .score-box { font-size: 16px; padding: 2px 8px; }
   .twenty48-wrap .controls-row { margin-bottom: 4px; }
   .twenty48-wrap .score-row { margin-bottom: 4px; }
-  .twenty48-wrap .board-grid { font-size: 14vmin; }
   .twenty48-wrap .howto-body { padding: 12px; }
   .twenty48-wrap .howto-body h2 { font-size: 24px; }
   .twenty48-wrap .howto-body p, .twenty48-wrap .howto-body .rule { font-size: 16px; }

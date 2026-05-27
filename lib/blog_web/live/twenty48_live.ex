@@ -127,31 +127,19 @@ defmodule BlogWeb.Twenty48Live do
   end
 
   @impl true
-  def handle_info({:blitz_tick, gen}, socket) do
-    # Ignore stale ticks from a previous timer generation
+  def handle_info({:blitz_expire, gen}, socket) do
     if gen != socket.assigns.timer_gen do
       {:noreply, socket}
     else
-      time_left = socket.assigns.time_left - 100
+      game = %{socket.assigns.game | game_over: true}
 
-      if time_left <= 0 do
-        game = %{socket.assigns.game | game_over: true}
-
-        {:noreply,
-         socket
-         |> assign(:game, game)
-         |> assign(:blitz_expired, true)
-         |> assign(:time_left, 0)
-         |> assign(:timer_ref, nil)
-         |> update_best()}
-      else
-        ref = Process.send_after(self(), {:blitz_tick, gen}, 100)
-
-        {:noreply,
-         socket
-         |> assign(:time_left, time_left)
-         |> assign(:timer_ref, ref)}
-      end
+      {:noreply,
+       socket
+       |> assign(:game, game)
+       |> assign(:blitz_expired, true)
+       |> assign(:time_left, 0)
+       |> assign(:timer_ref, nil)
+       |> update_best()}
     end
   end
 
@@ -191,8 +179,9 @@ defmodule BlogWeb.Twenty48Live do
 
   defp start_blitz_timer(socket) do
     gen = socket.assigns.timer_gen + 1
-    ref = Process.send_after(self(), {:blitz_tick, gen}, 100)
-    assign(socket, timer_ref: ref, time_left: socket.assigns.blitz_ms, timer_gen: gen)
+    ms = socket.assigns.blitz_ms
+    ref = Process.send_after(self(), {:blitz_expire, gen}, ms)
+    assign(socket, timer_ref: ref, time_left: ms, timer_gen: gen)
   end
 
   defp reset_blitz_timer(socket) do
@@ -221,18 +210,16 @@ defmodule BlogWeb.Twenty48Live do
   defp tile_class(2048), do: "tile-2048"
   defp tile_class(_), do: "tile-super"
 
-  defp tile_font_size(val, size) when size == 12 and val >= 1000, do: "font-size: 1.8vmin;"
-  defp tile_font_size(val, size) when size == 12 and val >= 100, do: "font-size: 2.2vmin;"
-  defp tile_font_size(_val, size) when size == 12, do: "font-size: 2.6vmin;"
-  defp tile_font_size(val, size) when size == 10 and val >= 1000, do: "font-size: 2.2vmin;"
-  defp tile_font_size(val, size) when size == 10 and val >= 100, do: "font-size: 2.8vmin;"
-  defp tile_font_size(_val, size) when size == 10, do: "font-size: 3.2vmin;"
-  defp tile_font_size(val, size) when size == 8 and val >= 1000, do: "font-size: 3vmin;"
-  defp tile_font_size(val, size) when size == 8 and val >= 100, do: "font-size: 3.6vmin;"
-  defp tile_font_size(_val, size) when size == 8, do: "font-size: 4.2vmin;"
-  defp tile_font_size(val, _size) when val >= 1000, do: "font-size: 5vmin;"
-  defp tile_font_size(val, _size) when val >= 100, do: "font-size: 6vmin;"
-  defp tile_font_size(_val, _size), do: ""
+  defp board_size_class(4), do: "board-4"
+  defp board_size_class(8), do: "board-8"
+  defp board_size_class(10), do: "board-10"
+  defp board_size_class(12), do: "board-12"
+  defp board_size_class(_), do: "board-4"
 
-  defp blitz_bar_pct(time_left, blitz_ms), do: time_left / blitz_ms * 100
+  defp tile_digits(val) when val >= 10000, do: "d5"
+  defp tile_digits(val) when val >= 1000, do: "d4"
+  defp tile_digits(val) when val >= 100, do: "d3"
+  defp tile_digits(val) when val >= 10, do: "d2"
+  defp tile_digits(_), do: "d1"
+
 end

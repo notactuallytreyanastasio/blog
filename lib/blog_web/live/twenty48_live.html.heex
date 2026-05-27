@@ -55,8 +55,9 @@
       <%= if @blitz do %>
         <div class="blitz-bar-wrap">
           <div
-            class={"blitz-bar #{if @time_left < 600, do: "danger"}"}
-            style={"width: #{blitz_bar_pct(@time_left, @blitz_ms)}%"}
+            class={"blitz-bar #{if @game.game_over, do: "stopped"}"}
+            style={"animation-duration: #{@blitz_ms}ms;"}
+            key={@timer_gen}
           ></div>
         </div>
       <% end %>
@@ -66,24 +67,17 @@
       <% end %>
 
       <div class="board-container">
-        <div
-          class="board-grid"
-          style={"grid-template-columns: repeat(#{@game.size}, 1fr);"}
-        >
+        <div class={"board-grid #{board_size_class(@game.size)}"}>
           <%= for r <- 0..(@game.size - 1) do %>
             <%= for c <- 0..(@game.size - 1) do %>
               <% val = @game.board[{r, c}] %>
-              <% anim =
-                cond do
-                  @game.new_tile == {r, c} -> "tile-new"
-                  MapSet.member?(@game.merged_tiles, {r, c}) -> "tile-merged"
-                  true -> ""
-                end
-              %>
-              <div
-                class={"tile #{tile_class(val)} #{anim}"}
-                style={tile_font_size(val, @game.size)}
-              >
+              <div class={[
+                "tile",
+                tile_class(val),
+                val > 0 && tile_digits(val),
+                @game.new_tile == {r, c} && "tile-new",
+                @game.new_tile != {r, c} && MapSet.member?(@game.merged_tiles, {r, c}) && "tile-merged"
+              ]}>
                 {if val > 0, do: val}
               </div>
             <% end %>
