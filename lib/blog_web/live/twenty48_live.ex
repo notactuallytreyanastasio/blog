@@ -2,24 +2,25 @@ defmodule BlogWeb.Twenty48Live do
   use BlogWeb, :live_view
   alias Blog.Games.Twenty48
 
-  @default_blitz_ms 2000
+  @default_blitz_ms 5000
   @blitz_options [1000, 2000, 3000, 5000]
   @sizes [4, 8, 10, 12]
 
   @impl true
   def mount(_params, _session, socket) do
-    game = Twenty48.new(4)
+    game = Twenty48.new(8)
 
     {:ok,
      socket
      |> assign(:game, game)
-     |> assign(:size, 4)
-     |> assign(:blitz, false)
+     |> assign(:size, 8)
+     |> assign(:blitz, true)
      |> assign(:blitz_expired, false)
      |> assign(:timer_ref, nil)
      |> assign(:blitz_ms, @default_blitz_ms)
      |> assign(:time_left, @default_blitz_ms)
      |> assign(:best, 0)
+     |> assign(:show_howto, true)
      |> assign(:page_title, "2048 — Blitz Edition")
      |> assign(:page_description, "The classic 2048 puzzle with a twist: Blitz mode gives you 2 seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.")
      |> assign(:page_image, "https://www.bobbby.online/images/og-2048.png")}
@@ -50,6 +51,15 @@ defmodule BlogWeb.Twenty48Live do
       end
 
     if direction, do: {:noreply, do_move(socket, direction)}, else: {:noreply, socket}
+  end
+
+  def handle_event("start_game", _params, socket) do
+    socket =
+      socket
+      |> assign(:show_howto, false)
+      |> start_blitz_timer()
+
+    {:noreply, socket}
   end
 
   def handle_event("new_game", _params, socket) do
@@ -134,8 +144,11 @@ defmodule BlogWeb.Twenty48Live do
   end
 
   defp do_move(socket, direction) do
-    game = socket.assigns.game
-    if game.game_over, do: socket, else: apply_move(socket, direction)
+    if socket.assigns.show_howto or socket.assigns.game.game_over do
+      socket
+    else
+      apply_move(socket, direction)
+    end
   end
 
   defp apply_move(socket, direction) do
@@ -217,13 +230,17 @@ defmodule BlogWeb.Twenty48Live do
     ~H"""
     <div id="twenty48-container" phx-hook="Swipe" phx-window-keydown="keydown" class="twenty48-wrap">
       <style>
+        /* Lock the page — no scroll on mobile */
+        html, body { overflow: hidden !important; height: 100vh !important; height: 100dvh !important; position: fixed !important; width: 100% !important; }
+
         /* === 1980s Macintosh Aesthetic === */
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
         .twenty48-wrap {
           font-family: 'VT323', 'Chicago', 'Geneva', monospace;
           background: #c0c0c0;
-          min-height: 100vh;
+          height: 100vh;
+          height: 100dvh;
           display: flex;
           align-items: flex-start;
           justify-content: center;
@@ -232,6 +249,8 @@ defmodule BlogWeb.Twenty48Live do
           -webkit-user-select: none;
           user-select: none;
           image-rendering: pixelated;
+          overflow: hidden;
+          touch-action: none;
         }
         .mac-window {
           background: #fff;
@@ -497,12 +516,80 @@ defmodule BlogWeb.Twenty48Live do
         }
         .dpad-spacer { visibility: hidden; }
 
+        /* How-to modal */
+        .howto-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 100;
+          padding: 16px;
+          box-sizing: border-box;
+        }
+        .howto-window {
+          background: #fff;
+          border: 2px solid #000;
+          box-shadow: 4px 4px 0px #000;
+          max-width: 420px;
+          width: 100%;
+        }
+        .howto-body {
+          padding: 16px;
+        }
+        .howto-body h2 {
+          font-size: 28px;
+          margin: 0 0 12px;
+          text-align: center;
+        }
+        .howto-body p {
+          font-size: 18px;
+          margin: 0 0 10px;
+          line-height: 1.3;
+        }
+        .howto-body .rule {
+          border: 1px solid #000;
+          padding: 8px 10px;
+          margin-bottom: 8px;
+          background: #f5f5f5;
+          font-size: 17px;
+          line-height: 1.3;
+        }
+        .howto-body .rule b {
+          display: block;
+          margin-bottom: 2px;
+        }
+        .howto-start {
+          display: block;
+          width: 100%;
+          font-family: 'VT323', monospace;
+          font-size: 24px;
+          background: #000;
+          color: #fff;
+          border: 2px solid #000;
+          border-radius: 6px;
+          padding: 8px;
+          cursor: pointer;
+          margin-top: 14px;
+          text-align: center;
+        }
+        .howto-start:active {
+          background: #333;
+        }
+
         @media (max-width: 600px) {
           .twenty48-wrap { padding: 4px; }
-          .mac-window { max-width: 100%; }
-          .mac-body { padding: 8px; }
+          .mac-window { max-width: 100%; max-height: 100vh; max-height: 100dvh; overflow: hidden; }
+          .mac-body { padding: 6px; }
           .dpad { display: block; }
           .score-box { font-size: 16px; padding: 2px 8px; }
+          .controls-row { margin-bottom: 4px; }
+          .score-row { margin-bottom: 4px; }
+          .board-grid { font-size: 14vmin; }
+          .howto-body { padding: 12px; }
+          .howto-body h2 { font-size: 24px; }
+          .howto-body p, .howto-body .rule { font-size: 16px; }
         }
 
         @media (hover: none) and (pointer: coarse) {
@@ -626,6 +713,45 @@ defmodule BlogWeb.Twenty48Live do
 
         </div>
       </div>
+
+      <%= if @show_howto do %>
+        <div class="howto-overlay">
+          <div class="howto-window">
+            <div class="mac-title-bar">
+              <div class="mac-close-box"></div>
+              <div class="mac-title-stripes"></div>
+              <div class="mac-title-text">How To Play</div>
+              <div class="mac-title-stripes"></div>
+            </div>
+            <div class="howto-body">
+              <h2>2048 BLITZ</h2>
+
+              <div class="rule">
+                <b>SWIPE or ARROW KEYS</b>
+                Slide all tiles in one direction. Matching numbers merge and add up.
+              </div>
+
+              <div class="rule">
+                <b>GOAL</b>
+                Reach the 2048 tile. Keep going for a high score.
+              </div>
+
+              <div class="rule">
+                <b>BLITZ MODE</b>
+                Make each move before time runs out or it's game over.
+                5s is normal, 3s is challenging, 2s is brutal. Pick your pain.
+              </div>
+
+              <div class="rule">
+                <b>BOARD SIZE</b>
+                Play on 4x4, 8x8, 10x10, or 12x12. Bigger boards, more room, more chaos.
+              </div>
+
+              <button class="howto-start" phx-click="start_game">START</button>
+            </div>
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end
