@@ -1,11 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
 /* Lock the page - no scroll on mobile */
 html.twenty48-page, html.twenty48-page body {
   overflow: hidden;
   height: 100%;
 }
-
-/* === 1980s Macintosh Aesthetic === */
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 .twenty48-wrap {
   font-family: 'VT323', 'Chicago', 'Geneva', monospace;
@@ -417,18 +416,17 @@ html.twenty48-page, html.twenty48-page body {
 }
 
 @media (max-width: 600px) {
-  .twenty48-wrap { padding: 4px; }
-  .twenty48-wrap .mac-window { max-width: 100%; max-height: 100vh; max-height: 100dvh; overflow: hidden; }
-  .twenty48-wrap .mac-body { padding: 6px; }
-  .twenty48-wrap .dpad { display: block; }
-  .twenty48-wrap .score-box { font-size: 16px; padding: 2px 8px; }
-  .twenty48-wrap .controls-row { margin-bottom: 4px; }
+  .twenty48-wrap { padding: 2px; }
+  .twenty48-wrap .mac-window { max-width: 100%; }
+  .twenty48-wrap .mac-body { padding: 4px; }
+  .twenty48-wrap .score-box { font-size: 14px; padding: 2px 6px; }
+  .twenty48-wrap .score-box .label { font-size: 10px; }
+  .twenty48-wrap .controls-row { margin-bottom: 2px; gap: 4px; }
   .twenty48-wrap .score-row { margin-bottom: 4px; }
+  .twenty48-wrap .mac-btn { font-size: 14px; padding: 2px 8px; }
+  .twenty48-wrap .mac-title-bar { height: 18px; }
+  .twenty48-wrap .mac-title-text { font-size: 12px; }
   .twenty48-wrap .howto-body { padding: 12px; }
   .twenty48-wrap .howto-body h2 { font-size: 24px; }
   .twenty48-wrap .howto-body p, .twenty48-wrap .howto-body .rule { font-size: 16px; }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .twenty48-wrap .dpad { display: block; }
 }
