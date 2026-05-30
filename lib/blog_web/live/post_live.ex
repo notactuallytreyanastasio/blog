@@ -889,8 +889,16 @@ defmodule BlogWeb.PostLive do
         }
 
         .mac-post .article-content {
-          font-size: 1.75rem;
+          font-size: 0.8rem;
+          line-height: 1.5;
+          letter-spacing: -0.01em;
         }
+
+        .mac-post .article-content h1 { font-size: 1.1rem; }
+        .mac-post .article-content h2 { font-size: 0.95rem; }
+        .mac-post .article-content h3 { font-size: 0.875rem; }
+        .mac-post .article-content p  { margin-bottom: 0.6em; }
+        .mac-post .article-content pre { font-size: 0.7rem; }
 
         .mac-post .post-meta-bar {
           flex-direction: column;
