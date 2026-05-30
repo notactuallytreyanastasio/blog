@@ -26,6 +26,7 @@ defmodule Blog.Content.Post do
     a-genstage-tutorial-and-reflection
     327-years-of-tree-law-in-the-usa-
     vibe-coding-rescue-missions
+    2026-05-30-12-00-00-chess
   )
 
   @spec all() :: [t()]
