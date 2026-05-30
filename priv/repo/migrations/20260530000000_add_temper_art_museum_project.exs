@@ -16,7 +16,7 @@ defmodule Blog.Repo.Migrations.AddTemperArtMuseumProject do
        'A generative art engine written in Temper — a memory-safe language that compiles to JS, Python, Java, C#, Lua, and Rust. The engine runs three algorithms (Bauhaus grid, flow-field particles, Mondrian subdivision) driven by a splitmix32 PRNG, so every seed produces the same piece deterministically on any backend. In the browser it renders to Canvas with a history navigator and PNG export.',
        'creative',
        ARRAY['Temper', 'JavaScript', 'Phoenix LiveView'],
-       '[]'::jsonb,
+       ARRAY[]::jsonb[],
        '/art',
        NULL,
        NULL,
