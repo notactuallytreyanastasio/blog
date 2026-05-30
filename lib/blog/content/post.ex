@@ -1,4 +1,14 @@
 defmodule Blog.Content.Post do
+  @type t :: %__MODULE__{
+          body: String.t() | nil,
+          title: String.t() | nil,
+          written_on: NaiveDateTime.t() | nil,
+          tags: [Blog.Content.Tag.t()] | nil,
+          slug: String.t() | nil,
+          author_name: String.t() | nil,
+          is_guest_post: boolean() | nil
+        }
+
   defstruct [:body, :title, :written_on, :tags, :slug, :author_name, :is_guest_post]
 
   # Allowlist of posts to display (excludes cached/deleted posts from old deploys)
@@ -18,6 +28,7 @@ defmodule Blog.Content.Post do
     vibe-coding-rescue-missions
   )
 
+  @spec all() :: [t()]
   def all do
     file_posts =
       ((:code.priv_dir(:blog) |> to_string) <> "/static/posts/*.md")
@@ -54,7 +65,7 @@ defmodule Blog.Content.Post do
     }
   end
 
-  @spec get_by_slug(any()) :: any()
+  @spec get_by_slug(String.t()) :: t() | nil
   def get_by_slug(slug) do
     # First check file-based posts
     case all() |> Enum.find(&(&1.slug == slug)) do

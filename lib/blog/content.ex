@@ -6,6 +6,16 @@ defmodule Blog.Content do
   @tech_tags ~w(programming tech software coding elixir javascript phoenix blog)
   @posts_dir "priv/static/posts/"
 
+  @typedoc "A post summary parsed from a markdown file (tags as raw strings)."
+  @type post_summary :: %{
+          title: String.t(),
+          tags: [String.t()],
+          content: String.t(),
+          written_on: Date.t(),
+          slug: String.t()
+        }
+
+  @spec list_posts() :: [post_summary()]
   def list_posts do
     File.ls!(@posts_dir)
     |> Enum.map(&parse_post/1)
@@ -46,6 +56,10 @@ defmodule Blog.Content do
     String.split(tags, ",") |> Enum.map(&String.trim/1)
   end
 
+  @spec categorize_posts([Blog.Content.Post.t()]) :: %{
+          tech: [Blog.Content.Post.t()],
+          non_tech: [Blog.Content.Post.t()]
+        }
   def categorize_posts(posts) do
     data =
       %{tech: tech_list, non_tech: non_tech_list} =
