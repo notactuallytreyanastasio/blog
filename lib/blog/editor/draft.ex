@@ -2,6 +2,19 @@ defmodule Blog.Editor.Draft do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          title: String.t() | nil,
+          slug: String.t() | nil,
+          content: String.t() | nil,
+          status: String.t() | nil,
+          author_id: String.t() | nil,
+          author_name: String.t() | nil,
+          author_email: String.t() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   schema "drafts" do
     field :title, :string
     field :slug, :string
@@ -15,6 +28,7 @@ defmodule Blog.Editor.Draft do
   end
 
   @doc false
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(draft, attrs) do
     draft
     |> cast(attrs, [:title, :slug, :content, :status, :author_id, :author_name, :author_email])
@@ -25,6 +39,7 @@ defmodule Blog.Editor.Draft do
   end
 
   @doc "Changeset for publishing - requires author info"
+  @spec publish_changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def publish_changeset(draft, attrs) do
     draft
     |> cast(attrs, [:title, :slug, :content, :status, :author_name, :author_email])
