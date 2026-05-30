@@ -20,16 +20,9 @@ defmodule Blog.Chess.Check do
   """
   @spec in_check?(C.State.t(), C.color(), C.board_index()) :: boolean()
   def in_check?(state, color, board) do
-    # Use O(1) cached king position when available, fall back to O(64) board scan.
-    sq = case Plane.king_square_fast(state, color) do
-      nil -> king_square(state.plane, board, color)
-      cached_sq ->
-        if C.board_of(cached_sq) == board, do: cached_sq, else: nil
-    end
-
-    case sq do
+    case king_square(state.plane, board, color) do
       nil -> false
-      s   -> Attack.attacked_by?(state.plane, s, C.opposite(color))
+      sq  -> Attack.attacked_by?(state.plane, sq, C.opposite(color))
     end
   end
 

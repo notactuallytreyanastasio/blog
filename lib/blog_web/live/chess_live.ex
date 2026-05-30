@@ -404,6 +404,7 @@ defmodule BlogWeb.ChessLive do
       .board-grid {
         display: grid;
         grid-template-columns: repeat(8, 1fr);
+        grid-template-rows: repeat(8, 1fr);
         width: 100%;
         aspect-ratio: 1;
         border-radius: 3px;
@@ -419,6 +420,7 @@ defmodule BlogWeb.ChessLive do
         justify-content: center;
         cursor: pointer;
         user-select: none;
+        aspect-ratio: 1;
       }
 
       .sq:hover { filter: brightness(1.15); }

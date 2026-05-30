@@ -57,17 +57,14 @@ defmodule Blog.Chess.Setup do
   """
   @spec initial_state() :: State.t()
   def initial_state do
-    plane = initial_plane()
     %State{
-      plane: plane,
+      plane: initial_plane(),
       to_move: :white,
       ledger: Ledger.empty_ledger(),
       status: :erlang.make_tuple(9, :active),
       clocks: :erlang.make_tuple(9, 0),
       en_passant: nil,
-      ply: 0,
-      white_king: Blog.Chess.Plane.king_square(plane, :white),
-      black_king: Blog.Chess.Plane.king_square(plane, :black)
+      ply: 0
     }
   end
 end

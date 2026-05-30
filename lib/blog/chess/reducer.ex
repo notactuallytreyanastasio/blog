@@ -89,9 +89,6 @@ defmodule Blog.Chess.Reducer do
     touched = touched_boards(move)
     clocks = Draws.tick_clocks(state.clocks, touched, move)
 
-    # Update cached king positions if a king moved or was involved
-    {white_king, black_king} = update_king_cache(state, move, plane)
-
     %State{
       plane: plane,
       to_move: to_move,
@@ -99,30 +96,8 @@ defmodule Blog.Chess.Reducer do
       status: state.status,
       clocks: clocks,
       en_passant: en_passant,
-      ply: ply,
-      white_king: white_king,
-      black_king: black_king
+      ply: ply
     }
-  end
-
-  defp update_king_cache(state, move, plane) do
-    white_king = state.white_king
-    black_king = state.black_king
-
-    cond do
-      move.piece.type == :king and move.piece.color == :white ->
-        {move.to, black_king}
-
-      move.piece.type == :king and move.piece.color == :black ->
-        {white_king, move.to}
-
-      # Capture of a king shouldn't happen in legal chess, but be safe
-      move.captured != nil and move.captured.type == :king ->
-        {Plane.king_square(plane, :white), Plane.king_square(plane, :black)}
-
-      true ->
-        {white_king, black_king}
-    end
   end
 
   # ---------------------------------------------------------------------------
@@ -232,25 +207,26 @@ defmodule Blog.Chess.Reducer do
   end
 
   defp recompute_status(state) do
+    # Compute legal moves ONCE for all boards rather than once per board.
+    all_legal = Legal.legal_moves(state)
+
     Enum.reduce(0..8, state.status, fn board, acc ->
       current = elem(acc, board)
 
       if C.frozen?(current) do
         acc
       else
-        new_status = board_status(state, board)
+        new_status = board_status(state, board, all_legal)
         :erlang.setelement(board + 1, acc, new_status)
       end
     end)
   end
 
-  defp board_status(state, board) do
+  defp board_status(state, board, all_legal) do
     clock = elem(state.clocks, board)
     to_move = state.to_move
 
-    legal_on_board =
-      Legal.legal_moves(state)
-      |> Enum.filter(fn m -> C.board_of(m.from) == board end)
+    legal_on_board = Enum.filter(all_legal, fn m -> C.board_of(m.from) == board end)
 
     in_check = Check.in_check?(state, to_move, board)
     no_legal = legal_on_board == []
