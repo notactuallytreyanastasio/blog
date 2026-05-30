@@ -21,6 +21,7 @@ defmodule Blog.Content.ImageGenerator do
 
       generator = case slug do
         "chess" -> &generate_chess_image/1
+        "chess-game" -> &generate_chess_game_image/1
         _ -> &generate_splatter_image/1
       end
 
@@ -76,6 +77,51 @@ defmodule Blog.Content.ImageGenerator do
         "-fill", "#334155",
         "-pointsize", "26",
         "-annotate", "+80+530", "AI  ·  Chess  ·  Writing",
+        path
+      ]
+
+    run_convert(commands)
+  end
+
+  # Chess game page: same board, "play" framing instead of blog-post framing
+  defp generate_chess_game_image(path) do
+    sq = 60
+    bx = 652
+    by = 75
+
+    square_cmds =
+      for row <- 0..7, col <- 0..7 do
+        x1 = bx + col * sq
+        y1 = by + row * sq
+        color = if rem(row + col, 2) == 0, do: "#f0d9b5", else: "#b58863"
+        ["-fill", color, "-draw", "rectangle #{x1},#{y1} #{x1 + sq},#{y1 + sq}"]
+      end
+      |> List.flatten()
+
+    commands =
+      ["-size", "1200x630", "xc:#0f172a"] ++
+      square_cmds ++
+      [
+        "-fill", "none",
+        "-stroke", "#c9a96e",
+        "-strokewidth", "4",
+        "-draw", "rectangle #{bx - 2},#{by - 2} #{bx + 8 * sq + 2},#{by + 8 * sq + 2}",
+        "-font", @font,
+        "-fill", "#475569",
+        "-pointsize", "26",
+        "-annotate", "+80+64", "bobbby.online",
+        "-font", @font_bold,
+        "-fill", "#f8fafc",
+        "-pointsize", "96",
+        "-annotate", "+80+210", "Chess-9",
+        "-font", @font,
+        "-fill", "#94a3b8",
+        "-pointsize", "30",
+        "-annotate", "+80+280", "9 boards · cross-boundary pieces",
+        "-annotate", "+80+324", "win by checkmating on more boards",
+        "-fill", "#f59e0b",
+        "-pointsize", "28",
+        "-annotate", "+80+420", "Play now  →",
         path
       ]
 

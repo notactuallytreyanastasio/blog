@@ -3,6 +3,7 @@ defmodule BlogWeb.ChessLive do
 
   alias Blog.Chess.{Setup, Legal, Reducer, Scoring}
   alias Blog.Chess, as: C
+  alias Blog.Content.ImageGenerator
 
   # ---------------------------------------------------------------------------
   # Mount
@@ -20,8 +21,41 @@ defmodule BlogWeb.ChessLive do
       |> assign(:last_move, nil)
       |> assign(:bot_thinking, false)
       |> assign(:show_rules, true)
+      |> assign_og_tags()
 
     {:ok, socket}
+  end
+
+  defp assign_og_tags(socket) do
+    image_path = ImageGenerator.ensure_post_image("chess-game")
+    image_url = if image_path, do: BlogWeb.Endpoint.url() <> image_path
+    description = "Nine chess boards in a 3x3 grid. Pieces may cross board boundaries when credits have been earned. Win by checkmating the opponent on more boards."
+
+    meta_tags = [
+      %{name: "description", content: description},
+      %{property: "og:title", content: "Chess-9 — play online"},
+      %{property: "og:description", content: description},
+      %{property: "og:type", content: "website"},
+      %{property: "og:site_name", content: "bobbby.online"},
+      %{name: "twitter:card", content: "summary_large_image"},
+      %{name: "twitter:title", content: "Chess-9"},
+      %{name: "twitter:description", content: description}
+    ]
+
+    meta_tags = if image_url do
+      meta_tags ++ [
+        %{property: "og:image", content: image_url},
+        %{property: "og:image:width", content: "1200"},
+        %{property: "og:image:height", content: "630"},
+        %{name: "twitter:image", content: image_url}
+      ]
+    else
+      meta_tags
+    end
+
+    socket
+    |> assign(:page_title, "Chess-9")
+    |> assign(:meta_tags, meta_tags)
   end
 
   # ---------------------------------------------------------------------------
