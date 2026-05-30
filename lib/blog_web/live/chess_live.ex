@@ -185,6 +185,39 @@ defmodule BlogWeb.ChessLive do
   end
 
   # ---------------------------------------------------------------------------
+  # Client-side move application (from/to sent directly by JS hook)
+  # ---------------------------------------------------------------------------
+
+  @impl true
+  def handle_event("apply_move", %{"from_gx" => fgx, "from_gy" => fgy, "to_gx" => tgx, "to_gy" => tgy}, socket) do
+    game = socket.assigns.game
+    from = {String.to_integer(fgx), String.to_integer(fgy)}
+    to   = {String.to_integer(tgx), String.to_integer(tgy)}
+
+    if game.to_move != :white or socket.assigns.bot_thinking or Scoring.game_over?(game.status) do
+      {:noreply, socket}
+    else
+      case Legal.find_legal_move(game, from, to) do
+        {:ok, move} ->
+          new_game = Reducer.apply_unchecked(game, move)
+          send(self(), :bot_move)
+
+          {:noreply,
+           socket
+           |> assign(:game, new_game)
+           |> assign(:selected, nil)
+           |> assign(:legal_targets, [])
+           |> assign(:last_move, {from, to})
+           |> assign(:bot_thinking, true)
+           |> assign(:bot_focused_board, nil)}
+
+        {:error, _} ->
+          {:noreply, socket}
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Bot move
   # ---------------------------------------------------------------------------
 
@@ -761,8 +794,12 @@ defmodule BlogWeb.ChessLive do
             }
 
             if (isTarget) {
-              // Destination click — let it through to the server
+              // Destination click — send from+to directly; server no longer needs
+              // socket.assigns.selected since we track it client-side
+              const fromGx = sx, fromGy = sy;
               this._deselect();
+              this.pushEvent("apply_move", {from_gx: fromGx, from_gy: fromGy, to_gx: gx, to_gy: gy});
+              e.stopImmediatePropagation();
               return;
             }
 
