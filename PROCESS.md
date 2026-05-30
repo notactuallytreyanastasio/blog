@@ -253,4 +253,49 @@ no longer matches, a background firehose GenServer that connects to real Bluesky
 during tests and crashes) that compilation had been hiding. Those are the next
 thread: now that the suite runs, the failures are finally visible enough to fix.
 
+### Clearing the 85 runtime failures
+
+With the suite running, 85 tests failed. Grouped by file, two-thirds were the
+bookmarks system, which pointed at shared root causes rather than 85 separate
+problems. The fan-out (one agent per file, edit-only, reviewer each) fixed the
+setup-level rot — ETS tables the tests assumed they owned, an Ecto sandbox the
+channel process was never granted — and dropped it to 29. Then the long tail,
+fixed by hand, turned up the good stuff:
+
+- **Bookmarks list/search were broken in production.** `Store` queried ETS with
+  `:ets.match_object(table, {:_, %Bookmark{user_id: id}})` — a *full struct*
+  pattern. Every field you don't name in a struct literal takes its default
+  (`nil`), so that pattern only matches a bookmark whose url, title, tags, and
+  everything else are nil. Real bookmarks never matched; listing and search
+  silently returned nothing. The fix is a sparse map pattern, `{:_, %{user_id:
+  id}}`. This bug was live — the test is what surfaced it.
+
+- **Clearing cursor points crashed the LiveView.** `CursorPoints` broadcast
+  `{:clear_points, user_id}` (a bare string) but `CursorTrackerLive.handle_info`
+  only matched `{:clear_points, %{user_id: _}}` (a map), so every scheduled clear
+  raised a `FunctionClauseError`. Unified the broadcast to the map shape.
+
+- **Test smells the ETS bug had been hiding.** Several bookmark tests built
+  `%Bookmark{}` structs directly with no `id` — so every insert used the ETS key
+  `nil` and overwrote the last. Routed them through `Bookmark.new/1` (unique id)
+  and they passed. A search assertion expected one hit for "elixir" but the engine
+  correctly returns two (one matches on title, one on a description that says
+  "framework for Elixir"); the assertion was wrong, not the search.
+
+- **Wrong test matcher.** Channel tests used `assert_broadcast` where the channel
+  actually *pushes* to the joined client — `assert_push` is the right matcher. In
+  the firehose test the mismatched `assert_broadcast` was even eating the broadcast
+  the next assertion wanted. And a "concurrency" test built channel sockets inside
+  `Task.async`, which Phoenix forbids (`socket/1` must run in the test process); it
+  is skipped with a note rather than pretzeled into working.
+
+`Blog.Content.list_posts/0` also turned out to be dead — it parses a `title:`
+front-matter line no current post has, and nothing calls it (only
+`categorize_posts/1` is used, from `Post.all/0`). Its two tests are skipped and
+flagged for removal in Phase 5 rather than reviving broken code.
+
+End state: **572 tests, 0 failures, 3 skipped** — and two real bugs that "worked"
+in production until the tests came back to life. That's the case for the whole
+exercise in one line.
+
 _(continued as the work lands)_

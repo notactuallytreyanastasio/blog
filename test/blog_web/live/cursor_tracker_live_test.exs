@@ -412,12 +412,17 @@ defmodule BlogWeb.CursorTrackerLiveTest do
       }
 
       CursorPoints.add_point(point)
+      # add_point is an async GenServer.cast; flush the mailbox so the ETS write
+      # is visible before we read it.
+      _ = :sys.get_state(CursorPoints)
       assert length(CursorPoints.get_points()) == 1
 
       page_live
       |> element("button", "CLEAR POINTS")
       |> render_click()
 
+      # clear_points is also an async cast; flush before asserting.
+      _ = :sys.get_state(CursorPoints)
       assert CursorPoints.get_points() == []
     end
   end

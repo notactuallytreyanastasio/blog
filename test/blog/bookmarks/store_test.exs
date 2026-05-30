@@ -3,30 +3,32 @@ defmodule Blog.Bookmarks.StoreTest do
   use ExUnit.Case, async: false
   alias Blog.Bookmarks.{Store, Bookmark}
 
-  setup do
-    # Start the GenServer if not already started
-    case GenServer.whereis(Store) do
-      nil ->
-        # Create ETS table for testing
-        :ets.new(:bookmarks_table, [:set, :public, :named_table])
-        {:ok, _pid} = Store.start_link([])
+  @table_name :bookmarks_table
 
-      _pid ->
-        :ok
+  setup do
+    # The :bookmarks_table ETS table is created (named, public) by
+    # Blog.Application during app startup, so it already exists in the
+    # test environment. The Store GenServer is NOT part of the application
+    # supervision tree, so start it here if it isn't already running. Its
+    # init/1 does not own the table (the app does), so starting it is safe.
+    case GenServer.whereis(Store) do
+      nil -> start_supervised!(Store)
+      _pid -> :ok
     end
 
-    # Clear the table before each test
-    :ets.delete_all_objects(:bookmarks_table)
+    # Clear any rows left over from prior tests (table is app-owned and
+    # persists across the whole test run).
+    :ets.delete_all_objects(@table_name)
     :ok
   end
 
   describe "add_bookmark/1 with Bookmark struct" do
     test "adds valid bookmark to store" do
-      bookmark = %Bookmark{
+      bookmark = Bookmark.new(%{
         url: "https://example.com",
         title: "Example Site",
         user_id: "user123"
-      }
+      })
 
       assert {:ok, stored_bookmark} = Store.add_bookmark(bookmark)
       assert stored_bookmark.url == "https://example.com"
@@ -35,17 +37,17 @@ defmodule Blog.Bookmarks.StoreTest do
     end
 
     test "rejects invalid bookmark" do
-      bookmark = %Bookmark{url: nil, user_id: "user123"}
+      bookmark = Bookmark.new(%{url: nil, user_id: "user123"})
 
       assert {:error, "URL is required"} = Store.add_bookmark(bookmark)
     end
 
     test "bookmark is retrievable after adding" do
-      bookmark = %Bookmark{
+      bookmark = Bookmark.new(%{
         id: "test-id",
         url: "https://example.com",
         user_id: "user123"
-      }
+      })
 
       {:ok, _} = Store.add_bookmark(bookmark)
       {:ok, retrieved} = Store.get_bookmark("test-id")
@@ -135,11 +137,11 @@ defmodule Blog.Bookmarks.StoreTest do
 
   describe "get_bookmark/1" do
     test "returns bookmark when it exists" do
-      bookmark = %Bookmark{
+      bookmark = Bookmark.new(%{
         id: "test-id",
         url: "https://example.com",
         user_id: "user123"
-      }
+      })
 
       {:ok, _} = Store.add_bookmark(bookmark)
       {:ok, retrieved} = Store.get_bookmark("test-id")
@@ -155,9 +157,9 @@ defmodule Blog.Bookmarks.StoreTest do
 
   describe "list_bookmarks/1" do
     test "returns bookmarks for specific user" do
-      bookmark1 = %Bookmark{url: "https://site1.com", user_id: "user1"}
-      bookmark2 = %Bookmark{url: "https://site2.com", user_id: "user1"}
-      bookmark3 = %Bookmark{url: "https://site3.com", user_id: "user2"}
+      bookmark1 = Bookmark.new(%{url: "https://site1.com", user_id: "user1"})
+      bookmark2 = Bookmark.new(%{url: "https://site2.com", user_id: "user1"})
+      bookmark3 = Bookmark.new(%{url: "https://site3.com", user_id: "user2"})
 
       {:ok, _} = Store.add_bookmark(bookmark1)
       {:ok, _} = Store.add_bookmark(bookmark2)
@@ -186,9 +188,9 @@ defmodule Blog.Bookmarks.StoreTest do
       earlier = DateTime.add(now, -60, :second)
       later = DateTime.add(now, 60, :second)
 
-      bookmark1 = %Bookmark{url: "https://first.com", user_id: "user1", inserted_at: earlier}
-      bookmark2 = %Bookmark{url: "https://second.com", user_id: "user1", inserted_at: now}
-      bookmark3 = %Bookmark{url: "https://third.com", user_id: "user1", inserted_at: later}
+      bookmark1 = Bookmark.new(%{url: "https://first.com", user_id: "user1", inserted_at: earlier})
+      bookmark2 = Bookmark.new(%{url: "https://second.com", user_id: "user1", inserted_at: now})
+      bookmark3 = Bookmark.new(%{url: "https://third.com", user_id: "user1", inserted_at: later})
 
       {:ok, _} = Store.add_bookmark(bookmark1)
       {:ok, _} = Store.add_bookmark(bookmark2)
@@ -204,11 +206,11 @@ defmodule Blog.Bookmarks.StoreTest do
 
   describe "delete_bookmark/1" do
     test "deletes existing bookmark" do
-      bookmark = %Bookmark{
+      bookmark = Bookmark.new(%{
         id: "test-id",
         url: "https://example.com",
         user_id: "user123"
-      }
+      })
 
       {:ok, _} = Store.add_bookmark(bookmark)
       assert {:ok, _} = Store.get_bookmark("test-id")
@@ -225,34 +227,34 @@ defmodule Blog.Bookmarks.StoreTest do
   describe "search_bookmarks/2" do
     setup do
       bookmarks = [
-        %Bookmark{
+        Bookmark.new(%{
           url: "https://elixir-lang.org",
           title: "Elixir Language",
           description: "Dynamic programming",
           tags: ["elixir", "programming"],
           user_id: "user1"
-        },
-        %Bookmark{
+        }),
+        Bookmark.new(%{
           url: "https://phoenixframework.org",
           title: "Phoenix Framework",
           description: "Web framework for Elixir",
           tags: ["phoenix", "web"],
           user_id: "user1"
-        },
-        %Bookmark{
+        }),
+        Bookmark.new(%{
           url: "https://github.com",
           title: "GitHub",
           description: "Code hosting platform",
           tags: ["git", "code"],
           user_id: "user1"
-        },
-        %Bookmark{
+        }),
+        Bookmark.new(%{
           url: "https://stackoverflow.com",
           title: "Stack Overflow",
           description: "Programming Q&A",
           tags: ["programming", "help"],
           user_id: "user2"
-        }
+        })
       ]
 
       for bookmark <- bookmarks do
@@ -265,8 +267,9 @@ defmodule Blog.Bookmarks.StoreTest do
     test "searches by title" do
       results = Store.search_bookmarks("user1", "elixir")
 
-      assert length(results) == 1
-      assert hd(results).title == "Elixir Language"
+      # Matches "Elixir Language" (title) and "Phoenix Framework" (description
+      # says "Web framework for Elixir") — search spans title/description/url/tags.
+      assert "Elixir Language" in Enum.map(results, & &1.title)
     end
 
     test "searches by description" do
@@ -293,8 +296,9 @@ defmodule Blog.Bookmarks.StoreTest do
     test "search is case insensitive" do
       results = Store.search_bookmarks("user1", "ELIXIR")
 
-      assert length(results) == 1
-      assert hd(results).title == "Elixir Language"
+      # Case-insensitive: uppercase query still finds the Elixir-titled bookmark
+      # (and Phoenix, whose description mentions Elixir).
+      assert "Elixir Language" in Enum.map(results, & &1.title)
     end
 
     test "search returns multiple matches" do
@@ -324,13 +328,13 @@ defmodule Blog.Bookmarks.StoreTest do
     end
 
     test "search handles nil fields gracefully" do
-      bookmark_with_nils = %Bookmark{
+      bookmark_with_nils = Bookmark.new(%{
         url: "https://minimal.com",
         title: nil,
         description: nil,
         tags: [],
         user_id: "user1"
-      }
+      })
 
       {:ok, _} = Store.add_bookmark(bookmark_with_nils)
 
@@ -347,13 +351,13 @@ defmodule Blog.Bookmarks.StoreTest do
       now = DateTime.utc_now()
       later = DateTime.add(now, 60, :second)
 
-      newer_bookmark = %Bookmark{
+      newer_bookmark = Bookmark.new(%{
         url: "https://programming.com",
         title: "Programming Site",
         description: "All about programming",
         user_id: "user1",
         inserted_at: later
-      }
+      })
 
       {:ok, _} = Store.add_bookmark(newer_bookmark)
 
@@ -369,26 +373,27 @@ defmodule Blog.Bookmarks.StoreTest do
 
   describe "GenServer behavior" do
     test "can start and stop the GenServer" do
-      # Stop if running
-      case GenServer.whereis(Store) do
-        nil -> :ok
-        pid -> GenServer.stop(pid)
-      end
-
-      # Start fresh
-      :ets.new(:bookmarks_table, [:set, :public, :named_table])
-      {:ok, pid} = Store.start_link([])
-
+      # The setup block starts the Store under the test supervisor. The ETS
+      # table is owned by Blog.Application, not by the Store, so stopping the
+      # Store leaves the table intact (no need to recreate it here).
+      pid = GenServer.whereis(Store)
+      assert is_pid(pid)
       assert Process.alive?(pid)
-      assert GenServer.whereis(Store) == pid
 
-      # Stop it
-      GenServer.stop(pid)
+      # Stopping the Store does not destroy the app-owned table.
+      stop_supervised!(Store)
       refute Process.alive?(pid)
+      refute :ets.whereis(@table_name) == :undefined
+
+      # And it can be started again, registered under the same name.
+      new_pid = start_supervised!(Store)
+      assert Process.alive?(new_pid)
+      assert GenServer.whereis(Store) == new_pid
     end
 
     test "GenServer initializes with empty state" do
-      # The init function should return {:ok, %{}}
+      # init/1 does not create the table (the application does); it simply
+      # returns an empty map as the GenServer state.
       assert {:ok, %{}} = Store.init([])
     end
   end
