@@ -10,20 +10,21 @@
     <!-- SEO Meta Tags -->
     <meta name="description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
 
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content={assigns[:page_title] || "Thoughts & Tidbits"} />
-    <meta property="og:description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
-    <meta property="og:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Thoughts & Tidbits" />
-
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={assigns[:page_title] || "Thoughts & Tidbits"} />
-    <meta name="twitter:description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
-    <meta name="twitter:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
+    <%= if Enum.empty?(assigns[:meta_tags] || []) do %>
+      <!-- Open Graph Meta Tags (default; overridden per-page via meta_tags assign) -->
+      <meta property="og:title" content={assigns[:page_title] || "Thoughts & Tidbits"} />
+      <meta property="og:description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
+      <meta property="og:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Thoughts & Tidbits" />
+      <!-- Twitter Card Meta Tags -->
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={assigns[:page_title] || "Thoughts & Tidbits"} />
+      <meta name="twitter:description" content={assigns[:page_description] || "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."} />
+      <meta name="twitter:image" content={assigns[:page_image] || "https://www.bobbby.online/images/og-image.png"} />
+    <% end %>
 
     <%= for meta <- assigns[:meta_tags] || [] do %>
       <meta {meta} />
@@ -33,14 +34,12 @@
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <%!-- app.js will be moved down --%>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-    </script>
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Leaflet.markercluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <!-- Leaflet.markercluster JS -->
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js">
-    </script>
+    <script defer src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <%!-- app.js will be moved to end of body --%>
     <%!-- Temporarily removed highlight.js and its language packs for debugging Leaflet issue --%>
   </head>
