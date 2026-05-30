@@ -899,6 +899,15 @@ defmodule BlogWeb.PostLive do
         .mac-post .article-content h3 { font-size: 0.875rem; }
         .mac-post .article-content p  { margin-bottom: 0.6em; }
         .mac-post .article-content pre { font-size: 0.7rem; }
+        .mac-post .article-content blockquote {
+          font-size: 0.75rem;
+          line-height: 1.35;
+          margin: 0.4em 0;
+          padding-left: 0.6rem;
+        }
+        .mac-post .article-content ul,
+        .mac-post .article-content ol { margin: 0.4em 0; padding-left: 1.2rem; }
+        .mac-post .article-content li { margin: 0.2em 0; }
 
         .mac-post .post-meta-bar {
           flex-direction: column;
