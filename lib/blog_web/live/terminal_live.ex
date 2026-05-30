@@ -171,8 +171,8 @@ defmodule BlogWeb.TerminalLive do
        # Phish window state
        show_phish: true,
        # Work Log
-       show_work_log: true,
-       work_log_events: Blog.GitHub.WorkLog.list_recent(),
+       show_work_log: false,
+       work_log_events: [],
        # Leica collage viewer state: false | :warning | :loading | :viewing
        # ?leica=1 skips warning and starts loading immediately
        show_leica: if(params["leica"], do: :loading, else: false),
@@ -236,9 +236,18 @@ defmodule BlogWeb.TerminalLive do
     {:noreply, assign(socket, show_phish: !socket.assigns.show_phish)}
   end
 
-  # Work Log window toggle
+  # Work Log window toggle — load events lazily on first open
   def handle_event("toggle_work_log", _params, socket) do
-    {:noreply, assign(socket, show_work_log: !socket.assigns.show_work_log)}
+    show = !socket.assigns.show_work_log
+
+    socket =
+      if show && socket.assigns.work_log_events == [] do
+        assign(socket, work_log_events: Blog.GitHub.WorkLog.list_recent())
+      else
+        socket
+      end
+
+    {:noreply, assign(socket, show_work_log: show)}
   end
 
   # Museum events
