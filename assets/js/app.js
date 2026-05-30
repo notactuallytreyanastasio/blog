@@ -881,6 +881,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     Swipe,
     TemperArt,
     Tooltip,
+    ChessGame: window.ChessGame,
     ...Hooks
   }
 })

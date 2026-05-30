@@ -23,8 +23,39 @@ defmodule BlogWeb.ChessLive do
       |> assign(:bot_focused_board, nil)
       |> assign(:show_rules, true)
       |> assign_og_tags()
+      |> push_legal_targets_async(game)
 
     {:ok, socket}
+  end
+
+  # Pre-compute all white legal targets in a background task and push to client.
+  # This lets the JS handle piece selection instantly without a server round-trip.
+  defp push_legal_targets_async(socket, game) do
+    if game.to_move == :white and not Scoring.game_over?(game.status) do
+      parent = self()
+      Task.Supervisor.start_child(Blog.Chess.TaskSupervisor, fn ->
+        targets = all_legal_targets(game)
+        send(parent, {:legal_targets_ready, targets})
+      end)
+    end
+    socket
+  end
+
+  defp all_legal_targets(game) do
+    Blog.Chess.Plane.pieces_of(game.plane, :white)
+    |> Enum.flat_map(fn {sq, _piece} ->
+      moves = Legal.legal_moves_for_square(game, sq)
+      if moves == [], do: [], else: [{sq, Enum.map(moves, & &1.to)}]
+    end)
+    |> Map.new(fn {{gx, gy}, targets} ->
+      encoded_targets = Enum.map(targets, fn {tx, ty} -> [tx, ty] end)
+      {"#{gx}_#{gy}", encoded_targets}
+    end)
+  end
+
+  @impl true
+  def handle_info({:legal_targets_ready, targets}, socket) do
+    {:noreply, push_event(socket, "chess_legal_targets", %{targets: targets})}
   end
 
   defp assign_og_tags(socket) do
@@ -200,7 +231,8 @@ defmodule BlogWeb.ChessLive do
          |> assign(:last_move, {move.from, move.to})
          |> assign(:bot_thinking, false)
          |> assign(:bot_focused_board, board)
-         |> push_event("scroll_to_board", %{board: board})}
+         |> push_event("scroll_to_board", %{board: board})
+         |> push_legal_targets_async(new_game)}
     end
   end
 
@@ -462,6 +494,17 @@ defmodule BlogWeb.ChessLive do
         background: rgba(245, 158, 11, 0.55);
       }
 
+      /* Client-side selection/target highlights set via data attributes by JS hook */
+      .sq[data-selected="1"] { background: rgba(245, 158, 11, 0.55) !important; }
+      .sq[data-legal="1"]::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle, rgba(0,200,100,0.55) 28%, transparent 30%);
+        z-index: 3;
+      }
+
       .overlay-last-move {
         background: rgba(59, 130, 246, 0.4);
       }
@@ -549,7 +592,7 @@ defmodule BlogWeb.ChessLive do
       }
     </style>
 
-    <div class="chess-page">
+    <div class="chess-page" id="chess-game" phx-hook="ChessGame">
       <div class="mac-window">
         <div class="mac-titlebar">
           <div class="mac-dot mac-dot-red"></div>
@@ -633,6 +676,7 @@ defmodule BlogWeb.ChessLive do
                         <div
                           class="sq"
                           style={"background:#{bg};"}
+                          data-sq={"#{gx},#{gy}"}
                           phx-click="click_square"
                           phx-value-gx={gx}
                           phx-value-gy={gy}
@@ -678,6 +722,96 @@ defmodule BlogWeb.ChessLive do
         const el = document.getElementById("board-" + e.detail.board);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
       });
+
+      // ChessGame hook: caches pre-computed legal targets from the server and
+      // handles piece selection entirely client-side so there's no round-trip.
+      // Only the actual move (destination click) is sent to the server.
+      window.ChessGame = {
+        _targets: {},      // {"{gx}_{gy}": [[tx,ty], ...]}
+        _selected: null,   // [gx, gy] or null
+
+        mounted() {
+          this.handleEvent("chess_legal_targets", ({targets}) => {
+            this._targets = targets;
+          });
+
+          this.el.addEventListener("click", (e) => {
+            const sq = e.target.closest("[data-sq]");
+            if (!sq) return;
+            const [gx, gy] = sq.dataset.sq.split(",").map(Number);
+            this._handleClick(gx, gy, e);
+          }, true);
+        },
+
+        _handleClick(gx, gy, e) {
+          const key = gx + "_" + gy;
+          const sel = this._selected;
+
+          if (sel) {
+            const [sx, sy] = sel;
+            const selKey = sx + "_" + sy;
+            const selTargets = this._targets[selKey] || [];
+            const isTarget = selTargets.some(([tx, ty]) => tx === gx && ty === gy);
+
+            if (gx === sx && gy === sy) {
+              // Clicked selected square — deselect
+              this._deselect();
+              e.stopImmediatePropagation();
+              return;
+            }
+
+            if (isTarget) {
+              // Destination click — let it through to the server
+              this._deselect();
+              return;
+            }
+
+            if (this._targets[key]) {
+              // Re-select another piece
+              this._select(gx, gy);
+              e.stopImmediatePropagation();
+              return;
+            }
+
+            // Clicked empty/enemy square with no move — deselect
+            this._deselect();
+            e.stopImmediatePropagation();
+            return;
+          }
+
+          if (this._targets[key]) {
+            // Select this piece — instant, no round-trip
+            this._select(gx, gy);
+            e.stopImmediatePropagation();
+          }
+          // else: no targets for this square, let phx-click handle it
+        },
+
+        _select(gx, gy) {
+          this._selected = [gx, gy];
+          const key = gx + "_" + gy;
+          const targets = this._targets[key] || [];
+          // Update visual state via data attributes the CSS reads
+          document.querySelectorAll("[data-sq]").forEach(el => {
+            el.removeAttribute("data-selected");
+            el.removeAttribute("data-legal");
+          });
+          const selEl = this.el.querySelector(`[data-sq="${gx},${gy}"]`);
+          if (selEl) selEl.setAttribute("data-selected", "1");
+          targets.forEach(([tx, ty]) => {
+            const tEl = this.el.querySelector(`[data-sq="${tx},${ty}"]`);
+            if (tEl) tEl.setAttribute("data-legal", "1");
+          });
+        },
+
+        _deselect() {
+          this._selected = null;
+          document.querySelectorAll("[data-sq]").forEach(el => {
+            el.removeAttribute("data-selected");
+            el.removeAttribute("data-legal");
+          });
+        },
+      };
     </script>
 
     <%= if @show_rules do %>
