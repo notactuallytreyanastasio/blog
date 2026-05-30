@@ -1,9 +1,22 @@
 defmodule BlogWeb.RoleCallLive do
+  @moduledoc """
+  Role Call — a TV writer discovery LiveView.
+
+  Lets visitors search for shows, "like" or hide them, browse a shuffled set of
+  random picks, and get recommendations driven by the writers behind the shows
+  they liked. Business logic lives in `Blog.RoleCall`; this LiveView only manages
+  the liked/hidden `MapSet` state (persisted to the browser's localStorage), tab
+  navigation, the show/writer modal, and a first-visit guided tour, delegating
+  all data access to `Blog.RoleCall`.
+  """
+
   use BlogWeb, :live_view
 
   alias Blog.RoleCall
 
   @impl true
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, session, socket) do
     # Load liked shows from session or start empty
     liked_ids = Map.get(session, "role_call_liked", MapSet.new())
@@ -28,6 +41,8 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   @impl true
+  @spec handle_params(map(), String.t(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_params(params, _uri, socket) do
     tab = case params["tab"] do
       "liked" -> :liked
@@ -54,6 +69,8 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   @impl true
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("search", %{"query" => query}, socket) do
     results = if String.length(query) >= 2 do
       RoleCall.search_shows(query, limit: 15, exclude_ids: MapSet.to_list(socket.assigns.hidden_ids))
@@ -101,8 +118,7 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   def handle_event("refresh_shuffle", _, socket) do
-    limit = socket.assigns.cards_per_row * 2
-    shuffle_picks = get_shuffle_picks(socket.assigns.liked_ids, socket.assigns.hidden_ids, limit)
+    shuffle_picks = get_shuffle_picks(socket.assigns.liked_ids, socket.assigns.hidden_ids)
     {:noreply, assign(socket, :shuffle_picks, shuffle_picks)}
   end
 
@@ -193,12 +209,26 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   def handle_event("set_cards_per_row", %{"count" => count}, socket) do
-    count = max(3, min(count, 10))  # Clamp between 3-10
-    shuffle_picks = get_shuffle_picks(socket.assigns.liked_ids, socket.assigns.hidden_ids, count * 2)
+    # count arrives from the client as a string; parse before clamping, otherwise
+    # min(string, 10) is always 10 in Erlang term order and the clamp is a no-op.
+    count = max(3, min(to_int(count, 6), 10))
+    shuffle_picks = get_shuffle_picks(socket.assigns.liked_ids, socket.assigns.hidden_ids)
     {:noreply, assign(socket, cards_per_row: count, shuffle_picks: shuffle_picks)}
   end
 
-  defp get_shuffle_picks(liked_ids, hidden_ids, _limit \\ 20) do
+  @spec to_int(integer() | binary() | term(), integer()) :: integer()
+  defp to_int(n, _default) when is_integer(n), do: n
+
+  defp to_int(s, default) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, _} -> n
+      :error -> default
+    end
+  end
+
+  defp to_int(_, default), do: default
+
+  defp get_shuffle_picks(liked_ids, hidden_ids) do
     exclude = MapSet.union(liked_ids, hidden_ids) |> MapSet.to_list()
     # Always load 20, JS will hide excess beyond 2 rows
     RoleCall.get_random_shows(limit: 20, exclude_ids: exclude)
@@ -213,6 +243,7 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   @impl true
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
     <div class="os-desktop-winxp">
@@ -668,12 +699,14 @@ defmodule BlogWeb.RoleCallLive do
     """
   end
 
+  @spec thumb(String.t() | nil) :: String.t() | nil
   defp thumb(url) when is_binary(url) do
     # IMDB image URLs can be resized by modifying the path
     String.replace(url, ~r/@.*\./, "@._V1_SX200.")
   end
   defp thumb(_), do: nil
 
+  @spec format_number(integer() | term()) :: String.t()
   defp format_number(n) when is_integer(n) do
     n
     |> Integer.to_string()
