@@ -1,6 +1,11 @@
 defmodule Blog.SmartSteps.Trees.FireDrill do
+  @moduledoc """
+  Static definition of the "Fire Drill" scenario tree for Smart Steps.
+  """
+
   alias Blog.SmartSteps.Types.{ScenarioTree, Scenario, Choice}
 
+  @spec tree() :: ScenarioTree.t()
   def tree do
     %ScenarioTree{
       id: "fire-drill",

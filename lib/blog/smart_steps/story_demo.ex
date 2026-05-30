@@ -20,6 +20,7 @@ defmodule Blog.SmartSteps.StoryDemo do
   Weights: critical=5, high=4, medium=2, low=1.
   Optional `random` parameter should be in [0, 1).
   """
+  @spec pick_weighted_choice([Choice.t()], float() | nil) :: Choice.t()
   def pick_weighted_choice(choices, random \\ nil)
 
   def pick_weighted_choice([], _random),
@@ -55,6 +56,7 @@ defmodule Blog.SmartSteps.StoryDemo do
   Returns list of scenario IDs from start to game-over (max #{@max_steps} steps).
   Optional `random_fn` is a 0-arity function returning a float in [0, 1).
   """
+  @spec generate_random_path(ScenarioTree.t(), (-> float()) | nil) :: [String.t()]
   def generate_random_path(%ScenarioTree{} = tree, random_fn \\ nil) do
     rng = random_fn || fn -> :rand.uniform() end
     do_walk(tree.scenarios, tree.start_scenario_id, rng, [], 0)
@@ -87,6 +89,7 @@ defmodule Blog.SmartSteps.StoryDemo do
   end
 
   @doc "Get narrative transition text based on risk level."
+  @spec transition_text(Blog.SmartSteps.Types.risk_level()) :: String.t()
   def transition_text(:low), do: "Playing it safe..."
   def transition_text(:medium), do: "Trying to figure it out..."
   def transition_text(:high), do: "Things get harder..."

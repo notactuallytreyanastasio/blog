@@ -1,6 +1,7 @@
 defmodule Blog.SmartSteps.Trees.GroupProject do
   alias Blog.SmartSteps.Types.{ScenarioTree, Scenario, Choice}
 
+  @spec tree() :: ScenarioTree.t()
   def tree do
     %ScenarioTree{
       id: "group-project",

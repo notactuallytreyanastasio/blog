@@ -181,7 +181,10 @@ defmodule Blog.SmartSteps.Types do
     self_advocacy: "Self-advocacy"
   }
 
+  @spec metric_labels() :: %{atom() => String.t()}
   def metric_labels, do: @metric_labels
+
+  @spec default_metrics() :: Metrics.t()
   def default_metrics, do: %Metrics{}
 
   # ============================================
@@ -189,6 +192,7 @@ defmodule Blog.SmartSteps.Types do
   # ============================================
 
   @doc "Create a new message with a random UUID and current timestamp."
+  @spec create_message(message_type(), String.t()) :: Message.t()
   def create_message(type, content) when type in [:system, :user, :facilitator] do
     %Message{
       id: Ecto.UUID.generate(),
@@ -199,6 +203,7 @@ defmodule Blog.SmartSteps.Types do
   end
 
   @doc "Generate a random 6-digit session ID."
+  @spec generate_session_id() :: String.t()
   def generate_session_id do
     (100_000 + :rand.uniform(900_000) - 1)
     |> Integer.to_string()

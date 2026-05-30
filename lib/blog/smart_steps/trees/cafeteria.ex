@@ -1,6 +1,7 @@
 defmodule Blog.SmartSteps.Trees.Cafeteria do
   alias Blog.SmartSteps.Types.{ScenarioTree, Scenario, Choice}
 
+  @spec tree() :: struct()
   def tree do
     %ScenarioTree{
       id: "cafeteria",

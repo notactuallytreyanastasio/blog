@@ -1,6 +1,11 @@
 defmodule Blog.SmartSteps.Trees.BirthdayParty do
+  @moduledoc """
+  Static scenario tree definition for "The Birthday Party" Smart Steps story.
+  """
+
   alias Blog.SmartSteps.Types.{ScenarioTree, Scenario, Choice}
 
+  @spec tree() :: ScenarioTree.t()
   def tree do
     %ScenarioTree{
       id: "birthday-party",
