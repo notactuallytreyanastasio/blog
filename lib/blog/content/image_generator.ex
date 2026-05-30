@@ -4,6 +4,7 @@ defmodule Blog.Content.ImageGenerator do
   @cache_dir "priv/static/images/posts"
   @public_path "/images/posts"
 
+  @spec ensure_post_image(String.t()) :: String.t() | nil
   def ensure_post_image(slug) do
     filename = "#{slug}.png"
     path = Path.join(@cache_dir, filename)
