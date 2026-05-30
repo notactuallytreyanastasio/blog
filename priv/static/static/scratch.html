@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hello World — scratch</title>
+  <meta name="robots" content="noindex" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // Win98 / System 7 palette
+            silver: "#c0c0c0",
+            win98blue: "#0a246a",
+            desktop: "#008080", // classic teal desktop
+          },
+          fontFamily: {
+            chicago: ['"Chicago"', '"Geneva"', '"Helvetica Neue"', "Helvetica", "sans-serif"],
+          },
+          boxShadow: {
+            // hard, offset drop shadow — no blur (Mac System 7)
+            hard: "2px 2px 0 #000",
+            hardlg: "4px 4px 0 #000",
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Classic teal desktop backdrop */
+    body { background-color: #008080; }
+    /* Win98 raised/sunken bevels — emulated with layered box-shadow */
+    .bevel-out {
+      box-shadow:
+        inset -1px -1px 0 #000,
+        inset 1px 1px 0 #fff,
+        inset -2px -2px 0 #808080,
+        inset 2px 2px 0 #dfdfdf;
+    }
+    .bevel-in {
+      box-shadow:
+        inset 1px 1px 0 #000,
+        inset -1px -1px 0 #fff,
+        inset 2px 2px 0 #808080,
+        inset -2px -2px 0 #dfdfdf;
+    }
+    /* Mac System 7 striped titlebar */
+    .mac-stripes {
+      background: repeating-linear-gradient(
+        90deg,
+        #fff 0px, #fff 1px,
+        #000 1px, #000 2px
+      );
+    }
+    .btn-bevel:active { box-shadow:
+        inset 1px 1px 0 #000,
+        inset -1px -1px 0 #fff,
+        inset 2px 2px 0 #808080,
+        inset -2px -2px 0 #dfdfdf;
+    }
+  </style>
+</head>
+<body class="min-h-screen font-chicago text-black antialiased flex items-center justify-center p-4 selection:bg-win98blue selection:text-white">
+
+  <main class="w-full max-w-xl space-y-8">
+
+    <!-- ============ MAC SYSTEM 7 WINDOW ============ -->
+    <section class="bg-white border border-black shadow-hardlg">
+      <!-- striped titlebar with centered title + square close box -->
+      <div class="mac-stripes flex items-center h-6 px-1 border-b border-black">
+        <button aria-label="Close" class="w-3 h-3 bg-white border border-black hover:bg-black"></button>
+        <span class="flex-1 text-center text-xs font-bold bg-white mx-2 px-2">hello.world</span>
+        <span class="w-3 h-3"></span>
+      </div>
+      <!-- content -->
+      <div class="p-8 text-center space-y-4">
+        <h1 class="text-4xl font-bold tracking-tight">Hello, world.</h1>
+        <p class="text-sm text-black/70 leading-relaxed">
+          A scratch page served straight off
+          <code class="bg-silver px-1 bevel-in">/static/scratch.html</code>,
+          dressed up in 1984 Mac System&nbsp;7 chrome.
+        </p>
+      </div>
+      <!-- statusbar -->
+      <div class="h-5 border-t border-black flex items-center justify-between px-2 text-[10px] text-black/60">
+        <span>1 item</span>
+        <span>404K available</span>
+      </div>
+    </section>
+
+    <!-- ============ WINDOWS 98 WINDOW ============ -->
+    <section class="bg-silver bevel-out p-1 select-none">
+      <!-- blue gradient titlebar -->
+      <div class="flex items-center justify-between h-6 px-1 bg-gradient-to-r from-win98blue to-blue-500 text-white">
+        <div class="flex items-center gap-1.5">
+          <span class="inline-block w-4 h-4 bg-silver bevel-out text-[10px] leading-4 text-center text-black">▣</span>
+          <span class="text-xs font-bold">Scratch.exe</span>
+        </div>
+        <div class="flex items-center gap-0.5">
+          <button class="w-4 h-4 bg-silver bevel-out text-black text-[9px] leading-none btn-bevel">_</button>
+          <button class="w-4 h-4 bg-silver bevel-out text-black text-[9px] leading-none btn-bevel">□</button>
+          <button class="w-4 h-4 bg-silver bevel-out text-black text-[9px] leading-none btn-bevel">✕</button>
+        </div>
+      </div>
+
+      <!-- menu bar -->
+      <div class="flex gap-3 px-2 py-0.5 text-xs">
+        <span><u>F</u>ile</span><span><u>E</u>dit</span><span><u>V</u>iew</span><span><u>H</u>elp</span>
+      </div>
+
+      <!-- sunken content area -->
+      <div class="m-1 bg-white bevel-in p-6 text-sm space-y-4">
+        <p class="leading-relaxed">
+          Same page, Redmond edition. Grey, beveled, and proud of it.
+        </p>
+        <div class="bevel-in bg-silver p-3 text-xs leading-relaxed">
+          <strong>System status:</strong> all systems nominal.<br />
+          Tailwind loaded. Vibes loaded. Welcome aboard.
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button class="bg-silver bevel-out btn-bevel px-5 py-1 text-xs focus:outline-dotted focus:outline-1 focus:outline-black">OK</button>
+          <button class="bg-silver bevel-out btn-bevel px-5 py-1 text-xs">Cancel</button>
+        </div>
+      </div>
+
+      <!-- statusbar -->
+      <div class="flex items-center justify-between m-1 mt-0 px-1">
+        <span class="flex-1 bevel-in bg-silver px-2 py-0.5 text-[10px] text-black/70">Ready</span>
+        <span class="bevel-in bg-silver px-2 py-0.5 text-[10px] text-black/70 ml-1">scratch</span>
+      </div>
+    </section>
+
+    <p class="text-center text-[10px] text-white/80 tracking-wide">
+      bobbby.online &middot; deployed from ~/code/scratch
+    </p>
+  </main>
+</body>
+</html>
