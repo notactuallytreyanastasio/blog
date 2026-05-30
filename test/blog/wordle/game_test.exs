@@ -13,7 +13,6 @@ defmodule Blog.Wordle.GameTest do
       current_guess: "",
       max_attempts: 6,
       game_over: false,
-      win: false,
       hard_mode: false,
       used_letters: %{},
       message: nil
@@ -80,11 +79,13 @@ defmodule Blog.Wordle.GameTest do
     # First modify the game state
     {:ok, game1} = Game.handle_key_press(game, "a")
 
+    # Simulate a won game: game_over plus the win message (the :win field was
+    # removed; a win is now represented by game_over: true + the win message).
     game_with_guesses = %{
       game1
       | guesses: [%{word: "guess", result: [:absent, :absent, :absent, :absent, :absent]}],
         game_over: true,
-        win: true
+        message: "Congratulations! You won!"
     }
 
     # Now reset it
@@ -95,7 +96,7 @@ defmodule Blog.Wordle.GameTest do
     assert reset_game.current_guess == ""
     assert reset_game.guesses == []
     assert reset_game.game_over == false
-    assert reset_game.win == false
+    assert reset_game.message == nil
 
     # Hard mode setting should be preserved
     hard_mode_game = %{game | hard_mode: true}

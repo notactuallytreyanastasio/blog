@@ -209,4 +209,48 @@ functions are framework callbacks with fixed shapes and `@spec` buys little. The
 more valuable next move is Phase 4: fix the broken test harness so the suite runs
 again, then build coverage before reshaping any of the pages.
 
+## Phase 4: getting the test suite to run at all
+
+The suite didn't run. Not "some tests failed" — it wouldn't *compile*, so zero
+tests executed. One file aborted the whole thing: `index_test.exs` used a
+`BlogWeb.LiveCase` that didn't exist and `:meck`, which wasn't a dependency. Fix
+that and the next file aborts, and the next. The tests had rotted while the code
+moved on, and because compilation is all-or-nothing, a single stale file hid the
+state of everything behind it.
+
+First the harness: a `BlogWeb.LiveCase` (the usual ConnCase plus
+`Phoenix.LiveViewTest`) and `{:meck, "~> 1.0", only: :test}`. Then `index_test.exs`
+itself turned out to be testing a UI that no longer exists — it expected a simple
+post list at `/` with tag-filtering and post-click events, but `/` is the terminal
+now and the post index lives at `/blog` as a much richer page. So it got rewritten
+against the real `/blog`: mock `Post.all/0`, assert the posts render, sorted,
+tagged, linked. (`:meck` mocks globally, so that test has to be `async: false`,
+and the mock needs `:no_link` or it dies with the test process before `on_exit`
+can unload it.)
+
+A scan of all 38 test files turned up eight broken ones, so the repairs fanned
+out — one agent per file, edit-only, fixing each test against the current code,
+with a reviewer per file. The rot was the expected kind: a removed `:win` field
+on the Wordle game (a win is now `game_over` plus a message), renamed helpers
+(`color_class`, `keyboard_color_class`), a changed `GameStore` arity, a Presence
+table the test never started. The agents were told to adapt the tests to the code,
+never the reverse — if a test exposed a real bug, flag it, don't "fix" the app to
+match a stale expectation.
+
+Central verification did the judging. One agent declined to touch the Blackjack
+test because it couldn't reproduce the failure it was handed — correctly, as it
+turned out, since that file's one real failure is a behavior assertion that belongs
+to the broader cleanup, not the compile unblock. Another over-asserted: it pinned
+a message-limit test to `hd(limited).content == "Message 1"`, but twenty-five
+inserts in a tight loop share `inserted_at` timestamps, so the `order_by` tie is
+non-deterministic. The contract under test is the *cap*, not the slice, so the
+assertion became `length == 10`.
+
+The result: from zero tests running to **571 executing**, with the harness and the
+eight rotted files green. That's the unblock. It also exposed how much had drifted
+— there's a tail of pre-existing *runtime* failures (a LiveView whose `handle_info`
+no longer matches, a background firehose GenServer that connects to real Bluesky
+during tests and crashes) that compilation had been hiding. Those are the next
+thread: now that the suite runs, the failures are finally visible enough to fix.
+
 _(continued as the work lands)_
