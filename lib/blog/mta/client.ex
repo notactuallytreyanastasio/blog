@@ -16,6 +16,7 @@ defmodule Blog.Mta.Client do
   Options:
     - `:borough` - Fetch buses for a specific borough (`:manhattan`, `:brooklyn`, `:queens`, or `:all`)
   """
+  @spec fetch_buses(keyword()) :: {:ok, [%{route: term(), buses: list()}]}
   def fetch_buses(opts \\ []) do
     borough = Keyword.get(opts, :borough, :all)
     routes = Routes.for_borough(borough)
@@ -36,6 +37,7 @@ defmodule Blog.Mta.Client do
   end
 
   @doc "Get routes for a specific borough. Delegates to `Blog.Mta.Routes.for_borough/1`."
+  @spec get_routes(atom()) :: term()
   defdelegate get_routes(borough), to: Routes, as: :for_borough
 
   @spec fetch_route(String.t()) :: {:error, String.t()} | {:ok, list()}
