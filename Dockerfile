@@ -67,7 +67,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-  apt-get install -y libstdc++6 openssl libncurses5 locales imagemagick python3 python3-pip ffmpeg nodejs \
+  apt-get install -y libstdc++6 openssl libncurses5 locales imagemagick python3 python3-pip ffmpeg nodejs fonts-dejavu-core \
   && pip3 install --break-system-packages yt-dlp \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
