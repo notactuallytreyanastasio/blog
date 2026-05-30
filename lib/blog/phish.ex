@@ -3,6 +3,7 @@ defmodule Blog.Phish do
   alias Blog.Repo
   alias Blog.Phish.Track
 
+  @spec list_years() :: [integer()]
   def list_years do
     Track
     |> select([t], fragment("DISTINCT extract(year from ?)::integer", t.show_date))
@@ -10,6 +11,7 @@ defmodule Blog.Phish do
     |> Repo.all()
   end
 
+  @spec song_list(String.t()) :: [map()]
   def song_list(year) do
     base = year_filter(Track, year)
 
@@ -35,6 +37,7 @@ defmodule Blog.Phish do
     end)
   end
 
+  @spec song_history(String.t(), String.t()) :: %{song_name: String.t(), tracks: [map()]}
   def song_history(song_name, year) do
     tracks =
       Track
