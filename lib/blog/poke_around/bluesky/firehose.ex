@@ -37,10 +37,28 @@ defmodule Blog.PokeAround.Bluesky.Firehose do
     posts_received: 0
   ]
 
+  @type t :: %__MODULE__{
+          url: String.t() | nil,
+          started_at: DateTime.t() | nil,
+          messages_received: non_neg_integer(),
+          posts_received: non_neg_integer()
+        }
+
+  @typedoc """
+  Stats snapshot returned by `get_stats/1`.
+  """
+  @type stats :: %{
+          messages_received: non_neg_integer(),
+          posts_received: non_neg_integer(),
+          uptime_seconds: integer(),
+          messages_per_second: float()
+        }
+
   # ---------------------------------------------------------------------------
   # Public API
   # ---------------------------------------------------------------------------
 
+  @spec start_link(keyword()) :: {:ok, pid()} | {:error, term()}
   def start_link(opts \\ []) do
     url = opts[:url] || config(:url, @turbostream_url)
     name = opts[:name] || __MODULE__
@@ -54,6 +72,7 @@ defmodule Blog.PokeAround.Bluesky.Firehose do
     WebSockex.start_link(url, __MODULE__, state, name: name, handle_initial_conn_failure: true)
   end
 
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: __MODULE__,
@@ -66,6 +85,7 @@ defmodule Blog.PokeAround.Bluesky.Firehose do
   @doc """
   Get current stats from the firehose.
   """
+  @spec get_stats(GenServer.server()) :: stats() | {:error, :timeout}
   def get_stats(server \\ __MODULE__) do
     WebSockex.cast(server, {:get_stats, self()})
 

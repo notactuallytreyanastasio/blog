@@ -16,6 +16,7 @@ defmodule Blog.PokeAround.Bluesky.Supervisor do
 
   require Logger
 
+  @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -40,6 +41,7 @@ defmodule Blog.PokeAround.Bluesky.Supervisor do
   @doc """
   Check if the firehose is enabled.
   """
+  @spec enabled?() :: boolean()
   def enabled? do
     Application.get_env(:blog, __MODULE__, [])
     |> Keyword.get(:enabled, true)

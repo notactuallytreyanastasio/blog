@@ -59,10 +59,24 @@ defmodule Blog.PokeAround.AI.AxonTagger do
     :stats
   ]
 
+  @type t :: %__MODULE__{
+          model: term(),
+          state: term(),
+          vocab: map(),
+          tag_index: map(),
+          threshold: number(),
+          auto_tag: boolean(),
+          interval: non_neg_integer(),
+          batch_size: non_neg_integer(),
+          langs: [String.t()],
+          stats: map()
+        }
+
   # ---------------------------------------------------------------------------
   # Public API
   # ---------------------------------------------------------------------------
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name] || __MODULE__)
   end
@@ -71,6 +85,7 @@ defmodule Blog.PokeAround.AI.AxonTagger do
   Predict tags for a single link.
   Returns {:ok, [tags]} or {:error, reason}
   """
+  @spec predict(GenServer.server(), map()) :: {:ok, term()}
   def predict(server \\ __MODULE__, link) do
     GenServer.call(server, {:predict, link}, 30_000)
   end
@@ -78,6 +93,7 @@ defmodule Blog.PokeAround.AI.AxonTagger do
   @doc """
   Get tagger statistics.
   """
+  @spec stats(GenServer.server()) :: map()
   def stats(server \\ __MODULE__) do
     GenServer.call(server, :stats)
   end
@@ -85,6 +101,7 @@ defmodule Blog.PokeAround.AI.AxonTagger do
   @doc """
   Manually trigger a batch of tagging.
   """
+  @spec process_batch(GenServer.server()) :: :ok
   def process_batch(server \\ __MODULE__) do
     GenServer.cast(server, :process_batch)
   end

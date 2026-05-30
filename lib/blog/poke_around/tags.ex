@@ -10,6 +10,7 @@ defmodule Blog.PokeAround.Tags do
   @doc """
   Get or create a tag by name.
   """
+  @spec get_or_create_tag(String.t()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def get_or_create_tag(name) when is_binary(name) do
     slug = Tag.slugify(name)
 
@@ -30,6 +31,7 @@ defmodule Blog.PokeAround.Tags do
   Takes a link and a list of tag names, creates any missing tags,
   and associates them with the link.
   """
+  @spec tag_link(struct(), [String.t()], keyword()) :: {:ok, :ok} | {:error, term()}
   def tag_link(link, tag_names, opts \\ []) when is_list(tag_names) do
     source = opts[:source] || "axon"
     confidence = opts[:confidence]
@@ -89,6 +91,7 @@ defmodule Blog.PokeAround.Tags do
   @doc """
   Get all tags for a link.
   """
+  @spec get_tags_for_link(term()) :: [struct()]
   def get_tags_for_link(link_id) do
     from(t in Tag,
       join: lt in LinkTag,
@@ -102,6 +105,7 @@ defmodule Blog.PokeAround.Tags do
   @doc """
   Get popular tags.
   """
+  @spec popular_tags(integer()) :: [struct()]
   def popular_tags(limit \\ 20) do
     from(t in Tag,
       order_by: [desc: t.usage_count],
@@ -122,6 +126,7 @@ defmodule Blog.PokeAround.Tags do
   - `:rules` - List of filter rules (see apply_filter_rules/2)
   - `:match_mode` - :all (default) or :any for rule matching
   """
+  @spec list_tags(keyword()) :: [struct()]
   def list_tags(opts \\ []) do
     # Support legacy options
     search = opts[:search]
@@ -187,6 +192,7 @@ defmodule Blog.PokeAround.Tags do
   Name operators: :contains, :starts_with, :ends_with, :equals
   Created operators: :last_n_days, :before, :after
   """
+  @spec apply_filter_rules(Ecto.Queryable.t(), [map()], :all | :any) :: Ecto.Queryable.t()
   def apply_filter_rules(query, [], _match_mode), do: query
 
   def apply_filter_rules(query, rules, :all) do
@@ -301,6 +307,7 @@ defmodule Blog.PokeAround.Tags do
   @doc """
   Count total tags.
   """
+  @spec count_tags() :: integer()
   def count_tags do
     Repo.aggregate(Tag, :count)
   end
@@ -313,6 +320,7 @@ defmodule Blog.PokeAround.Tags do
   - `:order` - :newest (default) or :score
   - `:langs` - Filter by languages (empty list = all)
   """
+  @spec links_by_tag(String.t(), keyword()) :: [struct()]
   def links_by_tag(slug, opts \\ []) do
     limit = opts[:limit] || 50
     order = opts[:order] || :newest
@@ -345,6 +353,7 @@ defmodule Blog.PokeAround.Tags do
   @doc """
   Get a tag by slug.
   """
+  @spec get_tag_by_slug(String.t()) :: struct() | nil
   def get_tag_by_slug(slug) do
     Repo.get_by(Tag, slug: slug)
   end
@@ -355,6 +364,7 @@ defmodule Blog.PokeAround.Tags do
   Options:
   - `:langs` - Filter by languages (default: ["en"] for English only)
   """
+  @spec untagged_links(integer(), keyword()) :: [struct()]
   def untagged_links(limit \\ 10, opts \\ []) do
     langs = opts[:langs] || ["en"]
 
@@ -377,6 +387,7 @@ defmodule Blog.PokeAround.Tags do
   Options:
   - `:langs` - Filter by languages (default: ["en"] for English only)
   """
+  @spec count_untagged(keyword()) :: integer()
   def count_untagged(opts \\ []) do
     langs = opts[:langs] || ["en"]
 

@@ -6,7 +6,30 @@ defmodule Blog.PokeAround.Link do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @type t :: %__MODULE__{}
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          url: String.t() | nil,
+          url_hash: String.t() | nil,
+          post_uri: String.t() | nil,
+          post_text: String.t() | nil,
+          post_created_at: DateTime.t() | nil,
+          author_did: String.t() | nil,
+          author_handle: String.t() | nil,
+          author_display_name: String.t() | nil,
+          author_followers_count: integer() | nil,
+          score: integer() | nil,
+          title: String.t() | nil,
+          description: String.t() | nil,
+          image_url: String.t() | nil,
+          domain: String.t() | nil,
+          tags: [String.t()] | nil,
+          langs: [String.t()] | nil,
+          stumble_count: integer() | nil,
+          tagged_at: DateTime.t() | nil,
+          normalized_tags: [struct()] | Ecto.Association.NotLoaded.t() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
 
   schema "pa_links" do
     field :url, :string

@@ -63,6 +63,8 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   - vocab: map of word -> index
   - tag_index: map of tag_slug -> index
   """
+  @spec prepare_training_data(keyword()) ::
+          {Nx.Tensor.t(), Nx.Tensor.t(), map(), map()}
   def prepare_training_data(opts \\ []) do
     min_tag_count = opts[:min_tag_count] || @min_tag_count
 
@@ -95,6 +97,8 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
 
   This uses the manually curated training data with consolidated tags.
   """
+  @spec prepare_training_data_from_file(keyword()) ::
+          {Nx.Tensor.t(), Nx.Tensor.t(), map(), map()}
   def prepare_training_data_from_file(opts \\ []) do
     min_tag_count = opts[:min_tag_count] || 2
     file_path = opts[:file] || "priv/ml/training_data.json"
@@ -267,6 +271,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Simple word-level tokenizer.
   """
+  @spec tokenize(term()) :: [String.t()]
   def tokenize(text) when is_binary(text) do
     text
     |> String.downcase()
@@ -285,6 +290,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Build the Axon model for multi-label classification.
   """
+  @spec build_model(keyword()) :: Axon.t()
   def build_model(opts \\ []) do
     vocab_size = opts[:vocab_size] || raise "vocab_size required"
     num_tags = opts[:num_tags] || raise "num_tags required"
@@ -309,6 +315,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Train the model on the prepared data.
   """
+  @spec train(Axon.t(), Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: map()
   def train(model, inputs, labels, opts \\ []) do
     epochs = opts[:epochs] || 20
     batch_size = opts[:batch_size] || 32
@@ -350,6 +357,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Calculate multi-label accuracy (IoU style) for evaluation.
   """
+  @spec multi_label_accuracy(Nx.Tensor.t(), Nx.Tensor.t()) :: number()
   def multi_label_accuracy(y_pred, y_true) do
     # Threshold predictions
     predictions = Nx.greater(y_pred, 0.5)
@@ -373,6 +381,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Save trained model, vocabulary, and tag index.
   """
+  @spec save_model(map(), map(), map(), String.t()) :: :ok
   def save_model(model_state, vocab, tag_index, path) do
     File.mkdir_p!(path)
 
@@ -403,6 +412,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Load a trained model.
   """
+  @spec load_model(String.t()) :: {Axon.t(), map(), map(), map()}
   def load_model(path) do
     # Load metadata
     metadata =
@@ -438,6 +448,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   Simple prediction without serving (for testing).
   Returns top-5 predictions sorted by probability.
   """
+  @spec predict_simple(Axon.t(), map(), term(), map(), map()) :: [{String.t(), float()}]
   def predict_simple(model, state, text, vocab, tag_index) do
     tokens = tokenize(text)
     encoded = encode_sequence(tokens, vocab)
@@ -462,6 +473,7 @@ defmodule Blog.PokeAround.AI.Axon.TextClassifier do
   @doc """
   Get predictions above threshold for production use.
   """
+  @spec predict_tags(Axon.t(), map(), term(), map(), map(), number()) :: [String.t()]
   def predict_tags(model, state, text, vocab, tag_index, threshold \\ @prediction_threshold) do
     tokens = tokenize(text)
     encoded = encode_sequence(tokens, vocab)
