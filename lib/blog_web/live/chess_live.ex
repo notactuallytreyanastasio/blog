@@ -19,6 +19,7 @@ defmodule BlogWeb.ChessLive do
       |> assign(:legal_targets, [])
       |> assign(:last_move, nil)
       |> assign(:bot_thinking, false)
+      |> assign(:show_rules, true)
 
     {:ok, socket}
   end
@@ -38,6 +39,11 @@ defmodule BlogWeb.ChessLive do
      |> assign(:legal_targets, [])
      |> assign(:last_move, nil)
      |> assign(:bot_thinking, false)}
+  end
+
+  @impl true
+  def handle_event("close_rules", _params, socket) do
+    {:noreply, assign(socket, :show_rules, false)}
   end
 
   # ---------------------------------------------------------------------------
@@ -337,14 +343,6 @@ defmodule BlogWeb.ChessLive do
         box-shadow: 0 2px 8px rgba(0,0,0,0.5);
       }
 
-      .board-index-label {
-        font-size: 10px;
-        color: #666;
-        text-align: center;
-        margin-bottom: 3px;
-        letter-spacing: 0.08em;
-      }
-
       /* Individual squares */
       .sq {
         position: relative;
@@ -547,7 +545,6 @@ defmodule BlogWeb.ChessLive do
                   status_label = board_status_label(board_status)
                 %>
                 <div class="board-cell">
-                  <div class="board-index-label">board <%= bi %></div>
                   <div class="board-grid">
                     <%= for local_rank <- 0..7 do %>
                       <%= for local_file <- 0..7 do %>
@@ -605,6 +602,55 @@ defmodule BlogWeb.ChessLive do
         </div>
       </div>
     </div>
+
+    <%= if @show_rules do %>
+    <div
+      id="rules-modal"
+      style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;"
+      phx-click="close_rules"
+    >
+      <div
+        style="background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;max-width:480px;width:100%;padding:28px 24px;color:#d0d0e8;font-family:monospace;max-height:90vh;overflow-y:auto;"
+        phx-click-away="close_rules"
+      >
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <span style="font-size:18px;font-weight:bold;color:#e0e0f8;">Chess-9</span>
+          <button
+            phx-click="close_rules"
+            style="background:none;border:1px solid #444;color:#999;cursor:pointer;padding:4px 10px;border-radius:4px;font-family:monospace;font-size:13px;"
+          >play →</button>
+        </div>
+
+        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
+          Nine standard chess boards arranged in a 3×3 grid. All nine games are live at the same time.
+          You play white on every board. One move per turn, on any board you choose.
+          Win by checkmating the opponent on more boards than they checkmate you.
+        </p>
+
+        <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">CROSSING RULE</div>
+        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
+          A piece may slide across a board boundary only when one of its own kind has already been captured on the destination board.
+          Losing your bishop on board 4 earns you a bishop-crossing credit for board 4.
+          Credits are spent one per crossing.
+          Kings never cross. Any pawn that crosses a boundary promotes on arrival.
+        </p>
+
+        <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">GEOMETRY</div>
+        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
+          The nine boards form a continuous 24×24 plane. Board boundaries are invisible to piece geometry.
+          A bishop on the edge of one board slides diagonally onto the next along the same diagonal,
+          if it holds the credit to enter it.
+          A piece on a neighboring board can give check across the seam if it holds enough credits.
+        </p>
+
+        <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">DRAW CONDITIONS</div>
+        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:4px;">
+          A board draws by the 50-move rule or insufficient material.
+          A drawn board is frozen and cannot be fought over.
+        </p>
+      </div>
+    </div>
+    <% end %>
     """
   end
 end
