@@ -50,6 +50,10 @@ defmodule Blog.Chess.MoveGen do
   # Per-piece dispatch
   # ---------------------------------------------------------------------------
 
+  @doc "Pseudo-legal moves for one specific piece. Used by legal_moves_for_square to avoid generating all 9-board moves."
+  @spec piece_pseudo_legal_moves(C.State.t(), C.global_square(), Piece.t()) :: [Move.t()]
+  def piece_pseudo_legal_moves(state, sq, piece), do: moves_for(state, sq, piece)
+
   defp moves_for(state, sq, %Piece{type: :pawn} = piece),
     do: pawn_moves(state, sq, piece)
 

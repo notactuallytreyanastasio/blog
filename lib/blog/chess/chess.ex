@@ -408,7 +408,9 @@ defmodule Blog.Chess.State do
   """
 
   @enforce_keys [:plane, :to_move, :ledger, :status, :clocks]
-  defstruct [:plane, :to_move, :ledger, :status, :clocks, en_passant: nil, ply: 0]
+  defstruct [:plane, :to_move, :ledger, :status, :clocks,
+             en_passant: nil, ply: 0,
+             white_king: nil, black_king: nil]
 
   @type t :: %__MODULE__{
           plane: Blog.Chess.plane(),
@@ -417,6 +419,8 @@ defmodule Blog.Chess.State do
           status: tuple(),
           clocks: tuple(),
           en_passant: Blog.Chess.global_square() | nil,
-          ply: non_neg_integer()
+          ply: non_neg_integer(),
+          white_king: Blog.Chess.global_square() | nil,
+          black_king: Blog.Chess.global_square() | nil
         }
 end

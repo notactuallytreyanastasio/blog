@@ -173,6 +173,12 @@ defmodule Blog.Chess.Plane do
     end)
   end
 
+  @doc "O(1) king lookup using the cached positions in State. Falls back to the O(576) scan if cache is nil."
+  @spec king_square_fast(Blog.Chess.State.t(), C.color()) :: C.global_square() | nil
+  def king_square_fast(%{white_king: sq}, :white) when sq != nil, do: sq
+  def king_square_fast(%{black_king: sq}, :black) when sq != nil, do: sq
+  def king_square_fast(state, color), do: king_square(state.plane, color)
+
   @doc """
   Returns a list of `{global_square, piece}` pairs for every occupied cell on
   the plane, regardless of color.
