@@ -4,14 +4,21 @@ defmodule BlogWeb.BookmarkChannelTest do
   alias Blog.Bookmarks.Store
 
   setup do
-    # Ensure the bookmark store is running and clear any existing data
-    case GenServer.whereis(Store) do
-      nil ->
-        :ets.new(:bookmarks_table, [:set, :public, :named_table])
-        {:ok, _pid} = Store.start_link([])
+    # The Store reads/writes a named ETS table (:bookmarks_table) by name, so it
+    # must exist as a :named_table. In the test environment the table may not be
+    # reachable by name (the application creates it without :named_table, and any
+    # table previously created by a test process is destroyed when that process
+    # exits). Recreate it here whenever it is missing so each test starts from a
+    # clean, name-addressable table.
+    if :ets.whereis(:bookmarks_table) == :undefined do
+      :ets.new(:bookmarks_table, [:set, :public, :named_table])
+    end
 
-      _pid ->
-        :ok
+    # The Store GenServer is not part of the application supervision tree, so
+    # start it for the test if it isn't already running.
+    case GenServer.whereis(Store) do
+      nil -> {:ok, _pid} = Store.start_link([])
+      _pid -> :ok
     end
 
     :ets.delete_all_objects(:bookmarks_table)
@@ -129,7 +136,7 @@ defmodule BlogWeb.BookmarkChannelTest do
       assert bookmark.favicon_url == "https://elixir-lang.org/favicon.ico"
 
       # Should broadcast to the channel
-      assert_broadcast "bookmark_added", ^bookmark
+      assert_push "bookmark_added", ^bookmark
     end
 
     test "handles missing optional fields", %{socket: socket} do
@@ -210,7 +217,7 @@ defmodule BlogWeb.BookmarkChannelTest do
       assert_reply ref, :ok
 
       # Should broadcast deletion
-      assert_broadcast "bookmark_deleted", %{id: bookmark_id}
+      assert_push "bookmark_deleted", %{id: bookmark_id}
       assert bookmark_id == bookmark.id
 
       # Bookmark should be gone from store
@@ -419,7 +426,7 @@ defmodule BlogWeb.BookmarkChannelTest do
       assert_reply ref, :ok, bookmark
 
       # Should broadcast to channel
-      assert_broadcast "bookmark_added", ^bookmark
+      assert_push "bookmark_added", ^bookmark
 
       # Should broadcast to firehose
       assert_receive %Phoenix.Socket.Broadcast{

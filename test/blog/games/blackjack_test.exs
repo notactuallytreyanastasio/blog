@@ -344,8 +344,20 @@ defmodule Blog.Games.BlackjackTest do
       game = %{
         deck: [{"5", "♥️"}, {"K", "♦️"}],
         players: %{
-          "player1" => %{hand: [{"7", "♥️"}, {"8", "♦️"}], status: :playing, score: 15},
-          "player2" => %{hand: [{"9", "♣️"}, {"A", "♠️"}], status: :playing, score: 20}
+          "player1" => %{
+            hand: [{"7", "♥️"}, {"8", "♦️"}],
+            status: :playing,
+            score: 15,
+            bet: 10,
+            balance: 100
+          },
+          "player2" => %{
+            hand: [{"9", "♣️"}, {"A", "♠️"}],
+            status: :playing,
+            score: 20,
+            bet: 10,
+            balance: 100
+          }
         },
         dealer: %{hand: [{"A", "♠️"}, {"6", "♣️"}], status: :waiting, score: 17},
         active_player_id: "player1",

@@ -1,5 +1,5 @@
 defmodule Blog.Content.PostTest do
-  use ExUnit.Case, async: true
+  use Blog.DataCase, async: true
   alias Blog.Content.Post
   alias Blog.Content.Tag
 

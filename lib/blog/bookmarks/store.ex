@@ -73,7 +73,7 @@ defmodule Blog.Bookmarks.Store do
 
   @spec list_bookmarks(String.t()) :: [struct()]
   def list_bookmarks(user_id) do
-    :ets.match_object(@table_name, {:_, %Bookmark{user_id: user_id}})
+    :ets.match_object(@table_name, {:_, %{user_id: user_id}})
     |> Enum.map(fn {_id, bookmark} -> bookmark end)
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
   end
@@ -95,7 +95,7 @@ defmodule Blog.Bookmarks.Store do
   def search_bookmarks(user_id, query) do
     query = String.downcase(query)
 
-    :ets.match_object(@table_name, {:_, %Bookmark{user_id: user_id}})
+    :ets.match_object(@table_name, {:_, %{user_id: user_id}})
     |> Enum.map(fn {_id, bookmark} -> bookmark end)
     |> Enum.filter(fn bookmark ->
       String.contains?(String.downcase(bookmark.title || ""), query) ||

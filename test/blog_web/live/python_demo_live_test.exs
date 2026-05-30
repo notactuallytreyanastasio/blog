@@ -1,13 +1,16 @@
 defmodule BlogWeb.PythonDemoLiveTest do
-  use BlogWeb.ConnCase, async: true
+  # async: false because :meck replaces Blog.PythonRunner globally.
+  use BlogWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
+
+  alias Blog.PythonRunner
 
   describe "PythonDemoLive" do
     test "disconnected and connected render", %{conn: conn} do
       {:ok, page_live, disconnected_html} = live(conn, ~p"/python-demo")
 
-      assert disconnected_html =~ "Python in Elixir"
-      assert render(page_live) =~ "Python in Elixir"
+      assert disconnected_html =~ "Python.exe - Elixir Integration"
+      assert render(page_live) =~ "Python.exe - Elixir Integration"
     end
 
     test "displays initial form elements", %{conn: conn} do
@@ -18,7 +21,7 @@ defmodule BlogWeb.PythonDemoLiveTest do
       assert html =~ "Python Code:"
       assert html =~ "<textarea"
       assert html =~ "name=\"code\""
-      assert html =~ "Run Code"
+      assert html =~ "Execute Code"
     end
 
     test "form has correct attributes", %{conn: conn} do
@@ -30,72 +33,98 @@ defmodule BlogWeb.PythonDemoLiveTest do
       assert html =~ "font-mono"
     end
 
-    test "submit button shows loading state when executing", %{conn: conn} do
+    test "renders the Win98 desktop chrome", %{conn: conn} do
+      {:ok, _page_live, html} = live(conn, ~p"/python-demo")
+
+      # Window chrome / menubar specific to the current desktop-style UI
+      assert html =~ "os-window"
+      assert html =~ "os-titlebar"
+      assert html =~ "os-menubar"
+      assert html =~ "os-statusbar"
+      # Status bar reports the idle state on mount
+      assert html =~ "Ready"
+    end
+
+    test "shows result and clears executing state after a successful run", %{conn: conn} do
+      :meck.new(PythonRunner, [:passthrough, :no_link])
+      :meck.expect(PythonRunner, :run_python_code, fn _code -> {:ok, "hello world\n"} end)
+      on_exit(fn -> :meck.unload(PythonRunner) end)
+
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
-      # Initially not executing
-      assert render(page_live) =~ "Run Code"
-      refute render(page_live) =~ "Executing..."
-      refute render(page_live) =~ "disabled"
-
-      # Mock the PythonRunner to avoid actual execution
-      # Since we can't easily mock in this test, we'll test the UI state changes
-
-      # Send run-code event (this will set executing: true)
+      # Submit code; the run-code event sends an async :execute_python message
+      # which LiveViewTest drains synchronously before returning the render.
       page_live
       |> element("form")
-      |> render_submit(%{code: "print('hello')"})
+      |> render_submit(%{code: "print('hello world')"})
 
-      # Should show executing state
       html = render(page_live)
-      assert html =~ "Executing..."
-      assert html =~ "disabled"
-      assert html =~ "animate-spin"
+
+      # Result block renders the stubbed output, executing state has cleared.
+      assert html =~ "Result:"
+      assert html =~ "hello world"
+      refute html =~ "Executing..."
+      assert called_with_code?("print('hello world')")
+    end
+
+    test "shows error block and clears executing state after a failed run", %{conn: conn} do
+      :meck.new(PythonRunner, [:passthrough, :no_link])
+      :meck.expect(PythonRunner, :run_python_code, fn _code -> {:error, "boom: NameError"} end)
+      on_exit(fn -> :meck.unload(PythonRunner) end)
+
+      {:ok, page_live, _html} = live(conn, ~p"/python-demo")
+
+      page_live
+      |> element("form")
+      |> render_submit(%{code: "undefined_name"})
+
+      html = render(page_live)
+
+      assert html =~ "Error:"
+      assert html =~ "boom: NameError"
+      refute html =~ "Result:"
+      refute html =~ "Executing..."
     end
 
     test "handles empty code submission", %{conn: conn} do
+      :meck.new(PythonRunner, [:passthrough, :no_link])
+      :meck.expect(PythonRunner, :run_python_code, fn _code -> {:ok, ""} end)
+      on_exit(fn -> :meck.unload(PythonRunner) end)
+
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
-      # Submit empty code
       page_live
       |> element("form")
       |> render_submit(%{code: ""})
 
-      # Should still process (may return empty output or error)
-      # The exact behavior depends on PythonRunner implementation
-      assert render(page_live) =~ "Executing..."
+      # Empty code is forwarded to the runner without crashing the LiveView.
+      assert called_with_code?("")
+      assert render(page_live) =~ "Execute Python Code"
     end
 
     test "renders with correct CSS classes", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/python-demo")
 
-      # Check main container
-      assert html =~ "mx-auto max-w-3xl p-4"
+      # Content padding wrapper
+      assert html =~ "os-content"
 
-      # Check heading styles
-      assert html =~ "text-2xl font-bold mb-4"
+      # Form card container
+      assert html =~ "bg-white border-2 inset p-4 mb-4"
 
-      # Check form container
-      assert html =~ "p-4 bg-gray-100 rounded-lg shadow-md"
+      # Textarea styles
+      assert html =~ "w-full p-2 border-2 inset font-mono text-sm bg-white"
 
-      # Check textarea styles
-      assert html =~
-               "w-full p-3 border border-gray-300 rounded-md shadow-sm font-mono text-sm bg-gray-50"
-
-      # Check button styles
-      assert html =~
-               "bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md"
+      # Button styles (Win98 outset button)
+      assert html =~ "px-4 py-2 border-2 outset"
     end
 
     test "initial socket assigns are correct", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
-      # Check that assigns have correct initial values
-      # We can't directly access assigns in tests, but we can verify the UI reflects them
-      # executing: false
-      assert render(page_live) =~ "Run Code"
+      # executing: false -> the submit button shows the idle label, no spinner
+      assert render(page_live) =~ "Execute Code"
       # result: nil
-      refute render(page_live) =~ "Output:"
+      refute render(page_live) =~ "Result:"
       # error: nil
       refute render(page_live) =~ "Error:"
     end
@@ -106,16 +135,12 @@ defmodule BlogWeb.PythonDemoLiveTest do
       html = render(page_live)
 
       # Should not show any results initially
-      refute html =~ "Output:"
+      refute html =~ "Result:"
       refute html =~ "Error:"
       refute html =~ "Executing..."
 
-      # Button should be enabled
-      refute html =~ "disabled"
-
-      # Textarea should be empty
-      # Empty textarea content
-      assert html =~ "></"
+      # Textarea should be empty (no @code content between the tags)
+      assert html =~ "></textarea>"
     end
 
     test "has accessible form elements", %{conn: conn} do
@@ -132,72 +157,72 @@ defmodule BlogWeb.PythonDemoLiveTest do
       assert html =~ "<button"
     end
 
-    test "form submission triggers correct event", %{conn: conn} do
+    test "reset button restores the example code", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
-      # Test that the form can be submitted (even if we can't test the full flow)
-      form = element(page_live, "form")
+      html =
+        page_live
+        |> element("button[phx-click=\"reset\"]")
+        |> render_click()
 
-      # This should not raise an error
-      assert_raise Phoenix.LiveViewTest.ExitError, fn ->
-        render_submit(form, %{code: "print('test')"})
-      end
+      # The reset event seeds the textarea with the example program.
+      assert html =~ "def hello_world"
+      assert html =~ "Hello from Python"
     end
 
-    test "textarea preserves content", %{conn: conn} do
+    test "textarea preserves the @code assign value after reset", %{conn: conn} do
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
-      # The textarea should preserve the @code assign value
-      # Initial state should have empty code
-      # Empty textarea
-      assert render(page_live) =~ "></"
-    end
+      # Initially empty
+      assert render(page_live) =~ "></textarea>"
 
-    test "loading spinner has correct attributes", %{conn: conn} do
-      {:ok, page_live, _html} = live(conn, ~p"/python-demo")
-
-      # Trigger executing state
+      # After reset the @code assign is reflected back into the textarea
       page_live
-      |> element("form")
-      |> render_submit(%{code: "print('hello')"})
+      |> element("button[phx-click=\"reset\"]")
+      |> render_click()
 
-      html = render(page_live)
+      assert render(page_live) =~ "def hello_world"
+    end
 
-      # Check spinner SVG attributes
-      assert html =~ "animate-spin"
-      assert html =~ "viewBox=\"0 0 24 24\""
-      assert html =~ "fill=\"none\""
-      assert html =~ "stroke=\"currentColor\""
+    test "examples section lists sample snippets", %{conn: conn} do
+      {:ok, _page_live, html} = live(conn, ~p"/python-demo")
+
+      assert html =~ "Examples to Try"
+      assert html =~ "import math"
+      assert html =~ "sum_of_squares"
     end
   end
 
   describe "handle_event run-code" do
-    test "sets executing state and sends async message", %{conn: conn} do
+    test "forwards the submitted code to PythonRunner", %{conn: conn} do
+      :meck.new(PythonRunner, [:passthrough, :no_link])
+      :meck.expect(PythonRunner, :run_python_code, fn _code -> {:ok, "ok"} end)
+      on_exit(fn -> :meck.unload(PythonRunner) end)
+
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
-      # Submit code
       page_live
       |> element("form")
       |> render_submit(%{code: "print('hello world')"})
 
-      # Should immediately show executing state
-      html = render(page_live)
-      assert html =~ "Executing..."
-      assert html =~ "disabled"
+      assert called_with_code?("print('hello world')")
     end
 
     test "handles code parameter correctly", %{conn: conn} do
+      :meck.new(PythonRunner, [:passthrough, :no_link])
+      :meck.expect(PythonRunner, :run_python_code, fn _code -> {:ok, "2"} end)
+      on_exit(fn -> :meck.unload(PythonRunner) end)
+
       {:ok, page_live, _html} = live(conn, ~p"/python-demo")
 
       test_code = "x = 1 + 1\nprint(x)"
 
-      # Submit with specific code
       page_live
       |> element("form")
       |> render_submit(%{code: test_code})
 
-      # Should show executing state
-      assert render(page_live) =~ "Executing..."
+      assert called_with_code?(test_code)
+      assert render(page_live) =~ "Result:"
     end
   end
 
@@ -205,29 +230,23 @@ defmodule BlogWeb.PythonDemoLiveTest do
     test "form is responsive on different screen sizes", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/python-demo")
 
-      # Check responsive classes
-      # Limits width on larger screens
-      assert html =~ "max-w-3xl"
-      # Full width on smaller screens
+      # Window stretches to full viewport width
+      assert html =~ "width: 100%"
+      # Textarea is full width within the card
       assert html =~ "w-full"
-    end
-
-    test "button has proper focus states", %{conn: conn} do
-      {:ok, _page_live, html} = live(conn, ~p"/python-demo")
-
-      assert html =~ "focus:outline-none"
-      assert html =~ "focus:ring-2"
-      assert html =~ "focus:ring-offset-2"
-      assert html =~ "focus:ring-indigo-500"
     end
 
     test "textarea has proper styling", %{conn: conn} do
       {:ok, _page_live, html} = live(conn, ~p"/python-demo")
 
-      assert html =~ "border border-gray-300"
-      assert html =~ "rounded-md shadow-sm"
+      assert html =~ "border-2 inset"
       assert html =~ "font-mono text-sm"
-      assert html =~ "bg-gray-50"
+      assert html =~ "bg-white"
     end
+  end
+
+  # Returns true if PythonRunner.run_python_code was called with the given code.
+  defp called_with_code?(code) do
+    :meck.called(PythonRunner, :run_python_code, [code])
   end
 end

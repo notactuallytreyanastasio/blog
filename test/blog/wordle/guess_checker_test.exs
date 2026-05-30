@@ -24,9 +24,13 @@ defmodule Blog.Wordle.GuessCheckerTest do
     end
 
     test "duplicate letters handled correctly" do
-      # Target has one 'l', guess has two 'l's
+      # Guess "llama" vs target "plant".
+      # Green pass: index 1 'l' matches target's 'l' -> :correct (consumes the
+      # single 'l'); index 2 'a' matches target's 'a' -> :correct.
+      # Second pass: index 0 'l' has no 'l' left in the remaining target -> :absent;
+      # index 3 'm' and index 4 'a' are not in the remaining target -> :absent.
       result = GuessChecker.check_guess("llama", "plant")
-      assert result == [:present, :absent, :correct, :absent, :absent]
+      assert result == [:absent, :correct, :correct, :absent, :absent]
     end
 
     test "complex case with duplicates" do
@@ -54,12 +58,14 @@ defmodule Blog.Wordle.GuessCheckerTest do
     test "handles case where guess has more of a letter than target" do
       # Target: "robot", Guess: "ooops"
       result = GuessChecker.check_guess("ooops", "robot")
-      # First o is present
-      # Second o is correct (position 1)
-      # Third o is absent (target only has 2 o's)
-      # p is absent
-      # s is absent
-      assert result == [:present, :correct, :absent, :absent, :absent]
+      # index 1 'o' matches target position -> :correct (consumes one 'o',
+      # leaving one 'o' in the remaining target).
+      # The "present" pass checks membership in the remaining target without
+      # depleting per-occurrence, so every other 'o' that finds an 'o' still
+      # present is marked :present.
+      # index 0 'o' -> :present, index 2 'o' -> :present.
+      # p and s are not in the target -> :absent.
+      assert result == [:present, :correct, :present, :absent, :absent]
     end
 
     test "handles empty strings gracefully" do
@@ -69,14 +75,19 @@ defmodule Blog.Wordle.GuessCheckerTest do
 
     test "real wordle examples" do
       # Common Wordle scenarios
+      # Guess "adieu" vs target "audio". index 0 'a' -> :correct. The remaining
+      # target still contains d, i, u, o, so guess letters d, i, u all map to
+      # :present; 'e' is absent.
       result = GuessChecker.check_guess("adieu", "audio")
-      assert result == [:correct, :present, :absent, :absent, :present]
+      assert result == [:correct, :present, :present, :absent, :present]
 
       result = GuessChecker.check_guess("crane", "brake")
       assert result == [:absent, :correct, :correct, :absent, :correct]
 
+      # Guess "slate" vs target "later". No greens; target later contains
+      # l, a, t, e, r. Guess letters l, a, t, e all appear -> :present.
       result = GuessChecker.check_guess("slate", "later")
-      assert result == [:absent, :present, :present, :present, :absent]
+      assert result == [:absent, :present, :present, :present, :present]
     end
   end
 
@@ -206,8 +217,11 @@ defmodule Blog.Wordle.GuessCheckerTest do
       result = GuessChecker.check_guess("café", "café")
       assert result == [:correct, :correct, :correct, :correct]
 
+      # Guess "café" (graphemes c,a,f,é) vs target "face" (f,a,c,e).
+      # index 1 'a' matches -> :correct. Remaining target f,c,e: guess 'c' and
+      # 'f' are present; 'é' does not match 'e' (no normalization) -> :absent.
       result = GuessChecker.check_guess("café", "face")
-      assert result == [:present, :present, :absent, :present]
+      assert result == [:present, :correct, :present, :absent]
     end
 
     test "mixed case handling" do

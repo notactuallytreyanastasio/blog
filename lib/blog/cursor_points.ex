@@ -137,7 +137,7 @@ defmodule Blog.CursorPoints do
     Phoenix.PubSub.broadcast(
       Blog.PubSub,
       "cursor_tracker",
-      {:clear_points, user_id || "SYSTEM"}
+      {:clear_points, %{user_id: user_id || "SYSTEM"}}
     )
 
     Logger.info("Points cleared by #{user_id || "scheduled task"}")
