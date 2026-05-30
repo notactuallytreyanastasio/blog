@@ -2,6 +2,26 @@ defmodule Blog.Museum.Project do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          slug: String.t() | nil,
+          title: String.t() | nil,
+          tagline: String.t() | nil,
+          description: String.t() | nil,
+          category: String.t() | nil,
+          tech_stack: [String.t()],
+          github_repos: [map()],
+          internal_path: String.t() | nil,
+          external_url: String.t() | nil,
+          pixel_art_path: String.t() | nil,
+          emoji: String.t() | nil,
+          color: String.t() | nil,
+          sort_order: integer() | nil,
+          visible: boolean() | nil,
+          inserted_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil
+        }
+
   schema "museum_projects" do
     field :slug, :string
     field :title, :string
@@ -21,6 +41,7 @@ defmodule Blog.Museum.Project do
     timestamps()
   end
 
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(project, attrs) do
     project
     |> cast(attrs, [

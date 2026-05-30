@@ -5,6 +5,7 @@ defmodule Blog.Museum.Projects do
 
   # === Public Queries (used by TerminalLive) ===
 
+  @spec all() :: [struct()]
   def all do
     Project
     |> where([p], p.visible == true)
@@ -12,10 +13,12 @@ defmodule Blog.Museum.Projects do
     |> Repo.all()
   end
 
+  @spec get_by_slug(String.t()) :: struct() | nil
   def get_by_slug(slug) do
     Repo.get_by(Project, slug: slug, visible: true)
   end
 
+  @spec categories() :: [String.t()]
   def categories do
     Project
     |> where([p], p.visible == true)
@@ -25,6 +28,7 @@ defmodule Blog.Museum.Projects do
     |> Repo.all()
   end
 
+  @spec by_category(String.t()) :: [struct()]
   def by_category(category) do
     Project
     |> where([p], p.visible == true and p.category == ^category)
@@ -34,32 +38,39 @@ defmodule Blog.Museum.Projects do
 
   # === Admin CRUD ===
 
+  @spec list_projects() :: [struct()]
   def list_projects do
     Project
     |> order_by([p], asc: p.sort_order)
     |> Repo.all()
   end
 
+  @spec get_project!(term()) :: struct()
   def get_project!(id), do: Repo.get!(Project, id)
 
+  @spec create_project(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_project(attrs) do
     %Project{}
     |> Project.changeset(attrs)
     |> Repo.insert()
   end
 
+  @spec update_project(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_project(%Project{} = project, attrs) do
     project
     |> Project.changeset(attrs)
     |> Repo.update()
   end
 
+  @spec delete_project(struct()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_project(%Project{} = project), do: Repo.delete(project)
 
+  @spec change_project(struct(), map()) :: Ecto.Changeset.t()
   def change_project(%Project{} = project, attrs \\ %{}), do: Project.changeset(project, attrs)
 
   # === Reordering ===
 
+  @spec bulk_reorder([integer() | String.t()]) :: {:ok, term()} | {:error, term()}
   def bulk_reorder(ids) when is_list(ids) do
     Repo.transaction(fn ->
       ids
@@ -72,6 +83,8 @@ defmodule Blog.Museum.Projects do
     end)
   end
 
+  @spec reorder_project(term(), :up | :down) ::
+          :ok | {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def reorder_project(project_id, direction) when direction in [:up, :down] do
     projects = Repo.all(from(p in Project, order_by: [asc: p.sort_order]))
     reorder_in_list(projects, project_id, direction)
