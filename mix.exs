@@ -84,7 +84,8 @@ defmodule Blog.MixProject do
       {:sweet_xml, "~> 0.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:cors_plug, "~> 3.0"},
-      {:assay, "~> 0.5", runtime: false, only: [:dev, :test]}
+      {:assay, "~> 0.5", runtime: false, only: [:dev, :test]},
+      {:meck, "~> 1.0", only: :test}
     ]
   end
 

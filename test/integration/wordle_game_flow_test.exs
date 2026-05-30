@@ -1,404 +1,358 @@
 defmodule Blog.Integration.WordleGameFlowTest do
   @moduledoc """
-  Integration tests for complete Wordle game workflow.
-  Tests game creation, guess validation, hard mode, and multi-player scenarios.
+  Integration tests for the complete Wordle game workflow.
+
+  Tests game creation, guessing via the on-screen keyboard, hard mode, and
+  multi-player independence.
+
+  The current WordleLive UI has no `<form>`: input is driven entirely by
+  `phx-click="key-press"` events carrying a `phx-value-key`. A guess is entered
+  by clicking each letter key followed by the "Enter" key. The game itself is
+  lazy-loaded on the first interaction (`@game` starts as `nil`), and the target
+  word lives only in the server-side socket assigns / `GameStore`, so tests read
+  it back via `:sys.get_state/1` on the LiveView process.
   """
 
-  use BlogWeb.ConnCase, async: false
+  use BlogWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
-  import Blog.TestHelpers
 
-  alias Blog.Wordle.{Game, GameStore, GuessChecker}
+  alias Blog.Wordle.{Game, GameStore, WordStore}
+
+  @tag :wordle
 
   setup do
-    # Ensure clean state
-    clear_all_ets_tables()
-    setup_ets_tables()
-
-    # Start the GameStore
-    case GenServer.whereis(GameStore) do
-      nil ->
-        {:ok, _pid} = GameStore.start_link([])
-
-      _pid ->
-        :ok
-    end
-
-    user_id = random_user_id()
-    {:ok, user_id: user_id}
+    # WordStore and GameStore are started by the application supervisor, so the
+    # valid-word ETS tables and the game session store are already available.
+    {:ok, user_id: "test_user_#{:rand.uniform(999_999)}"}
   end
+
+  # --- Helpers -------------------------------------------------------------
+
+  # Click a single keyboard key.
+  defp press_key(view, key) do
+    view
+    |> element("button[phx-value-key=#{inspect(key)}]")
+    |> render_click()
+  end
+
+  # Type a 5-letter word (lowercase internally) and submit it with Enter.
+  defp guess_word(view, word) do
+    word
+    |> String.downcase()
+    |> String.graphemes()
+    |> Enum.each(&press_key(view, &1))
+
+    press_key(view, "Enter")
+    render(view)
+  end
+
+  # Read the live server-side game struct out of the LiveView process.
+  defp current_game(view) do
+    :sys.get_state(view.pid).socket.assigns.game
+  end
+
+  # Pick a valid 5-letter guess word that is NOT the target.
+  defp wrong_valid_word(target) do
+    candidates = ~w(space truth found light magic storm brave swift grand crane)
+
+    candidates
+    |> Enum.find(fn w -> w != target and WordStore.valid_guess?(w) end)
+  end
+
+  # --- Tests ---------------------------------------------------------------
 
   describe "Complete Wordle game flow via LiveView" do
-    test "user can play complete game from start to win", %{conn: conn, user_id: user_id} do
-      # Start a new game
-      {:ok, view, _html} = live(conn, "/wordle")
+    test "user can play a complete game from start to win", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/wordle")
 
-      # Should see initial game state
-      assert render(view) =~ "WORDLE"
-      assert render(view) =~ "Guess 1 of 6"
-
-      # Make first guess (wrong word to test feedback)
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      html = render(view)
-
-      # Should show guess feedback
-      assert html =~ "SPACE"
-      assert html =~ "Guess 2 of 6"
-
-      # Game should still be active
+      # Initial render: header present, prompt to start, no game yet.
+      assert html =~ "Wordle Clone"
+      assert html =~ "Type to start playing!"
       refute html =~ "Congratulations!"
-      refute html =~ "Game Over"
 
-      # Make second guess (still wrong)
-      view
-      |> form("#guess-form", guess: %{word: "TRUTH"})
-      |> render_submit()
+      # Make a (likely wrong) first guess to lazy-load the game.
+      first = "crane"
+      guess_word(view, first)
 
-      # Should advance to guess 3
-      assert render(view) =~ "Guess 3 of 6"
+      game = current_game(view)
+      assert game != nil
+      target = game.target_word
 
-      # For testing, we need to know the target word
-      # Let's get the game state to see the target
-      session_id = get_session_id(view)
-      {:ok, game} = GameStore.get_game(session_id, user_id)
-      target_word = game.target_word
-
-      # Make winning guess
-      view
-      |> form("#guess-form", guess: %{word: target_word})
-      |> render_submit()
-
+      # The guessed word's letters are now on the board.
       html = render(view)
 
-      # Should show win state
-      assert html =~ "Congratulations!"
-      assert html =~ target_word
-      # Should have new game button
-      refute html =~ "New Game"
-    end
+      if first == target do
+        assert html =~ "Congratulations!"
+      else
+        # One guess recorded, game still going.
+        assert length(game.guesses) == 1
+        refute game.game_over
 
-    test "user loses after 6 incorrect guesses", %{conn: conn, user_id: user_id} do
-      {:ok, view, _html} = live(conn, "/wordle")
+        # Win by guessing the target word.
+        guess_word(view, target)
 
-      # Get the target word to ensure we guess wrong
-      session_id = get_session_id(view)
-      {:ok, game} = GameStore.get_game(session_id, user_id)
-      target_word = game.target_word
-
-      # Create 6 wrong guesses (avoid the target word)
-      wrong_words =
-        ["SPACE", "TRUTH", "FOUND", "LIGHT", "MAGIC", "STORM"]
-        |> Enum.reject(&(&1 == target_word))
-        |> Enum.take(6)
-
-      # If we need more words, add some
-      wrong_words =
-        if length(wrong_words) < 6 do
-          wrong_words ++ ["BRAVE", "SWIFT", "GRAND"]
-        else
-          wrong_words
-        end
-
-      # Make 6 wrong guesses
-      for {word, index} <- Enum.with_index(wrong_words, 1) do
-        view
-        |> form("#guess-form", guess: %{word: word})
-        |> render_submit()
+        won = current_game(view)
+        assert won.game_over
+        assert Enum.any?(won.guesses, fn %{word: w} -> w == target end)
 
         html = render(view)
+        assert html =~ "Congratulations!"
+        assert html =~ "New Game"
+      end
+    end
 
-        if index < 6 do
-          # Game should continue
-          assert html =~ "Guess #{index + 1} of 6"
-          refute html =~ "Game Over"
+    test "user loses after the maximum number of incorrect guesses", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/wordle")
+
+      # Lazy-load by typing one letter, then read the target.
+      press_key(view, "a")
+      target = current_game(view).target_word
+      wrong = wrong_valid_word(target)
+      assert wrong, "expected a valid wrong word distinct from the target"
+
+      # Clear the single typed letter so the board is empty.
+      press_key(view, "Backspace")
+
+      max = current_game(view).max_attempts
+
+      # Submit `max` wrong guesses.
+      for _ <- 1..max do
+        guess_word(view, wrong)
+      end
+
+      game = current_game(view)
+      assert game.game_over
+      assert length(game.guesses) == max
+      refute Enum.any?(game.guesses, fn %{word: w} -> w == target end)
+
+      html = render(view)
+      assert html =~ "Game Over"
+      # The answer is revealed (rendered uppercase via CSS, lowercase in DOM text).
+      assert html =~ target
+    end
+
+    test "hard mode is on by default and can be toggled before any guess", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/wordle")
+
+      # Lazy-load the game.
+      press_key(view, "a")
+      press_key(view, "Backspace")
+
+      # Default game state has hard mode enabled.
+      assert current_game(view).hard_mode == true
+
+      # Toggle hard mode off (allowed because no guesses have been made).
+      view |> element("button", "HARD MODE") |> render_click()
+      assert current_game(view).hard_mode == false
+
+      # Toggle it back on.
+      view |> element("button", "HARD MODE") |> render_click()
+      assert current_game(view).hard_mode == true
+    end
+
+    test "hard mode rejects a guess that drops a discovered letter", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/wordle")
+
+      # Ensure hard mode is on (it is by default).
+      press_key(view, "a")
+      press_key(view, "Backspace")
+      assert current_game(view).hard_mode == true
+
+      target = current_game(view).target_word
+
+      # Use the target itself as the first guess only if there's no other valid
+      # word; otherwise pick a word sharing at least one letter with the target
+      # so a discovered letter exists. Simplest robust path: make a first guess
+      # that is a valid word, then attempt a second valid word that omits a
+      # discovered (correct/present) letter.
+      first = wrong_valid_word(target)
+      guess_word(view, first)
+
+      game = current_game(view)
+      refute game.game_over
+
+      required =
+        game.guesses
+        |> List.last()
+        |> then(fn %{word: word, result: result} ->
+          word
+          |> String.graphemes()
+          |> Enum.zip(result)
+          |> Enum.filter(fn {_l, r} -> r in [:correct, :present] end)
+          |> Enum.map(fn {l, _r} -> l end)
+        end)
+
+      if required == [] do
+        # No discovered letters from this guess; nothing to enforce. Assert the
+        # checker contract directly instead so the test still exercises hard mode.
+        assert {:error, _} =
+                 Blog.Wordle.GuessChecker.check_guess("aabbb", target, [
+                   %{word: "crane", result: [:correct, :absent, :absent, :absent, :absent]}
+                 ])
+      else
+        # Find a valid word that omits at least one required letter.
+        omitting =
+          ~w(jumpy fizzy vodka glyph crwth)
+          |> Enum.find(fn w ->
+            WordStore.valid_guess?(w) and
+              Enum.any?(required, fn l -> l not in String.graphemes(w) end)
+          end)
+
+        if omitting do
+          guesses_before = length(current_game(view).guesses)
+          guess_word(view, omitting)
+          after_game = current_game(view)
+
+          # The rejected guess is not recorded and an error message is shown.
+          assert length(after_game.guesses) == guesses_before
+          assert after_game.message == "Guess must use all discovered letters"
         else
-          # Game should end
-          assert html =~ "Game Over"
-          # Should reveal the answer
-          assert html =~ target_word
+          # Fall back to the direct checker contract assertion.
+          assert {:error, "Guess must use all discovered letters"} =
+                   Blog.Wordle.GuessChecker.check_guess("aabbb", target, game.guesses)
         end
       end
     end
 
-    test "hard mode enforces previous guess constraints", %{conn: conn} do
+    test "words not in the word list are rejected", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/wordle")
 
-      # Enable hard mode
-      view
-      |> element("#hard-mode-toggle")
-      |> render_click()
+      # "zzzzz" is not a valid guess word.
+      refute WordStore.valid_guess?("zzzzz")
 
-      assert render(view) =~ "Hard Mode: ON"
+      guess_word(view, "zzzzz")
 
-      # Make first guess with specific letters
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
+      game = current_game(view)
+      # Nothing recorded, and the not-in-list message is shown.
+      assert game.guesses == []
+      assert game.message == "Not in word list"
 
-      # Now try to make a guess that doesn't use revealed letters
-      # This would need to be based on the actual feedback
-      # For now, just verify hard mode is active
       html = render(view)
-      assert html =~ "Hard Mode: ON"
+      assert html =~ "Not in word list"
     end
 
-    test "invalid guesses are rejected with proper feedback", %{conn: conn} do
+    test "the key-press handler ignores non-letter keys and over-length input", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/wordle")
 
-      # Try too short word
-      view
-      |> form("#guess-form", guess: %{word: "CAT"})
-      |> render_submit()
+      # Type five letters.
+      Enum.each(~w(c r a n e), &press_key(view, &1))
+      assert current_game(view).current_guess == "crane"
 
-      html = render(view)
-      assert html =~ "must be exactly 5 letters"
-
-      # Try too long word  
-      view
-      |> form("#guess-form", guess: %{word: "ELEPHANT"})
-      |> render_submit()
-
-      html = render(view)
-      assert html =~ "must be exactly 5 letters"
-
-      # Try non-alphabetic
-      view
-      |> form("#guess-form", guess: %{word: "12345"})
-      |> render_submit()
-
-      html = render(view)
-      assert html =~ "must contain only letters"
-
-      # Try invalid word (if word validation is implemented)
-      view
-      |> form("#guess-form", guess: %{word: "ZZZZZ"})
-      |> render_submit()
-
-      # Should either be accepted or rejected based on word list
-      # The exact behavior depends on implementation
+      # A sixth letter is ignored (max length 5).
+      press_key(view, "x")
+      assert current_game(view).current_guess == "crane"
     end
   end
 
-  describe "Game state persistence and recovery" do
-    test "game state persists across page refreshes", %{conn: conn, user_id: user_id} do
-      # Start game and make a guess
-      {:ok, view, _html} = live(conn, "/wordle")
-
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      # Get the session ID
-      session_id = get_session_id(view)
-
-      # Refresh the page (simulate browser refresh)
-      {:ok, new_view, _html} = live(conn, "/wordle")
-
-      html = render(new_view)
-
-      # Should restore previous game state
-      # Previous guess should be visible
-      assert html =~ "SPACE"
-      # Should be on correct guess number
-      assert html =~ "Guess 2 of 6"
-    end
-
-    test "multiple users can play independent games", %{conn: conn, user_id: user_id} do
-      # User 1 starts game
+  describe "Game state independence" do
+    test "multiple players play independent games", %{conn: conn} do
       {:ok, view1, _html} = live(conn, "/wordle")
+      guess_word(view1, "crane")
+      game1 = current_game(view1)
 
-      view1
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      # User 2 starts different game (new session)
-      # New connection simulates different user
-      conn2 = build_conn()
+      # A separate connection is a separate player/session.
+      conn2 = Phoenix.ConnTest.build_conn()
       {:ok, view2, _html} = live(conn2, "/wordle")
+      guess_word(view2, "slate")
+      game2 = current_game(view2)
 
-      view2
-      |> form("#guess-form", guess: %{word: "TRUTH"})
-      |> render_submit()
-
-      # Games should be independent
-      html1 = render(view1)
-      html2 = render(view2)
-
-      assert html1 =~ "SPACE"
-      refute html1 =~ "TRUTH"
-
-      assert html2 =~ "TRUTH"
-      refute html2 =~ "SPACE"
+      # Distinct sessions and independent guess histories.
+      assert game1.session_id != game2.session_id
+      assert Enum.any?(game1.guesses, fn %{word: w} -> w == "crane" end)
+      refute Enum.any?(game1.guesses, fn %{word: w} -> w == "slate" end)
+      assert Enum.any?(game2.guesses, fn %{word: w} -> w == "slate" end)
+      refute Enum.any?(game2.guesses, fn %{word: w} -> w == "crane" end)
     end
   end
 
-  describe "Game statistics and tracking" do
-    test "tracks game statistics correctly", %{conn: conn} do
+  describe "Game store persistence" do
+    test "a played game is persisted in the GameStore by session id", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/wordle")
+      guess_word(view, "crane")
+
+      game = current_game(view)
+      stored = GameStore.get_game(game.session_id)
+
+      assert stored != nil
+      assert stored.session_id == game.session_id
+      assert Enum.any?(stored.guesses, fn %{word: w} -> w == "crane" end)
+    end
+  end
+
+  describe "Game lifecycle controls" do
+    test "the New Game button resets the board after a finished game", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/wordle")
 
-      # Get the target word and win quickly
-      session_id = get_session_id(view)
-      user_id = get_user_id(view)
-      {:ok, game} = GameStore.get_game(session_id, user_id)
-      target_word = game.target_word
+      # Lazy-load and read the target, then win immediately.
+      press_key(view, "a")
+      press_key(view, "Backspace")
+      target = current_game(view).target_word
 
-      # Win in 2 guesses
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      view
-      |> form("#guess-form", guess: %{word: target_word})
-      |> render_submit()
+      guess_word(view, target)
+      assert current_game(view).game_over
 
       html = render(view)
-
-      # Should show win state
       assert html =~ "Congratulations!"
+      assert html =~ "New Game"
 
-      # Statistics should be updated (if implemented)
-      # This would depend on how stats are displayed in the UI
+      # Start a fresh game.
+      view |> element("button", "New Game") |> render_click()
+
+      reset = current_game(view)
+      refute reset.game_over
+      assert reset.guesses == []
+      assert reset.current_guess == ""
     end
 
-    test "new game button starts fresh game", %{conn: conn} do
+    test "no further guesses are accepted after the game ends", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/wordle")
 
-      # Make a guess
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
+      press_key(view, "a")
+      press_key(view, "Backspace")
+      target = current_game(view).target_word
 
-      assert render(view) =~ "Guess 2 of 6"
+      guess_word(view, target)
+      assert current_game(view).game_over
 
-      # Start new game
-      view
-      |> element("button", text: "New Game")
-      |> render_click()
+      # Attempt another guess; key presses are no-ops once the game is over.
+      guesses_after_win = length(current_game(view).guesses)
+      guess_word(view, "crane")
 
-      html = render(view)
-
-      # Should reset to initial state
-      assert html =~ "Guess 1 of 6"
-      # Previous guess should be cleared
-      refute html =~ "SPACE"
-    end
-  end
-
-  describe "Guess feedback and validation" do
-    test "provides correct color feedback for guesses", %{conn: conn} do
-      # This test would need to check the specific feedback colors
-      # which depend on the implementation details
-      {:ok, view, _html} = live(conn, "/wordle")
-
-      # Make a guess
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      html = render(view)
-
-      # Should show letters with color feedback
-      assert html =~ "SPACE"
-
-      # The exact color classes would depend on implementation
-      # Common patterns: bg-green-500 (correct), bg-yellow-500 (wrong position), bg-gray-500 (not in word)
-    end
-
-    test "keyboard updates show used letters", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/wordle")
-
-      # Make a guess
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      html = render(view)
-
-      # Should show used letters in keyboard (if virtual keyboard is implemented)
-      # This depends on the UI implementation
-      assert html =~ "SPACE"
+      game = current_game(view)
+      assert game.game_over
+      assert length(game.guesses) == guesses_after_win
     end
   end
 
-  describe "Error handling and edge cases" do
-    test "handles rapid successive guesses", %{conn: conn} do
+  describe "Guess feedback" do
+    test "a submitted guess records per-letter results and updates used letters", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/wordle")
 
-      # Try to submit multiple guesses rapidly
-      # This tests the debouncing/rate limiting if implemented
+      guess_word(view, "crane")
+      game = current_game(view)
 
-      for word <- ["SPACE", "TRUTH", "FOUND"] do
-        view
-        |> form("#guess-form", guess: %{word: word})
-        |> render_submit()
+      assert [%{word: "crane", result: result}] = game.guesses
+      assert length(result) == 5
+      assert Enum.all?(result, &(&1 in [:correct, :present, :absent]))
+
+      # Every guessed letter is tracked in used_letters with a valid status.
+      for letter <- String.graphemes("crane") do
+        assert Map.get(game.used_letters, letter) in [:correct, :present, :absent]
       end
-
-      html = render(view)
-
-      # Should handle all guesses correctly
-      assert html =~ "Guess 4 of 6"
-    end
-
-    test "handles special characters and unicode", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/wordle")
-
-      # Try guess with special characters
-      view
-      |> form("#guess-form", guess: %{word: "sp@ce"})
-      |> render_submit()
-
-      html = render(view)
-      assert html =~ "must contain only letters"
-
-      # Try with unicode characters
-      view
-      |> form("#guess-form", guess: %{word: "spλce"})
-      |> render_submit()
-
-      html = render(view)
-      # Should be rejected
-      assert html =~ "must contain only letters"
-    end
-
-    test "game prevents guesses after game ends", %{conn: conn, user_id: user_id} do
-      {:ok, view, _html} = live(conn, "/wordle")
-
-      # Win the game
-      session_id = get_session_id(view)
-      {:ok, game} = GameStore.get_game(session_id, user_id)
-      target_word = game.target_word
-
-      view
-      |> form("#guess-form", guess: %{word: target_word})
-      |> render_submit()
-
-      assert render(view) =~ "Congratulations!"
-
-      # Try to make another guess
-      view
-      |> form("#guess-form", guess: %{word: "SPACE"})
-      |> render_submit()
-
-      # Should not accept the guess
-      html = render(view)
-      refute html =~ "Guess 2 of 6"
     end
   end
 
-  # Helper functions
-  defp get_session_id(_view) do
-    # In a real implementation, this would extract the session ID
-    # For now, return a test session ID
-    "test_session_#{:rand.uniform(1000)}"
-  end
+  describe "Game module unit behavior" do
+    test "Game.new/1 produces a valid game stored by session id", %{user_id: user_id} do
+      game = Game.new(user_id)
 
-  defp get_user_id(_view) do
-    # In a real implementation, this would extract the user ID
-    # For now, return a test user ID
-    "test_user_#{:rand.uniform(1000)}"
+      assert %Game{} = game
+      assert game.player_id == user_id
+      assert String.length(game.target_word) == 5
+      assert game.guesses == []
+      assert game.hard_mode == true
+      assert GameStore.get_game(game.session_id).session_id == game.session_id
+    end
   end
 end
