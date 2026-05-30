@@ -1,6 +1,27 @@
 defmodule Blog.Games.Twenty48 do
   @moduledoc false
 
+  @typedoc "A board position as `{row, col}`."
+  @type position :: {non_neg_integer(), non_neg_integer()}
+
+  @typedoc "A board mapping each `{row, col}` position to its tile value (0 = empty)."
+  @type board :: %{optional(position()) => non_neg_integer()}
+
+  @typedoc "A direction the tiles can be shifted."
+  @type direction :: :left | :right | :up | :down
+
+  @typedoc "The game state."
+  @type t :: %{
+          board: board(),
+          size: pos_integer(),
+          score: non_neg_integer(),
+          game_over: boolean(),
+          won: boolean(),
+          new_tile: position() | nil,
+          merged_tiles: MapSet.t(position())
+        }
+
+  @spec new(pos_integer()) :: t()
   def new(size \\ 4) do
     %{
       board: blank_board(size),
@@ -15,6 +36,7 @@ defmodule Blog.Games.Twenty48 do
     |> add_random_tile()
   end
 
+  @spec move(t(), direction()) :: t()
   def move(game, _dir) when game.game_over, do: game
 
   def move(game, direction) when direction in [:left, :right, :up, :down] do
