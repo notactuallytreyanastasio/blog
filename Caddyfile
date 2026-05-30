@@ -1,3 +1,9 @@
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
 bobbby.online, www.bobbby.online {
 	reverse_proxy app:4000
 
@@ -6,6 +12,8 @@ bobbby.online, www.bobbby.online {
 	header {
 		# WebSocket support (LiveView)
 		X-Forwarded-Proto {scheme}
+		# Disable HTTP/3 advertisement — clears Safari's cached alt-svc
+		alt-svc "clear"
 	}
 }
 
