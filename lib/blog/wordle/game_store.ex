@@ -12,6 +12,7 @@ defmodule Blog.Wordle.GameStore do
   # Seconds of inactivity for new games with no guesses
   @idle_threshold 60
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -62,6 +63,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Cleans up idle games that have no guesses and have been inactive for more than the threshold
   """
+  @spec cleanup_idle_empty_games() :: :ok
   def cleanup_idle_empty_games do
     now = DateTime.utc_now()
     threshold_seconds = @idle_threshold
@@ -103,6 +105,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Saves a game state to ETS
   """
+  @spec save_game(map()) :: map()
   def save_game(game) do
     # Don't store games with missing data
     if valid_game?(game) do
@@ -118,6 +121,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Gets a game by session ID
   """
+  @spec get_game(String.t()) :: map() | nil
   def get_game(session_id) do
     case :ets.lookup(@games_table, session_id) do
       [{^session_id, game}] -> game
@@ -128,6 +132,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Gets all active games
   """
+  @spec all_games() :: [map()]
   def all_games do
     :ets.tab2list(@games_table)
     |> Enum.map(fn {_session_id, game} -> game end)
@@ -137,6 +142,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Gets all active game sessions as a map
   """
+  @spec all_games_map() :: %{optional(String.t()) => map()}
   def all_games_map do
     :ets.tab2list(@games_table)
     |> Enum.filter(fn {_session_id, game} -> valid_game?(game) end)
@@ -146,6 +152,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Removes stale games older than the given time period
   """
+  @spec cleanup_stale_games(number()) :: :ok
   def cleanup_stale_games(hours \\ 24) do
     cutoff = DateTime.add(DateTime.utc_now(), -hours * 60 * 60, :second) |> DateTime.to_iso8601()
 
@@ -166,6 +173,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Cleans up problematic game entries (e.g., games with missing fields)
   """
+  @spec cleanup_problematic_games() :: :ok
   def cleanup_problematic_games do
     deleted_count =
       :ets.tab2list(@games_table)
@@ -184,6 +192,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Cleans up duplicate sessions for the same player, keeping only the most recent one
   """
+  @spec cleanup_duplicate_player_sessions() :: :ok
   def cleanup_duplicate_player_sessions do
     # Group games by player_id
     games_by_player =
@@ -225,6 +234,7 @@ defmodule Blog.Wordle.GameStore do
   @doc """
   Validates that a game has all required fields
   """
+  @spec valid_game?(term()) :: boolean()
   def valid_game?(game) do
     # Check that all the important fields exist and have valid values
     is_map(game) &&

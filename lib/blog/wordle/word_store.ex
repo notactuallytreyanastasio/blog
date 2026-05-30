@@ -7,6 +7,7 @@ defmodule Blog.Wordle.WordStore do
   @potential_words_table :wordle_potential_words
   @valid_guesses_table :wordle_valid_guesses
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -31,6 +32,7 @@ defmodule Blog.Wordle.WordStore do
     {:ok, %{}}
   end
 
+  @spec valid_guess?(term()) :: boolean()
   def valid_guess?(word) do
     case :ets.lookup(@valid_guesses_table, word) do
       [{^word, true}] -> true
@@ -38,6 +40,7 @@ defmodule Blog.Wordle.WordStore do
     end
   end
 
+  @spec potential_word?(term()) :: boolean()
   def potential_word?(word) do
     case :ets.lookup(@potential_words_table, word) do
       [{^word, true}] -> true
@@ -45,6 +48,7 @@ defmodule Blog.Wordle.WordStore do
     end
   end
 
+  @spec get_random_word() :: String.t()
   def get_random_word do
     # Get a random word from the potential words table
     word =

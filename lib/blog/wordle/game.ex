@@ -19,6 +19,20 @@ defmodule Blog.Wordle.Game do
     field(:last_activity, :string, default: nil)
   end
 
+  @type t :: %__MODULE__{
+          session_id: String.t() | nil,
+          player_id: String.t() | nil,
+          target_word: String.t() | nil,
+          current_guess: String.t(),
+          guesses: [map()],
+          game_over: boolean(),
+          message: String.t() | nil,
+          used_letters: map(),
+          max_attempts: integer(),
+          hard_mode: boolean(),
+          last_activity: String.t() | nil
+        }
+
   @word_length 5
   @max_attempts 6
   @topic "wordle:games"
@@ -26,6 +40,7 @@ defmodule Blog.Wordle.Game do
   @doc """
   Creates a new game with a random target word.
   """
+  @spec new(String.t() | nil) :: t()
   def new(player_id \\ nil) do
     session_id = generate_session_id()
     player_id = player_id || "player-#{:rand.uniform(10000)}"
@@ -50,6 +65,7 @@ defmodule Blog.Wordle.Game do
   @doc """
   Validates and processes a changeset for the game.
   """
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(game, attrs) do
     cast(game, attrs, [
       :session_id,
@@ -69,6 +85,7 @@ defmodule Blog.Wordle.Game do
   @doc """
   Handles keyboard input based on the current state of the game.
   """
+  @spec handle_key_press(t(), String.t()) :: {:ok, t()} | {:error, t()}
   def handle_key_press(game, key) do
     case {game.game_over, key, String.length(game.current_guess)} do
       {true, _key, _length} ->
@@ -109,6 +126,7 @@ defmodule Blog.Wordle.Game do
   @doc """
   Submits the current guess and updates the game state.
   """
+  @spec submit_guess(t()) :: {:ok, t()} | {:error, t()}
   def submit_guess(game) do
     guess = game.current_guess
 
@@ -172,6 +190,7 @@ defmodule Blog.Wordle.Game do
   @doc """
   Toggles hard mode, only allowed if no guesses have been made.
   """
+  @spec toggle_hard_mode(t()) :: {:ok, t()} | {:error, t()}
   def toggle_hard_mode(game) do
     if Enum.empty?(game.guesses) do
       game = %{
@@ -197,6 +216,7 @@ defmodule Blog.Wordle.Game do
   @doc """
   Resets the game with a new target word.
   """
+  @spec reset_game(t()) :: t()
   def reset_game(game) do
     game = %{
       game
@@ -216,11 +236,13 @@ defmodule Blog.Wordle.Game do
   @doc """
   Returns the PubSub topic for wordle games
   """
+  @spec topic() :: String.t()
   def topic, do: @topic
 
   @doc """
   Returns the specific topic for a single game
   """
+  @spec game_topic(String.t()) :: String.t()
   def game_topic(session_id), do: "#{@topic}:#{session_id}"
 
   defp broadcast_update(game) do

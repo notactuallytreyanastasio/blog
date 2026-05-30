@@ -1,8 +1,12 @@
 defmodule Blog.Wordle.GuessChecker do
+  @typedoc "Result for a single letter position in a guess."
+  @type letter_result :: :correct | :present | :absent
+
   @doc """
   Checks a guess against the target word in normal mode.
   Returns a list of :correct, :present, or :absent atoms.
   """
+  @spec check_guess(String.t(), String.t()) :: [letter_result()]
   def check_guess(guess, target) do
     do_check_guess(guess, target)
   end
@@ -12,6 +16,8 @@ defmodule Blog.Wordle.GuessChecker do
   Returns {:error, message} if the guess doesn't use required letters,
   or {:ok, results} with the list of :correct, :present, or :absent atoms.
   """
+  @spec check_guess(String.t(), String.t(), [%{required(:word) => String.t(), required(:result) => [letter_result()]}]) ::
+          {:ok, [letter_result()]} | {:error, String.t()}
   def check_guess(guess, target, previous_results) when is_list(previous_results) do
     required_letters = get_required_letters(previous_results)
 
