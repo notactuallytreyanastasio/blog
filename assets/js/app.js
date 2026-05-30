@@ -39,6 +39,7 @@ import CollageViewer from "./hooks/collage_viewer"
 import SkyMap from "./hooks/sky_map"
 import LeicaViewer from "./hooks/leica_viewer"
 import Swipe from "./hooks/swipe"
+import TemperArt from "./hooks/temper_art"
 import tippy from "tippy.js"
 //# import * as THREE from 'three';
 
@@ -878,6 +879,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     SkyMap,
     LeicaViewer,
     Swipe,
+    TemperArt,
     Tooltip,
     ...Hooks
   }
