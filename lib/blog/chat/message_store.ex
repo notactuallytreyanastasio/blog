@@ -18,6 +18,7 @@ defmodule Blog.Chat.MessageStore do
 
   Should be called when the application starts.
   """
+  @spec init() :: :ok
   def init do
     # Create ETS table for messages if it doesn't exist
     if :ets.info(@table_name) == :undefined do
@@ -44,6 +45,7 @@ defmodule Blog.Chat.MessageStore do
   in descending order (most recent first). Message visibility is calculated dynamically
   by the LiveView and not stored in the ETS table.
   """
+  @spec store_message(map()) :: :ok
   def store_message(message) do
     # We use negative timestamp as key to get descending order
     timestamp_key = -DateTime.to_unix(message.timestamp, :microsecond)
@@ -66,6 +68,7 @@ defmodule Blog.Chat.MessageStore do
 
   Returns a list of messages, sorted by timestamp (newest first).
   """
+  @spec get_recent_messages(non_neg_integer()) :: [map()]
   def get_recent_messages(limit \\ @max_messages) do
     # Get messages ordered by timestamp (newest first)
     case :ets.info(@table_name) do
@@ -84,6 +87,7 @@ defmodule Blog.Chat.MessageStore do
   @doc """
   Adds a word to the global allowed words list.
   """
+  @spec add_allowed_word(term()) :: :ok
   def add_allowed_word(word) do
     current_words = get_allowed_words()
     new_words = MapSet.put(current_words, word)
@@ -98,6 +102,7 @@ defmodule Blog.Chat.MessageStore do
   @doc """
   Removes a word from the global allowed words list.
   """
+  @spec remove_allowed_word(term()) :: :ok
   def remove_allowed_word(word) do
     current_words = get_allowed_words()
     new_words = MapSet.delete(current_words, word)
@@ -115,6 +120,7 @@ defmodule Blog.Chat.MessageStore do
   Returns a MapSet of allowed words. If no global list exists,
   returns an empty MapSet and initializes one.
   """
+  @spec get_allowed_words() :: MapSet.t()
   def get_allowed_words do
     case :ets.lookup(@allowed_words_table, @global_words_key) do
       [{@global_words_key, allowed_words}] ->
@@ -129,11 +135,13 @@ defmodule Blog.Chat.MessageStore do
   end
 
   # For backwards compatibility - will get the global list
+  @spec get_allowed_words(term()) :: MapSet.t()
   def get_allowed_words(_user_id) do
     get_allowed_words()
   end
 
   # For backwards compatibility - will update the global list
+  @spec store_allowed_words(term(), MapSet.t()) :: :ok
   def store_allowed_words(_user_id, allowed_words) do
     :ets.insert(@allowed_words_table, {@global_words_key, allowed_words})
 
@@ -165,5 +173,6 @@ defmodule Blog.Chat.MessageStore do
   @doc """
   Returns the topic name for PubSub subscriptions.
   """
+  @spec topic() :: String.t()
   def topic, do: @topic
 end
