@@ -3,6 +3,8 @@ defmodule Blog.CollageMaker.ImageProcessor do
 
   @max_cell_size 2048
 
+  @spec get_dimensions(String.t()) ::
+          {:ok, non_neg_integer(), non_neg_integer()} | {:error, String.t()}
   def get_dimensions(path) do
     case System.cmd("identify", ["-format", "%w %h", path], stderr_to_stdout: true) do
       {output, 0} ->
@@ -14,6 +16,7 @@ defmodule Blog.CollageMaker.ImageProcessor do
     end
   end
 
+  @spec compute_cell_size([map()]) :: non_neg_integer()
   def compute_cell_size(images) do
     min_dim =
       images
@@ -23,6 +26,8 @@ defmodule Blog.CollageMaker.ImageProcessor do
     min(min_dim, @max_cell_size)
   end
 
+  @spec square_crop(String.t(), String.t(), non_neg_integer()) ::
+          {:ok, String.t()} | {:error, String.t()}
   def square_crop(input_path, output_path, cell_size) do
     case get_dimensions(input_path) do
       {:ok, w, h} ->
@@ -48,6 +53,8 @@ defmodule Blog.CollageMaker.ImageProcessor do
     end
   end
 
+  @spec stitch_collage([String.t()], pos_integer(), non_neg_integer(), String.t()) ::
+          {:ok, String.t(), non_neg_integer(), non_neg_integer()} | {:error, String.t()}
   def stitch_collage(image_paths, columns, cell_size, output_path) do
     total = length(image_paths)
     rows = ceil(total / columns)

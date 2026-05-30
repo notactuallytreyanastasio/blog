@@ -7,10 +7,12 @@ defmodule Blog.CollageMaker.Processor do
 
   @max_concurrent 2
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{active: 0}, name: __MODULE__)
   end
 
+  @spec process_collage(term()) :: :ok
   def process_collage(collage_id) do
     GenServer.cast(__MODULE__, {:process, collage_id})
   end
