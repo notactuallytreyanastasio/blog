@@ -191,8 +191,9 @@ defmodule BlogWeb.ChessLive do
   @impl true
   def handle_event("apply_move", %{"from_gx" => fgx, "from_gy" => fgy, "to_gx" => tgx, "to_gy" => tgy}, socket) do
     game = socket.assigns.game
-    from = {String.to_integer(fgx), String.to_integer(fgy)}
-    to   = {String.to_integer(tgx), String.to_integer(tgy)}
+    to_int = fn v -> if is_integer(v), do: v, else: String.to_integer(v) end
+    from = {to_int.(fgx), to_int.(fgy)}
+    to   = {to_int.(tgx), to_int.(tgy)}
 
     if game.to_move != :white or socket.assigns.bot_thinking or Scoring.game_over?(game.status) do
       {:noreply, socket}
@@ -764,7 +765,9 @@ defmodule BlogWeb.ChessLive do
         _selected: null,   // [gx, gy] or null
 
         mounted() {
+          console.log("[ChessGame] hook mounted on", this.el.id);
           this.handleEvent("chess_legal_targets", ({targets}) => {
+            console.log("[ChessGame] legal targets received, pieces:", Object.keys(targets).length);
             this._targets = targets;
           });
 
@@ -798,6 +801,7 @@ defmodule BlogWeb.ChessLive do
               // socket.assigns.selected since we track it client-side
               const fromGx = sx, fromGy = sy;
               this._deselect();
+              console.log("[ChessGame] apply_move", fromGx, fromGy, "->", gx, gy);
               this.pushEvent("apply_move", {from_gx: fromGx, from_gy: fromGy, to_gx: gx, to_gy: gy});
               e.stopImmediatePropagation();
               return;
