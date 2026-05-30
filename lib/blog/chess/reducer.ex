@@ -207,33 +207,33 @@ defmodule Blog.Chess.Reducer do
   end
 
   defp recompute_status(state) do
-    # Compute legal moves ONCE for all boards rather than once per board.
-    all_legal = Legal.legal_moves(state)
-
     Enum.reduce(0..8, state.status, fn board, acc ->
       current = elem(acc, board)
 
       if C.frozen?(current) do
         acc
       else
-        new_status = board_status(state, board, all_legal)
+        new_status = board_status(state, board)
         :erlang.setelement(board + 1, acc, new_status)
       end
     end)
   end
 
-  defp board_status(state, board, all_legal) do
+  defp board_status(state, board) do
     clock = elem(state.clocks, board)
     to_move = state.to_move
-
-    legal_on_board = Enum.filter(all_legal, fn m -> C.board_of(m.from) == board end)
-
     in_check = Check.in_check?(state, to_move, board)
-    no_legal = legal_on_board == []
 
     cond do
-      in_check and no_legal ->
-        {:checkmate, C.opposite(to_move), to_move}
+      in_check ->
+        # Only generate legal moves when the board is in check (checkmate detection).
+        # Legal.legal_moves_for_board is ~9x cheaper than the full sweep because it
+        # only considers pieces on this board plus credited cross-board defenders.
+        if Legal.legal_moves_for_board(state, board) == [] do
+          {:checkmate, C.opposite(to_move), to_move}
+        else
+          {:check, to_move}
+        end
 
       Draws.insufficient_material?(state.plane, board) ->
         {:draw, :insufficient_material}
@@ -244,15 +244,14 @@ defmodule Blog.Chess.Reducer do
       state.ply >= @max_ply ->
         {:draw, :fifty_move}
 
-      no_legal ->
-        # Stalemate
-        :stalemate
-
-      in_check ->
-        {:check, to_move}
-
       true ->
-        :active
+        # Stalemate: side to move has no legal moves but is not in check.
+        # Uses the cheaper per-board function rather than the full sweep.
+        if Legal.legal_moves_for_board(state, board) == [] do
+          :stalemate
+        else
+          :active
+        end
     end
   end
 

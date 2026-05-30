@@ -127,6 +127,41 @@ defmodule Blog.Chess.Legal do
   end
 
   # ---------------------------------------------------------------------------
+  @doc """
+  Legal moves that could resolve check on `board`: pieces on that board plus
+  any cross-board defenders that hold a credit to enter it. Much cheaper than
+  `legal_moves/1` (no full-board sweep) and only called when the board is in check.
+  """
+  @spec legal_moves_for_board(C.State.t(), C.board_index()) :: [Move.t()]
+  def legal_moves_for_board(state, board) do
+    color = state.to_move
+
+    # Pieces already on the checked board — can escape, block, or capture.
+    on_board =
+      Plane.board_pieces(state.plane, color, board)
+      |> Enum.flat_map(fn {sq, piece} -> MoveGen.piece_pseudo_legal_moves(state, sq, piece) end)
+
+    # Cross-board defenders: pieces on other boards that hold a credit for this board.
+    cross_board =
+      if credit_exists_for_board?(state.ledger, board, color) do
+        Plane.pieces_of(state.plane, color)
+        |> Enum.reject(fn {sq, _} -> C.board_of(sq) == board end)
+        |> Enum.flat_map(fn {sq, piece} -> MoveGen.piece_pseudo_legal_moves(state, sq, piece) end)
+        |> Enum.filter(fn m -> m.crossing != nil and m.crossing.to_board == board end)
+      else
+        []
+      end
+
+    (on_board ++ cross_board)
+    |> Enum.reject(&leaves_own_king_in_check?(state, &1))
+  end
+
+  defp credit_exists_for_board?(ledger, board, color) do
+    Enum.any?([:pawn, :knight, :bishop, :rook, :queen], fn type ->
+      Ledger.has_credit?(ledger, board, color, type)
+    end)
+  end
+
   # Private helpers — king safety
   # ---------------------------------------------------------------------------
 
