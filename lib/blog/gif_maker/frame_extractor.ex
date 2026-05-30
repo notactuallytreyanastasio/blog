@@ -2,6 +2,7 @@ defmodule Blog.GifMaker.FrameExtractor do
   require Logger
   alias Blog.GifMaker
 
+  @spec extract_frames(String.t(), term()) :: {:ok, non_neg_integer()} | {:error, String.t()}
   def extract_frames(video_path, job_id) do
     temp_dir = Path.join(System.tmp_dir!(), "gif_maker_frames_#{:os.system_time(:millisecond)}")
     File.mkdir_p!(temp_dir)

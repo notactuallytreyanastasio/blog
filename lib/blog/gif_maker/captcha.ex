@@ -2,6 +2,7 @@ defmodule Blog.GifMaker.Captcha do
   @secret_salt "gif_maker_captcha_v1"
   @max_age_seconds 300
 
+  @spec generate() :: {String.t(), String.t()}
   def generate do
     a = Enum.random(2..15)
     b = Enum.random(2..15)
@@ -18,6 +19,7 @@ defmodule Blog.GifMaker.Captcha do
     {question, token}
   end
 
+  @spec verify(term(), String.t()) :: boolean()
   def verify(user_answer, token) do
     with {answer_int, _} <- Integer.parse(to_string(user_answer)),
          {:ok, expected} <- Phoenix.Token.verify(BlogWeb.Endpoint, @secret_salt, token, max_age: @max_age_seconds) do

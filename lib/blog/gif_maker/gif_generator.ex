@@ -1,6 +1,7 @@
 defmodule Blog.GifMaker.GifGenerator do
   require Logger
 
+  @spec generate([map()], keyword()) :: {:ok, binary()} | {:error, String.t()}
   def generate(frames, opts \\ []) do
     if Enum.empty?(frames) do
       {:error, "No frames selected"}

@@ -4,6 +4,7 @@ defmodule Blog.GifMaker.Cleanup do
 
   @cleanup_interval :timer.minutes(30)
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end

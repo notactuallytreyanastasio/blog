@@ -39,6 +39,8 @@ defmodule Blog.GifMaker.YouTube do
     end
   end
 
+  @spec download_segment(String.t(), number(), number()) ::
+          {:ok, String.t(), String.t()} | {:error, String.t()}
   def download_segment(url, start_seconds, duration_seconds) do
     temp_dir = Path.join(System.tmp_dir!(), "gif_maker_dl_#{:os.system_time(:millisecond)}")
     File.mkdir_p!(temp_dir)

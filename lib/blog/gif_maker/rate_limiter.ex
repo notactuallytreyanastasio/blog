@@ -3,6 +3,7 @@ defmodule Blog.GifMaker.RateLimiter do
   @hourly_limit 5
   @daily_limit 20
 
+  @spec check(String.t()) :: :ok | {:error, String.t()}
   def check(ip_hash) do
     now = System.system_time(:second)
     cleanup_old_entries(ip_hash, now)
@@ -18,6 +19,7 @@ defmodule Blog.GifMaker.RateLimiter do
     end
   end
 
+  @spec record(String.t()) :: true
   def record(ip_hash) do
     now = System.system_time(:second)
     entries = get_entries(ip_hash)
