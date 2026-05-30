@@ -169,7 +169,7 @@ defmodule BlogWeb.TerminalLive do
        visitor_list: visitor_list,
        total_online: map_size(visitor_list),
        # Phish window state
-       show_phish: true,
+       show_phish: false,
        # Work Log
        show_work_log: false,
        work_log_events: [],
