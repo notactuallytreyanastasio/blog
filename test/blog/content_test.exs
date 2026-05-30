@@ -3,45 +3,6 @@ defmodule Blog.ContentTest do
   alias Blog.Content
   alias Blog.Content.Tag
 
-  import ExUnit.CaptureIO
-
-  # Blog.Content.list_posts/0 is legacy: it parses a "title:" front-matter line
-  # that current posts no longer have (parse_title/1 crashes on them), and it is
-  # unused in the app — only Content.categorize_posts/1 is called in production
-  # (post_live/index.ex), with posts from Blog.Content.Post.all/0. Skipped here
-  # and flagged for removal in Phase 5 rather than reviving broken dead code.
-  describe "list_posts/0" do
-    @describetag :skip
-    test "returns list of posts" do
-      posts = Content.list_posts()
-      assert is_list(posts)
-
-      for post <- posts do
-        assert Map.has_key?(post, :title)
-        assert Map.has_key?(post, :tags)
-        assert Map.has_key?(post, :content)
-        assert Map.has_key?(post, :written_on)
-        assert Map.has_key?(post, :slug)
-
-        assert is_binary(post.title)
-        assert is_list(post.tags)
-        assert is_binary(post.content)
-        assert %Date{} = post.written_on
-        assert is_binary(post.slug)
-      end
-    end
-
-    test "posts are sorted by written_on in descending order" do
-      posts = Content.list_posts()
-
-      if length(posts) > 1 do
-        dates = Enum.map(posts, & &1.written_on)
-        sorted_dates = Enum.sort(dates, {:desc, Date})
-        assert dates == sorted_dates
-      end
-    end
-  end
-
   describe "categorize_posts/1" do
     setup do
       # Create test posts with different tag types
