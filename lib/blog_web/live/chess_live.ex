@@ -364,6 +364,24 @@ defmodule BlogWeb.ChessLive do
         pointer-events: none;
       }
 
+      .piece-white {
+        color: #fff;
+        text-shadow:
+          0 0 2px #000,
+          0 0 2px #000,
+          1px 1px 0 #000,
+          -1px -1px 0 #000,
+          1px -1px 0 #000,
+          -1px 1px 0 #000;
+      }
+
+      .piece-black {
+        color: #1a1a1a;
+        text-shadow:
+          0 0 2px rgba(255,255,255,0.6),
+          1px 1px 0 rgba(255,255,255,0.4);
+      }
+
       /* Overlays */
       .sq-overlay {
         position: absolute;
@@ -564,7 +582,7 @@ defmodule BlogWeb.ChessLive do
                             </div>
                           <% end %>
                           <%= if piece != nil do %>
-                            <span class="sq-piece"><%= piece_unicode(piece) %></span>
+                            <span class={"sq-piece #{if piece.color == :white, do: "piece-white", else: "piece-black"}"}><%= piece_unicode(piece) %></span>
                           <% end %>
                         </div>
                       <% end %>
