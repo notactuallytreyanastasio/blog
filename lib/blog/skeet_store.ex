@@ -10,6 +10,7 @@ defmodule Blog.SkeetStore do
   Initialize the ETS table for storing skeets.
   Will safely handle cases where the table already exists.
   """
+  @spec init() :: :ok
   def init do
     case :ets.info(@table_name) do
       :undefined ->
@@ -34,6 +35,7 @@ defmodule Blog.SkeetStore do
   Ensures only the most recent @max_skeets skeets are kept.
   Safely handles cases where the table doesn't exist yet.
   """
+  @spec add_skeet(term()) :: :ok | :error
   def add_skeet(skeet) do
     # Ensure the table exists
     init()
@@ -55,6 +57,7 @@ defmodule Blog.SkeetStore do
   Get the most recent skeets, sorted by timestamp (newest first).
   Safely handles cases where the table doesn't exist yet.
   """
+  @spec get_recent_skeets(non_neg_integer()) :: [map()]
   def get_recent_skeets(limit \\ @max_skeets) do
     # Ensure the table exists
     init()

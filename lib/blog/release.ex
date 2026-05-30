@@ -5,6 +5,7 @@ defmodule Blog.Release do
   """
   @app :blog
 
+  @spec migrate() :: [{:ok, term(), term()}]
   def migrate do
     load_app()
     
@@ -16,6 +17,7 @@ defmodule Blog.Release do
     end
   end
 
+  @spec seed_sky_profiles() :: {:ok, term(), term()}
   def seed_sky_profiles do
     load_app()
     Application.ensure_all_started(:ssl)
@@ -62,6 +64,7 @@ defmodule Blog.Release do
       end)
   end
 
+  @spec rollback(Ecto.Repo.t(), integer()) :: {:ok, term(), term()}
   def rollback(repo, version) do
     load_app()
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))

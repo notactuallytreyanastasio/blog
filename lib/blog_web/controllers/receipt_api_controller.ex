@@ -12,7 +12,7 @@ defmodule BlogWeb.ReceiptApiController do
   end
   
   def mark_printed(conn, %{"id" => id}) do
-    case ReceiptMessages.get_receipt_message!(id) do
+    case ReceiptMessages.get_receipt_message(id) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -35,7 +35,7 @@ defmodule BlogWeb.ReceiptApiController do
   end
   
   def mark_failed(conn, %{"id" => id}) do
-    case ReceiptMessages.get_receipt_message!(id) do
+    case ReceiptMessages.get_receipt_message(id) do
       nil ->
         conn
         |> put_status(:not_found)

@@ -16,16 +16,25 @@ defmodule Blog.CursorPoints do
   # 60 minutes in milliseconds
   @clear_interval 60 * 60 * 1000
 
+  @typedoc """
+  A cursor drawing point. Stored as a map; the store reads the `:user_id`
+  and `:timestamp` (a `DateTime`) keys.
+  """
+  @type point :: map()
+
   # Client API
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
+  @spec add_point(point()) :: :ok
   def add_point(point) do
     GenServer.cast(__MODULE__, {:add_point, point})
   end
 
+  @spec get_points() :: [point()]
   def get_points do
     case :ets.info(@table_name) do
       :undefined -> []
@@ -33,6 +42,7 @@ defmodule Blog.CursorPoints do
     end
   end
 
+  @spec clear_points() :: :ok
   def clear_points do
     GenServer.cast(__MODULE__, :clear_points)
   end

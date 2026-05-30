@@ -1,6 +1,7 @@
 defmodule Blog.PythonRunner do
   require Logger
 
+  @spec init_python() :: :ok | {:error, String.t()}
   def init_python do
     try do
       config_str = """
@@ -32,6 +33,7 @@ defmodule Blog.PythonRunner do
     end
   end
 
+  @spec run_python_code(String.t()) :: {:ok, term()} | {:error, String.t()}
   def run_python_code(code) when is_binary(code) do
     case init_python() do
       :ok ->

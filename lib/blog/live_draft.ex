@@ -9,6 +9,7 @@ defmodule Blog.LiveDraft do
   @staleness_seconds 120
   @posts_dir (:code.priv_dir(:blog) |> to_string()) <> "/static/posts/"
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -39,6 +40,7 @@ defmodule Blog.LiveDraft do
   end
 
   @doc "Store a live draft, persist to disk, and broadcast via PubSub"
+  @spec update(String.t(), String.t()) :: {:ok, String.t()}
   def update(slug, content) do
     rendered_html = render_markdown(content)
     now = DateTime.utc_now()
@@ -57,6 +59,7 @@ defmodule Blog.LiveDraft do
   end
 
   @doc "Apply a line-level diff to the stored content for a slug"
+  @spec apply_diff(String.t(), [list()]) :: {:ok, String.t()}
   def apply_diff(slug, ops) do
     current_content =
       case :ets.lookup(@table, slug) do
@@ -72,6 +75,7 @@ defmodule Blog.LiveDraft do
   end
 
   @doc "Get the current live draft for a slug, or :stale/:none"
+  @spec get(String.t()) :: {:ok, String.t(), DateTime.t()} | :stale | :none
   def get(slug) do
     case :ets.lookup(@table, slug) do
       [{^slug, _content, rendered_html, updated_at}] ->
@@ -87,6 +91,7 @@ defmodule Blog.LiveDraft do
   end
 
   @doc "Clear a live draft"
+  @spec clear(String.t()) :: :ok
   def clear(slug) do
     :ets.delete(@table, slug)
 

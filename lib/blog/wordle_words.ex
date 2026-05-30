@@ -1,4 +1,10 @@
 defmodule Blog.WordleWords do
+  @moduledoc """
+  Static word lists for the Wordle mini-app: the full set of valid five-letter
+  guesses and the smaller set of potential answer words.
+  """
+
+  @spec valid_guesses() :: [String.t()]
   def valid_guesses do
     ~W(
     aahed
@@ -14859,6 +14865,7 @@ defmodule Blog.WordleWords do
     )
   end
 
+  @spec potential_words() :: [String.t()]
   def potential_words do
     ~W(
     about
