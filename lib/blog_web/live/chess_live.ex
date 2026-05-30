@@ -155,29 +155,46 @@ defmodule BlogWeb.ChessLive do
   # Bot move
   # ---------------------------------------------------------------------------
 
+  # Kick off the bot search in a background Task so the LiveView process
+  # never blocks. The result comes back as {:bot_move_result, move_or_nil}.
   @impl true
   def handle_info(:bot_move, socket) do
     game = socket.assigns.game
 
-    socket =
-      if game.to_move == :black and not Scoring.game_over?(game.status) do
+    if game.to_move == :black and not Scoring.game_over?(game.status) do
+      parent = self()
+      Task.start(fn ->
         move = Blog.Chess.Bot.best_move(game)
+        send(parent, {:bot_move_result, move, game.ply})
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, :bot_thinking, false)}
+    end
+  end
 
-        if move != nil do
-          new_game = Reducer.apply_unchecked(game, move)
+  # Guard with the ply the task was started at so a stale result
+  # (e.g. from a reconnect replay) doesn't clobber a newer game state.
+  @impl true
+  def handle_info({:bot_move_result, move, ply}, socket) do
+    game = socket.assigns.game
 
-          socket
-          |> assign(:game, new_game)
-          |> assign(:last_move, {move.from, move.to})
-          |> assign(:bot_thinking, false)
-        else
-          assign(socket, :bot_thinking, false)
-        end
-      else
-        assign(socket, :bot_thinking, false)
-      end
+    cond do
+      game.ply != ply ->
+        # Stale result — game moved on, ignore
+        {:noreply, assign(socket, :bot_thinking, false)}
 
-    {:noreply, socket}
+      move == nil ->
+        {:noreply, assign(socket, :bot_thinking, false)}
+
+      true ->
+        new_game = Reducer.apply_unchecked(game, move)
+        {:noreply,
+         socket
+         |> assign(:game, new_game)
+         |> assign(:last_move, {move.from, move.to})
+         |> assign(:bot_thinking, false)}
+    end
   end
 
   # ---------------------------------------------------------------------------
