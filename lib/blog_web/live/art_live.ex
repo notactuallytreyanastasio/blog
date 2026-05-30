@@ -65,7 +65,7 @@ defmodule BlogWeb.ArtLive do
   defp assign_meta(socket, seed, generator) do
     socket
     |> assign(:page_title, "Temper Art — seed #{seed} · #{generator}")
-    |> assign(:page_description, "Generative art made with a Temper-compiled engine. #{generator |> String.capitalize()} algorithm, seed #{seed}. Tap to go full screen, save as PNG.")
+    |> assign(:page_description, "The engine is one Temper program — a statically-typed language that cross-compiles to JS, Python, Java, C#, Lua, and Rust. Written once, it runs natively on every backend. Three algorithms: Bauhaus grids, flow-field particles, Mondrian subdivision. Every seed is deterministic across all backends. Currently running as compiled JavaScript. #{generator |> String.capitalize()}, seed #{seed}.")
     |> assign(:page_image, "https://www.bobbby.online/images/og-temper-art.png")
   end
 
