@@ -6,7 +6,7 @@ defmodule BlogWeb.ChessController do
   The entire game runs client-side — no server round-trips during play.
   """
   def index(conn, _params) do
-    path = Application.app_dir(:blog, "priv/static/chess9.html")
+    path = :code.priv_dir(:blog) |> to_string() |> Path.join("static/chess9.html")
     send_file(conn, 200, path)
   end
 end
