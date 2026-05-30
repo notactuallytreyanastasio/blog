@@ -4,6 +4,7 @@ defmodule Blog.Museum.Icons do
   32x32 pixel grid rendered as SVG, classic Macintosh style.
   """
 
+  @spec get(String.t()) :: String.t()
   def get(slug), do: Map.get(icons(), slug, default())
 
   defp default do
@@ -753,6 +754,7 @@ defmodule Blog.Museum.Icons do
   Converts a pixel art text grid to an SVG string.
   '#' = black pixel, '.' = transparent
   """
+  @spec pixels(String.t()) :: String.t()
   def pixels(text) do
     rows =
       text
