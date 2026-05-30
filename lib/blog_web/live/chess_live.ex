@@ -20,6 +20,7 @@ defmodule BlogWeb.ChessLive do
       |> assign(:legal_targets, [])
       |> assign(:last_move, nil)
       |> assign(:bot_thinking, false)
+      |> assign(:bot_focused_board, nil)
       |> assign(:show_rules, true)
       |> assign_og_tags()
 
@@ -72,7 +73,8 @@ defmodule BlogWeb.ChessLive do
      |> assign(:selected, nil)
      |> assign(:legal_targets, [])
      |> assign(:last_move, nil)
-     |> assign(:bot_thinking, false)}
+     |> assign(:bot_thinking, false)
+     |> assign(:bot_focused_board, nil)}
   end
 
   @impl true
@@ -95,7 +97,7 @@ defmodule BlogWeb.ChessLive do
 
     # Only allow white (human) to move; ignore clicks when bot is thinking or board is over
     if game.to_move != :white or socket.assigns.bot_thinking or Scoring.game_over?(game.status) do
-      {:noreply, socket}
+      {:noreply, assign(socket, :bot_focused_board, nil)}
     else
       piece_at = fn sq -> elem(game.plane, C.cell_index(sq)) end
 
@@ -155,15 +157,16 @@ defmodule BlogWeb.ChessLive do
   # Bot move
   # ---------------------------------------------------------------------------
 
-  # Kick off the bot search in a background Task so the LiveView process
-  # never blocks. The result comes back as {:bot_move_result, move_or_nil}.
+  # Kick off the bot search under the chess Task.Supervisor so the LiveView
+  # process never blocks and crashes are contained.
+  # The result comes back as {:bot_move_result, move_or_nil, ply}.
   @impl true
   def handle_info(:bot_move, socket) do
     game = socket.assigns.game
 
     if game.to_move == :black and not Scoring.game_over?(game.status) do
       parent = self()
-      Task.start(fn ->
+      Task.Supervisor.start_child(Blog.Chess.TaskSupervisor, fn ->
         move = Blog.Chess.Bot.best_move(game)
         send(parent, {:bot_move_result, move, game.ply})
       end)
@@ -175,13 +178,13 @@ defmodule BlogWeb.ChessLive do
 
   # Guard with the ply the task was started at so a stale result
   # (e.g. from a reconnect replay) doesn't clobber a newer game state.
+  # On success, push a scroll event so the client pans to the bot's board.
   @impl true
   def handle_info({:bot_move_result, move, ply}, socket) do
     game = socket.assigns.game
 
     cond do
       game.ply != ply ->
-        # Stale result — game moved on, ignore
         {:noreply, assign(socket, :bot_thinking, false)}
 
       move == nil ->
@@ -189,11 +192,15 @@ defmodule BlogWeb.ChessLive do
 
       true ->
         new_game = Reducer.apply_unchecked(game, move)
+        board = C.board_of(move.to)
+
         {:noreply,
          socket
          |> assign(:game, new_game)
          |> assign(:last_move, {move.from, move.to})
-         |> assign(:bot_thinking, false)}
+         |> assign(:bot_thinking, false)
+         |> assign(:bot_focused_board, board)
+         |> push_event("scroll_to_board", %{board: board})}
     end
   end
 
@@ -381,6 +388,16 @@ defmodule BlogWeb.ChessLive do
 
       .board-cell {
         position: relative;
+      }
+
+      .board-cell-bot-moved {
+        animation: bot-board-pulse 1.2s ease-out;
+      }
+
+      @keyframes bot-board-pulse {
+        0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.8); border-radius: 4px; }
+        50%  { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0.3); border-radius: 4px; }
+        100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); border-radius: 4px; }
       }
 
       /* Each individual 8x8 board */
@@ -595,7 +612,7 @@ defmodule BlogWeb.ChessLive do
                   frozen = board_frozen?(board_status)
                   status_label = board_status_label(board_status)
                 %>
-                <div class="board-cell">
+                <div class={"board-cell#{if @bot_focused_board == bi, do: " board-cell-bot-moved", else: ""}"} id={"board-#{bi}"}>
                   <div class="board-grid">
                     <%= for local_rank <- 0..7 do %>
                       <%= for local_file <- 0..7 do %>
@@ -653,6 +670,13 @@ defmodule BlogWeb.ChessLive do
         </div>
       </div>
     </div>
+
+    <script>
+      window.addEventListener("phx:scroll_to_board", (e) => {
+        const el = document.getElementById("board-" + e.detail.board);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      });
+    </script>
 
     <%= if @show_rules do %>
     <div

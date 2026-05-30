@@ -35,6 +35,7 @@ defmodule Blog.Application do
       {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
       {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
       Blog.Census.Cache,
+      {Task.Supervisor, name: Blog.Chess.TaskSupervisor},
       {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
       Blog.GifMaker.Processor,
       Blog.GifMaker.Cleanup,
