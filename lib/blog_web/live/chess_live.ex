@@ -23,39 +23,40 @@ defmodule BlogWeb.ChessLive do
       |> assign(:bot_focused_board, nil)
       |> assign(:show_rules, true)
       |> assign_og_tags()
-      |> push_legal_targets_async(game)
+      |> push_legal_targets(game)
 
     {:ok, socket}
   end
 
-  # Pre-compute all white legal targets in a background task and push to client.
-  # This lets the JS handle piece selection instantly without a server round-trip.
-  defp push_legal_targets_async(socket, game) do
+  # Push pseudo-legal targets for all white pieces synchronously.
+  # Pseudo-legal (no king-safety filter) is ~26x faster than legal moves
+  # because it skips the plane copy + attack check per candidate move.
+  # The server validates legality when apply_move actually fires, so showing
+  # a few extra squares (that would leave the king in check) is acceptable.
+  defp push_legal_targets(socket, game) do
     if game.to_move == :white and not Scoring.game_over?(game.status) do
-      parent = self()
-      Task.Supervisor.start_child(Blog.Chess.TaskSupervisor, fn ->
-        targets = all_legal_targets(game)
-        send(parent, {:legal_targets_ready, targets})
-      end)
+      targets = pseudo_legal_targets(game)
+      push_event(socket, "chess_legal_targets", %{targets: targets})
+    else
+      socket
     end
-    socket
   end
 
-  defp all_legal_targets(game) do
-    Blog.Chess.Plane.pieces_of(game.plane, :white)
-    |> Enum.flat_map(fn {sq, _piece} ->
-      moves = Legal.legal_moves_for_square(game, sq)
-      if moves == [], do: [], else: [{sq, Enum.map(moves, & &1.to)}]
+  defp pseudo_legal_targets(game) do
+    alias Blog.Chess.{Plane, MoveGen}
+    Plane.pieces_of(game.plane, :white)
+    |> Enum.flat_map(fn {sq, piece} ->
+      if C.frozen?(elem(game.status, C.board_of(sq))) do
+        []
+      else
+        moves = MoveGen.piece_pseudo_legal_moves(game, sq, piece)
+        if moves == [], do: [], else: [{sq, Enum.map(moves, & &1.to)}]
+      end
     end)
     |> Map.new(fn {{gx, gy}, targets} ->
-      encoded_targets = Enum.map(targets, fn {tx, ty} -> [tx, ty] end)
-      {"#{gx}_#{gy}", encoded_targets}
+      encoded = Enum.map(targets, fn {tx, ty} -> [tx, ty] end)
+      {"#{gx}_#{gy}", encoded}
     end)
-  end
-
-  @impl true
-  def handle_info({:legal_targets_ready, targets}, socket) do
-    {:noreply, push_event(socket, "chess_legal_targets", %{targets: targets})}
   end
 
   defp assign_og_tags(socket) do
@@ -266,7 +267,7 @@ defmodule BlogWeb.ChessLive do
          |> assign(:bot_thinking, false)
          |> assign(:bot_focused_board, board)
          |> push_event("scroll_to_board", %{board: board})
-         |> push_legal_targets_async(new_game)}
+         |> push_legal_targets(new_game)}
     end
   end
 
