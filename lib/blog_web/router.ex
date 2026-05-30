@@ -110,7 +110,8 @@ defmodule BlogWeb.Router do
     live "/cairn", CairnLive, :index
     live "/2048", Twenty48Live, :index
     live "/art", ArtLive, :index
-    live "/chess", ChessLive, :index
+    get "/chess", BlogWeb.ChessController, :index
+    live "/chess-lv", ChessLive, :index
 
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index
