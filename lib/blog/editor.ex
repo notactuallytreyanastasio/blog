@@ -10,6 +10,7 @@ defmodule Blog.Editor do
   @doc """
   Lists all drafts, ordered by most recently updated.
   """
+  @spec list_drafts() :: [struct()]
   def list_drafts do
     Draft
     |> order_by(desc: :updated_at)
@@ -19,6 +20,7 @@ defmodule Blog.Editor do
   @doc """
   Lists drafts by status.
   """
+  @spec list_drafts_by_status(String.t()) :: [struct()]
   def list_drafts_by_status(status) do
     Draft
     |> where(status: ^status)
@@ -29,16 +31,19 @@ defmodule Blog.Editor do
   @doc """
   Gets a single draft by ID.
   """
+  @spec get_draft(integer() | String.t()) :: struct() | nil
   def get_draft(id), do: Repo.get(Draft, id)
 
   @doc """
   Gets a single draft by slug.
   """
+  @spec get_draft_by_slug(String.t()) :: struct() | nil
   def get_draft_by_slug(slug), do: Repo.get_by(Draft, slug: slug)
 
   @doc """
   Creates a new draft.
   """
+  @spec create_draft(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_draft(attrs \\ %{}) do
     %Draft{}
     |> Draft.changeset(attrs)
@@ -48,6 +53,7 @@ defmodule Blog.Editor do
   @doc """
   Updates a draft.
   """
+  @spec update_draft(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_draft(%Draft{} = draft, attrs) do
     draft
     |> Draft.changeset(attrs)
@@ -57,6 +63,7 @@ defmodule Blog.Editor do
   @doc """
   Deletes a draft.
   """
+  @spec delete_draft(struct()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_draft(%Draft{} = draft) do
     Repo.delete(draft)
   end
@@ -64,6 +71,7 @@ defmodule Blog.Editor do
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking draft changes.
   """
+  @spec change_draft(struct(), map()) :: Ecto.Changeset.t()
   def change_draft(%Draft{} = draft, attrs \\ %{}) do
     Draft.changeset(draft, attrs)
   end
@@ -72,6 +80,7 @@ defmodule Blog.Editor do
   Publishes a draft by changing its status to "published".
   Requires author name and email.
   """
+  @spec publish_draft(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def publish_draft(%Draft{} = draft, attrs \\ %{}) do
     draft
     |> Draft.publish_changeset(Map.merge(attrs, %{status: "published"}))
@@ -81,6 +90,7 @@ defmodule Blog.Editor do
   @doc """
   Lists all published drafts (guest posts).
   """
+  @spec list_published() :: [struct()]
   def list_published do
     Draft
     |> where(status: "published")
@@ -95,6 +105,7 @@ defmodule Blog.Editor do
   - Bluesky post embeds via ::bsky[url] syntax
   - YouTube video embeds via ::youtube[url] syntax
   """
+  @spec render_markdown(String.t() | nil) :: String.t()
   def render_markdown(nil), do: ""
   def render_markdown(""), do: ""
 
