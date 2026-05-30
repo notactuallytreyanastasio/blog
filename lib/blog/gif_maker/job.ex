@@ -5,6 +5,25 @@ defmodule Blog.GifMaker.Job do
   @youtube_url_regex ~r{^https?://(www\.)?(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)}
   @max_segment_ms 180_000
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          youtube_url: String.t() | nil,
+          video_id: String.t() | nil,
+          title: String.t() | nil,
+          duration_seconds: integer() | nil,
+          start_time_ms: integer() | nil,
+          end_time_ms: integer() | nil,
+          status: String.t() | nil,
+          ip_hash: String.t() | nil,
+          error_message: String.t() | nil,
+          frame_count: integer() | nil,
+          expires_at: DateTime.t() | nil,
+          frames: [struct()] | Ecto.Association.NotLoaded.t(),
+          gifs: [struct()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil
+        }
+
   schema "gif_maker_jobs" do
     field :youtube_url, :string
     field :video_id, :string
@@ -24,6 +43,7 @@ defmodule Blog.GifMaker.Job do
     timestamps()
   end
 
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(job, attrs) do
     job
     |> cast(attrs, [:youtube_url, :video_id, :title, :duration_seconds, :start_time_ms, :end_time_ms, :status, :ip_hash, :error_message, :frame_count, :expires_at])
@@ -34,6 +54,7 @@ defmodule Blog.GifMaker.Job do
     |> put_expires_at()
   end
 
+  @spec status_changeset(t() | Ecto.Changeset.t(), String.t(), map()) :: Ecto.Changeset.t()
   def status_changeset(job, status, attrs \\ %{}) do
     job
     |> cast(Map.put(attrs, :status, status), [:status, :error_message, :frame_count])
