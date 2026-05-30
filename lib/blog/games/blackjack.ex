@@ -6,9 +6,36 @@ defmodule Blog.Games.Blackjack do
   @card_suits ["♥️", "♦️", "♣️", "♠️"]
   @card_values ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
+  @typedoc "A single card represented as a `{value, suit}` tuple."
+  @type card :: {String.t(), String.t()}
+
+  @typedoc "An ordered collection of cards."
+  @type deck :: [card()]
+
+  @typedoc "A player identifier (used as a map key)."
+  @type player_id :: term()
+
+  @typedoc """
+  A player's state map. Keys include `:hand`, `:status`, `:bet`, `:score`,
+  `:balance`, and optionally `:result`.
+  """
+  @type player :: map()
+
+  @typedoc """
+  The dealer's state map. Keys include `:hand`, `:status`, and `:score`.
+  """
+  @type dealer :: map()
+
+  @typedoc """
+  The full game state map. Keys include `:deck`, `:players`, `:dealer`,
+  `:active_player_id`, `:status`, and `:winner`/`:winners`.
+  """
+  @type game :: map()
+
   @doc """
   Creates and initializes a new game of Blackjack.
   """
+  @spec new_game([player_id()]) :: game()
   def new_game(player_ids) do
     deck = new_shuffled_deck()
     players = create_players(player_ids)
@@ -57,6 +84,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Creates a new, shuffled deck of cards.
   """
+  @spec new_shuffled_deck() :: deck()
   def new_shuffled_deck do
     for suit <- @card_suits, value <- @card_values do
       {value, suit}
@@ -67,6 +95,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Initialize player data structures.
   """
+  @spec create_players([player_id()]) :: %{optional(player_id()) => player()}
   def create_players(player_ids) do
     player_ids
     |> Enum.map(fn id ->
@@ -87,6 +116,8 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Deal initial cards to all players (2 cards each).
   """
+  @spec deal_initial_cards(%{optional(player_id()) => player()}, deck()) ::
+          {%{optional(player_id()) => player()}, deck()}
   def deal_initial_cards(players, deck) do
     Enum.reduce(Map.keys(players), {players, deck}, fn player_id, {acc_players, acc_deck} ->
       # Deal cards
@@ -105,6 +136,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Deal a specified number of cards to a player or dealer.
   """
+  @spec deal_cards(map(), deck(), non_neg_integer()) :: {map(), deck()}
   def deal_cards(recipient, deck, count) do
     # Start with the recipient's existing hand or an empty list
     _initial_hand = Map.get(recipient, :hand, [])
@@ -128,6 +160,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Calculate the score of a hand, handling Aces appropriately.
   """
+  @spec calculate_score(term()) :: non_neg_integer()
   def calculate_score(hand) do
     # Make sure hand is a list
     hand =
@@ -172,6 +205,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Handle player hit action - draw a card and update game state.
   """
+  @spec hit(game(), player_id()) :: game()
   def hit(game, player_id) do
     if game.active_player_id != player_id do
       game
@@ -221,6 +255,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Handle player stand action - end their turn and move to next player.
   """
+  @spec stand(game(), player_id()) :: game()
   def stand(game, player_id) do
     if game.active_player_id != player_id do
       game
@@ -251,6 +286,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Execute dealer's turn if the game status is :dealer_turn.
   """
+  @spec maybe_play_dealer_turn(game()) :: game()
   def maybe_play_dealer_turn(%{status: :dealer_turn} = game) do
     # Check if anyone is still in the game
     has_active_players =
@@ -283,6 +319,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Play the dealer's turn according to Blackjack rules.
   """
+  @spec play_dealer_turn(game()) :: game()
   def play_dealer_turn(game) do
     dealer = game.dealer
     dealer_score = calculate_score(dealer.hand)
@@ -308,6 +345,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Deal cards to dealer and recalculate score (recursive).
   """
+  @spec deal_and_recalculate_dealer(dealer(), deck()) :: {dealer(), deck()}
   def deal_and_recalculate_dealer(dealer, deck) do
     {updated_dealer, updated_deck} = deal_cards(dealer, deck, 1)
     score = calculate_score(updated_dealer.hand)
@@ -325,6 +363,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Determine the winners and update player balances.
   """
+  @spec determine_winners(game()) :: game()
   def determine_winners(game) do
     dealer_score = calculate_score(game.dealer.hand)
     dealer_busted = dealer_score > 21
@@ -404,6 +443,8 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Find and activate the next eligible player.
   """
+  @spec activate_next_player(%{optional(player_id()) => player()}) ::
+          {player_id() | nil, %{optional(player_id()) => player()}}
   def activate_next_player(players) do
     next_player =
       players
@@ -421,6 +462,8 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Check for natural blackjacks in initial deal.
   """
+  @spec check_naturals(%{optional(player_id()) => player()}) ::
+          %{optional(player_id()) => player()}
   def check_naturals(players) do
     Enum.reduce(players, players, fn {id, player}, acc ->
       if length(player.hand) == 2 && calculate_score(player.hand) == 21 do
@@ -440,6 +483,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Render a card as an emoji string.
   """
+  @spec render_card(card()) :: String.t()
   def render_card({value, suit}) do
     "#{value}#{suit}"
   end
@@ -447,6 +491,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Start a new round.
   """
+  @spec new_round(game()) :: game()
   def new_round(game) do
     # Keep player IDs and balances
     player_ids_with_balance =
@@ -471,6 +516,7 @@ defmodule Blog.Games.Blackjack do
   @doc """
   Add a new player to an existing game.
   """
+  @spec add_player(game(), player_id()) :: game()
   def add_player(%{status: :playing} = game, player_id) do
     # Only add the player if they're not already in the game
     if !Map.has_key?(game.players, player_id) do
