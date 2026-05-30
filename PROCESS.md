@@ -155,4 +155,58 @@ won't compile — it `use`s a `BlogWeb.LiveCase` that doesn't exist and calls in
 for the whole suite, so the test story is in worse shape than the app code. That
 is the thread to pull on next.
 
+## The gradual-typing pass
+
+With Dialyzer green and the foundation merged, the next job was breadth: put
+honest `@type`/`@spec` coverage across the whole domain layer. This is where the
+codebase's size actually mattered — around a hundred modules — so it ran as a
+fan-out. One agent per module to write specs from reading the implementation, a
+second, independent agent to review that exact diff for accuracy, then a single
+central `mix compile --warnings-as-errors` and `mix assay` to verify the whole
+batch before anything got committed. Each subsystem landed as its own pull
+request.
+
+The discipline that made this safe was making the agents edit-only. A hundred
+`mix compile`s fighting over one `_build` directory would have been chaos, so the
+writers only touched source; verification happened once, centrally. When a batch
+came back, the central run was the judge — not the agents' own confidence.
+
+That judge earned its keep. A few patterns kept recurring:
+
+- **Ecto timestamps.** Agents reflexively typed `inserted_at`/`updated_at` as
+  `DateTime.t()`, but a bare `timestamps()` in Ecto defaults to `:naive_datetime`.
+  Six schemas had it wrong; the fix was mechanical once spotted (`NaiveDateTime.t()`),
+  and the schemas using `timestamps(type: :utc_datetime_usec)` were correctly
+  left as `DateTime.t()`.
+
+- **Specs that were too narrow.** `Wordle.Game.handle_key_press/2` got typed
+  `{:ok, t()}` — but it also returns `{:error, t()}`. Dialyzer didn't complain
+  about the spec directly; it flagged the LiveView that consumes it, where the
+  `{:error, _}` branch suddenly looked unreachable. The fix was to widen the spec
+  to match reality. Accurate types turning a vague function into a tripwire is the
+  whole point.
+
+- **A latent 500.** Typing the receipt-message context surfaced a real bug in its
+  API controller: it called `get_receipt_message!/1` — the bang version that
+  *raises* on a missing row — and then pattern-matched a `nil ->` branch to return
+  a 404. That branch was dead. A request for a missing id crashed with a 500
+  instead of returning the 404 the author clearly intended. The fix was to add a
+  non-raising `get_receipt_message/1` and point the controller at it.
+
+The MapSet opaque-type problem also resurfaced when the writers tried
+`MapSet.t(scenario_id())` and `MapSet.t()` in specs; the resolution stayed the
+same as before — narrow ignore rules, because the code is correct and Dialyzer's
+opaqueness checker simply can't see through it.
+
+By the end, every domain subsystem and every standalone top-level context module
+carried types, all verified against a green Assay run. The two bugs the pass
+turned up — a feature that crashed on every call, and an endpoint that 500'd
+instead of 404'ing — are the kind of thing that hides for years in code that
+"works." Making the types honest is what dragged them into the light.
+
+What's left for the typing story is the web layer (`lib/blog_web`), where most
+functions are framework callbacks with fixed shapes and `@spec` buys little. The
+more valuable next move is Phase 4: fix the broken test harness so the suite runs
+again, then build coverage before reshaping any of the pages.
+
 _(continued as the work lands)_
