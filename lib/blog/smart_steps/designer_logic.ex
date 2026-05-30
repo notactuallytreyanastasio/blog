@@ -4,12 +4,16 @@ defmodule Blog.SmartSteps.DesignerLogic do
   Used by the designer to check tree integrity.
   """
 
-  alias Blog.SmartSteps.Types.ScenarioTree
+  alias Blog.SmartSteps.Types.{Choice, Scenario, ScenarioTree}
+
+  @type scenario_id :: String.t()
+  @type scenarios :: %{scenario_id() => Scenario.t()}
 
   @doc """
   Validate a scenario tree. Returns `{:ok, []}` if valid,
   or `{:error, errors}` with a list of error strings.
   """
+  @spec validate_tree(ScenarioTree.t()) :: {:ok, []} | {:error, [String.t()]}
   def validate_tree(%ScenarioTree{} = tree) do
     errors =
       []
@@ -63,10 +67,12 @@ defmodule Blog.SmartSteps.DesignerLogic do
     end
   end
 
+  @spec has_game_over_path?(scenarios(), scenario_id(), MapSet.t()) :: boolean()
   defp has_game_over_path?(scenarios, scenario_id, visited) do
     if MapSet.member?(visited, scenario_id), do: false, else: do_check_path(scenarios, scenario_id, MapSet.put(visited, scenario_id))
   end
 
+  @spec do_check_path(scenarios(), scenario_id(), MapSet.t()) :: boolean()
   defp do_check_path(scenarios, scenario_id, visited) do
     case Map.get(scenarios, scenario_id) do
       nil -> false
@@ -80,6 +86,7 @@ defmodule Blog.SmartSteps.DesignerLogic do
   end
 
   @doc "Find scenarios not reachable from start_id via BFS."
+  @spec find_orphans(scenarios(), scenario_id()) :: [Scenario.t()]
   def find_orphans(scenarios, start_id) when is_map(scenarios) do
     reachable = bfs_reachable(scenarios, start_id)
     scenarios
@@ -87,10 +94,12 @@ defmodule Blog.SmartSteps.DesignerLogic do
     |> Enum.filter(fn s -> !MapSet.member?(reachable, s.id) end)
   end
 
+  @spec bfs_reachable(scenarios(), scenario_id()) :: MapSet.t()
   defp bfs_reachable(scenarios, start_id) do
     do_bfs(scenarios, [start_id], MapSet.new())
   end
 
+  @spec do_bfs(scenarios(), [scenario_id()], MapSet.t()) :: MapSet.t()
   defp do_bfs(_scenarios, [], visited), do: visited
   defp do_bfs(scenarios, [current | rest], visited) do
     if MapSet.member?(visited, current) do
@@ -112,6 +121,7 @@ defmodule Blog.SmartSteps.DesignerLogic do
   end
 
   @doc "Find choices that point to non-existent scenario IDs (not GAME_OVER)."
+  @spec find_dead_ends(scenarios()) :: [%{scenario: Scenario.t(), choice: Choice.t()}]
   def find_dead_ends(scenarios) when is_map(scenarios) do
     Enum.flat_map(scenarios, fn {_id, scenario} ->
       scenario.choices
@@ -124,6 +134,7 @@ defmodule Blog.SmartSteps.DesignerLogic do
   end
 
   @doc "Compute the maximum depth from start to any game-over or leaf."
+  @spec compute_depth(ScenarioTree.t()) :: non_neg_integer()
   def compute_depth(%ScenarioTree{} = tree) do
     if !Map.has_key?(tree.scenarios, tree.start_scenario_id) do
       0
@@ -133,6 +144,8 @@ defmodule Blog.SmartSteps.DesignerLogic do
     end
   end
 
+  @spec dfs_depth(scenarios(), scenario_id(), non_neg_integer(), MapSet.t()) ::
+          {non_neg_integer(), MapSet.t()}
   defp dfs_depth(scenarios, scenario_id, depth, visited) do
     if MapSet.member?(visited, scenario_id) do
       {depth, visited}
@@ -166,6 +179,7 @@ defmodule Blog.SmartSteps.DesignerLogic do
   @max_paths 100
 
   @doc "Compute all unique paths from start to game-over. Capped at #{@max_paths}."
+  @spec compute_all_paths(ScenarioTree.t()) :: [[scenario_id()]]
   def compute_all_paths(%ScenarioTree{} = tree) do
     if !Map.has_key?(tree.scenarios, tree.start_scenario_id) do
       []
@@ -176,6 +190,14 @@ defmodule Blog.SmartSteps.DesignerLogic do
     end
   end
 
+  @spec dfs_paths(
+          scenarios(),
+          scenario_id(),
+          [scenario_id()],
+          MapSet.t(),
+          [[scenario_id()]],
+          non_neg_integer()
+        ) :: {[[scenario_id()]], non_neg_integer()}
   defp dfs_paths(_scenarios, _scenario_id, _current_path, _visited, paths, count) when count >= @max_paths do
     {paths, count}
   end

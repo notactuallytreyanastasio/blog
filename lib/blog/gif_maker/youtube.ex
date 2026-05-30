@@ -4,6 +4,7 @@ defmodule Blog.GifMaker.YouTube do
   @youtube_url_regex ~r/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
   @cookies_path Application.compile_env(:blog, :yt_dlp_cookies_path, "/app/cookies.txt")
 
+  @spec validate_url(String.t()) :: {:ok, String.t()} | {:error, String.t()}
   def validate_url(url) do
     case Regex.run(@youtube_url_regex, url) do
       [_, video_id] -> {:ok, video_id}
@@ -11,6 +12,9 @@ defmodule Blog.GifMaker.YouTube do
     end
   end
 
+  @spec get_metadata(String.t()) ::
+          {:ok, %{video_id: term(), title: term(), duration_seconds: term()}}
+          | {:error, String.t()}
   def get_metadata(url) do
     args = cookie_args() ++ ["--dump-json", "--no-download", "--no-playlist", url]
 
@@ -54,7 +58,7 @@ defmodule Blog.GifMaker.YouTube do
 
     Logger.info("Downloading segment: #{section_spec} from #{url}")
 
-    case System.cmd("yt-dlp", args, stderr_to_stdout: true, timeout: 120_000) do
+    case System.cmd("yt-dlp", args, stderr_to_stdout: true) do
       {_output, 0} ->
         if File.exists?(output_path) do
           {:ok, output_path, temp_dir}

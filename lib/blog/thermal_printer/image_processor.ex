@@ -10,6 +10,9 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   Process an uploaded image binary for thermal printing.
   Returns dithered binary data ready for the printer.
   """
+  @spec process_image(binary(), keyword()) ::
+          {:ok, %{data: binary(), width: integer(), height: integer()}}
+          | {:error, String.t()}
   def process_image(image_binary, opts \\ []) do
     target_width = Keyword.get(opts, :width, 384)  # Standard 58mm thermal printer width
     
@@ -82,23 +85,18 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   end
 
   defp convert_to_grayscale(%{pixels: pixels} = image) when is_list(pixels) do
-    # Already grayscale if pixels are single values
+    # Pixels produced by resize_image are already single grayscale integer values
     {:ok, image}
-  end
-
-  defp convert_to_grayscale(%{pixels: pixels, width: width, height: height}) do
-    # Convert RGB to grayscale using luminance formula
-    grayscale = Enum.map(pixels, fn
-      {r, g, b} -> round(0.299 * r + 0.587 * g + 0.114 * b)
-      pixel when is_integer(pixel) -> pixel
-    end)
-    
-    {:ok, %{pixels: grayscale, width: width, height: height}}
   end
 
   @doc """
   Apply Floyd-Steinberg dithering algorithm to grayscale image
   """
+  @spec apply_floyd_steinberg_dithering(%{
+          pixels: [integer()],
+          width: integer(),
+          height: integer()
+        }) :: {:ok, %{data: binary(), width: integer(), height: integer()}}
   def apply_floyd_steinberg_dithering(%{pixels: pixels, width: width, height: height}) do
     # Convert list to array for efficient random access
     pixel_array = :array.from_list(pixels)
@@ -155,6 +153,7 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   Convert pixel array to binary format for thermal printer.
   Each byte represents 8 horizontal pixels (1 bit per pixel).
   """
+  @spec pixels_to_binary([integer()], integer()) :: binary()
   def pixels_to_binary(pixels, _width) do
     pixels
     |> Enum.chunk_every(8, 8, [0, 0, 0, 0, 0, 0, 0, 0])
@@ -171,6 +170,8 @@ defmodule Blog.ThermalPrinter.ImageProcessor do
   Format the dithered image for ESC/POS printing commands.
   Returns binary data with proper printer commands.
   """
+  @spec format_for_escpos(%{data: binary(), width: integer(), height: integer()}) ::
+          {:ok, binary()}
   def format_for_escpos(%{data: data, width: width, height: height}) do
     # ESC * m nL nH [d1...dk]
     # m = 33 (24-dot double density)

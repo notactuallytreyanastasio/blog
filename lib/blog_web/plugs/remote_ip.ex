@@ -1,8 +1,10 @@
 defmodule BlogWeb.Plugs.RemoteIp do
   import Plug.Conn
 
+  @spec init(Plug.opts()) :: Plug.opts()
   def init(opts), do: opts
 
+  @spec call(Plug.Conn.t(), Plug.opts()) :: Plug.Conn.t()
   def call(conn, _opts) do
     remote_ip = get_remote_ip(conn)
     put_session(conn, :remote_ip, remote_ip)
@@ -20,9 +22,8 @@ defmodule BlogWeb.Plugs.RemoteIp do
       [] ->
         case conn.remote_ip do
           {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
-          {a, b, c, d, e, f, g, h} -> 
+          {a, b, c, d, e, f, g, h} ->
             "#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
-          _ -> "unknown"
         end
     end
   end

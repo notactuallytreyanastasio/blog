@@ -151,12 +151,15 @@ defmodule BlogWeb.HackerNewsLive do
 
   defp format_time(_), do: ""
 
-  # Format the domain from a URL
-  defp format_domain(nil), do: ""
+  # Format the domain from a URL. Returns nil when there's no host so the
+  # template's `if domain = format_domain(...)` only shows the badge for real
+  # domains (e.g. Ask HN posts with no URL get no domain badge).
+  @spec format_domain(String.t() | nil) :: String.t() | nil
+  defp format_domain(nil), do: nil
 
   defp format_domain(url) when is_binary(url) do
     case URI.parse(url) do
-      %URI{host: nil} -> ""
+      %URI{host: nil} -> nil
       %URI{host: host} -> host
     end
   end

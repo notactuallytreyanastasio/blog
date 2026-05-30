@@ -49,3 +49,6 @@ live_joyride/
 
 # Environment secrets (never commit)
 .env
+
+# Assay (incremental dialyzer) cache
+_build/assay/

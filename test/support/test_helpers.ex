@@ -7,7 +7,7 @@ defmodule Blog.TestHelpers do
   alias Blog.Bookmarks.{Bookmark, Store}
   alias Blog.Wordle.Game
   alias Blog.Games.Blackjack
-  alias Blog.Content.{Post, Tag}
+  alias Blog.Content.Tag
 
   @doc """
   Creates a test bookmark with default or custom attributes.

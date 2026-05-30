@@ -10,7 +10,18 @@ defmodule Blog.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      compile_options: [:debug_info]
+      compile_options: [:debug_info],
+      # Assay (incremental Dialyzer) configuration. Analyze the project plus its
+      # deps for accurate success typing, but only surface warnings for our code.
+      assay: [
+        dialyzer: [
+          # :crypto and :mix aren't pulled in by :project_plus_deps but our code
+          # (random ids, hashing) and mix tasks call them — include them so they
+          # resolve instead of producing "unknown function" false positives.
+          apps: [:project_plus_deps, :crypto, :mix],
+          warning_apps: :project
+        ]
+      ]
     ]
   end
 
@@ -72,7 +83,8 @@ defmodule Blog.MixProject do
       {:hackney, "~> 1.9"},
       {:sweet_xml, "~> 0.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:cors_plug, "~> 3.0"}
+      {:cors_plug, "~> 3.0"},
+      {:assay, "~> 0.5", runtime: false, only: [:dev, :test]}
     ]
   end
 

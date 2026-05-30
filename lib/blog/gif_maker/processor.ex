@@ -7,10 +7,12 @@ defmodule Blog.GifMaker.Processor do
 
   @max_concurrent 2
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{active: 0}, name: __MODULE__)
   end
 
+  @spec process_job(term()) :: :ok
   def process_job(job_id) do
     GenServer.cast(__MODULE__, {:process, job_id})
   end
