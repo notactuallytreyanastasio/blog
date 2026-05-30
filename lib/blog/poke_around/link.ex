@@ -6,6 +6,8 @@ defmodule Blog.PokeAround.Link do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{}
+
   schema "pa_links" do
     field :url, :string
     field :url_hash, :string
@@ -64,6 +66,7 @@ defmodule Blog.PokeAround.Link do
     :tagged_at
   ]
 
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(link, attrs) do
     link
     |> cast(attrs, @required_fields ++ @optional_fields)
@@ -79,6 +82,7 @@ defmodule Blog.PokeAround.Link do
   - Removing trailing slashes
   - Sorting query params
   """
+  @spec hash_url(String.t()) :: String.t()
   def hash_url(url) when is_binary(url) do
     url
     |> normalize_url()
@@ -93,7 +97,7 @@ defmodule Blog.PokeAround.Link do
         url
 
       uri ->
-        host = String.downcase(uri.host || "")
+        host = String.downcase(uri.host)
         path = String.trim_trailing(uri.path || "/", "/")
         path = if path == "", do: "/", else: path
 
@@ -111,6 +115,7 @@ defmodule Blog.PokeAround.Link do
   @doc """
   Extract domain from URL.
   """
+  @spec extract_domain(String.t()) :: String.t() | nil
   def extract_domain(url) when is_binary(url) do
     case URI.parse(url) do
       %URI{host: host} when is_binary(host) ->

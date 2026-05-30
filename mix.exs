@@ -15,7 +15,10 @@ defmodule Blog.MixProject do
       # deps for accurate success typing, but only surface warnings for our code.
       assay: [
         dialyzer: [
-          apps: :project_plus_deps,
+          # :crypto and :mix aren't pulled in by :project_plus_deps but our code
+          # (random ids, hashing) and mix tasks call them — include them so they
+          # resolve instead of producing "unknown function" false positives.
+          apps: [:project_plus_deps, :crypto, :mix],
           warning_apps: :project
         ]
       ]

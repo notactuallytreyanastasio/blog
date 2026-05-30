@@ -2,6 +2,8 @@ defmodule Blog.Pluto.Lot do
   @moduledoc "Schema for a PLUTO tax lot."
   use Ecto.Schema
 
+  @type t :: %__MODULE__{}
+
   schema "lots" do
     field :bbl, :string
     field :borough, :string

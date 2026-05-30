@@ -99,10 +99,12 @@ defmodule Blog.PokeAround.Bluesky.Extractor do
   # Public API
   # ---------------------------------------------------------------------------
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name] || __MODULE__)
   end
 
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: __MODULE__,
@@ -112,6 +114,13 @@ defmodule Blog.PokeAround.Bluesky.Extractor do
     }
   end
 
+  @spec get_stats(GenServer.server()) :: %{
+          posts_processed: non_neg_integer(),
+          links_found: non_neg_integer(),
+          links_qualified: non_neg_integer(),
+          uptime_seconds: integer(),
+          qualification_rate: float()
+        }
   def get_stats(server \\ __MODULE__) do
     GenServer.call(server, :get_stats)
   end
@@ -264,8 +273,6 @@ defmodule Blog.PokeAround.Bluesky.Extractor do
       hashtag_count <= @max_hashtags &&
       emoji_count <= @max_emojis
   end
-
-  defp post_qualifies?(_), do: false
 
   defp account_age_ok?(nil), do: false
 

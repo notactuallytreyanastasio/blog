@@ -1,6 +1,8 @@
 defmodule Blog.Sky.Profile do
   use Ecto.Schema
 
+  @type t :: %__MODULE__{}
+
   schema "sky_profiles" do
     field :handle, :string
     field :did, :string
