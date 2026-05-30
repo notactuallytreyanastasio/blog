@@ -2,6 +2,18 @@ defmodule Blog.Finder.Section do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          name: String.t() | nil,
+          label: String.t() | nil,
+          sort_order: integer() | nil,
+          joyride_target: String.t() | nil,
+          visible: boolean() | nil,
+          items: [struct()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil
+        }
+
   schema "finder_sections" do
     field :name, :string
     field :label, :string
@@ -14,6 +26,7 @@ defmodule Blog.Finder.Section do
     timestamps()
   end
 
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(section, attrs) do
     section
     |> cast(attrs, [:name, :label, :sort_order, :joyride_target, :visible])
