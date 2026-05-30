@@ -12,14 +12,22 @@ defmodule Blog.Chat.Presence do
 
   @presence_topic "allowed_chat:presence"
 
+  @typedoc """
+  Map of presences keyed by the tracked presence key (user id),
+  each value holding a list of metadata maps.
+  """
+  @type presences :: %{optional(String.t()) => %{metas: [map()]}}
+
   @doc """
   Returns the topic used for presence tracking.
   """
+  @spec topic() :: String.t()
   def topic, do: @presence_topic
 
   @doc """
   Tracks a user's presence when they connect to the chat.
   """
+  @spec track_user(String.t()) :: {:ok, binary()} | {:error, term()}
   def track_user(user_id) do
     __MODULE__.track(
       self(),
@@ -35,6 +43,7 @@ defmodule Blog.Chat.Presence do
   @doc """
   Gets the list of online users with their metadata.
   """
+  @spec list_online_users() :: presences()
   def list_online_users do
     __MODULE__.list(@presence_topic)
   end
@@ -44,6 +53,7 @@ defmodule Blog.Chat.Presence do
 
   Safely handles the case where the presence tracker is not yet initialized.
   """
+  @spec count_online_users() :: non_neg_integer()
   def count_online_users do
     try do
       @presence_topic
