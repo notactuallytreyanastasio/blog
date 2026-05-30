@@ -1,6 +1,4 @@
-
-<div class="os-window os-window-mac" style="max-width:1100px; margin:24px auto;">
-  <!-- System 7 title bar -->
+<div class="os-window os-window-mac" style="max-width:1100px; margin:16px auto;">
   <div class="os-titlebar">
     <div class="os-titlebar-buttons">
       <div class="os-btn-close"></div>
@@ -9,16 +7,56 @@
     <div class="os-titlebar-spacer"></div>
   </div>
 
-  <!-- Content -->
-  <div class="os-content" style="padding: 0;">
-    <div style="display:grid; grid-template-columns: 220px 1fr; min-height:600px;">
+  <div class="os-content" style="padding:0;">
 
-      <!-- ── controls sidebar ── -->
-      <div style="border-right:1px solid #000; padding:16px; display:flex; flex-direction:column; gap:16px; background:#fff; font-family:'Chicago','Geneva','Helvetica',sans-serif; font-size:12px;">
+    <!-- ── mobile controls bar (hidden on md+) ── -->
+    <div class="md:hidden border-b border-black bg-white px-3 py-2 space-y-2"
+         style="font-family:'Chicago','Geneva','Helvetica',sans-serif; font-size:12px;">
+      <div class="flex gap-2 items-center flex-wrap">
+        <%= for gen <- @generators do %>
+          <button
+            phx-click="set_generator"
+            phx-value-generator={gen}
+            class="px-3 py-1 border border-black text-xs"
+            style={"background:#{if gen == @generator, do: "#000", else: "#fff"}; color:#{if gen == @generator, do: "#fff", else: "#000"}; font-family:inherit;"}
+          ><%= gen %></button>
+        <% end %>
+      </div>
+      <div class="flex gap-2 items-center">
+        <form phx-submit="set_seed" class="flex gap-1 flex-1">
+          <input type="number" name="seed" value={@seed} min="0" max="2147483647"
+            class="border border-black px-2 py-1 text-xs w-full"
+            style="font-family:inherit;" />
+        </form>
+        <button onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'r',bubbles:true}))"
+          class="px-3 py-1 border border-black bg-white text-xs whitespace-nowrap"
+          style="font-family:inherit;">↺ Random</button>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))"
+          class="flex-1 py-1 border border-black bg-white text-xs" style="font-family:inherit;">← Back</button>
+        <button onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))"
+          class="flex-1 py-1 border border-black bg-white text-xs" style="font-family:inherit;">Forward →</button>
+        <button onclick="document.getElementById('art-canvas').toBlob(b=>{let a=document.createElement('a');a.download='temper-art-'+Date.now()+'.png';a.href=URL.createObjectURL(b);a.click()})"
+          class="flex-1 py-1 border border-black bg-white text-xs" style="font-family:inherit;">⬇ PNG</button>
+      </div>
+      <%= if @shapes do %>
+        <div class="text-xs" style="color:#555;">
+          shapes: <strong style="color:#000;"><%= @shapes %></strong> ·
+          <%= @ms %> ms · seed <%= @seed %>
+        </div>
+      <% end %>
+    </div>
 
+    <!-- ── main layout: sidebar + canvas ── -->
+    <div class="flex flex-col md:grid md:grid-cols-[220px_1fr]" style="min-height:min(70vh,600px);">
+
+      <!-- ── desktop sidebar (hidden on mobile) ── -->
+      <div class="hidden md:flex flex-col gap-4 border-r border-black p-4 bg-white"
+           style="font-family:'Chicago','Geneva','Helvetica',sans-serif; font-size:12px;">
         <div>
-          <div style="font-weight:bold; margin-bottom:8px; border-bottom:1px solid #000; padding-bottom:4px;">Generator</div>
-          <div style="display:flex; flex-direction:column; gap:4px;">
+          <div class="font-bold border-b border-black pb-1 mb-2">Generator</div>
+          <div class="flex flex-col gap-1">
             <%= for gen <- @generators do %>
               <button
                 phx-click="set_generator"
@@ -30,43 +68,34 @@
         </div>
 
         <div>
-          <div style="font-weight:bold; margin-bottom:8px; border-bottom:1px solid #000; padding-bottom:4px;">Seed</div>
-          <form phx-submit="set_seed" style="display:flex; gap:4px; align-items:center;">
-            <input
-              type="number" name="seed" value={@seed}
-              min="0" max="2147483647"
-              style="width:100%; border:2px inset #fff; border:1px solid #000; padding:3px 6px; font-family:inherit; font-size:12px;"
-            />
+          <div class="font-bold border-b border-black pb-1 mb-2">Seed</div>
+          <form phx-submit="set_seed" class="flex gap-1">
+            <input type="number" name="seed" value={@seed} min="0" max="2147483647"
+              style="width:100%; border:1px solid #000; padding:3px 6px; font-family:inherit; font-size:12px;" />
           </form>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <button
-            phx-click="random"
-            onclick="document.dispatchEvent(new KeyboardEvent('keydown', {key:'r', bubbles:true}))"
-            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"
-          >↺ Random  <kbd style="opacity:.6">R</kbd></button>
-          <button
-            onclick="document.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowLeft', bubbles:true}))"
-            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"
-          >← Back  <kbd style="opacity:.6">←</kbd></button>
-          <button
-            onclick="document.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', bubbles:true}))"
-            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"
-          >→ Forward  <kbd style="opacity:.6">→</kbd></button>
-          <button
-            onclick="document.getElementById('art-canvas').toBlob(b=>{let a=document.createElement('a');a.download='temper-art-'+Date.now()+'.png';a.href=URL.createObjectURL(b);a.click()})"
-            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"
-          >⬇ Save PNG</button>
+        <div class="flex flex-col gap-1">
+          <button onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'r',bubbles:true}))"
+            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;">
+            ↺ Random <kbd style="opacity:.6">R</kbd></button>
+          <button onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))"
+            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;">
+            ← Back <kbd style="opacity:.6">←</kbd></button>
+          <button onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))"
+            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;">
+            → Forward <kbd style="opacity:.6">→</kbd></button>
+          <button onclick="document.getElementById('art-canvas').toBlob(b=>{let a=document.createElement('a');a.download='temper-art-'+Date.now()+'.png';a.href=URL.createObjectURL(b);a.click()})"
+            style="padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;">
+            ⬇ Save PNG</button>
         </div>
 
-        <div style="border-top:1px solid #000; padding-top:12px; color:#555; font-size:11px; line-height:1.6;">
+        <div class="border-t border-black pt-3 text-xs leading-relaxed" style="color:#555;">
           <%= if @shapes do %>
             shapes: <strong style="color:#000;"><%= @shapes %></strong><br/>
             render: <strong style="color:#000;"><%= @ms %> ms</strong><br/>
-            seed: <strong style="color:#000;"><%= @seed %></strong>
+            seed: <strong style="color:#000;"><%= @seed %></strong><br/>
           <% end %>
-          <br/>
           Engine: Temper → JS<br/>
           Generators: bauhaus, flow, subdivision
         </div>
@@ -76,19 +105,19 @@
       <div
         id="art-hook"
         phx-hook="TemperArt"
-        style="background:#e8e8e8; display:flex; align-items:stretch;"
+        class="bg-gray-200 flex items-stretch"
+        style="min-height:min(70vh,600px);"
       >
         <canvas
           id="art-canvas"
-          style="display:block; width:100%; height:100%; min-height:600px;"
+          style="display:block; width:100%; height:100%; min-height:min(70vh,600px);"
         ></canvas>
       </div>
 
     </div>
   </div>
 
-  <!-- Status bar -->
-  <div class="os-statusbar">
+  <div class="os-statusbar" style="font-family:'Chicago','Geneva','Helvetica',sans-serif; font-size:11px;">
     <span>seed: <%= @seed %> · <%= @generator %></span>
     <span>Temper Art Engine v0.1</span>
   </div>
