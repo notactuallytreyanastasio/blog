@@ -9,6 +9,7 @@ defmodule Blog.SmartSteps.Metrics do
                 :relationship_skills, :decision_making, :self_advocacy]
 
   @doc "Return default metrics struct."
+  @spec default_metrics() :: struct()
   def default_metrics, do: %Metrics{}
 
   @doc """
@@ -16,6 +17,7 @@ defmodule Blog.SmartSteps.Metrics do
   Returns default metrics for an empty list.
   Rounds to 1 decimal place.
   """
+  @spec calculate_average([struct()]) :: struct()
   def calculate_average([]), do: %Metrics{}
 
   def calculate_average(level_data) when is_list(level_data) do

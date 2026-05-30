@@ -25,16 +25,19 @@ defmodule Blog.SmartSteps.Trees do
   ]
 
   @doc "Return all scenario trees."
+  @spec all_trees() :: [struct()]
   def all_trees do
     Enum.map(@tree_modules, & &1.tree())
   end
 
   @doc "Get a scenario tree by ID."
+  @spec get_tree(String.t()) :: struct() | nil
   def get_tree(id) do
     Enum.find(all_trees(), fn tree -> tree.id == id end)
   end
 
   @doc "Get a specific scenario by ID, optionally within a specific tree."
+  @spec get_scenario(String.t(), String.t() | nil) :: struct() | nil
   def get_scenario(scenario_id, tree_id \\ nil) do
     trees =
       if tree_id do
@@ -52,6 +55,7 @@ defmodule Blog.SmartSteps.Trees do
   end
 
   @doc "Get the start scenario for a given tree."
+  @spec get_start_scenario(String.t()) :: struct() | nil
   def get_start_scenario(tree_id) do
     case get_tree(tree_id) do
       nil -> nil

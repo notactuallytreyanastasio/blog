@@ -13,26 +13,33 @@ defmodule Blog.SmartSteps.SessionServer do
   # Client API
   # ============================================
 
+  @spec start_link({String.t(), String.t(), Types.scenario_role()}) :: GenServer.on_start()
   def start_link({session_id, tree_id, role}) do
     GenServer.start_link(__MODULE__, {session_id, tree_id, role}, name: via(session_id))
   end
 
+  @spec get_state(String.t()) :: GameState.t()
   def get_state(session_id) do
     GenServer.call(via(session_id), :get_state)
   end
 
+  @spec select_choice(String.t(), integer()) :: :ok
   def select_choice(session_id, index) do
     GenServer.call(via(session_id), {:select_choice, index})
   end
 
+  @spec continue_to_discussion(String.t()) :: :ok | {:error, :invalid_state}
   def continue_to_discussion(session_id) do
     GenServer.call(via(session_id), :continue_to_discussion)
   end
 
+  @spec proceed_from_discussion(String.t(), String.t(), Metrics.t()) ::
+          {:ok, GameState.t()} | {:error, term()}
   def proceed_from_discussion(session_id, notes, %Metrics{} = metrics) do
     GenServer.call(via(session_id), {:proceed_from_discussion, notes, metrics})
   end
 
+  @spec session_exists?(String.t()) :: boolean()
   def session_exists?(session_id) do
     case Registry.lookup(Blog.SmartSteps.SessionRegistry, session_id) do
       [{_pid, _}] -> true

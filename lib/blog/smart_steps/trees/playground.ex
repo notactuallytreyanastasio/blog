@@ -1,6 +1,7 @@
 defmodule Blog.SmartSteps.Trees.Playground do
   alias Blog.SmartSteps.Types.{ScenarioTree, Scenario, Choice}
 
+  @spec tree() :: ScenarioTree.t()
   def tree do
     %ScenarioTree{
       id: "playground",

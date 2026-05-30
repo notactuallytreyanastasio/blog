@@ -7,11 +7,14 @@ defmodule Blog.SmartSteps.GameLogic do
   alias Blog.SmartSteps.Types.{GameState, LevelData, Metrics, Message, Choice, Scenario}
 
   @doc "Create a fresh initial game state."
+  @spec create_initial_state() :: GameState.t()
   def create_initial_state do
     %GameState{}
   end
 
   @doc "Build a LevelData record for one round of play."
+  @spec build_level_data(integer(), String.t(), String.t(), Choice.t(), String.t(), Metrics.t()) ::
+          LevelData.t()
   def build_level_data(level, scenario_id, scenario_title, %Choice{} = choice, notes, %Metrics{} = metrics) do
     %LevelData{
       level: level,
@@ -27,6 +30,7 @@ defmodule Blog.SmartSteps.GameLogic do
   end
 
   @doc "Check if the game should end."
+  @spec game_over?(String.t(), Scenario.t() | nil, integer(), integer()) :: boolean()
   def game_over?(next_scenario_id, next_scenario, current_level, max_levels) do
     next_scenario_id == "GAME_OVER" ||
       (next_scenario != nil && next_scenario.is_game_over == true) ||
@@ -39,6 +43,23 @@ defmodule Blog.SmartSteps.GameLogic do
   `get_next_scenario` is a function that looks up a scenario by ID.
   Returns `{:ok, result}` or `{:error, reason}`.
   """
+  @spec process_choice(
+          GameState.t(),
+          Scenario.t(),
+          integer(),
+          String.t(),
+          Metrics.t(),
+          (String.t() -> Scenario.t() | nil)
+        ) ::
+          {:ok,
+           %{
+             level_data: LevelData.t(),
+             is_game_over: boolean(),
+             next_scenario_id: String.t(),
+             game_over_reason: String.t() | nil,
+             messages: [Message.t()]
+           }}
+          | {:error, String.t()}
   def process_choice(%GameState{} = state, %Scenario{} = scenario, choice_index, notes, %Metrics{} = metrics, get_next_scenario)
       when is_integer(choice_index) and is_function(get_next_scenario, 1) do
     case Enum.at(scenario.choices, choice_index) do
@@ -99,6 +120,7 @@ defmodule Blog.SmartSteps.GameLogic do
   end
 
   @doc "Generate a random 6-digit session ID."
+  @spec generate_session_id() :: String.t()
   def generate_session_id do
     (100_000 + :rand.uniform(900_000) - 1)
     |> Integer.to_string()
