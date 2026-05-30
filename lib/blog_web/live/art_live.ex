@@ -16,8 +16,7 @@ defmodule BlogWeb.ArtLive do
      |> assign(:generators, [])
      |> assign(:shapes, nil)
      |> assign(:ms, nil)
-     |> assign(:page_title, "Art Generator")
-     |> assign(:page_description, "Generative art engine written in Temper, compiled to JavaScript.")
+     |> assign_meta(seed, generator)
      |> push_event("draw", %{seed: seed, generator: generator})}
   end
 
@@ -27,17 +26,28 @@ defmodule BlogWeb.ArtLive do
   end
 
   def handle_event("render_done", %{"seed" => s, "generator" => g, "shapes" => n, "ms" => ms}, socket) do
-    {:noreply, socket |> assign(:seed, s) |> assign(:generator, g) |> assign(:shapes, n) |> assign(:ms, ms)}
+    {:noreply,
+     socket
+     |> assign(:seed, s)
+     |> assign(:generator, g)
+     |> assign(:shapes, n)
+     |> assign(:ms, ms)
+     |> assign_meta(s, g)}
   end
 
   def handle_event("seed_changed", %{"seed" => seed, "generator" => gen}, socket) do
-    {:noreply, socket |> assign(:seed, seed) |> assign(:generator, gen)}
+    {:noreply,
+     socket
+     |> assign(:seed, seed)
+     |> assign(:generator, gen)
+     |> assign_meta(seed, gen)}
   end
 
   def handle_event("set_generator", %{"generator" => gen}, socket) do
     {:noreply,
      socket
      |> assign(:generator, gen)
+     |> assign_meta(socket.assigns.seed, gen)
      |> push_event("draw", %{seed: socket.assigns.seed, generator: gen})}
   end
 
@@ -46,12 +56,17 @@ defmodule BlogWeb.ArtLive do
     {:noreply,
      socket
      |> assign(:seed, seed)
+     |> assign_meta(seed, socket.assigns.generator)
      |> push_event("draw", %{seed: seed, generator: socket.assigns.generator})}
   end
 
-  def handle_event("random", _params, socket) do
-    # Randomness lives in the JS hook; this event comes back via seed_changed.
-    {:noreply, socket}
+  def handle_event("random", _params, socket), do: {:noreply, socket}
+
+  defp assign_meta(socket, seed, generator) do
+    socket
+    |> assign(:page_title, "Temper Art — seed #{seed} · #{generator}")
+    |> assign(:page_description, "Generative art made with a Temper-compiled engine. #{generator |> String.capitalize()} algorithm, seed #{seed}. Tap to go full screen, save as PNG.")
+    |> assign(:page_image, "https://www.bobbby.online/images/og-temper-art.png")
   end
 
   defp parse_int(nil, default), do: default

@@ -766,51 +766,57 @@ function subdivide_235(rng_236, out_237, pal_238, x_239, y_240, w_241, h_242, de
   let t_254;
   let canSplit_256;
   if (depth_243 > 0) {
-    if (cmpFloat(w_241, 56) > 0) {
+    if (cmpFloat(w_241, 40) > 0) {
       t_253 = true;
     } else {
-      t_253 = cmpFloat(h_242, 56) > 0;
+      t_253 = cmpFloat(h_242, 40) > 0;
     }
     canSplit_256 = t_253;
   } else {
     canSplit_256 = false;
   }
+  let shouldSplit_257;
   if (canSplit_256) {
-    t_244 = rng_236.chance(0.82);
-    t_254 = t_244;
+    if (depth_243 > 5) {
+      t_254 = true;
+    } else {
+      t_244 = rng_236.chance(0.88);
+      t_254 = t_244;
+    }
+    shouldSplit_257 = t_254;
   } else {
-    t_254 = false;
+    shouldSplit_257 = false;
   }
-  if (t_254) {
-    let splitVert_257;
+  if (shouldSplit_257) {
+    let splitVert_258;
     if (cmpFloat(w_241, h_242) > 0) {
-      splitVert_257 = true;
+      splitVert_258 = true;
     } else if (cmpFloat(h_242, w_241) > 0) {
-      splitVert_257 = false;
+      splitVert_258 = false;
     } else {
       t_245 = rng_236.chance(0.5);
-      splitVert_257 = t_245;
+      splitVert_258 = t_245;
     }
-    const t_258 = rng_236.between(0.32, 0.68);
-    if (splitVert_257) {
-      const ww_259 = w_241 * t_258;
-      subdivide_235(rng_236, out_237, pal_238, x_239, y_240, ww_259, h_242, depth_243 - 1 | 0);
-      subdivide_235(rng_236, out_237, pal_238, x_239 + ww_259, y_240, w_241 - ww_259, h_242, depth_243 - 1 | 0);
+    const t_259 = rng_236.between(0.32, 0.68);
+    if (splitVert_258) {
+      const ww_260 = w_241 * t_259;
+      subdivide_235(rng_236, out_237, pal_238, x_239, y_240, ww_260, h_242, depth_243 - 1 | 0);
+      subdivide_235(rng_236, out_237, pal_238, x_239 + ww_260, y_240, w_241 - ww_260, h_242, depth_243 - 1 | 0);
     } else {
-      const hh_260 = h_242 * t_258;
-      subdivide_235(rng_236, out_237, pal_238, x_239, y_240, w_241, hh_260, depth_243 - 1 | 0);
-      subdivide_235(rng_236, out_237, pal_238, x_239, y_240 + hh_260, w_241, h_242 - hh_260, depth_243 - 1 | 0);
+      const hh_261 = h_242 * t_259;
+      subdivide_235(rng_236, out_237, pal_238, x_239, y_240, w_241, hh_261, depth_243 - 1 | 0);
+      subdivide_235(rng_236, out_237, pal_238, x_239, y_240 + hh_261, w_241, h_242 - hh_261, depth_243 - 1 | 0);
     }
   } else {
-    let fillCol_261;
-    if (rng_236.chance(0.45)) {
+    let fillCol_262;
+    if (rng_236.chance(0.15)) {
       t_246 = listedGet(pal_238, 0).hex();
-      fillCol_261 = t_246;
+      fillCol_262 = t_246;
     } else {
       t_247 = ink_164(rng_236, pal_238);
-      fillCol_261 = t_247;
+      fillCol_262 = t_247;
     }
-    t_248 = new Rect_69(x_239, y_240, w_241, h_242, 0, fillCol_261, 1);
+    t_248 = new Rect_69(x_239, y_240, w_241, h_242, 0, fillCol_262, 1);
     listBuilderAdd(out_237, t_248);
     t_249 = new Line_92(x_239, y_240, x_239 + w_241, y_240, "#141414", 6, 1);
     listBuilderAdd(out_237, t_249);
@@ -823,36 +829,36 @@ function subdivide_235(rng_236, out_237, pal_238, x_239, y_240, w_241, h_242, de
   }
   return;
 }
-function genSubdivision_264(rng_265, w_266, h_267, pal_268) {
-  const out_269 = [];
-  let t_270 = w_266;
-  let t_271 = h_267;
-  subdivide_235(rng_265, out_269, pal_268, 0, 0, t_270, t_271, 7);
-  return listBuilderToList(out_269);
+function genSubdivision_265(rng_266, w_267, h_268, pal_269) {
+  const out_270 = [];
+  let t_271 = w_267;
+  let t_272 = h_268;
+  subdivide_235(rng_266, out_270, pal_269, 0, 0, t_271, t_272, 7);
+  return listBuilderToList(out_270);
 }
 function generatorIds() {
   return Object.freeze(["bauhaus", "flow", "subdivision"]);
 }
-function generate$1(seed_272, generator_273, width_274, height_275) {
-  let t_276;
+function generate$1(seed_273, generator_274, width_275, height_276) {
   let t_277;
   let t_278;
-  const rng_279 = mkRng_153(seed_272);
-  const ps_280 = palettes_163();
-  const pal_281 = listedGet(ps_280, rng_279.intBetween(0, ps_280.length));
-  const bg_282 = listedGet(pal_281, 0).hex();
-  let shapes_283;
-  if (generator_273 === "flow") {
-    t_276 = genFlow_202(rng_279, width_274, height_275, pal_281);
-    shapes_283 = t_276;
-  } else if (generator_273 === "subdivision") {
-    t_277 = genSubdivision_264(rng_279, width_274, height_275, pal_281);
-    shapes_283 = t_277;
+  let t_279;
+  const rng_280 = mkRng_153(seed_273);
+  const ps_281 = palettes_163();
+  const pal_282 = listedGet(ps_281, rng_280.intBetween(0, ps_281.length));
+  const bg_283 = listedGet(pal_282, 0).hex();
+  let shapes_284;
+  if (generator_274 === "flow") {
+    t_277 = genFlow_202(rng_280, width_275, height_276, pal_282);
+    shapes_284 = t_277;
+  } else if (generator_274 === "subdivision") {
+    t_278 = genSubdivision_265(rng_280, width_275, height_276, pal_282);
+    shapes_284 = t_278;
   } else {
-    t_278 = genBauhaus_170(rng_279, width_274, height_275, pal_281);
-    shapes_283 = t_278;
+    t_279 = genBauhaus_170(rng_280, width_275, height_276, pal_282);
+    shapes_284 = t_279;
   }
-  return new Scene_130(seed_272, generator_273, width_274, height_275, bg_282, shapes_283).toJson();
+  return new Scene_130(seed_273, generator_274, width_275, height_276, bg_283, shapes_284).toJson();
 }
 const GENERATORS = generatorIds();
 function generate(seed, generator, width, height) {
