@@ -31,6 +31,7 @@ defmodule Blog.Bookmarks.Bookmark do
   Creates a new bookmark struct with the given attributes.
   Automatically generates an ID and timestamp if not provided.
   """
+  @spec new(map() | keyword()) :: t()
   def new(attrs \\ %{}) do
     attrs = Map.new(attrs)
 
@@ -50,6 +51,7 @@ defmodule Blog.Bookmarks.Bookmark do
   Validates a bookmark struct.
   Returns {:ok, bookmark} if valid, {:error, reason} if invalid.
   """
+  @spec validate(t()) :: {:ok, t()} | {:error, String.t()}
   def validate(%__MODULE__{} = bookmark) do
     cond do
       is_nil(bookmark.url) or bookmark.url == "" ->

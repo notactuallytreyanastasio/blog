@@ -4,6 +4,7 @@ defmodule Blog.Bookmarks.Store do
 
   @table_name :bookmarks_table
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -13,6 +14,7 @@ defmodule Blog.Bookmarks.Store do
     {:ok, %{}}
   end
 
+  @spec add_bookmark(struct() | map()) :: {:ok, struct()} | {:error, String.t()}
   def add_bookmark(%Bookmark{} = bookmark) do
     case Bookmark.validate(bookmark) do
       {:ok, bookmark} ->
@@ -38,6 +40,14 @@ defmodule Blog.Bookmarks.Store do
   end
 
   # Chrome extension compatibility
+  @spec add_bookmark(
+          String.t() | nil,
+          String.t() | nil,
+          String.t() | nil,
+          [String.t()] | nil,
+          String.t() | nil,
+          String.t() | nil
+        ) :: {:ok, struct()} | {:error, String.t()}
   def add_bookmark(url, title, description, tags, favicon_url, user_id) do
     attrs = %{
       url: url,
@@ -53,6 +63,7 @@ defmodule Blog.Bookmarks.Store do
     |> add_bookmark()
   end
 
+  @spec get_bookmark(term()) :: {:ok, struct()} | {:error, :not_found}
   def get_bookmark(id) do
     case :ets.lookup(@table_name, id) do
       [{^id, bookmark}] -> {:ok, bookmark}
@@ -60,12 +71,14 @@ defmodule Blog.Bookmarks.Store do
     end
   end
 
+  @spec list_bookmarks(String.t()) :: [struct()]
   def list_bookmarks(user_id) do
     :ets.match_object(@table_name, {:_, %Bookmark{user_id: user_id}})
     |> Enum.map(fn {_id, bookmark} -> bookmark end)
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
   end
 
+  @spec delete_bookmark(term()) :: :ok
   def delete_bookmark(id) do
     :ets.delete(@table_name, id)
 
@@ -78,6 +91,7 @@ defmodule Blog.Bookmarks.Store do
     :ok
   end
 
+  @spec search_bookmarks(String.t(), String.t()) :: [struct()]
   def search_bookmarks(user_id, query) do
     query = String.downcase(query)
 
