@@ -3,6 +3,7 @@ defmodule Blog.GitHub.WorkLog do
   alias Blog.Repo
   alias Blog.GitHub.WorkLogCommit
 
+  @spec upsert_from_compare(String.t(), String.t(), String.t(), map()) :: :ok
   def upsert_from_compare(repo, branch, event_id, compare_data) do
     commits = compare_data.commits
     stats = compare_data.stats
@@ -25,6 +26,7 @@ defmodule Blog.GitHub.WorkLog do
     end)
   end
 
+  @spec list_recent() :: [map()]
   def list_recent do
     WorkLogCommit
     |> where([c], c.additions >= 10 or c.deletions >= 10)
