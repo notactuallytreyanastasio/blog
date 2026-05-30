@@ -1,60 +1,12 @@
 defmodule Blog.Content do
   @moduledoc """
-  Handles parsing and categorizing posts from markdown files.
+  Categorizes posts into tech / non-tech buckets by tag.
+
+  Post loading/parsing lives in `Blog.Content.Post`; this module only sorts an
+  existing list of posts into categories.
   """
 
   @tech_tags ~w(programming tech software coding elixir javascript phoenix blog)
-  @posts_dir "priv/static/posts/"
-
-  @typedoc "A post summary parsed from a markdown file (tags as raw strings)."
-  @type post_summary :: %{
-          title: String.t(),
-          tags: [String.t()],
-          content: String.t(),
-          written_on: Date.t(),
-          slug: String.t()
-        }
-
-  @spec list_posts() :: [post_summary()]
-  def list_posts do
-    File.ls!(@posts_dir)
-    |> Enum.map(&parse_post/1)
-    |> Enum.sort_by(& &1.written_on, {:desc, Date})
-  end
-
-  defp parse_post(filename) do
-    content = File.read!(@posts_dir <> filename)
-
-    %{
-      title: parse_title(content),
-      tags: parse_tags(content),
-      content: content,
-      written_on: parse_date_from_filename(filename),
-      slug: Path.basename(filename, ".md")
-    }
-  end
-
-  defp parse_date_from_filename(filename) do
-    case Regex.run(~r/(\d{4}-\d{2}-\d{2})/, filename) do
-      [_, date] ->
-        {:ok, date} = Date.from_iso8601(date)
-        date
-
-      nil ->
-        {:ok, stat} = File.stat(@posts_dir <> filename)
-        NaiveDateTime.to_date(stat.mtime)
-    end
-  end
-
-  defp parse_title(content) do
-    [_, title] = Regex.run(~r/title: (.+)/, content)
-    title
-  end
-
-  defp parse_tags(content) do
-    [_, tags] = Regex.run(~r/tags: (.+)/, content)
-    String.split(tags, ",") |> Enum.map(&String.trim/1)
-  end
 
   @spec categorize_posts([Blog.Content.Post.t()]) :: %{
           tech: [Blog.Content.Post.t()],
