@@ -24,6 +24,7 @@ defmodule Blog.PokeAround.AI.Supervisor do
 
   require Logger
 
+  @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts \\ []) do
     name = opts[:name] || __MODULE__
     Supervisor.start_link(__MODULE__, opts, name: name)

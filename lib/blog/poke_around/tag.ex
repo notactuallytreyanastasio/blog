@@ -6,6 +6,16 @@ defmodule Blog.PokeAround.Tag do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          name: String.t() | nil,
+          slug: String.t() | nil,
+          usage_count: integer() | nil,
+          links: [struct()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   schema "pa_tags" do
     field :name, :string
     field :slug, :string
@@ -19,6 +29,7 @@ defmodule Blog.PokeAround.Tag do
   @required_fields [:name, :slug]
   @optional_fields [:usage_count]
 
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(tag, attrs) do
     tag
     |> cast(attrs, @required_fields ++ @optional_fields)
@@ -30,6 +41,7 @@ defmodule Blog.PokeAround.Tag do
   Generate a slug from a tag name.
   Lowercases and replaces spaces with hyphens.
   """
+  @spec slugify(String.t()) :: String.t()
   def slugify(name) when is_binary(name) do
     name
     |> String.downcase()

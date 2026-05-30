@@ -34,6 +34,7 @@ defmodule Blog.PokeAround.Supervisor do
 
   require Logger
 
+  @spec start_link(term()) :: Supervisor.on_start()
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -58,6 +59,7 @@ defmodule Blog.PokeAround.Supervisor do
   @doc """
   Check if the poke_around system is enabled.
   """
+  @spec enabled?() :: term()
   def enabled? do
     Application.get_env(:blog, __MODULE__, [])
     |> Keyword.get(:enabled, true)

@@ -13,6 +13,8 @@ defmodule Blog.PokeAround.Links do
   Returns `{:ok, link}` or `{:error, changeset}`.
   If the link already exists (by URL hash), returns `{:ok, :exists}`.
   """
+  @spec store_link(map()) ::
+          {:ok, struct()} | {:ok, :exists} | {:error, Ecto.Changeset.t()}
   def store_link(attrs) do
     url = attrs[:url] || attrs["url"]
     url_hash = Link.hash_url(url)
@@ -53,6 +55,7 @@ defmodule Blog.PokeAround.Links do
   - `:domain` - filter by domain
   - `:tags` - filter by tags (any match)
   """
+  @spec random_link(keyword()) :: struct() | nil
   def random_link(opts \\ []) do
     min_score = opts[:min_score] || 0
     exclude_ids = opts[:exclude_ids] || []
@@ -95,6 +98,7 @@ defmodule Blog.PokeAround.Links do
   - `:exclude_ids` - list of link IDs to exclude
   - `:langs` - filter by languages (any match)
   """
+  @spec random_links(non_neg_integer(), keyword()) :: [struct()]
   def random_links(count, opts \\ []) do
     min_score = opts[:min_score] || 0
     exclude_ids = opts[:exclude_ids] || []
@@ -128,6 +132,7 @@ defmodule Blog.PokeAround.Links do
   @doc """
   Increment the stumble count for a link.
   """
+  @spec increment_stumble_count(term()) :: {non_neg_integer(), nil | [term()]}
   def increment_stumble_count(link_id) do
     from(l in Link, where: l.id == ^link_id)
     |> Repo.update_all(inc: [stumble_count: 1])
@@ -136,11 +141,13 @@ defmodule Blog.PokeAround.Links do
   @doc """
   Get a link by ID.
   """
+  @spec get_link(term()) :: struct() | nil
   def get_link(id), do: Repo.get(Link, id)
 
   @doc """
   Get a link by URL.
   """
+  @spec get_link_by_url(String.t()) :: struct() | nil
   def get_link_by_url(url) do
     url_hash = Link.hash_url(url)
     Repo.get_by(Link, url_hash: url_hash)
@@ -149,6 +156,7 @@ defmodule Blog.PokeAround.Links do
   @doc """
   List links with pagination.
   """
+  @spec list_links(keyword()) :: [struct()]
   def list_links(opts \\ []) do
     page = opts[:page] || 1
     per_page = opts[:per_page] || 20
@@ -165,6 +173,7 @@ defmodule Blog.PokeAround.Links do
   @doc """
   Count total links.
   """
+  @spec count_links() :: non_neg_integer()
   def count_links do
     Repo.aggregate(Link, :count)
   end
@@ -172,6 +181,7 @@ defmodule Blog.PokeAround.Links do
   @doc """
   Get top domains by link count.
   """
+  @spec top_domains(non_neg_integer()) :: [{String.t() | nil, non_neg_integer()}]
   def top_domains(limit \\ 10) do
     from(l in Link,
       group_by: l.domain,

@@ -88,6 +88,13 @@ defmodule Blog.PokeAround.Bluesky.Extractor do
 
   @stats_interval_ms 30_000
 
+  @type t :: %__MODULE__{
+          started_at: DateTime.t() | nil,
+          posts_processed: non_neg_integer(),
+          links_found: non_neg_integer(),
+          links_qualified: non_neg_integer()
+        }
+
   defstruct [
     :started_at,
     posts_processed: 0,
