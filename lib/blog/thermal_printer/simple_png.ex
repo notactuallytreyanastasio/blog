@@ -6,6 +6,8 @@ defmodule Blog.ThermalPrinter.SimplePNG do
 
   @png_signature <<137, 80, 78, 71, 13, 10, 26, 10>>
 
+  @spec decode(binary()) ::
+          {:ok, [integer()], non_neg_integer(), non_neg_integer()} | {:error, String.t()}
   def decode(binary) do
     with {:ok, chunks} <- validate_and_parse(binary),
          {:ok, ihdr} <- get_ihdr(chunks),

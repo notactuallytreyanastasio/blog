@@ -18,6 +18,7 @@ defmodule Blog.ThermalPrinter do
       # From raw binary data
       {:ok, dithered} = Blog.ThermalPrinter.process_image(image_binary)
   """
+  @spec process_upload(map()) :: {:ok, term()} | {:error, term()}
   def process_upload(upload_entry) do
     consume_uploaded_entry(upload_entry, fn %{path: path} ->
       binary = File.read!(path)
@@ -25,6 +26,7 @@ defmodule Blog.ThermalPrinter do
     end)
   end
 
+  @spec process_image(binary(), keyword()) :: {:ok, term()} | {:error, term()}
   def process_image(image_binary, opts \\ []) do
     width = Keyword.get(opts, :width, 384)
     
@@ -38,6 +40,7 @@ defmodule Blog.ThermalPrinter do
   @doc """
   Get a preview of the dithered image as a data URL for display in the browser.
   """
+  @spec get_preview(binary(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def get_preview(image_binary, opts \\ []) do
     width = Keyword.get(opts, :width, 384)
     
