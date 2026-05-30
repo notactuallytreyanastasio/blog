@@ -19,7 +19,7 @@ defmodule Blog.Mirror.SourceProcessor do
 
   Each character gets random animation properties for the spinning display.
   """
-  @spec process(String.t()) :: [[char_data()]]
+  @spec process(String.t() | {:error, term()} | term()) :: [[char_data()]]
   def process(source) when is_binary(source) do
     source
     |> String.split("\n")
