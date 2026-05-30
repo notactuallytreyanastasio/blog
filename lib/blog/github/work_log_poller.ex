@@ -8,10 +8,12 @@ defmodule Blog.GitHub.WorkLogPoller do
   @topic "github:work_log"
   @max_compares_per_cycle 10
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @spec get_events() :: [map()]
   def get_events do
     Blog.GitHub.WorkLog.list_recent()
   end
