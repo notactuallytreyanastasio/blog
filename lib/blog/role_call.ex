@@ -9,6 +9,7 @@ defmodule Blog.RoleCall do
 
   # ============ Shows ============
 
+  @spec search_shows(String.t(), keyword()) :: [struct()]
   def search_shows(query, opts \\ []) when is_binary(query) do
     limit = Keyword.get(opts, :limit, 20)
     exclude_ids = Keyword.get(opts, :exclude_ids, [])
@@ -22,8 +23,10 @@ defmodule Blog.RoleCall do
     |> Repo.all()
   end
 
+  @spec get_show(term()) :: struct() | nil
   def get_show(id), do: Repo.get(Show, id)
 
+  @spec get_show_with_credits(term()) :: struct() | nil
   def get_show_with_credits(id) do
     from(s in Show,
       where: s.id == ^id,
@@ -42,6 +45,7 @@ defmodule Blog.RoleCall do
     )
   end
 
+  @spec get_random_shows(keyword()) :: [map()]
   def get_random_shows(opts \\ []) do
     limit = Keyword.get(opts, :limit, 12)
     exclude_ids = Keyword.get(opts, :exclude_ids, [])
@@ -60,8 +64,10 @@ defmodule Blog.RoleCall do
 
   # ============ People ============
 
+  @spec get_person(term()) :: struct() | nil
   def get_person(id), do: Repo.get(Person, id)
 
+  @spec get_person_with_shows(term()) :: struct() | nil
   def get_person_with_shows(id) do
     from(p in Person,
       where: p.id == ^id,
@@ -80,6 +86,7 @@ defmodule Blog.RoleCall do
 
   # ============ Writers & Recommendations ============
 
+  @spec get_show_writers(term()) :: [struct()]
   def get_show_writers(show_id) do
     from(c in Credit,
       join: p in assoc(c, :person),
@@ -94,6 +101,7 @@ defmodule Blog.RoleCall do
     |> Enum.map(& &1.person)
   end
 
+  @spec get_writer_shows(term(), keyword()) :: [struct()]
   def get_writer_shows(person_id, opts \\ []) do
     exclude_ids = Keyword.get(opts, :exclude_ids, [])
 
@@ -113,6 +121,7 @@ defmodule Blog.RoleCall do
   Get recommendations based on writers from liked shows.
   Returns shows by the same writers, ranked by how many liked writers worked on them.
   """
+  @spec get_recommendations([term()], keyword()) :: [map()]
   def get_recommendations(liked_show_ids, opts \\ []) when is_list(liked_show_ids) do
     limit = Keyword.get(opts, :limit, 20)
     exclude_ids = Keyword.get(opts, :exclude_ids, [])
@@ -154,25 +163,31 @@ defmodule Blog.RoleCall do
 
   # ============ Data Import ============
 
+  @spec import_show(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def import_show(attrs) do
     %Show{}
     |> Show.changeset(attrs)
     |> Repo.insert(on_conflict: :replace_all, conflict_target: :id)
   end
 
+  @spec import_person(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def import_person(attrs) do
     %Person{}
     |> Person.changeset(attrs)
     |> Repo.insert(on_conflict: :replace_all, conflict_target: :id)
   end
 
+  @spec import_credit(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def import_credit(attrs) do
     %Credit{}
     |> Credit.changeset(attrs)
     |> Repo.insert(on_conflict: :nothing)
   end
 
+  @spec count_shows() :: non_neg_integer()
   def count_shows, do: Repo.aggregate(Show, :count)
+
+  @spec count_people() :: non_neg_integer()
   def count_people, do: Repo.aggregate(Person, :count)
 
   # ============ Helpers ============
