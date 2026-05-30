@@ -17,6 +17,7 @@ defmodule Blog.GeoMap do
       [%TagIn{}, ...]
 
   """
+  @spec list_tag_ins() :: [struct()]
   def list_tag_ins do
     Repo.all(TagIn)
   end
@@ -35,6 +36,7 @@ defmodule Blog.GeoMap do
       ** (Ecto.NoResultsError)
 
   """
+  @spec get_tag_in!(term()) :: struct()
   def get_tag_in!(id), do: Repo.get!(TagIn, id)
 
   @doc """
@@ -49,6 +51,7 @@ defmodule Blog.GeoMap do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec create_tag_in(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_tag_in(attrs \\ %{}) do
     %TagIn{}
     |> TagIn.changeset(attrs)
@@ -67,6 +70,7 @@ defmodule Blog.GeoMap do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec update_tag_in(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_tag_in(%TagIn{} = tag_in, attrs) do # Changed from :tag_in to :TagIn
     tag_in
     |> TagIn.changeset(attrs)
@@ -85,6 +89,7 @@ defmodule Blog.GeoMap do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec delete_tag_in(struct()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_tag_in(%TagIn{} = tag_in) do # Changed from :tag_in to :TagIn
     Repo.delete(tag_in)
   end
@@ -98,6 +103,7 @@ defmodule Blog.GeoMap do
       %Ecto.Changeset{data: %TagIn{}} # Changed from :tag_in to :TagIn
 
   """
+  @spec change_tag_in(struct(), map()) :: Ecto.Changeset.t()
   def change_tag_in(%TagIn{} = tag_in, attrs \\ %{}) do # Changed from :tag_in to :TagIn
     TagIn.changeset(tag_in, attrs)
   end

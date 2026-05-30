@@ -3,6 +3,7 @@ defmodule Blog.RedditBookmarkProcessor do
   alias Blog.Bookmarks.{Store, Bookmark}
   require Logger
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{count: 0}, name: __MODULE__)
   end

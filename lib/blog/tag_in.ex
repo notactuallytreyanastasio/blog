@@ -2,6 +2,17 @@ defmodule Blog.TagIn do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          id: Ecto.UUID.t() | nil,
+          user_name: String.t() | nil,
+          spotify_link: String.t() | nil,
+          note: String.t() | nil,
+          latitude: float() | nil,
+          longitude: float() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "tag_ins" do
@@ -15,6 +26,7 @@ defmodule Blog.TagIn do
   end
 
   @doc false
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(tag_in, attrs) do
     tag_in
     |> cast(attrs, [:user_name, :spotify_link, :note, :latitude, :longitude])
