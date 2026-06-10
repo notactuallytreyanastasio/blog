@@ -66,7 +66,9 @@ defmodule Blog.SmartSteps.SessionServer do
         selected_choice_index: -1,
         history: [tree.start_scenario_id],
         level_data: [],
-        messages: [Types.create_message(:system, "Session #{session_id} started with \"#{tree.title}\".")],
+        messages: [
+          Types.create_message(:system, "Session #{session_id} started with \"#{tree.title}\".")
+        ],
         is_game_over: false
       }
 
@@ -94,14 +96,14 @@ defmodule Blog.SmartSteps.SessionServer do
     gs = state.game_state
     scenario = Map.get(state.tree.scenarios, gs.current_scenario_id)
 
-    if scenario && gs.selected_choice_index >= 0 do
-      choice = Enum.at(scenario.choices, gs.selected_choice_index)
+    choice =
+      scenario && gs.selected_choice_index >= 0 &&
+        Enum.at(scenario.choices, gs.selected_choice_index)
+
+    if choice do
       msg = Types.create_message(:system, "Selected: \"#{choice.text}\"")
 
-      game_state = %{gs |
-        messages: gs.messages ++ [msg],
-        phase: :discussion
-      }
+      game_state = %{gs | messages: gs.messages ++ [msg], phase: :discussion}
 
       new_state = %{state | game_state: game_state}
       broadcast(game_state.session_id, {:state_update, game_state})
@@ -119,26 +121,35 @@ defmodule Blog.SmartSteps.SessionServer do
     if scenario do
       get_next = fn id -> Map.get(state.tree.scenarios, id) end
 
-      case GameLogic.process_choice(gs, scenario, gs.selected_choice_index, notes, metrics, get_next) do
+      case GameLogic.process_choice(
+             gs,
+             scenario,
+             gs.selected_choice_index,
+             notes,
+             metrics,
+             get_next
+           ) do
         {:ok, result} ->
           game_state =
             if result.is_game_over do
-              %{gs |
-                level_data: gs.level_data ++ [result.level_data],
-                is_game_over: true,
-                game_over_reason: result.game_over_reason,
-                phase: :results,
-                messages: gs.messages ++ result.messages
+              %{
+                gs
+                | level_data: gs.level_data ++ [result.level_data],
+                  is_game_over: true,
+                  game_over_reason: result.game_over_reason,
+                  phase: :results,
+                  messages: gs.messages ++ result.messages
               }
             else
-              %{gs |
-                current_scenario_id: result.next_scenario_id,
-                current_level: gs.current_level + 1,
-                selected_choice_index: -1,
-                history: gs.history ++ [result.next_scenario_id],
-                level_data: gs.level_data ++ [result.level_data],
-                phase: :game,
-                messages: gs.messages ++ result.messages
+              %{
+                gs
+                | current_scenario_id: result.next_scenario_id,
+                  current_level: gs.current_level + 1,
+                  selected_choice_index: -1,
+                  history: gs.history ++ [result.next_scenario_id],
+                  level_data: gs.level_data ++ [result.level_data],
+                  phase: :game,
+                  messages: gs.messages ++ result.messages
               }
             end
 

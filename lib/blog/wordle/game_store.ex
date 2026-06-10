@@ -204,7 +204,7 @@ defmodule Blog.Wordle.GameStore do
       games_by_player
       |> Enum.map(fn {_player_id, games} ->
         # Sort games by activity timestamp (newest first)
-        sorted_games = Enum.sort_by(games, fn game -> game.last_activity end, {:desc, DateTime})
+        sorted_games = Enum.sort_by(games, fn game -> game.last_activity end, :desc)
 
         # Split into active and completed games
         {active_games, completed_games} =

@@ -66,6 +66,9 @@ defmodule BlogWeb.AllowedChatsLive do
   end
 
   @impl true
+  def handle_event("add_word", _params, socket), do: {:noreply, socket}
+
+  @impl true
   def handle_event("remove_word", %{"word" => word}, socket) do
     # Remove the word from the global allowed_words set
     MessageStore.remove_allowed_word(word)
@@ -93,6 +96,9 @@ defmodule BlogWeb.AllowedChatsLive do
     # Updates will come through the PubSub channel
     {:noreply, assign(socket, :message_form, to_form(%{"content" => ""}))}
   end
+
+  @impl true
+  def handle_event("send_message", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("validate_add_word", %{"word" => word}, socket) do
@@ -172,7 +178,6 @@ defmodule BlogWeb.AllowedChatsLive do
     end
   end
 
-
   # Generate a unique user ID
   defp generate_user_id do
     System.unique_integer([:positive]) |> to_string()
@@ -204,7 +209,10 @@ defmodule BlogWeb.AllowedChatsLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-win95">
-      <div class="os-window os-window-win95" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div
+        class="os-window os-window-win95"
+        style="width: 100%; height: calc(100vh - 40px); max-width: none;"
+      >
         <div class="os-titlebar">
           <span class="os-titlebar-title">💬 Community Chat - Allowed Words Filter</span>
           <div class="os-titlebar-buttons">
@@ -220,7 +228,10 @@ defmodule BlogWeb.AllowedChatsLive do
           <span>Users ({@online_count} online)</span>
           <span>Help</span>
         </div>
-        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;">
+        <div
+          class="os-content"
+          style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;"
+        >
           <div class="p-3">
             <div class="text-xs mb-2" style="color: #000080;">Session ID: {@user_id}</div>
 
@@ -240,7 +251,11 @@ defmodule BlogWeb.AllowedChatsLive do
                     class="mb-3"
                   >
                     <div class="flex gap-1">
-                      <.input field={@add_word_form[:word]} placeholder="Enter a word" class="flex-grow text-sm" />
+                      <.input
+                        field={@add_word_form[:word]}
+                        placeholder="Enter a word"
+                        class="flex-grow text-sm"
+                      />
                       <button
                         type="submit"
                         class="px-3 py-1 border-2 outset bg-[#c0c0c0] text-sm hover:bg-[#d0d0d0] active:border-inset"
@@ -274,8 +289,8 @@ defmodule BlogWeb.AllowedChatsLive do
                   </div>
                 </div>
               </div>
-
-              <!-- Main content: Messages -->
+              
+    <!-- Main content: Messages -->
               <div class="md:col-span-2">
                 <div class="bg-white border-2 inset p-3 mb-3">
                   <h2 class="font-bold mb-2 text-sm">Send Message</h2>
@@ -323,10 +338,10 @@ defmodule BlogWeb.AllowedChatsLive do
                                     Allowed by:
                                     <%= for {word, i} <- Enum.with_index(message.matching_words) do %>
                                       <span class="font-bold">{word}</span>{if i <
-                                                                                   length(
-                                                                                     message.matching_words
-                                                                                   ) - 1,
-                                                                                 do: ", "}
+                                                                                 length(
+                                                                                   message.matching_words
+                                                                                 ) - 1,
+                                                                               do: ", "}
                                     <% end %>
                                   </p>
                                 <% end %>

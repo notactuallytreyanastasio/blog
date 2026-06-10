@@ -505,109 +505,117 @@ defmodule BlogWeb.BlackjackLive do
           <span>Help</span>
         </div>
         <div class="os-content" style="background: #008000;">
-    <div id="blackjack-game" class="min-h-[500px] bg-green-800 p-4 text-white" phx-hook="Blackjack">
-      <div class="max-w-4xl mx-auto">
-        <h1 class="text-4xl font-bold mb-6 text-center">Blackjack</h1>
+          <div
+            id="blackjack-game"
+            class="min-h-[500px] bg-green-800 p-4 text-white"
+            phx-hook="Blackjack"
+          >
+            <div class="max-w-4xl mx-auto">
+              <h1 class="text-4xl font-bold mb-6 text-center">Blackjack</h1>
 
-        <%= if @view == :lobby do %>
-          <div class="bg-green-900 rounded-lg p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Game Lobby</h2>
+              <%= if @view == :lobby do %>
+                <div class="bg-green-900 rounded-lg p-6 mb-8">
+                  <h2 class="text-2xl font-bold mb-4">Game Lobby</h2>
 
-            <div class="mb-6">
-              <label class="block mb-2">Your Name:</label>
-              <form phx-submit="set_player_name" class="flex gap-2">
-                <input
-                  type="text"
-                  name="name"
-                  value={@players_in_lobby[@player_id].name}
-                  class="px-3 py-2 rounded text-black flex-grow"
-                />
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
-                  Update
-                </button>
-              </form>
-            </div>
+                  <div class="mb-6">
+                    <label class="block mb-2">Your Name:</label>
+                    <form phx-submit="set_player_name" class="flex gap-2">
+                      <input
+                        type="text"
+                        name="name"
+                        value={@players_in_lobby[@player_id].name}
+                        class="px-3 py-2 rounded text-black flex-grow"
+                      />
+                      <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+                        Update
+                      </button>
+                    </form>
+                  </div>
 
-            <div class="mb-6">
-              <h3 class="text-xl font-bold mb-2">Players in Lobby:</h3>
-              <ul class="list-disc pl-6">
-                <%= for {id, player} <- @players_in_lobby do %>
-                  <li class={if id == @player_id, do: "font-bold", else: ""}>
-                    {player.name} {if id == @player_id, do: "(You)"}
-                  </li>
-                <% end %>
-              </ul>
-            </div>
+                  <div class="mb-6">
+                    <h3 class="text-xl font-bold mb-2">Players in Lobby:</h3>
+                    <ul class="list-disc pl-6">
+                      <%= for {id, player} <- @players_in_lobby do %>
+                        <li class={if id == @player_id, do: "font-bold", else: ""}>
+                          {player.name} {if id == @player_id, do: "(You)"}
+                        </li>
+                      <% end %>
+                    </ul>
+                  </div>
 
-            <%= if map_size(@active_games) > 0 do %>
-              <div class="mb-6">
-                <h3 class="text-xl font-bold mb-2">Active Games:</h3>
-                <div class="grid grid-cols-1 gap-4">
-                  <%= for {game_id, game_info} <- @active_games do %>
-                    <div class="bg-green-800 p-4 rounded-lg">
-                      <p class="mb-2">
-                        <strong>Host:</strong> {game_info.host_name}
-                        <span class="ml-4"><strong>Players:</strong> {game_info.player_count}</span>
-                      </p>
-                      <div class="flex justify-end">
-                        <button
-                          phx-click="join_game"
-                          phx-value-game_id={game_id}
-                          class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded action-button"
-                        >
-                          Join Game
-                        </button>
+                  <%= if map_size(@active_games) > 0 do %>
+                    <div class="mb-6">
+                      <h3 class="text-xl font-bold mb-2">Active Games:</h3>
+                      <div class="grid grid-cols-1 gap-4">
+                        <%= for {game_id, game_info} <- @active_games do %>
+                          <div class="bg-green-800 p-4 rounded-lg">
+                            <p class="mb-2">
+                              <strong>Host:</strong> {game_info.host_name}
+                              <span class="ml-4">
+                                <strong>Players:</strong> {game_info.player_count}
+                              </span>
+                            </p>
+                            <div class="flex justify-end">
+                              <button
+                                phx-click="join_game"
+                                phx-value-game_id={game_id}
+                                class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded action-button"
+                              >
+                                Join Game
+                              </button>
+                            </div>
+                          </div>
+                        <% end %>
                       </div>
                     </div>
                   <% end %>
-                </div>
-              </div>
-            <% end %>
 
-            <div class="flex justify-center">
-              <button
-                phx-click="create_game"
-                class="bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg text-lg font-bold action-button"
-              >
-                Start New Game
-              </button>
-            </div>
-          </div>
-        <% else %>
-          <div class="bg-green-900 rounded-lg p-6 mb-4 blackjack-table">
-            <%= if @game_message do %>
-              <div class="bg-yellow-600 text-white p-3 rounded mb-4 text-center font-bold result-message">
-                {@game_message}
-              </div>
-            <% end %>
-
-            <div class="mb-8 dealer-area p-4">
-              <h2 class="text-xl font-bold mb-4 player-name">Dealer's Hand</h2>
-              <div class="flex flex-wrap gap-2 mb-2">
-                <% # Calculate dealer score if it's not in the map
-                dealer_score =
-                  Map.get(@game.dealer, :score) || Blackjack.calculate_score(@game.dealer.hand)
-
-                {dealer_cards, dealer_status} =
-                  render_player_hand(
-                    @game.dealer.hand,
-                    @game.dealer.status,
-                    dealer_score,
-                    @game.status != :game_over
-                  ) %>
-
-                <%= for card <- dealer_cards do %>
-                  <div class="text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji">
-                    {card}
+                  <div class="flex justify-center">
+                    <button
+                      phx-click="create_game"
+                      class="bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg text-lg font-bold action-button"
+                    >
+                      Start New Game
+                    </button>
                   </div>
-                <% end %>
-              </div>
-              <div>{dealer_status}</div>
-            </div>
+                </div>
+              <% else %>
+                <div class="bg-green-900 rounded-lg p-6 mb-4 blackjack-table">
+                  <%= if @game_message do %>
+                    <div class="bg-yellow-600 text-white p-3 rounded mb-4 text-center font-bold result-message">
+                      {@game_message}
+                    </div>
+                  <% end %>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <%= for {player_id, player} <- @game.players do %>
-                <div class={
+                  <%= if @game do %>
+                    <div class="mb-8 dealer-area p-4">
+                      <h2 class="text-xl font-bold mb-4 player-name">Dealer's Hand</h2>
+                      <div class="flex flex-wrap gap-2 mb-2">
+                        <% # Calculate dealer score if it's not in the map
+                        dealer_score =
+                          Map.get(@game.dealer, :score) ||
+                            Blackjack.calculate_score(@game.dealer.hand)
+
+                        {dealer_cards, dealer_status} =
+                          render_player_hand(
+                            @game.dealer.hand,
+                            @game.dealer.status,
+                            dealer_score,
+                            @game.status != :game_over
+                          ) %>
+
+                        <%= for card <- dealer_cards do %>
+                          <div class="text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji">
+                            {card}
+                          </div>
+                        <% end %>
+                      </div>
+                      <div>{dealer_status}</div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <%= for {player_id, player} <- @game.players do %>
+                        <div class={
                   "bg-green-800 p-4 rounded-lg border-2 #{
                     cond do
                       is_players_turn?(@game, player_id) -> "border-yellow-400 player-active"
@@ -617,83 +625,88 @@ defmodule BlogWeb.BlackjackLive do
                     end
                   }"
                 }>
-                  <h3 class="text-lg font-bold mb-2 player-name">
-                    {get_player_name(@players_in_lobby, player_id)}
-                    {if player_id == @player_id, do: "(You)"} - Balance:
-                    <span class={"chip chip-#{min(100, player.balance)}"}>
-                      {player.balance}
-                    </span>
-                  </h3>
+                          <h3 class="text-lg font-bold mb-2 player-name">
+                            {get_player_name(@players_in_lobby, player_id)}
+                            {if player_id == @player_id, do: "(You)"} - Balance:
+                            <span class={"chip chip-#{min(100, player.balance)}"}>
+                              {player.balance}
+                            </span>
+                          </h3>
 
-                  <div class="flex flex-wrap gap-2 mb-2 card-container">
-                    <% # Show all cards for current player, only first card for others
-                    should_hide_cards = player_id != @player_id
+                          <div class="flex flex-wrap gap-2 mb-2 card-container">
+                            <% # Show all cards for current player, only first card for others
+                            should_hide_cards = player_id != @player_id
 
-                    # Debug the hand and score (only for current player)
-                    if player_id == @player_id do
-                      debug_player_hand(player_id, player.hand, player.score)
-                    end
+                            # Debug the hand and score (only for current player)
+                            if player_id == @player_id do
+                              debug_player_hand(player_id, player.hand, player.score)
+                            end
 
-                    {player_cards, player_status} =
-                      render_player_hand(
-                        player.hand,
-                        player.status,
-                        player.score,
-                        should_hide_cards
-                      ) %>
+                            {player_cards, player_status} =
+                              render_player_hand(
+                                player.hand,
+                                player.status,
+                                player.score,
+                                should_hide_cards
+                              ) %>
 
-                    <%= for card <- player_cards do %>
-                      <div class="text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji">
-                        {card}
+                            <%= for card <- player_cards do %>
+                              <div class="text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji">
+                                {card}
+                              </div>
+                            <% end %>
+                          </div>
+                          <div>{player_status}</div>
+
+                          <%= if player_id == @player_id && is_players_turn?(@game, player_id) do %>
+                            <div class="mt-4 flex gap-3">
+                              <button
+                                phx-click="hit"
+                                class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded action-button"
+                              >
+                                Hit
+                              </button>
+                              <button
+                                phx-click="stand"
+                                class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded action-button"
+                              >
+                                Stand
+                              </button>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+
+                    <%= if @game.status == :game_over do %>
+                      <div class="flex justify-center gap-4">
+                        <button
+                          phx-click="new_round"
+                          class="bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg text-lg font-bold action-button"
+                        >
+                          Play Again
+                        </button>
+                        <button
+                          phx-click="return_to_lobby"
+                          class="bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded-lg text-lg font-bold action-button"
+                        >
+                          Return to Lobby
+                        </button>
                       </div>
                     <% end %>
-                  </div>
-                  <div>{player_status}</div>
-
-                  <%= if player_id == @player_id && is_players_turn?(@game, player_id) do %>
-                    <div class="mt-4 flex gap-3">
-                      <button
-                        phx-click="hit"
-                        class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded action-button"
-                      >
-                        Hit
-                      </button>
-                      <button
-                        phx-click="stand"
-                        class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded action-button"
-                      >
-                        Stand
-                      </button>
-                    </div>
+                  <% else %>
+                    <div class="text-center py-8">Waiting for the host to deal you in...</div>
                   <% end %>
                 </div>
               <% end %>
             </div>
-
-            <%= if @game.status == :game_over do %>
-              <div class="flex justify-center gap-4">
-                <button
-                  phx-click="new_round"
-                  class="bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg text-lg font-bold action-button"
-                >
-                  Play Again
-                </button>
-                <button
-                  phx-click="return_to_lobby"
-                  class="bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded-lg text-lg font-bold action-button"
-                >
-                  Return to Lobby
-                </button>
-              </div>
-            <% end %>
           </div>
-        <% end %>
-      </div>
-    </div>
         </div>
         <div class="os-statusbar">
           <div class="os-statusbar-section">Ready</div>
-          <div class="os-statusbar-section" style="flex: 1;">Players: {map_size(@players_in_lobby)}</div>
+          <div class="os-statusbar-section" style="flex: 1;">
+            Players: {map_size(@players_in_lobby)}
+          </div>
         </div>
       </div>
     </div>

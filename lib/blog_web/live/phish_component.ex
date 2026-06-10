@@ -1,12 +1,19 @@
 defmodule BlogWeb.PhishComponent do
   use BlogWeb, :live_component
 
-  import BlogWeb.PhishLive, only: [batting_avg: 1, fmt_avg: 1, fmt_duration: 1, song_stats: 1, filtered_tracks: 2]
+  import BlogWeb.PhishLive,
+    only: [batting_avg: 1, fmt_avg: 1, fmt_duration: 1, song_stats: 1, filtered_tracks: 2]
 
   @impl true
   def mount(socket) do
     years = Blog.Phish.list_years()
-    year = Enum.random(years)
+
+    year =
+      case years do
+        [] -> "all"
+        years -> to_string(Enum.random(years))
+      end
+
     song_list = Blog.Phish.song_list(year)
 
     socket =

@@ -37,15 +37,7 @@ defmodule BlogWeb.KeyloggerLive do
     pressed_keys =
       case key do
         "Backspace" ->
-          # first we reverse the string, and take the firts character
-          <<_last_character::binary-size(1), rest::binary>> =
-            String.reverse(socket.assigns.pressed_keys)
-
-          # then since its reversed, and just that one sliced off, we have
-          # effectively "backspaced" and we can now reverse the list again, and
-          # we have the copy that the user desires, successfuly having reached their
-          # backspace escape hatch
-          String.reverse(rest)
+          String.slice(socket.assigns.pressed_keys, 0..-2//1)
 
         "Meta" ->
           # If it is the meta key, they aren't going to be able to

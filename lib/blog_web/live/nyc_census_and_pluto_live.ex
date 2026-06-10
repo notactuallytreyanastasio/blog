@@ -27,7 +27,13 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
 
     task =
       Task.async(fn ->
-        Estimator.estimate(polygon)
+        try do
+          Estimator.estimate(polygon)
+        rescue
+          e -> {:error, Exception.message(e)}
+        catch
+          kind, reason -> {:error, Exception.format_banner(kind, reason)}
+        end
       end)
 
     {:noreply, assign(socket, task_ref: task.ref)}
@@ -90,26 +96,26 @@ defmodule BlogWeb.NycCensusAndPlutoLive do
         </div>
 
         <div :if={@error} class="nyc-error">
-          <p><%= @error %></p>
+          <p>{@error}</p>
         </div>
 
         <div :if={@results} class="nyc-results">
           <div class="nyc-stat nyc-primary">
-            <span class="nyc-stat-value"><%= format_number(round(@results.total_population)) %></span>
+            <span class="nyc-stat-value">{format_number(round(@results.total_population))}</span>
             <span class="nyc-stat-label">estimated people</span>
           </div>
 
           <div class="nyc-stat-grid">
             <div class="nyc-stat">
-              <span class="nyc-stat-value"><%= format_number(@results.total_lots) %></span>
+              <span class="nyc-stat-value">{format_number(@results.total_lots)}</span>
               <span class="nyc-stat-label">tax lots</span>
             </div>
             <div class="nyc-stat">
-              <span class="nyc-stat-value"><%= format_number(@results.total_residential_units) %></span>
+              <span class="nyc-stat-value">{format_number(@results.total_residential_units)}</span>
               <span class="nyc-stat-label">residential units</span>
             </div>
             <div class="nyc-stat">
-              <span class="nyc-stat-value"><%= @results.tract_count %></span>
+              <span class="nyc-stat-value">{@results.tract_count}</span>
               <span class="nyc-stat-label">census tracts</span>
             </div>
           </div>

@@ -9,7 +9,8 @@ defmodule BlogWeb.PhishLive do
      assign(socket,
        embed: false,
        page_title: "phangraphs — Phish 3.0 Jam Analytics",
-       page_description: "Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009.",
+       page_description:
+         "Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009.",
        page_image: "https://www.bobbby.online/images/og-phangraphs.png",
        years: years,
        year: "all",
@@ -28,7 +29,13 @@ defmodule BlogWeb.PhishLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    year = params["year"] || Enum.random(socket.assigns.years)
+    year =
+      params["year"] ||
+        case socket.assigns.years do
+          [] -> "all"
+          years -> to_string(Enum.random(years))
+        end
+
     sort_by = params["sort"] || "avg"
     min_played = parse_int(params["min"], 5)
     filter = params["filter"] || ""
@@ -37,7 +44,13 @@ defmodule BlogWeb.PhishLive do
 
     socket =
       socket
-      |> assign(year: year, sort_by: sort_by, min_played: min_played, filter: filter, song_list: song_list)
+      |> assign(
+        year: year,
+        sort_by: sort_by,
+        min_played: min_played,
+        filter: filter,
+        song_list: song_list
+      )
       |> assign_sorted_songs()
 
     selected_song = params["song"] || random_top_song(socket.assigns.sorted_songs)
@@ -118,6 +131,7 @@ defmodule BlogWeb.PhishLive do
 
       song ->
         history = Blog.Phish.song_history(song, socket.assigns.year)
+
         socket
         |> assign(song_history: history)
         |> push_event("song-data", %{
@@ -128,7 +142,13 @@ defmodule BlogWeb.PhishLive do
   end
 
   defp assign_sorted_songs(socket) do
-    %{song_list: song_list, sort_by: sort_by, min_played: min_played, filter: filter, selected_song: selected_song} =
+    %{
+      song_list: song_list,
+      sort_by: sort_by,
+      min_played: min_played,
+      filter: filter,
+      selected_song: selected_song
+    } =
       socket.assigns
 
     filtered =
@@ -203,6 +223,7 @@ defmodule BlogWeb.PhishLive do
   end
 
   defp parse_int(nil, default), do: default
+
   defp parse_int(str, default) do
     case Integer.parse(str) do
       {n, _} -> n
@@ -211,14 +232,27 @@ defmodule BlogWeb.PhishLive do
   end
 
   # Computed stats for mobile card
-  def song_stats(nil), do: %{
-    jc_count: 0, avg_dur: 0, longest_ms: 0, longest_track: nil,
-    most_loved_track: nil, notable_quote: nil, jc_streak: 0,
-    dominant_set: nil, dominant_set_pct: 0, jc_set_note: nil,
-    last_played: nil, days_since: nil, avg_gap_days: nil,
-    best_year: nil, best_year_jc: 0, best_year_total: 0,
-    audio_count: 0, track_count: 0
-  }
+  def song_stats(nil),
+    do: %{
+      jc_count: 0,
+      avg_dur: 0,
+      longest_ms: 0,
+      longest_track: nil,
+      most_loved_track: nil,
+      notable_quote: nil,
+      jc_streak: 0,
+      dominant_set: nil,
+      dominant_set_pct: 0,
+      jc_set_note: nil,
+      last_played: nil,
+      days_since: nil,
+      avg_gap_days: nil,
+      best_year: nil,
+      best_year_jc: 0,
+      best_year_total: 0,
+      audio_count: 0,
+      track_count: 0
+    }
 
   def song_stats(%{tracks: tracks}) do
     jc_count = Enum.count(tracks, fn t -> t.is_jamchart == 1 end)
@@ -250,7 +284,9 @@ defmodule BlogWeb.PhishLive do
     {dominant_set, dominant_set_pct} =
       set_groups
       |> Enum.max_by(fn {_s, ts} -> length(ts) end, fn -> {nil, []} end)
-      |> then(fn {s, ts} -> {s, if(length(tracks) > 0, do: round(100 * length(ts) / length(tracks)), else: 0)} end)
+      |> then(fn {s, ts} ->
+        {s, if(length(tracks) > 0, do: round(100 * length(ts) / length(tracks)), else: 0)}
+      end)
 
     jc_tracks = Enum.filter(tracks, fn t -> t.is_jamchart == 1 end)
 
@@ -259,7 +295,10 @@ defmodule BlogWeb.PhishLive do
         jc_set_groups = Enum.group_by(jc_tracks, fn t -> t.set_name end)
         {top_jc_set, top_jc_ts} = Enum.max_by(jc_set_groups, fn {_s, ts} -> length(ts) end)
         pct = round(100 * length(top_jc_ts) / length(jc_tracks))
-        if pct >= 75, do: "#{length(top_jc_ts)}/#{length(jc_tracks)} JCs from #{fmt_set(top_jc_set)}", else: nil
+
+        if pct >= 75,
+          do: "#{length(top_jc_ts)}/#{length(jc_tracks)} JCs from #{fmt_set(top_jc_set)}",
+          else: nil
       else
         nil
       end
