@@ -25,7 +25,10 @@ defmodule BlogWeb.Twenty48Live do
      |> assign(:sizes, @sizes)
      |> assign(:blitz_options, @blitz_options)
      |> assign(:page_title, "2048 — Blitz Edition")
-     |> assign(:page_description, "The classic 2048 puzzle with a twist: Blitz mode gives you 2 seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.")
+     |> assign(
+       :page_description,
+       "The classic 2048 puzzle with a twist: Blitz mode gives you 2 seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style."
+     )
      |> assign(:page_image, "https://www.bobbby.online/images/og-2048.png")}
   end
 
@@ -98,32 +101,38 @@ defmodule BlogWeb.Twenty48Live do
   end
 
   def handle_event("set_blitz_time", %{"ms" => ms_str}, socket) do
-    ms = String.to_integer(ms_str)
-    cancel_timer(socket.assigns.timer_ref)
+    with {ms, ""} <- Integer.parse(ms_str), true <- ms in @blitz_options do
+      cancel_timer(socket.assigns.timer_ref)
 
-    socket =
-      socket
-      |> assign(:blitz_ms, ms)
-      |> assign(:time_left, ms)
-      |> assign(:timer_ref, nil)
+      socket =
+        socket
+        |> assign(:blitz_ms, ms)
+        |> assign(:time_left, ms)
+        |> assign(:timer_ref, nil)
 
-    socket = if socket.assigns.blitz, do: start_blitz_timer(socket), else: socket
-    {:noreply, socket}
+      socket = if socket.assigns.blitz, do: start_blitz_timer(socket), else: socket
+      {:noreply, socket}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("set_size", %{"size" => size_str}, socket) do
-    size = String.to_integer(size_str)
-    cancel_timer(socket.assigns.timer_ref)
-    game = Twenty48.new(size)
+    with {size, ""} <- Integer.parse(size_str), true <- size in @sizes do
+      cancel_timer(socket.assigns.timer_ref)
+      game = Twenty48.new(size)
 
-    {:noreply,
-     socket
-     |> assign(:game, game)
-     |> assign(:size, size)
-     |> assign(:blitz_expired, false)
-     |> assign(:timer_ref, nil)
-     |> assign(:time_left, socket.assigns.blitz_ms)
-     |> maybe_start_blitz_timer()}
+      {:noreply,
+       socket
+       |> assign(:game, game)
+       |> assign(:size, size)
+       |> assign(:blitz_expired, false)
+       |> assign(:timer_ref, nil)
+       |> assign(:time_left, socket.assigns.blitz_ms)
+       |> maybe_start_blitz_timer()}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   @impl true
@@ -221,5 +230,4 @@ defmodule BlogWeb.Twenty48Live do
   defp tile_digits(val) when val >= 100, do: "d3"
   defp tile_digits(val) when val >= 10, do: "d2"
   defp tile_digits(_), do: "d1"
-
 end

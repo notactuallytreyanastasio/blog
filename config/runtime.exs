@@ -20,20 +20,31 @@ if System.get_env("PHX_SERVER") do
   config :blog, BlogWeb.Endpoint, server: true
 end
 
+# Read an env var, treating empty strings as unset (docker-compose's
+# `${VAR:-}` defaulting sets variables to "" when absent from .env).
+read_env = fn name ->
+  case System.get_env(name) do
+    nil -> nil
+    "" -> nil
+    v -> v
+  end
+end
+
 if config_env() == :prod do
   # Receipt printer API token
-  config :blog, :receipt_printer_api_token,
-    System.get_env("RECEIPT_PRINTER_API_TOKEN") || "bff5d349110d2f61b0d5ac83630afc687b154ddb18b70bb61362a881abdf0bcb"
+  config :blog,
+         :receipt_printer_api_token,
+         read_env.("RECEIPT_PRINTER_API_TOKEN") ||
+           "bff5d349110d2f61b0d5ac83630afc687b154ddb18b70bb61362a881abdf0bcb"
 
   # Live draft API token (for streaming posts from editor)
-  config :blog, :live_draft_api_token, System.get_env("LIVE_DRAFT_TOKEN")
+  config :blog, :live_draft_api_token, read_env.("LIVE_DRAFT_TOKEN")
 
   # Finder admin password
-  config :blog, :finder_admin_password,
-    System.get_env("FINDER_ADMIN_PASSWORD") || "letmein"
+  config :blog, :finder_admin_password, read_env.("FINDER_ADMIN_PASSWORD") || "letmein"
 
   # Cairn annotation API token
-  config :blog, :cairn_api_token, System.get_env("CAIRN_API_TOKEN")
+  config :blog, :cairn_api_token, read_env.("CAIRN_API_TOKEN")
 
   # Check if DATABASE_URL is set as environment variable
   database_url =
@@ -139,7 +150,7 @@ end
 config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
 
 # Hetzner S3 credentials (all environments)
-if s3_access = System.get_env("S3_ACCESS_KEY") do
+if s3_access = read_env.("S3_ACCESS_KEY") do
   config :ex_aws,
     access_key_id: s3_access,
     secret_access_key: System.get_env("S3_SECRET_KEY")

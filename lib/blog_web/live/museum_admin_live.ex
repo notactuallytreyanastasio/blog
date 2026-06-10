@@ -24,6 +24,11 @@ defmodule BlogWeb.MuseumAdminLive do
     end
   end
 
+  def handle_event(event, _params, %{assigns: %{authenticated: false}} = socket)
+      when event != "check_password" do
+    {:noreply, socket}
+  end
+
   def handle_event("toggle_add_project", _, socket) do
     {:noreply, assign(socket, adding_project: !socket.assigns.adding_project)}
   end
@@ -119,12 +124,14 @@ defmodule BlogWeb.MuseumAdminLive do
 
   defp parse_comma_list(nil), do: []
   defp parse_comma_list(""), do: []
+
   defp parse_comma_list(str) do
     str |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
   end
 
   defp parse_repos(nil), do: []
   defp parse_repos(""), do: []
+
   defp parse_repos(str) do
     str
     |> String.split("\n")
@@ -147,6 +154,7 @@ defmodule BlogWeb.MuseumAdminLive do
     end)
     |> Enum.join("\n")
   end
+
   defp format_repos(_), do: ""
 
   defp format_tech_stack(stack) when is_list(stack), do: Enum.join(stack, ", ")
@@ -322,38 +330,65 @@ defmodule BlogWeb.MuseumAdminLive do
         <%!-- Project list --%>
         <div class="project-list">
           <div class="project-list-header">
-            <span><%= length(@projects) %> Projects</span>
-            <span style="font-size: 11px; font-weight: normal; color: #888;">Drag rows to reorder</span>
+            <span>{length(@projects)} Projects</span>
+            <span style="font-size: 11px; font-weight: normal; color: #888;">
+              Drag rows to reorder
+            </span>
           </div>
           <div id="sortable-projects" phx-hook="Sortable">
-          <%= for project <- @projects do %>
-            <div class={"project-row #{if !project.visible, do: "hidden-indicator"}"} draggable="true" data-sort-id={project.id}>
-              <div class="project-info">
-                <span class="drag-handle">&#9776;</span>
-                <span class="project-order"><%= project.sort_order %></span>
-                <span class="project-title"><%= project.title %></span>
-                <span class="project-category"><%= project.category %></span>
-                <%= if project.internal_path do %>
-                  <span class="project-path"><%= project.internal_path %></span>
-                <% end %>
-                <%= if project.external_url do %>
-                  <span class="project-path"><%= project.external_url %></span>
-                <% end %>
-                <%= if !project.visible do %>
-                  <span class="project-path">[hidden]</span>
-                <% end %>
+            <%= for project <- @projects do %>
+              <div
+                class={"project-row #{if !project.visible, do: "hidden-indicator"}"}
+                draggable="true"
+                data-sort-id={project.id}
+              >
+                <div class="project-info">
+                  <span class="drag-handle">&#9776;</span>
+                  <span class="project-order">{project.sort_order}</span>
+                  <span class="project-title">{project.title}</span>
+                  <span class="project-category">{project.category}</span>
+                  <%= if project.internal_path do %>
+                    <span class="project-path">{project.internal_path}</span>
+                  <% end %>
+                  <%= if project.external_url do %>
+                    <span class="project-path">{project.external_url}</span>
+                  <% end %>
+                  <%= if !project.visible do %>
+                    <span class="project-path">[hidden]</span>
+                  <% end %>
+                </div>
+                <div class="project-actions">
+                  <button
+                    class="btn"
+                    phx-click="move_project"
+                    phx-value-id={project.id}
+                    phx-value-dir="up"
+                  >
+                    &#9650;
+                  </button>
+                  <button
+                    class="btn"
+                    phx-click="move_project"
+                    phx-value-id={project.id}
+                    phx-value-dir="down"
+                  >
+                    &#9660;
+                  </button>
+                  <button class="btn" phx-click="toggle_visibility" phx-value-id={project.id}>
+                    {if project.visible, do: "Hide", else: "Show"}
+                  </button>
+                  <button class="btn" phx-click="edit_project" phx-value-id={project.id}>Edit</button>
+                  <button
+                    class="btn btn-danger"
+                    phx-click="delete_project"
+                    phx-value-id={project.id}
+                    data-confirm="Delete this project?"
+                  >
+                    Del
+                  </button>
+                </div>
               </div>
-              <div class="project-actions">
-                <button class="btn" phx-click="move_project" phx-value-id={project.id} phx-value-dir="up">&#9650;</button>
-                <button class="btn" phx-click="move_project" phx-value-id={project.id} phx-value-dir="down">&#9660;</button>
-                <button class="btn" phx-click="toggle_visibility" phx-value-id={project.id}>
-                  <%= if project.visible, do: "Hide", else: "Show" %>
-                </button>
-                <button class="btn" phx-click="edit_project" phx-value-id={project.id}>Edit</button>
-                <button class="btn btn-danger" phx-click="delete_project" phx-value-id={project.id} data-confirm="Delete this project?">Del</button>
-              </div>
-            </div>
-          <% end %>
+            <% end %>
           </div>
         </div>
 
@@ -361,7 +396,7 @@ defmodule BlogWeb.MuseumAdminLive do
         <%= if @editing_project do %>
           <div class="edit-modal">
             <div class="edit-modal-content">
-              <h3>Edit: <%= @editing_project.title %></h3>
+              <h3>Edit: {@editing_project.title}</h3>
               <form phx-submit="update_project">
                 <div class="form-row">
                   <div>
@@ -378,7 +413,7 @@ defmodule BlogWeb.MuseumAdminLive do
                     <label>Category</label>
                     <select name="category">
                       <%= for cat <- ["tools", "ml", "music", "social", "maps", "writing", "hardware"] do %>
-                        <option value={cat} selected={@editing_project.category == cat}><%= cat %></option>
+                        <option value={cat} selected={@editing_project.category == cat}>{cat}</option>
                       <% end %>
                     </select>
                   </div>
@@ -397,17 +432,29 @@ defmodule BlogWeb.MuseumAdminLive do
                 <div class="form-row">
                   <div>
                     <label>Tech Stack (comma-separated)</label>
-                    <input type="text" name="tech_stack" value={format_tech_stack(@editing_project.tech_stack)} />
+                    <input
+                      type="text"
+                      name="tech_stack"
+                      value={format_tech_stack(@editing_project.tech_stack)}
+                    />
                   </div>
                 </div>
                 <div class="form-row">
                   <div>
                     <label>Internal Path</label>
-                    <input type="text" name="internal_path" value={@editing_project.internal_path || ""} />
+                    <input
+                      type="text"
+                      name="internal_path"
+                      value={@editing_project.internal_path || ""}
+                    />
                   </div>
                   <div>
                     <label>External URL</label>
-                    <input type="text" name="external_url" value={@editing_project.external_url || ""} />
+                    <input
+                      type="text"
+                      name="external_url"
+                      value={@editing_project.external_url || ""}
+                    />
                   </div>
                 </div>
                 <label>GitHub Repos (one per line, format: name:owner/repo)</label>

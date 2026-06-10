@@ -27,8 +27,14 @@ defmodule BlogWeb.BookmarksLive do
 
   @impl true
   def handle_event("delete_bookmark", %{"id" => id}, socket) do
-    :ok = Store.delete_bookmark(id)
-    bookmarks = Store.list_bookmarks(socket.assigns.user_id)
+    user_id = socket.assigns.user_id
+
+    case Store.get_bookmark(id) do
+      {:ok, %{user_id: ^user_id}} -> :ok = Store.delete_bookmark(id)
+      _ -> :ok
+    end
+
+    bookmarks = Store.list_bookmarks(user_id)
     {:noreply, assign(socket, :bookmarks, bookmarks)}
   end
 
@@ -51,7 +57,10 @@ defmodule BlogWeb.BookmarksLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-win98">
-      <div class="os-window os-window-win98" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div
+        class="os-window os-window-win98"
+        style="width: 100%; height: calc(100vh - 40px); max-width: none;"
+      >
         <div class="os-titlebar">
           <span class="os-titlebar-title">📑 My Bookmarks - Internet Explorer</span>
           <div class="os-titlebar-buttons">
@@ -66,7 +75,10 @@ defmodule BlogWeb.BookmarksLive do
           <span>Favorites</span>
           <span>Help</span>
         </div>
-        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;">
+        <div
+          class="os-content"
+          style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;"
+        >
           <div class="p-4">
             <div class="flex justify-between items-center mb-4">
               <h1 class="text-xl font-bold">My Bookmarks</h1>
