@@ -135,19 +135,6 @@ defmodule BlogWeb.MtaBusMapLive do
         </div>
         <div class="os-content mta-bus-content">
           <div class="h-full flex flex-col">
-            <link
-              rel="stylesheet"
-              href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-              integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/KFQW0q+MJTEXx+bCw="
-              crossorigin=""
-            />
-            <script
-              src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-              integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-              crossorigin=""
-            >
-            </script>
-
             <div class="p-2 sm:p-4 bg-white">
               <.header_bar active_borough={@active_borough} loading={@loading} />
               <.borough_selector active_borough={@active_borough} loading={@loading} />

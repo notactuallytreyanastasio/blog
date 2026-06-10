@@ -1,3 +1,39 @@
+const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+const LEAFLET_JS_SRI = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+const LEAFLET_CSS_SRI = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/KFQW0q+MJTEXx+bCw=";
+
+function loadLeaflet() {
+  return new Promise((resolve, reject) => {
+    if (window.L) { resolve(); return; }
+
+    if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = LEAFLET_CSS;
+      css.integrity = LEAFLET_CSS_SRI;
+      css.crossOrigin = "";
+      document.head.appendChild(css);
+    }
+
+    const existing = document.querySelector(`script[src="${LEAFLET_JS}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Leaflet failed to load")));
+      if (window.L) resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = LEAFLET_JS;
+    script.integrity = LEAFLET_JS_SRI;
+    script.crossOrigin = "";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Leaflet failed to load"));
+    document.head.appendChild(script);
+  });
+}
+
 const MtaBusMap = {
   mounted() {
     // Global variables
@@ -302,8 +338,15 @@ const MtaBusMap = {
 
         // Handle location error
         map.on('locationerror', function(e) {
-          console.error("Error getting location:", e.message);
-          alert("Unable to get your location. Please check your browser's location settings.");
+          console.warn("Error getting location:", e.message);
+          const mapElement = document.getElementById(mapId);
+          if (!mapElement || mapElement.querySelector('.mta-location-hint')) return;
+          const hint = document.createElement('div');
+          hint.className = 'mta-location-hint';
+          hint.textContent = "Location unavailable — showing default view";
+          hint.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(0,0,0,0.7);color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;pointer-events:none;';
+          mapElement.appendChild(hint);
+          setTimeout(() => hint.remove(), 4000);
         });
 
         // Force a resize after a short delay to ensure proper rendering
@@ -318,9 +361,7 @@ const MtaBusMap = {
 
     const updateMarkers = (busData) => {
       if (!map) {
-        console.error("Map not initialized, initializing now...");
-        initMap();
-        setTimeout(() => updateMarkers(busData), 100);
+        console.warn("Map not initialized yet, skipping marker update");
         return;
       }
 
@@ -460,12 +501,35 @@ const MtaBusMap = {
       console.log(`Total active buses: ${activeBusIds.size}, by borough: Manhattan: ${routeCounts.M}, Brooklyn: ${routeCounts.B}, Queens: ${routeCounts.Q}`);
     };
 
-    // Initialize map when mounted
-    initMap();
+    // Load Leaflet (works on both full page loads and live navigation),
+    // then initialize the map. Bus updates arriving before the map is
+    // ready are buffered and replayed.
+    let pendingBusData = null;
+
+    loadLeaflet()
+      .then(() => {
+        initMap();
+        if (pendingBusData) {
+          updateMarkers(pendingBusData);
+          pendingBusData = null;
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        const mapElement = document.getElementById(mapId);
+        if (mapElement) {
+          mapElement.innerHTML =
+            '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center;color:#666;font-size:14px;">Map failed to load. Check your connection and refresh.</div>';
+        }
+      });
 
     // Listen for bus updates from LiveView
     this.handleEvent("update_buses", (busData) => {
       console.log("Received bus update event:", busData);
+      if (!map) {
+        pendingBusData = busData;
+        return;
+      }
       updateMarkers(busData);
     });
 
