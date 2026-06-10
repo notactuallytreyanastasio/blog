@@ -57,6 +57,26 @@ services:
       GOOGLE_ANALYTICS_ID: ${NATHAN_GOOGLE_ANALYTICS_ID:-}
     # Not exposed to host - Caddy proxies to port 4001 via Docker network
 
+  # The LIVE Claude Arena — three daemons (watcher http :8901, commissioner,
+  # league grinder) supervised by deploy/arena-supervisor.mjs in the soldat
+  # repo, which is rsynced to /opt/soldat by its deploy/deploy-arena-live.sh.
+  # The repo is BIND-MOUNTED at /app: node_modules + pnpm store live on the
+  # host inside /opt/soldat (the supervisor pnpm-installs on boot), so a
+  # redeploy is rsync + `docker compose restart soldat` — no image rebuild.
+  # Caddy proxies bobbby.online/arena/* -> soldat:8901 (play/ stays static).
+  soldat:
+    build:
+      context: /opt/soldat
+      dockerfile: deploy/arena-live.Dockerfile
+    restart: unless-stopped
+    environment:
+      ARENA_WATCH_BASE: /arena/play
+      TZ: UTC
+      PORT: "8901"
+    volumes:
+      - /opt/soldat:/app
+    # Not exposed to host - Caddy proxies to port 8901 via Docker network
+
   caddy:
     image: caddy:2
     restart: always
