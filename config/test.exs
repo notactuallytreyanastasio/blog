@@ -35,3 +35,7 @@ config :phoenix, :plug_init_mode, :runtime
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
+
+# WorkLogPoller polls the live GitHub API and inserts into the database;
+# keep it out of the test supervision tree (sandbox ownership errors).
+config :blog, start_work_log_poller: false

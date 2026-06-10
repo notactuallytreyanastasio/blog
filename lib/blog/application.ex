@@ -41,12 +41,23 @@ defmodule Blog.Application do
       Blog.GifMaker.Cleanup,
       {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
       Blog.CollageMaker.Processor,
-      Blog.CollageMaker.Cleanup,
-      Blog.GitHub.WorkLogPoller
+      Blog.CollageMaker.Cleanup
     ]
+
+    children = children ++ work_log_poller_children()
 
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # The poller makes live GitHub API calls and writes to the database, so it
+  # is disabled in the test environment (see config/test.exs).
+  defp work_log_poller_children do
+    if Application.get_env(:blog, :start_work_log_poller, true) do
+      [Blog.GitHub.WorkLogPoller]
+    else
+      []
+    end
   end
 
   # Create all ETS tables safely
@@ -58,8 +69,10 @@ defmodule Blog.Application do
         {:bookmarks_table, [:set, :public, read_concurrency: true]},
         {:pong_games, [:set, :public]},
         {:sample_skeets_table, [:named_table, :ordered_set, :public, read_concurrency: true]},
-        {:gif_maker_rate_limits, [:set, :public, read_concurrency: true, write_concurrency: true]},
-        {:collage_maker_rate_limits, [:set, :public, read_concurrency: true, write_concurrency: true]}
+        {:gif_maker_rate_limits,
+         [:set, :public, read_concurrency: true, write_concurrency: true]},
+        {:collage_maker_rate_limits,
+         [:set, :public, read_concurrency: true, write_concurrency: true]}
       ],
       fn {table_name, table_opts} ->
         # Only create if it doesn't exist
