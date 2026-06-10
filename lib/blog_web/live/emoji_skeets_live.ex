@@ -32,45 +32,58 @@ defmodule BlogWeb.EmojiSkeetsLive do
 
   def handle_info({:new_skeet, skeet_data}, socket) do
     # Handle both old format (string) and new format (map with text and did)
-    {skeet_text, did} = case skeet_data do
-      %{text: text, did: did} -> {text, did}
-      text when is_binary(text) -> {text, "unknown"}
-    end
+    {skeet_text, did} =
+      case skeet_data do
+        %{text: text, did: did} -> {text, did}
+        text when is_binary(text) -> {text, "unknown"}
+      end
 
     updated_skeets =
       [{skeet_text, did} | socket.assigns.skeets]
       |> Enum.take(@max_skeets)
 
+    normalized_search = socket.assigns.search_term |> String.trim() |> String.downcase()
+
+    # Incrementally update the filtered list; only fall back to a full
+    # re-filter when the cap evicts an entry (rare at steady state).
     filtered_skeets =
-      filter_skeets(
-        updated_skeets,
-        socket.assigns.search_term
-      )
+      if length(socket.assigns.skeets) >= @max_skeets do
+        filter_skeets(updated_skeets, socket.assigns.search_term)
+      else
+        if normalized_search != "" and
+             String.contains?(String.downcase(skeet_text), normalized_search) do
+          [{skeet_text, did} | socket.assigns.filtered_skeets]
+        else
+          socket.assigns.filtered_skeets
+        end
+      end
 
     # If the new skeet matches the search term, send it to the receipt printer
-    normalized_search = socket.assigns.search_term |> String.trim() |> String.downcase()
-    
-    if normalized_search != "" and String.contains?(String.downcase(skeet_text), normalized_search) do
-        # Format the receipt text with DID
-        receipt_text = """
-        Bluesky Skeet Match!
-        Search: #{socket.assigns.search_term}
-        Time: #{DateTime.utc_now() |> DateTime.to_string()}
-        User: #{did}
+    if normalized_search != "" and
+         String.contains?(String.downcase(skeet_text), normalized_search) do
+      # Format the receipt text with DID
+      receipt_text = """
+      Bluesky Skeet Match!
+      Search: #{socket.assigns.search_term}
+      Time: #{DateTime.utc_now() |> DateTime.to_string()}
+      User: #{did}
 
-        #{skeet_text}
-        """
-        
-        # Execute receipt_printer.py script to print directly via CUPS
-        case System.cmd("python3", [
-          Application.app_dir(:blog, "priv/scripts/receipt_printer.py"),
-          receipt_text
-        ], stderr_to_stdout: true) do
-          {_output, 0} ->
-            Logger.info("Printed skeet matching '#{socket.assigns.search_term}'")
-          {error, _exit_code} ->
-            Logger.error("Failed to print skeet: #{error}")
-        end
+      #{skeet_text}
+      """
+
+      # Execute receipt_printer.py script to print directly via CUPS
+      case System.cmd(
+             "python3",
+             [
+               Application.app_dir(:blog, "priv/scripts/receipt_printer.py"),
+               receipt_text
+             ], stderr_to_stdout: true) do
+        {_output, 0} ->
+          Logger.info("Printed skeet matching '#{socket.assigns.search_term}'")
+
+        {error, _exit_code} ->
+          Logger.error("Failed to print skeet: #{error}")
+      end
     end
 
     {:noreply, assign(socket, skeets: updated_skeets, filtered_skeets: filtered_skeets)}
@@ -80,11 +93,13 @@ defmodule BlogWeb.EmojiSkeetsLive do
     normalized_search_term = search_term |> String.trim() |> String.downcase()
 
     if normalized_search_term == "" do
-      [] # No search term, show no results
+      # No search term, show no results
+      []
     else
       Enum.filter(skeets, fn
         {skeet_text, _did} ->
           String.contains?(String.downcase(skeet_text), normalized_search_term)
+
         skeet_text when is_binary(skeet_text) ->
           String.contains?(String.downcase(skeet_text), normalized_search_term)
       end)
@@ -94,7 +109,10 @@ defmodule BlogWeb.EmojiSkeetsLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-win98">
-      <div class="os-window os-window-win98" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div
+        class="os-window os-window-win98"
+        style="width: 100%; height: calc(100vh - 40px); max-width: none;"
+      >
         <div class="os-titlebar">
           <span class="os-titlebar-title">🦋 Skeet Search - Bluesky Monitor</span>
           <div class="os-titlebar-buttons">
@@ -109,7 +127,10 @@ defmodule BlogWeb.EmojiSkeetsLive do
           <span>View</span>
           <span>Help</span>
         </div>
-        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;">
+        <div
+          class="os-content"
+          style="height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;"
+        >
           <div class="p-4">
             <div class="bg-white border-2 inset p-4 mb-4">
               <h2 class="text-lg font-bold mb-3">Search Skeets</h2>
@@ -130,7 +151,7 @@ defmodule BlogWeb.EmojiSkeetsLive do
                 <%= if String.trim(@search_term) == "" do %>
                   <p>Enter a search term to see skeets.</p>
                 <% else %>
-                  <p>Filtering for: "<%= @search_term %>"</p>
+                  <p>Filtering for: "{@search_term}"</p>
                 <% end %>
 
                 <div class="mt-2 flex justify-between text-gray-600">
@@ -154,17 +175,18 @@ defmodule BlogWeb.EmojiSkeetsLive do
                       <%= if String.trim(@search_term) == "" do %>
                         Enter a search term above to see skeets.
                       <% else %>
-                        No skeets match your search term: "<%= @search_term %>".
+                        No skeets match your search term: "{@search_term}".
                       <% end %>
                     <% end %>
                   </p>
                 </div>
               <% else %>
                 <%= for skeet_item <- @filtered_skeets do %>
-                  <% {skeet_text, did} = case skeet_item do
-                    {text, did} -> {text, did}
-                    text when is_binary(text) -> {text, "unknown"}
-                  end %>
+                  <% {skeet_text, did} =
+                    case skeet_item do
+                      {text, did} -> {text, did}
+                      text when is_binary(text) -> {text, "unknown"}
+                    end %>
                   <div class="bg-white border-2 outset p-3 hover:bg-blue-50">
                     <p class="text-xs text-gray-500 mb-1">DID: {did}</p>
                     <p class="text-gray-800 whitespace-pre-wrap break-words">{skeet_text}</p>

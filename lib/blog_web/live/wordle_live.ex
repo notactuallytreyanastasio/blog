@@ -9,8 +9,14 @@ defmodule BlogWeb.WordleLive do
     @impl true
     def render(assigns) do
       ~H"""
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" phx-click="dismiss-hard-mode-warning">
-        <div class="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl" phx-click-away="dismiss-hard-mode-warning">
+      <div
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        phx-click="dismiss-hard-mode-warning"
+      >
+        <div
+          class="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl"
+          phx-click-away="dismiss-hard-mode-warning"
+        >
           <div class="text-center">
             <div class="text-2xl mb-2">⚠️</div>
             <h2 class="text-lg font-bold mb-2">Hard Mode Enabled</h2>
@@ -162,7 +168,10 @@ defmodule BlogWeb.WordleLive do
 
     ~H"""
     <div class="os-desktop-osx">
-      <div class="os-window os-window-osx" style="max-width: 95vw; width: 100%; height: calc(100vh - 40px);">
+      <div
+        class="os-window os-window-osx"
+        style="max-width: 95vw; width: 100%; height: calc(100vh - 40px); height: calc(100dvh - 40px);"
+      >
         <div class="os-titlebar">
           <div class="os-titlebar-buttons">
             <a href="/" class="os-btn-close"></a>
@@ -172,225 +181,232 @@ defmodule BlogWeb.WordleLive do
           <span class="os-titlebar-title">Wordle Clone</span>
         </div>
         <div class="os-content" style="height: calc(100% - 22px); overflow: hidden;">
-    <div class="fixed inset-0 overflow-hidden bg-gray-50" style="position: relative; height: 100%;">
-      <!-- Background of other players' games -->
-      <%= if map_size(@other_games) > 0 do %>
-        <div class="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5 p-0.5 overflow-hidden">
-          <%= for {_session_id, game} <- Enum.sort_by(@other_games, fn {_id, game} -> game.last_activity end, :desc) do %>
-            <div class="bg-white rounded-sm shadow-sm opacity-30 text-xs">
-              <div class="flex justify-between items-center px-1 pt-1">
-                <div class="font-bold truncate max-w-[90%] text-xs">
-                  {game.player_id}
-                  <span class={[if(game.hard_mode, do: "text-yellow-600", else: "hidden")]}>★</span>
-                </div>
-                <span class="text-xs text-gray-500">
-                  {if game.last_activity, do: format_time_ago(game.last_activity), else: ""}
-                </span>
-              </div>
-
-              <div class="text-xs px-1 flex justify-between">
-                <div>{game.target_word}</div>
-                <%= cond do %>
-                  <% game.game_over && Enum.any?(game.guesses, fn %{word: word} -> word == game.target_word end) -> %>
-                    <span class="text-green-600">Won</span>
-                  <% game.game_over -> %>
-                    <span class="text-red-600">Lost</span>
-                  <% true -> %>
-                    <span class="text-blue-600">{length(game.guesses)}/{game.max_attempts}</span>
-                <% end %>
-              </div>
-
-              <div class="grid grid-rows-6 gap-[1px] p-1">
-                <%= for %{word: guess, result: result} <- game.guesses do %>
-                  <div class="grid grid-cols-5 gap-[1px]">
-                    <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
-                      <div class={[
-                        "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold text-white rounded-none uppercase",
-                        color_class(status)
-                      ]}>
-                        {letter}
+          <div
+            class="fixed inset-0 overflow-hidden bg-gray-50"
+            style="position: relative; height: 100%;"
+          >
+            <!-- Background of other players' games -->
+            <%= if map_size(@other_games) > 0 do %>
+              <div class="absolute inset-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5 p-0.5 overflow-hidden">
+                <%= for {_session_id, game} <- Enum.sort_by(@other_games, fn {_id, game} -> game.last_activity end, :desc) do %>
+                  <div class="bg-white rounded-sm shadow-sm opacity-30 text-xs">
+                    <div class="flex justify-between items-center px-1 pt-1">
+                      <div class="font-bold truncate max-w-[90%] text-xs">
+                        {game.player_id}
+                        <span class={[if(game.hard_mode, do: "text-yellow-600", else: "hidden")]}>
+                          ★
+                        </span>
                       </div>
-                    <% end %>
-                  </div>
-                <% end %>
+                      <span class="text-xs text-gray-500">
+                        {if game.last_activity, do: format_time_ago(game.last_activity), else: ""}
+                      </span>
+                    </div>
 
-                <%= if length(game.guesses) < game.max_attempts && !game.game_over do %>
-                  <div class="grid grid-cols-5 gap-[1px]">
-                    <%= for i <- 0..4 do %>
-                      <div class={[
-                        "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none uppercase border",
-                        if(i < String.length(game.current_guess),
-                          do: "border-gray-600",
-                          else: "border-gray-300"
-                        )
-                      ]}>
-                        {String.at(game.current_guess, i)}
-                      </div>
-                    <% end %>
-                  </div>
-
-                  <%= for _i <- (length(game.guesses) + 1)..(game.max_attempts - 1) do %>
-                    <div class="grid grid-cols-5 gap-[1px]">
-                      <%= for _j <- 1..5 do %>
-                        <div class="w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none border border-gray-200">
-                        </div>
+                    <div class="text-xs px-1 flex justify-between">
+                      <div>{game.target_word}</div>
+                      <%= cond do %>
+                        <% game.game_over && Enum.any?(game.guesses, fn %{word: word} -> word == game.target_word end) -> %>
+                          <span class="text-green-600">Won</span>
+                        <% game.game_over -> %>
+                          <span class="text-red-600">Lost</span>
+                        <% true -> %>
+                          <span class="text-blue-600">
+                            {length(game.guesses)}/{game.max_attempts}
+                          </span>
                       <% end %>
                     </div>
-                  <% end %>
+
+                    <div class="grid grid-rows-6 gap-[1px] p-1">
+                      <%= for %{word: guess, result: result} <- game.guesses do %>
+                        <div class="grid grid-cols-5 gap-[1px]">
+                          <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
+                            <div class={[
+                              "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold text-white rounded-none uppercase",
+                              color_class(status)
+                            ]}>
+                              {letter}
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <%= if length(game.guesses) < game.max_attempts && !game.game_over do %>
+                        <div class="grid grid-cols-5 gap-[1px]">
+                          <%= for i <- 0..4 do %>
+                            <div class={[
+                              "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none uppercase border",
+                              if(i < String.length(game.current_guess),
+                                do: "border-gray-600",
+                                else: "border-gray-300"
+                              )
+                            ]}>
+                              {String.at(game.current_guess, i)}
+                            </div>
+                          <% end %>
+                        </div>
+
+                        <%= for _i <- (length(game.guesses) + 1)..(game.max_attempts - 1) do %>
+                          <div class="grid grid-cols-5 gap-[1px]">
+                            <%= for _j <- 1..5 do %>
+                              <div class="w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none border border-gray-200">
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </div>
                 <% end %>
               </div>
-            </div>
-          <% end %>
-        </div>
-      <% end %>
-      
+            <% end %>
+            
     <!-- Main player's game - centered on screen -->
-      <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div class="w-full max-w-[min(400px,90vw)] bg-white shadow-xl rounded-lg p-3 pointer-events-auto">
-          <div class="flex justify-between items-center mb-1">
-            <h1 class="text-xl font-bold">Wordle Clone</h1>
-            <button
-              class={"px-2 py-0.5 rounded font-bold text-xs #{if @game && @game.hard_mode, do: "bg-yellow-500 text-white", else: "bg-gray-200 text-gray-700"}"}
-              phx-click="toggle-hard-mode"
-              disabled={@game && not Enum.empty?(@game.guesses)}
-            >
-              HARD MODE
-            </button>
-          </div>
-
-          <div class="text-[10px] text-gray-500 mb-1">
-            Player ID: {@player_id}
-          </div>
-
-          <%!-- Mobile keyboard input --%>
-          <input
-            type="text"
-            class="sr-only"
-            id="mobile-input"
-            autocomplete="off"
-            spellcheck="false"
-            autocapitalize="none"
-            inputmode="text"
-            phx-hook="FocusInput"
-          />
-
-          <div class="grid grid-rows-6 gap-[3px] mb-1" id="game-board">
-            <%= if @game do %>
-              <%= for %{word: guess, result: result} <- @game.guesses do %>
-                <div class="grid grid-cols-5 gap-[3px]">
-                  <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
-                    <div class={"w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold text-white rounded-none uppercase transition-colors duration-500 #{color_class(status)}"}>
-                      {letter}
-                    </div>
-                  <% end %>
-                </div>
-              <% end %>
-
-              <%= if length(@game.guesses) < @game.max_attempts && !@game.game_over do %>
-                <div class="grid grid-cols-5 gap-[3px]">
-                  <%= for i <- 0..4 do %>
-                    <div class={"w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none uppercase border-2 #{if i < String.length(@game.current_guess), do: "border-gray-600", else: "border-gray-300"}"}>
-                      {String.at(@game.current_guess, i)}
-                    </div>
-                  <% end %>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div class="w-full max-w-[min(400px,90vw)] bg-white shadow-xl rounded-lg p-3 pointer-events-auto">
+                <div class="flex justify-between items-center mb-1">
+                  <h1 class="text-xl font-bold">Wordle Clone</h1>
+                  <button
+                    class={"px-2 py-0.5 rounded font-bold text-xs #{if @game && @game.hard_mode, do: "bg-yellow-500 text-white", else: "bg-gray-200 text-gray-700"}"}
+                    phx-click="toggle-hard-mode"
+                    disabled={@game && not Enum.empty?(@game.guesses)}
+                  >
+                    HARD MODE
+                  </button>
                 </div>
 
-                <%= if length(@game.guesses) < @game.max_attempts - 1 do %>
-                  <%= for _i <- (length(@game.guesses) + 1)..(@game.max_attempts - 1) do %>
+                <div class="text-[10px] text-gray-500 mb-1">
+                  Player ID: {@player_id}
+                </div>
+
+                <%!-- Mobile keyboard input --%>
+                <input
+                  type="text"
+                  class="sr-only"
+                  id="mobile-input"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  inputmode="text"
+                  phx-hook="FocusInput"
+                />
+
+                <div class="grid grid-rows-6 gap-[3px] mb-1" id="game-board">
+                  <%= if @game do %>
+                    <%= for %{word: guess, result: result} <- @game.guesses do %>
+                      <div class="grid grid-cols-5 gap-[3px]">
+                        <%= for {letter, status} <- Enum.zip(String.graphemes(guess), result) do %>
+                          <div class={"w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold text-white rounded-none uppercase transition-colors duration-500 #{color_class(status)}"}>
+                            {letter}
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+
+                    <%= if length(@game.guesses) < @game.max_attempts && !@game.game_over do %>
+                      <div class="grid grid-cols-5 gap-[3px]">
+                        <%= for i <- 0..4 do %>
+                          <div class={"w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none uppercase border-2 #{if i < String.length(@game.current_guess), do: "border-gray-600", else: "border-gray-300"}"}>
+                            {String.at(@game.current_guess, i)}
+                          </div>
+                        <% end %>
+                      </div>
+
+                      <%= if length(@game.guesses) < @game.max_attempts - 1 do %>
+                        <%= for _i <- (length(@game.guesses) + 1)..(@game.max_attempts - 1) do %>
+                          <div class="grid grid-cols-5 gap-[3px]">
+                            <%= for _j <- 1..5 do %>
+                              <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-200">
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      <% end %>
+                    <% end %>
+                  <% else %>
                     <div class="grid grid-cols-5 gap-[3px]">
                       <%= for _j <- 1..5 do %>
-                        <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-200">
+                        <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-300">
                         </div>
                       <% end %>
                     </div>
+                    <%= for _i <- 1..5 do %>
+                      <div class="grid grid-cols-5 gap-[3px]">
+                        <%= for _j <- 1..5 do %>
+                          <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-200">
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
                   <% end %>
-                <% end %>
-              <% end %>
-            <% else %>
-              <div class="grid grid-cols-5 gap-[3px]">
-                <%= for _j <- 1..5 do %>
-                  <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-300">
+                </div>
+
+                <%= if @game && @game.message do %>
+                  <div class="text-center mb-1 font-bold text-sm">
+                    {@game.message}
+                  </div>
+                <% else %>
+                  <div class="text-center mb-1 font-medium text-sm text-gray-500">
+                    Type to start playing!
                   </div>
                 <% end %>
-              </div>
-              <%= for _i <- 1..5 do %>
-                <div class="grid grid-cols-5 gap-[3px]">
-                  <%= for _j <- 1..5 do %>
-                    <div class="w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none border-2 border-gray-200">
+
+                <div class="grid grid-rows-3 gap-1 w-full">
+                  <%= for row <- keyboard_layout() do %>
+                    <div class="flex justify-center gap-1">
+                      <%= for key <- row do %>
+                        <button
+                          class={"flex-1 h-8 sm:h-10 flex items-center justify-center rounded text-xs font-bold #{if key in ["Enter", "Backspace"], do: "px-1 text-xs", else: "px-0.5"} #{keyboard_color_class(@game && Map.get(@game.used_letters || %{}, key))}"}
+                          phx-click="key-press"
+                          phx-touch-start="key-press"
+                          phx-value-key={key}
+                        >
+                          <%= if key == "Backspace" do %>
+                            ⌫
+                          <% else %>
+                            {String.upcase(key)}
+                          <% end %>
+                        </button>
+                      <% end %>
                     </div>
                   <% end %>
                 </div>
-              <% end %>
-            <% end %>
-          </div>
 
-          <%= if @game && @game.message do %>
-            <div class="text-center mb-1 font-bold text-sm">
-              {@game.message}
-            </div>
-          <% else %>
-            <div class="text-center mb-1 font-medium text-sm text-gray-500">
-              Type to start playing!
-            </div>
-          <% end %>
-
-          <div class="grid grid-rows-3 gap-1 w-full">
-            <%= for row <- keyboard_layout() do %>
-              <div class="flex justify-center gap-1">
-                <%= for key <- row do %>
-                  <button
-                    class={"flex-1 h-8 sm:h-10 flex items-center justify-center rounded text-xs font-bold #{if key in ["Enter", "Backspace"], do: "px-1 text-xs", else: "px-0.5"} #{keyboard_color_class(@game && Map.get(@game.used_letters || %{}, key))}"}
-                    phx-click="key-press"
-                    phx-touch-start="key-press"
-                    phx-value-key={key}
-                  >
-                    <%= if key == "Backspace" do %>
-                      ⌫
-                    <% else %>
-                      {String.upcase(key)}
+                <%= if @game && @game.game_over do %>
+                  <div class="text-center mt-2">
+                    <%= cond do %>
+                      <%!-- Player won --%>
+                      <% Enum.any?(@game.guesses, fn %{word: word} -> word == @game.target_word end) -> %>
+                        <div class="mb-2">
+                          <div class="text-green-600 font-bold text-lg">🎉 Congratulations!</div>
+                          <div class="text-sm text-gray-600">You found the word!</div>
+                        </div>
+                        <%!-- Player lost --%>
+                      <% true -> %>
+                        <div class="mb-2">
+                          <div class="text-red-600 font-bold text-lg">Game Over</div>
+                          <div class="text-sm text-gray-600">The word was:</div>
+                          <div class="text-xl font-bold text-gray-800 uppercase tracking-wider mt-1 bg-gray-100 px-3 py-1 rounded">
+                            {@game.target_word}
+                          </div>
+                        </div>
                     <% end %>
-                  </button>
+
+                    <button
+                      class="bg-green-600 text-white px-3 py-1 text-sm rounded hover:bg-green-700"
+                      phx-click="new-game"
+                    >
+                      New Game
+                    </button>
+                  </div>
                 <% end %>
               </div>
+            </div>
+
+            <%!-- Hard Mode Warning Popup --%>
+            <%= if @show_hard_mode_warning do %>
+              <.live_component module={__MODULE__.HardModeWarningComponent} id="hard-mode-warning" />
             <% end %>
           </div>
-
-          <%= if @game && @game.game_over do %>
-            <div class="text-center mt-2">
-              <%= cond do %>
-                <%!-- Player won --%>
-                <% Enum.any?(@game.guesses, fn %{word: word} -> word == @game.target_word end) -> %>
-                  <div class="mb-2">
-                    <div class="text-green-600 font-bold text-lg">🎉 Congratulations!</div>
-                    <div class="text-sm text-gray-600">You found the word!</div>
-                  </div>
-                <%!-- Player lost --%>
-                <% true -> %>
-                  <div class="mb-2">
-                    <div class="text-red-600 font-bold text-lg">Game Over</div>
-                    <div class="text-sm text-gray-600">The word was:</div>
-                    <div class="text-xl font-bold text-gray-800 uppercase tracking-wider mt-1 bg-gray-100 px-3 py-1 rounded">
-                      {@game.target_word}
-                    </div>
-                  </div>
-              <% end %>
-              
-              <button
-                class="bg-green-600 text-white px-3 py-1 text-sm rounded hover:bg-green-700"
-                phx-click="new-game"
-              >
-                New Game
-              </button>
-            </div>
-          <% end %>
-        </div>
-      </div>
-
-      <%!-- Hard Mode Warning Popup --%>
-      <%= if @show_hard_mode_warning do %>
-        <.live_component module={__MODULE__.HardModeWarningComponent} id="hard-mode-warning" />
-      <% end %>
-    </div>
         </div>
       </div>
     </div>

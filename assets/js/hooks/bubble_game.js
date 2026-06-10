@@ -125,8 +125,12 @@ const BubbleGame = {
     console.log("BubbleGame hook destroyed");
     try {
       window.removeEventListener('resize', this.boundResizeHandler);
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+      }
       if (this.renderer) {
         this.renderer.dispose();
+        this.renderer = null;
       }
       if (this.scene) {
         this.scene.clear();
@@ -363,7 +367,7 @@ const BubbleGame = {
     }
 
     try {
-      requestAnimationFrame(() => this.animate());
+      this.animationFrameId = requestAnimationFrame(() => this.animate());
 
       if (this.movingBubble) {
         this.updateMovingBubble();
