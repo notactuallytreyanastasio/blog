@@ -71,6 +71,9 @@ services:
     restart: unless-stopped
     environment:
       ARENA_WATCH_BASE: /arena/play
+      # Cap the shipped fight feeds: the full data.json crossed 300 MB and the
+      # floor polls it every 5s — 40 matches the publish snapshot (~5 MB).
+      ARENA_DATA_FIGHTS: "40"
       TZ: UTC
       PORT: "8901"
     volumes:
