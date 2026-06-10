@@ -6,12 +6,6 @@
 }
 
 bobbby.online, www.bobbby.online {
-	reverse_proxy app:4000 {
-		# Forward real client IP from Cloudflare to Phoenix
-		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-	}
-
 	encode gzip zstd
 
 	header {
@@ -19,6 +13,26 @@ bobbby.online, www.bobbby.online {
 		X-Forwarded-Proto {scheme}
 		# Disable HTTP/3 advertisement — clears Safari's cached alt-svc
 		alt-svc "clear"
+	}
+
+	# The Claude Arena — static snapshot (two dashboards + in-browser replay
+	# client) published from the soldat repo by arena-live/publish.mjs into
+	# /opt/arena (mounted at /srv/arena). LLM-free at runtime: replays
+	# re-simulate deterministically from the seed in the URL.
+	redir /arena /arena/ 308
+	handle_path /arena/* {
+		root * /srv/arena
+		file_server
+		header Cache-Control "public, max-age=60"
+	}
+
+	# Everything else: the Phoenix app.
+	handle {
+		reverse_proxy app:4000 {
+			# Forward real client IP from Cloudflare to Phoenix
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
 	}
 }
 

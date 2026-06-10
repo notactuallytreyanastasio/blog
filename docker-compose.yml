@@ -72,6 +72,7 @@ services:
       - /opt/phstats:/srv/phstats:ro
       - /opt/donny:/srv/donny:ro
       - /opt/blimp:/srv/blimp:ro
+      - /opt/arena:/srv/arena:ro  # the Claude Arena snapshot (soldat repo, arena-live/publish.mjs)
 
 volumes:
   pgdata:
