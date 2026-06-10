@@ -162,7 +162,7 @@ defmodule Blog.Chat.MessageStore do
 
         if count > @max_messages do
           # Get all keys
-          keys = :ets.tab2list(@table_name) |> Enum.map(fn {k, _} -> k end) |> Enum.sort(:desc)
+          keys = :ets.tab2list(@table_name) |> Enum.map(fn {k, _} -> k end) |> Enum.sort()
           # Keep only the most recent @max_messages
           keys_to_delete = Enum.drop(keys, @max_messages)
           Enum.each(keys_to_delete, fn key -> :ets.delete(@table_name, key) end)

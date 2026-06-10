@@ -57,7 +57,10 @@ defmodule BlogWeb.RedditLinksLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-osx">
-      <div class="os-window os-window-osx" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div
+        class="os-window os-window-osx"
+        style="width: 100%; height: calc(100vh - 40px); max-width: none;"
+      >
         <div class="os-titlebar">
           <div class="os-titlebar-buttons">
             <a href="/" class="os-btn-close"></a>
@@ -67,7 +70,10 @@ defmodule BlogWeb.RedditLinksLive do
           <span class="os-titlebar-title">YouTube Links from Bluesky</span>
           <div class="os-titlebar-spacer"></div>
         </div>
-        <div class="os-content" style="height: calc(100% - 60px); overflow-y: auto; background: linear-gradient(180deg, #f5f5f5 0%, #e5e5e5 100%);">
+        <div
+          class="os-content"
+          style="height: calc(100% - 60px); overflow-y: auto; background: linear-gradient(180deg, #f5f5f5 0%, #e5e5e5 100%);"
+        >
           <div class="p-6">
             <div class="mb-6 p-4 bg-blue-100 rounded-lg border border-blue-300 shadow-sm">
               <p class="text-blue-900">
@@ -130,29 +136,19 @@ defmodule BlogWeb.RedditLinksLive do
   end
 
   defp extract_youtube_id(url) do
-    cond do
-      # youtu.be format
-      String.match?(url, ~r/youtu\.be\/([a-zA-Z0-9_-]+)/) ->
-        [[_, id]] = Regex.scan(~r/youtu\.be\/([a-zA-Z0-9_-]+)/, url)
-        id
-
-      # youtube.com/watch?v= format
-      String.match?(url, ~r/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/) ->
-        [[_, id]] = Regex.scan(~r/v=([a-zA-Z0-9_-]+)/, url)
-        id
-
-      # youtube.com/v/ format
-      String.match?(url, ~r/youtube\.com\/v\/([a-zA-Z0-9_-]+)/) ->
-        [[_, id]] = Regex.scan(~r/youtube\.com\/v\/([a-zA-Z0-9_-]+)/, url)
-        id
-
-      # youtube.com/embed/ format
-      String.match?(url, ~r/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/) ->
-        [[_, id]] = Regex.scan(~r/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/, url)
-        id
-
-      true ->
-        nil
-    end
+    Enum.find_value(
+      [
+        ~r/youtu\.be\/([a-zA-Z0-9_-]+)/,
+        ~r/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/,
+        ~r/youtube\.com\/v\/([a-zA-Z0-9_-]+)/,
+        ~r/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/
+      ],
+      fn re ->
+        case Regex.run(re, url) do
+          [_, id] -> id
+          _ -> nil
+        end
+      end
+    )
   end
 end

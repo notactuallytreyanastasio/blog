@@ -78,7 +78,7 @@ defmodule Blog.Chat do
   end
 
   defp ensure_unique_name(name, exclude_id \\ nil) do
-    query = from c in Chatter, where: c.screen_name == ^name
+    query = from(c in Chatter, where: c.screen_name == ^name)
     query = if exclude_id, do: where(query, [c], c.id != ^exclude_id), else: query
 
     if Repo.exists?(query) do
@@ -90,7 +90,7 @@ defmodule Blog.Chat do
 
   defp find_available_name(base_name, suffix, exclude_id) do
     candidate = "#{base_name}#{suffix}"
-    query = from c in Chatter, where: c.screen_name == ^candidate
+    query = from(c in Chatter, where: c.screen_name == ^candidate)
     query = if exclude_id, do: where(query, [c], c.id != ^exclude_id), else: query
 
     if Repo.exists?(query) do
@@ -105,8 +105,10 @@ defmodule Blog.Chat do
   def hash_ip(ip_address) when is_binary(ip_address) do
     :crypto.hash(:sha256, ip_address)
     |> Base.encode16(case: :lower)
-    |> String.slice(0, 16)  # Just use first 16 chars
+    # Just use first 16 chars
+    |> String.slice(0, 16)
   end
+
   def hash_ip(_), do: nil
 
   # ============================================================================
@@ -118,10 +120,11 @@ defmodule Blog.Chat do
   def list_messages(room \\ "terminal", limit \\ 50) do
     Message
     |> where([m], m.room == ^room)
-    |> order_by([m], asc: m.inserted_at)
+    |> order_by([m], desc: m.inserted_at, desc: m.id)
     |> limit(^limit)
     |> preload(:chatter)
     |> Repo.all()
+    |> Enum.reverse()
   end
 
   @doc "Create a new message and broadcast it"
