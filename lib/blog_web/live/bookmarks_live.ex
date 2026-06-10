@@ -3,16 +3,19 @@ defmodule BlogWeb.BookmarksLive do
   alias Blog.Bookmarks.Store
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    user_id = session["user_id"] || "user-#{System.unique_integer([:positive])}"
+
     if connected?(socket) do
-      topic = "bookmarks:#{socket.assigns.user_id}"
+      topic = "bookmarks:#{user_id}"
       BlogWeb.Endpoint.subscribe(topic)
     end
 
-    bookmarks = Store.list_bookmarks(socket.assigns.user_id)
+    bookmarks = Store.list_bookmarks(user_id)
 
     {:ok,
      assign(socket,
+       user_id: user_id,
        bookmarks: bookmarks,
        search_query: "",
        page_title: "My Bookmarks"
