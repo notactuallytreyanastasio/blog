@@ -275,6 +275,54 @@ const Joyride = {
   }
 };
 
+const TourSpotlight = {
+  mounted() {
+    this.positionElements();
+  },
+  updated() {
+    this.positionElements();
+  },
+  positionElements() {
+    const targetId = this.el.dataset.target;
+    if (!targetId) return;
+
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+
+    // Position spotlight
+    this.el.style.top = `${rect.top - padding}px`;
+    this.el.style.left = `${rect.left - padding}px`;
+    this.el.style.width = `${rect.width + padding * 2}px`;
+    this.el.style.height = `${rect.height + padding * 2}px`;
+
+    // Position tooltip
+    const tooltip = document.getElementById('tour-tooltip');
+    if (!tooltip) return;
+
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const position = tooltip.className.split(' ').find(c => ['bottom', 'top', 'right', 'center'].includes(c));
+
+    if (position === 'bottom') {
+      tooltip.style.top = `${rect.bottom + 20}px`;
+      tooltip.style.left = `${Math.max(20, rect.left + rect.width / 2 - tooltipRect.width / 2)}px`;
+    } else if (position === 'top') {
+      tooltip.style.top = `${rect.top - tooltipRect.height - 20}px`;
+      tooltip.style.left = `${Math.max(20, rect.left + rect.width / 2 - tooltipRect.width / 2)}px`;
+    } else if (position === 'right') {
+      tooltip.style.top = `${rect.top + rect.height / 2 - tooltipRect.height / 2}px`;
+      tooltip.style.left = `${rect.right + 20}px`;
+    }
+
+    // Scroll target into view if needed
+    if (rect.top < 100 || rect.bottom > window.innerHeight - 100) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+};
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
 // Attempt to capture Leaflet extensions early
@@ -881,6 +929,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     Swipe,
     TemperArt,
     Tooltip,
+    TourSpotlight,
     ChessGame: window.ChessGame,
     ...Hooks
   }

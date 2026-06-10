@@ -44,26 +44,29 @@ defmodule BlogWeb.RoleCallLive do
   @spec handle_params(map(), String.t(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_params(params, _uri, socket) do
-    tab = case params["tab"] do
-      "liked" -> :liked
-      "discover" -> :discover
-      _ -> :search
-    end
+    tab =
+      case params["tab"] do
+        "liked" -> :liked
+        "discover" -> :discover
+        _ -> :search
+      end
 
     socket = assign(socket, :tab, tab)
 
     # If liked tab, load recommendations
-    socket = if tab == :liked do
-      load_recommendations(socket)
-    else
-      socket
-    end
+    socket =
+      if tab == :liked do
+        load_recommendations(socket)
+      else
+        socket
+      end
 
     # Handle show modal
-    socket = case params["show"] do
-      nil -> assign(socket, :modal_show, nil)
-      show_id -> assign(socket, :modal_show, RoleCall.get_show_with_credits(show_id))
-    end
+    socket =
+      case params["show"] do
+        nil -> assign(socket, :modal_show, nil)
+        show_id -> assign(socket, :modal_show, RoleCall.get_show_with_credits(show_id))
+      end
 
     {:noreply, socket}
   end
@@ -71,14 +74,14 @@ defmodule BlogWeb.RoleCallLive do
   @impl true
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_event("search", %{"query" => query}, socket) do
-    results = if String.length(query) >= 2 do
-      RoleCall.search_shows(query, limit: 15, exclude_ids: MapSet.to_list(socket.assigns.hidden_ids))
-    else
-      []
-    end
+  # Browser keyup payloads include "key" and the live input under "value";
+  # "query" (from phx-value-query) is the value at last render and is stale.
+  def handle_event("search", %{"key" => _, "value" => query}, socket) do
+    run_search(query, socket)
+  end
 
-    {:noreply, assign(socket, search_query: query, search_results: results)}
+  def handle_event("search", %{"query" => query}, socket) do
+    run_search(query, socket)
   end
 
   def handle_event("clear_search", _, socket) do
@@ -137,7 +140,8 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   def handle_event("open_show", %{"id" => show_id}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/role-call?#{%{tab: socket.assigns.tab, show: show_id}}")}
+    {:noreply,
+     push_patch(socket, to: ~p"/role-call?#{%{tab: socket.assigns.tab, show: show_id}}")}
   end
 
   def handle_event("close_modal", _, socket) do
@@ -180,6 +184,7 @@ defmodule BlogWeb.RoleCallLive do
 
   def handle_event("tour_next", _, socket) do
     next_step = socket.assigns.tour_step + 1
+
     if next_step > 5 do
       {:noreply,
        socket
@@ -205,7 +210,9 @@ defmodule BlogWeb.RoleCallLive do
   def handle_event("check_tour_status", %{"completed" => completed}, socket) do
     # If tour not completed and no liked shows, show tour
     should_show = not completed and MapSet.size(socket.assigns.liked_ids) == 0
-    {:noreply, assign(socket, show_tour: should_show, tour_step: if(should_show, do: 1, else: nil))}
+
+    {:noreply,
+     assign(socket, show_tour: should_show, tour_step: if(should_show, do: 1, else: nil))}
   end
 
   def handle_event("set_cards_per_row", %{"count" => count}, socket) do
@@ -228,6 +235,20 @@ defmodule BlogWeb.RoleCallLive do
 
   defp to_int(_, default), do: default
 
+  defp run_search(query, socket) do
+    results =
+      if String.length(query) >= 2 do
+        RoleCall.search_shows(query,
+          limit: 15,
+          exclude_ids: MapSet.to_list(socket.assigns.hidden_ids)
+        )
+      else
+        []
+      end
+
+    {:noreply, assign(socket, search_query: query, search_results: results)}
+  end
+
   defp get_shuffle_picks(liked_ids, hidden_ids) do
     exclude = MapSet.union(liked_ids, hidden_ids) |> MapSet.to_list()
     # Always load 20, JS will hide excess beyond 2 rows
@@ -236,7 +257,9 @@ defmodule BlogWeb.RoleCallLive do
 
   defp load_recommendations(socket) do
     liked_ids = MapSet.to_list(socket.assigns.liked_ids)
-    exclude = MapSet.union(socket.assigns.liked_ids, socket.assigns.hidden_ids) |> MapSet.to_list()
+
+    exclude =
+      MapSet.union(socket.assigns.liked_ids, socket.assigns.hidden_ids) |> MapSet.to_list()
 
     recommendations = RoleCall.get_recommendations(liked_ids, limit: 20, exclude_ids: exclude)
     assign(socket, :recommendations, recommendations)
@@ -247,7 +270,10 @@ defmodule BlogWeb.RoleCallLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-winxp">
-      <div class="os-window os-window-winxp" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div
+        class="os-window os-window-winxp"
+        style="width: 100%; height: calc(100vh - 40px); max-width: none;"
+      >
         <div class="os-titlebar">
           <span class="os-titlebar-title">Role Call - TV Writer Discovery</span>
           <div class="os-titlebar-buttons">
@@ -262,92 +288,99 @@ defmodule BlogWeb.RoleCallLive do
           <span>View</span>
           <span>Help</span>
         </div>
-        <div class="os-content" style="height: calc(100% - 80px); overflow-y: auto; position: relative;">
-    <canvas id="sunflower-bg" phx-hook="SunflowerBackground"></canvas>
-    <div class="role-call">
-      <header class="rc-header">
-        <h1>Role Call</h1>
-        <p class="tagline">Discover new shows through the writers you love</p>
-        <button class="tour-help-btn" phx-click="start_tour" title="Show tutorial">?</button>
-      </header>
+        <div
+          class="os-content"
+          style="height: calc(100% - 80px); overflow-y: auto; position: relative;"
+        >
+          <canvas id="sunflower-bg" phx-hook="SunflowerBackground"></canvas>
+          <div class="role-call">
+            <header class="rc-header">
+              <h1>Role Call</h1>
+              <p class="tagline">Discover new shows through the writers you love</p>
+              <button class="tour-help-btn" phx-click="start_tour" title="Show tutorial">?</button>
+            </header>
 
-      <nav class="rc-tabs" id="tour-tabs">
-        <.link patch={~p"/role-call?tab=search"} class={"rc-tab #{if @tab == :search, do: "active"}"}>
-          Search
-        </.link>
-        <.link patch={~p"/role-call?tab=liked"} class={"rc-tab #{if @tab == :liked, do: "active"}"} id="tour-liked-tab">
-          Liked (<%= MapSet.size(@liked_ids) %>)
-        </.link>
-        <.link patch={~p"/role-call?tab=discover"} class={"rc-tab #{if @tab == :discover, do: "active"}"}>
-          Discover
-        </.link>
-      </nav>
+            <nav class="rc-tabs" id="tour-tabs">
+              <.link
+                patch={~p"/role-call?tab=search"}
+                class={"rc-tab #{if @tab == :search, do: "active"}"}
+              >
+                Search
+              </.link>
+              <.link
+                patch={~p"/role-call?tab=liked"}
+                class={"rc-tab #{if @tab == :liked, do: "active"}"}
+                id="tour-liked-tab"
+              >
+                Liked ({MapSet.size(@liked_ids)})
+              </.link>
+              <.link
+                patch={~p"/role-call?tab=discover"}
+                class={"rc-tab #{if @tab == :discover, do: "active"}"}
+              >
+                Discover
+              </.link>
+            </nav>
 
-      <main class="rc-main">
-        <%= case @tab do %>
-          <% :search -> %>
-            <.search_view
-              search_query={@search_query}
-              search_results={@search_results}
-              shuffle_picks={@shuffle_picks}
-              liked_ids={@liked_ids}
-              show_count={@show_count}
-            />
-          <% :liked -> %>
-            <.liked_view
-              liked_ids={@liked_ids}
-              recommendations={@recommendations}
-            />
-          <% :discover -> %>
-            <.discover_view
-              recommendations={@recommendations}
-              liked_ids={@liked_ids}
-            />
-        <% end %>
-      </main>
+            <main class="rc-main">
+              <%= case @tab do %>
+                <% :search -> %>
+                  <.search_view
+                    search_query={@search_query}
+                    search_results={@search_results}
+                    shuffle_picks={@shuffle_picks}
+                    liked_ids={@liked_ids}
+                    show_count={@show_count}
+                  />
+                <% :liked -> %>
+                  <.liked_view liked_ids={@liked_ids} recommendations={@recommendations} />
+                <% :discover -> %>
+                  <.discover_view recommendations={@recommendations} liked_ids={@liked_ids} />
+              <% end %>
+            </main>
 
-      <%= if @modal_show do %>
-        <.rc_modal show={@modal_show} liked_ids={@liked_ids} selected_writer={@selected_writer} />
-      <% end %>
+            <%= if @modal_show do %>
+              <.rc_modal show={@modal_show} liked_ids={@liked_ids} selected_writer={@selected_writer} />
+            <% end %>
 
-      <%= if @show_tour do %>
-        <.tour_overlay step={@tour_step} />
-      <% end %>
-    </div>
+            <%= if @show_tour do %>
+              <.tour_overlay step={@tour_step} />
+            <% end %>
+          </div>
 
-    <style>
-      <%= raw(styles()) %>
-    </style>
+          <style>
+            <%= raw(styles()) %>
+          </style>
 
-    <script>
-      // Restore liked/hidden from localStorage on page load
-      window.addEventListener("phx:page-loading-stop", () => {
-        const liked = JSON.parse(localStorage.getItem("role_call_liked") || "[]");
-        const hidden = JSON.parse(localStorage.getItem("role_call_hidden") || "[]");
-        const tourCompleted = localStorage.getItem("role_call_tour_completed") === "true";
+          <script>
+            // Restore liked/hidden from localStorage on page load
+            window.addEventListener("phx:page-loading-stop", () => {
+              const liked = JSON.parse(localStorage.getItem("role_call_liked") || "[]");
+              const hidden = JSON.parse(localStorage.getItem("role_call_hidden") || "[]");
+              const tourCompleted = localStorage.getItem("role_call_tour_completed") === "true";
 
-        if (liked.length > 0) {
-          window.liveSocket.execJS(document.body, JSON.stringify([["push", {event: "restore_liked", data: {ids: liked}}]]));
-        }
-        if (hidden.length > 0) {
-          window.liveSocket.execJS(document.body, JSON.stringify([["push", {event: "restore_hidden", data: {ids: hidden}}]]));
-        }
+              if (liked.length > 0) {
+                window.liveSocket.execJS(document.body, JSON.stringify([["push", {event: "restore_liked", data: {ids: liked}}]]));
+              }
+              if (hidden.length > 0) {
+                window.liveSocket.execJS(document.body, JSON.stringify([["push", {event: "restore_hidden", data: {ids: hidden}}]]));
+              }
 
-        // Check if we should show tour
-        window.liveSocket.execJS(document.body, JSON.stringify([["push", {event: "check_tour_status", data: {completed: tourCompleted}}]]));
-      }, {once: true});
+              // Check if we should show tour
+              window.liveSocket.execJS(document.body, JSON.stringify([["push", {event: "check_tour_status", data: {completed: tourCompleted}}]]));
+            }, {once: true});
 
-      // Store to localStorage when changed
-      window.addEventListener("phx:store_liked", (e) => {
-        localStorage.setItem("role_call_liked", JSON.stringify(e.detail.ids));
-      });
-      window.addEventListener("phx:store_hidden", (e) => {
-        localStorage.setItem("role_call_hidden", JSON.stringify(e.detail.ids));
-      });
-      window.addEventListener("phx:tour_completed", () => {
-        localStorage.setItem("role_call_tour_completed", "true");
-      });
-    </script>
+            // Store to localStorage when changed
+            window.addEventListener("phx:store_liked", (e) => {
+              localStorage.setItem("role_call_liked", JSON.stringify(e.detail.ids));
+            });
+            window.addEventListener("phx:store_hidden", (e) => {
+              localStorage.setItem("role_call_hidden", JSON.stringify(e.detail.ids));
+            });
+            window.addEventListener("phx:tour_completed", () => {
+              localStorage.setItem("role_call_tour_completed", "true");
+            });
+          </script>
         </div>
         <div class="os-statusbar">
           <span>Shows: {MapSet.size(@liked_ids)} liked</span>
@@ -382,12 +415,12 @@ defmodule BlogWeb.RoleCallLive do
           <div class="search-results">
             <%= for show <- @search_results do %>
               <div class="search-result" phx-click="open_show" phx-value-id={show.id}>
-                <div class="result-title"><%= show.title %></div>
+                <div class="result-title">{show.title}</div>
                 <div class="result-meta">
-                  <%= show.year_start %> <%= if show.imdb_rating, do: "★ #{Float.round(show.imdb_rating, 1)}" %>
+                  {show.year_start} {if show.imdb_rating, do: "★ #{Float.round(show.imdb_rating, 1)}"}
                 </div>
                 <button class="like-btn" phx-click="like_show" phx-value-id={show.id}>
-                  <%= if MapSet.member?(@liked_ids, show.id), do: "♥", else: "♡" %>
+                  {if MapSet.member?(@liked_ids, show.id), do: "♥", else: "♡"}
                 </button>
               </div>
             <% end %>
@@ -396,13 +429,17 @@ defmodule BlogWeb.RoleCallLive do
       </div>
 
       <div class="search-hint">
-        <p>Search from <%= format_number(@show_count) %> shows. Click one to see what else its writers have made.</p>
+        <p>
+          Search from {format_number(@show_count)} shows. Click one to see what else its writers have made.
+        </p>
       </div>
 
       <div class="shuffle-section" id="tour-shuffle">
         <div class="shuffle-header">
           <h3>Or pick one of these</h3>
-          <button class="shuffle-refresh-btn" phx-click="refresh_shuffle" id="tour-shuffle-btn">Show me more</button>
+          <button class="shuffle-refresh-btn" phx-click="refresh_shuffle" id="tour-shuffle-btn">
+            Show me more
+          </button>
         </div>
         <div class="shuffle-picks" id="tour-cards" phx-hook="CardGrid">
           <%= for {show, idx} <- Enum.with_index(@shuffle_picks) do %>
@@ -426,7 +463,9 @@ defmodule BlogWeb.RoleCallLive do
             <button class="clear-all-btn" phx-click="clear_all">Start fresh</button>
           <% end %>
         </div>
-        <p class="subtitle">Mark shows you enjoyed — their writers become part of your taste profile</p>
+        <p class="subtitle">
+          Mark shows you enjoyed — their writers become part of your taste profile
+        </p>
       </div>
 
       <div class="liked-grid">
@@ -437,7 +476,9 @@ defmodule BlogWeb.RoleCallLive do
           </div>
           <div class="foryou-content">
             <%= if @recommendations == [] do %>
-              <div class="foryou-empty">Mark shows you've liked to unlock recommendations based on their writers</div>
+              <div class="foryou-empty">
+                Mark shows you've liked to unlock recommendations based on their writers
+              </div>
             <% else %>
               <div class="foryou-grid">
                 <%= for show <- @recommendations do %>
@@ -449,7 +490,7 @@ defmodule BlogWeb.RoleCallLive do
         </div>
 
         <div class="liked-list-section">
-          <h3>Your liked shows (<%= MapSet.size(@liked_ids) %>)</h3>
+          <h3>Your liked shows ({MapSet.size(@liked_ids)})</h3>
           <div class="liked-list">
             <%= if MapSet.size(@liked_ids) == 0 do %>
               <p class="empty-state">No shows liked yet. Search or pick from suggestions above!</p>
@@ -458,8 +499,12 @@ defmodule BlogWeb.RoleCallLive do
                 <% show = Blog.RoleCall.get_show(show_id) %>
                 <%= if show do %>
                   <div class="liked-item">
-                    <span class="liked-title" phx-click="open_show" phx-value-id={show.id}><%= show.title %></span>
-                    <button class="unlike-btn" phx-click="unlike_show" phx-value-id={show.id}>×</button>
+                    <span class="liked-title" phx-click="open_show" phx-value-id={show.id}>
+                      {show.title}
+                    </span>
+                    <button class="unlike-btn" phx-click="unlike_show" phx-value-id={show.id}>
+                      ×
+                    </button>
                   </div>
                 <% end %>
               <% end %>
@@ -493,7 +538,9 @@ defmodule BlogWeb.RoleCallLive do
       </div>
 
       <div class="discover-buttons">
-        <button class="refresh-btn" phx-click="refresh_recommendations">Show me different ones</button>
+        <button class="refresh-btn" phx-click="refresh_recommendations">
+          Show me different ones
+        </button>
       </div>
     </section>
     """
@@ -518,19 +565,21 @@ defmodule BlogWeb.RoleCallLive do
         <% end %>
       </div>
       <div class="card-info">
-        <div class="card-title" phx-click="open_show" phx-value-id={@show.id}><%= @show.title %></div>
+        <div class="card-title" phx-click="open_show" phx-value-id={@show.id}>{@show.title}</div>
         <div class="card-meta">
-          <%= @show.year_start %> <%= if @show.imdb_rating, do: "★ #{Float.round(@show.imdb_rating, 1)}" %>
+          {@show.year_start} {if @show.imdb_rating, do: "★ #{Float.round(@show.imdb_rating, 1)}"}
         </div>
         <%= if length(@writers) > 0 do %>
           <div class="card-writers">
-            <%= Enum.map_join(Enum.take(@writers, 2), ", ", & &1.name) %>
+            {Enum.map_join(Enum.take(@writers, 2), ", ", & &1.name)}
           </div>
         <% end %>
         <div class="card-actions">
-          <button class="hide-btn" phx-click="hide_show" phx-value-id={@show.id} title="Hide">✕</button>
+          <button class="hide-btn" phx-click="hide_show" phx-value-id={@show.id} title="Hide">
+            ✕
+          </button>
           <button class="like-btn" phx-click="like_show" phx-value-id={@show.id} title="Like">
-            <%= if MapSet.member?(@liked_ids, @show.id), do: "♥", else: "♡" %>
+            {if MapSet.member?(@liked_ids, @show.id), do: "♥", else: "♡"}
           </button>
         </div>
       </div>
@@ -539,7 +588,12 @@ defmodule BlogWeb.RoleCallLive do
   end
 
   defp rc_modal(assigns) do
-    assigns = assign(assigns, :writers, Enum.filter(assigns.show.credits, & &1.role in ["creator", "writer"]))
+    assigns =
+      assign(
+        assigns,
+        :writers,
+        Enum.filter(assigns.show.credits, &(&1.role in ["creator", "writer"]))
+      )
 
     ~H"""
     <div class="modal-overlay" phx-click="close_modal">
@@ -566,18 +620,19 @@ defmodule BlogWeb.RoleCallLive do
           <img src={@show.image_url} alt={@show.title} class="show-poster" />
         <% end %>
         <div class="show-info">
-          <h2><%= @show.title %></h2>
+          <h2>{@show.title}</h2>
           <div class="show-meta">
-            <%= @show.year_start %><%= if @show.year_end && @show.year_end != @show.year_start, do: "–#{@show.year_end}" %>
+            {@show.year_start}{if @show.year_end && @show.year_end != @show.year_start,
+              do: "–#{@show.year_end}"}
             <%= if @show.imdb_rating do %>
-              <span class="rating">★ <%= Float.round(@show.imdb_rating, 1) %></span>
+              <span class="rating">★ {Float.round(@show.imdb_rating, 1)}</span>
             <% end %>
           </div>
           <%= if @show.description do %>
-            <p class="show-desc"><%= @show.description %></p>
+            <p class="show-desc">{@show.description}</p>
           <% end %>
           <button class="modal-like-btn" phx-click="like_show" phx-value-id={@show.id}>
-            <%= if MapSet.member?(@liked_ids, @show.id), do: "♥ Liked", else: "♡ Like this show" %>
+            {if MapSet.member?(@liked_ids, @show.id), do: "♥ Liked", else: "♡ Like this show"}
           </button>
         </div>
       </div>
@@ -589,8 +644,8 @@ defmodule BlogWeb.RoleCallLive do
           <div class="writers-grid">
             <%= for credit <- @writers do %>
               <div class="writer-card" phx-click="select_writer" phx-value-id={credit.person.id}>
-                <span class="writer-name"><%= credit.person.name %></span>
-                <span class="writer-role"><%= credit.role %></span>
+                <span class="writer-name">{credit.person.name}</span>
+                <span class="writer-role">{credit.role}</span>
               </div>
             <% end %>
           </div>
@@ -604,19 +659,19 @@ defmodule BlogWeb.RoleCallLive do
     ~H"""
     <div class="writer-detail">
       <button class="back-btn" phx-click="clear_writer">← Back to show</button>
-      <h2><%= @writer.name %></h2>
+      <h2>{@writer.name}</h2>
       <p class="writer-subtitle">Their work</p>
 
       <div class="writer-shows">
         <%= for credit <- @writer.credits do %>
           <div class="writer-show-item" phx-click="open_show" phx-value-id={credit.show.id}>
-            <span class="show-title"><%= credit.show.title %></span>
+            <span class="show-title">{credit.show.title}</span>
             <span class="show-meta">
-              <%= credit.show.year_start %>
-              <%= if credit.show.imdb_rating, do: "★ #{Float.round(credit.show.imdb_rating, 1)}" %>
+              {credit.show.year_start}
+              {if credit.show.imdb_rating, do: "★ #{Float.round(credit.show.imdb_rating, 1)}"}
             </span>
             <button class="like-btn" phx-click="like_show" phx-value-id={credit.show.id}>
-              <%= if MapSet.member?(@liked_ids, credit.show.id), do: "♥", else: "♡" %>
+              {if MapSet.member?(@liked_ids, credit.show.id), do: "♥", else: "♡"}
             </button>
           </div>
         <% end %>
@@ -629,19 +684,22 @@ defmodule BlogWeb.RoleCallLive do
     steps = [
       %{
         title: "Welcome to Role Call!",
-        text: "Discover new TV shows based on the writers behind shows you already love. Let's take a quick tour!",
+        text:
+          "Discover new TV shows based on the writers behind shows you already love. Let's take a quick tour!",
         target: nil,
         position: :center
       },
       %{
         title: "Search for Shows",
-        text: "Type the name of any show you've enjoyed. We have over 58,000 shows in our database!",
+        text:
+          "Type the name of any show you've enjoyed. We have over 58,000 shows in our database!",
         target: "tour-search",
         position: :bottom
       },
       %{
         title: "Or Browse Random Picks",
-        text: "Not sure where to start? Check out these random suggestions. Click 'Show me more' for fresh picks.",
+        text:
+          "Not sure where to start? Check out these random suggestions. Click 'Show me more' for fresh picks.",
         target: "tour-shuffle",
         position: :top
       },
@@ -653,7 +711,8 @@ defmodule BlogWeb.RoleCallLive do
       },
       %{
         title: "Get Personalized Recommendations",
-        text: "Once you've liked a few shows, head to the 'Liked' tab to see recommendations based on shared writers. Happy discovering!",
+        text:
+          "Once you've liked a few shows, head to the 'Liked' tab to see recommendations based on shared writers. Happy discovering!",
         target: "tour-liked-tab",
         position: :bottom
       }
@@ -679,10 +738,10 @@ defmodule BlogWeb.RoleCallLive do
 
       <div class={"tour-tooltip #{@current.position}"} id="tour-tooltip" data-target={@current.target}>
         <div class="tour-progress">
-          Step <%= @step %> of <%= @total %>
+          Step {@step} of {@total}
         </div>
-        <h3 class="tour-title"><%= @current.title %></h3>
-        <p class="tour-text"><%= @current.text %></p>
+        <h3 class="tour-title">{@current.title}</h3>
+        <p class="tour-text">{@current.text}</p>
         <div class="tour-buttons">
           <button class="tour-skip" phx-click="skip_tour">Skip tour</button>
           <div class="tour-nav">
@@ -690,7 +749,7 @@ defmodule BlogWeb.RoleCallLive do
               <button class="tour-prev" phx-click="tour_prev">Back</button>
             <% end %>
             <button class="tour-next" phx-click="tour_next">
-              <%= if @step == @total, do: "Let's go!", else: "Next" %>
+              {if @step == @total, do: "Let's go!", else: "Next"}
             </button>
           </div>
         </div>
@@ -704,6 +763,7 @@ defmodule BlogWeb.RoleCallLive do
     # IMDB image URLs can be resized by modifying the path
     String.replace(url, ~r/@.*\./, "@._V1_SX200.")
   end
+
   defp thumb(_), do: nil
 
   @spec format_number(integer() | term()) :: String.t()
@@ -716,6 +776,7 @@ defmodule BlogWeb.RoleCallLive do
     |> Enum.join(",")
     |> String.reverse()
   end
+
   defp format_number(n), do: to_string(n)
 
   defp styles do
