@@ -31,79 +31,84 @@ defmodule BlueskyHose do
     {:ok, 0}
   end
 
-  def handle_frame({:text, msg}, state) do
-    msg = Jason.decode!(msg)
+  def handle_frame({:text, raw}, state) do
+    case Jason.decode(raw) do
+      {:ok, msg} ->
+        case msg do
+          %{"commit" => record = %{"record" => %{"text" => skeet}}} = _msg ->
+            # Log if the skeet contains certain keywords for debugging
+            if String.contains?(String.downcase(skeet), "bobby") do
+              Logger.info("FIREHOSE: Bobby post detected: #{String.slice(skeet, 0, 100)}")
+            end
 
-    case msg do
-      %{"commit" => record = %{"record" => %{"text" => skeet}}} = _msg ->
-        # Log if the skeet contains certain keywords for debugging
-        if String.contains?(String.downcase(skeet), "bobby") do
-          Logger.info("FIREHOSE: Bobby post detected: #{String.slice(skeet, 0, 100)}")
-        end
-        
-        # Extract DID from the commit
-        did = case msg do
-          %{"did" => did} -> did
-          _ -> "unknown"
-        end
-        
-        # Broadcast to the general skeet feed with DID (for existing pages)
-        Phoenix.PubSub.broadcast(
-          Blog.PubSub,
-          "bluesky:skeet",
-          {:new_skeet, %{text: skeet, did: did}}
-        )
-        
-        # Also broadcast to relay-specific topic for comparison
-        Phoenix.PubSub.broadcast(
-          Blog.PubSub,
-          "relay:skeet",
-          {:relay_skeet, %{text: skeet, did: did}}
-        )
+            # Extract DID from the commit
+            did =
+              case msg do
+                %{"did" => did} -> did
+                _ -> "unknown"
+              end
 
-        case derive_reddit_embed_link(skeet, record) do
-          {:ok, link} ->
+            # Broadcast to the general skeet feed with DID (for existing pages)
             Phoenix.PubSub.broadcast(
               Blog.PubSub,
-              "reddit_firehose",
-              {:reddit_link, {link, record}}
+              "bluesky:skeet",
+              {:new_skeet, %{text: skeet, did: did}}
             )
 
-          _ ->
-            :no_nothing_no_link
-        end
-
-        case derive_youtube_embed_link(skeet, record) do
-          {:ok, link} ->
+            # Also broadcast to relay-specific topic for comparison
             Phoenix.PubSub.broadcast(
               Blog.PubSub,
-              "reddit_links",
-              {:reddit_link, link}
+              "relay:skeet",
+              {:relay_skeet, %{text: skeet, did: did}}
             )
 
+            case derive_reddit_embed_link(skeet, record) do
+              {:ok, link} ->
+                Phoenix.PubSub.broadcast(
+                  Blog.PubSub,
+                  "reddit_firehose",
+                  {:reddit_link, {link, record}}
+                )
+
+              _ ->
+                :no_nothing_no_link
+            end
+
+            case derive_youtube_embed_link(skeet, record) do
+              {:ok, link} ->
+                Phoenix.PubSub.broadcast(
+                  Blog.PubSub,
+                  "reddit_links",
+                  {:reddit_link, link}
+                )
+
+              _ ->
+                :no_nothing_no_link
+            end
+
+            # one in ten times broadcast a subset of the firehose
+            # we are going to build a skeet firehose viewer that
+            # utilizes this broadcast to only show a subset of the posts
+            # and build a pretty UI for all of it
+            if :rand.uniform(10) == 1 do
+              Phoenix.PubSub.broadcast(
+                Blog.PubSub,
+                "sample_skeets",
+                {:sample_skeet, skeet}
+              )
+            end
+
+          # Broadcast to subscribers
+
           _ ->
-            :no_nothing_no_link
+            nil
         end
 
-        # one in ten times broadcast a subset of the firehose
-        # we are going to build a skeet firehose viewer that
-        # utilizes this broadcast to only show a subset of the posts
-        # and build a pretty UI for all of it
-        if :rand.uniform(10) == 1 do
-          Phoenix.PubSub.broadcast(
-            Blog.PubSub,
-            "sample_skeets",
-            {:sample_skeet, skeet}
-          )
-        end
+        {:ok, state + 1}
 
-      # Broadcast to subscribers
-
-      _ ->
-        nil
+      {:error, _} ->
+        {:ok, state}
     end
-
-    {:ok, state + 1}
   end
 
   defp derive_reddit_embed_link(skeet, record) when is_binary(skeet) do
@@ -156,7 +161,6 @@ defmodule BlueskyHose do
     end
   end
 
-
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}")
     Blog.HoseMonitor.report_down(:bluesky_hose)
@@ -164,8 +168,9 @@ defmodule BlueskyHose do
   end
 
   def handle_disconnect(disconnect_map, state) do
+    Logger.info("BlueskyHose disconnected: #{inspect(disconnect_map.reason)}, reconnecting")
     Blog.HoseMonitor.report_down(:bluesky_hose)
-    super(disconnect_map, state)
+    {:reconnect, state}
   end
 
   # Function to get all stored Reddit links

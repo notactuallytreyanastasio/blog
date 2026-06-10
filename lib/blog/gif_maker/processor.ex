@@ -40,7 +40,6 @@ defmodule Blog.GifMaker.Processor do
   @impl true
   def handle_info({:retry, job_id}, state) do
     handle_cast({:process, job_id}, state)
-    {:noreply, state}
   end
 
   def handle_info({ref, _result}, %{active: active} = state) when is_reference(ref) do
@@ -84,6 +83,10 @@ defmodule Blog.GifMaker.Processor do
   end
 
   defp broadcast(job_id, status, message) do
-    Phoenix.PubSub.broadcast(Blog.PubSub, "gif_maker:#{job_id}", {:processing_update, status, message})
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "gif_maker:#{job_id}",
+      {:processing_update, status, message}
+    )
   end
 end

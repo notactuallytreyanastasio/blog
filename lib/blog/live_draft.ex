@@ -7,7 +7,6 @@ defmodule Blog.LiveDraft do
 
   @table :live_drafts
   @staleness_seconds 120
-  @posts_dir (:code.priv_dir(:blog) |> to_string()) <> "/static/posts/"
 
   @spec start_link(term()) :: GenServer.on_start()
   def start_link(_opts) do
@@ -122,8 +121,10 @@ defmodule Blog.LiveDraft do
     result ++ remaining
   end
 
+  defp posts_dir, do: Path.join(to_string(:code.priv_dir(:blog)), "static/posts")
+
   defp find_post_file(slug) do
-    Path.wildcard(@posts_dir <> "*-#{slug}.md")
+    Path.wildcard(Path.join(posts_dir(), "*-#{slug}.md"))
     |> Enum.reject(fn file ->
       file |> Path.basename(".md") |> String.split("-") |> List.last() |> String.length() == 32
     end)
@@ -146,7 +147,10 @@ defmodule Blog.LiveDraft do
         try do
           dir = Path.dirname(path)
 
-          case System.cmd("git", ["rev-parse", "--show-toplevel"], cd: dir, stderr_to_stdout: true) do
+          case System.cmd("git", ["rev-parse", "--show-toplevel"],
+                 cd: dir,
+                 stderr_to_stdout: true
+               ) do
             {root, 0} ->
               root = String.trim(root)
               System.cmd("git", ["add", path], cd: root, stderr_to_stdout: true)
@@ -186,7 +190,14 @@ defmodule Blog.LiveDraft do
     pattern = ~r/<details([^>]*)>\s*<summary([^>]*)>(.*?)<\/summary>\s*(.*?)<\/details>/s
 
     Regex.scan(pattern, html)
-    |> Enum.reduce(html, fn [full_match, details_attrs, summary_attrs, summary_content, details_content], acc ->
+    |> Enum.reduce(html, fn [
+                              full_match,
+                              details_attrs,
+                              summary_attrs,
+                              summary_content,
+                              details_content
+                            ],
+                            acc ->
       trimmed = String.trim(details_content)
 
       processed =

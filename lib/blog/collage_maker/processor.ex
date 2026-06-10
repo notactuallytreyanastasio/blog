@@ -21,7 +21,8 @@ defmodule Blog.CollageMaker.Processor do
   def init(state), do: {:ok, state}
 
   @impl true
-  def handle_cast({:process, collage_id}, %{active: active} = state) when active >= @max_concurrent do
+  def handle_cast({:process, collage_id}, %{active: active} = state)
+      when active >= @max_concurrent do
     Logger.warning("Collage Maker: max concurrent jobs reached, queueing #{collage_id}")
     Process.send_after(self(), {:retry, collage_id}, 5_000)
     {:noreply, state}
@@ -38,7 +39,6 @@ defmodule Blog.CollageMaker.Processor do
   @impl true
   def handle_info({:retry, collage_id}, state) do
     handle_cast({:process, collage_id}, state)
-    {:noreply, state}
   end
 
   def handle_info({ref, _result}, %{active: active} = state) when is_reference(ref) do
@@ -57,7 +57,10 @@ defmodule Blog.CollageMaker.Processor do
   defp run_pipeline(collage_id) do
     collage = CollageMaker.get_collage!(collage_id)
     images = CollageMaker.list_images(collage_id)
-    tmp_dir = Path.join(System.tmp_dir!(), "collage_#{collage_id}_#{System.unique_integer([:positive])}")
+
+    tmp_dir =
+      Path.join(System.tmp_dir!(), "collage_#{collage_id}_#{System.unique_integer([:positive])}")
+
     File.mkdir_p!(tmp_dir)
 
     try do
@@ -74,11 +77,12 @@ defmodule Blog.CollageMaker.Processor do
       end)
 
       # Compute cell size
-      cell_size = ImageProcessor.compute_cell_size(
-        Enum.map(images_with_dims, fn {_img, w, h} ->
-          %{original_width: w, original_height: h}
-        end)
-      )
+      cell_size =
+        ImageProcessor.compute_cell_size(
+          Enum.map(images_with_dims, fn {_img, w, h} ->
+            %{original_width: w, original_height: h}
+          end)
+        )
 
       CollageMaker.update_collage(collage, %{cell_size: cell_size})
 
@@ -185,6 +189,10 @@ defmodule Blog.CollageMaker.Processor do
   end
 
   defp broadcast(collage_id, status, message) do
-    Phoenix.PubSub.broadcast(Blog.PubSub, "collage_maker:#{collage_id}", {:processing_update, status, message})
+    Phoenix.PubSub.broadcast(
+      Blog.PubSub,
+      "collage_maker:#{collage_id}",
+      {:processing_update, status, message}
+    )
   end
 end

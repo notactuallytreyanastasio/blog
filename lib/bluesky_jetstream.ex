@@ -2,15 +2,15 @@ defmodule BlueskyJetstream do
   use WebSockex
   require Logger
 
-  # Try the public Jetstream endpoint
-  @jetstream_url "wss://jetstream2.us-east.bsky.network/subscribe"
+  # Public Jetstream endpoint, filtered server-side to post commits only
+  @jetstream_url "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
 
   def start_link(opts \\ []) do
-    # Subscribe to all events first to see if we connect at all
+    # Only post commits are requested via wantedCollections
     url = @jetstream_url
-    
+
     Logger.debug("Connecting to Bluesky Jetstream at #{url}")
-    
+
     WebSockex.start_link(
       url,
       __MODULE__,
@@ -50,15 +50,15 @@ defmodule BlueskyJetstream do
   defp handle_decoded_message(%{"kind" => "commit", "commit" => commit}) do
     handle_commit(commit)
   end
-  
+
   defp handle_decoded_message(%{"kind" => "identity", "identity" => identity}) do
     handle_identity(identity)
   end
-  
+
   defp handle_decoded_message(%{"kind" => "account", "account" => account}) do
     handle_account(account)
   end
-  
+
   defp handle_decoded_message(_data), do: :ok
 
   defp handle_commit(nil), do: :ok
@@ -69,6 +69,7 @@ defmodule BlueskyJetstream do
 
     if collection == "app.bsky.feed.post" and operation == "create" do
       did = Map.get(commit, "did", "unknown")
+
       if record = Map.get(commit, "record") do
         handle_post_create(record, did, %{"commit" => commit, "did" => did})
       end
