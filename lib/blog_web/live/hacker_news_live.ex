@@ -38,9 +38,11 @@ defmodule BlogWeb.HackerNewsLive do
   @impl true
   def handle_info(:refresh_stories, socket) do
     # Fetch fresh stories
+    parent = self()
+
     Task.start(fn ->
       stories = fetch_top_stories(50)
-      send(self(), {:stories_refreshed, stories})
+      send(parent, {:stories_refreshed, stories})
     end)
 
     # Schedule next refresh
@@ -91,19 +93,32 @@ defmodule BlogWeb.HackerNewsLive do
   # Fetch top stories directly from Hacker News API
   defp fetch_top_stories(limit) do
     # Get IDs of top stories
-    {:ok, response} = Req.get("#{@hn_api_base}/topstories.json")
-    story_ids = Enum.take(response.body, limit)
+    case Req.get("#{@hn_api_base}/topstories.json") do
+      {:ok, %{body: ids}} when is_list(ids) ->
+        ids
+        |> Enum.take(limit)
+        # Add rank starting from 1
+        |> Enum.with_index(1)
+        |> Task.async_stream(fn {id, rank} -> fetch_story_details(id, rank) end,
+          timeout: 10_000,
+          on_timeout: :kill_task,
+          ordered: true
+        )
+        |> Enum.map(fn
+          {:ok, story} -> story
+          _ -> nil
+        end)
+        # Remove nils if any requests failed
+        |> Enum.filter(& &1)
 
-    # Fetch story details in parallel
-    story_ids
-    # Add rank starting from 1
-    |> Enum.with_index(1)
-    |> Enum.map(fn {id, rank} ->
-      Task.async(fn -> fetch_story_details(id, rank) end)
-    end)
-    |> Enum.map(&Task.await/1)
-    # Remove nils if any requests failed
-    |> Enum.filter(& &1)
+      other ->
+        Logger.error("Failed to fetch top stories: #{inspect(other)}")
+        []
+    end
+  rescue
+    e ->
+      Logger.error("fetch_top_stories crashed: #{inspect(e)}")
+      []
   end
 
   # Fetch details for a specific story
@@ -168,7 +183,10 @@ defmodule BlogWeb.HackerNewsLive do
   def render(assigns) do
     ~H"""
     <div class="os-desktop-osx">
-      <div class="os-window os-window-osx" style="width: 100%; height: calc(100vh - 40px); max-width: none;">
+      <div
+        class="os-window os-window-osx"
+        style="width: 100%; height: calc(100vh - 40px); max-width: none;"
+      >
         <div class="os-titlebar">
           <div class="os-titlebar-buttons">
             <a href="/" class="os-btn-close"></a>
@@ -178,7 +196,10 @@ defmodule BlogWeb.HackerNewsLive do
           <span class="os-titlebar-title">Hacker News - Top Stories</span>
           <div class="os-titlebar-spacer"></div>
         </div>
-        <div class="os-content" style="height: calc(100% - 60px); overflow-y: auto; background: #f9fafb;">
+        <div
+          class="os-content"
+          style="height: calc(100% - 60px); overflow-y: auto; background: #f9fafb;"
+        >
           <div class="max-w-5xl mx-auto py-6 px-4">
             <header class="mb-6">
               <div class="flex items-center justify-between">
@@ -199,156 +220,160 @@ defmodule BlogWeb.HackerNewsLive do
               </p>
             </header>
 
-        <div class="bg-white rounded-lg shadow divide-y">
-          <%= for story <- @stories do %>
-            <article id={"story-#{story.id}"} class="p-4 hover:bg-orange-50 transition-colors">
-              <div class="flex items-baseline space-x-2">
-                <span class="text-orange-500 font-mono font-semibold">{story.rank}.</span>
-                <h2 class="text-lg font-medium text-gray-900 flex-grow">
-                  <a
-                    href={story.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="hover:underline"
-                  >
-                    {story.title}
-                  </a>
-                </h2>
-              </div>
+            <div class="bg-white rounded-lg shadow divide-y">
+              <%= for story <- @stories do %>
+                <article id={"story-#{story.id}"} class="p-4 hover:bg-orange-50 transition-colors">
+                  <div class="flex items-baseline space-x-2">
+                    <span class="text-orange-500 font-mono font-semibold">{story.rank}.</span>
+                    <h2 class="text-lg font-medium text-gray-900 flex-grow">
+                      <a
+                        href={story.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="hover:underline"
+                      >
+                        {story.title}
+                      </a>
+                    </h2>
+                  </div>
 
-              <div class="ml-6 mt-1 flex flex-wrap text-sm text-gray-500 gap-x-4">
-                <%= if domain = format_domain(story.url) do %>
-                  <span class="inline-flex items-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-4 w-4 mr-1"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                  <div class="ml-6 mt-1 flex flex-wrap text-sm text-gray-500 gap-x-4">
+                    <%= if domain = format_domain(story.url) do %>
+                      <span class="inline-flex items-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-4 w-4 mr-1"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                          />
+                        </svg>
+                        {domain}
+                      </span>
+                    <% end %>
+
+                    <span class="inline-flex items-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                      {story.by}
+                    </span>
+
+                    <span class="inline-flex items-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M7 11l5-5m0 0l5 5m-5-5v12"
+                        />
+                      </svg>
+                      {story.score}
+                    </span>
+
+                    <span class="inline-flex items-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                        />
+                      </svg>
+                      {story.descendants}
+                    </span>
+
+                    <span class="inline-flex items-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      {format_time(story.time)}
+                    </span>
+
+                    <a
+                      href={"https://news.ycombinator.com/item?id=#{story.id}"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center text-orange-600 hover:underline"
                     >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                      />
-                    </svg>
-                    {domain}
-                  </span>
-                <% end %>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                        />
+                      </svg>
+                      Comments
+                    </a>
+                  </div>
+                </article>
+              <% end %>
 
-                <span class="inline-flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  {story.by}
-                </span>
-
-                <span class="inline-flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M7 11l5-5m0 0l5 5m-5-5v12"
-                    />
-                  </svg>
-                  {story.score}
-                </span>
-
-                <span class="inline-flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                    />
-                  </svg>
-                  {story.descendants}
-                </span>
-
-                <span class="inline-flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  {format_time(story.time)}
-                </span>
-
-                <a
-                  href={"https://news.ycombinator.com/item?id=#{story.id}"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex items-center text-orange-600 hover:underline"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
-                    />
-                  </svg>
-                  Comments
-                </a>
-              </div>
-            </article>
-          <% end %>
-
-          <%= if Enum.empty?(@stories) do %>
-            <div class="p-8 text-center">
-              <p class="text-gray-500">Loading Hacker News stories...</p>
-              <p class="text-sm text-gray-400 mt-2">
-                This could take a moment to fetch data from the API.
-              </p>
+              <%= if Enum.empty?(@stories) do %>
+                <div class="p-8 text-center">
+                  <p class="text-gray-500">Loading Hacker News stories...</p>
+                  <p class="text-sm text-gray-400 mt-2">
+                    This could take a moment to fetch data from the API.
+                  </p>
+                </div>
+              <% end %>
             </div>
-          <% end %>
-        </div>
           </div>
         </div>
         <div class="os-statusbar">
           <span>Stories: {length(@stories)}</span>
-          <span>Updated: {if assigns[:last_updated], do: Calendar.strftime(@last_updated, "%H:%M:%S"), else: "loading..."}</span>
+          <span>
+            Updated: {if assigns[:last_updated],
+              do: Calendar.strftime(@last_updated, "%H:%M:%S"),
+              else: "loading..."}
+          </span>
         </div>
       </div>
     </div>

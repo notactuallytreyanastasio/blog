@@ -44,6 +44,7 @@ defmodule BlogWeb.ChessLive do
 
   defp pseudo_legal_targets(game) do
     alias Blog.Chess.{Plane, MoveGen}
+
     Plane.pieces_of(game.plane, :white)
     |> Enum.flat_map(fn {sq, piece} ->
       if C.frozen?(elem(game.status, C.board_of(sq))) do
@@ -62,7 +63,9 @@ defmodule BlogWeb.ChessLive do
   defp assign_og_tags(socket) do
     image_path = ImageGenerator.ensure_post_image("chess-game")
     image_url = if image_path, do: BlogWeb.Endpoint.url() <> image_path
-    description = "Nine chess boards in a 3x3 grid. Pieces may cross board boundaries when credits have been earned. Win by checkmating the opponent on more boards."
+
+    description =
+      "Nine chess boards in a 3x3 grid. Pieces may cross board boundaries when credits have been earned. Win by checkmating the opponent on more boards."
 
     meta_tags = [
       %{name: "description", content: description},
@@ -75,16 +78,18 @@ defmodule BlogWeb.ChessLive do
       %{name: "twitter:description", content: description}
     ]
 
-    meta_tags = if image_url do
-      meta_tags ++ [
-        %{property: "og:image", content: image_url},
-        %{property: "og:image:width", content: "1200"},
-        %{property: "og:image:height", content: "630"},
-        %{name: "twitter:image", content: image_url}
-      ]
-    else
-      meta_tags
-    end
+    meta_tags =
+      if image_url do
+        meta_tags ++
+          [
+            %{property: "og:image", content: image_url},
+            %{property: "og:image:width", content: "1200"},
+            %{property: "og:image:height", content: "630"},
+            %{name: "twitter:image", content: image_url}
+          ]
+      else
+        meta_tags
+      end
 
     socket
     |> assign(:page_title, "Chess-9")
@@ -106,7 +111,8 @@ defmodule BlogWeb.ChessLive do
      |> assign(:legal_targets, [])
      |> assign(:last_move, nil)
      |> assign(:bot_thinking, false)
-     |> assign(:bot_focused_board, nil)}
+     |> assign(:bot_focused_board, nil)
+     |> push_legal_targets(game)}
   end
 
   @impl true
@@ -190,11 +196,15 @@ defmodule BlogWeb.ChessLive do
   # ---------------------------------------------------------------------------
 
   @impl true
-  def handle_event("apply_move", %{"from_gx" => fgx, "from_gy" => fgy, "to_gx" => tgx, "to_gy" => tgy}, socket) do
+  def handle_event(
+        "apply_move",
+        %{"from_gx" => fgx, "from_gy" => fgy, "to_gx" => tgx, "to_gy" => tgy},
+        socket
+      ) do
     game = socket.assigns.game
     to_int = fn v -> if is_integer(v), do: v, else: String.to_integer(v) end
     from = {to_int.(fgx), to_int.(fgy)}
-    to   = {to_int.(tgx), to_int.(tgy)}
+    to = {to_int.(tgx), to_int.(tgy)}
 
     if game.to_move != :white or socket.assigns.bot_thinking or Scoring.game_over?(game.status) do
       {:noreply, socket}
@@ -232,10 +242,12 @@ defmodule BlogWeb.ChessLive do
 
     if game.to_move == :black and not Scoring.game_over?(game.status) do
       parent = self()
+
       Task.Supervisor.start_child(Blog.Chess.TaskSupervisor, fn ->
         move = Blog.Chess.Bot.best_move(game)
         send(parent, {:bot_move_result, move, game.ply})
       end)
+
       {:noreply, socket}
     else
       {:noreply, assign(socket, :bot_thinking, false)}
@@ -637,10 +649,8 @@ defmodule BlogWeb.ChessLive do
         </div>
 
         <div class="mac-body">
-          <%
-            {white_score, black_score} = score_bar(@game.status)
-            game_over = Scoring.game_over?(@game.status)
-          %>
+          <% {white_score, black_score} = score_bar(@game.status)
+          game_over = Scoring.game_over?(@game.status) %>
 
           <div class="chess-header">
             <div class="game-title">CHESS9</div>
@@ -656,58 +666,56 @@ defmodule BlogWeb.ChessLive do
             <span class="score-label">boards won:</span>
             <span class="score-white">
               <span class="score-pip" style="background:#f0f0f0;border:1px solid #aaa;"></span>
-              white <%= white_score %>
+              white {white_score}
             </span>
             <span class="score-black">
-              <span class="score-pip" style="background:#222;"></span>
-              black <%= black_score %>
+              <span class="score-pip" style="background:#222;"></span> black {black_score}
             </span>
             <span style="flex:1"></span>
             <%= if not game_over do %>
               <span style="font-size:12px;color:#aac;">
-                <%= if @game.to_move == :white, do: "your turn (white)", else: "black to move" %>
+                {if @game.to_move == :white, do: "your turn (white)", else: "black to move"}
               </span>
             <% end %>
           </div>
 
           <%= if game_over do %>
-            <%
-              result = Scoring.winner(@game.status)
-              {banner_class, banner_text} = case result do
+            <% result = Scoring.winner(@game.status)
+
+            {banner_class, banner_text} =
+              case result do
                 {:winner, :white} -> {"game-over-white", "WHITE WINS the match!"}
                 {:winner, :black} -> {"game-over-black", "BLACK WINS the match!"}
-                :draw             -> {"game-over-draw", "MATCH DRAWN"}
-              end
-            %>
-            <div class={"game-over-banner #{banner_class}"}><%= banner_text %></div>
+                :draw -> {"game-over-draw", "MATCH DRAWN"}
+              end %>
+            <div class={"game-over-banner #{banner_class}"}>{banner_text}</div>
           <% end %>
 
           <div class="super-grid">
             <%= for board_row <- 0..2 do %>
               <%= for board_col <- 0..2 do %>
-                <%
-                  bi = board_index(board_col, board_row)
-                  {origin_gx, origin_gy} = C.board_origin(bi)
-                  board_status = elem(@game.status, bi)
-                  frozen = board_frozen?(board_status)
-                  status_label = board_status_label(board_status)
-                %>
-                <div class={"board-cell#{if @bot_focused_board == bi, do: " board-cell-bot-moved", else: ""}"} id={"board-#{bi}"}>
+                <% bi = board_index(board_col, board_row)
+                {origin_gx, origin_gy} = C.board_origin(bi)
+                board_status = elem(@game.status, bi)
+                frozen = board_frozen?(board_status)
+                status_label = board_status_label(board_status) %>
+                <div
+                  class={"board-cell#{if @bot_focused_board == bi, do: " board-cell-bot-moved", else: ""}"}
+                  id={"board-#{bi}"}
+                >
                   <div class="board-grid">
                     <%= for local_rank <- 0..7 do %>
                       <%= for local_file <- 0..7 do %>
-                        <%
-                          gx = origin_gx + local_file
-                          gy = origin_gy + local_rank
-                          sq = {gx, gy}
-                          piece = elem(@game.plane, C.cell_index(sq))
-                          is_light = rem(local_file + local_rank, 2) == 0
-                          bg = if is_light, do: "#F0D9B5", else: "#B58863"
-                          is_selected = @selected == sq
-                          is_legal = sq in @legal_targets
-                          is_last_from = match?({^sq, _}, @last_move)
-                          is_last_to   = match?({_, ^sq}, @last_move)
-                        %>
+                        <% gx = origin_gx + local_file
+                        gy = origin_gy + local_rank
+                        sq = {gx, gy}
+                        piece = elem(@game.plane, C.cell_index(sq))
+                        is_light = rem(local_file + local_rank, 2) == 0
+                        bg = if is_light, do: "#F0D9B5", else: "#B58863"
+                        is_selected = @selected == sq
+                        is_legal = sq in @legal_targets
+                        is_last_from = match?({^sq, _}, @last_move)
+                        is_last_to = match?({_, ^sq}, @last_move) %>
                         <div
                           class="sq"
                           style={"background:#{bg};"}
@@ -728,7 +736,9 @@ defmodule BlogWeb.ChessLive do
                             </div>
                           <% end %>
                           <%= if piece != nil do %>
-                            <span class={"sq-piece #{if piece.color == :white, do: "piece-white", else: "piece-black"}"}><%= piece_unicode(piece) %></span>
+                            <span class={"sq-piece #{if piece.color == :white, do: "piece-white", else: "piece-black"}"}>
+                              {piece_unicode(piece)}
+                            </span>
                           <% end %>
                         </div>
                       <% end %>
@@ -737,7 +747,7 @@ defmodule BlogWeb.ChessLive do
 
                   <%= if frozen and status_label != nil do %>
                     <div class="board-frozen-overlay">
-                      <div class="frozen-label"><%= status_label %></div>
+                      <div class="frozen-label">{status_label}</div>
                     </div>
                   <% end %>
                 </div>
@@ -857,52 +867,60 @@ defmodule BlogWeb.ChessLive do
     </script>
 
     <%= if @show_rules do %>
-    <div
-      id="rules-modal"
-      style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;"
-      phx-click="close_rules"
-    >
       <div
-        style="background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;max-width:480px;width:100%;padding:28px 24px;color:#d0d0e8;font-family:monospace;max-height:90vh;overflow-y:auto;"
-        phx-click-away="close_rules"
+        id="rules-modal"
+        style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;"
+        phx-click="close_rules"
       >
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <span style="font-size:18px;font-weight:bold;color:#e0e0f8;">Chess-9</span>
-          <button
-            phx-click="close_rules"
-            style="background:none;border:1px solid #444;color:#999;cursor:pointer;padding:4px 10px;border-radius:4px;font-family:monospace;font-size:13px;"
-          >play →</button>
+        <div
+          style="background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;max-width:480px;width:100%;padding:28px 24px;color:#d0d0e8;font-family:monospace;max-height:90vh;overflow-y:auto;"
+          phx-click-away="close_rules"
+        >
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <span style="font-size:18px;font-weight:bold;color:#e0e0f8;">Chess-9</span>
+            <button
+              phx-click="close_rules"
+              style="background:none;border:1px solid #444;color:#999;cursor:pointer;padding:4px 10px;border-radius:4px;font-family:monospace;font-size:13px;"
+            >
+              play →
+            </button>
+          </div>
+
+          <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
+            Nine standard chess boards arranged in a 3×3 grid. All nine games are live at the same time.
+            You play white on every board. One move per turn, on any board you choose.
+            Win by checkmating the opponent on more boards than they checkmate you.
+          </p>
+
+          <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">
+            CROSSING RULE
+          </div>
+          <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
+            A piece may slide across a board boundary only when one of its own kind has already been captured on the destination board.
+            Losing your bishop on board 4 earns you a bishop-crossing credit for board 4.
+            Credits are spent one per crossing.
+            Kings never cross. Any pawn that crosses a boundary promotes on arrival.
+          </p>
+
+          <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">
+            GEOMETRY
+          </div>
+          <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
+            The nine boards form a continuous 24×24 plane. Board boundaries are invisible to piece geometry.
+            A bishop on the edge of one board slides diagonally onto the next along the same diagonal,
+            if it holds the credit to enter it.
+            A piece on a neighboring board can give check across the seam if it holds enough credits.
+          </p>
+
+          <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">
+            DRAW CONDITIONS
+          </div>
+          <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:4px;">
+            A board draws by the 50-move rule or insufficient material.
+            A drawn board is frozen and cannot be fought over.
+          </p>
         </div>
-
-        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
-          Nine standard chess boards arranged in a 3×3 grid. All nine games are live at the same time.
-          You play white on every board. One move per turn, on any board you choose.
-          Win by checkmating the opponent on more boards than they checkmate you.
-        </p>
-
-        <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">CROSSING RULE</div>
-        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
-          A piece may slide across a board boundary only when one of its own kind has already been captured on the destination board.
-          Losing your bishop on board 4 earns you a bishop-crossing credit for board 4.
-          Credits are spent one per crossing.
-          Kings never cross. Any pawn that crosses a boundary promotes on arrival.
-        </p>
-
-        <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">GEOMETRY</div>
-        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;">
-          The nine boards form a continuous 24×24 plane. Board boundaries are invisible to piece geometry.
-          A bishop on the edge of one board slides diagonally onto the next along the same diagonal,
-          if it holds the credit to enter it.
-          A piece on a neighboring board can give check across the seam if it holds enough credits.
-        </p>
-
-        <div style="font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;">DRAW CONDITIONS</div>
-        <p style="color:#aaa;font-size:13px;line-height:1.6;margin-bottom:4px;">
-          A board draws by the 50-move rule or insufficient material.
-          A drawn board is frozen and cannot be fought over.
-        </p>
       </div>
-    </div>
     <% end %>
     """
   end
