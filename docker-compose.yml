@@ -63,7 +63,9 @@ services:
   # The repo is BIND-MOUNTED at /app: node_modules + pnpm store live on the
   # host inside /opt/soldat (the supervisor pnpm-installs on boot), so a
   # redeploy is rsync + `docker compose restart soldat` — no image rebuild.
-  # Caddy proxies bobbby.online/arena/* -> soldat:8901 (play/ stays static).
+  # Caddy proxies bobbby.online/arena/* -> soldat:8901 (play/ stays static)
+  # and /arena/ws -> soldat:8902 (the online-1v1 game server, a 4th
+  # supervised daemon).
   soldat:
     build:
       context: /opt/soldat
@@ -76,9 +78,12 @@ services:
       ARENA_DATA_FIGHTS: "40"
       TZ: UTC
       PORT: "8901"
+      GAME_SERVER_PORT: "8902"
+    expose:
+      - "8902"
     volumes:
       - /opt/soldat:/app
-    # Not exposed to host - Caddy proxies to port 8901 via Docker network
+    # Not exposed to host - Caddy proxies to ports 8901/8902 via Docker network
 
   caddy:
     image: caddy:2

@@ -24,6 +24,12 @@ bobbby.online, www.bobbby.online {
 	# no cache headers here so the dashboards' 5s polls stay fresh.
 	redir /arena /arena/ 308
 	redir /arena/play /arena/play/ 308
+	# Online 1v1 game server (soldat repo packages/server, supervised inside
+	# the soldat container on :8902). Plain `handle` (no path strip) BEFORE
+	# the /arena/* handlers; the WebSocket upgrade passes through natively.
+	handle /arena/ws {
+		reverse_proxy soldat:8902
+	}
 	handle_path /arena/play/* {
 		root * /srv/arena/play
 		file_server
