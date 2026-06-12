@@ -74,6 +74,17 @@ deciduous.dev, www.deciduous.dev {
 	}
 }
 
+soldat.bobbby.online {
+	root * /srv/soldat-landing
+	file_server
+
+	encode gzip zstd
+
+	header {
+		Cache-Control "public, max-age=300"
+	}
+}
+
 donny.bobbby.online {
 	root * /srv/donny
 	file_server

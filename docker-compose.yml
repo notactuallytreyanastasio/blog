@@ -101,6 +101,7 @@ services:
       - /opt/donny:/srv/donny:ro
       - /opt/blimp:/srv/blimp:ro
       - /opt/arena:/srv/arena:ro  # the Claude Arena snapshot (soldat repo, arena-live/publish.mjs)
+      - /opt/soldat-landing:/srv/soldat-landing:ro  # the SOLDAT, REWRITTEN story page (soldat repo, landing/)
 
 volumes:
   pgdata:
