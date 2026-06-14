@@ -728,6 +728,25 @@ defmodule BlogWeb.KnicksFinalsLive do
           </div>
 
           <div class="kx-card">
+            <div class="kx-h2">The Miss</div>
+            <div class="kx-cap">Game 2, tie game, final seconds. Wembanyama rises for the win — and it rims out. New York escapes 105-104 and goes up 2-0.</div>
+            <div id="kx-miss-chart" class="kx-chart" phx-update="ignore"></div>
+            <button type="button" class="kx-replay" onclick="window.kxReplayMiss &amp;&amp; window.kxReplayMiss()">▸ Replay</button>
+          </div>
+
+          <div class="kx-card">
+            <div class="kx-h2">From 29 Down</div>
+            <div class="kx-cap">Game 4. New York trailed 81-52 in the third — about as dead as a Finals team gets — then completed the largest comeback in Finals history.</div>
+            <div id="kx-climb-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+
+          <div class="kx-card">
+            <div class="kx-h2">Brunson's 45</div>
+            <div class="kx-cap">Game 5, title on the line. Brunson poured in 45 — 13 straight in the fourth — passing Willis Reed's 1970 mark for the most by a Knick in a Finals game.</div>
+            <div id="kx-forty-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+
+          <div class="kx-card">
             <div class="kx-h2">Slow Starts, Big Finishes</div>
             <div class="kx-cap">Total points by quarter across the series. San Antonio won the first quarters by a combined 57 — and lost every other quarter. New York took the fourth by 26. The Knicks spotted the Spurs the start, then owned the night.</div>
             <div id="kx-quarters-chart" class="kx-chart" phx-update="ignore"></div>
@@ -1152,6 +1171,113 @@ defmodule BlogWeb.KnicksFinalsLive do
           });
         }
 
+        // Reusable half-court (basket at top) for the play animations.
+        function buildCourt(hostId) {
+          var host = clear(hostId); if (!host || !window.d3) return null;
+          var VB = 360, VBH = 300;
+          var svg = d3.select(host).append('svg').attr('viewBox', '0 0 ' + VB + ' ' + VBH);
+          var court = svg.append('g').attr('fill', 'none').attr('stroke', '#26303f').attr('stroke-width', 1.5);
+          court.append('rect').attr('x', 1).attr('y', 1).attr('width', VB - 2).attr('height', VBH - 2).attr('rx', 8).attr('stroke', '#1d2532');
+          court.append('rect').attr('x', 150).attr('y', 18).attr('width', 60).attr('height', 132);
+          court.append('circle').attr('cx', 180).attr('cy', 150).attr('r', 30);
+          court.append('path').attr('d', 'M28,86 Q180,300 332,86');
+          svg.append('line').attr('x1', 164).attr('y1', 18).attr('x2', 196).attr('y2', 18).attr('stroke', '#6f7785').attr('stroke-width', 2.5);
+          svg.append('circle').attr('cx', 180).attr('cy', 27).attr('r', 7).attr('fill', 'none').attr('stroke', '#F58426').attr('stroke-width', 2);
+          var cap = svg.append('text').attr('x', 180).attr('y', 288).attr('text-anchor', 'middle').attr('fill', '#e8eaed').attr('font-size', 12).attr('font-weight', 700).attr('opacity', 0);
+          var clk = svg.append('text').attr('x', 332).attr('y', 26).attr('text-anchor', 'end').attr('fill', '#8b93a0').attr('font-size', 13).attr('font-family', 'monospace').attr('font-weight', 700).text('1.2').attr('opacity', 0);
+          function player(x, y, label, color) {
+            var gg = svg.append('g');
+            gg.append('circle').attr('cx', x).attr('cy', y).attr('r', 8).attr('fill', color).attr('stroke', '#0b0f17').attr('stroke-width', 1.5);
+            gg.append('text').attr('x', x).attr('y', y + 22).attr('text-anchor', 'middle').attr('fill', color).attr('font-size', 10).attr('font-weight', 800).text(label);
+            return gg;
+          }
+          var ball = svg.append('circle').attr('r', 5.5).attr('fill', '#F58426').attr('stroke', '#7a3d10').attr('stroke-width', 1).attr('opacity', 0);
+          function ballAt(x, y) { ball.attr('transform', 'translate(' + x + ',' + y + ')'); }
+          function ballAlong(pathStr, dur, ease, cb) {
+            var tmp = svg.append('path').attr('d', pathStr).attr('fill', 'none').attr('stroke', 'none');
+            var L = tmp.node().getTotalLength();
+            ball.transition().duration(dur).ease(ease || d3.easeQuadOut)
+              .attrTween('transform', function () { return function (t) { var pt = tmp.node().getPointAtLength(t * L); return 'translate(' + pt.x + ',' + pt.y + ')'; }; })
+              .on('end', function () { tmp.remove(); if (cb) cb(); });
+          }
+          function flash(text, color) { cap.interrupt().attr('fill', color || '#e8eaed').attr('font-size', 12).text(text).attr('opacity', 0).transition().duration(180).attr('opacity', 1); }
+          return { svg: svg, cap: cap, clk: clk, ball: ball, player: player, ballAt: ballAt, ballAlong: ballAlong, flash: flash };
+        }
+
+        var missTimer;
+        function renderMiss() {
+          if (missTimer) { clearTimeout(missTimer); missTimer = null; }
+          var c = buildCourt('kx-miss-chart'); if (!c) return;
+          c.clk.text('0.4');
+          c.player(185, 212, 'WEMBANYAMA', '#cbd2da');
+          c.ballAt(185, 212);
+          c.ball.transition().delay(350).duration(1).attr('opacity', 1).on('end', function () {
+            c.clk.transition().duration(200).attr('opacity', 1);
+            c.flash('Wembanyama for the win…', '#8b93a0');
+            c.ballAlong('M185,212 Q176,44 184,33', 900, d3.easeQuadOut, function () {
+              c.flash('OFF THE RIM', '#ef476f');
+              c.ballAlong('M184,33 Q148,42 92,150', 650, d3.easeQuadIn, function () {
+                c.ball.transition().duration(250).attr('opacity', 0);
+                c.cap.transition().delay(150).duration(220).attr('opacity', 0).on('end', function () {
+                  c.cap.attr('fill', '#F58426').attr('font-size', 13.5).text('NO GOOD — KNICKS WIN 105-104').transition().duration(320).attr('opacity', 1);
+                  missTimer = setTimeout(renderMiss, 2600);
+                });
+              });
+            });
+          });
+        }
+        window.kxReplayMiss = renderMiss;
+
+        var climbTimer;
+        function renderClimb() {
+          if (climbTimer) { clearTimeout(climbTimer); climbTimer = null; }
+          var host = clear('kx-climb-chart'); if (!host || !window.d3) return;
+          var W = 360, H = 210, cx = W / 2;
+          var svg = d3.select(host).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
+          svg.append('text').attr('x', cx).attr('y', 28).attr('text-anchor', 'middle').attr('fill', '#8b93a0').attr('font-size', 12).attr('font-weight', 800).attr('letter-spacing', '2').text('GAME 4 · 3RD QUARTER');
+          var num = svg.append('text').attr('x', cx).attr('y', 102).attr('text-anchor', 'middle').attr('font-size', 64).attr('font-weight', 900).attr('fill', '#ef476f').text('-29');
+          var tx0 = 44, tx1 = W - 44, ty = 134;
+          var scale = d3.scaleLinear().domain([-30, 6]).range([tx0, tx1]);
+          var origin = scale(0);
+          svg.append('line').attr('x1', tx0).attr('x2', tx1).attr('y1', ty).attr('y2', ty).attr('stroke', '#1d2532').attr('stroke-width', 8).attr('stroke-linecap', 'round');
+          svg.append('line').attr('x1', origin).attr('x2', origin).attr('y1', ty - 9).attr('y2', ty + 9).attr('stroke', '#3a475a').attr('stroke-width', 2);
+          var bar = svg.append('line').attr('y1', ty).attr('y2', ty).attr('x1', origin).attr('x2', origin).attr('stroke', '#ef476f').attr('stroke-width', 8).attr('stroke-linecap', 'round');
+          var score = svg.append('text').attr('x', cx).attr('y', 174).attr('text-anchor', 'middle').attr('fill', '#cdd2d9').attr('font-size', 16).attr('font-weight', 700).text('SPURS 81 — KNICKS 52');
+          var cap = svg.append('text').attr('x', cx).attr('y', 198).attr('text-anchor', 'middle').attr('fill', '#6f7785').attr('font-size', 11).attr('font-weight', 700).attr('opacity', 0).text('LARGEST COMEBACK IN FINALS HISTORY');
+          function upd(v) { var col = v >= 0 ? '#F58426' : '#ef476f'; num.attr('fill', col).text((v > 0 ? '+' : '') + Math.round(v)); bar.attr('stroke', col).attr('x2', scale(v)); }
+          num.transition().delay(550).duration(2600).ease(d3.easeCubicInOut)
+            .tween('m', function () { var i = d3.interpolateNumber(-29, 1); return function (t) { upd(i(t)); }; })
+            .on('end', function () {
+              upd(1);
+              score.transition().duration(320).attr('fill', '#fff').text('KNICKS 107 — SPURS 106');
+              cap.transition().delay(120).duration(320).attr('opacity', 1).attr('fill', '#F58426');
+              climbTimer = setTimeout(renderClimb, 2800);
+            });
+        }
+
+        var fortyTimer;
+        function renderForty() {
+          if (fortyTimer) { clearTimeout(fortyTimer); fortyTimer = null; }
+          var host = clear('kx-forty-chart'); if (!host || !window.d3) return;
+          var W = 360, H = 210, cx = W / 2;
+          var svg = d3.select(host).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
+          svg.append('text').attr('x', cx).attr('y', 28).attr('text-anchor', 'middle').attr('fill', '#8b93a0').attr('font-size', 12).attr('font-weight', 800).attr('letter-spacing', '2').text('GAME 5 · FINALS MVP');
+          var num = svg.append('text').attr('x', cx).attr('y', 104).attr('text-anchor', 'middle').attr('font-size', 70).attr('font-weight', 900).attr('fill', '#F58426').text('0');
+          var tx0 = 44, tx1 = W - 44, ty = 138;
+          var scale = d3.scaleLinear().domain([0, 47]).range([tx0, tx1]);
+          svg.append('line').attr('x1', tx0).attr('x2', tx1).attr('y1', ty).attr('y2', ty).attr('stroke', '#1d2532').attr('stroke-width', 8).attr('stroke-linecap', 'round');
+          var bar = svg.append('line').attr('y1', ty).attr('y2', ty).attr('x1', tx0).attr('x2', tx0).attr('stroke', '#F58426').attr('stroke-width', 8).attr('stroke-linecap', 'round');
+          var rx = scale(38);
+          svg.append('line').attr('x1', rx).attr('x2', rx).attr('y1', ty - 11).attr('y2', ty + 11).attr('stroke', '#8d99ae').attr('stroke-width', 2);
+          svg.append('text').attr('x', rx).attr('y', ty + 26).attr('text-anchor', 'middle').attr('fill', '#8d99ae').attr('font-size', 10).attr('font-weight', 700).text("Reed '70 · 38");
+          var rec = svg.append('text').attr('x', cx).attr('y', 182).attr('text-anchor', 'middle').attr('fill', '#ffd166').attr('font-size', 13).attr('font-weight', 800).attr('opacity', 0).text('FRANCHISE FINALS RECORD');
+          svg.append('text').attr('x', cx).attr('y', 202).attr('text-anchor', 'middle').attr('fill', '#6f7785').attr('font-size', 11).attr('font-weight', 700).text('45 PTS · 13 STRAIGHT IN THE 4TH');
+          function upd(v) { var n = Math.round(v); num.text(n).attr('fill', n >= 38 ? '#ffd166' : '#F58426'); bar.attr('x2', scale(v)).attr('stroke', v >= 38 ? '#ffd166' : '#F58426'); }
+          num.transition().delay(450).duration(2200).ease(d3.easeCubicOut)
+            .tween('m', function () { var i = d3.interpolateNumber(0, 45); return function (t) { upd(i(t)); }; })
+            .on('end', function () { upd(45); rec.transition().duration(320).attr('opacity', 1); fortyTimer = setTimeout(renderForty, 2800); });
+        }
+
         var shotTimer;
         function renderShot() {
           if (shotTimer) { clearTimeout(shotTimer); shotTimer = null; }
@@ -1285,7 +1411,8 @@ defmodule BlogWeb.KnicksFinalsLive do
         function renderAll() {
           var el = document.getElementById('kx-data'); if (!el || !window.d3) return;
           var data; try { data = JSON.parse(el.dataset.kx); } catch (e) { return; }
-          renderHero(data); renderShot(); renderQuarters(data); renderMargins(data);
+          renderHero(data); renderShot(); renderMiss(); renderClimb(); renderForty();
+          renderQuarters(data); renderMargins(data);
           renderDuel(data); renderHeatmap(data); renderFouls(data);
           (data.games || []).forEach(renderMomentum);
         }
