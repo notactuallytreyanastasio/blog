@@ -544,32 +544,36 @@ defmodule BlogWeb.KnicksFinalsLive do
       .kx-replay { background: #11161f; border: 1px solid #2a3444; color: #9aa1ac; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 6px 12px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
       .kx-replay:hover { color: #F58426; border-color: #F58426; }
       @media (max-width: 680px) {
-        /* On mobile the whole page becomes a swipeable card deck (one section per card). */
-        /* Full-bleed: anchor the deck to the viewport so cards can't inherit nested padding quirks. */
-        .kx-deck.is-mobile { position: relative; left: 50%; margin-left: -50vw; width: 100vw; perspective: 1600px; overflow: hidden; }
-        .kx-deck.is-mobile .kx-card { position: absolute; top: 0; left: 0; right: 0; width: auto; max-width: 100%; box-sizing: border-box;
-          backface-visibility: hidden; transform-origin: center center; will-change: transform, opacity;
-          transition: transform .5s cubic-bezier(.2,.7,.2,1), opacity .4s ease;
-          background: #0e131c; border: 1px solid #1d2532; border-radius: 12px; padding: 6px 14px 80px; }
-        .kx-deck.is-mobile .kx-card .kx-h2 { margin-top: 14px; }
-        .kx-deck.is-mobile .kx-card { overflow: hidden; }
-        .kx-deck.is-mobile .kx-card-hero { padding-top: 26px; }
-        .kx-deck.is-mobile .kx-card-hero .kx-hero { padding: 22px 0 6px; border-bottom: none; }
-        .kx-deck.is-mobile .kx-card-hero .kx-title { font-size: 32px; word-break: break-word; }
-        .kx-deck.is-mobile .kx-card-hero .kx-sub { font-size: 15px; }
-        .kx-deck.is-mobile .kx-card-hero .kx-final { font-size: 12px; }
-        .kx-deck.is-mobile .kx-deckhint { display: block; text-align: center; font-size: 12px; color: #8b93a0; margin-top: 14px; }
-        /* Game cards bring their own chrome — let them sit flush inside the deck. */
-        .kx-deck.is-mobile .kx-card-flush { background: transparent; border: none; padding: 0 0 80px; }
+        /* On phones the whole thing is a fixed, full-screen, horizontally-swiped deck — no page scroll. */
+        html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+        .kx { position: fixed; inset: 0; height: 100dvh; min-height: 0; overflow: hidden; }
+        .kx > a.home { top: calc(env(safe-area-inset-top) + 10px); z-index: 46; font-size: 11px; }
+        .kx-wrap { position: absolute; inset: 0; max-width: none; margin: 0; padding: 0; }
+        .kx-deck.is-mobile { position: absolute; left: 0; right: 0; top: 0; bottom: 60px; width: 100%; overflow: hidden; }
+        .kx-deck.is-mobile .kx-card { position: absolute; inset: 0; width: 100%; box-sizing: border-box;
+          overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+          will-change: transform; transition: transform .5s cubic-bezier(.22,.61,.36,1);
+          background: #0b0f17; border: none; border-radius: 0; margin: 0;
+          padding: calc(env(safe-area-inset-top) + 52px) 18px calc(env(safe-area-inset-bottom) + 28px); }
+        .kx-deck.is-mobile .kx-card .kx-h2 { margin-top: 0; }
+        .kx-deck.is-mobile .kx-card-hero { display: flex; flex-direction: column; justify-content: center; }
+        .kx-deck.is-mobile .kx-card-hero .kx-hero { padding: 0; border-bottom: none; }
+        .kx-deck.is-mobile .kx-card-hero .kx-title { font-size: clamp(30px, 9vw, 50px); word-break: break-word; }
+        .kx-deck.is-mobile .kx-card-hero .kx-sub { font-size: clamp(13px, 3.7vw, 17px); }
+        .kx-deck.is-mobile .kx-card-hero .kx-final { font-size: clamp(11px, 3vw, 13px); }
+        .kx-deck.is-mobile .kx-cap { font-size: clamp(12px, 3.4vw, 14px); }
+        .kx-deck.is-mobile .kx-deckhint { display: block; text-align: center; font-size: 12px; color: #8b93a0; margin-top: 22px; letter-spacing: .04em; }
         .kx-deck.is-mobile .kx-game { margin: 0; }
+        .kx-deck.is-mobile .kx-gridrow { grid-template-columns: 1fr; }
         /* Fixed pager */
-        .kx-deck-nav { display: flex; align-items: center; gap: 10px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
-          background: rgba(11,15,23,.94); border-top: 1px solid #1d2532; padding: 10px 14px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-        .kx-nav-btn { flex: 0 0 auto; width: 40px; height: 34px; background: #11161f; border: 1px solid #2a3444; color: #e8eaed; font-size: 18px; line-height: 1; border-radius: 7px; cursor: pointer; }
-        .kx-nav-btn:disabled { opacity: .3; }
+        .kx-deck-nav { display: flex; align-items: center; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; height: 60px; box-sizing: border-box;
+          padding: 0 16px calc(env(safe-area-inset-bottom)); background: rgba(11,15,23,.96); border-top: 1px solid #1d2532; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+        .kx-nav-btn { flex: 0 0 auto; width: 44px; height: 38px; background: #11161f; border: 1px solid #2a3444; color: #e8eaed; font-size: 19px; line-height: 1; border-radius: 9px; cursor: pointer; }
+        .kx-nav-btn:disabled { opacity: .28; }
+        .kx-nav-btn:active { background: #1a2230; }
         .kx-prog { flex: 1; height: 4px; background: #1d2532; border-radius: 2px; overflow: hidden; }
-        .kx-prog-fill { height: 100%; width: 0; background: linear-gradient(90deg, #F58426, #ffb16b); transition: width .35s ease; }
-        .kx-count { flex: 0 0 auto; font-size: 12px; color: #9aa1ac; font-variant-numeric: tabular-nums; min-width: 48px; text-align: center; }
+        .kx-prog-fill { height: 100%; width: 0; background: linear-gradient(90deg, #F58426, #ffb16b); transition: width .4s cubic-bezier(.22,.61,.36,1); }
+        .kx-count { flex: 0 0 auto; font-size: 12px; color: #9aa1ac; font-variant-numeric: tabular-nums; min-width: 50px; text-align: center; }
       }
 
       .kx-tl { position: relative; padding-left: 22px; margin-top: 10px; }
@@ -1207,47 +1211,75 @@ defmodule BlogWeb.KnicksFinalsLive do
         window.kxReplayShot = renderShot;
 
         var deckBound = false, deckIdx = 0;
+        function isMobile() { return window.matchMedia('(max-width: 680px)').matches; }
         function setupDeck() {
           var deck = document.getElementById('kx-deck'); if (!deck) return;
           var cards = [].slice.call(deck.querySelectorAll(':scope > .kx-card'));
           var prev = document.getElementById('kx-prev'), next = document.getElementById('kx-next');
           var fill = document.getElementById('kx-prog-fill'), count = document.getElementById('kx-count');
-          var mobile = window.matchMedia('(max-width: 680px)').matches;
-          deck.classList.toggle('is-mobile', mobile);
           var n = cards.length;
+          deck.classList.toggle('is-mobile', isMobile());
 
-          function layout(scroll) {
-            if (deckIdx < 0) deckIdx = 0; if (deckIdx > n - 1) deckIdx = n - 1;
+          function transitions(on) { cards.forEach(function (c) { c.style.transition = on ? '' : 'none'; }); }
+          function place(dxPx) {
             cards.forEach(function (c, i) {
-              if (i === deckIdx) { c.style.transform = 'rotateY(0deg)'; c.style.opacity = '1'; c.style.zIndex = '2'; c.style.pointerEvents = 'auto'; }
-              else { c.style.transform = 'rotateY(' + (i < deckIdx ? 100 : -100) + 'deg)'; c.style.opacity = '0'; c.style.zIndex = '1'; c.style.pointerEvents = 'none'; }
+              c.style.transform = 'translate3d(calc(' + ((i - deckIdx) * 100) + '% + ' + (dxPx || 0) + 'px), 0, 0)';
             });
-            deck.style.height = cards[deckIdx].offsetHeight + 'px';
+          }
+          function paint() {
+            cards.forEach(function (c, i) { c.style.pointerEvents = i === deckIdx ? 'auto' : 'none'; });
+            if (cards[deckIdx]) cards[deckIdx].scrollTop = 0;
             if (fill) fill.style.width = ((deckIdx + 1) / n * 100) + '%';
             if (count) count.textContent = (deckIdx + 1) + ' / ' + n;
             if (prev) prev.disabled = deckIdx === 0;
             if (next) next.disabled = deckIdx === n - 1;
-            if (scroll) { var top = deck.getBoundingClientRect().top + window.pageYOffset - 6; window.scrollTo(0, Math.max(0, top)); }
           }
-          function move(d) { deckIdx += d; layout(true); }
+          function layout() { place(0); paint(); }
+          function move(d) {
+            var ni = Math.max(0, Math.min(n - 1, deckIdx + d));
+            if (ni === deckIdx) { transitions(true); place(0); return; }
+            deckIdx = ni; transitions(true); place(0); paint();
+          }
+          deck.__layout = layout;
 
-          if (mobile) { layout(false); }
-          else { cards.forEach(function (c) { c.style.transform = ''; c.style.opacity = ''; c.style.zIndex = ''; c.style.pointerEvents = ''; }); deck.style.height = ''; }
+          if (isMobile()) { transitions(true); layout(); }
+          else { cards.forEach(function (c) { c.style.transform = ''; c.style.transition = ''; c.style.pointerEvents = ''; }); }
 
           if (!deckBound) {
             deckBound = true;
             if (prev) prev.addEventListener('click', function () { move(-1); });
             if (next) next.addEventListener('click', function () { move(1); });
-            var sx = 0, sy = 0, tracking = false;
-            deck.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true; }, {passive: true});
+
+            var sx = 0, sy = 0, drag = false, decided = false, horiz = false, w = 0;
+            deck.addEventListener('touchstart', function (e) {
+              if (!isMobile()) return;
+              sx = e.touches[0].clientX; sy = e.touches[0].clientY; drag = true; decided = false; horiz = false; w = deck.clientWidth || 1;
+            }, {passive: true});
+            deck.addEventListener('touchmove', function (e) {
+              if (!drag || !isMobile()) return;
+              var dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+              if (!decided) {
+                if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+                decided = true; horiz = Math.abs(dx) > Math.abs(dy);
+                if (horiz) transitions(false);
+              }
+              if (horiz) {
+                e.preventDefault();
+                var d = dx;
+                if ((deckIdx === 0 && d > 0) || (deckIdx === n - 1 && d < 0)) d *= 0.32; // rubber-band at the ends
+                place(d);
+              }
+            }, {passive: false});
             deck.addEventListener('touchend', function (e) {
-              if (!tracking || !window.matchMedia('(max-width: 680px)').matches) return;
-              tracking = false;
-              var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-              if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) move(dx < 0 ? 1 : -1);
+              if (!drag) return; drag = false;
+              if (!horiz) return;
+              transitions(true);
+              var dx = e.changedTouches[0].clientX - sx;
+              var threshold = Math.min(72, w * 0.2);
+              if (Math.abs(dx) > threshold) { deckIdx = Math.max(0, Math.min(n - 1, deckIdx + (dx < 0 ? 1 : -1))); }
+              place(0); paint();
             }, {passive: true});
           }
-          deck.__layout = layout;
         }
 
         function renderAll() {

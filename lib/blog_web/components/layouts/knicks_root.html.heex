@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%;background:#0b0f17;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0f17" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <title>{assigns[:page_title] || "KNICKS IN 5: By the numbers"}</title>
+
+    <meta name="description" content="A dive into the numbers of the historic run the Knicks just completed to win the NBA championship" />
+    <meta property="og:title" content="KNICKS IN 5: By the numbers" />
+    <meta property="og:description" content="A dive into the numbers of the historic run the Knicks just completed to win the NBA championship" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://www.bobbby.online/knicks" />
+    <meta property="og:image" content="https://www.bobbby.online/images/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="bobbby.online" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="KNICKS IN 5: By the numbers" />
+    <meta name="twitter:description" content="A dive into the numbers of the historic run the Knicks just completed to win the NBA championship" />
+    <meta name="twitter:image" content="https://www.bobbby.online/images/og-image.png" />
+
+    <.google_analytics />
+  </head>
+  <body style="height:100%;margin:0;background:#0b0f17;-webkit-tap-highlight-color:transparent;">
+    {@inner_content}
+  </body>
+</html>

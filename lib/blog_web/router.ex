@@ -56,8 +56,27 @@ defmodule BlogWeb.Router do
     plug BlogWeb.Plugs.EnsureUserId
   end
 
+  pipeline :knicks do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :knicks_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.EnsureUserId
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :knicks
+
+    live_session :knicks, layout: false do
+      live "/knicks", KnicksFinalsLive, :index
+    end
   end
 
   scope "/", BlogWeb do
@@ -110,7 +129,6 @@ defmodule BlogWeb.Router do
     live "/cairn", CairnLive, :index
     live "/2048", Twenty48Live, :index
     live "/art", ArtLive, :index
-    live "/knicks", KnicksFinalsLive, :index
     get "/chess", ChessController, :index
     live "/chess-lv", ChessLive, :index
 
