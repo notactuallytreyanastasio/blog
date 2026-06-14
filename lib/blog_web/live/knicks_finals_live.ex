@@ -453,6 +453,26 @@ defmodule BlogWeb.KnicksFinalsLive do
     end)
   end
 
+  # Series-wide points by quarter, both teams.
+  defp quarter_totals do
+    tot = fn team ->
+      Enum.reduce(games(), [0, 0, 0, 0], fn g, acc ->
+        Enum.zip_with(acc, g.lines[team], &+/2)
+      end)
+    end
+
+    %{nyk: tot.("NYK"), sas: tot.("SAS")}
+  end
+
+  # Final margin per game from the Knicks' point of view.
+  defp margins do
+    Enum.map(games(), fn g ->
+      ny = if(g.away == "NYK", do: g.away_score, else: g.home_score)
+      sa = if(g.away == "SAS", do: g.away_score, else: g.home_score)
+      %{num: g.num, margin: ny - sa, win: ny > sa}
+    end)
+  end
+
   # JSON payload consumed by the D3 charts (read from #kx-data[data-kx]).
   defp chart_data do
     %{
@@ -463,7 +483,9 @@ defmodule BlogWeb.KnicksFinalsLive do
       brunson: player_pts("NYK", "Jalen Brunson"),
       wemby: player_pts("SAS", "Victor Wembanyama"),
       ft: ft_battle(),
-      heat: heat_data()
+      heat: heat_data(),
+      quarters: quarter_totals(),
+      margins: margins()
     }
   end
 
@@ -515,6 +537,25 @@ defmodule BlogWeb.KnicksFinalsLive do
       .kx-stat .n { font-size: 26px; font-weight: 900; color: #F58426; line-height: 1; }
       .kx-stat .l { font-size: 12px; color: #9aa1ac; margin-top: 8px; line-height: 1.45; }
       @media (max-width: 620px) { .kx-strip { grid-template-columns: 1fr; } }
+
+      /* Visualization deck — plain stacked sections on desktop, a swipe-to-flip card deck on mobile. */
+      .kx-deckhint { display: none; }
+      .kx-deck-nav { display: none; }
+      .kx-replay { background: #11161f; border: 1px solid #2a3444; color: #9aa1ac; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 6px 12px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+      .kx-replay:hover { color: #F58426; border-color: #F58426; }
+      @media (max-width: 680px) {
+        .kx-deckhint { display: block; font-size: 12px; color: #8b93a0; margin: 2px 0 14px; }
+        .kx-deck.is-mobile { position: relative; perspective: 1500px; overflow: hidden; }
+        .kx-deck.is-mobile .kx-card { position: absolute; top: 0; left: 0; right: 0; width: 100%; box-sizing: border-box;
+          backface-visibility: hidden; transform-origin: center center; will-change: transform, opacity;
+          transition: transform .55s cubic-bezier(.2,.7,.2,1), opacity .45s ease;
+          background: #0e131c; border: 1px solid #1d2532; border-radius: 12px; padding: 4px 14px 18px; }
+        .kx-deck.is-mobile .kx-card .kx-h2 { margin-top: 16px; }
+        .kx-deck-nav { display: flex; justify-content: center; align-items: center; margin-top: 16px; }
+        .kx-deck-dots { display: flex; gap: 8px; }
+        .kx-deck-dots button { width: 9px; height: 9px; border-radius: 50%; border: none; background: #2a3444; padding: 0; cursor: pointer; transition: all .25s; }
+        .kx-deck-dots button.on { background: #F58426; width: 22px; border-radius: 5px; }
+      }
 
       .kx-tl { position: relative; padding-left: 22px; margin-top: 10px; }
       .kx-tl::before { content: ""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px; background: #1d2532; }
@@ -630,18 +671,6 @@ defmodule BlogWeb.KnicksFinalsLive do
           </p>
         </div>
 
-        <!-- HERO CHART -->
-        <div class="kx-h2">Living Below the Line</div>
-        <div class="kx-cap">Knicks margin after each quarter, all five games. Below zero means New York trailed. The four wins (solid) all finish above the line; the lone loss (Game 3, dashed) doesn't. Hover any point.</div>
-        <div id="kx-hero-chart" class="kx-chart" phx-update="ignore"></div>
-        <div class="kx-legend">
-          <span><i style="background:#4cc9f0"></i>Game 1</span>
-          <span><i style="background:#ffd166"></i>Game 2</span>
-          <span><i style="background:#8d99ae"></i>Game 3 (L)</span>
-          <span><i style="background:#ef476f"></i>Game 4</span>
-          <span><i style="background:#F58426"></i>Game 5</span>
-        </div>
-
         <!-- BY THE NUMBERS -->
         <div class="kx-h2">By the Numbers</div>
         <div class="kx-strip">
@@ -650,20 +679,63 @@ defmodule BlogWeb.KnicksFinalsLive do
           <% end %>
         </div>
 
-        <!-- DUEL -->
-        <div class="kx-h2">Brunson vs. Wembanyama</div>
-        <div class="kx-cap">Points per game. Brunson (orange) climbed to a 45-point crescendo; the 22-year-old Wembanyama (silver) carried San Antonio but ran out of runway.</div>
-        <div id="kx-duel-chart" class="kx-chart" phx-update="ignore"></div>
+        <!-- VISUALIZATIONS DECK (swipe to flip on mobile) -->
+        <div class="kx-h2">The Series in Pictures</div>
+        <div class="kx-deckhint">Swipe ◀ to flip to the next chart.</div>
+        <div class="kx-deck" id="kx-deck">
+          <div class="kx-card">
+            <div class="kx-h2">Living Below the Line</div>
+            <div class="kx-cap">Knicks margin after each quarter, all five games. Below zero means New York trailed. The four wins (solid) all finish above the line; the lone loss (Game 3, dashed) doesn't. Hover any point.</div>
+            <div id="kx-hero-chart" class="kx-chart" phx-update="ignore"></div>
+            <div class="kx-legend">
+              <span><i style="background:#4cc9f0"></i>Game 1</span>
+              <span><i style="background:#ffd166"></i>Game 2</span>
+              <span><i style="background:#8d99ae"></i>Game 3 (L)</span>
+              <span><i style="background:#ef476f"></i>Game 4</span>
+              <span><i style="background:#F58426"></i>Game 5</span>
+            </div>
+          </div>
 
-        <!-- HEATMAP -->
-        <div class="kx-h2">Who Carried Each Night</div>
-        <div class="kx-cap">Knicks points by player and game. Brunson glows all five nights, but the title was a committee job — Anunoby erupts in Games 3-4, Bridges and Hart close it out in Game 5. Hover for shooting.</div>
-        <div id="kx-heat-chart" class="kx-chart" phx-update="ignore"></div>
+          <div class="kx-card">
+            <div class="kx-h2">The Shot</div>
+            <div class="kx-cap">Game 4, 1.2 seconds left, Knicks down one. Brunson's three clangs off the front rim — and OG Anunoby flies in to tip it home. The largest comeback in Finals history, won at the buzzer.</div>
+            <div id="kx-shot-chart" class="kx-chart" phx-update="ignore"></div>
+            <button type="button" class="kx-replay" onclick="window.kxReplayShot &amp;&amp; window.kxReplayShot()">▸ Replay</button>
+          </div>
 
-        <!-- FOUL / FREE-THROW BATTLE -->
-        <div class="kx-h2">The Free-Throw Battle</div>
-        <div class="kx-cap">Trips to the line per game. Each Spurs free throw is a foul New York committed. The Knicks hacked San Antonio to the line 25, 27, then 32 times in the first three games — Game 3 (32) was their only loss. Then they stopped fouling (20, 18) and started drawing them (28, 28). The series turned on the whistle.</div>
-        <div id="kx-fouls-chart" class="kx-chart" phx-update="ignore"></div>
+          <div class="kx-card">
+            <div class="kx-h2">Slow Starts, Big Finishes</div>
+            <div class="kx-cap">Total points by quarter across the series. San Antonio won the first quarters by a combined 57 — and lost every other quarter. New York took the fourth by 26. The Knicks spotted the Spurs the start, then owned the night.</div>
+            <div id="kx-quarters-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+
+          <div class="kx-card">
+            <div class="kx-h2">Decided by a Whisker</div>
+            <div class="kx-cap">Final margin, Knicks' view. Four of five games were single digits and two came down to a single point — Brunson's free throw in Game 2, Anunoby's tip in Game 4. It was never as tidy as 4-1 sounds.</div>
+            <div id="kx-margins-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+
+          <div class="kx-card">
+            <div class="kx-h2">Brunson vs. Wembanyama</div>
+            <div class="kx-cap">Points per game. Brunson (orange) climbed to a 45-point crescendo; the 22-year-old Wembanyama (silver) carried San Antonio but ran out of runway.</div>
+            <div id="kx-duel-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+
+          <div class="kx-card">
+            <div class="kx-h2">Who Carried Each Night</div>
+            <div class="kx-cap">Knicks points by player and game. Brunson glows all five nights, but the title was a committee job — Anunoby erupts in Games 3-4, Bridges and Hart close it out in Game 5. Hover for shooting.</div>
+            <div id="kx-heat-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+
+          <div class="kx-card">
+            <div class="kx-h2">The Free-Throw Battle</div>
+            <div class="kx-cap">Trips to the line per game. Each Spurs free throw is a foul New York committed. The Knicks hacked San Antonio to the line 25, 27, then 32 times in the first three games — Game 3 (32) was their only loss. Then they stopped fouling (20, 18) and started drawing them (28, 28). The series turned on the whistle.</div>
+            <div id="kx-fouls-chart" class="kx-chart" phx-update="ignore"></div>
+          </div>
+        </div>
+        <div class="kx-deck-nav" id="kx-deck-nav">
+          <div class="kx-deck-dots" id="kx-deck-dots"></div>
+        </div>
 
         <!-- TIMELINE -->
         <div class="kx-h2">The Series, Day by Day</div>
@@ -983,15 +1055,179 @@ defmodule BlogWeb.KnicksFinalsLive do
           });
         }
 
+        function renderQuarters(data) {
+          var host = clear('kx-quarters-chart'); if (!host || !window.d3 || !data.quarters) return;
+          var W = host.clientWidth || 880, H = 290, m = {t:24, r:14, b:36, l:32};
+          var iw = W - m.l - m.r, ih = H - m.t - m.b;
+          var svg = d3.select(host).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
+          var g = svg.append('g').attr('transform', 'translate(' + m.l + ',' + m.t + ')');
+          var qs = [0, 1, 2, 3];
+          var x0 = d3.scaleBand().domain(qs).range([0, iw]).padding(0.26);
+          var x1 = d3.scaleBand().domain(['n', 's']).range([0, x0.bandwidth()]).padding(0.16);
+          var maxv = d3.max(qs, function (i) { return Math.max(data.quarters.nyk[i], data.quarters.sas[i]); });
+          var y = d3.scaleLinear().domain([0, maxv]).nice().range([ih, 0]);
+
+          g.selectAll('.gd').data(y.ticks(5)).enter().append('line').attr('x1', 0).attr('x2', iw)
+            .attr('y1', function (d) { return y(d); }).attr('y2', function (d) { return y(d); }).attr('stroke', '#161d29');
+          g.selectAll('.yl').data(y.ticks(5)).enter().append('text').attr('x', -8).attr('y', function (d) { return y(d) + 3; })
+            .attr('text-anchor', 'end').attr('fill', '#6f7785').attr('font-size', 10).text(function (d) { return d; });
+
+          // legend
+          svg.append('rect').attr('x', m.l).attr('y', 6).attr('width', 10).attr('height', 10).attr('fill', '#F58426').attr('rx', 2);
+          svg.append('text').attr('x', m.l + 15).attr('y', 15).attr('fill', '#aab0bb').attr('font-size', 10).text('Knicks');
+          svg.append('rect').attr('x', m.l + 64).attr('y', 6).attr('width', 10).attr('height', 10).attr('fill', '#8d99ae').attr('rx', 2);
+          svg.append('text').attr('x', m.l + 79).attr('y', 15).attr('fill', '#aab0bb').attr('font-size', 10).text('Spurs');
+
+          qs.forEach(function (qi, i) {
+            var grp = g.append('g').attr('transform', 'translate(' + x0(qi) + ',0)');
+            [['n', data.quarters.nyk[qi], '#F58426', 'Knicks'], ['s', data.quarters.sas[qi], '#8d99ae', 'Spurs']].forEach(function (pair) {
+              grp.append('rect').attr('x', x1(pair[0])).attr('width', x1.bandwidth()).attr('y', ih).attr('height', 0).attr('fill', pair[2]).attr('rx', 2).style('cursor', 'pointer')
+                .on('mousemove', function (ev) { showTip('<b style="color:' + pair[2] + '">' + pair[3] + '</b><br>Q' + (qi + 1) + ' total: ' + pair[1] + ' pts', ev.pageX, ev.pageY); })
+                .on('mouseout', hideTip)
+                .transition().duration(750).delay(i * 80).attr('y', y(pair[1])).attr('height', ih - y(pair[1]));
+              grp.append('text').attr('x', x1(pair[0]) + x1.bandwidth() / 2).attr('y', y(pair[1]) - 4).attr('text-anchor', 'middle')
+                .attr('fill', pair[2]).attr('font-size', 10).attr('font-weight', 700).attr('opacity', 0).text(pair[1])
+                .transition().delay(i * 80 + 500).duration(300).attr('opacity', 1);
+            });
+            grp.append('text').attr('x', x0.bandwidth() / 2).attr('y', ih + 16).attr('text-anchor', 'middle').attr('fill', '#8b93a0').attr('font-size', 10).text('Q' + (qi + 1));
+          });
+        }
+
+        function renderMargins(data) {
+          var host = clear('kx-margins-chart'); if (!host || !window.d3 || !data.margins) return;
+          var rows = data.margins;
+          var W = host.clientWidth || 880, H = 270, m = {t:22, r:14, b:30, l:30};
+          var iw = W - m.l - m.r, ih = H - m.t - m.b;
+          var svg = d3.select(host).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
+          var g = svg.append('g').attr('transform', 'translate(' + m.l + ',' + m.t + ')');
+          var x = d3.scaleBand().domain([1, 2, 3, 4, 5]).range([0, iw]).padding(0.4);
+          var mx = d3.max(rows, function (d) { return Math.abs(d.margin); });
+          var y = d3.scaleLinear().domain([-mx - 3, mx + 3]).range([ih, 0]);
+
+          g.append('line').attr('x1', 0).attr('x2', iw).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', '#3a475a');
+
+          rows.forEach(function (d, i) {
+            var col = d.win ? '#F58426' : '#ef476f';
+            var top = Math.min(y(d.margin), y(0)), h = Math.abs(y(d.margin) - y(0));
+            g.append('rect').attr('x', x(d.num)).attr('width', x.bandwidth()).attr('y', y(0)).attr('height', 0).attr('fill', col).attr('rx', 2).style('cursor', 'pointer')
+              .on('mousemove', function (ev) { showTip('<b style="color:' + col + '">Game ' + d.num + '</b><br>' + (d.margin > 0 ? 'Knicks by ' + d.margin : 'Spurs by ' + (-d.margin)), ev.pageX, ev.pageY); })
+              .on('mouseout', hideTip)
+              .transition().duration(700).delay(i * 90).attr('y', top).attr('height', h);
+            g.append('text').attr('x', x(d.num) + x.bandwidth() / 2).attr('y', d.margin > 0 ? y(d.margin) - 6 : y(d.margin) + 15).attr('text-anchor', 'middle')
+              .attr('fill', col).attr('font-size', 12).attr('font-weight', 800).attr('opacity', 0).text((d.margin > 0 ? '+' : '') + d.margin)
+              .transition().delay(i * 90 + 450).duration(300).attr('opacity', 1);
+            g.append('text').attr('x', x(d.num) + x.bandwidth() / 2).attr('y', y(0) + (d.margin >= 0 ? 15 : -8)).attr('text-anchor', 'middle').attr('fill', '#6f7785').attr('font-size', 10).text('G' + d.num);
+          });
+        }
+
+        var shotTimer;
+        function renderShot() {
+          if (shotTimer) { clearTimeout(shotTimer); shotTimer = null; }
+          var host = clear('kx-shot-chart'); if (!host || !window.d3) return;
+          var VB = 360, VBH = 300;
+          var svg = d3.select(host).append('svg').attr('viewBox', '0 0 ' + VB + ' ' + VBH);
+          var court = svg.append('g').attr('fill', 'none').attr('stroke', '#26303f').attr('stroke-width', 1.5);
+          court.append('rect').attr('x', 1).attr('y', 1).attr('width', VB - 2).attr('height', VBH - 2).attr('rx', 8).attr('stroke', '#1d2532');
+          court.append('rect').attr('x', 150).attr('y', 18).attr('width', 60).attr('height', 132);
+          court.append('circle').attr('cx', 180).attr('cy', 150).attr('r', 30);
+          court.append('path').attr('d', 'M28,86 Q180,300 332,86');
+          svg.append('line').attr('x1', 164).attr('y1', 18).attr('x2', 196).attr('y2', 18).attr('stroke', '#6f7785').attr('stroke-width', 2.5);
+          svg.append('circle').attr('cx', 180).attr('cy', 27).attr('r', 7).attr('fill', 'none').attr('stroke', '#F58426').attr('stroke-width', 2);
+
+          function player(x, y, label, color) {
+            var gg = svg.append('g');
+            gg.append('circle').attr('cx', x).attr('cy', y).attr('r', 8).attr('fill', color).attr('stroke', '#0b0f17').attr('stroke-width', 1.5);
+            gg.append('text').attr('x', x).attr('y', y + 22).attr('text-anchor', 'middle').attr('fill', color).attr('font-size', 10).attr('font-weight', 800).text(label);
+            return gg;
+          }
+          player(250, 214, 'BRUNSON', '#cbd2da');
+          var og = player(160, 54, 'ANUNOBY', '#F58426');
+          var clk = svg.append('text').attr('x', 332).attr('y', 26).attr('text-anchor', 'end').attr('fill', '#8b93a0').attr('font-size', 13).attr('font-family', 'monospace').attr('font-weight', 700).text('1.2').attr('opacity', 0);
+          var cap = svg.append('text').attr('x', 180).attr('y', 288).attr('text-anchor', 'middle').attr('fill', '#e8eaed').attr('font-size', 12).attr('font-weight', 700).attr('opacity', 0);
+          var ball = svg.append('circle').attr('r', 5.5).attr('fill', '#F58426').attr('stroke', '#7a3d10').attr('stroke-width', 1).attr('transform', 'translate(250,214)').attr('opacity', 0);
+
+          function ballAlong(pathStr, dur, ease, cb) {
+            var tmp = svg.append('path').attr('d', pathStr).attr('fill', 'none').attr('stroke', 'none');
+            var L = tmp.node().getTotalLength();
+            ball.transition().duration(dur).ease(ease || d3.easeQuadOut)
+              .attrTween('transform', function () { return function (t) { var pt = tmp.node().getPointAtLength(t * L); return 'translate(' + pt.x + ',' + pt.y + ')'; }; })
+              .on('end', function () { tmp.remove(); if (cb) cb(); });
+          }
+          function flash(text, color) { cap.interrupt().attr('fill', color || '#e8eaed').attr('font-size', 12).text(text).attr('opacity', 0).transition().duration(180).attr('opacity', 1); }
+
+          ball.transition().delay(350).duration(1).attr('opacity', 1).on('end', function () {
+            clk.transition().duration(200).attr('opacity', 1);
+            flash('Brunson lets it fly…', '#8b93a0');
+            ballAlong('M250,214 Q204,52 187,34', 850, d3.easeQuadOut, function () {
+              flash('OFF THE FRONT RIM', '#ef476f');
+              ballAlong('M187,34 Q182,28 176,50', 260, d3.easeQuadIn, function () {
+                og.transition().duration(180).attr('transform', 'translate(0,-9)');
+                ballAlong('M176,50 Q180,30 180,27', 320, d3.easeQuadOut, function () {
+                  flash('ANUNOBY TIPS IT IN — 1.2 LEFT', '#F58426');
+                  ballAlong('M180,27 L180,72', 320, d3.easeQuadIn, function () {
+                    ball.transition().duration(200).attr('opacity', 0);
+                    cap.transition().delay(280).duration(220).attr('opacity', 0).on('end', function () {
+                      cap.attr('fill', '#F58426').attr('font-size', 13.5).text('KNICKS 107 — SPURS 106').transition().duration(320).attr('opacity', 1);
+                      shotTimer = setTimeout(renderShot, 2400);
+                    });
+                  });
+                });
+              });
+            });
+          });
+        }
+        window.kxReplayShot = renderShot;
+
+        var deckBound = false, deckIdx = 0;
+        function setupDeck() {
+          var deck = document.getElementById('kx-deck'); if (!deck) return;
+          var cards = [].slice.call(deck.querySelectorAll('.kx-card'));
+          var dots = document.getElementById('kx-deck-dots');
+          var mobile = window.matchMedia('(max-width: 680px)').matches;
+          deck.classList.toggle('is-mobile', mobile);
+
+          if (dots && !dots.childNodes.length) {
+            cards.forEach(function (c, i) {
+              var b = document.createElement('button');
+              b.addEventListener('click', function () { deckIdx = i; layout(); });
+              dots.appendChild(b);
+            });
+          }
+          function layout() {
+            if (deckIdx < 0) deckIdx = 0; if (deckIdx > cards.length - 1) deckIdx = cards.length - 1;
+            cards.forEach(function (c, i) {
+              if (i === deckIdx) { c.style.transform = 'rotateY(0deg)'; c.style.opacity = '1'; c.style.zIndex = '2'; c.style.pointerEvents = 'auto'; }
+              else { c.style.transform = 'rotateY(' + (i < deckIdx ? 102 : -102) + 'deg)'; c.style.opacity = '0'; c.style.zIndex = '1'; c.style.pointerEvents = 'none'; }
+            });
+            deck.style.height = cards[deckIdx].offsetHeight + 'px';
+            if (dots) [].forEach.call(dots.childNodes, function (b, i) { b.className = i === deckIdx ? 'on' : ''; });
+          }
+          if (mobile) { layout(); } else { cards.forEach(function (c) { c.style.transform = ''; c.style.opacity = ''; c.style.zIndex = ''; c.style.pointerEvents = ''; }); deck.style.height = ''; }
+
+          if (!deckBound) {
+            deckBound = true;
+            var sx = 0, sy = 0, tracking = false;
+            deck.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true; }, {passive: true});
+            deck.addEventListener('touchend', function (e) {
+              if (!tracking || !window.matchMedia('(max-width: 680px)').matches) return;
+              tracking = false;
+              var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+              if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { deckIdx += (dx < 0 ? 1 : -1); layout(); }
+            }, {passive: true});
+          }
+          deck.__layout = layout;
+        }
+
         function renderAll() {
           var el = document.getElementById('kx-data'); if (!el || !window.d3) return;
           var data; try { data = JSON.parse(el.dataset.kx); } catch (e) { return; }
-          renderHero(data); renderDuel(data); renderHeatmap(data); renderFouls(data);
+          renderHero(data); renderShot(); renderQuarters(data); renderMargins(data);
+          renderDuel(data); renderHeatmap(data); renderFouls(data);
           (data.games || []).forEach(renderMomentum);
         }
 
         var rt;
-        function go() { renderAll(); }
+        function go() { renderAll(); setupDeck(); }
         window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(go, 220); });
         window.addEventListener('phx:page-loading-stop', go);
         if (document.readyState !== 'loading') go(); else document.addEventListener('DOMContentLoaded', go);
