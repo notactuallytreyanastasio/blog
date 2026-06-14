@@ -501,7 +501,7 @@ defmodule BlogWeb.KnicksFinalsLive do
 
     ~H"""
     <style>
-      .kx { background: #0b0f17; color: #e8eaed; font-family: "Helvetica Neue", Arial, sans-serif; min-height: 100vh; }
+      .kx { background: #0b0f17; color: #e8eaed; font-family: "Helvetica Neue", Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
       .kx a.home { position: fixed; top: 12px; left: 14px; z-index: 30; color: #aeb4bd; font-size: 12px; text-decoration: none; letter-spacing: .04em; }
       .kx a.home:hover { color: #F58426; }
       .kx-wrap { max-width: 940px; margin: 0 auto; padding: 0 18px 90px; }
@@ -544,17 +544,32 @@ defmodule BlogWeb.KnicksFinalsLive do
       .kx-replay { background: #11161f; border: 1px solid #2a3444; color: #9aa1ac; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 6px 12px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
       .kx-replay:hover { color: #F58426; border-color: #F58426; }
       @media (max-width: 680px) {
-        .kx-deckhint { display: block; font-size: 12px; color: #8b93a0; margin: 2px 0 14px; }
-        .kx-deck.is-mobile { position: relative; perspective: 1500px; overflow: hidden; }
-        .kx-deck.is-mobile .kx-card { position: absolute; top: 0; left: 0; right: 0; width: 100%; box-sizing: border-box;
+        /* On mobile the whole page becomes a swipeable card deck (one section per card). */
+        /* Full-bleed: anchor the deck to the viewport so cards can't inherit nested padding quirks. */
+        .kx-deck.is-mobile { position: relative; left: 50%; margin-left: -50vw; width: 100vw; perspective: 1600px; overflow: hidden; }
+        .kx-deck.is-mobile .kx-card { position: absolute; top: 0; left: 0; right: 0; width: auto; max-width: 100%; box-sizing: border-box;
           backface-visibility: hidden; transform-origin: center center; will-change: transform, opacity;
-          transition: transform .55s cubic-bezier(.2,.7,.2,1), opacity .45s ease;
-          background: #0e131c; border: 1px solid #1d2532; border-radius: 12px; padding: 4px 14px 18px; }
-        .kx-deck.is-mobile .kx-card .kx-h2 { margin-top: 16px; }
-        .kx-deck-nav { display: flex; justify-content: center; align-items: center; margin-top: 16px; }
-        .kx-deck-dots { display: flex; gap: 8px; }
-        .kx-deck-dots button { width: 9px; height: 9px; border-radius: 50%; border: none; background: #2a3444; padding: 0; cursor: pointer; transition: all .25s; }
-        .kx-deck-dots button.on { background: #F58426; width: 22px; border-radius: 5px; }
+          transition: transform .5s cubic-bezier(.2,.7,.2,1), opacity .4s ease;
+          background: #0e131c; border: 1px solid #1d2532; border-radius: 12px; padding: 6px 14px 80px; }
+        .kx-deck.is-mobile .kx-card .kx-h2 { margin-top: 14px; }
+        .kx-deck.is-mobile .kx-card { overflow: hidden; }
+        .kx-deck.is-mobile .kx-card-hero { padding-top: 26px; }
+        .kx-deck.is-mobile .kx-card-hero .kx-hero { padding: 22px 0 6px; border-bottom: none; }
+        .kx-deck.is-mobile .kx-card-hero .kx-title { font-size: 32px; word-break: break-word; }
+        .kx-deck.is-mobile .kx-card-hero .kx-sub { font-size: 15px; }
+        .kx-deck.is-mobile .kx-card-hero .kx-final { font-size: 12px; }
+        .kx-deck.is-mobile .kx-deckhint { display: block; text-align: center; font-size: 12px; color: #8b93a0; margin-top: 14px; }
+        /* Game cards bring their own chrome — let them sit flush inside the deck. */
+        .kx-deck.is-mobile .kx-card-flush { background: transparent; border: none; padding: 0 0 80px; }
+        .kx-deck.is-mobile .kx-game { margin: 0; }
+        /* Fixed pager */
+        .kx-deck-nav { display: flex; align-items: center; gap: 10px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+          background: rgba(11,15,23,.94); border-top: 1px solid #1d2532; padding: 10px 14px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+        .kx-nav-btn { flex: 0 0 auto; width: 40px; height: 34px; background: #11161f; border: 1px solid #2a3444; color: #e8eaed; font-size: 18px; line-height: 1; border-radius: 7px; cursor: pointer; }
+        .kx-nav-btn:disabled { opacity: .3; }
+        .kx-prog { flex: 1; height: 4px; background: #1d2532; border-radius: 2px; overflow: hidden; }
+        .kx-prog-fill { height: 100%; width: 0; background: linear-gradient(90deg, #F58426, #ffb16b); transition: width .35s ease; }
+        .kx-count { flex: 0 0 auto; font-size: 12px; color: #9aa1ac; font-variant-numeric: tabular-nums; min-width: 48px; text-align: center; }
       }
 
       .kx-tl { position: relative; padding-left: 22px; margin-top: 10px; }
@@ -636,15 +651,20 @@ defmodule BlogWeb.KnicksFinalsLive do
     <div class="kx">
       <a href="/" class="home">← bobbby.online</a>
       <div class="kx-wrap">
+        <div class="kx-deck" id="kx-deck">
         <!-- HERO -->
+        <div class="kx-card kx-card-hero">
         <div class="kx-hero">
           <div class="kx-ey">2026 NBA Finals</div>
           <div class="kx-title">THE COMEBACK KNICKS</div>
           <div class="kx-sub"><b>NEW YORK</b> — NBA champions for the first time since 1973</div>
           <div class="kx-final">def. San Antonio Spurs 4-1 · a rematch of the 1999 Finals, 27 years later</div>
         </div>
+        <div class="kx-deckhint">Swipe ▶ to move through the story</div>
+        </div>
 
         <!-- FEATURE LEAD -->
+        <div class="kx-card">
         <div class="kx-lead">
           <p>
             Fifty-three years, and they couldn't do it the easy way for a single night. New York won the
@@ -670,19 +690,19 @@ defmodule BlogWeb.KnicksFinalsLive do
             zero and claw back over it before the buzzer. Nobody should be able to do this once.
           </p>
         </div>
+        </div>
 
         <!-- BY THE NUMBERS -->
+        <div class="kx-card">
         <div class="kx-h2">By the Numbers</div>
         <div class="kx-strip">
           <%= for s <- @nums do %>
             <div class="kx-stat"><div class="n">{s.n}</div><div class="l">{s.l}</div></div>
           <% end %>
         </div>
+        </div>
 
-        <!-- VISUALIZATIONS DECK (swipe to flip on mobile) -->
-        <div class="kx-h2">The Series in Pictures</div>
-        <div class="kx-deckhint">Swipe ◀ to flip to the next chart.</div>
-        <div class="kx-deck" id="kx-deck">
+        <!-- VISUALIZATIONS -->
           <div class="kx-card">
             <div class="kx-h2">Living Below the Line</div>
             <div class="kx-cap">Knicks margin after each quarter, all five games. Below zero means New York trailed. The four wins (solid) all finish above the line; the lone loss (Game 3, dashed) doesn't. Hover any point.</div>
@@ -732,12 +752,9 @@ defmodule BlogWeb.KnicksFinalsLive do
             <div class="kx-cap">Trips to the line per game. Each Spurs free throw is a foul New York committed. The Knicks hacked San Antonio to the line 25, 27, then 32 times in the first three games — Game 3 (32) was their only loss. Then they stopped fouling (20, 18) and started drawing them (28, 28). The series turned on the whistle.</div>
             <div id="kx-fouls-chart" class="kx-chart" phx-update="ignore"></div>
           </div>
-        </div>
-        <div class="kx-deck-nav" id="kx-deck-nav">
-          <div class="kx-deck-dots" id="kx-deck-dots"></div>
-        </div>
 
         <!-- TIMELINE -->
+        <div class="kx-card">
         <div class="kx-h2">The Series, Day by Day</div>
         <div class="kx-tl">
           <%= for beat <- @timeline do %>
@@ -748,12 +765,12 @@ defmodule BlogWeb.KnicksFinalsLive do
             </div>
           <% end %>
         </div>
+        </div>
 
         <!-- GAME BY GAME -->
-        <div class="kx-h2">Game by Game</div>
         <%= for g <- @games do %>
           <% w = winner(g) %>
-          <div class="kx-game">
+          <div class="kx-game kx-card kx-card-flush">
             <div class="kx-gh">
               <div class="meta">
                 <span class="gnum">Game {g.num}</span>
@@ -811,6 +828,7 @@ defmodule BlogWeb.KnicksFinalsLive do
         <% end %>
 
         <!-- LEADERS -->
+        <div class="kx-card">
         <div class="kx-h2">Series Leaders</div>
         <div class="kx-mvp">
           <div>
@@ -836,6 +854,16 @@ defmodule BlogWeb.KnicksFinalsLive do
           Box scores, quarter line scores, and recaps via ESPN, NBA.com and CBS Sports, June 2026.
           Comeback margins and game-winning sequences reflect those accounts. Charts drawn with D3 v7.
           Built as a Phoenix LiveView page on bobbby.online.
+        </div>
+        </div>
+        </div>
+        <!-- end deck -->
+
+        <div class="kx-deck-nav" id="kx-deck-nav">
+          <button type="button" id="kx-prev" class="kx-nav-btn" aria-label="Previous">‹</button>
+          <div class="kx-prog"><div class="kx-prog-fill" id="kx-prog-fill"></div></div>
+          <span class="kx-count" id="kx-count">1 / 1</span>
+          <button type="button" id="kx-next" class="kx-nav-btn" aria-label="Next">›</button>
         </div>
 
         <div id="kx-data" data-kx={@kx_json} style="display:none"></div>
@@ -1181,38 +1209,42 @@ defmodule BlogWeb.KnicksFinalsLive do
         var deckBound = false, deckIdx = 0;
         function setupDeck() {
           var deck = document.getElementById('kx-deck'); if (!deck) return;
-          var cards = [].slice.call(deck.querySelectorAll('.kx-card'));
-          var dots = document.getElementById('kx-deck-dots');
+          var cards = [].slice.call(deck.querySelectorAll(':scope > .kx-card'));
+          var prev = document.getElementById('kx-prev'), next = document.getElementById('kx-next');
+          var fill = document.getElementById('kx-prog-fill'), count = document.getElementById('kx-count');
           var mobile = window.matchMedia('(max-width: 680px)').matches;
           deck.classList.toggle('is-mobile', mobile);
+          var n = cards.length;
 
-          if (dots && !dots.childNodes.length) {
-            cards.forEach(function (c, i) {
-              var b = document.createElement('button');
-              b.addEventListener('click', function () { deckIdx = i; layout(); });
-              dots.appendChild(b);
-            });
-          }
-          function layout() {
-            if (deckIdx < 0) deckIdx = 0; if (deckIdx > cards.length - 1) deckIdx = cards.length - 1;
+          function layout(scroll) {
+            if (deckIdx < 0) deckIdx = 0; if (deckIdx > n - 1) deckIdx = n - 1;
             cards.forEach(function (c, i) {
               if (i === deckIdx) { c.style.transform = 'rotateY(0deg)'; c.style.opacity = '1'; c.style.zIndex = '2'; c.style.pointerEvents = 'auto'; }
-              else { c.style.transform = 'rotateY(' + (i < deckIdx ? 102 : -102) + 'deg)'; c.style.opacity = '0'; c.style.zIndex = '1'; c.style.pointerEvents = 'none'; }
+              else { c.style.transform = 'rotateY(' + (i < deckIdx ? 100 : -100) + 'deg)'; c.style.opacity = '0'; c.style.zIndex = '1'; c.style.pointerEvents = 'none'; }
             });
             deck.style.height = cards[deckIdx].offsetHeight + 'px';
-            if (dots) [].forEach.call(dots.childNodes, function (b, i) { b.className = i === deckIdx ? 'on' : ''; });
+            if (fill) fill.style.width = ((deckIdx + 1) / n * 100) + '%';
+            if (count) count.textContent = (deckIdx + 1) + ' / ' + n;
+            if (prev) prev.disabled = deckIdx === 0;
+            if (next) next.disabled = deckIdx === n - 1;
+            if (scroll) { var top = deck.getBoundingClientRect().top + window.pageYOffset - 6; window.scrollTo(0, Math.max(0, top)); }
           }
-          if (mobile) { layout(); } else { cards.forEach(function (c) { c.style.transform = ''; c.style.opacity = ''; c.style.zIndex = ''; c.style.pointerEvents = ''; }); deck.style.height = ''; }
+          function move(d) { deckIdx += d; layout(true); }
+
+          if (mobile) { layout(false); }
+          else { cards.forEach(function (c) { c.style.transform = ''; c.style.opacity = ''; c.style.zIndex = ''; c.style.pointerEvents = ''; }); deck.style.height = ''; }
 
           if (!deckBound) {
             deckBound = true;
+            if (prev) prev.addEventListener('click', function () { move(-1); });
+            if (next) next.addEventListener('click', function () { move(1); });
             var sx = 0, sy = 0, tracking = false;
             deck.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true; }, {passive: true});
             deck.addEventListener('touchend', function (e) {
               if (!tracking || !window.matchMedia('(max-width: 680px)').matches) return;
               tracking = false;
               var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-              if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { deckIdx += (dx < 0 ? 1 : -1); layout(); }
+              if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) move(dx < 0 ? 1 : -1);
             }, {passive: true});
           }
           deck.__layout = layout;
