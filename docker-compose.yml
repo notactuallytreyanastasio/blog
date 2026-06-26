@@ -102,6 +102,7 @@ services:
       - /opt/blimp:/srv/blimp:ro
       - /opt/arena:/srv/arena:ro  # the Claude Arena snapshot (soldat repo, arena-live/publish.mjs)
       - /opt/soldat-landing:/srv/soldat-landing:ro  # the SOLDAT, REWRITTEN story page (soldat repo, landing/)
+      - /opt/slides:/srv/slides:ro  # RevealSlides static build (slides repo dist/, via deploy-slides.sh)
 
 volumes:
   pgdata:

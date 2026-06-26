@@ -107,6 +107,28 @@ blimp.bobbby.online {
 	}
 }
 
+slides.bobbby.online {
+	# RevealSlides — a static Vite/React build (the `slides` repo's dist/),
+	# published to /opt/slides and bind-mounted read-only into Caddy. Refreshed
+	# files go live immediately (no container restart). Deployed by the slides
+	# repo's deploy via blog/deploy-slides.sh.
+	root * /srv/slides
+	encode gzip zstd
+
+	# Vite emits content-hashed files under /assets — cache them forever.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	# index.html (and anything else) must always revalidate so deploys show up.
+	@html {
+		not path /assets/*
+	}
+	header @html Cache-Control "no-cache"
+
+	# SPA fallback: unknown paths serve index.html (share links use #/view/...).
+	try_files {path} /index.html
+	file_server
+}
+
 phishjamexplorer.com, www.phishjamexplorer.com {
 	root * /srv/phstats
 	file_server
