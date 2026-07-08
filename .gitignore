@@ -52,3 +52,6 @@ live_joyride/
 
 # Assay (incremental dialyzer) cache
 _build/assay/
+
+# macOS Finder metadata
+.DS_Store

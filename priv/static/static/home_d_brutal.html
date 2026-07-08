@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOBBBY.ONLINE — AN INDEX</title>
+<style>
+  :root{ --paper:#ECE7DA; --ink:#0A0A0A; --blue:#1A00FF; --red:#FF2D00; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{background:var(--paper); color:var(--ink); overflow-x:hidden;}
+  body{ font-family:"Helvetica Neue",Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  .mono{ font-family:ui-monospace,"SF Mono","Menlo",monospace; }
+
+  header{ border-bottom:4px solid var(--ink); padding:20px 22px 16px; }
+  .mast{ display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:8px; }
+  h1{ font-size:clamp(38px,8.5vw,104px); font-weight:800; letter-spacing:-.04em; line-height:.82; text-transform:uppercase; }
+  h1 .dot{ color:var(--red); }
+  .meta{ font-size:12px; letter-spacing:.04em; text-transform:uppercase; text-align:right; line-height:1.5; }
+  .meta b{ color:var(--blue); }
+  .subbar{ display:flex; justify-content:space-between; margin-top:14px; font-size:12px; text-transform:uppercase; letter-spacing:.18em; }
+
+  .index{ border-bottom:4px solid var(--ink); }
+  .row{ display:flex; align-items:baseline; gap:18px; padding:6px 22px; border-bottom:2px solid var(--ink);
+    text-transform:uppercase; font-weight:800; letter-spacing:-.03em; line-height:.98; white-space:nowrap; overflow:hidden;
+    text-decoration:none; color:var(--ink); cursor:pointer; font-size:clamp(24px,7vw,40px); will-change:font-size; }
+  .row .no{ font-size:13px; font-weight:700; color:var(--red); flex:0 0 auto; align-self:center; }
+  .row .nm{ flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; }
+  .row .ds{ margin-left:auto; flex:0 0 auto; font-size:13px; font-weight:600; letter-spacing:0; text-transform:none;
+    color:var(--blue); opacity:0; transition:opacity .12s; font-family:ui-monospace,"SF Mono","Menlo",monospace; align-self:center; }
+  .row:hover{ background:var(--blue); color:var(--paper); }
+  .row:hover .no{ color:var(--paper); }
+  .row:hover .ds{ opacity:1; color:var(--paper); }
+  .row .arr{ font-size:13px; align-self:center; opacity:0; }
+  .row:hover .arr{ opacity:1; }
+
+  .ticker{ overflow:hidden; white-space:nowrap; border-bottom:4px solid var(--ink); background:var(--red); color:var(--paper); }
+  .ticker div{ display:inline-block; padding:8px 0; font-size:14px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+    animation:slide 28s linear infinite; }
+  @keyframes slide{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+  footer{ padding:16px 22px 40px; font-size:12px; text-transform:uppercase; letter-spacing:.14em; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  @media (pointer:coarse){ .row .ds{ display:none; } }
+</style>
+</head>
+<body>
+  <div class="ticker"><div>NO ADULT SUPERVISION · MADE IN ONE NEW YORK APARTMENT · PLEASE ENJOY EACH PROJECT EQUALLY · SOME OF THESE ARE LIVE RIGHT NOW · &nbsp; NO ADULT SUPERVISION · MADE IN ONE NEW YORK APARTMENT · PLEASE ENJOY EACH PROJECT EQUALLY · SOME OF THESE ARE LIVE RIGHT NOW · &nbsp;</div></div>
+
+  <header>
+    <div class="mast">
+      <h1>Bobbby<span class="dot">.</span>online</h1>
+      <div class="meta">An index of<br><b>26 working programs</b><br>&amp; assorted nonsense<br>Est. MMXXIV · NYC</div>
+    </div>
+    <div class="subbar"><span>↓ Move your cursor through it</span><span class="mono">[ THE WHOLE CATALOG ]</span></div>
+  </header>
+
+  <div class="index" id="index"></div>
+
+  <footer>
+    <span>© Whenever</span>
+    <span>Built by hand · Probably still running</span>
+    <span class="mono">EOF</span>
+  </footer>
+
+<script>
+  var items=[
+    ["Claude Arena","/arena","two AIs fight, you spectate"],
+    ["Sky","/sky","545,000 bluesky souls, mapped"],
+    ["MTA Bus Map","/mta-bus-map","every nyc bus, live"],
+    ["MTA Train","/mta-train","the trains. it's late."],
+    ["Wordle God","/wordle_god","it read your diary"],
+    ["Cursor Tracker","/cursor-tracker","everyone's ghost cursors"],
+    ["Emoji Skeets","/emoji-skeets","a geyser of emoji"],
+    ["Phish Jam Explorer","https://phishjamexplorer.com","a 22-min jam as a spreadsheet"],
+    ["GIF Maker","https://gifmaker.bobbby.online","nathan for you, frame by frame"],
+    ["Deciduous","https://deciduous.dev","decisions grown into regret"],
+    ["Knicks in 5","/knicks","a title in swipeable charts"],
+    ["Lumon Celebration","/lumon-celebration","praise kier"],
+    ["Receipt Printer","/very_direct_message","prints on paper in my home"],
+    ["NYC Census + PLUTO","/nyc_census_and_pluto","every lot, tinted by data"],
+    ["Pong God","/pong/god","pong, transcended"],
+    ["Mirror","/mirror","it's you. hi."],
+    ["Stumble","/stumble","flung somewhere unwise"],
+    ["Blackjack","/blackjack","lose fake money quickly"],
+    ["2048","/2048","slide the squares. again."],
+    ["Chess","/chess","the normal one, surprisingly"],
+    ["Hacker News","/hacker-news","orange site, reskinned"],
+    ["Markdown Editor","/markdown-editor","type words, see words"],
+    ["Chaos Typing","/chaos-typing","the letters fight back"],
+    ["Collage Maker","/collage-maker","ransom-note your photos"],
+    ["Trees","/trees","there are trees"],
+    ["The Blog","/blog","words, occasionally true"]
+  ];
+  var index=document.getElementById('index'), rows=[];
+  items.forEach(function(it,i){
+    var n=("0"+(i+1)).slice(-2);
+    var a=document.createElement('a'); a.className='row'; a.href=it[1];
+    a.innerHTML='<span class="no mono">'+n+'</span><span class="nm">'+it[0]+'</span><span class="ds">'+it[2]+'</span><span class="arr mono">→</span>';
+    index.appendChild(a); rows.push(a);
+  });
+
+  // Fisheye: rows swell around the cursor (macOS-dock style), index-space gaussian — robust, no geometry feedback.
+  var fine = window.matchMedia('(pointer:fine)').matches;
+  var BASE=28, AMP=66, S=2.3;
+  function applyF(focal){ rows.forEach(function(r,k){ var d=k-focal; var g=Math.exp(-(d*d)/(2*S*S)); r.style.setProperty('font-size',(BASE+AMP*g)+'px','important'); }); }
+  function resetF(){ rows.forEach(function(r){ r.style.removeProperty('font-size'); }); }
+  function focal(cy){ for(var k=0;k<rows.length;k++){ var b=rows[k].getBoundingClientRect(); if(cy<b.bottom) return k+Math.max(0,Math.min(1,(cy-b.top)/b.height)); } return rows.length-1; }
+  if(fine){
+    var raf=null, cy=0, on=false;
+    index.addEventListener('mousemove',function(e){ on=true; cy=e.clientY; if(!raf) raf=requestAnimationFrame(function(){ raf=null; if(on) applyF(focal(cy)); }); });
+    index.addEventListener('mouseleave',function(){ on=false; resetF(); });
+  }
+</script>
+</body>
+</html>

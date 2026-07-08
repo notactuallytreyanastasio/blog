@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Chart of the Known Bobbbyverse</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{ background:#05070f; color:#e7e2cf; font-family:"Hoefler Text","Garamond","Georgia",serif; overflow:hidden; }
+  .sky{ position:fixed; inset:0;
+    background:
+      radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 70% 60%, #cde 50%, transparent),
+      radial-gradient(1.5px 1.5px at 40% 80%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 85% 25%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 55% 15%, #cce 50%, transparent),
+      radial-gradient(2px 2px at 12% 70%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 90% 80%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 32% 50%, #fff 50%, transparent),
+      radial-gradient(900px 700px at 50% 45%, #0e1730 0%, #070a16 55%, #04060d 100%);
+  }
+  .grain{ position:fixed; inset:0; pointer-events:none; opacity:.05;
+    background:repeating-linear-gradient(0deg,#fff 0 1px,transparent 1px 3px); }
+  .frame{ position:fixed; inset:18px; border:2px solid #b9933f; border-radius:4px; pointer-events:none; box-shadow:inset 0 0 60px rgba(185,147,63,.12);}
+  .frame::after{ content:""; position:absolute; inset:6px; border:1px solid rgba(185,147,63,.4); }
+  .titlecard{ position:fixed; left:50%; top:34px; transform:translateX(-50%); text-align:center; z-index:5; }
+  .titlecard h1{ font-size:clamp(22px,3.4vw,34px); font-style:italic; letter-spacing:.06em; color:#e9d9a8; }
+  .titlecard .sub{ font-size:13px; color:#9a957e; letter-spacing:.18em; margin-top:4px; text-transform:uppercase;}
+  svg{ position:fixed; inset:0; width:100%; height:100%; }
+  .link{ stroke:rgba(185,147,63,.34); stroke-width:1; }
+  .star{ fill:#ffe9b0; }
+  .halo{ fill:rgba(255,233,176,.0); transition:fill .2s; }
+  .node{ cursor:pointer; }
+  .node:hover .halo{ fill:rgba(255,233,176,.14); }
+  .node:hover .star{ fill:#fff; }
+  .lbl{ fill:#e7e2cf; font-style:italic; font-size:14px; }
+  .con{ fill:#7fa9d6; font-size:12px; letter-spacing:.22em; text-transform:uppercase; opacity:.65;}
+  .compass{ position:fixed; right:42px; bottom:40px; width:78px; height:78px; opacity:.7; z-index:5;}
+  .legend{ position:fixed; left:42px; bottom:34px; z-index:5; font-style:italic; color:#9a957e; font-size:13px; max-width:280px; line-height:1.5;}
+  .tip{ position:fixed; z-index:9; pointer-events:none; background:#0c1322; border:1px solid #b9933f; padding:8px 11px; max-width:240px;
+    font-style:italic; font-size:13px; color:#efe7cf; opacity:0; transition:opacity .12s; border-radius:2px;}
+</style>
+</head>
+<body>
+  <div class="sky"></div><div class="grain"></div>
+  <div class="titlecard">
+    <h1>A Chart of the Known Bobbbyverse</h1>
+    <div class="sub">celestial software · drag to wander · click a star to travel</div>
+  </div>
+  <svg id="chart" viewBox="0 0 1400 820" preserveAspectRatio="xMidYMid slice"></svg>
+  <div class="frame"></div>
+  <svg class="compass" viewBox="0 0 100 100"><g fill="none" stroke="#b9933f" stroke-width="1.4">
+    <circle cx="50" cy="50" r="40"/><path d="M50 6 L57 50 L50 94 L43 50 Z" fill="#b9933f"/>
+    <path d="M6 50 L50 43 L94 50 L50 57 Z"/></g><text x="50" y="20" fill="#e9d9a8" font-size="11" text-anchor="middle" font-style="italic">N</text></svg>
+  <div class="legend">Each luminous body is a working program. Brighter stars shine brighter for no scientifically defensible reason.</div>
+  <div class="tip" id="tip"></div>
+
+<script>
+  // constellations: {name, label x/y, stars:[name,url,x,y,mag,desc]}
+  var cons=[
+    {name:"The Great Bus", lx:250, ly:120, stars:[
+      ["MTA Bus Map","/mta-bus-map",180,200,2.4,"Every NYC bus, live and indifferent."],
+      ["MTA Train","/mta-train",330,170,1.8,"The trains. Yes, that one is late."],
+      ["NYC Census + PLUTO","/nyc_census_and_pluto",430,300,2.0,"Every lot in the city, tinted by data."]]},
+    {name:"Machina Ludens", lx:760, ly:120, stars:[
+      ["Claude Arena","/arena",720,210,2.8,"Two AIs duel. You spectate."],
+      ["Pong God","/pong/god",880,170,1.6,"Pong, transcended."],
+      ["Wordle God","/wordle_god",980,280,1.9,"It read your diary."],
+      ["Stumble","/stumble",640,330,1.5,"One button. Somewhere unwise."]]},
+    {name:"The Social Nebula", lx:1120, ly:430, stars:[
+      ["Sky","/sky",1180,360,2.6,"545K Bluesky souls, mapped."],
+      ["Emoji Skeets","/emoji-skeets",1080,470,1.7,"A geyser of emoji."],
+      ["Cursor Tracker","/cursor-tracker",1230,540,1.6,"Ghost cursors of everyone here."]]},
+    {name:"Cor Domesticum", lx:250, ly:560, stars:[
+      ["Receipt Printer","/very_direct_message",200,620,2.0,"Prints on real paper in my home."],
+      ["Mirror","/mirror",360,580,1.5,"It's you. Hi."],
+      ["GIF Maker","https://gifmaker.bobbby.online",330,700,1.8,"Nathan For You → GIFs."]]},
+    {name:"Opera Magna", lx:720, ly:560, stars:[
+      ["Knicks in 5","/knicks",680,630,2.5,"A title in swipeable charts."],
+      ["Phish Jam Explorer","https://phishjamexplorer.com",840,600,2.0,"A jam, as a spreadsheet."],
+      ["Deciduous","https://deciduous.dev",780,720,2.2,"Decisions grown into trees."],
+      ["Lumon Celebration","/lumon-celebration",600,710,1.7,"Praise Kier."]]}
+  ];
+  var svg=document.getElementById('chart'), tip=document.getElementById('tip');
+  var NS="http://www.w3.org/2000/svg";
+  function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+  cons.forEach(function(c){
+    // links between consecutive stars
+    for(var i=0;i<c.stars.length-1;i++){
+      var s=c.stars[i],n=c.stars[i+1];
+      svg.appendChild(el("line",{x1:s[2],y1:s[3],x2:n[2],y2:n[3],class:"link"}));
+    }
+    svg.appendChild(Object.assign(el("text",{x:c.lx,y:c.ly,class:"con","text-anchor":"middle"}),{textContent:c.name}));
+    c.stars.forEach(function(s){
+      var g=el("a",{href:s[1],class:"node"});
+      g.appendChild(el("circle",{cx:s[2],cy:s[3],r:s[4]*7,class:"halo"}));
+      g.appendChild(el("circle",{cx:s[2],cy:s[3],r:s[4]*2.0,class:"star"}));
+      var t=el("text",{x:s[2]+s[4]*2.0+8,y:s[3]+4,class:"lbl"}); t.textContent=s[0]; g.appendChild(t);
+      g.addEventListener("mousemove",function(ev){tip.style.opacity=1;tip.textContent=s[5];tip.style.left=(ev.clientX+14)+"px";tip.style.top=(ev.clientY+14)+"px";});
+      g.addEventListener("mouseleave",function(){tip.style.opacity=0;});
+      svg.appendChild(g);
+    });
+  });
+</script>
+</body>
+</html>

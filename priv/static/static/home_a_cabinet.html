@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Bobbby Collection</title>
+<style>
+  :root{ --gold:#c8a24a; --cream:#efe6cf; --wall:#15211d; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #1d2e29 0%, var(--wall) 55%, #0d1512 100%),
+      repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 14px, transparent 14px 28px);
+    color:var(--cream); font-family:"Hoefler Text","Garamond","Georgia",serif;
+    min-height:100vh; padding:48px 28px 80px;
+  }
+  .plate{ text-align:center; max-width:900px; margin:0 auto 14px; }
+  .plate .crest{ font-size:30px; color:var(--gold); letter-spacing:.05em; }
+  .plate h1{ font-size:clamp(34px,6vw,62px); font-weight:600; letter-spacing:.02em;
+    background:linear-gradient(180deg,#f6efd8,#c8a24a); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .plate .sub{ font-style:italic; color:#b9b39b; margin-top:8px; font-size:17px; }
+  .rule{ width:230px; height:1px; margin:18px auto 0; background:linear-gradient(90deg,transparent,var(--gold),transparent); }
+  .rule::after{content:"❖"; display:block; text-align:center; color:var(--gold); margin-top:-12px; background:var(--wall); width:24px; margin-left:auto;margin-right:auto;}
+  .grid{ max-width:1180px; margin:38px auto 0; display:grid; grid-template-columns:repeat(auto-fill,minmax(252px,1fr)); gap:26px; }
+  .spec{ position:relative; background:linear-gradient(180deg,#1b2a25,#121d1a);
+    border:1px solid #2f4138; border-radius:6px; padding:20px 18px 16px; text-align:center;
+    box-shadow:0 10px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+    transition:transform .18s ease, box-shadow .18s ease; }
+  .spec::before{ content:""; position:absolute; inset:6px; border:1px solid rgba(200,162,74,.28); border-radius:3px; pointer-events:none; }
+  .spec:hover{ transform:translateY(-6px) rotate(-.6deg); box-shadow:0 18px 36px rgba(0,0,0,.6); }
+  .cat{ position:absolute; top:10px; right:12px; font-size:10px; letter-spacing:.12em; color:var(--gold); opacity:.8; }
+  .glyph{ font-size:52px; line-height:1; margin:10px 0 12px; filter:drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
+  .latin{ font-style:italic; color:var(--gold); font-size:14px; }
+  .name{ font-size:20px; margin:2px 0 8px; }
+  .desc{ font-size:13.5px; line-height:1.5; color:#cfc8b0; font-style:italic; }
+  .pin{ position:absolute; top:-7px; left:50%; transform:translateX(-50%); width:12px;height:12px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,#9a7b2a 60%,#5e4a18); box-shadow:0 2px 4px rgba(0,0,0,.6); }
+  footer{ text-align:center; margin-top:54px; color:#7e8a80; font-style:italic; font-size:13px;}
+</style>
+</head>
+<body>
+  <div class="plate">
+    <div class="crest">⚜</div>
+    <h1>The Bobbby Collection</h1>
+    <div class="sub">a cabinet of curiosities &amp; questionable software · est. MMXXIV · admission free, regret included</div>
+    <div class="rule"></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <footer>Please do not tap the glass. The specimens are sleeping.</footer>
+
+<script>
+  var items=[
+    ["🥊","Pugnus machinae","Claude Arena","/arena","Two artificial minds duel in a ring. The placard does not explain why."],
+    ["🌌","Caelum socialis","Sky","/sky","545,000 Bluesky souls, pinned into 418 quarrelsome tribes."],
+    ["🚌","Omnibus perpetuus","MTA Bus Map","/mta-bus-map","Every bus in New York, moving, live, supremely indifferent to you."],
+    ["🔮","Verbum omnisciens","Wordle God","/wordle_god","Wordle, but the puzzle has already read your diary."],
+    ["👻","Cursor spectralis","Cursor Tracker","/cursor-tracker","The drifting cursors of every stranger here at this exact moment."],
+    ["🌋","Eructatio emoji","Emoji Skeets","/emoji-skeets","A live geyser of emoji erupting, ceaselessly, from Bluesky."],
+    ["🎸","Improvisatio longa","Phish Jam Explorer","https://phishjamexplorer.com","For when a 22-minute jam demands a spreadsheet."],
+    ["🎞️","Imago iterata","GIF Maker","https://gifmaker.bobbby.online","Render Nathan For You into GIFs. No frame is safe."],
+    ["🌳","Arbor decisionis","Deciduous","https://deciduous.dev","Watch your decisions grow into trees you will come to regret."],
+    ["🏀","Victoria quantificata","Knicks in 5","/knicks","A championship, embalmed as charts you swipe with one thumb."],
+    ["🕺","Festum corporatum","Lumon Celebration","/lumon-celebration","A Music Dance Experience. Praise Kier. Enjoy each other equally."],
+    ["🧾","Epistula impressa","Receipt Printer","/very_direct_message","Send a message. It prints on real paper, in my real apartment."],
+    ["🗺️","Tabula urbis","NYC Census + PLUTO","/nyc_census_and_pluto","Every lot in New York, tinted by data and faint judgement."],
+    ["🏓","Ludus divinus","Pong God","/pong/god","Pong against an opponent who has transcended the concept of Pong."],
+    ["🪞","Speculum tuum","Mirror","/mirror","It is you. Hello. You look well, considering."],
+    ["🎲","Saltus ignotus","Stumble","/stumble","A single button that hurls you somewhere ill-advised."]
+  ];
+  var g=document.getElementById('grid');
+  items.forEach(function(it,i){
+    var n=("000"+(i+1)).slice(-3);
+    var a=document.createElement('a');
+    a.href=it[3]; a.className='spec'; a.style.textDecoration='none'; a.style.color='inherit';
+    a.innerHTML='<span class="pin"></span><span class="cat">CAT. '+n+'</span>'+
+      '<div class="glyph">'+it[0]+'</div><div class="latin">'+it[1]+'</div>'+
+      '<div class="name">'+it[2]+'</div><div class="desc">'+it[4]+'</div>';
+    g.appendChild(a);
+  });
+</script>
+</body>
+</html>

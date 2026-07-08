@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHANNEL ZERO — bobbby.online</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{ font-family:"Courier New",monospace; color:#eaeaea; min-height:100vh;
+    background:
+      repeating-linear-gradient(90deg,#3a2417 0 38px,#46301c 38px 76px); /* wood panel */
+    padding:30px 20px 60px; }
+  .set{ max-width:980px; margin:0 auto; background:#0a0a0a; border-radius:26px; padding:26px;
+    border:3px solid #222; box-shadow:0 0 0 14px #1a1a1a, 0 26px 60px rgba(0,0,0,.7); }
+  .screen{ position:relative; aspect-ratio:4/3; border-radius:16px; overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 40%, #1b2a4a 0%, #0a0f1f 70%, #05070e 100%);
+    box-shadow:inset 0 0 70px rgba(0,0,0,.9), inset 0 0 14px rgba(120,180,255,.18); }
+  .scan{ position:absolute; inset:0; pointer-events:none; z-index:5;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 2px, transparent 2px 4px); mix-blend-mode:multiply; }
+  .vig{ position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 120px rgba(0,0,0,.8); border-radius:16px; }
+  .chno{ position:absolute; top:16px; right:20px; z-index:6; font-weight:bold; font-size:30px; color:#7CFC00;
+    text-shadow:0 0 8px rgba(124,252,0,.8); letter-spacing:2px; }
+  .live{ position:absolute; top:18px; left:20px; z-index:6; font-size:13px; color:#ff5a5a; letter-spacing:3px; }
+  .live::before{content:"● "; }
+  .feature{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 30px; z-index:4;}
+  .feature .em{ font-size:96px; filter:drop-shadow(0 6px 16px rgba(0,0,0,.6)); animation:bob 3s ease-in-out infinite;}
+  @keyframes bob{50%{transform:translateY(-10px)}}
+  .feature h2{ font-size:clamp(28px,6vw,54px); margin-top:8px; color:#fff; text-shadow:2px 2px 0 #ff00d4, -2px -2px 0 #00e5ff; letter-spacing:1px;}
+  .lower{ position:absolute; left:0; right:0; bottom:0; z-index:6; padding:14px 22px;
+    background:linear-gradient(0deg, rgba(0,0,0,.85), transparent); }
+  .lower .tag{ display:inline-block; background:#ff00d4; color:#fff; font-weight:bold; font-size:12px; padding:3px 9px; letter-spacing:1px;}
+  .lower .blurb{ font-size:16px; color:#d8e6ff; margin-top:8px; font-family:"Helvetica Neue",Arial,sans-serif; font-style:italic;}
+  .bezel{ display:flex; justify-content:space-between; align-items:center; margin-top:18px; }
+  .brand{ color:#888; letter-spacing:4px; font-size:13px; }
+  .knobs{ display:flex; gap:14px; }
+  .knob{ width:34px;height:34px;border-radius:50%; background:radial-gradient(circle at 35% 30%,#555,#111); border:2px solid #000; box-shadow:0 2px 4px rgba(0,0,0,.6);}
+  .guide{ max-width:980px; margin:30px auto 0; }
+  .guide h3{ color:#7CFC00; letter-spacing:3px; font-size:14px; border-bottom:1px dashed #444; padding-bottom:8px; margin-bottom:6px;}
+  .row{ display:grid; grid-template-columns:64px 1fr; gap:14px; padding:11px 6px; border-bottom:1px solid #1c1c1c; align-items:baseline; text-decoration:none; color:inherit;}
+  .row:hover{ background:#141414; }
+  .row .ch{ color:#7CFC00; font-weight:bold; font-size:15px;}
+  .row .show{ font-family:"Helvetica Neue",Arial,sans-serif;}
+  .row .show b{ color:#fff; font-size:16px;}
+  .row .show .d{ color:#9bb0c9; font-size:13.5px; font-style:italic; }
+  .note{ text-align:center; color:#a98; margin-top:26px; letter-spacing:2px; font-size:12px;}
+</style>
+</head>
+<body>
+  <div class="set">
+    <div class="screen">
+      <div class="feature">
+        <div class="em">🥊</div>
+        <h2>CLAUDE ARENA</h2>
+      </div>
+      <div class="live">LIVE</div>
+      <div class="chno">CH 07</div>
+      <div class="lower">
+        <span class="tag">NOW PLAYING</span>
+        <div class="blurb">Two artificial minds enter a ring and fight to the buzzer. Nobody asked for this. It will not stop.</div>
+      </div>
+      <div class="scan"></div><div class="vig"></div>
+    </div>
+    <div class="bezel">
+      <div class="brand">B O B B B Y · V I S I O N</div>
+      <div class="knobs"><div class="knob"></div><div class="knob"></div></div>
+    </div>
+  </div>
+
+  <div class="guide">
+    <h3>▚ TONIGHT'S LISTINGS — DO NOT ADJUST YOUR SET</h3>
+    <div id="rows"></div>
+  </div>
+  <div class="note">CHANNEL ZERO · BROADCASTING FROM ONE APARTMENT · 24 HRS</div>
+
+<script>
+  var ch=[
+    ["02","🌌","Sky","/sky","Cartography of 545,000 Bluesky souls. Tribal. Mesmerizing. Free."],
+    ["03","🚌","MTA Bus Map","/mta-bus-map","Every NYC bus, live, crawling the grid without you."],
+    ["04","🔮","Wordle God","/wordle_god","A word puzzle that has clearly read your diary."],
+    ["05","👻","Cursor Tracker","/cursor-tracker","The ghost cursors of everyone watching right now."],
+    ["06","🌋","Emoji Skeets","/emoji-skeets","A 24-hour geyser of emoji straight from Bluesky."],
+    ["07","🥊","Claude Arena","/arena","Two AIs fight. You spectate. (Now playing.)"],
+    ["08","🎸","Phish Jam Explorer","https://phishjamexplorer.com","When a 22-minute jam needs a spreadsheet."],
+    ["09","🎞️","GIF Maker","https://gifmaker.bobbby.online","Nathan For You, rendered frame-by-frame into GIFs."],
+    ["10","🌳","Deciduous","https://deciduous.dev","Decisions, grown live into trees you'll regret."],
+    ["11","🏀","Knicks in 5","/knicks","A championship told entirely in swipeable charts."],
+    ["12","🕺","Lumon Celebration","/lumon-celebration","A Music Dance Experience. Praise Kier."],
+    ["13","🧾","Receipt Printer","/very_direct_message","Type a message; it prints on real paper in my home."],
+    ["14","🪞","Mirror","/mirror","It's you. Live. Hi."],
+    ["15","🎲","Stumble","/stumble","One button. It flings you somewhere unwise."]
+  ];
+  var r=document.getElementById('rows');
+  ch.forEach(function(c){
+    var a=document.createElement('a'); a.className='row'; a.href=c[3];
+    a.innerHTML='<div class="ch">CH '+c[0]+'</div><div class="show"><b>'+c[1]+' '+c[2]+'</b><div class="d">'+c[4]+'</div></div>';
+    r.appendChild(a);
+  });
+</script>
+</body>
+</html>

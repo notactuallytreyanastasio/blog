@@ -85,6 +85,26 @@ services:
       - /opt/soldat:/app
     # Not exposed to host - Caddy proxies to ports 8901/8902 via Docker network
 
+  # Phone-remote relay for slides.bobbby.online — a tiny WebSocket message
+  # router (the slides repo's server/relay.mjs). Caddy proxies
+  # wss://slides.bobbby.online/relay -> slides-relay:8787. Like the soldat
+  # service this is BIND-MOUNTED, not built: deploy-slides.sh rsyncs relay.mjs
+  # and the pure-JS `ws` package into /opt/slides-relay, so a redeploy is rsync
+  # + `docker compose restart slides-relay` — no image build. The relay holds no
+  # deck content; it only forwards messages between same-room peers.
+  slides-relay:
+    image: node:20-alpine
+    restart: always
+    working_dir: /app
+    command: ["node", "relay.mjs"]
+    environment:
+      PORT: "8787"
+    expose:
+      - "8787"
+    volumes:
+      - /opt/slides-relay:/app:ro
+    # Not exposed to host - Caddy proxies to port 8787 via Docker network
+
   caddy:
     image: caddy:2
     restart: always

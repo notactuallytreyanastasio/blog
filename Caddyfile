@@ -108,25 +108,36 @@ blimp.bobbby.online {
 }
 
 slides.bobbby.online {
+	encode gzip zstd
+
+	# Phone-remote WebSocket relay (the slides repo's server/relay.mjs, running
+	# in the slides-relay container). Handled BEFORE the SPA file server so the
+	# /relay WebSocket upgrade isn't swallowed by try_files. The client connects
+	# to wss://slides.bobbby.online/relay?room=...&role=...
+	handle /relay {
+		reverse_proxy slides-relay:8787
+	}
+
 	# RevealSlides — a static Vite/React build (the `slides` repo's dist/),
 	# published to /opt/slides and bind-mounted read-only into Caddy. Refreshed
 	# files go live immediately (no container restart). Deployed by the slides
 	# repo's deploy via blog/deploy-slides.sh.
-	root * /srv/slides
-	encode gzip zstd
+	handle {
+		root * /srv/slides
 
-	# Vite emits content-hashed files under /assets — cache them forever.
-	@assets path /assets/*
-	header @assets Cache-Control "public, max-age=31536000, immutable"
-	# index.html (and anything else) must always revalidate so deploys show up.
-	@html {
-		not path /assets/*
+		# Vite emits content-hashed files under /assets — cache them forever.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		# index.html (and anything else) must always revalidate so deploys show up.
+		@html {
+			not path /assets/*
+		}
+		header @html Cache-Control "no-cache"
+
+		# SPA fallback: unknown paths serve index.html (share links use #/view/...).
+		try_files {path} /index.html
+		file_server
 	}
-	header @html Cache-Control "no-cache"
-
-	# SPA fallback: unknown paths serve index.html (share links use #/view/...).
-	try_files {path} /index.html
-	file_server
 }
 
 phishjamexplorer.com, www.phishjamexplorer.com {
