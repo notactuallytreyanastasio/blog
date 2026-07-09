@@ -55,6 +55,8 @@ services:
       BLUESKY_USERNAME: ${BLUESKY_USERNAME:-}
       BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
       GOOGLE_ANALYTICS_ID: ${NATHAN_GOOGLE_ANALYTICS_ID:-}
+      # Legacy shared ingest key (optional) — per-user fc_ keys work without it
+      INGEST_API_KEY: ${INGEST_API_KEY:-}
     # Not exposed to host - Caddy proxies to port 4001 via Docker network
 
   # The LIVE Claude Arena — three daemons (watcher http :8901, commissioner,
