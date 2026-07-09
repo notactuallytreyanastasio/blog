@@ -84,14 +84,19 @@ ssh "$HOST" bash -s <<'REMOTE'
   docker compose build
   docker compose up -d
 
+  # NOTE: this script arrives on the remote bash via ssh stdin, and
+  # `docker compose exec` attaches stdin by default — the first exec would
+  # swallow the rest of the script (silently skipping everything after the
+  # blog migrate, nathan migrations included). -T </dev/null prevents that.
+
   # Run blog migrations
-  docker compose exec app /app/bin/migrate
+  docker compose exec -T app /app/bin/migrate </dev/null
 
   # Seed sky profiles (546K Bluesky user profiles)
-  docker compose exec app /app/bin/seed_profiles
+  docker compose exec -T app /app/bin/seed_profiles </dev/null
 
   # Run nathan migrations
-  docker compose exec nathan /app/bin/migrate
+  docker compose exec -T nathan /app/bin/migrate </dev/null
 
   echo "==> Deploy complete!"
   docker compose ps
