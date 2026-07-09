@@ -50,6 +50,13 @@ rsync -avz --delete \
   --exclude '.claude' \
   "$NATHAN_SRC/" "$HOST:$NATHAN_DIR/"
 
+echo "==> Publishing downloader static site on $HOST..."
+
+# The Framecut Grabber landing page ships inside nathan_for_us (site/), which
+# was just rsynced to /opt/nathan. Publish it to /opt/downloader, which Caddy
+# serves read-only at downloader.bobbby.online.
+ssh "$HOST" 'mkdir -p /opt/downloader && rsync -a --delete /opt/nathan/site/ /opt/downloader/'
+
 echo "==> Deploying blimp static site on $HOST..."
 
 # Host-side: clone/pull the blimp repo, then publish its docs/ to /opt/blimp.
