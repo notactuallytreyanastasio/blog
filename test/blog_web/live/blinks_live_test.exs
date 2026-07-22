@@ -275,6 +275,62 @@ defmodule BlogWeb.BlinksLiveTest do
     assert render(view) =~ "blinks-tour"
   end
 
+  test "quotes accumulate and the first becomes the headline", %{conn: conn} do
+    {:ok, _} =
+      Blinks.save_blink(%{
+        "url" => "https://q.co/1",
+        "title" => "Real Title",
+        "quotes" => ["the first great line"]
+      })
+
+    {:ok, b} =
+      Blinks.save_blink(%{
+        "url" => "https://q.co/1",
+        "quotes" => ["a second banger", "the first great line"]
+      })
+
+    assert b.quotes == ["the first great line", "a second banger"]
+
+    {:ok, _view, html} = live(conn, "/blinks")
+    assert html =~ "“the first great line”"
+    # original title demoted to subtitle
+    assert html =~ ~s(class="subtitle">Real Title)
+    assert html =~ "2 QUOTES"
+  end
+
+  test "bluesky threads unroll into a single-post view", %{conn: conn} do
+    node = fn did, text, at, replies ->
+      %{
+        "post" => %{
+          "author" => %{"did" => did, "handle" => "bob.bsky", "displayName" => "Bob"},
+          "record" => %{"text" => text, "createdAt" => at}
+        },
+        "replies" => replies
+      }
+    end
+
+    other = node.("did:other", "nice thread!", "2026-01-01T03:00:00Z", [])
+    third = node.("did:me", "post three", "2026-01-01T02:00:00Z", [])
+    second = node.("did:me", "post two", "2026-01-01T01:00:00Z", [third, other])
+    thread = node.("did:me", "post one", "2026-01-01T00:00:00Z", [other, second])
+
+    posts = Blog.Blinks.Enricher.unroll_posts(thread)
+    assert Enum.map(posts, & &1["text"]) == ["post one", "post two", "post three"]
+
+    {:ok, b} =
+      Blinks.save_blink(%{"url" => "https://bsky.app/profile/bob.bsky/post/abc", "title" => "t"})
+
+    {:ok, _} =
+      b
+      |> Blog.Blinks.Blink.changeset(%{thread: %{"posts" => posts}})
+      |> Blog.Repo.update()
+
+    {:ok, _view, html} = live(conn, "/blinks")
+    assert html =~ "UNROLL THREAD (3 POSTS)"
+    assert html =~ "post three"
+    refute html =~ "nice thread!"
+  end
+
   test "comment counts show on the list", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://c.co/2", "title" => "Counted"})
     {:ok, chatter} = Chat.find_or_create_chatter("counter", "1.2.3.4")

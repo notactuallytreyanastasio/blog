@@ -20,6 +20,8 @@ defmodule Blog.Blinks.Enricher do
 
   @spec enrich(Blink.t()) :: {:ok, Blink.t()} | :skipped | {:error, term()}
   def enrich(%Blink{} = blink) do
+    blink = maybe_unroll_thread(blink)
+
     with true <- String.starts_with?(blink.url, "http") or :skipped,
          {:ok, %Req.Response{status: 200, body: html}} when is_binary(html) <-
            Req.get(blink.url,
@@ -63,6 +65,91 @@ defmodule Blog.Blinks.Enricher do
     |> Repo.all()
     |> Enum.map(&enrich/1)
     |> Enum.count(&match?({:ok, _}, &1))
+  end
+
+  # ── bluesky thread unrolling ──────────────────────────────────────────
+  # Saving a bsky.app post pulls the whole self-thread (root + the author's
+  # own reply chain) from the public AppView, no auth needed.
+
+  @bsky_post ~r{bsky\.app/profile/([^/]+)/post/([^/?#]+)}
+  @appview "https://public.api.bsky.app/xrpc"
+
+  defp maybe_unroll_thread(%Blink{} = blink) do
+    with [_, handle, rkey] <- Regex.run(@bsky_post, blink.url),
+         {:ok, did} <- resolve_did(handle),
+         {:ok, posts} when posts != [] <- fetch_thread_posts(did, rkey) do
+      {:ok, updated} = blink |> Blink.changeset(%{thread: %{"posts" => posts}}) |> Repo.update()
+      updated
+    else
+      nil ->
+        blink
+
+      other ->
+        Logger.info("blinks thread unroll failed for #{blink.url}: #{inspect(other)}")
+        blink
+    end
+  end
+
+  defp resolve_did("did:" <> _ = did), do: {:ok, did}
+
+  defp resolve_did(handle) do
+    case Req.get("#{@appview}/com.atproto.identity.resolveHandle",
+           params: [handle: handle],
+           receive_timeout: 10_000
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"did" => did}}} -> {:ok, did}
+      other -> {:error, other}
+    end
+  end
+
+  defp fetch_thread_posts(did, rkey) do
+    case Req.get("#{@appview}/app.bsky.feed.getPostThread",
+           params: [uri: "at://#{did}/app.bsky.feed.post/#{rkey}", depth: 50, parentHeight: 50],
+           receive_timeout: 15_000
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"thread" => thread}}} ->
+        {:ok, unroll_posts(thread)}
+
+      other ->
+        {:error, other}
+    end
+  end
+
+  @doc "Root + the root author's own reply chain, oldest first. Public for tests."
+  @spec unroll_posts(map()) :: [map()]
+  def unroll_posts(thread) do
+    root = climb_to_root(thread)
+    author = get_in(root, ["post", "author", "did"])
+
+    root
+    |> chain(author)
+    |> Enum.map(fn node ->
+      post = node["post"] || %{}
+
+      %{
+        "name" => get_in(post, ["author", "displayName"]),
+        "handle" => get_in(post, ["author", "handle"]),
+        "text" => get_in(post, ["record", "text"]),
+        "at" => get_in(post, ["record", "createdAt"])
+      }
+    end)
+    |> Enum.reject(&is_nil(&1["text"]))
+  end
+
+  defp climb_to_root(%{"parent" => %{"post" => _} = parent}), do: climb_to_root(parent)
+  defp climb_to_root(node), do: node
+
+  defp chain(node, author_did) do
+    next =
+      (node["replies"] || [])
+      |> Enum.filter(&(get_in(&1, ["post", "author", "did"]) == author_did))
+      |> Enum.sort_by(&get_in(&1, ["post", "record", "createdAt"]))
+      |> List.first()
+
+    case next do
+      nil -> [node]
+      n -> [node | chain(n, author_did)]
+    end
   end
 
   defp meta(doc, property) do

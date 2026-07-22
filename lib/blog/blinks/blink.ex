@@ -9,6 +9,8 @@ defmodule Blog.Blinks.Blink do
              :title,
              :description,
              :tags,
+             :quotes,
+             :thread,
              :favicon_url,
              :image_url,
              :site_name,
@@ -20,6 +22,8 @@ defmodule Blog.Blinks.Blink do
           title: String.t() | nil,
           description: String.t() | nil,
           tags: [String.t()],
+          quotes: [String.t()],
+          thread: map() | nil,
           favicon_url: String.t() | nil,
           image_url: String.t() | nil,
           site_name: String.t() | nil,
@@ -33,6 +37,8 @@ defmodule Blog.Blinks.Blink do
     field :title, :string
     field :description, :string
     field :tags, {:array, :string}, default: []
+    field :quotes, {:array, :string}, default: []
+    field :thread, :map
     field :favicon_url, :string
     field :image_url, :string
     field :site_name, :string
@@ -50,6 +56,8 @@ defmodule Blog.Blinks.Blink do
       :title,
       :description,
       :tags,
+      :quotes,
+      :thread,
       :favicon_url,
       :image_url,
       :site_name,
@@ -59,7 +67,16 @@ defmodule Blog.Blinks.Blink do
     |> validate_length(:url, min: 1, max: 4096)
     |> validate_length(:description, max: 10_000)
     |> update_change(:tags, &normalize_tags/1)
+    |> update_change(:quotes, &normalize_quotes/1)
     |> unique_constraint(:url)
+  end
+
+  defp normalize_quotes(quotes) do
+    quotes
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&String.slice(&1, 0, 2000))
+    |> Enum.uniq()
   end
 
   defp normalize_tags(tags) do

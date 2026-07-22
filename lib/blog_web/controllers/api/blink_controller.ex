@@ -9,7 +9,8 @@ defmodule BlogWeb.Api.BlinkController do
       "url" => params["url"],
       "title" => params["title"],
       "description" => params["description"],
-      "tags" => params["tags"] || []
+      "tags" => params["tags"] || [],
+      "quotes" => List.wrap(params["quotes"] || params["quote"] || [])
     }
 
     case Blinks.save_blink(attrs) do

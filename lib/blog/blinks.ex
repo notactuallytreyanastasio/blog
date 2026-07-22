@@ -23,13 +23,15 @@ defmodule Blog.Blinks do
 
         %Blink{} = existing ->
           new_tags = Ecto.Changeset.get_field(changeset, :tags) || []
+          new_quotes = Ecto.Changeset.get_field(changeset, :quotes) || []
           new_description = Ecto.Changeset.get_field(changeset, :description)
 
           existing
           |> Blink.changeset(%{
             title: attrs[:title] || attrs["title"] || existing.title,
             description: presence(new_description) || existing.description,
-            tags: Enum.uniq(existing.tags ++ new_tags)
+            tags: Enum.uniq(existing.tags ++ new_tags),
+            quotes: Enum.uniq(existing.quotes ++ new_quotes)
           })
           |> Repo.update()
       end
