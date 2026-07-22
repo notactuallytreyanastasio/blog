@@ -444,6 +444,32 @@ defmodule BlogWeb.BlinksLiveTest do
     assert Blinks.import_candidates([%{"url" => "https://bm.co/keeper", "title" => "Keeper"}]) == 0
   end
 
+  test "MORE pages through links 50 at a time", %{conn: conn} do
+    for i <- 1..55 do
+      title = "Item #{String.pad_leading(to_string(i), 3, "0")}"
+      Blinks.save_blink(%{"url" => "https://pg.co/#{i}", "title" => title})
+    end
+
+    {:ok, view, html} = live(conn, "/blinks")
+    # newest first: items 055..006 on page one
+    assert html =~ "Item 055"
+    assert html =~ "Item 006"
+    refute html =~ "Item 005"
+    assert html =~ "MORE ›"
+    refute html =~ "‹ BACK"
+
+    view |> element("button[phx-click=more]") |> render_click()
+    html = render(view)
+    assert html =~ "Item 005"
+    refute html =~ "Item 055"
+    assert html =~ "‹ BACK"
+    refute html =~ "MORE ›"
+    assert html =~ "page 2"
+
+    view |> element("button[phx-click=prev-page]") |> render_click()
+    assert render(view) =~ "Item 055"
+  end
+
   test "admin unlock enables delete; deletes take the chat room along", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://del.co/1", "title" => "Doomed"})
     {:ok, chatter} = Chat.find_or_create_chatter("mourner", "5.5.5.5")

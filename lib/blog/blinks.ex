@@ -99,6 +99,7 @@ defmodule Blog.Blinks do
   @spec list_blinks(keyword()) :: [Blink.t()]
   def list_blinks(opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
     query = Keyword.get(opts, :query)
     tags = Keyword.get(opts, :tags) || []
     exclude = Keyword.get(opts, :exclude_tags) || []
@@ -106,6 +107,7 @@ defmodule Blog.Blinks do
     Blink
     |> order_by(desc: :inserted_at, desc: :id)
     |> limit(^limit)
+    |> offset(^offset)
     |> maybe_search(query)
     |> maybe_filter_tags(tags)
     |> maybe_exclude_tags(exclude)

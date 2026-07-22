@@ -54,9 +54,17 @@ defmodule BlogWeb.BlinksLive do
      )}
   end
 
+  @page_size 50
+
   def handle_params(params, _uri, socket) do
     q = params["q"] || ""
     nodork = params["nodork"] == "1"
+
+    page =
+      case Integer.parse(params["page"] || "1") do
+        {n, ""} when n >= 1 -> n
+        _ -> 1
+      end
 
     tags =
       (params["tags"] || "")
@@ -75,7 +83,7 @@ defmodule BlogWeb.BlinksLive do
 
     socket =
       socket
-      |> assign(q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to)
+      |> assign(q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to, page: page)
       |> assign(fresh_ids: MapSet.new())
       |> reload()
       |> sync_chat(params["chat"])
@@ -150,15 +158,30 @@ defmodule BlogWeb.BlinksLive do
     %{q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to} = socket.assigns
     exclude = if nodork, do: socket.assigns.dork_tags, else: []
 
+    page = socket.assigns.page
+
     blinks =
       if similar_to,
         do: Blinks.list_similar(similar_to, 25),
-        else: Blinks.list_blinks(query: q, tags: tags, exclude_tags: exclude, limit: 200)
+        else:
+          Blinks.list_blinks(
+            query: q,
+            tags: tags,
+            exclude_tags: exclude,
+            limit: @page_size + 1,
+            offset: (page - 1) * @page_size
+          )
 
-    blinks = Enum.reject(blinks, &MapSet.member?(socket.assigns.hidden_ids, &1.id))
+    has_more = !similar_to and length(blinks) > @page_size
+
+    blinks =
+      blinks
+      |> Enum.take(@page_size)
+      |> Enum.reject(&MapSet.member?(socket.assigns.hidden_ids, &1.id))
 
     assign(socket,
       blinks: blinks,
+      has_more: has_more,
       tags: Blinks.list_tags([], exclude),
       chat_counts: Chat.count_messages_by_room(Enum.map(blinks, &room/1))
     )
@@ -243,11 +266,20 @@ defmodule BlogWeb.BlinksLive do
     selected =
       if tag in selected, do: List.delete(selected, tag), else: selected ++ [tag]
 
-    {:noreply, patch(socket, tags: Enum.join(selected, ","), similar: "")}
+    {:noreply, patch(socket, tags: Enum.join(selected, ","), similar: "", page: "")}
   end
 
   def handle_event("search", %{"q" => q}, socket) do
-    {:noreply, patch(socket, q: q, similar: "")}
+    {:noreply, patch(socket, q: q, similar: "", page: "")}
+  end
+
+  def handle_event("more", _params, socket) do
+    {:noreply, patch(socket, page: to_string(socket.assigns.page + 1))}
+  end
+
+  def handle_event("prev-page", _params, socket) do
+    page = max(socket.assigns.page - 1, 1)
+    {:noreply, patch(socket, page: if(page > 1, do: to_string(page), else: ""))}
   end
 
   def handle_event("clear", _params, socket) do
@@ -522,6 +554,7 @@ defmodule BlogWeb.BlinksLive do
     base = %{
       q: a.q,
       tags: Enum.join(a.selected_tags, ","),
+      page: if(a.page > 1, do: to_string(a.page), else: ""),
       nodork: if(a.nodork, do: "1", else: ""),
       similar: if(a.similar_to, do: to_string(a.similar_to.id), else: ""),
       chat: if(a.chat_blink, do: to_string(a.chat_blink.id), else: "")
@@ -727,6 +760,10 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 0 2px 1px 0; cursor: pointer; }
         #blinks-page .tag.on { background: #cee3f8; border-color: #5f99cf; font-weight: bold; }
         #blinks-page .empty { color: #888; padding: 20px 0; }
+        #blinks-page .pager { flex-shrink: 0; padding: 6px 0 2px; display: flex; align-items: center; gap: 10px; }
+        #blinks-page .pager button { font: bold 12px verdana; color: #888; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; padding: 4px 14px; cursor: pointer; letter-spacing: 1px; }
+        #blinks-page .pager button:hover { color: #369; border-color: #5f99cf; }
+        #blinks-page .pager .pageno { color: #888; font-size: 10px; }
 
         #blinks-page .sidebar { width: 280px; flex-shrink: 0; overflow-y: auto; min-height: 0; }
         #blinks-page .sidebox { border: 1px solid #5f99cf; margin-bottom: 12px; }
@@ -898,7 +935,7 @@ defmodule BlogWeb.BlinksLive do
               ]}
               id={"blink-#{blink.id}"}
             >
-              <span class="rank">{i}</span>
+              <span class="rank">{(@page - 1) * 50 + i}</span>
               <img :if={blink.image_url} class="thumb" src={blink.image_url} loading="lazy" />
               <div class="entry">
                 <a
@@ -988,6 +1025,12 @@ defmodule BlogWeb.BlinksLive do
                 </div>
               </div>
             </div>
+          </div>
+
+          <div :if={!@similar_to && (@has_more or @page > 1)} class="pager">
+            <button :if={@page > 1} phx-click="prev-page">‹ BACK</button>
+            <span :if={@page > 1} class="pageno">page {@page}</span>
+            <button :if={@has_more} phx-click="more">MORE ›</button>
           </div>
         </div>
 
