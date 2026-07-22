@@ -983,7 +983,7 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .entry { display: inline; }
         #blinks-page .title { font-size: 13px; color: #0000ff; }
         #blinks-page .title:visited { color: #551a8b; }
-        #blinks-page .domain { color: #888; font-size: 10px; }
+        #blinks-page .domain { color: #888; font-size: 10px; white-space: nowrap; display: inline-block; }
         #blinks-page .domain a { color: #888; }
         #blinks-page .desc { color: #333; font-size: 11px; margin: 1px 0; max-width: 72ch; }
         #blinks-page .notes { margin: 0; display: inline; }
@@ -1302,11 +1302,13 @@ defmodule BlogWeb.BlinksLive do
                 >
                   TAGS ({length(blink.tags)})
                 </span>
-                <span class="domain">
-                  (<img :if={blink.favicon_url} class="favicon" src={blink.favicon_url} loading="lazy" /><a href={
-                    "/blinks?" <> URI.encode_query(q: domain(blink.url))
-                  }>{blink.site_name || domain(blink.url)}</a>)
-                </span>
+                <span class="domain"><img
+                    :if={blink.favicon_url}
+                    class="favicon"
+                    src={blink.favicon_url}
+                    loading="lazy"
+                  />(<a href={"/blinks?" <> URI.encode_query(q: domain(blink.url))}>{blink.site_name ||
+                    domain(blink.url)}</a>)</span>
                 <div :if={blink.quotes != [] && blink.title} class="subtitle">{blink.title}</div>
                 <div :if={root_quote(blink)} class="bsky-quote">
                   ↳ quoting <b>@{root_quote(blink)["handle"]}</b>: “{root_quote(blink)["text"]}”
