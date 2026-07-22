@@ -456,16 +456,16 @@ defmodule BlogWeb.BlinksLiveTest do
     end
 
     {:ok, view, html} = live(conn, "/blinks")
-    # newest first: items 055..006 on page one
+    # default page size 30, newest first: items 055..026 on page one
     assert html =~ "Item 055"
-    assert html =~ "Item 006"
-    refute html =~ "Item 005"
+    assert html =~ "Item 026"
+    refute html =~ "Item 025"
     assert html =~ "MORE ›"
     refute html =~ "‹ BACK"
 
     view |> element("button[phx-click=more]") |> render_click()
     html = render(view)
-    assert html =~ "Item 005"
+    assert html =~ "Item 025"
     refute html =~ "Item 055"
     assert html =~ "‹ BACK"
     refute html =~ "MORE ›"
@@ -473,6 +473,13 @@ defmodule BlogWeb.BlinksLiveTest do
 
     view |> element("button[phx-click=prev-page]") |> render_click()
     assert render(view) =~ "Item 055"
+
+    # the viewport-fit hook resizes pages to what fits without scrolling
+    render_hook(view, "fit", %{"count" => 10})
+    html = render(view)
+    assert html =~ "Item 055"
+    assert html =~ "Item 046"
+    refute html =~ "Item 045"
   end
 
   test "archives tab bundles links by week", %{conn: conn} do

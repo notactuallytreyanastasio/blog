@@ -732,6 +732,39 @@ Hooks.ChatScroll = {
   }
 };
 
+// Measures how many link rows fit the viewport without scrolling and tells
+// the server, which sizes pages to match. Conservative (-1 row) so columns
+// never overflow the fold.
+Hooks.PaperFit = {
+  mounted() {
+    this._measure = () => {
+      const ch = this.el.clientHeight;
+      if (ch < 60) return;
+      const things = this.el.querySelectorAll('.thing');
+      if (!things.length) return;
+      let sum = 0;
+      things.forEach((t) => (sum += t.offsetHeight));
+      const avg = sum / things.length;
+      const fit = Math.max(6, (Math.floor(ch / avg) - 1) * 2);
+      if (this._last && Math.abs(this._last - fit) < 2) return;
+      this._last = fit;
+      this.pushEvent('fit', { count: fit });
+    };
+    this._onResize = () => {
+      clearTimeout(this._t);
+      this._t = setTimeout(this._measure, 300);
+    };
+    window.addEventListener('resize', this._onResize);
+    this._measure();
+  },
+  updated() {
+    this._measure();
+  },
+  destroyed() {
+    window.removeEventListener('resize', this._onResize);
+  }
+};
+
 // Per-device preferences for /blinks (hidden links live in localStorage)
 Hooks.BlinksPrefs = {
   mounted() {

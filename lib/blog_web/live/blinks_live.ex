@@ -42,6 +42,7 @@ defmodule BlogWeb.BlinksLive do
        dork_editing: false,
        dork_tags: Blinks.dork_tags(),
        singles_open: false,
+       page_size: 30,
        hidden_ids: MapSet.new(),
        fresh_ids: MapSet.new(),
        admin: false,
@@ -54,8 +55,6 @@ defmodule BlogWeb.BlinksLive do
        tour_steps: []
      )}
   end
-
-  @page_size 50
 
   def handle_params(params, _uri, socket) do
     q = params["q"] || ""
@@ -177,7 +176,7 @@ defmodule BlogWeb.BlinksLive do
     %{q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to} = socket.assigns
     exclude = if nodork, do: socket.assigns.dork_tags, else: []
 
-    %{page: page, view: view, week: week} = socket.assigns
+    %{page: page, view: view, week: week, page_size: page_size} = socket.assigns
 
     blinks =
       cond do
@@ -193,18 +192,18 @@ defmodule BlogWeb.BlinksLive do
             tags: tags,
             exclude_tags: exclude,
             week: if(view == :archives, do: week),
-            limit: @page_size + 1,
-            offset: (page - 1) * @page_size
+            limit: page_size + 1,
+            offset: (page - 1) * page_size
           )
       end
 
     has_more =
       !similar_to and not (view == :archives and is_nil(week)) and
-        length(blinks) > @page_size
+        length(blinks) > page_size
 
     blinks =
       blinks
-      |> Enum.take(@page_size)
+      |> Enum.take(page_size)
       |> Enum.reject(&MapSet.member?(socket.assigns.hidden_ids, &1.id))
 
     socket =
@@ -304,6 +303,17 @@ defmodule BlogWeb.BlinksLive do
 
   def handle_event("search", %{"q" => q}, socket) do
     {:noreply, patch(socket, q: q, similar: "", page: "")}
+  end
+
+  # The PaperFit hook reports how many rows fit the viewport without scrolling.
+  def handle_event("fit", %{"count" => count}, socket) when is_integer(count) do
+    size = count |> max(6) |> min(60)
+
+    if size == socket.assigns.page_size do
+      {:noreply, socket}
+    else
+      {:noreply, socket |> assign(page_size: size) |> reload()}
+    end
   end
 
   def handle_event("more", _params, socket) do
@@ -765,9 +775,9 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
         #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
 
-        /* two real columns (server-split), the paper region scrolls
-           vertically inside the fixed shell — no horizontal scroll, ever */
-        #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; }
+        /* two real columns (server-split) cut at the screen bottom — the
+           page size adapts to the viewport, MORE gets the rest. NO scrolling. */
+        #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: flex-start; }
         #blinks-page .paper .col { flex: 1; min-width: 0; }
         #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
 
@@ -817,6 +827,8 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .pillbtn { display: inline-block; cursor: pointer; color: #fff; background: #369; border: 1px outset #5f99cf; border-radius: 2px; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; padding: 1px 5px; list-style: none; user-select: none; }
         #blinks-page .pillbtn::-webkit-details-marker { display: none; }
         #blinks-page .xd { display: inline; margin: 0; }
+        #blinks-page .tagsfold { display: block; margin: 1px 0; }
+        #blinks-page .tagsfold .meta { display: inline; }
         #blinks-page .xd[open] .pillbtn { border-style: inset; background: #1d4568; }
         #blinks-page .threadmark { display: inline; cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
         #blinks-page .threadmark::-webkit-details-marker { display: none; }
@@ -1040,7 +1052,7 @@ defmodule BlogWeb.BlinksLive do
             nothing here. go save some links.
           </div>
 
-          <div class="paper">
+          <div class="paper" id="paper" phx-hook="PaperFit">
             <div :for={{col, offset} <- split_columns(@blinks, 2)} class="col">
             <div
               :for={{blink, i} <- Enum.with_index(col, offset)}
@@ -1051,7 +1063,7 @@ defmodule BlogWeb.BlinksLive do
               ]}
               id={"blink-#{blink.id}"}
             >
-              <span class="rank">{(@page - 1) * 50 + i}</span>
+              <span class="rank">{(@page - 1) * @page_size + i}</span>
               <img :if={blink.image_url} class="thumb" src={blink.image_url} loading="lazy" />
               <div class="entry">
                 <a
@@ -1072,42 +1084,45 @@ defmodule BlogWeb.BlinksLive do
                 <div :if={root_quote(blink)} class="bsky-quote">
                   ↳ quoting <b>@{root_quote(blink)["handle"]}</b>: “{root_quote(blink)["text"]}”
                 </div>
-                <div class="meta">
-                  <span :for={tag <- blink.tags}>
-                    <span
-                      class={["tag", tag in @selected_tags && "on"]}
-                      phx-click="toggle-tag"
-                      phx-value-tag={tag}
-                    >
-                      {tag}<span
-                        :if={@admin}
-                        class="tagx"
-                        phx-click="remove-tag"
-                        phx-value-id={blink.id}
+                <details :if={blink.tags != [] or @admin} class="xd tagsfold">
+                  <summary class="pillbtn">TAGS ({length(blink.tags)})</summary>
+                  <div class="meta">
+                    <span :for={tag <- blink.tags}>
+                      <span
+                        class={["tag", tag in @selected_tags && "on"]}
+                        phx-click="toggle-tag"
                         phx-value-tag={tag}
-                        title="remove this tag"
-                      >✕</span>
+                      >
+                        {tag}<span
+                          :if={@admin}
+                          class="tagx"
+                          phx-click="remove-tag"
+                          phx-value-id={blink.id}
+                          phx-value-tag={tag}
+                          title="remove this tag"
+                        >✕</span>
+                      </span>
                     </span>
-                  </span>
-                  <a :if={@admin} class="tagadd-link" phx-click="edit-tags" phx-value-id={blink.id}>
-                    +tag
-                  </a>
-                  <form
-                    :if={@admin && @tag_editing == blink.id}
-                    class="tagadd"
-                    phx-submit="add-tags"
-                  >
-                    <input type="hidden" name="id" value={blink.id} />
-                    <input
-                      type="text"
-                      name="tags"
-                      placeholder="new, tags, here"
-                      autocomplete="off"
-                      autocapitalize="none"
-                    />
-                    <button type="submit" class="aim-send">add</button>
-                  </form>
-                </div>
+                    <a :if={@admin} class="tagadd-link" phx-click="edit-tags" phx-value-id={blink.id}>
+                      +tag
+                    </a>
+                    <form
+                      :if={@admin && @tag_editing == blink.id}
+                      class="tagadd"
+                      phx-submit="add-tags"
+                    >
+                      <input type="hidden" name="id" value={blink.id} />
+                      <input
+                        type="text"
+                        name="tags"
+                        placeholder="new, tags, here"
+                        autocomplete="off"
+                        autocapitalize="none"
+                      />
+                      <button type="submit" class="aim-send">add</button>
+                    </form>
+                  </div>
+                </details>
                 <div class="meta">
                   <a
                     phx-click="open-chat"
