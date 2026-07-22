@@ -829,10 +829,34 @@ defmodule BlogWeb.BlinksLive do
   defp frequent_tags(tags), do: Enum.filter(tags, &(&1.count >= 2))
   defp single_tags(tags), do: Enum.filter(tags, &(&1.count == 1))
 
-  # Server-side newspaper columns with continuous numbering.
+  # Server-side newspaper columns with continuous numbering, split by
+  # estimated rendered height so a few tall bsky rows on one side don't
+  # leave the other column half empty.
   defp split_columns(blinks, 2) do
-    {left, right} = Enum.split(blinks, ceil(length(blinks) / 2))
+    total = blinks |> Enum.map(&est_height/1) |> Enum.sum()
+
+    {left, _} =
+      Enum.reduce_while(blinks, {[], 0}, fn blink, {acc, h} ->
+        h = h + est_height(blink)
+        if h * 2 >= total and acc != [], do: {:halt, {[blink | acc], h}}, else: {:cont, {[blink | acc], h}}
+      end)
+
+    left = Enum.reverse(left)
+    right = Enum.drop(blinks, length(left))
     [{left, 1}, {right, length(left) + 1}]
+  end
+
+  defp est_height(blink) do
+    title_lines = max(1, ceil(String.length(headline(blink)) / 55))
+
+    quote_h =
+      case root_quote(blink) do
+        nil -> 0
+        q -> 14 + ceil(String.length(q["text"] || "") / 65) * 13
+      end
+
+    media_h = if row_media_count(blink) > 0, do: 16, else: 0
+    46 + title_lines * 17 + quote_h + media_h
   end
 
   # Names worth autocompleting: whoever is in the room now + whoever has posted.
