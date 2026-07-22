@@ -746,7 +746,9 @@ Hooks.PaperFit = {
       things.forEach((t) => (sum += t.offsetHeight));
       const avg = sum / things.length;
       const fit = Math.max(6, (Math.floor(ch / avg) - 1) * 2);
-      if (this._last && Math.abs(this._last - fit) < 2) return;
+      // wide deadband: re-fitting on every patch caused a resize feedback
+      // loop that made the whole page churn under clicks
+      if (this._last && Math.abs(this._last - fit) < 4) return;
       this._last = fit;
       this.pushEvent('fit', { count: fit });
     };
@@ -755,10 +757,8 @@ Hooks.PaperFit = {
       this._t = setTimeout(this._measure, 300);
     };
     window.addEventListener('resize', this._onResize);
-    this._measure();
-  },
-  updated() {
-    this._measure();
+    // measure once on mount (and on window resize) — never on DOM patches
+    setTimeout(this._measure, 50);
   },
   destroyed() {
     window.removeEventListener('resize', this._onResize);
