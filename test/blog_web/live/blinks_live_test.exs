@@ -191,17 +191,18 @@ defmodule BlogWeb.BlinksLiveTest do
     assert Chat.vote_counts([msg.id])[msg.id] == {0, 1}
   end
 
-  test "links always render in two columns", %{conn: conn} do
+  test "links render in the height-constrained column container", %{conn: conn} do
     for i <- 1..4 do
       Blinks.save_blink(%{"url" => "https://cols.co/#{i}", "title" => "Col #{i}"})
     end
 
     {:ok, _view, html} = live(conn, "/blinks")
-    assert length(String.split(html, ~s(class="col"))) - 1 == 2
-
-    blink = Blog.Blinks.get_by_url("https://cols.co/1")
-    {:ok, _view, html} = live(conn, "/blinks?chat=#{blink.id}")
-    assert length(String.split(html, ~s(class="col"))) - 1 == 2
+    # columns are CSS multicol (column-fill: auto) inside the fixed shell
+    assert html =~ ~s(class="paper")
+    assert html =~ "columns: 2"
+    assert html =~ "column-fill: auto"
+    assert html =~ "Col 1"
+    assert html =~ "Col 4"
   end
 
   test "no timestamps shown on the link list", %{conn: conn} do
@@ -391,7 +392,8 @@ defmodule BlogWeb.BlinksLiveTest do
     assert dead.dead_at
 
     {:ok, _view, html} = live(conn, "/blinks")
-    assert html =~ "💀"
+    refute html =~ "💀"
+    assert html =~ "thing dead"
     assert html =~ ~s(href="https://web.archive.org/web/2/https://gone.co/404")
 
     # recovery clears the flag and keeps last_checked_at fresh

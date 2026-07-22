@@ -589,15 +589,6 @@ defmodule BlogWeb.BlinksLive do
   defp frequent_tags(tags), do: Enum.filter(tags, &(&1.count >= 2))
   defp single_tags(tags), do: Enum.filter(tags, &(&1.count == 1))
 
-  # Server-side newspaper columns (Safari's CSS multicol chokes on flex rows).
-  # Returns [{column_items, starting_rank}, ...] with continuous numbering.
-  defp split_columns(blinks, 1), do: [{blinks, 1}]
-
-  defp split_columns(blinks, 2) do
-    {left, right} = Enum.split(blinks, ceil(length(blinks) / 2))
-    [{left, 1}, {right, length(left) + 1}]
-  end
-
   # Names worth autocompleting: whoever is in the room now + whoever has posted.
   defp mention_candidates(socket) do
     from_presence = socket.assigns.buddies |> Enum.map(& &1.name) |> Enum.reject(&(&1 == "lurker"))
@@ -611,7 +602,9 @@ defmodule BlogWeb.BlinksLive do
     <div id="blinks-page" phx-hook="BlinksPrefs">
       <style>
         #blinks-page, #blinks-page *, #blinks-page *::before, #blinks-page *::after { box-sizing: border-box; }
-        #blinks-page { font: 12px verdana, arial, helvetica, sans-serif; color: #000; background: #fff; min-height: 100vh; overflow-x: hidden; }
+        /* the outer shell never scrolls; inner regions (paper, sidebar, chat) do */
+        #blinks-page { font: 12px verdana, arial, helvetica, sans-serif; color: #000; background: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+        #blinks-page .masthead { flex-shrink: 0; }
         #blinks-page a { text-decoration: none; }
         #blinks-page .masthead { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 4px 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
         #blinks-page .masthead h1 { font-size: 15px; font-weight: bold; letter-spacing: -0.5px; margin: 0; display: inline; }
@@ -621,21 +614,19 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .searchform { margin-left: auto; }
         #blinks-page .searchform input[type="text"] { border: 1px solid #5f99cf; font-size: 12px; padding: 2px 4px; width: 220px; }
 
-        #blinks-page .layout { display: flex; gap: 16px; padding: 8px 10px; align-items: flex-start; }
-        #blinks-page .links { flex: 1; min-width: 0; }
+        #blinks-page .layout { display: flex; gap: 16px; padding: 8px 10px; align-items: stretch; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+        #blinks-page .links { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
         #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
         #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
 
-        #blinks-page .paper { display: flex; gap: 0; align-items: flex-start; }
-        #blinks-page .paper .col { flex: 1; min-width: 0; }
-        #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
-        @media (max-width: 980px) {
-          #blinks-page .paper { flex-direction: column; }
-          #blinks-page .paper .col { width: 100%; }
-          #blinks-page .paper .col + .col { border-left: none; padding-left: 0; margin-left: 0; }
-        }
+        /* posts fill column one to the bottom of the screen, then flow to the
+           next column; overflow makes more columns you scroll sideways to */
+        #blinks-page .paper { flex: 1 1 auto; min-height: 0; columns: 2; column-gap: 44px; column-fill: auto; column-rule: 1px solid #ddd; overflow-x: auto; overflow-y: hidden; }
 
-        #blinks-page .thing { display: flex; gap: 6px; padding: 3px 0; }
+        #blinks-page .thing { display: block; padding: 3px 0; break-inside: avoid; -webkit-column-break-inside: avoid; }
+        /* dead links: the whole row fades to a readable grey */
+        #blinks-page .thing.dead { filter: grayscale(1); opacity: 0.55; }
+        #blinks-page .thing.dead .title { color: #666; }
         /* new arrivals tune in from static, like a channel coming in */
         #blinks-page .thing.fresh { position: relative; animation: blinks-detune 2.2s ease-out both; }
         #blinks-page .thing.fresh::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: hard-light; background-image: repeating-radial-gradient(circle at 17% 32%, #000 0 1px, transparent 1px 2px), repeating-radial-gradient(circle at 73% 61%, #fff 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); background-size: 7px 7px, 11px 11px, 100% 4px; animation: blinks-staticfuzz 2.2s steps(10) both; }
@@ -658,10 +649,10 @@ defmodule BlogWeb.BlinksLive do
         @media (prefers-reduced-motion: reduce) {
           #blinks-page .thing.fresh, #blinks-page .thing.fresh::after { animation: none; }
         }
-        #blinks-page .rank { color: #c6c6c6; font-size: 11px; min-width: 18px; text-align: right; padding-top: 1px; }
-        #blinks-page .thumb { width: 48px; height: 36px; object-fit: cover; border: 1px solid #ddd; flex-shrink: 0; }
+        #blinks-page .rank { color: #c6c6c6; font-size: 11px; margin-right: 3px; }
+        #blinks-page .thumb { width: 48px; height: 36px; object-fit: cover; border: 1px solid #ddd; float: left; margin-right: 6px; }
         #blinks-page .favicon { width: 11px; height: 11px; vertical-align: -2px; margin-right: 2px; }
-        #blinks-page .entry { min-width: 0; }
+        #blinks-page .entry { display: inline; }
         #blinks-page .title { font-size: 13px; color: #0000ff; }
         #blinks-page .title:visited { color: #551a8b; }
         #blinks-page .domain { color: #888; font-size: 10px; }
@@ -697,7 +688,7 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .tag.on { background: #cee3f8; border-color: #5f99cf; font-weight: bold; }
         #blinks-page .empty { color: #888; padding: 20px 0; }
 
-        #blinks-page .sidebar { width: 280px; flex-shrink: 0; }
+        #blinks-page .sidebar { width: 280px; flex-shrink: 0; overflow-y: auto; min-height: 0; }
         #blinks-page .sidebox { border: 1px solid #5f99cf; margin-bottom: 12px; }
         #blinks-page .sidebox h2 { background: #cee3f8; color: #369; font-size: 11px; font-weight: bold; margin: 0; padding: 3px 6px; }
         #blinks-page .sidebox .body { padding: 6px; }
@@ -764,8 +755,11 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .win95.buddies { left: auto; right: 40px; top: 120px; width: 220px; min-width: 0; z-index: 1001; }
 
         @media (max-width: 800px) {
-          #blinks-page .layout { flex-direction: column; }
-          #blinks-page .sidebar { width: 100%; }
+          /* phones keep normal document scrolling — a locked shell is misery there */
+          #blinks-page { height: auto; display: block; overflow: visible; }
+          #blinks-page .layout { flex-direction: column; overflow: visible; }
+          #blinks-page .paper { columns: 1; height: auto; overflow: visible; }
+          #blinks-page .sidebar { width: 100%; overflow-y: visible; }
           #blinks-page .masthead .searchform { margin-left: 0; width: 100%; }
           #blinks-page .searchform input[type="text"] { width: 100%; }
           /* bigger tap targets */
@@ -855,13 +849,16 @@ defmodule BlogWeb.BlinksLive do
           <div :if={@blinks == []} class="empty">nothing here. go save some links.</div>
 
           <div class="paper">
-            <div :for={{col, offset} <- split_columns(@blinks, 2)} class="col">
-              <div
-                :for={{blink, i} <- Enum.with_index(col, offset)}
-                class={["thing", MapSet.member?(@fresh_ids, blink.id) && "fresh"]}
-                id={"blink-#{blink.id}"}
-              >
-              <div class="rank">{i}</div>
+            <div
+              :for={{blink, i} <- Enum.with_index(@blinks, 1)}
+              class={[
+                "thing",
+                MapSet.member?(@fresh_ids, blink.id) && "fresh",
+                blink.dead_at && "dead"
+              ]}
+              id={"blink-#{blink.id}"}
+            >
+              <span class="rank">{i}</span>
               <img :if={blink.image_url} class="thumb" src={blink.image_url} loading="lazy" />
               <div class="entry">
                 <a
@@ -869,16 +866,10 @@ defmodule BlogWeb.BlinksLive do
                   href={if blink.dead_at, do: "https://web.archive.org/web/2/" <> blink.url, else: blink.url}
                   target="_blank"
                   rel="noopener"
+                  title={blink.dead_at && "original link is dead — points at the wayback copy"}
                 >
                   {headline(blink)}
                 </a>
-                <span
-                  :if={blink.dead_at}
-                  title="original link is dead — pointing at the wayback copy"
-                  style="cursor: help;"
-                >
-                  💀
-                </span>
                 <span class="domain">
                   (<img :if={blink.favicon_url} class="favicon" src={blink.favicon_url} loading="lazy" /><a href={
                     "/blinks?" <> URI.encode_query(q: domain(blink.url))
@@ -946,7 +937,6 @@ defmodule BlogWeb.BlinksLive do
                     </div>
                   </details>
                 </div>
-              </div>
               </div>
             </div>
           </div>
