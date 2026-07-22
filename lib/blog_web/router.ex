@@ -151,6 +151,7 @@ defmodule BlogWeb.Router do
 
     live_session :blinks, layout: false do
       live "/blinks", BlinksLive, :index
+      live "/blinks/review", BlinksReviewLive, :index
     end
   end
 
@@ -199,6 +200,7 @@ defmodule BlogWeb.Router do
     get "/blinks/tags", BlinkController, :tags
     get "/blinks/lookup", BlinkController, :lookup
     get "/blinks/export", BlinkController, :export
+    post "/blinks/candidates", BlinkController, :import_candidates
   end
 
   # RSS feed for saved links; no pipeline so feed readers' Accept headers

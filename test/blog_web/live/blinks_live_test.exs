@@ -407,6 +407,45 @@ defmodule BlogWeb.BlinksLiveTest do
     assert redirected_to(conn2, 302) == "https://only.co/one"
   end
 
+  test "bookmark review: upvote blinks it, downvote dismisses, key required", %{conn: conn} do
+    2 =
+      Blinks.import_candidates([
+        %{"url" => "https://bm.co/keeper", "title" => "Keeper", "folder" => "postgres"},
+        %{"url" => "https://bm.co/meh", "title" => "Meh", "folder" => "Favorites"},
+        %{"url" => "javascript:alert(1)", "title" => "bookmarklet"}
+      ])
+
+    # no key → bounced to /blinks
+    assert {:error, {:redirect, %{to: "/blinks"}}} = live(conn, "/blinks/review")
+
+    {:ok, view, html} = live(conn, "/blinks/review?key=dev-blinks-token")
+    assert html =~ "Keeper"
+    assert html =~ "0 / 2 reviewed"
+
+    view
+    |> element("span.arrow.up[phx-value-id='#{candidate_id("https://bm.co/keeper")}']")
+    |> render_click()
+
+    blink = Blinks.get_by_url("https://bm.co/keeper")
+    assert blink.title == "Keeper"
+    assert "bookmarks" in blink.tags
+    assert "postgres" in blink.tags
+
+    view
+    |> element("span.arrow.down[phx-value-id='#{candidate_id("https://bm.co/meh")}']")
+    |> render_click()
+
+    refute Blinks.get_by_url("https://bm.co/meh")
+    assert render(view) =~ "queue zero"
+
+    # re-import skips urls that already became blinks
+    assert Blinks.import_candidates([%{"url" => "https://bm.co/keeper", "title" => "Keeper"}]) == 0
+  end
+
+  defp candidate_id(url) do
+    Blog.Repo.get_by!(Blog.Blinks.BookmarkCandidate, url: url).id
+  end
+
   test "comment counts show on the list", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://c.co/2", "title" => "Counted"})
     {:ok, chatter} = Chat.find_or_create_chatter("counter", "1.2.3.4")

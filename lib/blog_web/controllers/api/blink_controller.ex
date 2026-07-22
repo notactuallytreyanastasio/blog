@@ -52,6 +52,10 @@ defmodule BlogWeb.Api.BlinkController do
     json(conn, %{status: "ok", tags: Blinks.list_tags()})
   end
 
+  def import_candidates(conn, %{"candidates" => candidates}) when is_list(candidates) do
+    json(conn, %{status: "ok", imported: Blinks.import_candidates(candidates)})
+  end
+
   def lookup(conn, params) do
     json(conn, %{status: "ok", blink: Blinks.get_by_url(params["url"])})
   end

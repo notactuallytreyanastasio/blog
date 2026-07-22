@@ -150,6 +150,98 @@ defmodule Blog.Blinks do
     Blink |> order_by(fragment("random()")) |> limit(1) |> Repo.one()
   end
 
+  # ── bookmark review queue ────────────────────────────────────────────────
+
+  alias Blog.Blinks.BookmarkCandidate
+
+  @doc "Bulk-import bookmark candidates; skips urls already saved or queued."
+  @spec import_candidates([map()]) :: non_neg_integer()
+  def import_candidates(entries) do
+    existing = Blink |> select([b], b.url) |> Repo.all() |> MapSet.new()
+    now = NaiveDateTime.utc_now(:second)
+
+    rows =
+      entries
+      |> Enum.filter(fn e ->
+        is_binary(e["url"]) and String.starts_with?(e["url"], "http") and
+          not MapSet.member?(existing, e["url"])
+      end)
+      |> Enum.map(fn e ->
+        %{
+          url: String.slice(e["url"], 0, 4096),
+          title: e["title"] && String.slice(e["title"], 0, 1000),
+          folder: e["folder"] && String.slice(e["folder"], 0, 200),
+          status: "pending",
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    {count, _} =
+      Repo.insert_all(BookmarkCandidate, rows, on_conflict: :nothing, conflict_target: :url)
+
+    count
+  end
+
+  @spec pending_candidates() :: [BookmarkCandidate.t()]
+  def pending_candidates do
+    BookmarkCandidate
+    |> where([c], c.status == "pending")
+    |> order_by([c], asc: c.folder, asc: c.id)
+    |> Repo.all()
+  end
+
+  @spec candidate_counts() :: %{String.t() => non_neg_integer()}
+  def candidate_counts do
+    BookmarkCandidate
+    |> group_by([c], c.status)
+    |> select([c], {c.status, count(c.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc "Upvote = becomes a blink (tagged bookmarks + its folder); downvote = dismissed."
+  @spec review_candidate(integer(), :add | :dismiss) ::
+          {:ok, BookmarkCandidate.t()} | {:error, term()}
+  def review_candidate(id, verdict) do
+    case Repo.get(BookmarkCandidate, id) do
+      nil ->
+        {:error, :not_found}
+
+      %BookmarkCandidate{} = candidate ->
+        with :add <- verdict,
+             {:ok, _blink} <-
+               save_blink(%{
+                 "url" => candidate.url,
+                 "title" => candidate.title,
+                 "tags" => ["bookmarks" | folder_tag(candidate.folder)]
+               }) do
+          candidate |> Ecto.Changeset.change(status: "added") |> Repo.update()
+        else
+          :dismiss ->
+            candidate |> Ecto.Changeset.change(status: "dismissed") |> Repo.update()
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp folder_tag(nil), do: []
+  defp folder_tag("Favorites"), do: []
+
+  defp folder_tag(folder) do
+    tag =
+      folder
+      |> String.split("/")
+      |> List.last()
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+      |> String.trim("-")
+
+    if tag == "", do: [], else: [tag]
+  end
+
   # Always considered ultra nerdy stuff, no matter what the editable list says.
   @base_dork_tags ~w(code programming ai ml programming-languages tech-commentary)
 
