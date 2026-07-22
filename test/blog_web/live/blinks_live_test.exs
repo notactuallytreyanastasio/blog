@@ -325,6 +325,24 @@ defmodule BlogWeb.BlinksLiveTest do
     my_reply = Map.put(node.("did:me", "my hot take", "2026-01-01T01:00:00Z", []), "parent", other)
     assert [%{"text" => "my hot take"}] = Blog.Blinks.Enricher.unroll_posts(my_reply)
 
+    # quote posts carry the quoted record's author + text
+    quoting =
+      put_in(
+        node.("did:me", "pirate math", "2026-01-01T00:00:00Z", []),
+        ["post", "embed"],
+        %{
+          "$type" => "app.bsky.embed.record#view",
+          "record" => %{
+            "$type" => "app.bsky.embed.record#viewRecord",
+            "author" => %{"handle" => "quoted.bsky", "displayName" => "Q"},
+            "value" => %{"text" => "the original hot take"}
+          }
+        }
+      )
+
+    assert [%{"quote" => %{"handle" => "quoted.bsky", "text" => "the original hot take"}}] =
+             Blog.Blinks.Enricher.unroll_posts(quoting)
+
     {:ok, b} =
       Blinks.save_blink(%{"url" => "https://bsky.app/profile/bob.bsky/post/abc", "title" => "t"})
 

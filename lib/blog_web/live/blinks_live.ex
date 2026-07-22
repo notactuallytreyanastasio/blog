@@ -524,6 +524,13 @@ defmodule BlogWeb.BlinksLive do
   defp thread_posts(%{thread: %{"posts" => posts}}) when is_list(posts), do: posts
   defp thread_posts(_blink), do: []
 
+  defp root_quote(blink) do
+    case thread_posts(blink) do
+      [%{"quote" => %{} = quote} | _] -> quote
+      _ -> nil
+    end
+  end
+
   # Row headline: first quote wins, then a thread's top-level post, then title.
   defp headline(blink) do
     cond do
@@ -616,6 +623,8 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .tpost { border-left: 2px solid #cee3f8; margin: 0 0 6px 4px; padding: 2px 0 2px 8px; }
         #blinks-page .tpost .thandle { color: #888; font-size: 9px; margin-left: 4px; }
         #blinks-page .tpost .ttext { white-space: pre-wrap; font-size: 11px; color: #222; margin-top: 1px; }
+        #blinks-page .tquote { border-left: 2px solid #ddd; margin: 3px 0 0 6px; padding-left: 6px; color: #555; font-size: 10px; white-space: pre-wrap; }
+        #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
         #blinks-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 0 2px 1px 0; cursor: pointer; }
@@ -796,6 +805,9 @@ defmodule BlogWeb.BlinksLive do
                   }>{blink.site_name || domain(blink.url)}</a>)
                 </span>
                 <div :if={blink.quotes != [] && blink.title} class="subtitle">{blink.title}</div>
+                <div :if={root_quote(blink)} class="bsky-quote">
+                  ↳ quoting <b>@{root_quote(blink)["handle"]}</b>: “{root_quote(blink)["text"]}”
+                </div>
                 <div class="meta">
                   <span :for={tag <- blink.tags}>
                     <span
@@ -845,6 +857,9 @@ defmodule BlogWeb.BlinksLive do
                         <b>{post["name"] || post["handle"]}</b>
                         <span class="thandle">@{post["handle"]}</span>
                         <div class="ttext">{post["text"]}</div>
+                        <div :if={post["quote"]} class="tquote">
+                          ↳ <b>@{post["quote"]["handle"]}</b>: “{post["quote"]["text"]}”
+                        </div>
                       </div>
                     </div>
                   </details>

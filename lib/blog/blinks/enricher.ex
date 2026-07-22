@@ -141,10 +141,33 @@ defmodule Blog.Blinks.Enricher do
         "name" => get_in(post, ["author", "displayName"]),
         "handle" => get_in(post, ["author", "handle"]),
         "text" => get_in(post, ["record", "text"]),
-        "at" => get_in(post, ["record", "createdAt"])
+        "at" => get_in(post, ["record", "createdAt"]),
+        "quote" => quoted_embed(post)
       }
     end)
     |> Enum.reject(&is_nil(&1["text"]))
+  end
+
+  # Quote posts embed the quoted record — pull its author + text so the
+  # saved post doesn't read like half a conversation.
+  defp quoted_embed(post) do
+    record =
+      case post["embed"] do
+        %{"$type" => "app.bsky.embed.record#view", "record" => r} -> r
+        %{"$type" => "app.bsky.embed.recordWithMedia#view", "record" => %{"record" => r}} -> r
+        _ -> nil
+      end
+
+    with %{"$type" => "app.bsky.embed.record#viewRecord"} = r <- record,
+         text when is_binary(text) <- get_in(r, ["value", "text"]) do
+      %{
+        "name" => get_in(r, ["author", "displayName"]),
+        "handle" => get_in(r, ["author", "handle"]),
+        "text" => text
+      }
+    else
+      _ -> nil
+    end
   end
 
   defp climb_to_root(%{"parent" => %{"post" => _} = parent}), do: climb_to_root(parent)
