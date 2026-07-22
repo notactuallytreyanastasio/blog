@@ -1113,6 +1113,19 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .buddy-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7fbf00; margin-right: 5px; }
         #blinks-page .win95.buddies { left: auto; right: 40px; top: 120px; width: 220px; min-width: 0; z-index: 1001; }
 
+        /* tour skin — self-contained, since the component's default skin
+           relies on tailwind arbitrary classes that never get compiled */
+        .bt-overlay { position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,0.45); }
+        .bt-spot { position: fixed; z-index: 9999; pointer-events: none; border: 2px solid #ff4500; border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
+        .bt-tip { position: fixed; z-index: 10000; max-width: 320px; background: #fff; border: 1px solid #5f99cf; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-family: verdana, arial, sans-serif; }
+        .bt-title { font-size: 13px; font-weight: bold; color: #ff4500; margin-bottom: 4px; }
+        .bt-content { font-size: 12px; color: #333; line-height: 1.5; }
+        .bt-footer { border-top: 1px solid #eee; padding-top: 8px; margin-top: 10px; }
+        .bt-progress { font-size: 10px; color: #888; }
+        .bt-btn { font: bold 11px verdana; padding: 4px 12px; border: 1px solid #5f99cf; border-radius: 3px; background: #f5f9fd; color: #369; cursor: pointer; }
+        .bt-btn-primary { background: #ff4500; border-color: #ff4500; color: #fff; }
+        .bt-close { width: 12px; height: 12px; background: #fff; border: 1px solid #888; cursor: pointer; }
+
         @media (max-width: 800px) {
           /* phones keep normal document scrolling — a locked shell is misery there */
           #blinks-page { height: auto; display: block; overflow: visible; }
@@ -1143,6 +1156,20 @@ defmodule BlogWeb.BlinksLive do
         id="blinks-tour"
         steps={@tour_steps}
         run={@show_tour}
+        classes={%{
+          overlay: "bt-overlay",
+          spotlight: "bt-spot",
+          tooltip: "bt-tip",
+          titlebar: "",
+          title: "bt-title",
+          content: "bt-content",
+          footer: "bt-footer",
+          progress: "bt-progress",
+          button: "bt-btn",
+          button_primary: "bt-btn-primary",
+          button_back: "",
+          close: "bt-close"
+        }}
       />
 
       <header class="masthead">
