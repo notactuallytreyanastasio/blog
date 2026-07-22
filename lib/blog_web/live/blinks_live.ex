@@ -66,6 +66,16 @@ defmodule BlogWeb.BlinksLive do
         _ -> 1
       end
 
+    view = if params["view"] == "archives", do: :archives, else: :live
+
+    week =
+      with :archives <- view,
+           {:ok, date} <- Date.from_iso8601(params["week"] || "") do
+        Date.beginning_of_week(date)
+      else
+        _ -> nil
+      end
+
     tags =
       (params["tags"] || "")
       |> String.split(",")
@@ -83,7 +93,15 @@ defmodule BlogWeb.BlinksLive do
 
     socket =
       socket
-      |> assign(q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to, page: page)
+      |> assign(
+        q: q,
+        selected_tags: tags,
+        nodork: nodork,
+        similar_to: similar_to,
+        page: page,
+        view: view,
+        week: week
+      )
       |> assign(fresh_ids: MapSet.new())
       |> reload()
       |> sync_chat(params["chat"])
@@ -158,12 +176,20 @@ defmodule BlogWeb.BlinksLive do
     %{q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to} = socket.assigns
     exclude = if nodork, do: socket.assigns.dork_tags, else: []
 
-    page = socket.assigns.page
+    %{page: page, view: view, week: week} = socket.assigns
 
     blinks =
-      if similar_to,
-        do: Blinks.list_similar(similar_to, 25),
-        else:
+      cond do
+        similar_to ->
+          Blinks.list_similar(similar_to, 25)
+
+        view == :archives and is_nil(week) ->
+          []
+
+        view == :archives ->
+          Blinks.list_blinks(query: q, tags: tags, exclude_tags: exclude, week: week, limit: 500)
+
+        true ->
           Blinks.list_blinks(
             query: q,
             tags: tags,
@@ -171,13 +197,19 @@ defmodule BlogWeb.BlinksLive do
             limit: @page_size + 1,
             offset: (page - 1) * @page_size
           )
+      end
 
-    has_more = !similar_to and length(blinks) > @page_size
+    has_more = !similar_to and view == :live and length(blinks) > @page_size
 
     blinks =
       blinks
-      |> Enum.take(@page_size)
+      |> Enum.take(if(view == :live, do: @page_size, else: length(blinks)))
       |> Enum.reject(&MapSet.member?(socket.assigns.hidden_ids, &1.id))
+
+    socket =
+      if view == :archives and is_nil(week),
+        do: assign(socket, weeks: Blinks.weeks()),
+        else: assign(socket, weeks: [])
 
     assign(socket,
       blinks: blinks,
@@ -555,6 +587,8 @@ defmodule BlogWeb.BlinksLive do
       q: a.q,
       tags: Enum.join(a.selected_tags, ","),
       page: if(a.page > 1, do: to_string(a.page), else: ""),
+      view: if(a.view == :archives, do: "archives", else: ""),
+      week: if(a.week, do: Date.to_iso8601(a.week), else: ""),
       nodork: if(a.nodork, do: "1", else: ""),
       similar: if(a.similar_to, do: to_string(a.similar_to.id), else: ""),
       chat: if(a.chat_blink, do: to_string(a.chat_blink.id), else: "")
@@ -682,6 +716,15 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .masthead h1 { font-size: 15px; font-weight: bold; letter-spacing: -0.5px; margin: 0; display: inline; }
         #blinks-page .masthead h1 span { color: #ff4500; }
         #blinks-page .dateline { color: #369; font-size: 10px; }
+        #blinks-page .tabs { display: flex; gap: 3px; align-self: flex-end; margin-bottom: -5px; }
+        #blinks-page .tabs .tab { font-size: 11px; font-weight: bold; color: #369; background: #b9d2ec; border: 1px solid #5f99cf; border-bottom: none; border-radius: 3px 3px 0 0; padding: 2px 10px; }
+        #blinks-page .tabs .tab.on { background: #fff; color: #ff4500; }
+        #blinks-page .bundles { overflow-y: auto; min-height: 0; }
+        #blinks-page .bundle { display: block; border: 1px solid #ddd; border-radius: 2px; padding: 7px 10px; margin-bottom: 6px; }
+        #blinks-page .bundle:hover { border-color: #5f99cf; background: #f5f9fd; }
+        #blinks-page .bundle b { color: #0000ff; font-size: 13px; }
+        #blinks-page .bundle .bcount { color: #888; font-size: 10px; margin-left: 8px; }
+        #blinks-page .bundle .bpreview { color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #blinks-page .tour-link { color: #369; font-size: 10px; font-weight: bold; cursor: pointer; }
         #blinks-page .searchform { margin-left: auto; }
         #blinks-page .searchform input[type="text"] { border: 1px solid #5f99cf; font-size: 12px; padding: 2px 4px; width: 220px; }
@@ -863,6 +906,12 @@ defmodule BlogWeb.BlinksLive do
 
       <header class="masthead">
         <h1>bobbby's <span>links</span></h1>
+        <nav class="tabs">
+          <.link patch={~p"/blinks"} class={["tab", @view == :live && "on"]}>live</.link>
+          <.link patch={~p"/blinks?view=archives"} class={["tab", @view == :archives && "on"]}>
+            archives
+          </.link>
+        </nav>
         <span class="dateline">{@total} saved</span>
         <a class="tour-link" phx-click="start-tour">tour</a>
         <a class="tour-link" href="/blinks/stumble" target="_blank" title="a random saved link">
@@ -918,12 +967,37 @@ defmodule BlogWeb.BlinksLive do
             &nbsp;<span class="clear" phx-click="clear">clear all</span>
           </div>
 
+          <div :if={@view == :archives && is_nil(@week)} class="bundles">
+            <div :if={@weeks == []} class="empty">no weeks archived yet.</div>
+            <.link
+              :for={bundle <- @weeks}
+              patch={~p"/blinks?view=archives&week=#{Date.to_iso8601(bundle.monday)}"}
+              class="bundle"
+            >
+              <b>Week of {Calendar.strftime(bundle.monday, "%b %-d")} –
+                {Calendar.strftime(Date.add(bundle.monday, 6), "%b %-d, %Y")}</b>
+              <span class="bcount">{bundle.count} links</span>
+              <div class="bpreview">{Enum.join(bundle.titles, " · ")}</div>
+            </.link>
+          </div>
+
+          <div :if={@week} class="filterbar">
+            <b>
+              Week of {Calendar.strftime(@week, "%b %-d")} –
+              {Calendar.strftime(Date.add(@week, 6), "%b %-d, %Y")}
+            </b>
+            · {length(@blinks)} links ·
+            <.link patch={~p"/blinks?view=archives"} class="clear">← all weeks</.link>
+          </div>
+
           <div :if={MapSet.size(@hidden_ids) > 0} class="filterbar">
             {MapSet.size(@hidden_ids)} hidden by you ·
             <span class="clear" phx-click="unhide-all">unhide all</span>
           </div>
 
-          <div :if={@blinks == []} class="empty">nothing here. go save some links.</div>
+          <div :if={@blinks == [] && !(@view == :archives && is_nil(@week))} class="empty">
+            nothing here. go save some links.
+          </div>
 
           <div class="paper">
             <div

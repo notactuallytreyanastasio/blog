@@ -111,7 +111,34 @@ defmodule Blog.Blinks do
     |> maybe_search(query)
     |> maybe_filter_tags(tags)
     |> maybe_exclude_tags(exclude)
+    |> maybe_week(Keyword.get(opts, :week))
     |> Repo.all()
+  end
+
+  @doc "Archive bundles: one per ISO week (Monday-start), newest first."
+  @spec weeks() :: [%{monday: Date.t(), count: non_neg_integer(), titles: [String.t()]}]
+  def weeks do
+    %{rows: rows} =
+      Repo.query!("""
+      SELECT date_trunc('week', inserted_at)::date AS wk,
+             count(*),
+             (array_agg(coalesce(title, url) ORDER BY inserted_at DESC))[1:3]
+      FROM blinks
+      GROUP BY wk
+      ORDER BY wk DESC
+      """)
+
+    Enum.map(rows, fn [monday, count, titles] ->
+      %{monday: monday, count: count, titles: titles || []}
+    end)
+  end
+
+  defp maybe_week(queryable, nil), do: queryable
+
+  defp maybe_week(queryable, %Date{} = monday) do
+    from = NaiveDateTime.new!(monday, ~T[00:00:00])
+    to = NaiveDateTime.new!(Date.add(monday, 7), ~T[00:00:00])
+    where(queryable, [b], b.inserted_at >= ^from and b.inserted_at < ^to)
   end
 
   # With embeddings enabled, append semantically-close blinks that keyword

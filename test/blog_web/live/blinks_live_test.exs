@@ -475,6 +475,31 @@ defmodule BlogWeb.BlinksLiveTest do
     assert render(view) =~ "Item 055"
   end
 
+  test "archives tab bundles links by week", %{conn: conn} do
+    {:ok, this_week} = Blinks.save_blink(%{"url" => "https://wk.co/now", "title" => "This Week"})
+    {:ok, old} = Blinks.save_blink(%{"url" => "https://wk.co/old", "title" => "Ancient One"})
+
+    # backdate one into a previous week
+    old_monday = Date.utc_today() |> Date.beginning_of_week() |> Date.add(-14)
+    backdated = NaiveDateTime.new!(Date.add(old_monday, 2), ~T[12:00:00])
+
+    old
+    |> Ecto.Changeset.change(inserted_at: backdated)
+    |> Blog.Repo.update!()
+
+    {:ok, _view, html} = live(conn, "/blinks?view=archives")
+    assert html =~ "Week of"
+    assert html =~ "Ancient One"
+    assert html =~ "This Week"
+
+    {:ok, _view, html} = live(conn, "/blinks?view=archives&week=#{Date.to_iso8601(old_monday)}")
+    assert html =~ "Ancient One"
+    refute html =~ "This Week"
+    assert html =~ "1 links"
+    assert html =~ "all weeks"
+    _ = this_week
+  end
+
   test "admin unlock enables delete; deletes take the chat room along", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://del.co/1", "title" => "Doomed"})
     {:ok, chatter} = Chat.find_or_create_chatter("mourner", "5.5.5.5")
