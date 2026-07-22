@@ -558,6 +558,21 @@ defmodule BlogWeb.BlinksLiveTest do
     _ = fresh
   end
 
+  test "stumble bookmarklet promo: draggable link, dismissible", %{conn: conn} do
+    {:ok, view, html} = live(conn, "/blinks")
+    assert html =~ "STUMBLE into a Bobbby link"
+    assert html =~ ~s(href="/blinks/stumble")
+    assert html =~ "drag this button"
+
+    view |> element("a[phx-click=dismiss-stumble-promo]") |> render_click()
+    refute render(view) =~ "STUMBLE into a Bobbby link"
+
+    # remembered via localStorage on later visits
+    {:ok, view2, _} = live(conn, "/blinks")
+    render_hook(view2, "prefs", %{"ids" => [], "seenTour" => true, "stumblePromoHidden" => true})
+    refute render(view2) =~ "STUMBLE into a Bobbby link"
+  end
+
   test "admin can edit a link's title and notes", %{conn: conn} do
     {:ok, blink} =
       Blinks.save_blink(%{"url" => "https://ed.co/1", "title" => "Bad Title", "description" => "old notes"})

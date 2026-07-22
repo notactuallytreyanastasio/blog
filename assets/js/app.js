@@ -775,7 +775,11 @@ Hooks.BlinksPrefs = {
     this.pushEvent('prefs', {
       ids: read(),
       seenTour: localStorage.getItem('blinksTourSeen') === '1',
-      adminKey: localStorage.getItem('blinksAdminKey') || null
+      adminKey: localStorage.getItem('blinksAdminKey') || null,
+      stumblePromoHidden: localStorage.getItem('blinksStumblePromoHidden') === '1'
+    });
+    this.handleEvent('blinks:stumble-promo-hidden', () => {
+      localStorage.setItem('blinksStumblePromoHidden', '1');
     });
     // cookie, not localStorage: the server must see it before first render
     this.handleEvent('blinks:always-shuffle', ({ on }) => {

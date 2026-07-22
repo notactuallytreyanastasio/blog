@@ -42,6 +42,7 @@ defmodule BlogWeb.BlinksLive do
        dork_editing: false,
        dork_tags: Blinks.dork_tags(),
        singles_open: false,
+       stumble_promo: true,
        page_size: 30,
        shuffle_seed:
          Map.get(session, "blinks_shuffle_seed") || Base.encode16(:crypto.strong_rand_bytes(4)),
@@ -457,7 +458,15 @@ defmodule BlogWeb.BlinksLive do
     socket = socket |> assign(hidden_ids: MapSet.new(ids)) |> reload()
     socket = if params["seenTour"], do: socket, else: assign(socket, show_tour: true)
     socket = if valid_key?(params["adminKey"]), do: assign(socket, admin: true), else: socket
+    socket = if params["stumblePromoHidden"], do: assign(socket, stumble_promo: false), else: socket
     {:noreply, socket}
+  end
+
+  def handle_event("dismiss-stumble-promo", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(stumble_promo: false)
+     |> push_event("blinks:stumble-promo-hidden", %{})}
   end
 
   def handle_event("unlock-admin", %{"key" => key}, socket) do
@@ -1042,6 +1051,13 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .singles-link { color: #369; font-size: 10px; cursor: pointer; font-weight: bold; }
         #blinks-page .singles-pop { position: absolute; left: 4px; right: 4px; z-index: 500; margin-top: 4px; background: #fff; border: 1px solid #5f99cf; box-shadow: 2px 2px 6px rgba(0,0,0,0.25); padding: 6px; max-height: 200px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 3px; }
 
+        #blinks-page .stumble-promo { display: flex; align-items: center; gap: 10px; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 7px 10px; margin-bottom: 6px; flex-shrink: 0; }
+        #blinks-page .sp-dice { font-size: 20px; }
+        #blinks-page .stumble-drag { display: inline-block; background: #ff4500; color: #fff !important; font: bold 12px verdana; letter-spacing: 0.5px; padding: 6px 14px; border: 2px outset #ff8c61; border-radius: 4px; cursor: grab; white-space: nowrap; }
+        #blinks-page .stumble-drag:active { cursor: grabbing; border-style: inset; }
+        #blinks-page .sp-text { color: #6b5d1f; font-size: 11px; }
+        #blinks-page .sp-dismiss { margin-left: auto; color: #999; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+        @media (max-width: 800px) { #blinks-page .stumble-promo { display: none; } }
         #blinks-page .dork-btn { display: block; width: 100%; font: bold 14px verdana; padding: 9px 0; margin-bottom: 6px; cursor: pointer; border: 3px outset #ff4500; background: #ff4500; color: #fff; letter-spacing: 1px; }
         #blinks-page .dork-btn.on { border-style: inset; background: #b33000; }
         #blinks-page .dork-edit { color: #888; font-size: 10px; cursor: pointer; }
@@ -1166,6 +1182,20 @@ defmodule BlogWeb.BlinksLive do
 
       <div class="layout">
         <div class="links">
+          <div :if={@view == :live && @stumble_promo} class="stumble-promo">
+            <span class="sp-dice">🎲</span>
+            <a class="stumble-drag" href="/blinks/stumble" title="Drag me to your bookmarks bar!">
+              STUMBLE into a Bobbby link
+            </a>
+            <span class="sp-text">
+              ← drag this button onto your bookmarks bar. click it whenever
+              you're bored and it takes you somewhere from the collection.
+            </span>
+            <a class="sp-dismiss" phx-click="dismiss-stumble-promo" title="hide this forever">
+              ✕ got it
+            </a>
+          </div>
+
           <button class={["dork-btn", @nodork && "on"]} phx-click="toggle-dork">
             {if @nodork,
               do: "✓ HIDING THE ULTRA NERDY STUFF (#{length(@dork_tags)} tags)",
