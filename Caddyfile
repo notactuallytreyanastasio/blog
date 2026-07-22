@@ -49,6 +49,31 @@ bobbby.online, www.bobbby.online {
 	}
 }
 
+links.bobbby.online {
+	encode gzip zstd
+
+	header {
+		X-Forwarded-Proto {scheme}
+		alt-svc "clear"
+	}
+
+	reverse_proxy blinks:4000 {
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+}
+
+# bobbbys.link is the landing page (host-routed inside the blinks app)
+bobbbys.link, www.bobbbys.link {
+	encode gzip zstd
+
+	header {
+		X-Forwarded-Proto {scheme}
+	}
+
+	reverse_proxy blinks:4000
+}
+
 gifmaker.bobbby.online {
 	reverse_proxy nathan:4001 {
 		header_up X-Real-IP {http.request.header.CF-Connecting-IP}

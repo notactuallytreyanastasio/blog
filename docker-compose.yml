@@ -39,6 +39,22 @@ services:
       S3_BUCKET: ${S3_BUCKET:-bobbby-media}
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
+  blinks:
+    build:
+      context: /opt/blinks_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/blinks_backend_prod
+      SECRET_KEY_BASE: ${BLINKS_SECRET_KEY_BASE}
+      PHX_HOST: links.bobbby.online
+      PORT: "4000"
+      POOL_SIZE: "10"
+      BLINKS_API_TOKEN: ${BLINKS_API_TOKEN:-}
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
   nathan:
     build:
       context: /opt/nathan
