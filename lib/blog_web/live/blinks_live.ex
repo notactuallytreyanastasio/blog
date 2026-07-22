@@ -35,6 +35,7 @@ defmodule BlogWeb.BlinksLive do
        dork_tags: Blinks.dork_tags(),
        singles_open: false,
        hidden_ids: MapSet.new(),
+       fresh_ids: MapSet.new(),
        # the tour auto-runs when this browser hasn't seen it (localStorage,
        # reported by the BlinksPrefs hook) — IP-based identity would wrongly
        # skip it in incognito/new browsers on a known network
@@ -65,6 +66,7 @@ defmodule BlogWeb.BlinksLive do
     socket =
       socket
       |> assign(q: q, selected_tags: tags, nodork: nodork, similar_to: similar_to)
+      |> assign(fresh_ids: MapSet.new())
       |> reload()
       |> sync_chat(params["chat"])
 
@@ -413,8 +415,17 @@ defmodule BlogWeb.BlinksLive do
     end
   end
 
-  def handle_info({event, %Blinks.Blink{}}, socket)
-      when event in [:blink_saved, :blink_updated] do
+  def handle_info({:blink_saved, %Blinks.Blink{} = blink}, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       total: Blinks.count_blinks(),
+       fresh_ids: MapSet.put(socket.assigns.fresh_ids, blink.id)
+     )
+     |> reload()}
+  end
+
+  def handle_info({:blink_updated, %Blinks.Blink{}}, socket) do
     {:noreply, socket |> assign(total: Blinks.count_blinks()) |> reload()}
   end
 
@@ -602,6 +613,28 @@ defmodule BlogWeb.BlinksLive do
         }
 
         #blinks-page .thing { display: flex; gap: 6px; padding: 3px 0; }
+        /* new arrivals tune in from static, like a channel coming in */
+        #blinks-page .thing.fresh { position: relative; animation: blinks-detune 2.2s ease-out both; }
+        #blinks-page .thing.fresh::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: hard-light; background-image: repeating-radial-gradient(circle at 17% 32%, #000 0 1px, transparent 1px 2px), repeating-radial-gradient(circle at 73% 61%, #fff 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); background-size: 7px 7px, 11px 11px, 100% 4px; animation: blinks-staticfuzz 2.2s steps(10) both; }
+        @keyframes blinks-detune {
+          0% { filter: blur(3px) saturate(0) contrast(2.6) brightness(1.4); opacity: 0.15; }
+          35% { filter: blur(2px) saturate(0.1) contrast(2.1) brightness(1.2); opacity: 0.5; }
+          70% { filter: blur(0.8px) saturate(0.5) contrast(1.4); opacity: 0.85; }
+          100% { filter: none; opacity: 1; }
+        }
+        @keyframes blinks-staticfuzz {
+          0% { opacity: 0.9; background-position: 0 0, 0 0, 0 0; }
+          15% { background-position: 3px 2px, -4px 3px, 0 2px; }
+          30% { background-position: -2px 4px, 5px -2px, 0 -1px; opacity: 0.75; }
+          45% { background-position: 4px -3px, -3px -4px, 0 3px; }
+          60% { background-position: -4px 1px, 2px 4px, 0 -2px; opacity: 0.5; }
+          75% { background-position: 2px -4px, -5px 2px, 0 1px; opacity: 0.3; }
+          90% { background-position: -3px 3px, 4px -1px, 0 -3px; opacity: 0.12; }
+          100% { opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          #blinks-page .thing.fresh, #blinks-page .thing.fresh::after { animation: none; }
+        }
         #blinks-page .rank { color: #c6c6c6; font-size: 11px; min-width: 18px; text-align: right; padding-top: 1px; }
         #blinks-page .thumb { width: 48px; height: 36px; object-fit: cover; border: 1px solid #ddd; flex-shrink: 0; }
         #blinks-page .favicon { width: 11px; height: 11px; vertical-align: -2px; margin-right: 2px; }
@@ -794,7 +827,11 @@ defmodule BlogWeb.BlinksLive do
 
           <div class="paper">
             <div :for={{col, offset} <- split_columns(@blinks, 2)} class="col">
-              <div :for={{blink, i} <- Enum.with_index(col, offset)} class="thing">
+              <div
+                :for={{blink, i} <- Enum.with_index(col, offset)}
+                class={["thing", MapSet.member?(@fresh_ids, blink.id) && "fresh"]}
+                id={"blink-#{blink.id}"}
+              >
               <div class="rank">{i}</div>
               <img :if={blink.image_url} class="thumb" src={blink.image_url} loading="lazy" />
               <div class="entry">

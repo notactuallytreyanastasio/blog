@@ -369,6 +369,8 @@ defmodule BlogWeb.BlinksLiveTest do
     html = render(view)
     assert html =~ "Hot Off The Press"
     assert html =~ "1 saved"
+    # freshly arrived rows tune in from static
+    assert html =~ "thing fresh"
   end
 
   test "comment counts show on the list", %{conn: conn} do
