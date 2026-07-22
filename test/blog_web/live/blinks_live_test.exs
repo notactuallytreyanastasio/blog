@@ -360,6 +360,17 @@ defmodule BlogWeb.BlinksLiveTest do
     refute html =~ "UNROLL THREAD"
   end
 
+  test "the list updates live when a link is saved elsewhere", %{conn: conn} do
+    {:ok, view, html} = live(conn, "/blinks")
+    refute html =~ "Hot Off The Press"
+
+    {:ok, _} = Blinks.save_blink(%{"url" => "https://live.co/1", "title" => "Hot Off The Press"})
+
+    html = render(view)
+    assert html =~ "Hot Off The Press"
+    assert html =~ "1 saved"
+  end
+
   test "comment counts show on the list", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://c.co/2", "title" => "Counted"})
     {:ok, chatter} = Chat.find_or_create_chatter("counter", "1.2.3.4")

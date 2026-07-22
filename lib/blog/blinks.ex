@@ -7,6 +7,17 @@ defmodule Blog.Blinks do
   alias Blog.Blinks.{Blink, Enricher}
   alias Blog.Repo
 
+  @topic "blinks"
+
+  @spec topic() :: String.t()
+  def topic, do: @topic
+
+  @doc "Announce a saved/updated blink to live /blinks viewers."
+  @spec broadcast(Blink.t(), atom()) :: :ok
+  def broadcast(%Blink{} = blink, event) do
+    Phoenix.PubSub.broadcast(Blog.PubSub, @topic, {event, blink})
+  end
+
   @doc """
   Saves a link. If the URL was already saved, merges the new tags into the
   existing record and refreshes the title/description (new values win when
@@ -36,7 +47,11 @@ defmodule Blog.Blinks do
           |> Repo.update()
       end
 
-    with {:ok, blink} <- result, do: Enricher.enrich_async(blink)
+    with {:ok, blink} <- result do
+      broadcast(blink, :blink_saved)
+      Enricher.enrich_async(blink)
+    end
+
     result
   end
 

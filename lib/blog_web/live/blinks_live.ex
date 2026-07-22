@@ -9,6 +9,8 @@ defmodule BlogWeb.BlinksLive do
     visitor_ip = Map.get(session, "remote_ip", "unknown")
     returning = Chat.get_chatter_by_ip(Chat.hash_ip(visitor_ip))
 
+    if connected?(socket), do: Phoenix.PubSub.subscribe(Blog.PubSub, Blinks.topic())
+
     {:ok,
      assign(socket,
        page_title: "Blinks: Bobbby's links",
@@ -409,6 +411,11 @@ defmodule BlogWeb.BlinksLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info({event, %Blinks.Blink{}}, socket)
+      when event in [:blink_saved, :blink_updated] do
+    {:noreply, socket |> assign(total: Blinks.count_blinks()) |> reload()}
   end
 
   def handle_info({:tour_complete, _id}, socket) do

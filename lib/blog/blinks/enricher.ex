@@ -44,6 +44,7 @@ defmodule Blog.Blinks.Enricher do
         |> Map.new()
 
       {:ok, updated} = blink |> Blink.changeset(attrs) |> Repo.update()
+      Blog.Blinks.broadcast(updated, :blink_updated)
       {:ok, updated}
     else
       :skipped ->
@@ -79,6 +80,7 @@ defmodule Blog.Blinks.Enricher do
          {:ok, did} <- resolve_did(handle),
          {:ok, posts} when posts != [] <- fetch_thread_posts(did, rkey) do
       {:ok, updated} = blink |> Blink.changeset(%{thread: %{"posts" => posts}}) |> Repo.update()
+      Blog.Blinks.broadcast(updated, :blink_updated)
       updated
     else
       nil ->
