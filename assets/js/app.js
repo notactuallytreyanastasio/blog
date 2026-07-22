@@ -775,12 +775,13 @@ Hooks.BlinksPrefs = {
     this.pushEvent('prefs', {
       ids: read(),
       seenTour: localStorage.getItem('blinksTourSeen') === '1',
-      adminKey: localStorage.getItem('blinksAdminKey') || null,
-      alwaysShuffle: localStorage.getItem('blinksAlwaysShuffle') === '1'
+      adminKey: localStorage.getItem('blinksAdminKey') || null
     });
+    // cookie, not localStorage: the server must see it before first render
     this.handleEvent('blinks:always-shuffle', ({ on }) => {
-      if (on) localStorage.setItem('blinksAlwaysShuffle', '1');
-      else localStorage.removeItem('blinksAlwaysShuffle');
+      document.cookie = on
+        ? 'blinksAlwaysShuffle=1;path=/;max-age=31536000;samesite=lax'
+        : 'blinksAlwaysShuffle=;path=/;max-age=0';
     });
     this.handleEvent('blinks:admin-key', ({ key }) => {
       if (key) localStorage.setItem('blinksAdminKey', key);

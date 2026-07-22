@@ -43,14 +43,16 @@ defmodule BlogWeb.BlinksLive do
        dork_tags: Blinks.dork_tags(),
        singles_open: false,
        page_size: 30,
-       shuffle_seed: Base.encode16(:crypto.strong_rand_bytes(4)),
-       always_shuffle: false,
+       shuffle_seed:
+         Map.get(session, "blinks_shuffle_seed") || Base.encode16(:crypto.strong_rand_bytes(4)),
+       always_shuffle: Map.get(session, "blinks_always_shuffle", false),
        shuffle_on: false,
        hidden_ids: MapSet.new(),
        fresh_ids: MapSet.new(),
        admin: false,
        admin_error: nil,
        tag_editing: nil,
+       editing_blink: nil,
        tags_open: MapSet.new(),
        # the tour auto-runs when this browser hasn't seen it (localStorage,
        # reported by the BlinksPrefs hook) — IP-based identity would wrongly
@@ -331,9 +333,10 @@ defmodule BlogWeb.BlinksLive do
     {:noreply, patch(socket, q: q, similar: "", page: "")}
   end
 
-  # The PaperFit hook reports how many rows fit the viewport without scrolling.
+  # The PaperFit hook reports how many rows fit one screen; pages hold two
+  # screenfuls so there's exactly one screen of scroll before MORE.
   def handle_event("fit", %{"count" => count}, socket) when is_integer(count) do
-    size = count |> max(6) |> min(60)
+    size = (count * 2) |> max(8) |> min(120)
 
     if size == socket.assigns.page_size do
       {:noreply, socket}
@@ -454,12 +457,6 @@ defmodule BlogWeb.BlinksLive do
     socket = socket |> assign(hidden_ids: MapSet.new(ids)) |> reload()
     socket = if params["seenTour"], do: socket, else: assign(socket, show_tour: true)
     socket = if valid_key?(params["adminKey"]), do: assign(socket, admin: true), else: socket
-
-    socket =
-      if params["alwaysShuffle"],
-        do: socket |> assign(always_shuffle: true) |> reload(),
-        else: socket
-
     {:noreply, socket}
   end
 
@@ -499,6 +496,23 @@ defmodule BlogWeb.BlinksLive do
       if MapSet.member?(open, id), do: MapSet.delete(open, id), else: MapSet.put(open, id)
 
     {:noreply, assign(socket, tags_open: open)}
+  end
+
+  def handle_event("edit-blink", %{"id" => id}, socket) do
+    {id, _} = Integer.parse(id)
+
+    {:noreply,
+     assign(socket, editing_blink: if(socket.assigns.editing_blink == id, do: nil, else: id))}
+  end
+
+  def handle_event("save-blink-edit", %{"id" => id} = params, socket) do
+    if socket.assigns.admin do
+      {id, _} = Integer.parse(id)
+      # list refresh arrives via the :blink_updated broadcast
+      Blinks.update_meta(id, params)
+    end
+
+    {:noreply, assign(socket, editing_blink: nil)}
   end
 
   def handle_event("edit-tags", %{"id" => id}, socket) do
@@ -921,9 +935,9 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
         #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
 
-        /* two real columns (server-split) cut at the screen bottom — the
-           page size adapts to the viewport, MORE gets the rest. NO scrolling. */
-        #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: flex-start; }
+        /* two real columns (server-split); pages hold two screenfuls, so you
+           can scroll exactly one screen down before MORE takes over */
+        #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; }
         #blinks-page .paper .col { flex: 1; min-width: 0; }
         #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
 
@@ -998,6 +1012,8 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
         #blinks-page .meta a.del { color: #c00; }
+        #blinks-page .editform { margin: 3px 0; max-width: 420px; }
+        #blinks-page .editform input[type="text"], #blinks-page .editform textarea { width: 100%; border: 1px solid #5f99cf; font: 11px verdana; padding: 3px 5px; margin-bottom: 3px; }
         #blinks-page .tag .tagx { color: #c00; margin-left: 3px; cursor: pointer; font-size: 8px; }
         #blinks-page .tag.on .tagx { color: #fbb; }
         #blinks-page .tagadd-link { color: #4a8000 !important; }
@@ -1272,6 +1288,21 @@ defmodule BlogWeb.BlinksLive do
                     <.bmedia :if={root_quote(blink)} m={root_quote(blink)} href={blink.url} />
                   </div>
                 </details>
+                <form
+                  :if={@admin && @editing_blink == blink.id}
+                  class="editform"
+                  phx-submit="save-blink-edit"
+                >
+                  <input type="hidden" name="id" value={blink.id} />
+                  <input type="text" name="title" value={blink.title} placeholder="title" />
+                  <textarea name="description" rows="2" placeholder="notes">{blink.description}</textarea>
+                  <div>
+                    <button type="submit" class="aim-send">save</button>
+                    <a phx-click="edit-blink" phx-value-id={blink.id} style="color:#888; cursor:pointer; font-size:10px;">
+                      cancel
+                    </a>
+                  </div>
+                </form>
                 <div :if={MapSet.member?(@tags_open, blink.id)} class="meta tagsbox">
                   <span :for={tag <- blink.tags}>
                     <span
@@ -1325,6 +1356,7 @@ defmodule BlogWeb.BlinksLive do
                   >
                     hide
                   </a>
+                  <a :if={@admin} phx-click="edit-blink" phx-value-id={blink.id}>edit</a>
                   <a
                     :if={@admin}
                     class="del"

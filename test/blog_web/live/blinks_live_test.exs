@@ -495,12 +495,12 @@ defmodule BlogWeb.BlinksLiveTest do
     view |> element("button[phx-click=prev-page]") |> render_click()
     assert render(view) =~ "Item 055"
 
-    # the viewport-fit hook resizes pages to what fits without scrolling
+    # the viewport-fit hook sizes pages to two screenfuls (one screen of scroll)
     render_hook(view, "fit", %{"count" => 10})
     html = render(view)
     assert html =~ "Item 055"
-    assert html =~ "Item 046"
-    refute html =~ "Item 045"
+    assert html =~ "Item 036"
+    refute html =~ "Item 035"
   end
 
   test "archives tab bundles links by week", %{conn: conn} do
@@ -551,11 +551,33 @@ defmodule BlogWeb.BlinksLiveTest do
     view |> element("input[phx-click=toggle-always-shuffle]") |> render_click()
     assert render(view) =~ "checked"
 
-    # the stored preference shuffles by default on the next visit
-    {:ok, view2, _} = live(conn, "/blinks")
-    render_hook(view2, "prefs", %{"ids" => [], "seenTour" => true, "alwaysShuffle" => true})
-    assert render(view2) =~ "shuffled — undo"
+    # the cookie preference shuffles from the very first render — no flash
+    conn2 = Phoenix.ConnTest.put_req_cookie(conn, "blinksAlwaysShuffle", "1")
+    {:ok, _view2, html} = live(conn2, "/blinks")
+    assert html =~ "shuffled — undo"
     _ = fresh
+  end
+
+  test "admin can edit a link's title and notes", %{conn: conn} do
+    {:ok, blink} =
+      Blinks.save_blink(%{"url" => "https://ed.co/1", "title" => "Bad Title", "description" => "old notes"})
+
+    {:ok, view, _} = live(conn, "/blinks")
+
+    view
+    |> element("form[phx-submit=unlock-admin]")
+    |> render_submit(%{"key" => "dev-blinks-token"})
+
+    view |> element("a[phx-click=edit-blink][phx-value-id='#{blink.id}']") |> render_click()
+
+    view
+    |> element("form.editform")
+    |> render_submit(%{"id" => blink.id, "title" => "Great Title", "description" => "better notes"})
+
+    updated = Blinks.get_by_url("https://ed.co/1")
+    assert updated.title == "Great Title"
+    assert updated.description == "better notes"
+    assert render(view) =~ "Great Title"
   end
 
   test "admin unlock enables delete; deletes take the chat room along", %{conn: conn} do

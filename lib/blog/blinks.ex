@@ -195,6 +195,25 @@ defmodule Blog.Blinks do
     Blink |> order_by(fragment("random()")) |> limit(1) |> Repo.one()
   end
 
+  @doc "Admin edit of a blink's title/description. Broadcasts."
+  @spec update_meta(integer(), map()) :: {:ok, Blink.t()} | {:error, term()}
+  def update_meta(id, attrs) do
+    with %Blink{} = blink <- Repo.get(Blink, id),
+         {:ok, updated} <-
+           blink
+           |> Blink.changeset(%{
+             title: presence(attrs["title"]) || blink.title,
+             description: attrs["description"] && String.trim(attrs["description"])
+           })
+           |> Repo.update() do
+      broadcast(updated, :blink_updated)
+      {:ok, updated}
+    else
+      nil -> {:error, :not_found}
+      err -> err
+    end
+  end
+
   @doc "Adds tags to a blink (normalized/deduped by the changeset). Broadcasts."
   @spec add_tags(integer(), [String.t()]) :: {:ok, Blink.t()} | {:error, term()}
   def add_tags(id, new_tags) when is_list(new_tags) do

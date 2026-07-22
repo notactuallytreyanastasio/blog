@@ -75,6 +75,7 @@ defmodule BlogWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.BlinksPrefs
   end
 
   pipeline :api do
