@@ -199,8 +199,8 @@ defmodule BlogWeb.BlinksLiveTest do
     {:ok, _view, html} = live(conn, "/blinks")
     # columns are CSS multicol (column-fill: auto) inside the fixed shell
     assert html =~ ~s(class="paper")
-    assert html =~ "columns: 2"
-    assert html =~ "column-fill: balance"
+    assert length(String.split(html, ~s(class="col"))) - 1 == 2
+    assert html =~ "overflow-y: auto"
     assert html =~ "Col 1"
     assert html =~ "Col 4"
   end

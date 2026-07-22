@@ -187,24 +187,24 @@ defmodule BlogWeb.BlinksLive do
         view == :archives and is_nil(week) ->
           []
 
-        view == :archives ->
-          Blinks.list_blinks(query: q, tags: tags, exclude_tags: exclude, week: week, limit: 500)
-
         true ->
           Blinks.list_blinks(
             query: q,
             tags: tags,
             exclude_tags: exclude,
+            week: if(view == :archives, do: week),
             limit: @page_size + 1,
             offset: (page - 1) * @page_size
           )
       end
 
-    has_more = !similar_to and view == :live and length(blinks) > @page_size
+    has_more =
+      !similar_to and not (view == :archives and is_nil(week)) and
+        length(blinks) > @page_size
 
     blinks =
       blinks
-      |> Enum.take(if(view == :live, do: @page_size, else: length(blinks)))
+      |> Enum.take(@page_size)
       |> Enum.reject(&MapSet.member?(socket.assigns.hidden_ids, &1.id))
 
     socket =
@@ -720,6 +720,12 @@ defmodule BlogWeb.BlinksLive do
   defp frequent_tags(tags), do: Enum.filter(tags, &(&1.count >= 2))
   defp single_tags(tags), do: Enum.filter(tags, &(&1.count == 1))
 
+  # Server-side newspaper columns with continuous numbering.
+  defp split_columns(blinks, 2) do
+    {left, right} = Enum.split(blinks, ceil(length(blinks) / 2))
+    [{left, 1}, {right, length(left) + 1}]
+  end
+
   # Names worth autocompleting: whoever is in the room now + whoever has posted.
   defp mention_candidates(socket) do
     from_presence = socket.assigns.buddies |> Enum.map(& &1.name) |> Enum.reject(&(&1 == "lurker"))
@@ -759,9 +765,11 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
         #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
 
-        /* two balanced columns, never more; the paper region scrolls
+        /* two real columns (server-split), the paper region scrolls
            vertically inside the fixed shell — no horizontal scroll, ever */
-        #blinks-page .paper { flex: 1 1 auto; min-height: 0; columns: 2; column-gap: 44px; column-fill: balance; column-rule: 1px solid #ddd; overflow-y: auto; overflow-x: hidden; }
+        #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; }
+        #blinks-page .paper .col { flex: 1; min-width: 0; }
+        #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
 
         #blinks-page .thing { display: block; padding: 3px 0; break-inside: avoid; -webkit-column-break-inside: avoid; }
         /* dead links: the whole row fades to a readable grey */
@@ -909,7 +917,9 @@ defmodule BlogWeb.BlinksLive do
           /* phones keep normal document scrolling — a locked shell is misery there */
           #blinks-page { height: auto; display: block; overflow: visible; }
           #blinks-page .layout { flex-direction: column; overflow: visible; }
-          #blinks-page .paper { columns: 1; height: auto; overflow: visible; }
+          #blinks-page .paper { flex-direction: column; height: auto; overflow: visible; }
+          #blinks-page .paper .col { width: 100%; }
+          #blinks-page .paper .col + .col { border-left: none; padding-left: 0; margin-left: 0; }
           #blinks-page .sidebar { width: 100%; overflow-y: visible; }
           #blinks-page .masthead .searchform { margin-left: 0; width: 100%; }
           #blinks-page .searchform input[type="text"] { width: 100%; }
@@ -1031,8 +1041,9 @@ defmodule BlogWeb.BlinksLive do
           </div>
 
           <div class="paper">
+            <div :for={{col, offset} <- split_columns(@blinks, 2)} class="col">
             <div
-              :for={{blink, i} <- Enum.with_index(@blinks, 1)}
+              :for={{blink, i} <- Enum.with_index(col, offset)}
               class={[
                 "thing",
                 MapSet.member?(@fresh_ids, blink.id) && "fresh",
@@ -1154,6 +1165,7 @@ defmodule BlogWeb.BlinksLive do
                   </details>
                 </div>
               </div>
+            </div>
             </div>
           </div>
 
