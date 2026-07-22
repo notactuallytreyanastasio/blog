@@ -836,7 +836,7 @@ defmodule BlogWeb.BlinksLive do
                       <div :for={quote <- blink.quotes} class="quote-item">“{quote}”</div>
                     </div>
                   </details>
-                  <details :if={thread_posts(blink) != []} class="xd">
+                  <details :if={length(thread_posts(blink)) > 1} class="xd">
                     <summary class="threadmark" title="unroll the whole thread">
                       🧵 {length(thread_posts(blink))}
                     </summary>

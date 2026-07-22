@@ -317,6 +317,14 @@ defmodule BlogWeb.BlinksLiveTest do
     posts = Blog.Blinks.Enricher.unroll_posts(thread)
     assert Enum.map(posts, & &1["text"]) == ["post one", "post two", "post three"]
 
+    # standalone single post: just itself, and no 🧵 marker on the row
+    single = node.("did:solo", "just one post", "2026-01-01T00:00:00Z", [])
+    assert [%{"text" => "just one post"}] = Blog.Blinks.Enricher.unroll_posts(single)
+
+    # a reply saved out of someone ELSE's thread shows only that reply
+    my_reply = Map.put(node.("did:me", "my hot take", "2026-01-01T01:00:00Z", []), "parent", other)
+    assert [%{"text" => "my hot take"}] = Blog.Blinks.Enricher.unroll_posts(my_reply)
+
     {:ok, b} =
       Blinks.save_blink(%{"url" => "https://bsky.app/profile/bob.bsky/post/abc", "title" => "t"})
 

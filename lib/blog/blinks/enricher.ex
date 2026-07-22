@@ -115,14 +115,25 @@ defmodule Blog.Blinks.Enricher do
     end
   end
 
-  @doc "Root + the root author's own reply chain, oldest first. Public for tests."
+  @doc """
+  Posts to display for a saved bsky URL, oldest first. If the saved post's
+  author owns the thread root, unroll their whole self-thread; otherwise
+  (a reply saved out of someone else's thread, or a standalone post) just
+  the saved post itself. Public for tests.
+  """
   @spec unroll_posts(map()) :: [map()]
   def unroll_posts(thread) do
+    focused_author = get_in(thread, ["post", "author", "did"])
     root = climb_to_root(thread)
-    author = get_in(root, ["post", "author", "did"])
 
-    root
-    |> chain(author)
+    nodes =
+      if get_in(root, ["post", "author", "did"]) == focused_author do
+        chain(root, focused_author)
+      else
+        [thread]
+      end
+
+    nodes
     |> Enum.map(fn node ->
       post = node["post"] || %{}
 
