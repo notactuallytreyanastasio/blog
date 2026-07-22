@@ -48,6 +48,7 @@ defmodule BlogWeb.BlinksLive do
        admin: false,
        admin_error: nil,
        tag_editing: nil,
+       tags_open: MapSet.new(),
        # the tour auto-runs when this browser hasn't seen it (localStorage,
        # reported by the BlinksPrefs hook) — IP-based identity would wrongly
        # skip it in incognito/new browsers on a known network
@@ -440,6 +441,16 @@ defmodule BlogWeb.BlinksLive do
     {:noreply, socket}
   end
 
+  def handle_event("toggle-tags-fold", %{"id" => id}, socket) do
+    {id, _} = Integer.parse(id)
+    open = socket.assigns.tags_open
+
+    open =
+      if MapSet.member?(open, id), do: MapSet.delete(open, id), else: MapSet.put(open, id)
+
+    {:noreply, assign(socket, tags_open: open)}
+  end
+
   def handle_event("edit-tags", %{"id" => id}, socket) do
     {id, _} = Integer.parse(id)
     {:noreply, assign(socket, tag_editing: if(socket.assigns.tag_editing == id, do: nil, else: id))}
@@ -827,8 +838,8 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .pillbtn { display: inline-block; cursor: pointer; color: #fff; background: #369; border: 1px outset #5f99cf; border-radius: 2px; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; padding: 1px 5px; list-style: none; user-select: none; }
         #blinks-page .pillbtn::-webkit-details-marker { display: none; }
         #blinks-page .xd { display: inline; margin: 0; }
-        #blinks-page .tagsfold { display: block; margin: 1px 0; }
-        #blinks-page .tagsfold .meta { display: inline; }
+        #blinks-page .tags-pill { margin: 0 4px 0 5px; vertical-align: 1px; }
+        #blinks-page .tagsbox { margin: 2px 0; }
         #blinks-page .xd[open] .pillbtn { border-style: inset; background: #1d4568; }
         #blinks-page .threadmark { display: inline; cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
         #blinks-page .threadmark::-webkit-details-marker { display: none; }
@@ -1075,6 +1086,14 @@ defmodule BlogWeb.BlinksLive do
                 >
                   {headline(blink)}
                 </a>
+                <span
+                  :if={blink.tags != [] or @admin}
+                  class="pillbtn tags-pill"
+                  phx-click="toggle-tags-fold"
+                  phx-value-id={blink.id}
+                >
+                  TAGS ({length(blink.tags)})
+                </span>
                 <span class="domain">
                   (<img :if={blink.favicon_url} class="favicon" src={blink.favicon_url} loading="lazy" /><a href={
                     "/blinks?" <> URI.encode_query(q: domain(blink.url))
@@ -1084,45 +1103,38 @@ defmodule BlogWeb.BlinksLive do
                 <div :if={root_quote(blink)} class="bsky-quote">
                   ↳ quoting <b>@{root_quote(blink)["handle"]}</b>: “{root_quote(blink)["text"]}”
                 </div>
-                <details :if={blink.tags != [] or @admin} class="xd tagsfold">
-                  <summary class="pillbtn">TAGS ({length(blink.tags)})</summary>
-                  <div class="meta">
-                    <span :for={tag <- blink.tags}>
-                      <span
-                        class={["tag", tag in @selected_tags && "on"]}
-                        phx-click="toggle-tag"
-                        phx-value-tag={tag}
-                      >
-                        {tag}<span
-                          :if={@admin}
-                          class="tagx"
-                          phx-click="remove-tag"
-                          phx-value-id={blink.id}
-                          phx-value-tag={tag}
-                          title="remove this tag"
-                        >✕</span>
-                      </span>
-                    </span>
-                    <a :if={@admin} class="tagadd-link" phx-click="edit-tags" phx-value-id={blink.id}>
-                      +tag
-                    </a>
-                    <form
-                      :if={@admin && @tag_editing == blink.id}
-                      class="tagadd"
-                      phx-submit="add-tags"
+                <div :if={MapSet.member?(@tags_open, blink.id)} class="meta tagsbox">
+                  <span :for={tag <- blink.tags}>
+                    <span
+                      class={["tag", tag in @selected_tags && "on"]}
+                      phx-click="toggle-tag"
+                      phx-value-tag={tag}
                     >
-                      <input type="hidden" name="id" value={blink.id} />
-                      <input
-                        type="text"
-                        name="tags"
-                        placeholder="new, tags, here"
-                        autocomplete="off"
-                        autocapitalize="none"
-                      />
-                      <button type="submit" class="aim-send">add</button>
-                    </form>
-                  </div>
-                </details>
+                      {tag}<span
+                        :if={@admin}
+                        class="tagx"
+                        phx-click="remove-tag"
+                        phx-value-id={blink.id}
+                        phx-value-tag={tag}
+                        title="remove this tag"
+                      >✕</span>
+                    </span>
+                  </span>
+                  <a :if={@admin} class="tagadd-link" phx-click="edit-tags" phx-value-id={blink.id}>
+                    +tag
+                  </a>
+                  <form :if={@admin && @tag_editing == blink.id} class="tagadd" phx-submit="add-tags">
+                    <input type="hidden" name="id" value={blink.id} />
+                    <input
+                      type="text"
+                      name="tags"
+                      placeholder="new, tags, here"
+                      autocomplete="off"
+                      autocapitalize="none"
+                    />
+                    <button type="submit" class="aim-send">add</button>
+                  </form>
+                </div>
                 <div class="meta">
                   <a
                     phx-click="open-chat"

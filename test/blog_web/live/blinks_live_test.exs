@@ -547,6 +547,9 @@ defmodule BlogWeb.BlinksLiveTest do
     |> element("form[phx-submit=unlock-admin]")
     |> render_submit(%{"key" => "dev-blinks-token"})
 
+    # chips live behind the TAGS pill now
+    view |> element("span.tags-pill[phx-value-id='#{blink.id}']") |> render_click()
+
     view
     |> element("span.tagx[phx-value-id='#{blink.id}'][phx-value-tag='old']")
     |> render_click()
