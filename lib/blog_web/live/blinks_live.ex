@@ -46,6 +46,7 @@ defmodule BlogWeb.BlinksLive do
        fresh_ids: MapSet.new(),
        admin: false,
        admin_error: nil,
+       tag_editing: nil,
        # the tour auto-runs when this browser hasn't seen it (localStorage,
        # reported by the BlinksPrefs hook) — IP-based identity would wrongly
        # skip it in incognito/new browsers on a known network
@@ -429,6 +430,30 @@ defmodule BlogWeb.BlinksLive do
     {:noreply, socket}
   end
 
+  def handle_event("edit-tags", %{"id" => id}, socket) do
+    {id, _} = Integer.parse(id)
+    {:noreply, assign(socket, tag_editing: if(socket.assigns.tag_editing == id, do: nil, else: id))}
+  end
+
+  def handle_event("add-tags", %{"id" => id, "tags" => tags}, socket) do
+    if socket.assigns.admin do
+      {id, _} = Integer.parse(id)
+      Blinks.add_tags(id, String.split(tags, ","))
+    end
+
+    # refresh arrives via the :blink_updated broadcast
+    {:noreply, assign(socket, tag_editing: nil)}
+  end
+
+  def handle_event("remove-tag", %{"id" => id, "tag" => tag}, socket) do
+    if socket.assigns.admin do
+      {id, _} = Integer.parse(id)
+      Blinks.remove_tag(id, tag)
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_event("hide", %{"id" => id}, socket) do
     {id, _} = Integer.parse(id)
 
@@ -734,9 +759,9 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
         #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
 
-        /* posts fill column one to the bottom of the screen, then flow to the
-           next column; overflow makes more columns you scroll sideways to */
-        #blinks-page .paper { flex: 1 1 auto; min-height: 0; columns: 2; column-gap: 44px; column-fill: auto; column-rule: 1px solid #ddd; overflow-x: auto; overflow-y: hidden; }
+        /* two balanced columns, never more; the paper region scrolls
+           vertically inside the fixed shell — no horizontal scroll, ever */
+        #blinks-page .paper { flex: 1 1 auto; min-height: 0; columns: 2; column-gap: 44px; column-fill: balance; column-rule: 1px solid #ddd; overflow-y: auto; overflow-x: hidden; }
 
         #blinks-page .thing { display: block; padding: 3px 0; break-inside: avoid; -webkit-column-break-inside: avoid; }
         /* dead links: the whole row fades to a readable grey */
@@ -797,6 +822,12 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
         #blinks-page .meta a.del { color: #c00; }
+        #blinks-page .tag .tagx { color: #c00; margin-left: 3px; cursor: pointer; font-size: 8px; }
+        #blinks-page .tag.on .tagx { color: #fbb; }
+        #blinks-page .tagadd-link { color: #4a8000 !important; }
+        #blinks-page .tagadd { display: inline-flex; gap: 3px; margin-left: 4px; }
+        #blinks-page .tagadd input[type="text"] { border: 1px solid #5f99cf; font-size: 10px; padding: 1px 4px; width: 140px; }
+        #blinks-page .tagadd .aim-send { font-size: 9px; padding: 1px 6px; }
         #blinks-page .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #7fbf00; margin-right: 3px; vertical-align: 0; animation: blinks-pulse 2s ease-in-out infinite; }
         #blinks-page .live-n { color: #4a8000; }
         @keyframes blinks-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -1037,9 +1068,34 @@ defmodule BlogWeb.BlinksLive do
                       phx-click="toggle-tag"
                       phx-value-tag={tag}
                     >
-                      {tag}
+                      {tag}<span
+                        :if={@admin}
+                        class="tagx"
+                        phx-click="remove-tag"
+                        phx-value-id={blink.id}
+                        phx-value-tag={tag}
+                        title="remove this tag"
+                      >✕</span>
                     </span>
                   </span>
+                  <a :if={@admin} class="tagadd-link" phx-click="edit-tags" phx-value-id={blink.id}>
+                    +tag
+                  </a>
+                  <form
+                    :if={@admin && @tag_editing == blink.id}
+                    class="tagadd"
+                    phx-submit="add-tags"
+                  >
+                    <input type="hidden" name="id" value={blink.id} />
+                    <input
+                      type="text"
+                      name="tags"
+                      placeholder="new, tags, here"
+                      autocomplete="off"
+                      autocapitalize="none"
+                    />
+                    <button type="submit" class="aim-send">add</button>
+                  </form>
                 </div>
                 <div class="meta">
                   <a

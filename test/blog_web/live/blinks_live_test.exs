@@ -200,7 +200,7 @@ defmodule BlogWeb.BlinksLiveTest do
     # columns are CSS multicol (column-fill: auto) inside the fixed shell
     assert html =~ ~s(class="paper")
     assert html =~ "columns: 2"
-    assert html =~ "column-fill: auto"
+    assert html =~ "column-fill: balance"
     assert html =~ "Col 1"
     assert html =~ "Col 4"
   end
@@ -528,6 +528,32 @@ defmodule BlogWeb.BlinksLiveTest do
     {:ok, view2, _} = live(conn, "/blinks")
     render_hook(view2, "prefs", %{"ids" => [], "seenTour" => true, "adminKey" => "dev-blinks-token"})
     assert render(view2) =~ "unlocked"
+  end
+
+  test "admin can add and remove tags on a row", %{conn: conn} do
+    {:ok, blink} =
+      Blinks.save_blink(%{"url" => "https://tags.co/1", "title" => "Taggy", "tags" => ["old"]})
+
+    {:ok, view, _} = live(conn, "/blinks")
+
+    view
+    |> element("form[phx-submit=unlock-admin]")
+    |> render_submit(%{"key" => "dev-blinks-token"})
+
+    view
+    |> element("span.tagx[phx-value-id='#{blink.id}'][phx-value-tag='old']")
+    |> render_click()
+
+    assert Blinks.get_by_url("https://tags.co/1").tags == []
+
+    view |> element("a.tagadd-link[phx-value-id='#{blink.id}']") |> render_click()
+
+    view
+    |> element("form.tagadd")
+    |> render_submit(%{"id" => blink.id, "tags" => "Fresh, NEAT "})
+
+    assert Blinks.get_by_url("https://tags.co/1").tags == ["fresh", "neat"]
+    assert render(view) =~ "fresh"
   end
 
   defp candidate_id(url) do

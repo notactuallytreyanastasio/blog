@@ -179,6 +179,34 @@ defmodule Blog.Blinks do
     Blink |> order_by(fragment("random()")) |> limit(1) |> Repo.one()
   end
 
+  @doc "Adds tags to a blink (normalized/deduped by the changeset). Broadcasts."
+  @spec add_tags(integer(), [String.t()]) :: {:ok, Blink.t()} | {:error, term()}
+  def add_tags(id, new_tags) when is_list(new_tags) do
+    with %Blink{} = blink <- Repo.get(Blink, id),
+         {:ok, updated} <-
+           blink |> Blink.changeset(%{tags: blink.tags ++ new_tags}) |> Repo.update() do
+      broadcast(updated, :blink_updated)
+      {:ok, updated}
+    else
+      nil -> {:error, :not_found}
+      err -> err
+    end
+  end
+
+  @doc "Removes one tag from a blink. Broadcasts."
+  @spec remove_tag(integer(), String.t()) :: {:ok, Blink.t()} | {:error, term()}
+  def remove_tag(id, tag) do
+    with %Blink{} = blink <- Repo.get(Blink, id),
+         {:ok, updated} <-
+           blink |> Blink.changeset(%{tags: List.delete(blink.tags, tag)}) |> Repo.update() do
+      broadcast(updated, :blink_updated)
+      {:ok, updated}
+    else
+      nil -> {:error, :not_found}
+      err -> err
+    end
+  end
+
   @doc "Deletes a blink and its chat room's messages. Broadcasts :blink_deleted."
   @spec delete_blink(integer()) :: {:ok, Blink.t()} | {:error, :not_found}
   def delete_blink(id) do
