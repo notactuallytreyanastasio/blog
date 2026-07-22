@@ -46,6 +46,9 @@ if config_env() == :prod do
   # Cairn annotation API token
   config :blog, :cairn_api_token, read_env.("CAIRN_API_TOKEN")
 
+  # Blinks (Safari link saver extension) API token
+  config :blog, :blinks_api_token, read_env.("BLINKS_API_TOKEN")
+
   # Check if DATABASE_URL is set as environment variable
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -148,6 +151,9 @@ end
 
 # Google Analytics (all environments — blank means disabled)
 config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
+
+# Optional: enables semantic search + similarity for blinks when set
+config :blog, :openai_api_key, System.get_env("OPENAI_API_KEY")
 
 # Hetzner S3 credentials (all environments)
 if s3_access = read_env.("S3_ACCESS_KEY") do

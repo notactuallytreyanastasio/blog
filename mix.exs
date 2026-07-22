@@ -52,7 +52,7 @@ defmodule Blog.MixProject do
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.10"},
       {:postgrex, "~> 0.19"},
-      {:floki, ">= 0.30.0", only: :test},
+      {:floki, ">= 0.30.0"},
       {:req, "~> 0.5.0"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},

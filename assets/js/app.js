@@ -732,7 +732,40 @@ Hooks.ChatScroll = {
   }
 };
 
+// Per-device preferences for /blinks (hidden links live in localStorage)
+Hooks.BlinksPrefs = {
+  mounted() {
+    const read = () => {
+      try { return JSON.parse(localStorage.getItem('blinksHidden') || '[]'); }
+      catch { return []; }
+    };
+    this.pushEvent('prefs', {
+      ids: read(),
+      seenTour: localStorage.getItem('blinksTourSeen') === '1'
+    });
+    this.handleEvent('blinks:hide', ({ id }) => {
+      const ids = read();
+      if (!ids.includes(id)) ids.push(id);
+      localStorage.setItem('blinksHidden', JSON.stringify(ids));
+    });
+    this.handleEvent('blinks:unhide-all', () => {
+      localStorage.setItem('blinksHidden', '[]');
+    });
+    this.handleEvent('blinks:tour-seen', () => {
+      localStorage.setItem('blinksTourSeen', '1');
+    });
+  }
+};
+
 Hooks.Draggable = {
+  // LiveView patches wipe the inline style that dragging/resizing set,
+  // snapping the window back to its default spot. Preserve it across updates.
+  beforeUpdate() {
+    this._style = this.el.getAttribute('style');
+  },
+  updated() {
+    if (this._style) this.el.setAttribute('style', this._style);
+  },
   mounted() {
     const el = this.el;
     const titleBar = el.querySelector('.title-bar, .aim-chat-titlebar, .aim-name-dialog-titlebar, .os-titlebar');

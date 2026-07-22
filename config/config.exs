@@ -69,6 +69,12 @@ config :blog, :finder_admin_password, "letmein"
 # Cairn annotation API token
 config :blog, :cairn_api_token, "dev-cairn-token"
 
+# Blinks (Safari link saver extension) API token (override in prod via BLINKS_API_TOKEN)
+config :blog, :blinks_api_token, "dev-blinks-token"
+
+# Blinks page-metadata fetching on save (disabled in test)
+config :blog, :blinks_enrich, true
+
 # Import receipt printer configuration
 import_config "receipt_printer.exs"
 

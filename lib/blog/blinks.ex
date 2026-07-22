@@ -1,0 +1,245 @@
+defmodule Blog.Blinks do
+  @moduledoc """
+  Saved links ("blinks") captured from the Safari extension, with tags.
+  """
+
+  import Ecto.Query
+  alias Blog.Blinks.{Blink, Embeddings, Enricher}
+  alias Blog.Repo
+
+  @doc """
+  Saves a link. If the URL was already saved, merges the new tags into the
+  existing record and refreshes the title/description (new values win when
+  present).
+  """
+  @spec save_blink(map()) :: {:ok, Blink.t()} | {:error, Ecto.Changeset.t()}
+  def save_blink(attrs) do
+    changeset = Blink.changeset(%Blink{}, attrs)
+
+    result =
+      case Repo.get_by(Blink, url: Ecto.Changeset.get_field(changeset, :url) || "") do
+        nil ->
+          Repo.insert(changeset)
+
+        %Blink{} = existing ->
+          new_tags = Ecto.Changeset.get_field(changeset, :tags) || []
+          new_description = Ecto.Changeset.get_field(changeset, :description)
+
+          existing
+          |> Blink.changeset(%{
+            title: attrs[:title] || attrs["title"] || existing.title,
+            description: presence(new_description) || existing.description,
+            tags: Enum.uniq(existing.tags ++ new_tags)
+          })
+          |> Repo.update()
+      end
+
+    with {:ok, blink} <- result, do: Enricher.enrich_async(blink)
+    result
+  end
+
+  @spec get_by_url(String.t()) :: Blink.t() | nil
+  def get_by_url(url) when is_binary(url) and url != "", do: Repo.get_by(Blink, url: url)
+  def get_by_url(_), do: nil
+
+  @spec get_blink(integer() | String.t()) :: Blink.t() | nil
+  def get_blink(id), do: Repo.get(Blink, id)
+
+  @doc """
+  Ranks other blinks by similarity to the given one: cosine over embeddings
+  when both sides have them, otherwise shared tags + trigram title
+  similarity in Postgres.
+  """
+  @spec list_similar(Blink.t(), non_neg_integer()) :: [Blink.t()]
+  def list_similar(%Blink{} = blink, limit \\ 10) do
+    ids =
+      case blink.embedding do
+        vector when is_list(vector) ->
+          Embeddings.rank_against(vector)
+          |> Enum.reject(fn {id, _} -> id == blink.id end)
+          |> Enum.filter(fn {_, score} -> score > 0.2 end)
+          |> Enum.take(limit)
+          |> Enum.map(&elem(&1, 0))
+
+        nil ->
+          []
+      end
+
+    ids =
+      if ids == [] do
+        %{rows: rows} =
+          Repo.query!(
+            """
+            SELECT id FROM blinks
+            WHERE id != $1
+            ORDER BY
+              (SELECT count(*) FROM unnest(tags) t WHERE t = ANY($2)) * 2
+                + similarity(coalesce(title, ''), $3) DESC,
+              inserted_at DESC
+            LIMIT $4
+            """,
+            [blink.id, blink.tags, blink.title || "", limit]
+          )
+
+        List.flatten(rows)
+      else
+        ids
+      end
+
+    blinks = Blink |> where([b], b.id in ^ids) |> Repo.all() |> Map.new(&{&1.id, &1})
+    ids |> Enum.map(&blinks[&1]) |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Lists blinks, newest first.
+
+  Options:
+    * `:tags` — list of tags; blinks carrying ANY of them are returned (union)
+    * `:query` — full-text search (title/description/tags/url) with an
+      ilike fallback for partial words
+    * `:limit` — defaults to 100
+  """
+  @spec list_blinks(keyword()) :: [Blink.t()]
+  def list_blinks(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    query = Keyword.get(opts, :query)
+    tags = Keyword.get(opts, :tags) || []
+    exclude = Keyword.get(opts, :exclude_tags) || []
+
+    results =
+      Blink
+      |> order_by(desc: :inserted_at, desc: :id)
+      |> limit(^limit)
+      |> maybe_search(query)
+      |> maybe_filter_tags(tags)
+      |> maybe_exclude_tags(exclude)
+      |> Repo.all()
+
+    results ++ semantic_extras(query, tags, exclude, results, limit)
+  end
+
+  # With embeddings enabled, append semantically-close blinks that keyword
+  # search missed (still respecting any tag filter).
+  defp semantic_extras(query, tags, exclude, keyword_results, limit)
+       when is_binary(query) and query != "" do
+    with true <- Embeddings.enabled?(),
+         {:ok, vector} <- Embeddings.embed(query) do
+      seen = MapSet.new(keyword_results, & &1.id)
+
+      ids =
+        Embeddings.rank_against(vector)
+        |> Enum.filter(fn {id, score} -> score > 0.3 and not MapSet.member?(seen, id) end)
+        |> Enum.take(max(limit - length(keyword_results), 0))
+        |> Enum.map(&elem(&1, 0))
+
+      Blink
+      |> where([b], b.id in ^ids)
+      |> maybe_filter_tags(tags)
+      |> maybe_exclude_tags(exclude)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+      |> then(fn by_id -> ids |> Enum.map(&by_id[&1]) |> Enum.reject(&is_nil/1) end)
+    else
+      _ -> []
+    end
+  end
+
+  defp semantic_extras(_query, _tags, _exclude, _results, _limit), do: []
+
+  defp maybe_exclude_tags(queryable, []), do: queryable
+
+  defp maybe_exclude_tags(queryable, tags) do
+    where(queryable, [b], fragment("NOT (? && ?)", b.tags, ^tags))
+  end
+
+  @doc """
+  Returns tags with counts, most used first. When `selected` is non-empty,
+  counts only tags co-occurring on blinks that carry ALL selected tags —
+  so a tag cloud narrows as you click tags together.
+  """
+  @spec list_tags([String.t()], [String.t()]) :: [%{name: String.t(), count: non_neg_integer()}]
+  def list_tags(selected \\ [], exclude \\ []) do
+    %{rows: rows} =
+      Repo.query!(
+        """
+        SELECT t.name, count(*)
+        FROM blinks b CROSS JOIN LATERAL unnest(b.tags) AS t(name)
+        WHERE b.tags @> $1 AND NOT (b.tags && $2)
+        GROUP BY t.name
+        ORDER BY count(*) DESC, t.name ASC
+        """,
+        [selected, exclude]
+      )
+
+    Enum.map(rows, fn [name, count] -> %{name: name, count: count} end)
+  end
+
+  @spec count_blinks() :: non_neg_integer()
+  def count_blinks, do: Repo.aggregate(Blink, :count)
+
+  # Always considered ultra nerdy stuff, no matter what the editable list says.
+  @base_dork_tags ~w(code programming ai ml programming-languages tech-commentary)
+
+  @doc """
+  The ultra-nerdy-stuff list: tags excluded from /blinks when the hide button
+  is on. A baseline set is always included; editable extras live in the
+  blink_settings KV table.
+  """
+  @spec dork_tags() :: [String.t()]
+  def dork_tags do
+    stored =
+      case Repo.query!("SELECT value FROM blink_settings WHERE key = 'dork_tags'").rows do
+        [[tags]] -> tags
+        [] -> []
+      end
+
+    Enum.uniq(@base_dork_tags ++ stored)
+  end
+
+  @spec set_dork_tags([String.t()]) :: :ok
+  def set_dork_tags(tags) do
+    tags =
+      tags
+      |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    Repo.query!(
+      """
+      INSERT INTO blink_settings (key, value, inserted_at, updated_at)
+      VALUES ('dork_tags', $1, now(), now())
+      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+      """,
+      [tags]
+    )
+
+    :ok
+  end
+
+  defp maybe_search(queryable, nil), do: queryable
+  defp maybe_search(queryable, ""), do: queryable
+
+  defp maybe_search(queryable, query) do
+    pattern = "%#{query}%"
+
+    where(
+      queryable,
+      [b],
+      fragment("search_vector @@ websearch_to_tsquery('english', ?)", ^query) or
+        ilike(b.title, ^pattern) or
+        ilike(b.description, ^pattern) or
+        ilike(b.url, ^pattern) or
+        fragment("EXISTS (SELECT 1 FROM unnest(tags) tg WHERE tg ILIKE ?)", ^pattern)
+    )
+  end
+
+  defp maybe_filter_tags(queryable, []), do: queryable
+
+  defp maybe_filter_tags(queryable, tags) do
+    where(queryable, [b], fragment("? && ?", b.tags, ^tags))
+  end
+
+  defp presence(nil), do: nil
+  defp presence(""), do: nil
+  defp presence(s), do: s
+end

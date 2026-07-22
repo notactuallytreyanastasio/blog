@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>{assigns[:page_title] || "Blinks: Bobbby's links"}</title>
+    <meta name="description" content="every link I want to keep — tagged, searched, archived" />
+    <meta property="og:title" content="Blinks: Bobbby's links" />
+    <meta property="og:description" content="every link I want to keep — tagged, searched, archived" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bobbby.online/blinks" />
+    <meta property="og:image" content="https://bobbby.online/static/blinks-og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="bobbby.online" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Blinks: Bobbby's links" />
+    <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png" />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body style="margin:0;">
+    {@inner_content}
+  </body>
+</html>

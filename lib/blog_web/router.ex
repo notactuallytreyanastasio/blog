@@ -67,6 +67,16 @@ defmodule BlogWeb.Router do
     plug BlogWeb.Plugs.EnsureUserId
   end
 
+  pipeline :blinks do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :blinks_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -137,6 +147,14 @@ defmodule BlogWeb.Router do
   end
 
   scope "/", BlogWeb do
+    pipe_through :blinks
+
+    live_session :blinks, layout: false do
+      live "/blinks", BlinksLive, :index
+    end
+  end
+
+  scope "/", BlogWeb do
     pipe_through :gif_maker
 
     live "/gif-maker", GifMakerLive, :index
@@ -175,6 +193,18 @@ defmodule BlogWeb.Router do
     get "/gif-maker/gifs/:gif_id", GifMakerController, :gif_download
 
     get "/collage-maker/:collage_id/download", CollageMakerController, :download
+
+    post "/blinks", BlinkController, :create
+    get "/blinks", BlinkController, :index
+    get "/blinks/tags", BlinkController, :tags
+    get "/blinks/lookup", BlinkController, :lookup
+    get "/blinks/export", BlinkController, :export
+  end
+
+  # RSS feed for saved links; no pipeline so feed readers' Accept headers
+  # never hit content negotiation.
+  scope "/", BlogWeb do
+    get "/blinks.rss", BlinkFeedController, :rss
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
