@@ -104,8 +104,18 @@ defmodule Blog.Blinks do
     tags = Keyword.get(opts, :tags) || []
     exclude = Keyword.get(opts, :exclude_tags) || []
 
-    Blink
-    |> order_by(desc: :inserted_at, desc: :id)
+    base =
+      case Keyword.get(opts, :shuffle_seed) do
+        nil ->
+          order_by(Blink, desc: :inserted_at, desc: :id)
+
+        seed ->
+          # seeded deterministic shuffle so pagination stays coherent
+          order_by(Blink, [b], fragment("md5(? || ?::text)", ^seed, b.id))
+      end
+
+    base
+    |> maybe_since(Keyword.get(opts, :since))
     |> limit(^limit)
     |> offset(^offset)
     |> maybe_search(query)
@@ -131,6 +141,12 @@ defmodule Blog.Blinks do
     Enum.map(rows, fn [monday, count, titles] ->
       %{monday: monday, count: count, titles: titles || []}
     end)
+  end
+
+  defp maybe_since(queryable, nil), do: queryable
+
+  defp maybe_since(queryable, %NaiveDateTime{} = since) do
+    where(queryable, [b], b.inserted_at >= ^since)
   end
 
   defp maybe_week(queryable, nil), do: queryable

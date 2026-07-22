@@ -528,6 +528,36 @@ defmodule BlogWeb.BlinksLiveTest do
     _ = this_week
   end
 
+  test "timeframe dropdown and shuffle mode", %{conn: conn} do
+    {:ok, fresh} = Blinks.save_blink(%{"url" => "https://tf.co/new", "title" => "Newish"})
+    {:ok, old} = Blinks.save_blink(%{"url" => "https://tf.co/old", "title" => "Oldish"})
+
+    backdated = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -40 * 86_400)
+    old |> Ecto.Changeset.change(inserted_at: backdated) |> Blog.Repo.update!()
+
+    {:ok, _view, html} = live(conn, "/blinks?t=1mo")
+    assert html =~ "Newish"
+    refute html =~ "Oldish"
+
+    {:ok, _view, html} = live(conn, "/blinks")
+    assert html =~ "Oldish"
+
+    # shuffle keeps everything visible, flips the label, and can be pinned
+    {:ok, view, html} = live(conn, "/blinks?shuffle=1")
+    assert html =~ "Newish"
+    assert html =~ "Oldish"
+    assert html =~ "shuffled — undo"
+
+    view |> element("input[phx-click=toggle-always-shuffle]") |> render_click()
+    assert render(view) =~ "checked"
+
+    # the stored preference shuffles by default on the next visit
+    {:ok, view2, _} = live(conn, "/blinks")
+    render_hook(view2, "prefs", %{"ids" => [], "seenTour" => true, "alwaysShuffle" => true})
+    assert render(view2) =~ "shuffled — undo"
+    _ = fresh
+  end
+
   test "admin unlock enables delete; deletes take the chat room along", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://del.co/1", "title" => "Doomed"})
     {:ok, chatter} = Chat.find_or_create_chatter("mourner", "5.5.5.5")

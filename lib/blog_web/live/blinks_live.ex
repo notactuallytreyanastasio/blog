@@ -43,6 +43,9 @@ defmodule BlogWeb.BlinksLive do
        dork_tags: Blinks.dork_tags(),
        singles_open: false,
        page_size: 30,
+       shuffle_seed: Base.encode16(:crypto.strong_rand_bytes(4)),
+       always_shuffle: false,
+       shuffle_on: false,
        hidden_ids: MapSet.new(),
        fresh_ids: MapSet.new(),
        admin: false,
@@ -68,6 +71,15 @@ defmodule BlogWeb.BlinksLive do
       end
 
     view = if params["view"] == "archives", do: :archives, else: :live
+
+    timeframe = if params["t"] in ~w(1d 3d 1w 1mo 1y), do: params["t"]
+
+    shuffle_param =
+      case params["shuffle"] do
+        "1" -> true
+        "0" -> false
+        _ -> :unset
+      end
 
     week =
       with :archives <- view,
@@ -101,7 +113,9 @@ defmodule BlogWeb.BlinksLive do
         similar_to: similar_to,
         page: page,
         view: view,
-        week: week
+        week: week,
+        timeframe: timeframe,
+        shuffle_param: shuffle_param
       )
       |> assign(fresh_ids: MapSet.new())
       |> reload()
@@ -179,6 +193,15 @@ defmodule BlogWeb.BlinksLive do
 
     %{page: page, view: view, week: week, page_size: page_size} = socket.assigns
 
+    shuffle_on =
+      view == :live and
+        case socket.assigns.shuffle_param do
+          :unset -> socket.assigns.always_shuffle
+          v -> v
+        end
+
+    socket = assign(socket, shuffle_on: shuffle_on)
+
     blinks =
       cond do
         similar_to ->
@@ -193,6 +216,8 @@ defmodule BlogWeb.BlinksLive do
             tags: tags,
             exclude_tags: exclude,
             week: if(view == :archives, do: week),
+            since: if(view == :live, do: since_for(socket.assigns.timeframe)),
+            shuffle_seed: if(shuffle_on, do: socket.assigns.shuffle_seed),
             limit: page_size + 1,
             offset: (page - 1) * page_size
           )
@@ -334,6 +359,25 @@ defmodule BlogWeb.BlinksLive do
     {:noreply, patch(socket, similar: id)}
   end
 
+  def handle_event("set-window", %{"t" => t}, socket) do
+    {:noreply, patch(socket, t: t, page: "")}
+  end
+
+  def handle_event("toggle-shuffle", _params, socket) do
+    {:noreply,
+     patch(socket, shuffle: if(socket.assigns.shuffle_on, do: "0", else: "1"), page: "")}
+  end
+
+  def handle_event("toggle-always-shuffle", _params, socket) do
+    on = !socket.assigns.always_shuffle
+
+    {:noreply,
+     socket
+     |> assign(always_shuffle: on)
+     |> push_event("blinks:always-shuffle", %{on: on})
+     |> reload()}
+  end
+
   def handle_event("toggle-singles", _params, socket) do
     {:noreply, assign(socket, singles_open: !socket.assigns.singles_open)}
   end
@@ -410,6 +454,12 @@ defmodule BlogWeb.BlinksLive do
     socket = socket |> assign(hidden_ids: MapSet.new(ids)) |> reload()
     socket = if params["seenTour"], do: socket, else: assign(socket, show_tour: true)
     socket = if valid_key?(params["adminKey"]), do: assign(socket, admin: true), else: socket
+
+    socket =
+      if params["alwaysShuffle"],
+        do: socket |> assign(always_shuffle: true) |> reload(),
+        else: socket
+
     {:noreply, socket}
   end
 
@@ -635,6 +685,13 @@ defmodule BlogWeb.BlinksLive do
       page: if(a.page > 1, do: to_string(a.page), else: ""),
       view: if(a.view == :archives, do: "archives", else: ""),
       week: if(a.week, do: Date.to_iso8601(a.week), else: ""),
+      t: a.timeframe || "",
+      shuffle:
+        case a.shuffle_param do
+          true -> "1"
+          false -> "0"
+          :unset -> ""
+        end,
       nodork: if(a.nodork, do: "1", else: ""),
       similar: if(a.similar_to, do: to_string(a.similar_to.id), else: ""),
       chat: if(a.chat_blink, do: to_string(a.chat_blink.id), else: "")
@@ -717,6 +774,37 @@ defmodule BlogWeb.BlinksLive do
   defp thread_posts(%{thread: %{"posts" => posts}}) when is_list(posts), do: posts
   defp thread_posts(_blink), do: []
 
+  @day 86_400
+  defp since_for("1d"), do: NaiveDateTime.add(NaiveDateTime.utc_now(), -@day)
+  defp since_for("3d"), do: NaiveDateTime.add(NaiveDateTime.utc_now(), -3 * @day)
+  defp since_for("1w"), do: NaiveDateTime.add(NaiveDateTime.utc_now(), -7 * @day)
+  defp since_for("1mo"), do: NaiveDateTime.add(NaiveDateTime.utc_now(), -30 * @day)
+  defp since_for("1y"), do: NaiveDateTime.add(NaiveDateTime.utc_now(), -365 * @day)
+  defp since_for(_), do: nil
+
+  defp root_post(blink), do: List.first(thread_posts(blink)) || %{}
+
+  defp media_count(m) do
+    length(m["images"] || []) + if(m["video"], do: 1, else: 0)
+  end
+
+  defp row_media_count(blink) do
+    media_count(root_post(blink)) + media_count(root_quote(blink) || %{})
+  end
+
+  # Tiny row preview: og image if we have one, else the post's (or its
+  # quote's) first media thumb — same 48px treatment as every other site.
+  defp row_thumb(blink) do
+    m = root_post(blink)
+    q = root_quote(blink) || %{}
+
+    blink.image_url ||
+      get_in(m, ["images", Access.at(0), "thumb"]) ||
+      get_in(m, ["video", "thumb"]) ||
+      get_in(q, ["images", Access.at(0), "thumb"]) ||
+      get_in(q, ["video", "thumb"])
+  end
+
   defp root_quote(blink) do
     case thread_posts(blink) do
       [%{"quote" => %{} = quote} | _] -> quote
@@ -798,6 +886,9 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .bundle .bcount { color: #888; font-size: 10px; margin-left: 8px; }
         #blinks-page .bundle .bpreview { color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #blinks-page .tour-link { color: #369; font-size: 10px; font-weight: bold; cursor: pointer; }
+        #blinks-page .windowform { display: inline; }
+        #blinks-page .windowform select { font-size: 10px; border: 1px solid #5f99cf; background: #fff; color: #369; }
+        #blinks-page .alwayslbl { color: #369; font-size: 10px; cursor: pointer; }
         #blinks-page .searchform { margin-left: auto; }
         #blinks-page .searchform input[type="text"] { border: 1px solid #5f99cf; font-size: 12px; padding: 2px 4px; width: 220px; }
 
@@ -870,6 +961,11 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .tpost .ttext { white-space: pre-wrap; font-size: 11px; color: #222; margin-top: 1px; }
         #blinks-page .tquote { border-left: 2px solid #ddd; margin: 3px 0 0 6px; padding-left: 6px; color: #555; font-size: 10px; white-space: pre-wrap; }
         #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
+        #blinks-page .mediafold { display: block; margin: 1px 0; }
+        #blinks-page .foldarrow { cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
+        #blinks-page .foldarrow::-webkit-details-marker { display: none; }
+        #blinks-page .foldarrow::before { content: "▸ "; }
+        #blinks-page .mediafold[open] .foldarrow::before { content: "▾ "; }
         #blinks-page .bmedia { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
         #blinks-page .bmedia img { max-height: 110px; max-width: 170px; object-fit: cover; border: 1px solid #ddd; border-radius: 3px; display: block; }
         #blinks-page .bmedia .vid { position: relative; display: inline-block; }
@@ -1005,6 +1101,23 @@ defmodule BlogWeb.BlinksLive do
         <a class="tour-link" href="/blinks/stumble" target="_blank" title="a random saved link">
           stumble 🎲
         </a>
+        <form :if={@view == :live} class="windowform" phx-change="set-window">
+          <select name="t">
+            <option value="" selected={is_nil(@timeframe)}>all time</option>
+            <option value="1d" selected={@timeframe == "1d"}>past day</option>
+            <option value="3d" selected={@timeframe == "3d"}>past 3 days</option>
+            <option value="1w" selected={@timeframe == "1w"}>past week</option>
+            <option value="1mo" selected={@timeframe == "1mo"}>past month</option>
+            <option value="1y" selected={@timeframe == "1y"}>past year</option>
+          </select>
+        </form>
+        <a :if={@view == :live} class="tour-link" phx-click="toggle-shuffle">
+          {if @shuffle_on, do: "✓ shuffled — undo", else: "shuffle me"}
+        </a>
+        <label :if={@view == :live && @shuffle_on} class="alwayslbl">
+          <input type="checkbox" checked={@always_shuffle} phx-click="toggle-always-shuffle" />
+          always
+        </label>
         <form class="searchform" phx-submit="search" data-joyride="search">
           <input type="text" name="q" value={@q} placeholder="search title, tags, notes…" />
         </form>
@@ -1099,7 +1212,7 @@ defmodule BlogWeb.BlinksLive do
               id={"blink-#{blink.id}"}
             >
               <span class="rank">{(@page - 1) * @page_size + i}</span>
-              <img :if={blink.image_url} class="thumb" src={blink.image_url} loading="lazy" />
+              <img :if={row_thumb(blink)} class="thumb" src={row_thumb(blink)} loading="lazy" />
               <div class="entry">
                 <a
                   class={["title", blink.quotes != [] && "quoted"]}
@@ -1124,15 +1237,16 @@ defmodule BlogWeb.BlinksLive do
                   }>{blink.site_name || domain(blink.url)}</a>)
                 </span>
                 <div :if={blink.quotes != [] && blink.title} class="subtitle">{blink.title}</div>
-                <.bmedia
-                  :if={thread_posts(blink) != []}
-                  m={hd(thread_posts(blink))}
-                  href={blink.url}
-                />
                 <div :if={root_quote(blink)} class="bsky-quote">
                   ↳ quoting <b>@{root_quote(blink)["handle"]}</b>: “{root_quote(blink)["text"]}”
-                  <.bmedia m={root_quote(blink)} href={blink.url} />
                 </div>
+                <details :if={row_media_count(blink) > 0} class="xd mediafold">
+                  <summary class="foldarrow">media ({row_media_count(blink)})</summary>
+                  <div>
+                    <.bmedia m={root_post(blink)} href={blink.url} />
+                    <.bmedia :if={root_quote(blink)} m={root_quote(blink)} href={blink.url} />
+                  </div>
+                </details>
                 <div :if={MapSet.member?(@tags_open, blink.id)} class="meta tagsbox">
                   <span :for={tag <- blink.tags}>
                     <span

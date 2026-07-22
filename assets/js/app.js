@@ -775,7 +775,12 @@ Hooks.BlinksPrefs = {
     this.pushEvent('prefs', {
       ids: read(),
       seenTour: localStorage.getItem('blinksTourSeen') === '1',
-      adminKey: localStorage.getItem('blinksAdminKey') || null
+      adminKey: localStorage.getItem('blinksAdminKey') || null,
+      alwaysShuffle: localStorage.getItem('blinksAlwaysShuffle') === '1'
+    });
+    this.handleEvent('blinks:always-shuffle', ({ on }) => {
+      if (on) localStorage.setItem('blinksAlwaysShuffle', '1');
+      else localStorage.removeItem('blinksAlwaysShuffle');
     });
     this.handleEvent('blinks:admin-key', ({ key }) => {
       if (key) localStorage.setItem('blinksAdminKey', key);
