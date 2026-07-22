@@ -755,6 +755,26 @@ defmodule BlogWeb.BlinksLive do
     Enum.uniq(from_presence ++ from_messages) -- ["Anonymous"]
   end
 
+  # Image/video-still strip for a bsky post map (or its quote map).
+  defp bmedia(assigns) do
+    ~H"""
+    <div :if={@m && (@m["images"] || @m["video"])} class="bmedia">
+      <a
+        :for={img <- @m["images"] || []}
+        href={img["full"] || img["thumb"]}
+        target="_blank"
+        rel="noopener"
+      >
+        <img src={img["thumb"]} alt={img["alt"] || ""} loading="lazy" />
+      </a>
+      <a :if={@m["video"]} class="vid" href={@href} target="_blank" rel="noopener">
+        <img src={@m["video"]["thumb"]} loading="lazy" />
+        <span class="play">▶</span>
+      </a>
+    </div>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <div id="blinks-page" phx-hook="BlinksPrefs">
@@ -850,6 +870,10 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .tpost .ttext { white-space: pre-wrap; font-size: 11px; color: #222; margin-top: 1px; }
         #blinks-page .tquote { border-left: 2px solid #ddd; margin: 3px 0 0 6px; padding-left: 6px; color: #555; font-size: 10px; white-space: pre-wrap; }
         #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
+        #blinks-page .bmedia { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
+        #blinks-page .bmedia img { max-height: 110px; max-width: 170px; object-fit: cover; border: 1px solid #ddd; border-radius: 3px; display: block; }
+        #blinks-page .bmedia .vid { position: relative; display: inline-block; }
+        #blinks-page .bmedia .vid .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; text-shadow: 0 0 8px rgba(0,0,0,0.85); }
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
         #blinks-page .meta a.del { color: #c00; }
@@ -1100,8 +1124,14 @@ defmodule BlogWeb.BlinksLive do
                   }>{blink.site_name || domain(blink.url)}</a>)
                 </span>
                 <div :if={blink.quotes != [] && blink.title} class="subtitle">{blink.title}</div>
+                <.bmedia
+                  :if={thread_posts(blink) != []}
+                  m={hd(thread_posts(blink))}
+                  href={blink.url}
+                />
                 <div :if={root_quote(blink)} class="bsky-quote">
                   ↳ quoting <b>@{root_quote(blink)["handle"]}</b>: “{root_quote(blink)["text"]}”
+                  <.bmedia m={root_quote(blink)} href={blink.url} />
                 </div>
                 <div :if={MapSet.member?(@tags_open, blink.id)} class="meta tagsbox">
                   <span :for={tag <- blink.tags}>
@@ -1184,8 +1214,10 @@ defmodule BlogWeb.BlinksLive do
                         <b>{post["name"] || post["handle"]}</b>
                         <span class="thandle">@{post["handle"]}</span>
                         <div class="ttext">{post["text"]}</div>
+                        <.bmedia m={post} href={blink.url} />
                         <div :if={post["quote"]} class="tquote">
                           ↳ <b>@{post["quote"]["handle"]}</b>: “{post["quote"]["text"]}”
+                          <.bmedia m={post["quote"]} href={blink.url} />
                         </div>
                       </div>
                     </div>

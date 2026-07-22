@@ -146,12 +146,32 @@ defmodule Blog.Blinks.Enricher do
         "at" => get_in(post, ["record", "createdAt"]),
         "quote" => quoted_embed(post)
       }
+      |> Map.merge(media_from_embed(post["embed"]))
     end)
     |> Enum.reject(&is_nil(&1["text"]))
   end
 
-  # Quote posts embed the quoted record — pull its author + text so the
-  # saved post doesn't read like half a conversation.
+  # Images / video stills out of any embed view, including the media half
+  # of a quote-with-media post.
+  defp media_from_embed(%{"$type" => "app.bsky.embed.images#view", "images" => imgs}) do
+    %{
+      "images" =>
+        Enum.map(imgs, &%{"thumb" => &1["thumb"], "full" => &1["fullsize"], "alt" => &1["alt"]})
+    }
+  end
+
+  defp media_from_embed(%{"$type" => "app.bsky.embed.video#view"} = v) do
+    %{"video" => %{"thumb" => v["thumbnail"]}}
+  end
+
+  defp media_from_embed(%{"$type" => "app.bsky.embed.recordWithMedia#view", "media" => media}) do
+    media_from_embed(media)
+  end
+
+  defp media_from_embed(_), do: %{}
+
+  # Quote posts embed the quoted record — pull its author + text (and any
+  # media it carries) so the saved post doesn't read like half a conversation.
   defp quoted_embed(post) do
     record =
       case post["embed"] do
@@ -162,11 +182,19 @@ defmodule Blog.Blinks.Enricher do
 
     with %{"$type" => "app.bsky.embed.record#viewRecord"} = r <- record,
          text when is_binary(text) <- get_in(r, ["value", "text"]) do
-      %{
-        "name" => get_in(r, ["author", "displayName"]),
-        "handle" => get_in(r, ["author", "handle"]),
-        "text" => text
-      }
+      quoted_media =
+        (r["embeds"] || [])
+        |> Enum.map(&media_from_embed/1)
+        |> Enum.find(%{}, &(&1 != %{}))
+
+      Map.merge(
+        %{
+          "name" => get_in(r, ["author", "displayName"]),
+          "handle" => get_in(r, ["author", "handle"]),
+          "text" => text
+        },
+        quoted_media
+      )
     else
       _ -> nil
     end

@@ -326,7 +326,7 @@ defmodule BlogWeb.BlinksLiveTest do
     my_reply = Map.put(node.("did:me", "my hot take", "2026-01-01T01:00:00Z", []), "parent", other)
     assert [%{"text" => "my hot take"}] = Blog.Blinks.Enricher.unroll_posts(my_reply)
 
-    # quote posts carry the quoted record's author + text
+    # quote posts carry the quoted record's author + text + any media it has
     quoting =
       put_in(
         node.("did:me", "pirate math", "2026-01-01T00:00:00Z", []),
@@ -336,13 +336,34 @@ defmodule BlogWeb.BlinksLiveTest do
           "record" => %{
             "$type" => "app.bsky.embed.record#viewRecord",
             "author" => %{"handle" => "quoted.bsky", "displayName" => "Q"},
-            "value" => %{"text" => "the original hot take"}
+            "value" => %{"text" => "the original hot take"},
+            "embeds" => [
+              %{
+                "$type" => "app.bsky.embed.images#view",
+                "images" => [%{"thumb" => "https://cdn/q-thumb.jpg", "fullsize" => "https://cdn/q-full.jpg", "alt" => "qpic"}]
+              }
+            ]
           }
         }
       )
 
-    assert [%{"quote" => %{"handle" => "quoted.bsky", "text" => "the original hot take"}}] =
-             Blog.Blinks.Enricher.unroll_posts(quoting)
+    assert [%{"quote" => quote_map}] = Blog.Blinks.Enricher.unroll_posts(quoting)
+    assert %{"handle" => "quoted.bsky", "text" => "the original hot take"} = quote_map
+    assert [%{"thumb" => "https://cdn/q-thumb.jpg"}] = quote_map["images"]
+
+    # a post's own image embed comes through too
+    with_pic =
+      put_in(
+        node.("did:me", "look at this", "2026-01-01T00:00:00Z", []),
+        ["post", "embed"],
+        %{
+          "$type" => "app.bsky.embed.images#view",
+          "images" => [%{"thumb" => "https://cdn/t.jpg", "fullsize" => "https://cdn/f.jpg"}]
+        }
+      )
+
+    assert [%{"images" => [%{"full" => "https://cdn/f.jpg"}]}] =
+             Blog.Blinks.Enricher.unroll_posts(with_pic)
 
     {:ok, b} =
       Blinks.save_blink(%{"url" => "https://bsky.app/profile/bob.bsky/post/abc", "title" => "t"})
