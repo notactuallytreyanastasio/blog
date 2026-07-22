@@ -903,7 +903,8 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .paper .col { flex: 1; min-width: 0; }
         #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
 
-        #blinks-page .thing { display: block; padding: 3px 0; break-inside: avoid; -webkit-column-break-inside: avoid; }
+        #blinks-page .thing { display: block; padding: 7px 0 8px; margin-bottom: 2px; border-bottom: 1px solid #e2e2e2; break-inside: avoid; -webkit-column-break-inside: avoid; }
+        #blinks-page .col .thing:last-child { border-bottom: none; }
         /* dead links: the whole row fades to a readable grey */
         #blinks-page .thing.dead { filter: grayscale(1); opacity: 0.55; }
         #blinks-page .thing.dead .title { color: #666; }
