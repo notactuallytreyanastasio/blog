@@ -388,7 +388,12 @@ defmodule BlogWeb.BlinksLiveTest do
 
   test "dead links point at the wayback copy with a skull", %{conn: conn} do
     {:ok, blink} = Blinks.save_blink(%{"url" => "https://gone.co/404", "title" => "Vanished"})
-    {:ok, dead} = Blog.Blinks.LinkCheck.record_result(blink, :dead)
+
+    # one flaky failure is forgiven; the second consecutive one kills it
+    {:ok, once} = Blog.Blinks.LinkCheck.record_result(blink, :dead)
+    refute once.dead_at
+    assert once.fail_count == 1
+    {:ok, dead} = Blog.Blinks.LinkCheck.record_result(once, :dead)
     assert dead.dead_at
 
     {:ok, _view, html} = live(conn, "/blinks")

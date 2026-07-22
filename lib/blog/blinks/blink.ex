@@ -45,6 +45,7 @@ defmodule Blog.Blinks.Blink do
     field :enriched_at, :naive_datetime
     field :dead_at, :naive_datetime
     field :last_checked_at, :naive_datetime
+    field :fail_count, :integer, default: 0
 
     timestamps()
   end
@@ -65,7 +66,8 @@ defmodule Blog.Blinks.Blink do
       :site_name,
       :enriched_at,
       :dead_at,
-      :last_checked_at
+      :last_checked_at,
+      :fail_count
     ])
     |> validate_required([:url])
     |> validate_length(:url, min: 1, max: 4096)

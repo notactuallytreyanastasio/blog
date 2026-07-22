@@ -62,19 +62,30 @@ defmodule Blog.Blinks.LinkCheck do
     end
   end
 
-  @doc "Persist a check result; keeps the original death timestamp on repeat failures."
+  @doc """
+  Persist a check result. A single flaky failure doesn't kill a link — it
+  takes two consecutive failed sweeps before `dead_at` is set. Success
+  resets everything; repeat failures keep the original death timestamp.
+  """
   @spec record_result(Blink.t(), :ok | :dead) :: {:ok, Blink.t()}
   def record_result(%Blink{} = blink, status) do
     now = NaiveDateTime.utc_now(:second)
 
-    dead_at =
+    attrs =
       case status do
-        :ok -> nil
-        :dead -> blink.dead_at || now
+        :ok ->
+          %{dead_at: nil, fail_count: 0, last_checked_at: now}
+
+        :dead ->
+          fails = blink.fail_count + 1
+
+          %{
+            fail_count: fails,
+            dead_at: if(fails >= 2, do: blink.dead_at || now),
+            last_checked_at: now
+          }
       end
 
-    blink
-    |> Blink.changeset(%{dead_at: dead_at, last_checked_at: now})
-    |> Repo.update()
+    blink |> Blink.changeset(attrs) |> Repo.update()
   end
 end
