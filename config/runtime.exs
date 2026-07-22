@@ -152,9 +152,6 @@ end
 # Google Analytics (all environments — blank means disabled)
 config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
 
-# Optional: enables semantic search + similarity for blinks when set
-config :blog, :openai_api_key, System.get_env("OPENAI_API_KEY")
-
 # Hetzner S3 credentials (all environments)
 if s3_access = read_env.("S3_ACCESS_KEY") do
   config :ex_aws,

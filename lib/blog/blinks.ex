@@ -4,7 +4,7 @@ defmodule Blog.Blinks do
   """
 
   import Ecto.Query
-  alias Blog.Blinks.{Blink, Embeddings, Enricher}
+  alias Blog.Blinks.{Blink, Enricher}
   alias Blog.Repo
 
   @doc """
@@ -46,46 +46,26 @@ defmodule Blog.Blinks do
   def get_blink(id), do: Repo.get(Blink, id)
 
   @doc """
-  Ranks other blinks by similarity to the given one: cosine over embeddings
-  when both sides have them, otherwise shared tags + trigram title
-  similarity in Postgres.
+  Ranks other blinks by similarity to the given one: shared tags + trigram
+  title similarity, all in Postgres.
   """
   @spec list_similar(Blink.t(), non_neg_integer()) :: [Blink.t()]
   def list_similar(%Blink{} = blink, limit \\ 10) do
-    ids =
-      case blink.embedding do
-        vector when is_list(vector) ->
-          Embeddings.rank_against(vector)
-          |> Enum.reject(fn {id, _} -> id == blink.id end)
-          |> Enum.filter(fn {_, score} -> score > 0.2 end)
-          |> Enum.take(limit)
-          |> Enum.map(&elem(&1, 0))
+    %{rows: rows} =
+      Repo.query!(
+        """
+        SELECT id FROM blinks
+        WHERE id != $1
+        ORDER BY
+          (SELECT count(*) FROM unnest(tags) t WHERE t = ANY($2)) * 2
+            + similarity(coalesce(title, ''), $3) DESC,
+          inserted_at DESC
+        LIMIT $4
+        """,
+        [blink.id, blink.tags, blink.title || "", limit]
+      )
 
-        nil ->
-          []
-      end
-
-    ids =
-      if ids == [] do
-        %{rows: rows} =
-          Repo.query!(
-            """
-            SELECT id FROM blinks
-            WHERE id != $1
-            ORDER BY
-              (SELECT count(*) FROM unnest(tags) t WHERE t = ANY($2)) * 2
-                + similarity(coalesce(title, ''), $3) DESC,
-              inserted_at DESC
-            LIMIT $4
-            """,
-            [blink.id, blink.tags, blink.title || "", limit]
-          )
-
-        List.flatten(rows)
-      else
-        ids
-      end
-
+    ids = List.flatten(rows)
     blinks = Blink |> where([b], b.id in ^ids) |> Repo.all() |> Map.new(&{&1.id, &1})
     ids |> Enum.map(&blinks[&1]) |> Enum.reject(&is_nil/1)
   end
@@ -106,46 +86,17 @@ defmodule Blog.Blinks do
     tags = Keyword.get(opts, :tags) || []
     exclude = Keyword.get(opts, :exclude_tags) || []
 
-    results =
-      Blink
-      |> order_by(desc: :inserted_at, desc: :id)
-      |> limit(^limit)
-      |> maybe_search(query)
-      |> maybe_filter_tags(tags)
-      |> maybe_exclude_tags(exclude)
-      |> Repo.all()
-
-    results ++ semantic_extras(query, tags, exclude, results, limit)
+    Blink
+    |> order_by(desc: :inserted_at, desc: :id)
+    |> limit(^limit)
+    |> maybe_search(query)
+    |> maybe_filter_tags(tags)
+    |> maybe_exclude_tags(exclude)
+    |> Repo.all()
   end
 
   # With embeddings enabled, append semantically-close blinks that keyword
   # search missed (still respecting any tag filter).
-  defp semantic_extras(query, tags, exclude, keyword_results, limit)
-       when is_binary(query) and query != "" do
-    with true <- Embeddings.enabled?(),
-         {:ok, vector} <- Embeddings.embed(query) do
-      seen = MapSet.new(keyword_results, & &1.id)
-
-      ids =
-        Embeddings.rank_against(vector)
-        |> Enum.filter(fn {id, score} -> score > 0.3 and not MapSet.member?(seen, id) end)
-        |> Enum.take(max(limit - length(keyword_results), 0))
-        |> Enum.map(&elem(&1, 0))
-
-      Blink
-      |> where([b], b.id in ^ids)
-      |> maybe_filter_tags(tags)
-      |> maybe_exclude_tags(exclude)
-      |> Repo.all()
-      |> Map.new(&{&1.id, &1})
-      |> then(fn by_id -> ids |> Enum.map(&by_id[&1]) |> Enum.reject(&is_nil/1) end)
-    else
-      _ -> []
-    end
-  end
-
-  defp semantic_extras(_query, _tags, _exclude, _results, _limit), do: []
-
   defp maybe_exclude_tags(queryable, []), do: queryable
 
   defp maybe_exclude_tags(queryable, tags) do

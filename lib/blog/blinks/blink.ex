@@ -23,7 +23,6 @@ defmodule Blog.Blinks.Blink do
           favicon_url: String.t() | nil,
           image_url: String.t() | nil,
           site_name: String.t() | nil,
-          embedding: [float()] | nil,
           enriched_at: NaiveDateTime.t() | nil,
           inserted_at: NaiveDateTime.t() | nil,
           updated_at: NaiveDateTime.t() | nil
@@ -37,7 +36,6 @@ defmodule Blog.Blinks.Blink do
     field :favicon_url, :string
     field :image_url, :string
     field :site_name, :string
-    field :embedding, {:array, :float}
     field :enriched_at, :naive_datetime
 
     timestamps()
@@ -55,7 +53,6 @@ defmodule Blog.Blinks.Blink do
       :favicon_url,
       :image_url,
       :site_name,
-      :embedding,
       :enriched_at
     ])
     |> validate_required([:url])

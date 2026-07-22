@@ -6,7 +6,7 @@ defmodule Blog.Blinks.Enricher do
   """
 
   require Logger
-  alias Blog.Blinks.{Blink, Embeddings}
+  alias Blog.Blinks.Blink
   alias Blog.Repo
 
   @spec enrich_async(Blink.t()) :: :ok
@@ -42,7 +42,6 @@ defmodule Blog.Blinks.Enricher do
         |> Map.new()
 
       {:ok, updated} = blink |> Blink.changeset(attrs) |> Repo.update()
-      Embeddings.embed_blink(updated)
       {:ok, updated}
     else
       :skipped ->
