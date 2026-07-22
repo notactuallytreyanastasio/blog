@@ -56,6 +56,19 @@ defmodule BlogWeb.Api.BlinkController do
     json(conn, %{status: "ok", imported: Blinks.import_candidates(candidates)})
   end
 
+  def delete(conn, %{"id" => id}) do
+    case Integer.parse(id) do
+      {id, ""} ->
+        case Blinks.delete_blink(id) do
+          {:ok, blink} -> json(conn, %{status: "ok", deleted: blink.id})
+          {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "not found"})
+        end
+
+      _ ->
+        conn |> put_status(:bad_request) |> json(%{error: "bad id"})
+    end
+  end
+
   def lookup(conn, params) do
     json(conn, %{status: "ok", blink: Blinks.get_by_url(params["url"])})
   end

@@ -741,7 +741,12 @@ Hooks.BlinksPrefs = {
     };
     this.pushEvent('prefs', {
       ids: read(),
-      seenTour: localStorage.getItem('blinksTourSeen') === '1'
+      seenTour: localStorage.getItem('blinksTourSeen') === '1',
+      adminKey: localStorage.getItem('blinksAdminKey') || null
+    });
+    this.handleEvent('blinks:admin-key', ({ key }) => {
+      if (key) localStorage.setItem('blinksAdminKey', key);
+      else localStorage.removeItem('blinksAdminKey');
     });
     this.handleEvent('blinks:hide', ({ id }) => {
       const ids = read();

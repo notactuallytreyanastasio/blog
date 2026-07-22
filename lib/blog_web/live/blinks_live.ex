@@ -44,6 +44,8 @@ defmodule BlogWeb.BlinksLive do
        singles_open: false,
        hidden_ids: MapSet.new(),
        fresh_ids: MapSet.new(),
+       admin: false,
+       admin_error: nil,
        # the tour auto-runs when this browser hasn't seen it (localStorage,
        # reported by the BlinksPrefs hook) — IP-based identity would wrongly
        # skip it in incognito/new browsers on a known network
@@ -331,6 +333,35 @@ defmodule BlogWeb.BlinksLive do
   def handle_event("prefs", %{"ids" => ids} = params, socket) when is_list(ids) do
     socket = socket |> assign(hidden_ids: MapSet.new(ids)) |> reload()
     socket = if params["seenTour"], do: socket, else: assign(socket, show_tour: true)
+    socket = if valid_key?(params["adminKey"]), do: assign(socket, admin: true), else: socket
+    {:noreply, socket}
+  end
+
+  def handle_event("unlock-admin", %{"key" => key}, socket) do
+    if valid_key?(key) do
+      {:noreply,
+       socket
+       |> assign(admin: true, admin_error: nil)
+       |> push_event("blinks:admin-key", %{key: key})}
+    else
+      {:noreply, assign(socket, admin_error: "nope, that's not it")}
+    end
+  end
+
+  def handle_event("lock-admin", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(admin: false)
+     |> push_event("blinks:admin-key", %{key: nil})}
+  end
+
+  def handle_event("delete", %{"id" => id}, socket) do
+    if socket.assigns.admin do
+      {id, _} = Integer.parse(id)
+      # list refresh arrives via the :blink_deleted broadcast
+      Blinks.delete_blink(id)
+    end
+
     {:noreply, socket}
   end
 
@@ -442,7 +473,8 @@ defmodule BlogWeb.BlinksLive do
      |> reload()}
   end
 
-  def handle_info({:blink_updated, %Blinks.Blink{}}, socket) do
+  def handle_info({event, %Blinks.Blink{}}, socket)
+      when event in [:blink_updated, :blink_deleted] do
     {:noreply, socket |> assign(total: Blinks.count_blinks()) |> reload()}
   end
 
@@ -501,6 +533,13 @@ defmodule BlogWeb.BlinksLive do
       |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
 
     push_patch(socket, to: ~p"/blinks?#{params}")
+  end
+
+  defp valid_key?(key) do
+    expected = Application.get_env(:blog, :blinks_api_token)
+
+    is_binary(expected) and expected != "" and is_binary(key) and
+      Plug.Crypto.secure_compare(key, expected)
   end
 
   defp domain(url) do
@@ -681,6 +720,7 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
+        #blinks-page .meta a.del { color: #c00; }
         #blinks-page .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #7fbf00; margin-right: 3px; vertical-align: 0; animation: blinks-pulse 2s ease-in-out infinite; }
         #blinks-page .live-n { color: #4a8000; }
         @keyframes blinks-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -911,6 +951,15 @@ defmodule BlogWeb.BlinksLive do
                   >
                     hide
                   </a>
+                  <a
+                    :if={@admin}
+                    class="del"
+                    phx-click="delete"
+                    phx-value-id={blink.id}
+                    data-confirm={"delete “#{blink.title || blink.url}” and its chat forever?"}
+                  >
+                    delete
+                  </a>
                   <details :if={blink.description} class="notes">
                     <summary></summary>
                     <div class="desc">{blink.description}</div>
@@ -981,6 +1030,29 @@ defmodule BlogWeb.BlinksLive do
               <span :if={@selected_tags != []} style="color:#888;">
                 (for {Enum.join(@selected_tags, " + ")})
               </span>
+            </div>
+          </div>
+          <div class="sidebox">
+            <h2>admin</h2>
+            <div class="body">
+              <%= if @admin do %>
+                <span style="color:#4a8000; font-weight:bold;">✓ unlocked</span>
+                — delete links from their rows.
+                <a phx-click="lock-admin" style="color:#369; cursor:pointer;">lock</a>
+              <% else %>
+                <form phx-submit="unlock-admin">
+                  <input
+                    type="password"
+                    name="key"
+                    placeholder="paste API key…"
+                    style="width:100%; border:1px solid #5f99cf; font-size:11px; padding:3px; margin-bottom:4px;"
+                  />
+                  <button class="aim-send" type="submit">unlock</button>
+                  <span :if={@admin_error} style="color:#c00; font-size:10px;">
+                    {@admin_error}
+                  </span>
+                </form>
+              <% end %>
             </div>
           </div>
           <div class="sidebox">

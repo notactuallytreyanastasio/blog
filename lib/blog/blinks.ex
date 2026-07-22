@@ -150,6 +150,24 @@ defmodule Blog.Blinks do
     Blink |> order_by(fragment("random()")) |> limit(1) |> Repo.one()
   end
 
+  @doc "Deletes a blink and its chat room's messages. Broadcasts :blink_deleted."
+  @spec delete_blink(integer()) :: {:ok, Blink.t()} | {:error, :not_found}
+  def delete_blink(id) do
+    case Repo.get(Blink, id) do
+      nil ->
+        {:error, :not_found}
+
+      %Blink{} = blink ->
+        {:ok, _} = Repo.delete(blink)
+
+        from(m in Blog.Chat.Message, where: m.room == ^"blink:#{blink.id}")
+        |> Repo.delete_all()
+
+        broadcast(blink, :blink_deleted)
+        {:ok, blink}
+    end
+  end
+
   # ── bookmark review queue ────────────────────────────────────────────────
 
   alias Blog.Blinks.BookmarkCandidate

@@ -444,6 +444,36 @@ defmodule BlogWeb.BlinksLiveTest do
     assert Blinks.import_candidates([%{"url" => "https://bm.co/keeper", "title" => "Keeper"}]) == 0
   end
 
+  test "admin unlock enables delete; deletes take the chat room along", %{conn: conn} do
+    {:ok, blink} = Blinks.save_blink(%{"url" => "https://del.co/1", "title" => "Doomed"})
+    {:ok, chatter} = Chat.find_or_create_chatter("mourner", "5.5.5.5")
+    {:ok, _} = Chat.create_message(chatter, "rip", "blink:#{blink.id}")
+
+    {:ok, view, html} = live(conn, "/blinks")
+    refute html =~ ">delete<"
+
+    # wrong key rejected
+    view |> element("form[phx-submit=unlock-admin]") |> render_submit(%{"key" => "wrong"})
+    html = render(view)
+    assert html =~ "not it"
+    refute html =~ ">delete<"
+
+    view
+    |> element("form[phx-submit=unlock-admin]")
+    |> render_submit(%{"key" => "dev-blinks-token"})
+
+    view |> element("a.del[phx-value-id='#{blink.id}']") |> render_click()
+
+    refute Blinks.get_by_url("https://del.co/1")
+    assert Chat.list_messages("blink:#{blink.id}") == []
+    refute render(view) =~ "Doomed"
+
+    # a stored key unlocks straight from prefs on the next visit
+    {:ok, view2, _} = live(conn, "/blinks")
+    render_hook(view2, "prefs", %{"ids" => [], "seenTour" => true, "adminKey" => "dev-blinks-token"})
+    assert render(view2) =~ "unlocked"
+  end
+
   defp candidate_id(url) do
     Blog.Repo.get_by!(Blog.Blinks.BookmarkCandidate, url: url).id
   end
