@@ -524,6 +524,20 @@ defmodule BlogWeb.BlinksLive do
   defp thread_posts(%{thread: %{"posts" => posts}}) when is_list(posts), do: posts
   defp thread_posts(_blink), do: []
 
+  # Row headline: first quote wins, then a thread's top-level post, then title.
+  defp headline(blink) do
+    cond do
+      blink.quotes != [] ->
+        "“#{List.first(blink.quotes)}”"
+
+      thread_posts(blink) != [] ->
+        thread_posts(blink) |> hd() |> Map.get("text", "") |> String.slice(0, 140)
+
+      true ->
+        blink.title || blink.url
+    end
+  end
+
   defp frequent_tags(tags), do: Enum.filter(tags, &(&1.count >= 2))
   defp single_tags(tags), do: Enum.filter(tags, &(&1.count == 1))
 
@@ -595,6 +609,8 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .pillbtn::-webkit-details-marker { display: none; }
         #blinks-page .xd { display: inline; margin: 0; }
         #blinks-page .xd[open] .pillbtn { border-style: inset; background: #1d4568; }
+        #blinks-page .threadmark { display: inline; cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
+        #blinks-page .threadmark::-webkit-details-marker { display: none; }
         #blinks-page .quote-item { font-style: italic; color: #333; font-size: 11px; border-left: 3px solid #ddd; padding-left: 6px; margin: 3px 0; max-width: 72ch; }
         #blinks-page .thread-view { margin: 4px 0; max-width: 72ch; }
         #blinks-page .tpost { border-left: 2px solid #cee3f8; margin: 0 0 6px 4px; padding: 2px 0 2px 8px; }
@@ -772,9 +788,7 @@ defmodule BlogWeb.BlinksLive do
                   target="_blank"
                   rel="noopener"
                 >
-                  {if blink.quotes != [],
-                    do: "“#{List.first(blink.quotes)}”",
-                    else: blink.title || blink.url}
+                  {headline(blink)}
                 </a>
                 <span class="domain">
                   (<img :if={blink.favicon_url} class="favicon" src={blink.favicon_url} loading="lazy" /><a href={
@@ -823,8 +837,8 @@ defmodule BlogWeb.BlinksLive do
                     </div>
                   </details>
                   <details :if={thread_posts(blink) != []} class="xd">
-                    <summary class="pillbtn">
-                      UNROLL THREAD ({length(thread_posts(blink))} POSTS)
+                    <summary class="threadmark" title="unroll the whole thread">
+                      🧵 {length(thread_posts(blink))}
                     </summary>
                     <div class="thread-view">
                       <div :for={post <- thread_posts(blink)} class="tpost">

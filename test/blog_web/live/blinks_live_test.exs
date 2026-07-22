@@ -326,9 +326,12 @@ defmodule BlogWeb.BlinksLiveTest do
       |> Blog.Repo.update()
 
     {:ok, _view, html} = live(conn, "/blinks")
-    assert html =~ "UNROLL THREAD (3 POSTS)"
+    # row shows only the top-level post as headline plus a thread marker
+    assert html =~ "post one"
+    assert html =~ "🧵 3"
     assert html =~ "post three"
     refute html =~ "nice thread!"
+    refute html =~ "UNROLL THREAD"
   end
 
   test "comment counts show on the list", %{conn: conn} do
