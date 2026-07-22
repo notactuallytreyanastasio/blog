@@ -57,6 +57,14 @@ defmodule BlogWeb.BlinkFeedController do
     |> send_resp(200, body)
   end
 
+  @doc "StumbleUpon, at home: bounce to a random saved link."
+  def stumble(conn, _params) do
+    case Blinks.random_blink() do
+      nil -> redirect(conn, to: "/blinks")
+      blink -> redirect(conn, external: blink.url)
+    end
+  end
+
   defp xml_escape(s) do
     s
     |> String.replace("&", "&amp;")

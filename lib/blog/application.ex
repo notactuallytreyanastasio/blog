@@ -44,7 +44,7 @@ defmodule Blog.Application do
       Blog.CollageMaker.Cleanup
     ]
 
-    children = children ++ work_log_poller_children()
+    children = children ++ work_log_poller_children() ++ blinks_link_check_children()
 
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
@@ -52,6 +52,15 @@ defmodule Blog.Application do
 
   # The poller makes live GitHub API calls and writes to the database, so it
   # is disabled in the test environment (see config/test.exs).
+  # Daily dead-link sweep does live HTTP; keep it out of tests (config/test.exs).
+  defp blinks_link_check_children do
+    if Application.get_env(:blog, :start_blinks_link_check, true) do
+      [Blog.Blinks.LinkCheck]
+    else
+      []
+    end
+  end
+
   defp work_log_poller_children do
     if Application.get_env(:blog, :start_work_log_poller, true) do
       [Blog.GitHub.WorkLogPoller]

@@ -271,7 +271,7 @@ defmodule BlogWeb.BlinksLiveTest do
     assert render(view) =~ "blinks-tour"
 
     # manual restart from the header
-    view |> element("a.tour-link") |> render_click()
+    view |> element("a[phx-click=start-tour]") |> render_click()
     assert render(view) =~ "blinks-tour"
   end
 
@@ -371,6 +371,40 @@ defmodule BlogWeb.BlinksLiveTest do
     assert html =~ "1 saved"
     # freshly arrived rows tune in from static
     assert html =~ "thing fresh"
+  end
+
+  test "live-room dots: the list shows who's in a room right now", %{conn: conn} do
+    {:ok, blink} = Blinks.save_blink(%{"url" => "https://live.co/room", "title" => "Roomy"})
+
+    # viewer A sits in the room; viewer B watches the list
+    {:ok, _in_room, _} = live(conn, "/blinks?chat=#{blink.id}")
+    {:ok, list_view, _} = live(conn, "/blinks")
+
+    html = render(list_view)
+    assert html =~ "live-dot"
+    assert html =~ "1 here now"
+  end
+
+  test "dead links point at the wayback copy with a skull", %{conn: conn} do
+    {:ok, blink} = Blinks.save_blink(%{"url" => "https://gone.co/404", "title" => "Vanished"})
+    {:ok, dead} = Blog.Blinks.LinkCheck.record_result(blink, :dead)
+    assert dead.dead_at
+
+    {:ok, _view, html} = live(conn, "/blinks")
+    assert html =~ "💀"
+    assert html =~ ~s(href="https://web.archive.org/web/2/https://gone.co/404")
+
+    # recovery clears the flag and keeps last_checked_at fresh
+    {:ok, alive} = Blog.Blinks.LinkCheck.record_result(dead, :ok)
+    refute alive.dead_at
+    assert alive.last_checked_at
+  end
+
+  test "stumble redirects to a random saved link", %{conn: conn} do
+    {:ok, _} = Blinks.save_blink(%{"url" => "https://only.co/one", "title" => "Sole"})
+
+    conn2 = get(conn, "/blinks/stumble")
+    assert redirected_to(conn2, 302) == "https://only.co/one"
   end
 
   test "comment counts show on the list", %{conn: conn} do

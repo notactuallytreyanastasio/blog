@@ -145,6 +145,11 @@ defmodule Blog.Blinks do
   @spec count_blinks() :: non_neg_integer()
   def count_blinks, do: Repo.aggregate(Blink, :count)
 
+  @spec random_blink() :: Blink.t() | nil
+  def random_blink do
+    Blink |> order_by(fragment("random()")) |> limit(1) |> Repo.one()
+  end
+
   # Always considered ultra nerdy stuff, no matter what the editable list says.
   @base_dork_tags ~w(code programming ai ml programming-languages tech-commentary)
 

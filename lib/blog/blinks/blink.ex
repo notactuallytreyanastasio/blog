@@ -43,6 +43,8 @@ defmodule Blog.Blinks.Blink do
     field :image_url, :string
     field :site_name, :string
     field :enriched_at, :naive_datetime
+    field :dead_at, :naive_datetime
+    field :last_checked_at, :naive_datetime
 
     timestamps()
   end
@@ -61,7 +63,9 @@ defmodule Blog.Blinks.Blink do
       :favicon_url,
       :image_url,
       :site_name,
-      :enriched_at
+      :enriched_at,
+      :dead_at,
+      :last_checked_at
     ])
     |> validate_required([:url])
     |> validate_length(:url, min: 1, max: 4096)

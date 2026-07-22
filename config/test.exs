@@ -42,3 +42,6 @@ config :blog, start_work_log_poller: false
 
 # Blinks enrichment does live HTTP fetches; keep it out of tests.
 config :blog, :blinks_enrich, false
+
+# The dead-link sweep does live HTTP; keep it out of tests.
+config :blog, :start_blinks_link_check, false

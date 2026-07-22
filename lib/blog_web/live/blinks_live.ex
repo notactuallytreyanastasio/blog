@@ -5,11 +5,18 @@ defmodule BlogWeb.BlinksLive do
   alias Blog.Chat
   alias BlogWeb.Presence
 
+  # one shared presence topic for every link's room, so the list page can
+  # show live-occupancy dots without subscribing to each room
+  @rooms_presence "blinks_rooms_presence"
+
   def mount(_params, session, socket) do
     visitor_ip = Map.get(session, "remote_ip", "unknown")
     returning = Chat.get_chatter_by_ip(Chat.hash_ip(visitor_ip))
 
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Blog.PubSub, Blinks.topic())
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Blog.PubSub, Blinks.topic())
+      Phoenix.PubSub.subscribe(Blog.PubSub, @rooms_presence)
+    end
 
     {:ok,
      assign(socket,
@@ -22,7 +29,8 @@ defmodule BlogWeb.BlinksLive do
        chat_blink: nil,
        chat_messages: [],
        chat_topic: nil,
-       chat_ptopic: nil,
+       chat_room: nil,
+       rooms_live: %{},
        chat_input: "",
        chat_votes: %{},
        my_votes: %{},
@@ -166,24 +174,20 @@ defmodule BlogWeb.BlinksLive do
       end
 
     new_topic = if blink, do: Chat.room_topic(room(blink))
-    new_ptopic = if blink, do: "blinks_chat_presence:#{room(blink)}"
+    new_room = if blink, do: room(blink)
     old_topic = socket.assigns.chat_topic
-    old_ptopic = socket.assigns.chat_ptopic
+    old_room = socket.assigns.chat_room
 
     if connected?(socket) and new_topic != old_topic do
       if old_topic, do: Phoenix.PubSub.unsubscribe(Blog.PubSub, old_topic)
       if new_topic, do: Phoenix.PubSub.subscribe(Blog.PubSub, new_topic)
 
-      if old_ptopic do
-        Presence.untrack(self(), old_ptopic, socket.assigns.presence_key)
-        Phoenix.PubSub.unsubscribe(Blog.PubSub, old_ptopic)
-      end
+      if old_room, do: Presence.untrack(self(), @rooms_presence, socket.assigns.presence_key)
 
-      if new_ptopic do
-        Phoenix.PubSub.subscribe(Blog.PubSub, new_ptopic)
-
+      if new_room do
         {:ok, _} =
-          Presence.track(self(), new_ptopic, socket.assigns.presence_key, %{
+          Presence.track(self(), @rooms_presence, socket.assigns.presence_key, %{
+            room: new_room,
             name: presence_name(socket.assigns.chatter),
             color: (socket.assigns.chatter && socket.assigns.chatter.color) || "#888"
           })
@@ -197,10 +201,11 @@ defmodule BlogWeb.BlinksLive do
     assign(socket,
       chat_blink: blink,
       chat_topic: new_topic,
-      chat_ptopic: new_ptopic,
+      chat_room: new_room,
       replying_to: nil,
       show_buddies: false,
-      buddies: if(new_ptopic, do: list_buddies(new_ptopic), else: []),
+      buddies: if(new_room, do: list_buddies(new_room), else: []),
+      rooms_live: occupancy(),
       chat_messages: messages,
       chat_votes: Chat.vote_counts(ids),
       my_votes: if(chatter, do: Chat.my_votes(ids, chatter.id), else: %{})
@@ -210,10 +215,20 @@ defmodule BlogWeb.BlinksLive do
   defp presence_name(nil), do: "lurker"
   defp presence_name(chatter), do: chatter.screen_name
 
-  defp list_buddies(ptopic) do
-    Presence.list(ptopic)
+  defp all_present do
+    Presence.list(@rooms_presence)
     |> Enum.map(fn {_key, %{metas: [meta | _]}} -> meta end)
+  end
+
+  defp list_buddies(room) do
+    all_present()
+    |> Enum.filter(&(&1.room == room))
     |> Enum.sort_by(& &1.name)
+  end
+
+  defp occupancy do
+    all_present()
+    |> Enum.frequencies_by(& &1.room)
   end
 
   defp room(blink), do: "blink:#{blink.id}"
@@ -278,8 +293,9 @@ defmodule BlogWeb.BlinksLive do
       name ->
         case Chat.find_or_create_chatter(name, socket.assigns.visitor_ip) do
           {:ok, chatter} ->
-            if socket.assigns.chat_ptopic do
-              Presence.update(self(), socket.assigns.chat_ptopic, socket.assigns.presence_key, %{
+            if socket.assigns.chat_room do
+              Presence.update(self(), @rooms_presence, socket.assigns.presence_key, %{
+                room: socket.assigns.chat_room,
                 name: chatter.screen_name,
                 color: chatter.color
               })
@@ -337,8 +353,9 @@ defmodule BlogWeb.BlinksLive do
   end
 
   def handle_event("sign-off", _params, socket) do
-    if socket.assigns.chat_ptopic do
-      Presence.update(self(), socket.assigns.chat_ptopic, socket.assigns.presence_key, %{
+    if socket.assigns.chat_room do
+      Presence.update(self(), @rooms_presence, socket.assigns.presence_key, %{
+        room: socket.assigns.chat_room,
         name: "lurker",
         color: "#888"
       })
@@ -437,12 +454,18 @@ defmodule BlogWeb.BlinksLive do
     {:noreply, assign(socket, chat_votes: Map.put(socket.assigns.chat_votes, message_id, counts))}
   end
 
-  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", topic: topic}, socket) do
-    if topic == socket.assigns.chat_ptopic do
-      {:noreply, assign(socket, buddies: list_buddies(topic))}
-    else
-      {:noreply, socket}
-    end
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", topic: @rooms_presence}, socket) do
+    room = socket.assigns.chat_room
+
+    {:noreply,
+     assign(socket,
+       rooms_live: occupancy(),
+       buddies: if(room, do: list_buddies(room), else: [])
+     )}
+  end
+
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+    {:noreply, socket}
   end
 
   # ── helpers ─────────────────────────────────────────────────────────────
@@ -667,6 +690,9 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
+        #blinks-page .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #7fbf00; margin-right: 3px; vertical-align: 0; animation: blinks-pulse 2s ease-in-out infinite; }
+        #blinks-page .live-n { color: #4a8000; }
+        @keyframes blinks-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
         #blinks-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 0 2px 1px 0; cursor: pointer; }
         #blinks-page .tag.on { background: #cee3f8; border-color: #5f99cf; font-weight: bold; }
         #blinks-page .empty { color: #888; padding: 20px 0; }
@@ -768,6 +794,9 @@ defmodule BlogWeb.BlinksLive do
         <h1>bobbby's <span>links</span></h1>
         <span class="dateline">{@total} saved</span>
         <a class="tour-link" phx-click="start-tour">tour</a>
+        <a class="tour-link" href="/blinks/stumble" target="_blank" title="a random saved link">
+          stumble 🎲
+        </a>
         <form class="searchform" phx-submit="search" data-joyride="search">
           <input type="text" name="q" value={@q} placeholder="search title, tags, notes…" />
         </form>
@@ -837,12 +866,19 @@ defmodule BlogWeb.BlinksLive do
               <div class="entry">
                 <a
                   class={["title", blink.quotes != [] && "quoted"]}
-                  href={blink.url}
+                  href={if blink.dead_at, do: "https://web.archive.org/web/2/" <> blink.url, else: blink.url}
                   target="_blank"
                   rel="noopener"
                 >
                   {headline(blink)}
                 </a>
+                <span
+                  :if={blink.dead_at}
+                  title="original link is dead — pointing at the wayback copy"
+                  style="cursor: help;"
+                >
+                  💀
+                </span>
                 <span class="domain">
                   (<img :if={blink.favicon_url} class="favicon" src={blink.favicon_url} loading="lazy" /><a href={
                     "/blinks?" <> URI.encode_query(q: domain(blink.url))
@@ -870,7 +906,9 @@ defmodule BlogWeb.BlinksLive do
                     style={Map.get(@chat_counts, room(blink), 0) > 0 && "color:#369;"}
                     data-joyride={i == 1 && "chat-link"}
                   >
-                    {comment_label(Map.get(@chat_counts, room(blink), 0))}
+                    <span :if={Map.get(@rooms_live, room(blink), 0) > 0} class="live-dot"></span>{comment_label(
+                      Map.get(@chat_counts, room(blink), 0)
+                    )}<span :if={Map.get(@rooms_live, room(blink), 0) > 0} class="live-n"> · {Map.get(@rooms_live, room(blink))} here now</span>
                   </a>
                   <a href={wayback(blink.url)} target="_blank" rel="noopener">wayback</a>
                   <a href={archive_ph(blink.url)} target="_blank" rel="noopener">archive.ph</a>

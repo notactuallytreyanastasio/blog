@@ -205,6 +205,7 @@ defmodule BlogWeb.Router do
   # never hit content negotiation.
   scope "/", BlogWeb do
     get "/blinks.rss", BlinkFeedController, :rss
+    get "/blinks/stumble", BlinkFeedController, :stumble
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
