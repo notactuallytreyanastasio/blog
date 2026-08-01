@@ -152,6 +152,7 @@ defmodule BlogWeb.Router do
 
     live_session :blinks, layout: false do
       live "/blinks", BlinksLive, :index
+      live "/blinks-reader", BlinksReaderLive, :index
       live "/blinks/review", BlinksReviewLive, :index
     end
   end
