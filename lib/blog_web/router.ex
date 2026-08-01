@@ -78,6 +78,17 @@ defmodule BlogWeb.Router do
     plug BlogWeb.Plugs.BlinksPrefs
   end
 
+  pipeline :moon_phish do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :moon_phish_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug BlogWeb.Plugs.RemoteIp
+    plug BlogWeb.Plugs.EnsureUserId
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -180,6 +191,14 @@ defmodule BlogWeb.Router do
     pipe_through :phangraphs
 
     live "/phish", PhishLive, :index
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :moon_phish
+
+    live_session :moon_phish, layout: false do
+      live "/moon_phish", MoonPhishLive, :index
+    end
   end
 
   # API endpoints for receipt printer

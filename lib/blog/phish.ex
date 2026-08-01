@@ -1,7 +1,15 @@
 defmodule Blog.Phish do
   import Ecto.Query
   alias Blog.Repo
+  alias Blog.Phish.Show
   alias Blog.Phish.Track
+
+  @spec list_shows() :: [Show.t()]
+  def list_shows do
+    Show
+    |> order_by([s], asc: s.date)
+    |> Repo.all()
+  end
 
   @spec list_years() :: [integer()]
   def list_years do

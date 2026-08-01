@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#b0b0b0" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <title>{assigns[:page_title] || "Moon Phish"}</title>
+
+    <meta name="description" content="Every Phish show ever played, checked against the lunar calendar. See which shows happened under a full moon." />
+    <meta property="og:title" content="Moon Phish" />
+    <meta property="og:description" content="Every Phish show ever played, checked against the lunar calendar. See which shows happened under a full moon." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.bobbby.online/moon_phish" />
+    <meta property="og:site_name" content="bobbby.online" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Moon Phish" />
+    <meta name="twitter:description" content="Every Phish show ever played, checked against the lunar calendar. See which shows happened under a full moon." />
+
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+    <.google_analytics />
+  </head>
+  <body style="height:100%;margin:0;-webkit-tap-highlight-color:transparent;">
+    {@inner_content}
+  </body>
+</html>

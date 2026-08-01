@@ -1,0 +1,289 @@
+<div class="os-desktop-mac mp95-desktop">
+  <% visible = filtered_shows(assigns) %>
+  <% max_count = @phase_counts |> Map.values() |> Enum.max(fn -> 1 end) %>
+  <style>
+    .mp95-desktop {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 20px 10px 60px;
+    }
+    .mp95-desktop, .mp95-desktop button, .mp95-desktop input {
+      font-family: "MS Sans Serif", "Tahoma", "Geneva", sans-serif;
+      font-size: 11px; color: #000;
+    }
+    .mp95-mono { font-family: "Courier New", "Monaco", monospace; }
+
+    /* ---- Mac System 7 desk accessory: tonight's moon ---- */
+    .mp95-accessory {
+      width: 100%; max-width: 380px; margin: 0 auto 16px;
+      font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+    }
+    .mp95-accessory-body {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; background: #fff; font-size: 12px;
+    }
+    .mp95-accessory-glyph { font-size: 30px; line-height: 1; }
+
+    /* ---- Win95 main window ---- */
+    .mp95-main { width: 100%; max-width: 980px; margin: 0 auto; }
+    .mp95-main .os-titlebar-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .mp95-main .os-btn { text-decoration: none; }
+    .mp95-content { padding: 8px; background: #c0c0c0; }
+    .mp95-infobar {
+      border: 1px solid #808080; border-top-color: #fff; border-left-color: #fff;
+      padding: 4px 8px; margin-bottom: 8px; background: #c0c0c0;
+    }
+    .mp95-infobar b { color: #000080; }
+
+    /* stats row: inset wells */
+    .mp95-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .mp95-stat {
+      flex: 1; min-width: 110px; border: 2px inset #c0c0c0; background: #fff;
+      padding: 5px 8px; text-align: center;
+    }
+    .mp95-stat b { display: block; font-size: 16px; }
+    .mp95-stat span { font-size: 10px; color: #444; }
+    .mp95-stat.mp95-stat-full b { color: #000080; }
+
+    /* histogram: white inset chart panel */
+    .mp95-chart-panel { border: 2px inset #c0c0c0; background: #fff; padding: 10px 8px 6px; margin-bottom: 8px; }
+    .mp95-chart {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
+      align-items: end; height: 110px;
+    }
+    .mp95-chart-col {
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      gap: 3px; height: 100%; background: none; border: none; padding: 0; cursor: pointer;
+    }
+    .mp95-chart-bar {
+      width: 100%; max-width: 40px;
+      background: repeating-linear-gradient(45deg, #000080 0, #000080 4px, #1084d0 4px, #1084d0 8px);
+      border: 1px solid #000;
+    }
+    .mp95-chart-col[data-full] .mp95-chart-bar {
+      background: repeating-linear-gradient(45deg, #808000 0, #808000 4px, #ffff00 4px, #ffff00 8px);
+    }
+    .mp95-chart-col:hover .mp95-chart-bar { filter: brightness(1.25); }
+    .mp95-chart-col.mp95-active .mp95-chart-bar { outline: 1px dotted #000; outline-offset: 2px; }
+    .mp95-chart-n { font-size: 10px; }
+    .mp95-chart-glyph { font-size: 15px; line-height: 1; }
+    .mp95-chart-caption { text-align: center; font-size: 10px; color: #444; margin-top: 4px; }
+
+    /* controls: beveled buttons + sunken input */
+    .mp95-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .mp95-btn {
+      border: 2px outset #c0c0c0; background: #c0c0c0; padding: 4px 12px;
+      cursor: pointer; white-space: nowrap;
+    }
+    .mp95-btn:active { border-style: inset; }
+    .mp95-btn.mp95-active { border-style: inset; background: #fff; font-weight: bold; }
+    .mp95-btn:focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+    .mp95-sep { width: 2px; align-self: stretch; border-left: 1px solid #808080; border-right: 1px solid #fff; }
+    .mp95-search {
+      flex: 1; min-width: 160px; border: 2px inset #c0c0c0; background: #fff;
+      padding: 4px 6px; outline: none;
+    }
+    .mp95-search:focus { outline: 1px dotted #000; outline-offset: -3px; }
+
+    /* show list: file-manager listbox */
+    .mp95-list {
+      border: 2px inset #c0c0c0; background: #fff;
+      max-height: 62vh; overflow-y: auto;
+    }
+    .mp95-list-heading {
+      position: sticky; top: 0; z-index: 1;
+      display: flex; align-items: baseline; gap: 8px;
+      background: #c0c0c0; border-bottom: 1px solid #808080;
+      padding: 2px 8px; font-weight: bold;
+    }
+    .mp95-list-heading span { font-weight: normal; font-size: 10px; color: #444; }
+    .mp95-list-heading b { color: #000080; }
+    .mp95-row {
+      display: grid; grid-template-columns: 56px 74px 1fr auto; gap: 10px;
+      align-items: baseline; padding: 3px 8px;
+    }
+    .mp95-row:nth-child(odd) { background: #f4f4f4; }
+    .mp95-row-venue b { font-weight: bold; }
+    .mp95-row-venue span { color: #555; }
+    .mp95-row-tag { font-size: 10px; color: #555; white-space: nowrap; }
+    .mp95-near { color: #555; font-size: 10px; white-space: nowrap; }
+
+    /* full-moon rows: classic selection highlight */
+    .mp95-row.mp95-full, .mp95-row.mp95-full:nth-child(odd) {
+      background: #000080; color: #fff;
+    }
+    .mp95-row.mp95-full .mp95-row-venue span,
+    .mp95-row.mp95-full .mp95-row-tag { color: #c0c0ff; }
+    .mp95-row.mp95-full .mp95-row-date { color: #ffff00; font-weight: bold; }
+
+    .mp95-empty { padding: 40px 12px; text-align: center; background: #fff; }
+    .mp95-empty-box {
+      display: inline-block; border: 2px outset #c0c0c0; background: #c0c0c0;
+      padding: 14px 20px;
+    }
+
+    .mp95-main .os-statusbar { flex-wrap: wrap; gap: 2px; height: auto; min-height: 20px; padding: 2px 4px; }
+    .mp95-main .os-statusbar-section { white-space: nowrap; display: flex; align-items: center; font-size: 10px; }
+
+    @media (max-width: 640px) {
+      .mp95-row { grid-template-columns: 52px 1fr; row-gap: 1px; }
+      .mp95-row-moon { order: 3; }
+      .mp95-row-venue { grid-column: 2; }
+      .mp95-row-tag { display: none; }
+      .mp95-list { max-height: none; overflow-y: visible; }
+    }
+  </style>
+
+  <%!-- Mac System 7 desk accessory --%>
+  <div class="os-window os-window-mac mp95-accessory">
+    <div class="os-titlebar">
+      <div class="os-titlebar-buttons">
+        <a href="/" class="os-btn-close" aria-label="Close and go home"></a>
+      </div>
+      <span class="os-titlebar-title">Tonight's Moon</span>
+      <div class="os-titlebar-spacer"></div>
+    </div>
+    <div class="mp95-accessory-body">
+      <span class="mp95-accessory-glyph">{@today_moon.emoji}</span>
+      <span>
+        {@today_moon.phase_name}, {fmt_illum(@today_moon.illumination)} illuminated.<br />
+        <span :if={@next_full}>Next full moon: <b>{fmt_long_date(@next_full)}</b>.</span>
+      </span>
+    </div>
+  </div>
+
+  <%!-- Win95 main window --%>
+  <div class="os-window os-window-win95 mp95-main">
+    <div class="os-titlebar">
+      <span class="os-titlebar-title">🌕 Moon Phish — C:\PHISH\SHOWS\MOON.EXE</span>
+      <div class="os-titlebar-buttons">
+        <div class="os-btn" aria-hidden="true">_</div>
+        <div class="os-btn" aria-hidden="true">□</div>
+        <a href="/" class="os-btn" aria-label="Close and go home">✕</a>
+      </div>
+    </div>
+    <div class="os-menubar">
+      <span>File</span><span>Edit</span><span>View</span><span>Moon</span><span>Help</span>
+    </div>
+
+    <div class="mp95-content">
+      <div class="mp95-infobar">
+        Every Phish show since {fmt_long_date(@first_date)}, checked against the instant of every
+        full moon. <b>{@full_count}</b> of {@total} shows landed on the night of a full moon —
+        {fmt_pct(@full_count, @total)}, about what chance predicts ({fmt_pct(1, 29.5)}).
+      </div>
+
+      <div class="mp95-stats">
+        <div class="mp95-stat"><b>{@total}</b><span>shows</span></div>
+        <div class="mp95-stat mp95-stat-full"><b>{@full_count}</b><span>full-moon shows</span></div>
+        <div class="mp95-stat"><b>{fmt_pct(@full_count, @total)}</b><span>of all shows</span></div>
+        <div :if={@next_full} class="mp95-stat"><b>{fmt_date(@next_full)}</b><span>next full moon</span></div>
+      </div>
+
+      <div class="mp95-chart-panel">
+        <div class="mp95-chart" role="group" aria-label="Shows by moon phase">
+          <button
+            :for={name <- phase_order()}
+            type="button"
+            class={["mp95-chart-col", @phase == name && "mp95-active"]}
+            data-full={name == "Full Moon" || nil}
+            phx-click="set-phase"
+            phx-value-phase={name}
+            title={"#{name}: #{Map.get(@phase_counts, name, 0)} shows"}
+            aria-pressed={to_string(@phase == name)}
+          >
+            <span class="mp95-chart-n">{Map.get(@phase_counts, name, 0)}</span>
+            <div
+              class="mp95-chart-bar"
+              style={"height: #{max(4, round(60 * Map.get(@phase_counts, name, 0) / max_count))}px;"}
+            >
+            </div>
+            <span class="mp95-chart-glyph">{phase_emoji(name)}</span>
+          </button>
+        </div>
+        <div class="mp95-chart-caption">Shows by moon phase — click a bar to filter</div>
+      </div>
+
+      <div class="mp95-controls">
+        <button
+          type="button"
+          class={["mp95-btn", @view == "full" && @phase == nil && "mp95-active"]}
+          phx-click="set-view"
+          phx-value-view="full"
+        >
+          🌕 Full moons only
+        </button>
+        <button
+          type="button"
+          class={["mp95-btn", (@view == "all" || @phase != nil) && "mp95-active"]}
+          phx-click="set-view"
+          phx-value-view="all"
+        >
+          Every show
+        </button>
+
+        <div class="mp95-sep" aria-hidden="true"></div>
+
+        <button
+          :for={{era, label} <- [{"all", "All eras"}, {"1.0", "1.0"}, {"2.0", "2.0"}, {"3.0", "3.0"}, {"4.0", "4.0"}]}
+          type="button"
+          class={["mp95-btn", @era == era && "mp95-active"]}
+          phx-click="set-era"
+          phx-value-era={era}
+          title={era_title(era)}
+        >
+          {label}
+        </button>
+
+        <input
+          type="search"
+          class="mp95-search"
+          placeholder="Search venue, city, or tour"
+          value={@q}
+          phx-keyup="search"
+          phx-debounce="200"
+          aria-label="Search venue, city, or tour"
+        />
+      </div>
+
+      <div class="mp95-list">
+        <%= if visible == [] do %>
+          <div class="mp95-empty">
+            <div class="mp95-empty-box">
+              ⚠️ No shows match. Try another era or clear the search.
+            </div>
+          </div>
+        <% else %>
+          <section :for={{year, shows} <- group_by_year(visible)}>
+            <div class="mp95-list-heading">
+              📁 {year}
+              <span>
+                {length(shows)} {if length(shows) == 1, do: "show", else: "shows"}<%= if @view == "all" && @phase == nil do %> · <b>{Enum.count(shows, & &1.moon.full_moon?)}</b> under a full moon<% end %>
+              </span>
+            </div>
+            <div
+              :for={show <- shows}
+              class={["mp95-row", show.moon.full_moon? && "mp95-full"]}
+            >
+              <span class="mp95-row-date mp95-mono">{fmt_date(show.date)}</span>
+              <span class="mp95-row-moon mp95-mono" title={show.moon.phase_name}>
+                {show.moon.emoji} {fmt_illum(show.moon.illumination)}
+              </span>
+              <span class="mp95-row-venue">
+                <b>{show.venue}</b>
+                <span :if={show.location != ""}> — {show.location}</span>
+                <span :if={near_full_label(show.moon)} class="mp95-near">[{near_full_label(show.moon)}]</span>
+              </span>
+              <span :if={show.tour_name != ""} class="mp95-row-tag">{show.tour_name}</span>
+            </div>
+          </section>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="os-statusbar">
+      <div class="os-statusbar-section">{length(visible)} object(s)</div>
+      <div class="os-statusbar-section">🌕 {@full_count} of {@total} shows ({fmt_pct(@full_count, @total)})</div>
+      <div class="os-statusbar-section">Data: phish.in · Moon: Meeus, ±1 min</div>
+    </div>
+  </div>
+</div>
