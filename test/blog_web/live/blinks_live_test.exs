@@ -428,6 +428,43 @@ defmodule BlogWeb.BlinksLiveTest do
     assert alive.last_checked_at
   end
 
+  test "a link we couldn't check is not a link that died", %{conn: conn} do
+    {:ok, blink} = Blinks.save_blink(%{"url" => "https://walled.co/403", "title" => "Behind a bot wall"})
+
+    # a bot wall answering 403 every single day must never accumulate toward death
+    {:ok, blink} =
+      Enum.reduce(1..5, {:ok, blink}, fn _, {:ok, b} ->
+        Blog.Blinks.LinkCheck.record_result(b, :unknown)
+      end)
+
+    refute blink.dead_at
+    assert blink.fail_count == 0
+    assert blink.last_checked_at
+
+    {:ok, _view, html} = live(conn, "/blinks")
+    refute html =~ "thing dead"
+    assert html =~ ~s(href="https://walled.co/403")
+  end
+
+  test "an unknown result leaves an existing verdict alone in both directions" do
+    {:ok, blink} = Blinks.save_blink(%{"url" => "https://gone.co/410", "title" => "Gone"})
+
+    {:ok, once} = Blog.Blinks.LinkCheck.record_result(blink, :dead)
+    {:ok, dead} = Blog.Blinks.LinkCheck.record_result(once, :dead)
+    assert dead.dead_at
+
+    # being unreadable is not being resurrected
+    {:ok, still_dead} = Blog.Blinks.LinkCheck.record_result(dead, :unknown)
+    assert still_dead.dead_at == dead.dead_at
+    assert still_dead.fail_count == dead.fail_count
+
+    # nor does it wipe out a strike already on the board
+    {:ok, struck} = Blog.Blinks.LinkCheck.record_result(blink, :dead)
+    {:ok, unread} = Blog.Blinks.LinkCheck.record_result(struck, :unknown)
+    assert unread.fail_count == 1
+    refute unread.dead_at
+  end
+
   test "stumble redirects to a random saved link", %{conn: conn} do
     {:ok, _} = Blinks.save_blink(%{"url" => "https://only.co/one", "title" => "Sole"})
 
