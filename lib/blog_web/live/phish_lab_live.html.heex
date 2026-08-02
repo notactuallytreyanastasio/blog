@@ -1,0 +1,281 @@
+<div id="phish-lab" class="os-desktop-win95">
+  <style>
+    #phish-lab { font-family: "MS Sans Serif", "Tahoma", "Geneva", sans-serif; }
+    .plab-desk { max-width: 1400px; margin: 0 auto; display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px; gap: 0 16px; align-items: start; }
+    .plab-accessory { grid-column: 1 / -1; max-width: 620px; margin: 0 auto 20px; }
+    .plab-accessory-body { padding: 10px 12px; font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+      font-size: 12px; line-height: 1.5; display: flex; gap: 10px; align-items: center; }
+    .plab-accessory-glyph { font-size: 28px; }
+    .plab-main { margin: 0; }
+    .plab-side { display: flex; flex-direction: column; gap: 16px; }
+    .plab-side .os-window { margin: 0; }
+
+    .plab-content { padding: 8px; }
+    .plab-infobar { background: #ffffcc; border: 1px solid #808080; padding: 6px 8px;
+      font-size: 11px; margin-bottom: 8px; line-height: 1.45; }
+
+    .plab-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .plab-btn { font: 11px "MS Sans Serif", "Tahoma", sans-serif; background: #c0c0c0;
+      border: 2px outset #c0c0c0; padding: 3px 10px; cursor: pointer; }
+    .plab-btn:active { border-style: inset; }
+    .plab-btn:focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+
+    .plab-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 6px 8px; background: #c0c0c0; border: 1px solid #808080; padding: 8px;
+      margin-bottom: 8px; }
+    .plab-field { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+    .plab-field label { color: #000; }
+    .plab-field select { font: 11px "MS Sans Serif", "Tahoma", sans-serif; background: #fff;
+      border: 2px inset #c0c0c0; padding: 2px; max-width: 100%; }
+    .plab-logs { flex-direction: row; align-items: end; gap: 10px; padding-bottom: 3px; }
+    .plab-logs label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+    .plab-chart-well { background: #fff; border: 2px inset #c0c0c0; position: relative;
+      min-height: 200px; }
+    .plab-stage { position: relative; width: 100%; }
+    .plab-stage svg { display: block; width: 100%; }
+    .plab-stage canvas { position: absolute; }
+    .plab-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
+      padding: 5px 8px; border-top: 1px solid #c0c0c0; font-size: 11px; min-height: 18px; }
+    .plab-legend-chip { display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+      border: 1px solid transparent; padding: 1px 4px; }
+    .plab-legend-chip[data-off="1"] { opacity: 0.4; }
+    .plab-legend-chip:hover { border: 1px dotted #000; }
+    .plab-legend-swatch { width: 9px; height: 9px; border: 1px solid #000; display: inline-block; }
+    .plab-legend-grad { width: 90px; height: 9px; border: 1px solid #000; display: inline-block; }
+
+    .plab-tooltip { position: fixed; z-index: 9999; pointer-events: none; display: none;
+      background: #ffffcc; border: 1px solid #000; box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+      font: 11px "MS Sans Serif", "Tahoma", sans-serif; padding: 5px 7px; max-width: 260px;
+      line-height: 1.4; }
+    .plab-tooltip b { display: block; margin-bottom: 2px; }
+
+    .plab-lb-select { width: 100%; font: 11px "MS Sans Serif", "Tahoma", sans-serif;
+      background: #fff; border: 2px inset #c0c0c0; padding: 2px; margin-bottom: 6px; }
+    .plab-lb-list { background: #fff; border: 2px inset #c0c0c0; max-height: 330px;
+      overflow-y: auto; }
+    .plab-lb-row { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; gap: 6px;
+      width: 100%; text-align: left; font: 11px "MS Sans Serif", "Tahoma", sans-serif;
+      background: #fff; border: 0; border-bottom: 1px dotted #c0c0c0; padding: 4px 6px;
+      cursor: pointer; align-items: baseline; }
+    .plab-lb-row:hover { background: #000080; color: #fff; }
+    .plab-lb-row:hover .plab-lb-val { color: #ffff00; }
+    .plab-lb-rank { color: #808080; }
+    .plab-lb-row:hover .plab-lb-rank { color: #c0c0c0; }
+    .plab-lb-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .plab-lb-detail { display: block; font-size: 10px; color: #606060; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; }
+    .plab-lb-row:hover .plab-lb-detail { color: #c0c0c0; }
+    .plab-lb-val { font-family: "Courier New", "Monaco", monospace; font-weight: bold;
+      color: #000080; white-space: nowrap; }
+
+    .plab-inspector-body { font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+      font-size: 12px; padding: 8px 10px; }
+    .plab-inspector-empty { color: #666; font-size: 12px; padding: 14px 10px; text-align: center; }
+    .plab-prop-table { width: 100%; border-collapse: collapse; }
+    .plab-prop-table td { border-bottom: 1px solid #ddd; padding: 3px 4px; vertical-align: top; }
+    .plab-prop-table td:first-child { color: #555; white-space: nowrap; padding-right: 10px; }
+    .plab-prop-table td:last-child { text-align: right; font-family: "Courier New", monospace; }
+    .plab-scorecard { margin-top: 8px; }
+    .plab-scorecard-title { font-weight: bold; font-size: 11px; margin-bottom: 4px;
+      border-top: 1px solid #000; padding-top: 6px; }
+    .plab-score-row { display: grid; grid-template-columns: 110px 1fr 34px; gap: 6px;
+      align-items: center; font-size: 10px; margin-bottom: 2px; }
+    .plab-score-track { height: 10px; border: 1px solid #000; background: #fff; }
+    .plab-score-fill { height: 100%; background: repeating-linear-gradient(90deg,
+      #000080 0px, #000080 4px, #1084d0 4px, #1084d0 6px); }
+    .plab-score-num { text-align: right; font-family: "Courier New", monospace; }
+    .plab-inspector-links { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .plab-inspector-links a { font-size: 11px; color: #000080; }
+
+    @media (max-width: 1020px) {
+      .plab-desk { grid-template-columns: 1fr; }
+      .plab-side { margin-top: 16px; }
+    }
+  </style>
+
+  <div class="plab-desk">
+    <%!-- Mac System 7 desk accessory --%>
+    <div class="os-window os-window-mac plab-accessory">
+      <div class="os-titlebar">
+        <div class="os-titlebar-buttons">
+          <a href="/" class="os-btn-close" aria-label="Close and go home"></a>
+        </div>
+        <span class="os-titlebar-title">About This Laboratory</span>
+        <div class="os-titlebar-spacer"></div>
+      </div>
+      <div class="plab-accessory-body">
+        <span class="plab-accessory-glyph">🔬</span>
+        <span>
+          <b>{@meta["n_perfs"]}</b> song performances across <b>{@meta["n_shows"]}</b> shows
+          ({fmt_meta_range(@meta)}), scored against <b>{@meta["n_jams"]}</b> jams from the
+          phishjustjams scorecard. Plot anything against anything. Find the versions that
+          should not statistically exist.
+        </span>
+      </div>
+    </div>
+
+    <%!-- Win95 main chart window --%>
+    <div class="os-window os-window-win95 plab-main">
+      <div class="os-titlebar">
+        <span class="os-titlebar-title">🔬 Phish Lab — C:\PHISH\LAB\CHART-O-MATIC.EXE</span>
+        <div class="os-titlebar-buttons">
+          <div class="os-btn" aria-hidden="true">_</div>
+          <div class="os-btn" aria-hidden="true">□</div>
+          <a href="/" class="os-btn" aria-label="Close and go home">✕</a>
+        </div>
+      </div>
+      <div class="os-menubar">
+        <span>File</span><span>Edit</span><span>View</span><span>Plot</span><span>Lab</span><span>Help</span>
+      </div>
+
+      <div class="plab-content">
+        <div class="plab-infobar">
+          Pick a dataset and two metrics; every point is a show, a song, or a single
+          performance. Click any point to open its file. Click a leaderboard entry to jump
+          straight to that anomaly.
+        </div>
+
+        <div class="plab-presets" role="group" aria-label="Preset charts">
+          <button :for={{name, label} <- presets()} type="button" class="plab-btn"
+            phx-click="preset" phx-value-name={name}>{label}</button>
+        </div>
+
+        <form phx-change="set-config">
+          <div class="plab-controls">
+            <div class="plab-field">
+              <label for="plab-ds">Dataset</label>
+              <select id="plab-ds" name="ds">
+                {Phoenix.HTML.Form.options_for_select(Enum.map(dataset_options(), fn {k, l} -> {l, k} end), @ds)}
+              </select>
+            </div>
+            <div class="plab-field">
+              <label for="plab-chart-type">Chart</label>
+              <select id="plab-chart-type" name="chart">
+                {Phoenix.HTML.Form.options_for_select([{"Scatter", "scatter"}, {"Histogram", "hist"}], @chart)}
+              </select>
+            </div>
+            <div class="plab-field">
+              <label for="plab-x">X axis</label>
+              <select id="plab-x" name="x">
+                {Phoenix.HTML.Form.options_for_select(Enum.map(metric_options(@ds), fn {k, l} -> {l, k} end), @x)}
+              </select>
+            </div>
+            <div class="plab-field" :if={@chart == "scatter"}>
+              <label for="plab-y">Y axis</label>
+              <select id="plab-y" name="y">
+                {Phoenix.HTML.Form.options_for_select(Enum.map(metric_options(@ds), fn {k, l} -> {l, k} end), @y)}
+              </select>
+            </div>
+            <div class="plab-field" :if={@chart == "scatter"}>
+              <label for="plab-color">Color by</label>
+              <select id="plab-color" name="color">
+                {Phoenix.HTML.Form.options_for_select(Enum.map(color_options(@ds), fn {k, l} -> {l, k} end), @color)}
+              </select>
+            </div>
+            <div class="plab-field" :if={@chart == "scatter"}>
+              <label for="plab-size">Size by</label>
+              <select id="plab-size" name="size">
+                {Phoenix.HTML.Form.options_for_select(Enum.map(size_options(@ds), fn {k, l} -> {l, k} end), @size)}
+              </select>
+            </div>
+            <div class="plab-field plab-logs">
+              <label><input type="checkbox" name="logx" value="true" checked={@logx} /> log X</label>
+              <label :if={@chart == "scatter"}>
+                <input type="checkbox" name="logy" value="true" checked={@logy} /> log Y
+              </label>
+            </div>
+          </div>
+        </form>
+
+        <div class="plab-chart-well">
+          <div id="plab-chart" phx-hook="PhishLab" phx-update="ignore">
+            <div class="plab-stage"></div>
+            <div class="plab-legend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="os-statusbar">
+        <span class="os-statusbar-section" id="plab-status-n" phx-update="ignore">loading…</span>
+        <span class="os-statusbar-section">{@meta["n_shows"]} shows · {fmt_meta_range(@meta)}</span>
+        <span class="os-statusbar-section">scorecard: phishjustjams.com</span>
+      </div>
+    </div>
+
+    <div class="plab-side">
+      <%!-- Win95 outliers window --%>
+      <div class="os-window os-window-win95">
+        <div class="os-titlebar">
+          <span class="os-titlebar-title">⚠ ANOMALY.LOG</span>
+          <div class="os-titlebar-buttons">
+            <div class="os-btn" aria-hidden="true">_</div>
+            <div class="os-btn" aria-hidden="true">□</div>
+            <div class="os-btn" aria-hidden="true">✕</div>
+          </div>
+        </div>
+        <div class="plab-content">
+          <form phx-change="set-lb">
+            <select class="plab-lb-select" name="lb" aria-label="Pick a leaderboard">
+              {Phoenix.HTML.Form.options_for_select(Enum.map(lb_options(), fn {k, l} -> {l, k} end), @lb)}
+            </select>
+          </form>
+          <div class="plab-lb-list">
+            <button :for={{e, i} <- Enum.with_index(lb_entries(assigns), 1)} type="button"
+              class="plab-lb-row" phx-click="lb-jump"
+              phx-value-d={e["d"]} phx-value-s={e["s"]} phx-value-style={e["style"]}>
+              <span class="plab-lb-rank">{i}.</span>
+              <span class="plab-lb-label">
+                {if e["style"], do: "#{e["style"]}: #{e["s"]}", else: e["label"]}
+                <span :if={e["detail"]} class="plab-lb-detail">{e["detail"]}</span>
+              </span>
+              <span class="plab-lb-val">{e["value"]}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <%!-- Mac inspector window --%>
+      <div class="os-window os-window-mac">
+        <div class="os-titlebar">
+          <div class="os-titlebar-buttons">
+            <button :if={@inspect} type="button" class="os-btn-close" phx-click="close-inspect"
+              aria-label="Clear selection"></button>
+          </div>
+          <span class="os-titlebar-title">{inspect_title(@inspect, @inspect_kind)}</span>
+          <div class="os-titlebar-spacer"></div>
+        </div>
+        <div :if={@inspect == nil} class="plab-inspector-empty">
+          Click a point on the chart —<br />its lab file opens here.
+        </div>
+        <div :if={@inspect} class="plab-inspector-body">
+          <table class="plab-prop-table">
+            <tr :for={{label, val} <- inspect_rows(@inspect, @inspect_kind)}>
+              <td>{label}</td>
+              <td>{val}</td>
+            </tr>
+          </table>
+
+          <div :if={style_bars(@inspect) != []} class="plab-scorecard">
+            <div class="plab-scorecard-title">PJJ SCORECARD</div>
+            <div :for={{style, score} <- style_bars(@inspect)} class="plab-score-row">
+              <span>{style}</span>
+              <span class="plab-score-track">
+                <span class="plab-score-fill" style={"display:block;width:#{round(score * 100)}%"}></span>
+              </span>
+              <span class="plab-score-num">{:erlang.float_to_binary(score / 1, decimals: 2)}</span>
+            </div>
+          </div>
+
+          <div class="plab-inspector-links">
+            <a :if={inspect_date(@inspect)} href={"https://phish.in/#{inspect_date(@inspect)}"}
+              target="_blank" rel="noopener">listen on phish.in →</a>
+            <a :if={inspect_date(@inspect)} href={"https://phish.net/setlists/?d=#{inspect_date(@inspect)}"}
+              target="_blank" rel="noopener">setlist on phish.net →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

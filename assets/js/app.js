@@ -32,6 +32,7 @@ import MtaBusMap from "./hooks/mta_bus_map"
 import BubbleGame from "./hooks/bubble_game"
 import FlipCard from "./hooks/flip_card"
 import PhishChart from "./hooks/phish_chart"
+import PhishLab from "./hooks/phish_lab"
 import PhishAudio from "./hooks/phish_audio"
 import NycMap from "./hooks/nyc_map"
 import GifMakerFrames from "./hooks/gif_maker_frames"
@@ -1001,6 +1002,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     CardGrid,
     Joyride,
     PhishChart,
+    PhishLab,
     PhishAudio,
     NycMap,
     GifMakerFrames,

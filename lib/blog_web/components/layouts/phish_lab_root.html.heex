@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#008080" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <title>{assigns[:page_title] || "Phish Lab"}</title>
+
+    <meta name="description" content="A retro laboratory for Phish data: plot 1,024 shows and 20,000+ song performances against each other, and hunt the statistical anomalies." />
+    <meta property="og:title" content="Phish Lab" />
+    <meta property="og:description" content="A retro laboratory for Phish data: plot 1,024 shows and 20,000+ song performances against each other, and hunt the statistical anomalies." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.bobbby.online/phish_lab" />
+    <meta property="og:site_name" content="bobbby.online" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Phish Lab" />
+    <meta name="twitter:description" content="Plot every show, song, and performance against each other. Find the versions that should not statistically exist." />
+
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+    <.google_analytics />
+  </head>
+  <body style="height:100%;margin:0;-webkit-tap-highlight-color:transparent;">
+    {@inner_content}
+  </body>
+</html>
