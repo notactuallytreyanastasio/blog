@@ -254,6 +254,7 @@ defmodule BlogWeb.Router do
   scope "/", BlogWeb do
     get "/blinks.rss", BlinkFeedController, :rss
     get "/blinks/stumble", BlinkFeedController, :stumble
+    get "/blinks/privacy", BlinkFeedController, :privacy
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

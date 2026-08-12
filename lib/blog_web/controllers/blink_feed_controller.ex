@@ -65,6 +65,44 @@ defmodule BlogWeb.BlinkFeedController do
     end
   end
 
+  # Privacy policy for the blinks iOS app (App Store requires a URL).
+  def privacy(conn, _params) do
+    html(conn, """
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>blinks — privacy</title>
+      <style>
+        body { font-family: 'American Typewriter', 'Courier New', monospace;
+               background: #f7f3ea; color: #26221d; max-width: 60ch;
+               margin: 3rem auto; padding: 0 1rem; line-height: 1.6; }
+        h1 { font-size: 1.6rem; }
+        a { color: #369; }
+      </style>
+    </head>
+    <body>
+      <h1>blinks. privacy policy</h1>
+      <p>blinks is a reading app for links curated by one person.</p>
+      <p><b>What it collects: nothing.</b> No accounts, no analytics, no
+      tracking, no third-party services. Settings stay on your device.</p>
+      <p><b>Push notifications:</b> if you allow notifications, Apple issues
+      your device an anonymous push token, which this server stores solely to
+      send you a notification when a new link is published. The token
+      identifies your device to Apple's push service only — not you — and is
+      deleted automatically when it stops working (e.g. after you uninstall
+      the app or revoke notification permission).</p>
+      <p><b>Reading:</b> fetching the public link feed sends this server the
+      ordinary information any web request carries (IP address, user agent),
+      which is not logged beyond standard short-lived server logs and never
+      shared.</p>
+      <p>Questions: <a href="mailto:bobbbygrayson@gmail.com">bobbbygrayson@gmail.com</a></p>
+    </body>
+    </html>
+    """)
+  end
+
   defp xml_escape(s) do
     s
     |> String.replace("&", "&amp;")
