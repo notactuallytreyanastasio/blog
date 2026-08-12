@@ -1425,10 +1425,6 @@ defmodule BlogWeb.BlinksLive do
                   >
                     delete
                   </a>
-                  <details :if={blink.description} class="notes">
-                    <summary></summary>
-                    <div class="desc">{blink.description}</div>
-                  </details>
                   <details :if={length(blink.quotes) > 1} class="xd">
                     <summary class="pillbtn">{length(blink.quotes)} QUOTES</summary>
                     <div>
@@ -1451,6 +1447,10 @@ defmodule BlogWeb.BlinksLive do
                         </div>
                       </div>
                     </div>
+                  </details>
+                  <details :if={blink.description} class="notes" open>
+                    <summary></summary>
+                    <div class="desc">{blink.description}</div>
                   </details>
                 </div>
               </div>
