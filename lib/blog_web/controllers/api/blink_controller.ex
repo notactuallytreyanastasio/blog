@@ -2,7 +2,8 @@ defmodule BlogWeb.Api.BlinkController do
   use BlogWeb, :controller
   alias Blog.Blinks
 
-  plug :require_token
+  # Reads are public (the /blinks page and RSS already are); writes need the token.
+  plug :require_token when action not in [:index, :tags]
 
   def create(conn, params) do
     attrs = %{

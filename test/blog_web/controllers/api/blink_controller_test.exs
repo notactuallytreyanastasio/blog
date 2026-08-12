@@ -186,5 +186,25 @@ defmodule BlogWeb.Api.BlinkControllerTest do
       conn2 = get(authed(conn), ~p"/api/blinks", q: "elixir")
       assert %{"blinks" => [%{"url" => "https://elixir-lang.org"}]} = json_response(conn2, 200)
     end
+
+    test "reads are public but writes stay gated", %{conn: conn} do
+      post(authed(conn), ~p"/api/blinks", %{"url" => "https://example.com", "tags" => ["t"]})
+
+      assert %{"blinks" => [_]} = json_response(get(conn, ~p"/api/blinks"), 200)
+      assert %{"tags" => [_]} = json_response(get(conn, ~p"/api/blinks/tags"), 200)
+      assert json_response(patch(conn, ~p"/api/blinks/1", %{"title" => "x"}), 401)
+      assert json_response(delete(conn, ~p"/api/blinks/1"), 401)
+    end
+  end
+
+  describe "POST /api/push/devices" do
+    test "registers a device without auth, rejects junk tokens", %{conn: conn} do
+      token = String.duplicate("ab", 32)
+      conn1 = post(conn, ~p"/api/push/devices", %{"device_token" => token, "env" => "dev"})
+      assert %{"status" => "ok"} = json_response(conn1, 200)
+
+      conn2 = post(conn, ~p"/api/push/devices", %{"device_token" => "not hex!"})
+      assert json_response(conn2, 422)
+    end
   end
 end
