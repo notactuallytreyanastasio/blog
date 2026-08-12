@@ -241,7 +241,12 @@ defmodule BlogWeb.Router do
     get "/blinks/lookup", BlinkController, :lookup
     get "/blinks/export", BlinkController, :export
     post "/blinks/candidates", BlinkController, :import_candidates
+    patch "/blinks/:id", BlinkController, :update
+    post "/blinks/:id/tags", BlinkController, :add_tags
+    delete "/blinks/:id/tags/:tag", BlinkController, :remove_tag
     delete "/blinks/:id", BlinkController, :delete
+
+    post "/push/devices", PushController, :register
   end
 
   # RSS feed for saved links; no pipeline so feed readers' Accept headers

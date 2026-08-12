@@ -42,10 +42,41 @@ defmodule BlogWeb.Api.BlinkController do
       Blinks.list_blinks(
         query: params["q"],
         tags: tags,
-        limit: min(String.to_integer(params["limit"] || "100"), 500)
+        limit: min(String.to_integer(params["limit"] || "100"), 500),
+        offset: String.to_integer(params["offset"] || "0")
       )
 
     json(conn, %{status: "ok", blinks: blinks})
+  end
+
+  def update(conn, %{"id" => id} = params) do
+    with_id(conn, id, fn id ->
+      case Blinks.update_meta(id, params) do
+        {:ok, blink} -> json(conn, %{status: "ok", blink: blink})
+        {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "not found"})
+        {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{status: "error"})
+      end
+    end)
+  end
+
+  def add_tags(conn, %{"id" => id} = params) do
+    with_id(conn, id, fn id ->
+      case Blinks.add_tags(id, List.wrap(params["tags"] || [])) do
+        {:ok, blink} -> json(conn, %{status: "ok", blink: blink})
+        {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "not found"})
+        {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{status: "error"})
+      end
+    end)
+  end
+
+  def remove_tag(conn, %{"id" => id, "tag" => tag}) do
+    with_id(conn, id, fn id ->
+      case Blinks.remove_tag(id, tag) do
+        {:ok, blink} -> json(conn, %{status: "ok", blink: blink})
+        {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "not found"})
+        {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{status: "error"})
+      end
+    end)
   end
 
   def tags(conn, _params) do
@@ -107,6 +138,13 @@ defmodule BlogWeb.Api.BlinkController do
   end
 
   defp escape(s), do: Plug.HTML.html_escape(s)
+
+  defp with_id(conn, id, fun) do
+    case Integer.parse(id) do
+      {id, ""} -> fun.(id)
+      _ -> conn |> put_status(:bad_request) |> json(%{error: "bad id"})
+    end
+  end
 
   defp require_token(conn, _opts) do
     expected = Application.get_env(:blog, :blinks_api_token)
