@@ -26,6 +26,13 @@ defmodule Blog.Application do
       {Phoenix.PubSub, name: Blog.PubSub},
       Blog.LiveDraft,
       {Finch, name: Blog.Finch},
+      {Finch,
+       name: Blog.Push.Finch,
+       pools: %{
+         "https://api.push.apple.com" => [protocols: [:http2]],
+         "https://api.sandbox.push.apple.com" => [protocols: [:http2]]
+       }},
+      Blog.Push.APNS,
       BlogWeb.Endpoint,
       Blog.RedditBookmarkProcessor,
       Blog.Wordle.WordStore,
@@ -44,7 +51,9 @@ defmodule Blog.Application do
       Blog.CollageMaker.Cleanup
     ]
 
-    children = children ++ work_log_poller_children() ++ blinks_link_check_children()
+    children =
+      children ++
+        work_log_poller_children() ++ blinks_link_check_children() ++ push_notifier_children()
 
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
@@ -56,6 +65,15 @@ defmodule Blog.Application do
   defp blinks_link_check_children do
     if Application.get_env(:blog, :start_blinks_link_check, true) do
       [Blog.Blinks.LinkCheck]
+    else
+      []
+    end
+  end
+
+  # APNs pushes talk to Apple; keep the notifier out of tests (config/test.exs).
+  defp push_notifier_children do
+    if Application.get_env(:blog, :start_push_notifier, true) do
+      [Blog.Push.Notifier]
     else
       []
     end

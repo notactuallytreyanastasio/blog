@@ -152,6 +152,23 @@ end
 # Google Analytics (all environments — blank means disabled)
 config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
 
+# APNs push notifications for the blinks iOS app (all environments — absent
+# key disables pushes). Key ships as a file path or base64 of the .p8.
+apns_key =
+  cond do
+    path = read_env.("APNS_KEY_P8_PATH") -> File.read!(path)
+    b64 = read_env.("APNS_KEY_P8_B64") -> Base.decode64!(b64)
+    true -> nil
+  end
+
+if apns_key do
+  config :blog, :apns,
+    key: apns_key,
+    key_id: read_env.("APNS_KEY_ID") || raise("APNS_KEY_ID required when APNs key is set"),
+    team_id: read_env.("APNS_TEAM_ID") || raise("APNS_TEAM_ID required when APNs key is set"),
+    topic: System.get_env("APNS_TOPIC", "online.bobbby.blinks-reader")
+end
+
 # Hetzner S3 credentials (all environments)
 if s3_access = read_env.("S3_ACCESS_KEY") do
   config :ex_aws,

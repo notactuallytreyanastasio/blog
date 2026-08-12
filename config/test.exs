@@ -45,3 +45,6 @@ config :blog, :blinks_enrich, false
 
 # The dead-link sweep does live HTTP; keep it out of tests.
 config :blog, :start_blinks_link_check, false
+
+# APNs pushes talk to Apple; keep the notifier out of tests.
+config :blog, :start_push_notifier, false

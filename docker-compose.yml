@@ -37,6 +37,11 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-}
       S3_BUCKET: ${S3_BUCKET:-bobbby-media}
+      # APNs push for the blinks iOS app (base64 of the .p8 AuthKey)
+      APNS_KEY_P8_B64: ${APNS_KEY_P8_B64:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_TOPIC: ${APNS_TOPIC:-online.bobbby.blinks-reader}
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
   blinks:
