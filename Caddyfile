@@ -178,6 +178,39 @@ slides.bobbby.online {
 	}
 }
 
+# LUMINES HD — shared-board multiplayer puzzle game (lumines_hd repo).
+# Static Vite build published to /opt/lumines (bind-mounted read-only);
+# the rooms server (matchmaking + shared-board relay) runs in the `lumines`
+# container and gets the /ws WebSocket upgrade, handled BEFORE the file
+# server. Deployed by lumines_hd/scripts/deploy.sh.
+lumines.bobbby.online {
+	encode gzip zstd
+
+	header {
+		X-Forwarded-Proto {scheme}
+		alt-svc "clear"
+	}
+
+	handle /ws {
+		reverse_proxy lumines:8903
+	}
+
+	handle {
+		root * /srv/lumines
+
+		# Vite emits content-hashed files under /assets — cache them forever.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@html {
+			not path /assets/*
+		}
+		header @html Cache-Control "no-cache"
+
+		try_files {path} /index.html
+		file_server
+	}
+}
+
 phishjamexplorer.com, www.phishjamexplorer.com {
 	root * /srv/phstats
 	file_server

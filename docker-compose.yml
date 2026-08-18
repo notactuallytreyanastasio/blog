@@ -129,6 +129,25 @@ services:
       - /opt/slides-relay:/app:ro
     # Not exposed to host - Caddy proxies to port 8787 via Docker network
 
+  # LUMINES HD rooms server — matchmaking + shared-board input/snapshot relay
+  # (lumines_hd repo, server/ bundled to a single server.cjs by esbuild). Like
+  # slides-relay this is BIND-MOUNTED, not built: lumines_hd/scripts/deploy.sh
+  # rsyncs the bundle into /opt/lumines-server, so a redeploy is rsync +
+  # `docker compose restart lumines`. Caddy proxies
+  # wss://lumines.bobbby.online/ws -> lumines:8903; the static game build is
+  # served by Caddy from /opt/lumines. Rooms hold no persistent state.
+  lumines:
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: ["node", "server.cjs"]
+    environment:
+      PORT: "8903"
+    expose:
+      - "8903"
+    volumes:
+      - /opt/lumines-server:/app:ro
+
   caddy:
     image: caddy:2
     restart: always
@@ -148,6 +167,7 @@ services:
       - /opt/soldat-landing:/srv/soldat-landing:ro  # the SOLDAT, REWRITTEN story page (soldat repo, landing/)
       - /opt/slides:/srv/slides:ro  # RevealSlides static build (slides repo dist/, via deploy-slides.sh)
       - /opt/downloader:/srv/downloader:ro  # Framecut Grabber landing page (nathan_for_us site/, via deploy.sh)
+      - /opt/lumines:/srv/lumines:ro  # LUMINES HD static build (lumines_hd repo dist/, via its scripts/deploy.sh)
 
 volumes:
   pgdata:
