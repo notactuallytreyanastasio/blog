@@ -198,6 +198,9 @@ lumines.bobbby.online {
 	handle {
 		root * /srv/lumines
 
+		# The Lumines Ledger — the bot-league sports page (league.html)
+		rewrite /league /league.html
+
 		# Vite emits content-hashed files under /assets — cache them forever.
 		@assets path /assets/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
