@@ -59,7 +59,8 @@ defmodule BlogWeb.BlinksLive do
        # reported by the BlinksPrefs hook) — IP-based identity would wrongly
        # skip it in incognito/new browsers on a known network
        show_tour: false,
-       tour_steps: []
+       tour_steps: [],
+       lightbox: nil
      )}
   end
 
@@ -123,6 +124,7 @@ defmodule BlogWeb.BlinksLive do
       |> assign(fresh_ids: MapSet.new())
       |> reload()
       |> sync_chat(params["chat"])
+      |> sync_lightbox(params["media"])
 
     {:noreply, assign(socket, tour_steps: build_tour_steps(socket.assigns.chat_blink != nil))}
   end
@@ -248,6 +250,26 @@ defmodule BlogWeb.BlinksLive do
     )
   end
 
+  # Open/close the lightbox from the ?media=id.i param. The blink is resolved
+  # here (falling back to the database for deep links whose row isn't on the
+  # current page) and carried in the assign, so render never touches the DB.
+  defp sync_lightbox(socket, media_param) do
+    lightbox =
+      with m when is_binary(m) <- media_param,
+           [id_s, i_s] <- String.split(m, "."),
+           {id, ""} <- Integer.parse(id_s),
+           {i, ""} <- Integer.parse(i_s),
+           %{} = blink <-
+             Enum.find(socket.assigns.blinks, &(&1.id == id)) || Blinks.get_blink(id),
+           true <- i >= 0 and i < length(media_items(blink)) do
+        %{id: id, i: i, blink: blink}
+      else
+        _ -> nil
+      end
+
+    assign(socket, lightbox: lightbox)
+  end
+
   # Open/close the chat window based on the ?chat= param, keeping the
   # PubSub subscription in step with whichever room is on screen.
   defp sync_chat(socket, chat_param) do
@@ -329,6 +351,40 @@ defmodule BlogWeb.BlinksLive do
 
     {:noreply, patch(socket, tags: Enum.join(selected, ","), similar: "", page: "")}
   end
+
+  # Media opens over the paper: clicking a picture should never take you off
+  # the page you're reading. The lightbox lives in the URL (?media=id.i) so a
+  # shot can be shared and the back button closes it.
+  def handle_event("open-media", %{"id" => id, "i" => i}, socket) do
+    with {id, ""} <- Integer.parse(id),
+         {i, ""} <- Integer.parse(i),
+         %{} = blink <- Enum.find(socket.assigns.blinks, &(&1.id == id)),
+         true <- i >= 0 and i < length(media_items(blink)) do
+      {:noreply, patch(socket, media: "#{id}.#{i}")}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("close-media", _params, socket), do: {:noreply, patch(socket, media: "")}
+
+  def handle_event("step-media", %{"by" => by}, socket) do
+    {:noreply, patch_media(socket, step_media(socket, String.to_integer(by)))}
+  end
+
+  # Only bound while the lightbox is up, so the search box and chat keep their
+  # keys the rest of the time.
+  def handle_event("media-key", %{"key" => key}, socket) do
+    case key do
+      "Escape" -> {:noreply, patch(socket, media: "")}
+      "ArrowRight" -> {:noreply, patch_media(socket, step_media(socket, 1))}
+      "ArrowLeft" -> {:noreply, patch_media(socket, step_media(socket, -1))}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp patch_media(socket, nil), do: patch(socket, media: "")
+  defp patch_media(socket, %{id: id, i: i}), do: patch(socket, media: "#{id}.#{i}")
 
   def handle_event("search", %{"q" => q}, socket) do
     {:noreply, patch(socket, q: q, similar: "", page: "")}
@@ -717,7 +773,8 @@ defmodule BlogWeb.BlinksLive do
         end,
       nodork: if(a.nodork, do: "1", else: ""),
       similar: if(a.similar_to, do: to_string(a.similar_to.id), else: ""),
-      chat: if(a.chat_blink, do: to_string(a.chat_blink.id), else: "")
+      chat: if(a.chat_blink, do: to_string(a.chat_blink.id), else: ""),
+      media: if(a.lightbox, do: "#{a.lightbox.id}.#{a.lightbox.i}", else: "")
     }
 
     params =
@@ -807,12 +864,74 @@ defmodule BlogWeb.BlinksLive do
 
   defp root_post(blink), do: List.first(thread_posts(blink)) || %{}
 
-  defp media_count(m) do
+  defp media_count(m) when is_map(m) do
     length(m["images"] || []) + if(m["video"], do: 1, else: 0)
   end
 
+  defp media_count(_), do: 0
+
   defp row_media_count(blink) do
-    media_count(root_post(blink)) + media_count(root_quote(blink) || %{})
+    media_count(root_post(blink)) + media_count(root_quote(blink))
+  end
+
+  # Every picture in a link, in reading order: each post of its thread, then
+  # whatever that post quotes. Both media folds (the row's and the unrolled
+  # thread's) index into this one list, so the lightbox walks the whole link
+  # rather than dead-ending at the strip that was clicked.
+  defp media_items(blink) do
+    blink
+    |> thread_posts()
+    |> Enum.flat_map(fn post -> media_from(post) ++ media_from(post["quote"]) end)
+  end
+
+  defp media_from(m) when is_map(m) do
+    images =
+      Enum.map(m["images"] || [], fn img ->
+        %{kind: :image, src: img["full"] || img["thumb"], alt: img["alt"] || ""}
+      end)
+
+    case m["video"] do
+      %{"thumb" => thumb} -> images ++ [%{kind: :video, src: thumb, alt: ""}]
+      _ -> images
+    end
+  end
+
+  defp media_from(_), do: []
+
+  # Where each thread post's pictures — and its quote's — start in media_items/1.
+  defp media_offsets(blink) do
+    blink
+    |> thread_posts()
+    |> Enum.map_reduce(0, fn post, at ->
+      quote_at = at + media_count(post)
+      {{post, at, quote_at}, quote_at + media_count(post["quote"])}
+    end)
+    |> elem(0)
+  end
+
+  # Wrap at both ends so a link's pictures are a loop, not a corridor.
+  defp step_media(socket, by) do
+    with %{id: id, i: i} <- socket.assigns.lightbox,
+         %{} = blink <- lightbox_blink(socket.assigns),
+         n when n > 0 <- length(media_items(blink)) do
+      %{id: id, i: Integer.mod(i + by, n)}
+    else
+      _ -> nil
+    end
+  end
+
+  defp lightbox_blink(%{lightbox: %{blink: blink}}), do: blink
+  defp lightbox_blink(_assigns), do: nil
+
+  defp current_media(assigns) do
+    with %{lightbox: %{i: i}} <- assigns,
+         %{} = blink <- lightbox_blink(assigns),
+         items = media_items(blink),
+         %{} = item <- Enum.at(items, i) do
+      Map.merge(item, %{blink: blink, i: i, count: length(items)})
+    else
+      _ -> nil
+    end
   end
 
   # Tiny row preview: og image if we have one, else the post's (or its
@@ -890,19 +1009,29 @@ defmodule BlogWeb.BlinksLive do
     Enum.uniq(from_presence ++ from_messages) -- ["Anonymous"]
   end
 
-  # Image/video-still strip for a bsky post map (or its quote map).
+  # Image/video-still strip for a bsky post map (or its quote map). Clicks open
+  # the lightbox over the paper instead of navigating away; @base is where this
+  # map's pictures start inside media_items/1 for the whole link.
   defp bmedia(assigns) do
     ~H"""
     <div :if={@m && (@m["images"] || @m["video"])} class="bmedia">
       <a
-        :for={img <- @m["images"] || []}
-        href={img["full"] || img["thumb"]}
-        target="_blank"
-        rel="noopener"
+        :for={{img, i} <- Enum.with_index(@m["images"] || [])}
+        href="#"
+        phx-click="open-media"
+        phx-value-id={@id}
+        phx-value-i={@base + i}
       >
         <img src={img["thumb"]} alt={img["alt"] || ""} loading="lazy" />
       </a>
-      <a :if={@m["video"]} class="vid" href={@href} target="_blank" rel="noopener">
+      <a
+        :if={@m["video"]}
+        class="vid"
+        href="#"
+        phx-click="open-media"
+        phx-value-id={@id}
+        phx-value-i={@base + length(@m["images"] || [])}
+      >
         <img src={@m["video"]["thumb"]} loading="lazy" />
         <span class="play">▶</span>
       </a>
@@ -1018,6 +1147,28 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .bmedia img { max-height: 110px; max-width: 170px; object-fit: cover; border: 1px solid #ddd; border-radius: 3px; display: block; }
         #blinks-page .bmedia .vid { position: relative; display: inline-block; }
         #blinks-page .bmedia .vid .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; text-shadow: 0 0 8px rgba(0,0,0,0.85); }
+
+        /* lightbox */
+        #blinks-page .lb { position: fixed; inset: 0; z-index: 90; background: rgba(12,12,14,0.94); display: flex; flex-direction: column; }
+        #blinks-page .lb .lbstage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 34px 56px 6px; }
+        #blinks-page .lb .lbstage img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+        #blinks-page .lb .lbnav { position: absolute; top: 0; bottom: 0; width: 52px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 26px; cursor: pointer; opacity: 0.55; user-select: none; background: none; border: none; }
+        #blinks-page .lb .lbnav:hover { opacity: 1; }
+        #blinks-page .lb .lbprev { left: 0; }
+        #blinks-page .lb .lbnext { right: 0; }
+        #blinks-page .lb .lbclose { position: absolute; top: 6px; right: 10px; color: #fff; font-size: 20px; cursor: pointer; opacity: 0.6; background: none; border: none; }
+        #blinks-page .lb .lbclose:hover { opacity: 1; }
+        #blinks-page .lb .lbalt { color: #aaa; font-size: 10px; padding: 0 56px 10px; max-height: 3.6em; overflow-y: auto; }
+        #blinks-page .lb .lbbar { flex-shrink: 0; color: #ddd; font-size: 11px; padding: 8px 56px 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        #blinks-page .lb .lbbar .lbtitle { color: #fff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+        #blinks-page .lb .lbbar a { color: #7fb2e5; }
+        #blinks-page .lb .lbbar .lbcount { margin-left: auto; color: #999; white-space: nowrap; }
+        #blinks-page .lb .lbvideo { color: #ffb08a; font-size: 10px; }
+
+        @media (max-width: 640px) {
+          #blinks-page .lb .lbstage { padding: 30px 8px 6px; }
+          #blinks-page .lb .lbbar, #blinks-page .lb .lbalt { padding-left: 12px; padding-right: 12px; }
+        }
         #blinks-page .meta { font-size: 9px; margin-top: 1px; }
         #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
         #blinks-page .meta a.del { color: #c00; }
@@ -1182,8 +1333,14 @@ defmodule BlogWeb.BlinksLive do
         </nav>
         <span class="dateline">{@total} saved</span>
         <a class="tour-link" phx-click="start-tour">tour</a>
-        <a class="tour-link" href="/blinks/stumble" target="_blank" title="a random saved link">
+        <a class="tour-link" href="/blinks/surf" title="stumbleupon mode: one random link at a time">
           stumble 🎲
+        </a>
+        <a class="tour-link" href="/blinks/walk" title="wiki-walk: hop between similar links">
+          walk 🥾
+        </a>
+        <a class="tour-link" href="/blinks/tv" title="lean-back channel surfing">
+          tv 📺
         </a>
         <form :if={@view == :live} class="windowform" phx-change="set-window">
           <select name="t">
@@ -1343,8 +1500,13 @@ defmodule BlogWeb.BlinksLive do
                 <details :if={row_media_count(blink) > 0} class="xd mediafold">
                   <summary class="foldarrow">media ({row_media_count(blink)})</summary>
                   <div>
-                    <.bmedia m={root_post(blink)} href={blink.url} />
-                    <.bmedia :if={root_quote(blink)} m={root_quote(blink)} href={blink.url} />
+                    <.bmedia m={root_post(blink)} id={blink.id} base={0} />
+                    <.bmedia
+                      :if={root_quote(blink)}
+                      m={root_quote(blink)}
+                      id={blink.id}
+                      base={media_count(root_post(blink))}
+                    />
                   </div>
                 </details>
                 <form
@@ -1436,14 +1598,14 @@ defmodule BlogWeb.BlinksLive do
                       🧵 {length(thread_posts(blink))}
                     </summary>
                     <div class="thread-view">
-                      <div :for={post <- thread_posts(blink)} class="tpost">
+                      <div :for={{post, at, quote_at} <- media_offsets(blink)} class="tpost">
                         <b>{post["name"] || post["handle"]}</b>
                         <span class="thandle">@{post["handle"]}</span>
                         <div class="ttext">{post["text"]}</div>
-                        <.bmedia m={post} href={blink.url} />
+                        <.bmedia m={post} id={blink.id} base={at} />
                         <div :if={post["quote"]} class="tquote">
                           ↳ <b>@{post["quote"]["handle"]}</b>: “{post["quote"]["text"]}”
-                          <.bmedia m={post["quote"]} href={blink.url} />
+                          <.bmedia m={post["quote"]} id={blink.id} base={quote_at} />
                         </div>
                       </div>
                     </div>
@@ -1693,6 +1855,53 @@ defmodule BlogWeb.BlinksLive do
             <div style="color:#888; font-size:10px;">it'll stick around for next time</div>
           </div>
         <% end %>
+      </div>
+
+      <div
+        :if={current_media(assigns)}
+        class="lb"
+        phx-window-keydown="media-key"
+        phx-click="close-media"
+      >
+        <% shot = current_media(assigns) %>
+        <button type="button" class="lbclose" phx-click="close-media" aria-label="close">✕</button>
+        <button
+          :if={shot.count > 1}
+          type="button"
+          class="lbnav lbprev"
+          phx-click="step-media"
+          phx-value-by="-1"
+          aria-label="previous"
+        >‹</button>
+        <button
+          :if={shot.count > 1}
+          type="button"
+          class="lbnav lbnext"
+          phx-click="step-media"
+          phx-value-by="1"
+          aria-label="next"
+        >›</button>
+
+        <div class="lbstage">
+          <img src={shot.src} alt={shot.alt} />
+        </div>
+
+        <div :if={shot.alt != ""} class="lbalt">{shot.alt}</div>
+
+        <div class="lbbar">
+          <span class="lbtitle">{headline(shot.blink)}</span>
+          <a href={shot.blink.url} target="_blank" rel="noopener">
+            {if shot.kind == :video,
+              do: "▶ watch on #{shot.blink.site_name || domain(shot.blink.url)}",
+              else: "open #{shot.blink.site_name || domain(shot.blink.url)}"}
+          </a>
+          <span :if={shot.kind == :video} class="lbvideo">
+            still frame — playback lives on the source
+          </span>
+          <span class="lbcount">
+            {shot.i + 1} / {shot.count} · ← → to browse, esc to close
+          </span>
+        </div>
       </div>
 
       <div

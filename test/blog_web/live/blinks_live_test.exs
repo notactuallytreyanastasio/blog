@@ -4,6 +4,108 @@ defmodule BlogWeb.BlinksLiveTest do
 
   alias Blog.{Blinks, Chat}
 
+  # A bsky-style thread carrying two images and a video still, plus a quoted
+  # post with a picture of its own.
+  defp thread_with_media do
+    %{
+      "posts" => [
+        %{
+          "handle" => "someone.bsky.social",
+          "text" => "a thread about trains",
+          "images" => [
+            %{"thumb" => "https://cdn.test/1-small.jpg", "full" => "https://cdn.test/1-BIG.jpg", "alt" => "a red train"},
+            %{"thumb" => "https://cdn.test/2-small.jpg", "full" => "https://cdn.test/2-BIG.jpg", "alt" => ""}
+          ],
+          "quote" => %{
+            "handle" => "quoted.bsky.social",
+            "text" => "the original claim",
+            "images" => [%{"thumb" => "https://cdn.test/q-small.jpg", "full" => "https://cdn.test/q-BIG.jpg", "alt" => "quoted pic"}]
+          }
+        },
+        %{
+          "handle" => "someone.bsky.social",
+          "text" => "and here is the footage",
+          "video" => %{"thumb" => "https://cdn.test/v-still.jpg"}
+        }
+      ]
+    }
+  end
+
+  test "media opens a lightbox on the page instead of linking away", %{conn: conn} do
+    {:ok, blink} =
+      Blinks.save_blink(%{"url" => "https://a.co/trains", "title" => "Trains", "thread" => thread_with_media()})
+
+    {:ok, view, html} = live(conn, "/blinks")
+
+    # the paper only ever loads thumbs, and nothing points at the full copy
+    assert html =~ "https://cdn.test/1-small.jpg"
+    refute html =~ ~s(href="https://cdn.test/1-BIG.jpg")
+    refute html =~ ~s(class="lb")
+
+    html = view |> element(~s(.mediafold a[phx-value-i="0"])) |> render_click()
+
+    assert html =~ ~s(class="lb")
+    assert html =~ "https://cdn.test/1-BIG.jpg"
+    assert html =~ "a red train"
+    assert html =~ "1 / 4"
+
+    # the shot lands in the URL, so it survives refresh and can be shared
+    assert assert_patch(view) =~ "media=#{blink.id}.0"
+  end
+
+  test "a ?media= deep link opens the lightbox straight from the URL", %{conn: conn} do
+    {:ok, blink} =
+      Blinks.save_blink(%{"url" => "https://a.co/trains", "title" => "Trains", "thread" => thread_with_media()})
+
+    {:ok, _view, html} = live(conn, "/blinks?media=#{blink.id}.2")
+    assert html =~ ~s(class="lb")
+    assert html =~ "quoted pic"
+    assert html =~ "3 / 4"
+
+    # garbage in the param is just ignored
+    {:ok, _view, html} = live(conn, "/blinks?media=#{blink.id}.99")
+    refute html =~ ~s(class="lb")
+
+    {:ok, _view, html} = live(conn, "/blinks?media=banana")
+    refute html =~ ~s(class="lb")
+  end
+
+  test "the lightbox walks the whole link with the arrow keys, and esc closes it", %{conn: conn} do
+    {:ok, blink} =
+      Blinks.save_blink(%{"url" => "https://a.co/trains", "title" => "Trains", "thread" => thread_with_media()})
+
+    {:ok, view, _html} = live(conn, "/blinks")
+    view |> element(~s(.mediafold a[phx-value-i="0"])) |> render_click()
+    assert assert_patch(view) =~ "media=#{blink.id}.0"
+
+    # forward through the post's images into the quoted post's picture, the
+    # URL tracking every step
+    html = render_keydown(view, "media-key", %{"key" => "ArrowRight"})
+    assert html =~ "https://cdn.test/2-BIG.jpg"
+    assert assert_patch(view) =~ "media=#{blink.id}.1"
+
+    html = render_keydown(view, "media-key", %{"key" => "ArrowRight"})
+    assert html =~ "quoted pic"
+    assert html =~ "3 / 4"
+    assert assert_patch(view) =~ "media=#{blink.id}.2"
+
+    # the video still is last, and says so rather than pretending to play
+    html = render_keydown(view, "media-key", %{"key" => "ArrowRight"})
+    assert html =~ "https://cdn.test/v-still.jpg"
+    assert html =~ "still frame"
+    assert assert_patch(view) =~ "media=#{blink.id}.3"
+
+    # and it wraps back to the first picture rather than dead-ending
+    html = render_keydown(view, "media-key", %{"key" => "ArrowRight"})
+    assert html =~ "1 / 4"
+    assert assert_patch(view) =~ "media=#{blink.id}.0"
+
+    # esc closes it and scrubs the param back out of the URL
+    html = render_keydown(view, "media-key", %{"key" => "Escape"})
+    refute html =~ ~s(class="lb")
+    refute assert_patch(view) =~ "media="
+  end
+
   test "NO DORK STUFF hides blinks carrying dork tags", %{conn: conn} do
     {:ok, _} =
       Blinks.save_blink(%{"url" => "https://d.co/1", "title" => "Dorky post", "tags" => ["elixir"]})
