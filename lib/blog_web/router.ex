@@ -176,6 +176,9 @@ defmodule BlogWeb.Router do
       live "/blinks", BlinksLive, :index
       live "/blinks-reader", BlinksReaderLive, :index
       live "/blinks/review", BlinksReviewLive, :index
+      live "/blinks/surf", BlinksSurfLive, :index
+      live "/blinks/walk", BlinksWalkLive, :index
+      live "/blinks/tv", BlinksTvLive, :index
     end
   end
 

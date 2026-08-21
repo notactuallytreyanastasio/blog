@@ -187,12 +187,40 @@ defmodule Blog.Blinks do
     Enum.map(rows, fn [name, count] -> %{name: name, count: count} end)
   end
 
-  @spec count_blinks() :: non_neg_integer()
-  def count_blinks, do: Repo.aggregate(Blink, :count)
+  @spec count_blinks(keyword()) :: non_neg_integer()
+  def count_blinks(opts \\ []) do
+    Blink
+    |> maybe_filter_tags(Keyword.get(opts, :tags) || [])
+    |> Repo.aggregate(:count)
+  end
 
-  @spec random_blink() :: Blink.t() | nil
-  def random_blink do
-    Blink |> order_by(fragment("random()")) |> limit(1) |> Repo.one()
+  @doc """
+  A random blink. Options:
+
+    * `:exclude` — ids to skip (e.g. already stumbled this session)
+    * `:tags` — restrict the pool to blinks carrying ANY of these tags
+    * `:with_image` — prefer blinks that have an og image; falls back to the
+      full pool when none with images remain
+  """
+  @spec random_blink(keyword()) :: Blink.t() | nil
+  def random_blink(opts \\ []) do
+    exclude = Keyword.get(opts, :exclude) || []
+    tags = Keyword.get(opts, :tags) || []
+
+    base =
+      Blink
+      |> where([b], b.id not in ^exclude)
+      |> maybe_filter_tags(tags)
+      |> order_by(fragment("random()"))
+      |> limit(1)
+
+    if Keyword.get(opts, :with_image, false) do
+      base
+      |> where([b], not is_nil(b.image_url) and b.image_url != "")
+      |> Repo.one() || Repo.one(base)
+    else
+      Repo.one(base)
+    end
   end
 
   @doc "Admin edit of a blink's title/description. Broadcasts."
