@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <!-- Classic Mac desktop: 1px horizontal pinstripe -->
+    <pattern id="desk" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="#a8a8a8"/>
+      <rect y="2" width="4" height="2" fill="#b8b8b8"/>
+    </pattern>
+    <!-- Title bar: vertical pinstripe -->
+    <pattern id="stripes" width="3" height="3" patternUnits="userSpaceOnUse">
+      <rect width="3" height="3" fill="#fff"/>
+      <rect x="1" width="1" height="3" fill="#000"/>
+    </pattern>
+  </defs>
+
+  <!-- Desktop -->
+  <rect width="1200" height="630" fill="url(#desk)"/>
+
+  <!-- Menu bar -->
+  <rect x="0" y="0" width="1200" height="34" fill="#fff"/>
+  <rect x="0" y="33" width="1200" height="2" fill="#000"/>
+  <text x="22" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="17" fill="#000">&#63743;</text>
+  <text x="52" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#000">Finder</text>
+  <text x="126" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#000">Blog</text>
+  <rect x="180" y="6" width="88" height="23" fill="#000"/>
+  <text x="224" y="24" text-anchor="middle" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#fff">Directory</text>
+  <text x="1178" y="24" text-anchor="end" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="15" fill="#000">bobbby.online</text>
+
+  <!-- Window drop shadow -->
+  <rect x="64" y="70" width="1076" height="510" fill="#000"/>
+
+  <!-- Window -->
+  <rect x="60" y="66" width="1076" height="510" fill="#fff" stroke="#000" stroke-width="3"/>
+
+  <!-- Title bar -->
+  <rect x="61" y="67" width="1074" height="38" fill="url(#stripes)"/>
+  <rect x="60" y="104" width="1076" height="3" fill="#000"/>
+  <!-- Close box -->
+  <rect x="76" y="76" width="20" height="20" fill="#fff" stroke="#000" stroke-width="2.5"/>
+  <!-- Title plate -->
+  <rect x="500" y="67" width="196" height="37" fill="#fff"/>
+  <text x="598" y="94" text-anchor="middle" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="21" font-weight="bold" fill="#000">Directory</text>
+  <!-- Resize box -->
+  <rect x="1100" y="76" width="20" height="20" fill="#fff" stroke="#000" stroke-width="2.5"/>
+
+  <!-- Headline -->
+  <text x="100" y="176" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="50" font-weight="bold" fill="#000">Everything running on one box</text>
+
+  <!-- Deck -->
+  <text x="100" y="222" font-family="'Geneva','Helvetica',sans-serif" font-size="23" fill="#333">One VPS, one docker compose project, and somewhere north of a hundred</text>
+  <text x="100" y="256" font-family="'Geneva','Helvetica',sans-serif" font-size="23" fill="#333">and forty things to click. Every domain, app, route, and project.</text>
+
+  <!-- Stat strip -->
+  <rect x="100" y="298" width="1000" height="116" fill="#000"/>
+  <rect x="102" y="300" width="196" height="112" fill="#fff"/>
+  <rect x="302" y="300" width="196" height="112" fill="#fff"/>
+  <rect x="502" y="300" width="196" height="112" fill="#fff"/>
+  <rect x="702" y="300" width="196" height="112" fill="#fff"/>
+  <rect x="902" y="300" width="196" height="112" fill="#fff"/>
+
+  <text x="122" y="362" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="46" font-weight="bold" fill="#000">12</text>
+  <text x="122" y="392" font-family="'Geneva','Helvetica',sans-serif" font-size="15" letter-spacing="1" fill="#666">DOMAINS</text>
+
+  <text x="322" y="362" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="46" font-weight="bold" fill="#000">9</text>
+  <text x="322" y="392" font-family="'Geneva','Helvetica',sans-serif" font-size="15" letter-spacing="1" fill="#666">RESOLVING</text>
+
+  <text x="522" y="362" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="46" font-weight="bold" fill="#000">8</text>
+  <text x="522" y="392" font-family="'Geneva','Helvetica',sans-serif" font-size="15" letter-spacing="1" fill="#666">CONTAINERS</text>
+
+  <text x="722" y="362" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="46" font-weight="bold" fill="#000">93</text>
+  <text x="722" y="392" font-family="'Geneva','Helvetica',sans-serif" font-size="15" letter-spacing="1" fill="#666">ROUTES</text>
+
+  <text x="922" y="362" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="46" font-weight="bold" fill="#000">32</text>
+  <text x="922" y="392" font-family="'Geneva','Helvetica',sans-serif" font-size="15" letter-spacing="1" fill="#666">PROJECTS</text>
+
+  <!-- Finder list rows -->
+  <line x1="100" y1="459" x2="1100" y2="459" stroke="#ccc" stroke-width="2"/>
+  <text x="100" y="446" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="19" font-weight="bold" fill="#000">lumines.bobbby.online</text>
+  <rect x="404" y="426" width="58" height="22" fill="#000"/>
+  <text x="433" y="443" text-anchor="middle" font-family="'Geneva','Helvetica',sans-serif" font-size="13" fill="#fff">LIVE</text>
+  <text x="486" y="445" font-family="'Geneva','Helvetica',sans-serif" font-size="19" fill="#333">Two players share one falling-block board</text>
+
+  <line x1="100" y1="499" x2="1100" y2="499" stroke="#ccc" stroke-width="2"/>
+  <text x="100" y="486" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="19" font-weight="bold" fill="#000">gifmaker.bobbby.online</text>
+  <rect x="404" y="466" width="58" height="22" fill="#000"/>
+  <text x="433" y="483" text-anchor="middle" font-family="'Geneva','Helvetica',sans-serif" font-size="13" fill="#fff">LIVE</text>
+  <text x="486" y="485" font-family="'Geneva','Helvetica',sans-serif" font-size="19" fill="#333">Video sliced to frames, GIFs cut from ranges</text>
+
+  <text x="100" y="526" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="19" font-weight="bold" fill="#000">donny.bobbby.online</text>
+  <rect x="404" y="506" width="80" height="22" fill="#fff" stroke="#000" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="444" y="523" text-anchor="middle" font-family="'Geneva','Helvetica',sans-serif" font-size="13" fill="#333">NO DNS</text>
+  <text x="504" y="525" font-family="'Geneva','Helvetica',sans-serif" font-size="19" fill="#333">Configured in Caddy, and quietly unreachable</text>
+
+  <!-- Status bar -->
+  <rect x="60" y="538" width="1076" height="3" fill="#000"/>
+  <text x="80" y="564" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="17" fill="#333">6 windows</text>
+  <text x="1116" y="564" text-anchor="end" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="17" fill="#333">bobbby.online/directory</text>
+</svg>

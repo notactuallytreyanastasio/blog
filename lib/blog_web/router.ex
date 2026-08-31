@@ -164,6 +164,7 @@ defmodule BlogWeb.Router do
     live "/art", ArtLive, :index
     get "/chess", ChessController, :index
     live "/chess-lv", ChessLive, :index
+    live "/directory", DirectoryLive, :index
 
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index
