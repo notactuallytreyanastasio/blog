@@ -1,0 +1,218 @@
+[
+  {
+    "hash": "a2d1282cfcbe34f453b7718971f0aea22736ce73",
+    "short_hash": "a2d1282",
+    "author": "Robert Grayson",
+    "date": "2026-02-21T22:19:52-05:00",
+    "message": "feat: DB-backed icon management with admin panel, triple finder width\n\nReplace hardcoded icon/section module attributes with database-backed\nfinder_sections and finder_items tables. Add password-protected admin\npanel at /admin/finder for managing sections and items (CRUD, reorder,\nvisibility). Triple finder window width to 780px and move blog window\nnext to Phish window.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 10
+  },
+  {
+    "hash": "f1cd4f75b5ec34ea13c9ee19b0d19c63965b4f11",
+    "short_hash": "f1cd4f7",
+    "author": "Robert Grayson",
+    "date": "2026-02-20T22:35:48-05:00",
+    "message": "fix: increase OG image text sizes for readability on small previews\n\nTitle 46→64, subtitle 20→32, badge 13→18.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "e997738e279f3ac60e8638b62a394e03074b701d",
+    "short_hash": "e997738",
+    "author": "Robert Grayson",
+    "date": "2026-02-19T08:12:32-05:00",
+    "message": "feat: restore image upload button and add message queue viewer\n\nRestores the Add Image button on the Very Direct Message page and adds\na View Queue button to toggle a scrollable panel showing the last 10 messages.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "8d2b5bcca67d8c2ba0ac969853e8265a754166a2",
+    "short_hash": "8d2b5bc",
+    "author": "Robert Grayson",
+    "date": "2026-02-16T11:22:14-05:00",
+    "message": "fix: diff content erasure, add git commit on persist, show h1 title\n\n- Fix apply_ops to not drop remaining lines when diff base is out of sync\n- Add debounced git commit (10s) after persisting draft content to disk\n- Show post title (h1) in article body instead of hiding it\n- Silence noisy PubSub warnings in LiveDraftChannel\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "08cff15873d803142f26c2c363fe5d4cb88cf03b",
+    "short_hash": "08cff15",
+    "author": "Robert Grayson",
+    "date": "2026-02-13T02:04:16-05:00",
+    "message": "Add retry endpoint for receipt messages that failed to print\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "3587714561ac49baf8f70d64097c3809e3042d18",
+    "short_hash": "3587714",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T18:13:47-05:00",
+    "message": "Fix typewriter paper clipping at top of window\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "3c8563b330f418d2136de9d0e7752e77bcd2bbe9",
+    "short_hash": "3c8563b",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T18:08:34-05:00",
+    "message": "Restyle very direct messages: wider Mac System 7 window, draggable, less tall\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "5976d9ab86679868c92fc1162361c1907061783a",
+    "short_hash": "5976d9a",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T18:04:16-05:00",
+    "message": "Make very direct messages form wider on desktop with taller textarea\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "8f1ef485b953c1a0782320219eefff00874f7932",
+    "short_hash": "8f1ef48",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T17:58:01-05:00",
+    "message": "remove image printing for now",
+    "files_changed": 1
+  },
+  {
+    "hash": "a39bccaddfb1ee528eea0bef35da176fca3689ec",
+    "short_hash": "a39bcca",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T17:43:42-05:00",
+    "message": "fix copy for placeholder",
+    "files_changed": 1
+  },
+  {
+    "hash": "eb483b3755b40c4bb85c5518b6380b082754b562",
+    "short_hash": "eb483b3",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T17:09:46-05:00",
+    "message": "Add Smart Steps scenario system - interactive branching stories for kids\n\nIncludes LiveView pages (index, play, connect, results, dashboard, demo, designer),\nbackend game logic, session management via DynamicSupervisor, 7 scenario trees,\nflip card animations, and channel support for multiplayer sessions.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 34
+  },
+  {
+    "hash": "cd1bca9dc1f6b98ca5c6ae5283e40902b90809be",
+    "short_hash": "cd1bca9",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T14:46:49-05:00",
+    "message": "Fix message text clearing when image is attached on very direct messages\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "e46a401a94717bef17a68d2938ca4d9d3edb172a",
+    "short_hash": "e46a401",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T13:18:19-05:00",
+    "message": "Use site default OG image for very direct messages page\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "b4edb9215e01313012edd745172d6254b2411cd5",
+    "short_hash": "b4edb92",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T13:14:39-05:00",
+    "message": "Fix receipt API - remove ReceiptPrinter dependency that crashes in production\n\nThe format_message/1 function called build_receipt_binary/1 which used\nReceiptPrinter.ReceiptBuilder (not available on Gigalixir). Hermes\nhandles receipt formatting locally now.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "632499e7ff8acc47607ffafad8faf2b682ebd0fb",
+    "short_hash": "632499e",
+    "author": "Robert Grayson",
+    "date": "2026-02-12T13:07:12-05:00",
+    "message": "Update OG description for very direct messages page\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "f9a9f09d315eb0d968b350a64f5d9c4521525d4d",
+    "short_hash": "f9a9f09",
+    "author": "Bobby Nathan",
+    "date": "2026-01-07T15:54:16-05:00",
+    "message": "Add OS window chrome styling to all pages, delete mta-bus route",
+    "files_changed": 33
+  },
+  {
+    "hash": "bb95ddc56ffecb32af4f671d0315f9eee5e2a481",
+    "short_hash": "bb95ddc",
+    "author": "Bobby Nathan",
+    "date": "2026-01-07T08:51:49-05:00",
+    "message": "update receipt printer Python scripts\n\nImprove error handling and printer communication.",
+    "files_changed": 2
+  },
+  {
+    "hash": "aab06f70d5078752bc141fad4f4ad3b1b08f71f7",
+    "short_hash": "aab06f7",
+    "author": "Bobby Nathan",
+    "date": "2026-01-07T08:51:43-05:00",
+    "message": "clean up printer documentation and scripts\n\nRemove outdated printer setup docs and shell scripts that\nare no longer needed. Update main README.",
+    "files_changed": 7
+  },
+  {
+    "hash": "b865942625a700a1a3471abad6cde4951e61affe",
+    "short_hash": "b865942",
+    "author": "Bobby Nathan",
+    "date": "2026-01-07T08:49:21-05:00",
+    "message": "fix compiler warnings: deprecations, unused vars, imports\n\n- Logger.warn -> Logger.warning (3 files)\n- use Bitwise -> import Bitwise (2 files)\n- Remove unused imports/aliases (5 files)\n- Fix @doc on private functions (3 files)\n- Fix deprecated <%# comments -> <%!--\n- Fix clause grouping issues\n- Fix deprecated range syntax 0..-2 -> 0..-2//-1\n- Prefix unused variables with underscore (20+ fixes)",
+    "files_changed": 30
+  },
+  {
+    "hash": "a90a468daac4a13e9db3f7049cd81fc80b6734b8",
+    "short_hash": "a90a468",
+    "author": "Bobby Nathan",
+    "date": "2025-08-29T01:13:59-04:00",
+    "message": "add a bunch of new stuff for jetstreams and printing and more",
+    "files_changed": 25
+  },
+  {
+    "hash": "5eb1a1a8b9fc45af45b83588b475a90a030d447b",
+    "short_hash": "5eb1a1a",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T19:08:07-04:00",
+    "message": "get the messages going right",
+    "files_changed": 1
+  },
+  {
+    "hash": "ced3da9ba19e3af150d6e58451320401216cef7c",
+    "short_hash": "ced3da9",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T18:55:24-04:00",
+    "message": "Use environment variable for API token in production",
+    "files_changed": 8
+  },
+  {
+    "hash": "c8920d09b5ab805e0c52cafd8b200c0496374147",
+    "short_hash": "c8920d0",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T18:49:29-04:00",
+    "message": "Add receipt printer API endpoints and local polling service\n\n- Add API endpoints for fetching pending messages and updating status\n- Create Python polling service to fetch and print messages locally\n- Add authentication via API token\n- Configure for 30-second polling interval\n- Add LaunchAgent configuration for automatic startup",
+    "files_changed": 23
+  },
+  {
+    "hash": "84d855975b7c1294dc579e04c3ce4925162c6cf5",
+    "short_hash": "84d8559",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T18:33:49-04:00",
+    "message": "make rust project emulating the printer and get the messages printing to it successfully locally",
+    "files_changed": 12
+  },
+  {
+    "hash": "774c96bf173eb21f3c323c507610dbe382cdd511",
+    "short_hash": "774c96b",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T17:45:39-04:00",
+    "message": "new data",
+    "files_changed": 1
+  },
+  {
+    "hash": "119d0df31722402a8da52bf3f9d40e3ee319fb5f",
+    "short_hash": "119d0df",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T11:35:18-04:00",
+    "message": "wip",
+    "files_changed": 3
+  },
+  {
+    "hash": "d9d19fe6619ff186388f7f347ae2b94541232687",
+    "short_hash": "d9d19fe",
+    "author": "Bobby Nathan",
+    "date": "2025-08-27T07:53:50-04:00",
+    "message": "receipts",
+    "files_changed": 9
+  }
+]
