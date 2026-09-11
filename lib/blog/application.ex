@@ -54,7 +54,8 @@ defmodule Blog.Application do
 
     children =
       children ++
-        work_log_poller_children() ++ blinks_link_check_children() ++ push_notifier_children()
+        work_log_poller_children() ++ blinks_link_check_children() ++ push_notifier_children() ++
+        camera_browser_children()
 
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
@@ -75,6 +76,15 @@ defmodule Blog.Application do
   defp push_notifier_children do
     if Application.get_env(:blog, :start_push_notifier, true) do
       [Blog.Push.Notifier]
+    else
+      []
+    end
+  end
+
+  # Hourly Craigslist sweep; live HTTP, so off in tests (config/test.exs).
+  defp camera_browser_children do
+    if Application.get_env(:blog, :start_camera_browser_poller, true) do
+      [Blog.CameraBrowser.Poller]
     else
       []
     end

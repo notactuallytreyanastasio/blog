@@ -83,6 +83,11 @@ defmodule BlogWeb.DirectoryLive do
        {"/api/blinks*", "Reads open, writes token-gated. Create, search, tags, export, import, delete."},
        {"/api/push/devices", "APNs device registration for the Blinks iOS app."}
      ]},
+    {"Camera browser",
+     [
+       {"/cameras",
+        "Film cameras live on Craigslist across NYC, swept every 15 minutes. Kept until the post closes; scored, tagged, starred and hidden by hand."}
+     ]},
     {"Phish",
      [
        {"/phish", "PhanGraphs. Batting averages, jamchart rates, duration timelines since 2009."},

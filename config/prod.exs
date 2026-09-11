@@ -22,3 +22,6 @@ config :logger, level: :info
 config :blog, BlogWeb.Endpoint,
   url: [scheme: "https", host: "bobbby.online", port: 443],
   force_ssl: [rewrite_on: [:x_forwarded_proto]]
+
+# Camera browser: keep copies of listing photos in object storage.
+config :blog, :camera_browser, mirror_images: true

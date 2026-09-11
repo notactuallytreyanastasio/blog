@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <!-- Classic Mac desktop: 1px horizontal pinstripe -->
+    <pattern id="desk" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="#a8a8a8"/>
+      <rect y="2" width="4" height="2" fill="#b8b8b8"/>
+    </pattern>
+    <!-- Title bar: vertical pinstripe -->
+    <pattern id="stripes" width="3" height="3" patternUnits="userSpaceOnUse">
+      <rect width="3" height="3" fill="#fff"/>
+      <rect x="1" width="1" height="3" fill="#000"/>
+    </pattern>
+    <!-- Thumbnail placeholder: diagonal hatch, like the page's missing-photo box -->
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="#fff"/>
+      <rect width="2" height="6" fill="#000"/>
+    </pattern>
+  </defs>
+
+  <!-- Desktop -->
+  <rect width="1200" height="630" fill="url(#desk)"/>
+
+  <!-- Menu bar -->
+  <rect x="0" y="0" width="1200" height="34" fill="#fff"/>
+  <rect x="0" y="33" width="1200" height="2" fill="#000"/>
+  <text x="22" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="17" fill="#000">&#63743;</text>
+  <text x="52" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#000">Finder</text>
+  <text x="126" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#000">Blog</text>
+  <text x="182" y="24" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#000">Directory</text>
+  <rect x="274" y="6" width="90" height="23" fill="#000"/>
+  <text x="319" y="24" text-anchor="middle" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="16" fill="#fff">Cameras</text>
+  <text x="1178" y="24" text-anchor="end" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="15" fill="#000">Swept 4m ago</text>
+
+  <!-- Window drop shadow -->
+  <rect x="64" y="70" width="1076" height="510" fill="#000"/>
+
+  <!-- Window -->
+  <rect x="60" y="66" width="1076" height="510" fill="#fff" stroke="#000" stroke-width="3"/>
+
+  <!-- Title bar -->
+  <rect x="61" y="67" width="1074" height="38" fill="url(#stripes)"/>
+  <rect x="60" y="104" width="1076" height="3" fill="#000"/>
+  <rect x="76" y="76" width="20" height="20" fill="#fff" stroke="#000" stroke-width="2.5"/>
+  <rect x="300" y="67" width="596" height="37" fill="#fff"/>
+  <text x="598" y="94" text-anchor="middle" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="21" font-weight="bold" fill="#000">Camera Browser — film cameras live on craigslist</text>
+  <rect x="1100" y="76" width="20" height="20" fill="#fff" stroke="#000" stroke-width="2.5"/>
+
+  <!-- Toolbar: tabs + chips -->
+  <rect x="61" y="107" width="1074" height="52" fill="#e0e0e0"/>
+  <rect x="61" y="158" width="1074" height="2" fill="#000"/>
+  <g font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="17" font-weight="bold">
+    <rect x="84" y="118" width="476" height="30" fill="#fff" stroke="#000" stroke-width="2"/>
+    <rect x="85" y="119" width="70" height="28" fill="#000"/>
+    <text x="120" y="139" text-anchor="middle" fill="#fff">NYC</text>
+    <line x1="155" y1="119" x2="155" y2="147" stroke="#000" stroke-width="2"/>
+    <text x="235" y="139" text-anchor="middle" fill="#000">SF / East Bay</text>
+    <line x1="315" y1="119" x2="315" y2="147" stroke="#000" stroke-width="2"/>
+    <text x="365" y="139" text-anchor="middle" fill="#000">Seattle</text>
+    <line x1="415" y1="119" x2="415" y2="147" stroke="#000" stroke-width="2"/>
+    <text x="487" y="139" text-anchor="middle" fill="#000">Portland</text>
+  </g>
+  <g font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="12" letter-spacing="0.6">
+    <rect x="584" y="122" width="46" height="22" fill="#000"/>
+    <text x="607" y="138" text-anchor="middle" fill="#fff">ALL</text>
+    <rect x="638" y="122" width="102" height="22" fill="#fff" stroke="#000" stroke-width="1.5"/>
+    <text x="689" y="138" text-anchor="middle" fill="#000">MANHATTAN</text>
+    <rect x="748" y="122" width="94" height="22" fill="#fff" stroke="#000" stroke-width="1.5"/>
+    <text x="795" y="138" text-anchor="middle" fill="#000">BROOKLYN</text>
+    <rect x="850" y="122" width="76" height="22" fill="#fff" stroke="#000" stroke-width="1.5"/>
+    <text x="888" y="138" text-anchor="middle" fill="#000">QUEENS</text>
+    <rect x="934" y="122" width="70" height="22" fill="#fff" stroke="#000" stroke-width="1.5"/>
+    <text x="969" y="138" text-anchor="middle" fill="#000">BRONX</text>
+  </g>
+  <rect x="1016" y="121" width="96" height="24" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="1026" y="138" font-family="'Geneva','Helvetica',sans-serif" font-size="13" fill="#888">search…</text>
+
+  <!-- Facet rail -->
+  <rect x="61" y="160" width="230" height="414" fill="#fff"/>
+  <rect x="290" y="160" width="2" height="414" fill="#000"/>
+  <rect x="61" y="160" width="230" height="26" fill="#e0e0e0"/>
+  <rect x="61" y="185" width="230" height="1.5" fill="#000"/>
+  <text x="74" y="178" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="12" letter-spacing="0.8" fill="#333">23 OF 341</text>
+  <text x="278" y="178" text-anchor="end" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="12" letter-spacing="0.8" fill="#333" text-decoration="underline">CLEAR</text>
+  <g font-family="'Geneva','Helvetica',sans-serif" font-size="15" fill="#000">
+    <text x="74" y="214" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="14" font-weight="bold">▾ Brand</text>
+    <text x="84" y="240">■ leica</text><text x="276" y="240" text-anchor="end" fill="#777">21</text>
+    <text x="84" y="264">■ nikon</text><text x="276" y="264" text-anchor="end" fill="#777">18</text>
+    <text x="84" y="288">□ hasselblad</text><text x="276" y="288" text-anchor="end" fill="#777">7</text>
+    <text x="84" y="312">□ rollei</text><text x="276" y="312" text-anchor="end" fill="#777">7</text>
+    <text x="84" y="336">□ mamiya</text><text x="276" y="336" text-anchor="end" fill="#777">6</text>
+    <text x="74" y="374" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="14" font-weight="bold">▾ Price take</text>
+    <text x="84" y="400">■ steal</text><text x="276" y="400" text-anchor="end" fill="#777">6</text>
+    <text x="84" y="424">□ fair</text><text x="276" y="424" text-anchor="end" fill="#777">141</text>
+    <text x="84" y="448">□ high</text><text x="276" y="448" text-anchor="end" fill="#777">240</text>
+    <text x="74" y="486" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="14" font-weight="bold">▾ Rarity</text>
+    <text x="84" y="512">■ ★★★★★</text><text x="276" y="512" text-anchor="end" fill="#777">4</text>
+    <text x="84" y="536">■ ★★★★</text><text x="276" y="536" text-anchor="end" fill="#777">19</text>
+  </g>
+
+  <!-- Table header -->
+  <rect x="292" y="160" width="843" height="26" fill="#e0e0e0"/>
+  <rect x="292" y="185" width="843" height="1.5" fill="#000"/>
+  <g font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="12" letter-spacing="0.8" fill="#333">
+    <text x="384" y="178">LISTING</text>
+    <text x="808" y="178">WHERE</text>
+    <text x="1046" y="178" text-anchor="end">PRICE</text>
+    <text x="1118" y="178" text-anchor="end">SCORE</text>
+  </g>
+
+  <!-- Rows -->
+  <g font-family="'Geneva','Helvetica',sans-serif">
+    <!-- row 1 -->
+    <rect x="308" y="200" width="56" height="42" fill="url(#hatch)" stroke="#000" stroke-width="1.5"/>
+    <text x="384" y="215" font-size="17" font-weight="bold" fill="#000">Leica M6 TTL .72 black — CLA'd, MP finder</text>
+    <g font-size="10.5" font-family="'Chicago','Geneva','Helvetica',sans-serif" letter-spacing="0.5">
+      <rect x="384" y="224" width="36" height="16" fill="#fff" stroke="#000"/><text x="402" y="236" text-anchor="middle">FILM</text>
+      <rect x="426" y="224" width="64" height="16" fill="#fff" stroke="#1a7a3a"/><text x="458" y="236" text-anchor="middle" fill="#1a7a3a">WORKING</text>
+      <rect x="496" y="224" width="44" height="16" fill="#e8f7ec" stroke="#1a7a3a"/><text x="518" y="236" text-anchor="middle" fill="#1a7a3a">STEAL</text>
+    </g>
+    <text x="548" y="237" font-size="12" fill="#b8860b">★★★★☆</text>
+    <text x="622" y="237" font-size="12" fill="#444">excellent · 15 photos</text>
+    <text x="808" y="226" font-size="16" fill="#000"><tspan font-weight="bold">Brooklyn</tspan><tspan fill="#555"> · Greenpt</tspan></text>
+    <text x="1046" y="226" text-anchor="end" font-size="17" font-weight="bold" fill="#000">$2,650</text>
+    <text x="1118" y="226" text-anchor="end" font-size="13" fill="#888">120</text>
+    <rect x="292" y="252" width="843" height="1" fill="#ccc"/>
+
+    <!-- row 2 -->
+    <rect x="308" y="266" width="56" height="42" fill="url(#hatch)" stroke="#000" stroke-width="1.5"/>
+    <text x="384" y="281" font-size="17" font-weight="bold" fill="#000">Plaubel Makina 67 — fresh bellows, meter works</text>
+    <g font-size="10.5" font-family="'Chicago','Geneva','Helvetica',sans-serif" letter-spacing="0.5">
+      <rect x="384" y="290" width="36" height="16" fill="#fff" stroke="#000"/><text x="402" y="302" text-anchor="middle">FILM</text>
+      <rect x="426" y="290" width="64" height="16" fill="#fff" stroke="#1a7a3a"/><text x="458" y="302" text-anchor="middle" fill="#1a7a3a">WORKING</text>
+      <rect x="496" y="290" width="40" height="16" fill="#fff" stroke="#555"/><text x="516" y="302" text-anchor="middle" fill="#333">FAIR</text>
+    </g>
+    <text x="544" y="303" font-size="12" fill="#b8860b">★★★★★</text>
+    <text x="618" y="303" font-size="12" fill="#444">excellent · 9 photos</text>
+    <text x="808" y="292" font-size="16" fill="#000"><tspan font-weight="bold">Manhattan</tspan><tspan fill="#555"> · SoHo</tspan></text>
+    <text x="1046" y="292" text-anchor="end" font-size="17" font-weight="bold" fill="#000">$1,900</text>
+    <text x="1118" y="292" text-anchor="end" font-size="13" fill="#888">112</text>
+    <rect x="292" y="318" width="843" height="1" fill="#ccc"/>
+
+    <!-- row 3 (hover: inverted, like the page) -->
+    <rect x="292" y="320" width="843" height="64" fill="#000"/>
+    <rect x="308" y="332" width="56" height="42" fill="url(#hatch)" stroke="#fff" stroke-width="1.5"/>
+    <text x="384" y="347" font-size="17" font-weight="bold" fill="#fff">Box of grandpa's cameras — untested lot</text>
+    <g font-size="10.5" font-family="'Chicago','Geneva','Helvetica',sans-serif" letter-spacing="0.5" fill="#fff">
+      <rect x="384" y="356" width="36" height="16" fill="#333" stroke="#fff"/><text x="402" y="368" text-anchor="middle">FILM</text>
+      <rect x="426" y="356" width="64" height="16" fill="#333" stroke="#fff"/><text x="458" y="368" text-anchor="middle">HOPEFUL</text>
+      <rect x="496" y="356" width="36" height="16" fill="#333" stroke="#fff"/><text x="514" y="368" text-anchor="middle">LOT</text>
+      <rect x="538" y="356" width="44" height="16" fill="#333" stroke="#fff"/><text x="560" y="368" text-anchor="middle">STEAL</text>
+    </g>
+    <text x="590" y="369" font-size="12" fill="#e6c44a">★★★☆☆</text>
+    <text x="664" y="369" font-size="12" fill="#ccc">as-is · 11 photos</text>
+    <text x="808" y="358" font-size="16" fill="#fff"><tspan font-weight="bold">Queens</tspan><tspan fill="#ccc"> · Astoria</tspan></text>
+    <text x="1046" y="358" text-anchor="end" font-size="17" font-weight="bold" fill="#fff">$120</text>
+    <text x="1118" y="358" text-anchor="end" font-size="13" fill="#ccc">108</text>
+
+    <!-- row 4 -->
+    <rect x="308" y="398" width="56" height="42" fill="url(#hatch)" stroke="#000" stroke-width="1.5"/>
+    <text x="384" y="413" font-size="17" font-weight="bold" fill="#000">Hasselblad 500C/M kit, 80mm Planar, A12 back</text>
+    <g font-size="10.5" font-family="'Chicago','Geneva','Helvetica',sans-serif" letter-spacing="0.5">
+      <rect x="384" y="422" width="36" height="16" fill="#fff" stroke="#000"/><text x="402" y="434" text-anchor="middle">FILM</text>
+      <rect x="426" y="422" width="64" height="16" fill="#fff" stroke="#1a7a3a"/><text x="458" y="434" text-anchor="middle" fill="#1a7a3a">WORKING</text>
+      <rect x="496" y="422" width="40" height="16" fill="#fff" stroke="#a00"/><text x="516" y="434" text-anchor="middle" fill="#a00">HIGH</text>
+    </g>
+    <text x="544" y="435" font-size="12" fill="#b8860b">★★★★☆</text>
+    <text x="618" y="435" font-size="12" fill="#444">like new · 20 photos</text>
+    <text x="808" y="424" font-size="16" fill="#000"><tspan font-weight="bold">SF</tspan><tspan fill="#555"> · Mission</tspan></text>
+    <text x="1046" y="424" text-anchor="end" font-size="17" font-weight="bold" fill="#000">$3,150</text>
+    <text x="1118" y="424" text-anchor="end" font-size="13" fill="#888">104</text>
+    <rect x="292" y="450" width="843" height="1" fill="#ccc"/>
+
+    <!-- row 5 -->
+    <rect x="308" y="464" width="56" height="42" fill="url(#hatch)" stroke="#000" stroke-width="1.5"/>
+    <text x="384" y="479" font-size="17" font-weight="bold" fill="#000">Olympus XA — the smallest real rangefinder</text>
+    <g font-size="10.5" font-family="'Chicago','Geneva','Helvetica',sans-serif" letter-spacing="0.5">
+      <rect x="384" y="488" width="36" height="16" fill="#fff" stroke="#000"/><text x="402" y="500" text-anchor="middle">FILM</text>
+      <rect x="426" y="488" width="64" height="16" fill="#fff" stroke="#1a7a3a"/><text x="458" y="500" text-anchor="middle" fill="#1a7a3a">WORKING</text>
+      <rect x="496" y="488" width="40" height="16" fill="#fff" stroke="#555"/><text x="516" y="500" text-anchor="middle" fill="#333">FAIR</text>
+    </g>
+    <text x="544" y="501" font-size="12" fill="#b8860b">★★★☆☆</text>
+    <text x="618" y="501" font-size="12" fill="#444">good · 2 photos</text>
+    <text x="808" y="490" font-size="16" fill="#000"><tspan font-weight="bold">Seattle</tspan><tspan fill="#555"> · Cap Hill</tspan></text>
+    <text x="1046" y="490" text-anchor="end" font-size="17" font-weight="bold" fill="#000">$168</text>
+    <text x="1118" y="490" text-anchor="end" font-size="13" fill="#888">98</text>
+  </g>
+
+  <!-- Status bar -->
+  <rect x="61" y="545" width="1074" height="2" fill="#000"/>
+  <rect x="61" y="547" width="1074" height="27" fill="#fff"/>
+  <text x="76" y="566" font-family="'Geneva','Helvetica',sans-serif" font-size="14" fill="#333">341 live · every 15 min · NYC, SF / East Bay, Seattle, Portland</text>
+  <text x="1120" y="566" text-anchor="end" font-family="'Geneva','Helvetica',sans-serif" font-size="14" fill="#333">rated by a camera nerd robot · not gospel</text>
+
+  <!-- Desktop caption -->
+  <text x="600" y="612" text-anchor="middle" font-family="'Chicago','Geneva','Helvetica',sans-serif" font-size="17" font-weight="bold" fill="#000">bobbby.online/cameras</text>
+</svg>

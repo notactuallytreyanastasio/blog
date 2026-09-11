@@ -48,3 +48,4 @@ config :blog, :start_blinks_link_check, false
 
 # APNs pushes talk to Apple; keep the notifier out of tests.
 config :blog, :start_push_notifier, false
+config :blog, :start_camera_browser_poller, false

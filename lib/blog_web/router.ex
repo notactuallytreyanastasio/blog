@@ -67,6 +67,15 @@ defmodule BlogWeb.Router do
     plug BlogWeb.Plugs.EnsureUserId
   end
 
+  pipeline :camera_browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :camera_browser_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
   pipeline :blinks do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -168,6 +177,14 @@ defmodule BlogWeb.Router do
 
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :camera_browser
+
+    live_session :camera_browser, layout: false do
+      live "/cameras", CameraBrowserLive, :index
+    end
   end
 
   scope "/", BlogWeb do

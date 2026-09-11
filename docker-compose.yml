@@ -42,6 +42,8 @@ services:
       APNS_KEY_ID: ${APNS_KEY_ID:-}
       APNS_TEAM_ID: ${APNS_TEAM_ID:-}
       APNS_TOPIC: ${APNS_TOPIC:-online.bobbby.blinks-reader}
+      # mid-tier model for the camera browser analyst (shares OPENAI_API_KEY above)
+      CAMERA_ANALYST_MODEL: ${CAMERA_ANALYST_MODEL:-gpt-5.4-mini}
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
   blinks:

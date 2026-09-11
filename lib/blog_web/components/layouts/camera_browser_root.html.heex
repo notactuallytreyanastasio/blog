@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>{assigns[:page_title] || "Camera Browser"}</title>
+    <meta name="description" content="Every film camera for sale on craigslist in NYC, the Bay Area, Seattle and Portland, swept every 15 minutes. Sliced by brand, format, rarity and price, each one rated by a camera nerd robot." />
+    <meta property="og:title" content="Camera Browser — film cameras live on craigslist" />
+    <meta property="og:description" content="Every film camera for sale on craigslist in NYC, the Bay Area, Seattle and Portland, swept every 15 minutes. Sliced by brand, format, rarity and price, each one rated by a camera nerd robot." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bobbby.online/cameras" />
+    <meta property="og:site_name" content="bobbby.online" />
+    <meta property="og:image" content="https://www.bobbby.online/images/og-cameras.png?v=2" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A classic Mac Finder window listing film cameras for sale with brand, price and rarity facets" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Camera Browser — film cameras live on craigslist" />
+    <meta name="twitter:description" content="Every film camera for sale on craigslist in NYC, the Bay Area, Seattle and Portland, swept every 15 minutes." />
+    <meta name="twitter:image" content="https://www.bobbby.online/images/og-cameras.png?v=2" />
+    <meta name="robots" content="noindex" />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body style="margin:0;">
+    {@inner_content}
+  </body>
+</html>

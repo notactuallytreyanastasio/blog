@@ -154,6 +154,14 @@ config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
 
 # APNs push notifications for the blinks iOS app (all environments — absent
 # key disables pushes). Key ships as a file path or base64 of the .p8.
+# Camera browser analyst: same OpenAI key as the rest of the site, its own
+# (mid-tier) model so it never shadows OPENAI_MODEL used elsewhere.
+if openai_key = read_env.("OPENAI_API_KEY") do
+  config :blog, :camera_analyst,
+    api_key: openai_key,
+    model: read_env.("CAMERA_ANALYST_MODEL") || "gpt-5.4-mini"
+end
+
 apns_key =
   cond do
     path = read_env.("APNS_KEY_P8_PATH") -> File.read!(path)

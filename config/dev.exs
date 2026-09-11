@@ -89,3 +89,7 @@ config :swoosh, :api_client, false
 config :blog, :yt_dlp_cookies_path, System.get_env("YT_DLP_COOKIES") || "cookies.txt"
 
 # Hetzner S3 credentials for dev - set in .env, loaded at runtime below
+
+# Camera browser: seed by hand in dev (mix run -e "Blog.CameraBrowser.poll()"); no hourly sweep.
+config :blog, :start_camera_browser_poller, false
+config :blog, :camera_browser, mirror_images: false
