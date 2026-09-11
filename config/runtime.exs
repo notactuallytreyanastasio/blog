@@ -162,6 +162,15 @@ if openai_key = read_env.("OPENAI_API_KEY") do
     model: read_env.("CAMERA_ANALYST_MODEL") || "gpt-5.4-mini"
 end
 
+# Web Push (VAPID) for the blinks PWA. Generate with
+# `mix run -e "IO.inspect(Blog.Push.WebPush.generate_vapid_keys())"`.
+if vapid_pub = read_env.("VAPID_PUBLIC_KEY") do
+  config :blog, :web_push,
+    public_key: vapid_pub,
+    private_key: read_env.("VAPID_PRIVATE_KEY") || raise("VAPID_PRIVATE_KEY required with VAPID_PUBLIC_KEY"),
+    subject: read_env.("VAPID_SUBJECT") || "https://bobbby.online"
+end
+
 apns_key =
   cond do
     path = read_env.("APNS_KEY_P8_PATH") -> File.read!(path)

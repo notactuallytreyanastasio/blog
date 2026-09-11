@@ -278,12 +278,17 @@ defmodule BlogWeb.Router do
     delete "/blinks/:id", BlinkController, :delete
 
     post "/push/devices", PushController, :register
+    post "/push/web", PushController, :subscribe_web
+    delete "/push/web", PushController, :unsubscribe_web
+    post "/push/web/test", PushController, :test_web
   end
 
   # RSS feed for saved links; no pipeline so feed readers' Accept headers
   # never hit content negotiation.
   scope "/", BlogWeb do
     get "/blinks.rss", BlinkFeedController, :rss
+    # service worker for the pinnable PWA; lives at the root so its scope can cover /blinks
+    get "/blinks-sw.js", BlinkFeedController, :service_worker
     get "/blinks/stumble", BlinkFeedController, :stumble
     get "/blinks/privacy", BlinkFeedController, :privacy
   end

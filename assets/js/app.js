@@ -806,6 +806,115 @@ Hooks.BlinksPrefs = {
   }
 };
 
+// Web Push for the pinnable blinks PWA. Registers the service worker, reports
+// what this browser can do (iOS only allows push once the page is on the
+// home screen), and subscribes on request with the VAPID key from the element.
+Hooks.BlinksPush = {
+  mounted() {
+    const el = this.el;
+    const vapid = el.dataset.vapid || '';
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const mobile = ios || /Android|Mobile/i.test(navigator.userAgent);
+    const promptSeen = () => { try { return localStorage.getItem('blinksPushPromptSeen') === '1'; } catch { return false; } };
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const headers = { 'content-type': 'application/json', 'x-csrf-token': csrf || '' };
+
+    const report = async (extra = {}) => {
+      let subscribed = false, endpoint = null;
+      try {
+        const reg = supported ? await navigator.serviceWorker.getRegistration('/blinks') : null;
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        subscribed = !!sub; endpoint = sub ? sub.endpoint : null;
+        this._sub = sub;
+      } catch (_) {}
+      this.pushEvent('push-state', {
+        supported, ios, mobile, standalone, subscribed, endpoint, promptSeen: promptSeen(),
+        permission: supported ? Notification.permission : 'unsupported',
+        ...extra
+      });
+    };
+
+    const b64ToBytes = (b64) => {
+      const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+      const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    };
+
+    if (supported) {
+      navigator.serviceWorker.register('/blinks-sw.js', { scope: '/blinks' })
+        .then(() => report())
+        .catch((e) => report({ error: String(e) }));
+    } else {
+      report();
+    }
+
+    // Permission must be requested inside the user's tap: the dialog's allow
+    // button is handled here synchronously instead of via a server round trip.
+    const subscribe = async () => {
+      if (!supported || !vapid) return report({ error: 'unsupported' });
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return report();
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(vapid) });
+        const res = await fetch('/api/push/web', { method: 'POST', headers, body: JSON.stringify({ subscription: sub.toJSON() }) });
+        if (!res.ok) throw new Error('server said ' + res.status);
+        report();
+      } catch (e) { report({ error: String(e) }); }
+    };
+
+    el.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('[data-push-allow]')) {
+        try { localStorage.setItem('blinksPushPromptSeen', '1'); } catch (_) {}
+        this.pushEvent('push-dialog-close', {});
+        subscribe();
+      }
+    });
+
+    this.handleEvent('blinks:push-prompt-seen', () => {
+      try { localStorage.setItem('blinksPushPromptSeen', '1'); } catch (_) {}
+    });
+
+    this.handleEvent('blinks:push-subscribe', async () => {
+      if (!supported || !vapid) return report({ error: 'unsupported' });
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return report();
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(vapid) });
+        const res = await fetch('/api/push/web', { method: 'POST', headers, body: JSON.stringify({ subscription: sub.toJSON() }) });
+        if (!res.ok) throw new Error('server said ' + res.status);
+        report();
+      } catch (e) { report({ error: String(e) }); }
+    });
+
+    this.handleEvent('blinks:push-unsubscribe', async () => {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration('/blinks');
+        const sub = reg && await reg.pushManager.getSubscription();
+        if (sub) {
+          await fetch('/api/push/web?endpoint=' + encodeURIComponent(sub.endpoint), { method: 'DELETE', headers });
+          await sub.unsubscribe();
+        }
+      } catch (_) {}
+      report();
+    });
+
+    this.handleEvent('blinks:push-test', async () => {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration('/blinks');
+        const sub = reg && await reg.pushManager.getSubscription();
+        if (!sub) return report();
+        const res = await fetch('/api/push/web/test', { method: 'POST', headers, body: JSON.stringify({ endpoint: sub.endpoint }) });
+        report(res.ok ? { tested: true } : { error: 'test failed (' + res.status + ')' });
+      } catch (e) { report({ error: String(e) }); }
+    });
+  }
+};
+
 Hooks.Draggable = {
   // LiveView patches wipe the inline style that dragging/resizing set,
   // snapping the window back to its default spot. Preserve it across updates.

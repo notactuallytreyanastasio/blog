@@ -17,6 +17,15 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Blinks: Bobbby's links" />
     <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png" />
+    <%!-- pinnable PWA: manifest + the iOS app's icon, standalone on the home screen --%>
+    <link rel="manifest" href="/static/blinks-pwa/manifest.json" />
+    <link rel="apple-touch-icon" href="/static/blinks-pwa/icon-180.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/blinks-pwa/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Blinks" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#f5f2ea" />
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>

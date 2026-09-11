@@ -1,7 +1,8 @@
 defmodule Blog.Push.Notifier do
   @moduledoc """
-  Subscribes to the "blinks" PubSub topic and pushes an APNs alert to every
-  registered device when a new blink is saved. Re-saving an existing URL
+  Subscribes to the "blinks" PubSub topic and, when a new blink is saved,
+  pushes an APNs alert to every registered iOS device and a Web Push to every
+  browser subscription (the PWA on a home screen). Re-saving an existing URL
   re-broadcasts :blink_saved, so pushes are deduped per blink id (bounded
   in-memory set).
   """
@@ -24,7 +25,8 @@ defmodule Blog.Push.Notifier do
 
   @impl true
   def handle_info({:blink_saved, blink}, state) do
-    if MapSet.member?(state.seen, blink.id) or not Blog.Push.APNS.configured?() do
+    if MapSet.member?(state.seen, blink.id) or
+         not (Blog.Push.APNS.configured?() or Blog.Push.WebPush.configured?()) do
       {:noreply, state}
     else
       Task.start(fn -> notify_all(blink) end)
@@ -47,6 +49,37 @@ defmodule Blog.Push.Notifier do
   end
 
   defp notify_all(blink) do
+    notify_apns(blink)
+    notify_web(blink)
+  end
+
+  @doc false
+  def notify_web(blink) do
+    if Blog.Push.WebPush.configured?() do
+      blink_tags = MapSet.new(blink.tags || [])
+
+      payload = %{
+        "title" => "new blink",
+        "body" => blink.title || blink.url,
+        "url" => blink.url,
+        "blink_id" => blink.id
+      }
+
+      for sub <- Push.list_web_subscriptions(), wants_blink?(sub, blink_tags) do
+        case Blog.Push.WebPush.send(sub, payload) do
+          :ok -> Push.touch_web_subscription(sub)
+          {:error, :expired} -> Push.delete_web_subscription(sub.endpoint)
+          {:error, reason} -> Logger.warning("web push failed: #{inspect(reason)}")
+        end
+      end
+    end
+  end
+
+  defp notify_apns(blink) do
+    if Blog.Push.APNS.configured?(), do: do_notify_apns(blink)
+  end
+
+  defp do_notify_apns(blink) do
     payload = %{
       "aps" => %{
         "alert" => %{
@@ -59,7 +92,10 @@ defmodule Blog.Push.Notifier do
       "url" => blink.url
     }
 
-    for device <- Push.list_devices() do
+    blink_tags = MapSet.new(blink.tags || [])
+
+    for device <- Push.list_devices(),
+        wants_blink?(device, blink_tags) do
       case Blog.Push.APNS.push(device.token, device.env, payload) do
         :ok ->
           :ok
@@ -75,5 +111,14 @@ defmodule Blog.Push.Notifier do
           Logger.warning("APNs transport error: #{msg}")
       end
     end
+  end
+
+  # No followed tags = the original firehose; otherwise the blink must carry
+  # at least one followed tag.
+  defp wants_blink?(%{followed_tags: []}, _blink_tags), do: true
+  defp wants_blink?(%{followed_tags: nil}, _blink_tags), do: true
+
+  defp wants_blink?(%{followed_tags: followed}, blink_tags) do
+    Enum.any?(followed, &MapSet.member?(blink_tags, &1))
   end
 end

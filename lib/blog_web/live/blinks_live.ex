@@ -60,7 +60,14 @@ defmodule BlogWeb.BlinksLive do
        # skip it in incognito/new browsers on a known network
        show_tour: false,
        tour_steps: [],
-       lightbox: nil
+       lightbox: nil,
+       # what this browser told us about push (see the BlinksPush hook)
+       push: %{supported: false, ios: false, standalone: false, subscribed: false, permission: "unknown", error: nil, tested: false},
+       push_hint: false,
+       # the pre-permission dialog: opens itself once on mobile, or on demand
+       push_dialog: false,
+       push_dialog_seen: false,
+       vapid_public_key: Blog.Push.WebPush.public_key()
      )}
   end
 
@@ -516,6 +523,63 @@ defmodule BlogWeb.BlinksLive do
     socket = if valid_key?(params["adminKey"]), do: assign(socket, admin: true), else: socket
     socket = if params["stumblePromoHidden"], do: assign(socket, stumble_promo: false), else: socket
     {:noreply, socket}
+  end
+
+  # -- push notifications (PWA) ---------------------------------------------
+
+  def handle_event("push-state", params, socket) do
+    push = %{
+      supported: params["supported"] == true,
+      ios: params["ios"] == true,
+      mobile: params["mobile"] == true,
+      standalone: params["standalone"] == true,
+      subscribed: params["subscribed"] == true,
+      permission: params["permission"] || "unknown",
+      error: params["error"],
+      tested: params["tested"] == true
+    }
+
+    seen = socket.assigns.push_dialog_seen or params["promptSeen"] == true
+
+    # Only phones get the unprompted ask, and only once per browser. Desktop
+    # keeps the quiet 🔔 link. Denied means they already answered.
+    auto_open =
+      not is_nil(socket.assigns.vapid_public_key) and push.mobile and not push.subscribed and
+        not seen and push.permission != "denied"
+
+    {:noreply,
+     assign(socket,
+       push: push,
+       push_dialog: socket.assigns.push_dialog or auto_open,
+       push_dialog_seen: seen or auto_open
+     )}
+  end
+
+  def handle_event("push-dialog-open", _params, socket) do
+    {:noreply, assign(socket, push_dialog: true, push_hint: false)}
+  end
+
+  def handle_event("push-dialog-close", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(push_dialog: false, push_dialog_seen: true)
+     |> push_event("blinks:push-prompt-seen", %{})}
+  end
+
+  def handle_event("push-subscribe", _params, socket) do
+    {:noreply, push_event(socket, "blinks:push-subscribe", %{})}
+  end
+
+  def handle_event("push-unsubscribe", _params, socket) do
+    {:noreply, push_event(socket, "blinks:push-unsubscribe", %{})}
+  end
+
+  def handle_event("push-test", _params, socket) do
+    {:noreply, push_event(socket, "blinks:push-test", %{})}
+  end
+
+  def handle_event("push-hint", _params, socket) do
+    {:noreply, assign(socket, push_hint: !socket.assigns.push_hint)}
   end
 
   def handle_event("dismiss-stumble-promo", _params, socket) do
@@ -1062,6 +1126,22 @@ defmodule BlogWeb.BlinksLive do
         #blinks-page .bundle .bcount { color: #888; font-size: 10px; margin-left: 8px; }
         #blinks-page .bundle .bpreview { color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #blinks-page .tour-link { color: #369; font-size: 10px; font-weight: bold; cursor: pointer; }
+        #blinks-page .pushwrap { position: relative; display: inline-flex; gap: 6px; align-items: center; }
+        #blinks-page .push-on { color: #2a7; cursor: default; }
+        #blinks-page .push-err { color: #c00; font-size: 10px; font-weight: bold; cursor: help; }
+        #blinks-page .push-modal-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+        #blinks-page .push-modal { width: min(360px, 100%); background: #fff; border: 1px solid #5f99cf; border-radius: 4px; box-shadow: 4px 4px 0 #cee3f8; font: 12px verdana, arial, helvetica, sans-serif; color: #000; }
+        #blinks-page .push-modal-title { display: flex; justify-content: space-between; align-items: center; background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 5px 10px; font-weight: bold; font-size: 12px; color: #369; }
+        #blinks-page .push-modal-title a { color: #369; cursor: pointer; font-weight: bold; }
+        #blinks-page .push-modal-body { padding: 12px 14px 14px; }
+        #blinks-page .push-copy { margin: 0 0 10px; line-height: 1.5; font-size: 13px; }
+        #blinks-page .push-pin { margin: 0 0 10px; line-height: 1.5; font-size: 11px; color: #333; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 6px 8px; }
+        #blinks-page .push-pin .ico { font-size: 12px; }
+        #blinks-page .push-btns { display: flex; gap: 8px; }
+        #blinks-page .push-btns .aim-send { font-size: 12px; padding: 5px 16px; }
+        #blinks-page .push-btns .push-later { background: #fff; color: #369; }
+        #blinks-page .push-hint { position: absolute; top: 18px; right: 0; z-index: 20; width: 240px; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 6px 8px; font-size: 10px; line-height: 1.4; color: #333; box-shadow: 2px 2px 0 #cee3f8; }
+        #blinks-page .push-hint a { color: #369; font-weight: bold; cursor: pointer; margin-left: 4px; }
         #blinks-page .windowform { display: inline; }
         #blinks-page .windowform select { font-size: 10px; border: 1px solid #5f99cf; background: #fff; color: #369; }
         #blinks-page .alwayslbl { color: #369; font-size: 10px; cursor: pointer; }
@@ -1362,6 +1442,62 @@ defmodule BlogWeb.BlinksLive do
         <form class="searchform" phx-submit="search" data-joyride="search">
           <input type="text" name="q" value={@q} placeholder="search title, tags, notes…" />
         </form>
+        <span id="blinks-push" phx-hook="BlinksPush" data-vapid={@vapid_public_key} class="pushwrap">
+          <%= cond do %>
+            <% is_nil(@vapid_public_key) -> %>
+            <% @push.ios && !@push.standalone -> %>
+              <a class="tour-link" phx-click="push-dialog-open" title="iOS only allows notifications for home-screen apps">
+                🔔 get alerts
+              </a>
+            <% @push.subscribed -> %>
+              <span class="tour-link push-on">🔔 on</span>
+              <a class="tour-link" phx-click="push-test" title="send yourself a test notification">
+                {if @push.tested, do: "sent ✓", else: "test"}
+              </a>
+              <a class="tour-link" phx-click="push-unsubscribe">off</a>
+            <% @push.supported && @push.permission == "denied" -> %>
+              <span class="tour-link" style="color:#999" title="notifications are blocked for this site in your browser settings">🔕 blocked</span>
+            <% @push.supported -> %>
+              <a class="tour-link" phx-click="push-dialog-open" title="get a nudge when a new link lands">
+                🔔 notify me
+              </a>
+            <% true -> %>
+          <% end %>
+          <span :if={@push.error} class="push-err" title={@push.error}>!</span>
+
+          <div :if={@push_dialog} class="push-modal-bg" id="push-dialog">
+            <div class="push-modal" role="dialog" aria-modal="true">
+              <div class="push-modal-title">
+                <span>🔔 bobbby's links</span>
+                <a phx-click="push-dialog-close" title="close">✕</a>
+              </div>
+              <div class="push-modal-body">
+                <p class="push-copy">
+                  We publish links live. Want to check them out? Allow in the next dialogue.
+                  WE NEVER SEND ADS OR PROMOTED OR SPONSORED CONTENT, only organic links
+                </p>
+                <%= if @push.ios && !@push.standalone do %>
+                  <p class="push-pin">
+                    <b>one step first:</b> iPhone only lets home-screen apps send notifications.
+                    Tap <b>Share</b> <span class="ico">⬆️</span> → <b>Add to Home Screen</b>, then open
+                    Blinks from your home screen and you'll get this ask once more.
+                  </p>
+                  <div class="push-btns">
+                    <button class="aim-send" phx-click="push-dialog-close">got it</button>
+                  </div>
+                <% else %>
+                  <p :if={!@push.standalone} class="push-pin">
+                    <b>tip:</b> pin it — <b>Share</b> <span class="ico">⬆️</span> or menu <b>⋮</b> → <b>Add to Home Screen</b> — and Blinks opens like an app.
+                  </p>
+                  <div class="push-btns">
+                    <button class="aim-send" data-push-allow>allow</button>
+                    <button class="aim-send push-later" phx-click="push-dialog-close">not now</button>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </span>
       </header>
 
       <div class="layout">

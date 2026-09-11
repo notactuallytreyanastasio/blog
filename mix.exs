@@ -79,6 +79,8 @@ defmodule Blog.MixProject do
       {:axon, "~> 0.7"},
       {:nimble_csv, "~> 1.1"},
       {:ex_aws, "~> 2.5"},
+      # ES256 JWTs for Web Push VAPID (the pinnable blinks PWA on iOS/Android)
+      {:jose, "~> 1.11"},
       {:ex_aws_s3, "~> 2.5"},
       {:hackney, "~> 1.9"},
       {:sweet_xml, "~> 0.7"},

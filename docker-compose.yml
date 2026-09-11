@@ -44,6 +44,10 @@ services:
       APNS_TOPIC: ${APNS_TOPIC:-online.bobbby.blinks-reader}
       # mid-tier model for the camera browser analyst (shares OPENAI_API_KEY above)
       CAMERA_ANALYST_MODEL: ${CAMERA_ANALYST_MODEL:-gpt-5.4-mini}
+      # Web Push (VAPID) for the blinks PWA
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://bobbby.online}
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
   blinks:
