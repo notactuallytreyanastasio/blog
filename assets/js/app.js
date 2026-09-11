@@ -41,6 +41,9 @@ import SkyMap from "./hooks/sky_map"
 import LeicaViewer from "./hooks/leica_viewer"
 import Swipe from "./hooks/swipe"
 import TemperArt from "./hooks/temper_art"
+import ZiggyApp from "./hooks/ziggy_app"
+import ZiggyChatInput from "./hooks/ziggy_chat_input"
+import ZiggyCopy from "./hooks/ziggy_copy"
 import tippy from "tippy.js"
 //# import * as THREE from 'three';
 
@@ -1122,6 +1125,9 @@ let liveSocket = new LiveSocket("/live", Socket, {
     TemperArt,
     Tooltip,
     TourSpotlight,
+    ZiggyApp,
+    ZiggyChatInput,
+    ZiggyCopy,
     ChessGame: window.ChessGame,
     ...Hooks
   }

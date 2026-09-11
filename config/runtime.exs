@@ -152,6 +152,15 @@ end
 # Google Analytics (all environments — blank means disabled)
 config :blog, :ga_measurement_id, System.get_env("GA_MEASUREMENT_ID", "")
 
+# OpenAI ("Ask the Graph" chat on /ziggy — blank key disables the feature)
+config :blog, :openai_api_key, System.get_env("OPENAI_API_KEY")
+config :blog, :openai_model, System.get_env("OPENAI_MODEL", "gpt-5.1")
+# Cheapest available tier, used only for the inline-autocomplete ghost text
+config :blog, :openai_autocomplete_model, System.get_env("OPENAI_AUTOCOMPLETE_MODEL", "gpt-5.4-nano")
+# Chat is password-gated (it spends OpenAI credits per message) and stays
+# fully disabled — not "open with a weak default" — unless this is set.
+config :blog, :ziggy_chat_password, System.get_env("ZIGGY_CHAT_PASSWORD")
+
 # APNs push notifications for the blinks iOS app (all environments — absent
 # key disables pushes). Key ships as a file path or base64 of the .p8.
 # Camera browser analyst: same OpenAI key as the rest of the site, its own
