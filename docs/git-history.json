@@ -1,5 +1,253 @@
 [
   {
+    "hash": "55c0c9e26cea07689656334518629decb4af7481",
+    "short_hash": "55c0c9e",
+    "author": "Bobby Grayson",
+    "date": "2026-08-31T19:46:16-04:00",
+    "message": "Add /directory, an inventory of everything running on the box\n\nA page that lists every domain, container, route, and museum project on\nthe server, styled in the same System 7 Finder language as the home page:\npinstriped desktop, white windows with 1px black borders, invert-on-hover\nrows. Six stacked windows, each with a status bar reporting real counts.\n\nInfrastructure facts (containers, domains, routes) are module attributes.\nThe museum list reads from museum_projects so the page cannot drift from\n/admin/museum -- adding a project there shows up here, pixel icon included.\n\nTwo numbers were wrong in docs/PROJECTS.md and are corrected here: the\nCaddyfile has 12 host blocks, not 13 (bobbby.online/arena/ is a path, so\nit is listed but not counted), and the router has 93 unique paths (69\npages, 24 API) rather than the ~72 estimate.\n\nShips an og-directory card at 1200x630, hand-authored as SVG in the same\nstyle and exported to PNG, following the og-2048/og-nyc-census pattern.\nOG tags go through the page_title/page_description/page_image assigns\nrather than meta_tags, since a non-empty meta_tags replaces the root\nlayout's default block entirely -- which is how trees_live lost its\nog:image.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_016kgeWygKV8sMegtSdgBAqS",
+    "files_changed": 6
+  },
+  {
+    "hash": "d637aaea6f0c94be9d74b77b8f488398c9ae752b",
+    "short_hash": "d637aae",
+    "author": "Bobby Grayson",
+    "date": "2026-08-01T21:53:36-04:00",
+    "message": "feat(phish_lab): /phish_lab — win95 anomaly laboratory for Phish data\n\nChart builder over three datasets (1,024 shows, 992 songs, 20,669\nperformances) merged from relisten show records, phish.net likes/jamcharts,\nand the phishjustjams 15-style jam scorecard. Canvas+D3 scatter/histogram\nwith pickable X/Y/color/size axes, CVD-validated era palette, outlier\nleaderboards (per-song duration z-scores, setlist rarity, era-relative\njamminess, bustout shelf gaps, style-defining songs) that jump-and-highlight\nthe chart, and a click-to-inspect properties window with scorecard bars.\n\nData precomputed by scripts/build_phish_lab_data.py.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 14
+  },
+  {
+    "hash": "882435e5ad3fe5ce7c3009ff8c6c5982ff48e79c",
+    "short_hash": "882435e",
+    "author": "Bobby Grayson",
+    "date": "2026-08-01T04:08:08-04:00",
+    "message": "feat(moon_phish): /moon_phish — every Phish show vs. the lunar calendar\n\nAll 2,136 shows (phish.in v2 API, seeded via migration) checked against\nfull moon instants computed with Meeus ch. 49 (±1 min). 78 shows landed\non a full moon. UI is the site's chaotic-OS look: a Win95 MOON.EXE window\nwith phase histogram, era/search filters, and a file-list show browser,\nplus a System 7 desk accessory showing tonight's moon.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 12
+  },
+  {
+    "hash": "3d1a468c01aa91f096ed2802de69f847a8d387c4",
+    "short_hash": "3d1a468",
+    "author": "Bobby Grayson",
+    "date": "2026-07-31T23:45:05-04:00",
+    "message": "feat(blinks): /blinks-reader, a contact-sheet view with a real lightbox\n\nThe front page is a newspaper: two hand-set columns sized so the whole\nthing fits one screenful, which leaves pictures at 48px -- a table of\ncontents, not an image.\n\nThis is the other way to read the same links. An auto-fill grid takes as\nmany columns as the window holds (4 across at 1440 vs 2), 60 links a\npage instead of 30, and each card carries what the front page has no\nroom for: description, quoted post, tags, date. Thumbnails open into a\nfull-viewport lightbox at full resolution, numbered across the whole\npage so arrowing off the last picture of one link lands on the first of\nthe next, wrapping at both ends.\n\nFilters and URL params are shared, so a ?q= or ?tags= link works in\neither view and the masthead tabs swap between them.\n\nBluesky video only ever stored a thumbnail, so video opens as a large\nstill that links out rather than a player pretending to have a file.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "173a45e86f95e14117767f22a473184fab83bf4a",
+    "short_hash": "173a45e",
+    "author": "Robert Grayson",
+    "date": "2026-06-14T01:47:36-04:00",
+    "message": "feat(knicks): THE SHOT (auto-looping), quarter + margin charts, mobile swipe deck\n\n- \"The Shot\": animated court diagram of Anunoby's Game 4 buzzer tip-in,\n  auto-loops every ~2.4s (+ manual Replay)\n- \"Slow Starts, Big Finishes\": series points by quarter — Spurs won the\n  1st quarters by a combined 57, Knicks won every other quarter (+26 in Q4)\n- \"Decided by a Whisker\": final margin per game (two one-point wins)\n- Visualizations regrouped into one deck; on mobile (<=680px) it becomes a\n  swipe-to-flip card carousel (touch gestures, 3D flip, dot nav)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "4a0059e4955eafc11b15e545d855a96878184d94",
+    "short_hash": "4a0059e",
+    "author": "Robert Grayson",
+    "date": "2026-06-14T01:32:38-04:00",
+    "message": "feat(knicks): \"KNICKS IN 5\" — 2026 Finals run, by the numbers\n\nNew LiveView page at /knicks: an editorial feature on the Knicks'\nfirst title since 1973 (def. Spurs 4-1). The throughline — New York\nrallied from a double-digit deficit in all four wins, including a\nrecord 29-point Game 4 comeback — drives the whole piece.\n\nD3 v7 (vendored at /static/d3.v7.min.js) powers the visuals:\n- \"Living Below the Line\": Knicks margin by quarter across all 5 games\n- Brunson vs. Wembanyama points-per-game duel\n- \"Who Carried Each Night\": Knicks scoring heatmap by player x game\n- \"The Free-Throw Battle\": trips to the line per game — NY hacked the\n  Spurs to 25/27/32 FTAs in the first three (G3 the only loss), then\n  clamped to 20/18 while drawing 28/28\n- Per-game momentum charts with annotated key moments + the players\n- Day-by-day timeline, by-the-numbers, series leaders\n\nOG/Twitter meta tags via the root layout's meta_tags assign.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "bc7dbd3293ab890ab9ea2e63e7102336e560c914",
+    "short_hash": "bc7dbd3",
+    "author": "Robert Grayson",
+    "date": "2026-06-11T21:19:46-04:00",
+    "message": "fix: vendor Leaflet 1.9.4 — unpkg CSS never matched its SRI hash\n\nThe leaflet.css integrity hash carried in this repo never matched the\nbytes unpkg (or jsdelivr, or the npm tarball) actually serve, so the\nbrowser silently discarded the stylesheet and tiles rendered scattered\ndown the page. Verified: npm registry tarball, jsdelivr, and unpkg all\nagree on sha256-...miZyoHS5obTRR9BMY=; the hash in the repo was\nsha256-...KFQW0q+MJTEXx+bCw=.\n\nVendor the canonical dist files (from the npm registry tarball) into\nassets/vendor/leaflet: the CSS is @imported into app.css and the JS is\nbundled by esbuild via a relative import (unaffected by\n--external:leaflet). window.L is set for nyc_map.js and the\nleaflet-draw/heat plugins, whose runtime CDN loader now short-circuits.\nNo CDN, no SRI, no load race.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 9
+  },
+  {
+    "hash": "612757d34e8b5f1d634ffd99f58c5e30c06e4bbc",
+    "short_hash": "612757d",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:50:35-04:00",
+    "message": "fix: /bookmarks 500 — mount read assigns.user_id that was never assigned\n\nuser_id lives in the session (EnsureUserId plug); the LiveView read\nsocket.assigns.user_id, which doesn't exist, so the page crashed on\nmount for every visitor since it shipped. Read it from the session\nwith the same fallback pattern used by blackjack/pong.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 1
+  },
+  {
+    "hash": "59287e818fdfed6931cc6fada7396253a3cdc871",
+    "short_hash": "59287e8",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:45:39-04:00",
+    "message": "docs: SITE_REPORT.md — full sweep findings report + decision graph\n\n74-agent workflow: bus map diagnosis, 80 findings, 29 verified fixes\napplied. Report covers every applied change, the WorkLogPoller test\nflake, and remaining recommendations (fallback secrets, unpkg SPOF,\ndead hooks.js, bundle size).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "afbe36725efe0a36ad65c70d382dfcedac637ce4",
+    "short_hash": "afbe367",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:45:29-04:00",
+    "message": "test: keep WorkLogPoller out of the test supervision tree\n\nThe poller hits the live GitHub API and inserts into the database on\nboot. Under the test sandbox that raises DBConnection.OwnershipError,\ncrash-looping until the supervisor takes the whole app down (192\ncascading test failures whenever GitHub's rate limit let a response\nthrough). Gated behind :start_work_log_poller config; production\nbehavior unchanged.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "1b7c23b44b690ca0d80c36918574079a0d0a3876",
+    "short_hash": "1b7c23b",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:45:19-04:00",
+    "message": "perf: emoji skeets incremental filter, bubble game rAF leak, wordle 100dvh\n\n- Emoji skeets: stop re-filtering up to 100k skeets on every firehose\n  message; matching skeets are prepended incrementally\n- Bubble game: cancel the requestAnimationFrame loop on destroy — the\n  WebGL render loop ran forever after leaving the page\n- Wordle: 100dvh fallback so the on-screen keyboard isn't clipped in\n  mobile Safari\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "3944fb2c4a65eaf07c151da013e7ea50cc3c497e",
+    "short_hash": "3944fb2",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:45:08-04:00",
+    "message": "fix: chat showed oldest 50 and pruned newest; reddit youtube id MatchError\n\n- Chat.list_messages returned the 50 oldest messages; now the most\n  recent 50 in chronological order\n- MessageStore prune deleted the newest messages once over the cap\n  instead of the oldest\n- Reddit links: extract_youtube_id raised MatchError when a regex\n  matched more than once, crash-looping the page on firehose input\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "b66431da7c57f8747d89809b82ccf592c4ac9c34",
+    "short_hash": "b66431d",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:44:59-04:00",
+    "message": "fix: background process reliability (firehose, job retries, draft paths)\n\n- BlueskyHose: malformed frames no longer crash the process\n  (Jason.decode! -> decode); remote disconnects reconnect instead of\n  stopping\n- BlueskyJetstream: subscribe with wantedCollections=app.bsky.feed.post\n  instead of filtering the full firehose client-side\n- GifMaker/CollageMaker processors: retry path discarded the updated\n  GenServer state, breaking the max-concurrent-jobs cap\n- LiveDraft: posts dir resolved at compile time broke draft persistence\n  in releases; now resolved at runtime\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 5
+  },
+  {
+    "hash": "d0292dd8b4b19f6cb19ab3fbc1d0c0afb01bacc4",
+    "short_hash": "d0292dd",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:44:49-04:00",
+    "message": "fix: HN mount 500s and dead refresh, GA literal string, chess stale targets\n\n- Hacker News: mount no longer 500s when the HN API fails;\n  Task.async_stream with timeouts; the 3-minute refresh sent its\n  message to the Task process instead of the LiveView\n- Layouts: Google Analytics received the literal string\n  '{@measurement_id}' — tracking was silently broken\n- Chess: NEW GAME now pushes fresh legal targets (JS hook kept a stale\n  move cache); bot move task sends to the captured parent pid\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "ea9d38efaace30c355881b59a418d2ae1af405fc",
+    "short_hash": "ea9d38e",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:44:38-04:00",
+    "message": "fix: harden LiveViews and stores against crashing input\n\n- Blackjack: joining while waiting for host no longer crashes on nil game\n- Allowed chats: empty message/word submissions no-op instead of\n  raising FunctionClauseError\n- Keylogger: backspace on empty buffer, and multi-byte chars, handled\n  via String.slice\n- NYC census: malformed polygon payloads return an error instead of\n  taking down the LiveView through the linked Task\n- Phish (live + component): integer year silently no-oped the year\n  filter; empty years list crashed Enum.random\n- SmartSteps: out-of-range choice index no longer crashes the shared\n  session for all participants\n- Wordle GameStore: cleanup sorted ISO8601 strings with the DateTime\n  comparator, crashing when a player had multiple sessions\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 8
+  },
+  {
+    "hash": "d92906b617d3e56ddb3a5d0cff319df6ccc5f5ea",
+    "short_hash": "d92906b",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:44:26-04:00",
+    "message": "fix: role call live search read stale phx-value, guided tour hook missing\n\nSearch now reads the live input value instead of the stale\nphx-value-query attribute (typing never returned results in a real\nbrowser). Adds and registers the TourSpotlight hook the /role-call\nguided tour depends on, and guards admin events behind authentication.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 2
+  },
+  {
+    "hash": "272479419c87af1b9a25bb036bd3ec217e03c3e1",
+    "short_hash": "2724794",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:44:17-04:00",
+    "message": "fix(security): auth guards, bookmark ownership, env-var and input hardening\n\n- Museum admin: all mutating events now no-op unless authenticated\n- Bookmarks: delete checks the bookmark belongs to the session user\n  (ids are sequential integers, so anyone could delete anything)\n- runtime.exs: empty-string env vars (docker-compose ${VAR:-}) no\n  longer count as set for admin passwords and API tokens\n- 2048: board size and blitz time validated against allowed options\n  instead of trusting arbitrary client integers\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 4
+  },
+  {
+    "hash": "75df6c34bba7cb8df74c36bfc28be9daf1853c97",
+    "short_hash": "75df6c3",
+    "author": "Robert Grayson",
+    "date": "2026-06-10T12:44:06-04:00",
+    "message": "fix: MTA bus map never loaded via live navigation; hook now owns Leaflet loading\n\nInline <script> tags in a LiveView render are inert when the page is\nreached via push_navigate (e.g. Finder -> MTA Map), so window.L was\nnever defined and L.map() failed silently. The hook now loads Leaflet\nJS+CSS itself behind a promise (same CDN + SRI), buffers bus updates\nuntil ready, and shows an error message on load failure. Also replaces\nthe blocking geolocation alert() with an auto-dismissing hint and adds\n100dvh overrides so iOS Safari doesn't clip the map under the toolbar.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+    "files_changed": 3
+  },
+  {
+    "hash": "0d371f1644e7bc9af185191169f7d6d6ec1b83a2",
+    "short_hash": "0d371f1",
+    "author": "Robert Grayson",
+    "date": "2026-04-13T23:43:40-04:00",
+    "message": "fix compiler warnings: remove unused functions, fix function headers\n\n- Remove unused functions: message_visible?/2 (allowed_chats_live),\n  scale_position/3, require Logger (pong_god_live), generate_id/0\n  (bluesky_hose), render_mobile_view/1, render_mobile_modal/1,\n  render_desktop_view/1, post_expanded?/2, get_demo_categories/1,\n  filter_demos/2 (post_live/index), unused alias Types (play_live)\n- Add function header for pick_weighted_choice/2 (story_demo)\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+    "files_changed": 6
+  },
+  {
+    "hash": "60bdb016d24392631c0a4541270329b5c922ef0a",
+    "short_hash": "60bdb01",
+    "author": "Robert Grayson",
+    "date": "2026-04-13T23:36:03-04:00",
+    "message": "move receipt printer Python scripts to priv/scripts/\n\nRelocated receipt_printer.py and receipt_printer_service.py from project\nroot to priv/scripts/ for proper organization. Updated System.cmd calls\nin emoji_skeets_live.ex and jetstream_comparison_live.ex to use\nApplication.app_dir/2 for release-compatible path resolution.\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+    "files_changed": 6
+  },
+  {
+    "hash": "7f2ef6db0100b2b552bbeba66a064d771a2d3d1e",
+    "short_hash": "7f2ef6d",
+    "author": "Robert Grayson",
+    "date": "2026-04-13T23:35:22-04:00",
+    "message": "remove root directory cruft: Gigalixir artifacts, scripts, Chrome extension\n\nDeleted:\n- Gigalixir deployment artifacts: Procfile, Procfile.bak,\n  elixir_buildpack.config, phoenix_static_buildpack.config\n- Random scripts: bach-brandenburg-electronic.js, my_song.js,\n  chat_client.py, migrate.exs, test_printer.exs, write_post.sh\n- Generated artifacts: output.html, package-lock.json, erl_crash.dump\n- Receipt printer local artifacts: com.bobbby.receipt-printer.plist,\n  receipt-printer.service, printed_receipts/, logs/\n- tasty_chrome/ Chrome extension (belongs in its own repo)\n- files (empty tracked file)\n\nKept: receipt_printer.py and receipt_printer_service.py (actively called\nby emoji_skeets_live, jetstream_comparison_live via System.cmd)\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+    "files_changed": 36
+  },
+  {
+    "hash": "7d57770dd80df538350d3888cec40980eb35eca0",
+    "short_hash": "7d57770",
+    "author": "Robert Grayson",
+    "date": "2026-04-13T23:34:36-04:00",
+    "message": "remove 28 dead LiveView files with no routes or references\n\nDeleted unrouted LiveViews verified via grep to have zero references\noutside their own files:\n- ai_dev_live, article_live, bezier_triangles_live, editor_live\n- generative_art_live, mta_bus_live (superseded by mta_bus_map_live)\n- muenster_live (already commented out), museum_live (admin exists separately)\n- rainbow_live, vim_tweets_live, war_live\n- jetstream_skeets_live (no route, receipt_printer.py caller)\n- All nathan_* variant views (ascii, buzzfeed, comparison, content_farm,\n  harpers, teen_vogue, usenet) - none referenced from nathan_live.ex\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+    "files_changed": 28
+  },
+  {
+    "hash": "59977663a4ee2caaa78d9c7408ae11f3d29313ae",
+    "short_hash": "5997766",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:54:57-05:00",
+    "message": "chore: update blog posts and add GitHub workflows\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 4
+  },
+  {
+    "hash": "6eaf910f1375f33bef1bb7806491f707e9e8e163",
+    "short_hash": "6eaf910",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:54:42-05:00",
+    "message": "feat: move museum projects to DB with drag-and-drop admin\n\nMigrate 31 hardcoded museum projects to PostgreSQL with Ecto schema.\nAdd password-protected admin at /admin/museum with drag-and-drop\nreordering (HTML5 native), inline editing, visibility toggles,\nand CRUD operations. Add external_url field per project for\ncustom showcase links.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 6
+  },
+  {
+    "hash": "32b024e1600b9a5b0e72f0d63d04e6cbb45af066",
+    "short_hash": "32b024e",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:54:27-05:00",
+    "message": "feat: redesign landing page with museum-first layout and Leica viewer\n\nMuseum project list is now the default window (720px, larger fonts/icons).\nFinder hidden by default, togglable via \"Apps & Games\" button.\n8-second boot splash with custom bio text. Phish window stacked below\nblog posts in fixed-width column. Add Leica collage desktop icon with\nwarning dialog and full-resolution zoomable viewer. Add routes for\ngif-maker, sky, collage-maker, and admin pages.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 6
+  },
+  {
+    "hash": "c5f77450597f4d148aab66ea5c5fa4d06e77e487",
+    "short_hash": "c5f7745",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:54:13-05:00",
+    "message": "feat: update frontend assets, add Sortable/LeicaViewer hooks\n\nAdd drag-and-drop Sortable hook for admin reordering, LeicaViewer\nhook for zoomable image collage, update NYC map hook, add new\nnpm dependencies, and update CSS.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 7
+  },
+  {
+    "hash": "1f72a58519dca2f085eab6a580738ea245127d61",
+    "short_hash": "1f72a58",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:54:00-05:00",
+    "message": "fix: update Phish component, Bluesky jetstream, and population estimator\n\nRefactor PhishComponent event handling, simplify Bluesky jetstream\nconnection logic, and improve population estimator bounds.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 4
+  },
+  {
+    "hash": "12f3e9cd3b71e7027490f30700086ba149a4ea5f",
+    "short_hash": "12f3e9c",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:53:47-05:00",
+    "message": "feat: add Collage Maker feature\n\nImage collage creation tool with upload, processing, layout engine,\nviewer with zoom/pan, and download API endpoint.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 14
+  },
+  {
+    "hash": "c098fb373845d2adbeb60355c8493402a25b463a",
+    "short_hash": "c098fb3",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:53:35-05:00",
+    "message": "feat: add Bluesky community Sky Map feature\n\nInteractive map of Bluesky communities with profile data,\nsky points, and community clustering visualization.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 11
+  },
+  {
+    "hash": "41fdece406405c0bd80f8bd74f6142c6331750f1",
+    "short_hash": "41fdece",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:53:19-05:00",
+    "message": "feat: add Concert GIF Maker feature\n\nVideo-to-GIF pipeline with yt-dlp segment downloads, two-pass FFmpeg\nGIF generation (palettegen + bayer dithering), frame extraction,\nmath CAPTCHA rate limiting, and retro-themed UI.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 17
+  },
+  {
+    "hash": "5e208d53182eb93b51f8912202b32b490df65173",
+    "short_hash": "5e208d5",
+    "author": "Robert Grayson",
+    "date": "2026-02-24T01:53:05-05:00",
+    "message": "feat: update infra, configs, and deployment setup\n\nAdd Docker Compose, Caddyfile, deploy script, and env example.\nUpdate Dockerfile, runtime config, and mix deps for new features.\nAdd storage module and release tasks.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+    "files_changed": 18
+  },
+  {
     "hash": "a2d1282cfcbe34f453b7718971f0aea22736ce73",
     "short_hash": "a2d1282",
     "author": "Robert Grayson",
