@@ -105,13 +105,21 @@ defmodule Blog.Blinks do
     exclude = Keyword.get(opts, :exclude_tags) || []
 
     base =
-      case Keyword.get(opts, :shuffle_seed) do
-        nil ->
-          order_by(Blink, desc: :inserted_at, desc: :id)
+      cond do
+        Keyword.get(opts, :sort) == :popular ->
+          # most-saved first; ties fall back to recency
+          order_by(Blink, [b], [
+            desc: fragment("(SELECT COUNT(*) FROM blink_saves s WHERE s.blink_id = ?)", b.id),
+            desc: b.inserted_at,
+            desc: b.id
+          ])
 
-        seed ->
+        seed = Keyword.get(opts, :shuffle_seed) ->
           # seeded deterministic shuffle so pagination stays coherent
           order_by(Blink, [b], fragment("md5(? || ?::text)", ^seed, b.id))
+
+        true ->
+          order_by(Blink, desc: :inserted_at, desc: :id)
       end
 
     base
@@ -122,7 +130,52 @@ defmodule Blog.Blinks do
     |> maybe_filter_tags(tags)
     |> maybe_exclude_tags(exclude)
     |> maybe_week(Keyword.get(opts, :week))
+    |> select_merge([b], %{
+      comment_count:
+        fragment(
+          "(SELECT COUNT(*) FROM blink_comments bc WHERE bc.blink_id = ? AND bc.hidden_at IS NULL)",
+          b.id
+        ),
+      save_count: fragment("(SELECT COUNT(*) FROM blink_saves bs WHERE bs.blink_id = ?)", b.id)
+    })
     |> Repo.all()
+  end
+
+  # ── anonymous saves ("x people saved this") ─────────────────────────────
+
+  alias Blog.Blinks.BlinkSave
+
+  @doc "Device bookmarked a blink. Idempotent. Returns the new save count."
+  @spec save_for_device(integer(), String.t()) :: {:ok, non_neg_integer()} | {:error, :not_found}
+  def save_for_device(blink_id, device_hash) do
+    if is_nil(get_blink(blink_id)) do
+      {:error, :not_found}
+    else
+      now = NaiveDateTime.utc_now(:second)
+
+      Repo.insert_all(
+        BlinkSave,
+        [%{blink_id: blink_id, device_hash: device_hash, inserted_at: now, updated_at: now}],
+        on_conflict: :nothing,
+        conflict_target: [:blink_id, :device_hash]
+      )
+
+      {:ok, save_count(blink_id)}
+    end
+  end
+
+  @doc "Device un-bookmarked a blink. Returns the new save count."
+  @spec unsave_for_device(integer(), String.t()) :: {:ok, non_neg_integer()}
+  def unsave_for_device(blink_id, device_hash) do
+    from(s in BlinkSave, where: s.blink_id == ^blink_id and s.device_hash == ^device_hash)
+    |> Repo.delete_all()
+
+    {:ok, save_count(blink_id)}
+  end
+
+  @spec save_count(integer()) :: non_neg_integer()
+  def save_count(blink_id) do
+    from(s in BlinkSave, where: s.blink_id == ^blink_id) |> Repo.aggregate(:count)
   end
 
   @doc "Archive bundles: one per ISO week (Monday-start), newest first."

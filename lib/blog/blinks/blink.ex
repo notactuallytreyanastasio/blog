@@ -14,7 +14,9 @@ defmodule Blog.Blinks.Blink do
              :favicon_url,
              :image_url,
              :site_name,
-             :inserted_at
+             :inserted_at,
+             :comment_count,
+             :save_count
            ]}
   @type t :: %__MODULE__{
           id: integer() | nil,
@@ -46,6 +48,9 @@ defmodule Blog.Blinks.Blink do
     field :dead_at, :naive_datetime
     field :last_checked_at, :naive_datetime
     field :fail_count, :integer, default: 0
+    # populated by list queries; nil elsewhere
+    field :comment_count, :integer, virtual: true
+    field :save_count, :integer, virtual: true
 
     timestamps()
   end

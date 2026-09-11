@@ -242,6 +242,16 @@ defmodule BlogWeb.Router do
     post "/blinks", BlinkController, :create
     get "/blinks", BlinkController, :index
     get "/blinks/tags", BlinkController, :tags
+    get "/blinks/random", BlinkController, :random
+    post "/blinks/suggest", BlinkController, :suggest
+    post "/blinks/:id/save", BlinkController, :save
+    delete "/blinks/:id/save", BlinkController, :unsave
+    get "/blinks/:blink_id/comments", BlinkCommentController, :index
+    post "/blinks/:blink_id/comments", BlinkCommentController, :create
+    post "/blinks/comments/:id/report", BlinkCommentController, :report
+    post "/blinks/comments/:id/react", BlinkCommentController, :react
+    delete "/blinks/comments/:id/react", BlinkCommentController, :unreact
+    delete "/blinks/comments/:id", BlinkCommentController, :delete
     get "/blinks/lookup", BlinkController, :lookup
     get "/blinks/export", BlinkController, :export
     post "/blinks/candidates", BlinkController, :import_candidates

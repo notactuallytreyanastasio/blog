@@ -24,6 +24,7 @@ defmodule Blog.Application do
       BlueskyHose,
       BlueskyJetstream,
       {Phoenix.PubSub, name: Blog.PubSub},
+      Blog.RateLimiter,
       Blog.LiveDraft,
       {Finch, name: Blog.Finch},
       {Finch,
