@@ -51,6 +51,8 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-https://bobbby.online}
+      # iCloud shared album behind /gallery (token from the album's public-website url)
+      ICLOUD_ALBUM_TOKEN: ${ICLOUD_ALBUM_TOKEN:-}
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
   blinks:

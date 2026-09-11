@@ -76,6 +76,19 @@ defmodule BlogWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  pipeline :gallery do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {BlogWeb.Layouts, :gallery_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
+  pipeline :accepts_html do
+    plug :accepts, ["html"]
+  end
+
   pipeline :blinks do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -186,6 +199,22 @@ defmodule BlogWeb.Router do
     live_session :camera_browser, layout: false do
       live "/cameras", CameraBrowserLive, :index
     end
+  end
+
+  scope "/", BlogWeb do
+    pipe_through :gallery
+
+    live_session :gallery, layout: false do
+      live "/gallery", GalleryLive, :index
+    end
+  end
+
+  # Stable urls that 302 to Apple's currently-signed CDN url. No session or
+  # CSRF machinery — these are just images.
+  scope "/gallery", BlogWeb do
+    pipe_through [:accepts_html]
+
+    get "/img/:guid/:size", GalleryController, :image
   end
 
   scope "/", BlogWeb do

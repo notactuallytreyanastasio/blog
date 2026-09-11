@@ -42,6 +42,7 @@ import LeicaViewer from "./hooks/leica_viewer"
 import Swipe from "./hooks/swipe"
 import TemperArt from "./hooks/temper_art"
 import ZiggyApp from "./hooks/ziggy_app"
+import GalleryAmbient from "./hooks/gallery_ambient"
 import ZiggyChatInput from "./hooks/ziggy_chat_input"
 import ZiggyCopy from "./hooks/ziggy_copy"
 import tippy from "tippy.js"
@@ -1099,6 +1100,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
   hooks: {
+    GalleryAmbient,
     Highlight,
     CursorTracker,
     FocusInput,

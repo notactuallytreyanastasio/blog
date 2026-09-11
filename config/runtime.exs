@@ -171,6 +171,11 @@ if openai_key = read_env.("OPENAI_API_KEY") do
     model: read_env.("CAMERA_ANALYST_MODEL") || "gpt-5.4-mini"
 end
 
+# iCloud shared album behind /gallery. The token is the fragment of the
+# album's public-website url (Photos > the album > people icon > Public
+# Website). Absent token leaves the gallery idle rather than crashing.
+config :blog, :gallery, token: read_env.("ICLOUD_ALBUM_TOKEN")
+
 # Web Push (VAPID) for the blinks PWA. Generate with
 # `mix run -e "IO.inspect(Blog.Push.WebPush.generate_vapid_keys())"`.
 if vapid_pub = read_env.("VAPID_PUBLIC_KEY") do

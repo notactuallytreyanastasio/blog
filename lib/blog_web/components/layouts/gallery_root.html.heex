@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>{assigns[:page_title] || "Photos"}</title>
+    <meta name="description" content="An ambient photo browser — a shared album drifting past in random order, in a System 7 window." />
+    <meta property="og:title" content={assigns[:page_title] || "Photos"} />
+    <meta property="og:description" content="An ambient photo browser — a shared album drifting past in random order, in a System 7 window." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bobbby.online/gallery" />
+    <meta property="og:site_name" content="bobbby.online" />
+    <meta name="robots" content="noindex" />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body style="margin:0;">
+    {@inner_content}
+  </body>
+</html>
