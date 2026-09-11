@@ -59,6 +59,9 @@ defmodule BlogWeb.TerminalLive do
   }
 
   # Build tour steps - include name dialog step only if dialog is visible
+  defp gallery_payload([]), do: "[]"
+  defp gallery_payload(photos), do: Jason.encode!(Blog.Gallery.payload(photos))
+
   defp build_tour_steps(chatter) do
     if is_nil(chatter) do
       [@name_dialog_step, @chat_window_step | @tour_steps_base]
@@ -105,6 +108,7 @@ defmodule BlogWeb.TerminalLive do
         Phoenix.PubSub.subscribe(Blog.PubSub, @presence_topic)
         Phoenix.PubSub.subscribe(Blog.PubSub, Chat.topic())
         Phoenix.PubSub.subscribe(Blog.PubSub, "github:work_log")
+        Blog.Gallery.subscribe()
 
         id
       else
@@ -113,6 +117,11 @@ defmodule BlogWeb.TerminalLive do
 
     # chatter is nil until they confirm via save_name or skip_name
     chatter = nil
+
+    # The ambient photo window. Empty list when no album is configured, in
+    # which case the window and its desktop icon are simply not rendered.
+    gallery_photos = Blog.Gallery.photos()
+    gallery_json = gallery_payload(gallery_photos)
 
     # Get online users from presence
     visitor_list =
@@ -179,10 +188,23 @@ defmodule BlogWeb.TerminalLive do
        # Tour state - auto-start for first-time visitors (desktop only)
        show_tour: is_nil(returning_chatter),
        tour_steps: build_tour_steps(chatter),
+       # Photo window: the website_pics shared album, drifting. Open on arrival
+       # unless ?photos=0, and absent entirely when the album is unavailable.
+       show_photos: params["photos"] != "0",
+       gallery_photos: gallery_photos,
+       gallery_json: gallery_json,
        # Mobile state - which window is active on mobile
        # Options: :finder, :chat, :name_dialog, :blog, :phish, :museum
        mobile_window: :museum
      )}
+  end
+
+  # New photos in the shared album reach an open desktop without a reload.
+  def handle_info({:gallery, :updated, photos}, socket) do
+    {:noreply,
+     socket
+     |> assign(:gallery_photos, photos)
+     |> assign(:gallery_json, gallery_payload(photos))}
   end
 
   def handle_info(:boot_complete, socket) do
@@ -289,6 +311,10 @@ defmodule BlogWeb.TerminalLive do
   end
 
   # Leica collage viewer
+  def handle_event("toggle_photos", _params, socket) do
+    {:noreply, assign(socket, show_photos: !socket.assigns.show_photos)}
+  end
+
   def handle_event("toggle_leica", _params, socket) do
     new_state = if socket.assigns.show_leica, do: false, else: :warning
     {:noreply, assign(socket, show_leica: new_state)}
@@ -719,6 +745,21 @@ defmodule BlogWeb.TerminalLive do
           <% end %>
 
           <%!-- Leica Desktop Icon --%>
+          <%= if @gallery_photos != [] do %>
+            <div class="desktop-icon-photos" phx-click="toggle_photos">
+              <div class="desktop-icon-img">
+                <svg viewBox="0 0 32 32" width="32" height="32" style="image-rendering: pixelated;">
+                  <rect x="2" y="5" width="28" height="22" fill="#fff" stroke="#000" stroke-width="2" />
+                  <rect x="5" y="8" width="22" height="13" fill="#000" />
+                  <circle cx="11" cy="13" r="2" fill="#fff" />
+                  <path d="M5 21 L13 14 L18 19 L22 16 L27 21 Z" fill="#fff" />
+                  <rect x="5" y="23" width="22" height="2" fill="#000" />
+                </svg>
+              </div>
+              <div class="desktop-icon-label">WEBSITE<br />PICS</div>
+            </div>
+          <% end %>
+
           <div class="desktop-icon-leica" phx-click="toggle_leica">
             <div class="desktop-icon-img">
               <svg
@@ -766,6 +807,43 @@ defmodule BlogWeb.TerminalLive do
                       Load Full Resolution
                     </button>
                     <button class="leica-btn" phx-click="close_leica">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <%!-- Ambient photo window: the website_pics shared album, drifting --%>
+          <%= if @show_photos and @gallery_photos != [] do %>
+            <div class="photo-window" phx-hook="Draggable" id="photo-window">
+              <div class="title-bar">
+                <div class="close-box" phx-click="toggle_photos"></div>
+                <div class="title" data-gal="title">website_pics</div>
+                <div class="resize-box"></div>
+              </div>
+              <div
+                class="photo-window-body"
+                id="photo-gal"
+                phx-hook="GalleryAmbient"
+                phx-update="ignore"
+                data-embedded="true"
+                data-photos={@gallery_json}
+              >
+                <div id="gal-viewer">
+                  <div class="photo-stage" data-gal="stage">
+                    <div class="photo-backdrop" data-gal="backdrop"></div>
+                    <img class="photo-layer" data-gal="layer-a" alt="" />
+                    <img class="photo-layer" data-gal="layer-b" alt="" />
+                    <button class="photo-nav prev" data-gal="prev" aria-label="Previous">&#8249;</button>
+                    <button class="photo-nav next" data-gal="next" aria-label="Next">&#8250;</button>
+                  </div>
+                  <div class="photo-controls">
+                    <button class="photo-btn" data-gal="prev">&#9664;</button>
+                    <button class="photo-btn" data-gal="toggle">Pause</button>
+                    <button class="photo-btn" data-gal="next">&#9654;</button>
+                    <span class="photo-counter" data-gal="counter"></span>
+                    <button class="photo-btn" data-gal="fullscreen">Full Screen</button>
+                    <a class="photo-btn" href="/gallery">All&nbsp;&rarr;</a>
                   </div>
                 </div>
               </div>
@@ -2365,6 +2443,68 @@ defmodule BlogWeb.TerminalLive do
       }
 
       /* Viewer window */
+      /* ---- Ambient photo window (website_pics shared album) ---- */
+      .photo-window {
+        position: fixed; top: 90px; right: 40px; width: 460px;
+        background: #fff; border: 2px solid #000; box-shadow: 4px 4px 0 #000;
+        z-index: 320; display: flex; flex-direction: column;
+      }
+      .photo-window-body { display: flex; flex-direction: column; }
+      .photo-stage {
+        position: relative; height: 300px; background: #000;
+        overflow: hidden; border-bottom: 2px solid #000;
+      }
+      .photo-backdrop {
+        position: absolute; inset: -20px; background-size: cover; background-position: center;
+        filter: blur(20px) saturate(0.7) brightness(0.5);
+        opacity: 0; transition: opacity 550ms ease;
+      }
+      .photo-layer {
+        position: absolute; inset: 0; margin: auto;
+        max-width: 100%; max-height: 100%; width: auto; height: auto;
+        opacity: 0; transition: opacity 850ms ease; will-change: opacity, transform;
+      }
+      .photo-layer.on { opacity: 1; }
+      .photo-layer.drift { animation: gal-drift var(--gal-dur, 13s) linear forwards; }
+      @keyframes gal-drift {
+        from { transform: scale(1) translate(0, 0); }
+        to { transform: scale(1.075) translate(var(--gal-dx, 1%), var(--gal-dy, -1%)); }
+      }
+      .photo-nav {
+        position: absolute; top: 0; bottom: 0; width: 48px; border: 0;
+        background: transparent; color: #fff; font-size: 28px; cursor: pointer;
+        opacity: 0; transition: opacity 180ms; text-shadow: 0 0 6px #000;
+      }
+      .photo-nav.prev { left: 0; }
+      .photo-nav.next { right: 0; }
+      .photo-stage:hover .photo-nav { opacity: 0.8; }
+      .photo-nav:hover { opacity: 1 !important; background: rgba(0, 0, 0, 0.22); }
+      .photo-controls {
+        display: flex; align-items: center; gap: 6px; padding: 5px 7px;
+        background: #fff; font-family: "Geneva", Helvetica, sans-serif; font-size: 11px;
+      }
+      .photo-btn {
+        font-family: "Chicago", "Geneva", Helvetica, sans-serif; font-size: 11px;
+        line-height: 16px; border: 1px solid #000; background: #fff; color: #000;
+        padding: 0 8px; cursor: pointer; box-shadow: 1px 1px 0 #000;
+        text-decoration: none; display: inline-block;
+      }
+      .photo-btn:active { background: #000; color: #fff; transform: translate(1px, 1px); box-shadow: none; }
+      .photo-counter { flex: 1; white-space: nowrap; color: #444; }
+      .desktop-icon-photos {
+        position: absolute; top: 230px; right: 30px; width: 80px;
+        text-align: center; cursor: pointer; z-index: 5;
+      }
+      .desktop-icon-photos:hover .desktop-icon-label { background: #000; color: #fff; }
+      @media (max-width: 768px) {
+        .photo-window { position: static; width: auto; margin: 10px; }
+        .photo-stage { height: 220px; }
+        .desktop-icon-photos { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .photo-layer { transition: opacity 200ms ease; }
+        .photo-layer.drift { animation: none; }
+      }
       .leica-viewer-window {
         position: fixed;
         top: 30px;

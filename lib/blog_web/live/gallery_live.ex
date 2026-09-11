@@ -56,17 +56,7 @@ defmodule BlogWeb.GalleryLive do
     |> assign(:payload, Jason.encode!(payload(photos)))
   end
 
-  defp payload(photos) do
-    Enum.map(photos, fn p ->
-      %{
-        guid: p.guid,
-        w: p.width,
-        h: p.height,
-        caption: p.caption,
-        date: pretty_date(p.created_at)
-      }
-    end)
-  end
+  defp payload(photos), do: Gallery.payload(photos)
 
   # iCloud's web album breaks the grid into date sections; so does this.
   defp group_by_month(photos) do
@@ -83,20 +73,7 @@ defmodule BlogWeb.GalleryLive do
   defp month_label(nil), do: "Undated"
 
   defp month_label(%DateTime{year: y, month: m}),
-    do: "#{month_name(m)} #{y}"
-
-  defp month_name(m) do
-    elem(
-      {"January", "February", "March", "April", "May", "June", "July", "August", "September",
-       "October", "November", "December"},
-      m - 1
-    )
-  end
-
-  defp pretty_date(nil), do: nil
-
-  defp pretty_date(%DateTime{} = dt),
-    do: "#{month_name(dt.month)} #{dt.day}, #{dt.year}"
+    do: "#{Gallery.month_name(m)} #{y}"
 
   @impl true
   def render(assigns) do
@@ -127,6 +104,9 @@ defmodule BlogWeb.GalleryLive do
             <span class="gal-dim">shared album</span>
             <button class="gal-btn" phx-click="slideshow" disabled={@count == 0}>
               Slideshow
+            </button>
+            <button class="gal-btn" data-gal="fullscreen" disabled={@count == 0}>
+              Full Screen
             </button>
           </div>
 
@@ -197,6 +177,7 @@ defmodule BlogWeb.GalleryLive do
             <button class="gal-btn" data-gal="next">&#9654;</button>
             <span class="gal-counter" data-gal="counter"></span>
             <span class="gal-caption" data-gal="caption"></span>
+            <button class="gal-btn" data-gal="fullscreen" title="Full-screen mosaic">Full Screen</button>
             <button class="gal-btn" data-gal="shuffle" title="Reshuffle the deck">Shuffle</button>
           </div>
         </div>

@@ -16,6 +16,27 @@ const FADE_OUT_MS = 550
 const FADE_IN_MS = 850
 const PRELOAD_AHEAD = 2
 
+// Full-screen mosaic. Several photos at once in unequal cells, each tile
+// swapping on its own stagger, and the whole layout rotating every so often so
+// a photo that was a thumbnail last round comes back as the big one.
+//
+// Each entry is [column, row, columnSpan, rowSpan]; every layout tiles its
+// grid exactly, so there are never gaps.
+const MOSAIC_LANDSCAPE = [
+  [[1,1,2,2],[3,1,1,1],[4,1,1,2],[3,2,1,1],[1,3,1,1],[2,3,2,1],[4,3,1,1]],
+  [[1,1,1,2],[2,1,2,1],[4,1,1,1],[2,2,1,1],[3,2,2,2],[1,3,1,1],[2,3,1,1]],
+  [[1,1,2,1],[3,1,1,2],[4,1,1,1],[1,2,1,2],[2,2,1,1],[4,2,1,2],[2,3,2,1]],
+]
+const MOSAIC_PORTRAIT = [
+  [[1,1,2,1],[1,2,1,2],[2,2,1,1],[2,3,1,1]],
+  [[1,1,1,2],[2,1,1,1],[2,2,1,1],[1,3,2,1]],
+  [[1,1,1,1],[2,1,1,2],[1,2,1,2],[2,3,1,1]],
+]
+const MOSAIC_COLS = { landscape: 4, portrait: 2 }
+const TILE_SWAP_MS = 7000      // how often one tile changes
+const TILE_STAGGER_MS = 1100   // offset between neighbouring tiles
+const LAYOUT_ROTATE_MS = 48000 // how often everyone changes size
+
 const shuffle = (arr) => {
   const a = arr.slice()
   for (let i = a.length - 1; i > 0; i--) {
@@ -36,6 +57,10 @@ const GalleryAmbient = {
     this.timer = null
     this.wakeLock = null
     this.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    // Embedded: the viewer sits inside a window the server owns (the homepage
+    // desktop), so this hook must not show/hide it, and must not grab keys on
+    // a page that already has a terminal and a chat input.
+    this.embedded = this.el.dataset.embedded === "true"
 
     const q = (sel) => this.el.querySelector(`[data-gal="${sel}"]`)
     const qa = (sel) => Array.from(this.el.querySelectorAll(`[data-gal="${sel}"]`))
@@ -55,11 +80,14 @@ const GalleryAmbient = {
     qa("next").forEach((b) => b.addEventListener("click", () => this.step(1)))
     qa("close").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); this.close() }))
     if (this.ui.toggle) this.ui.toggle.addEventListener("click", () => this.toggle())
+    qa("fullscreen").forEach((b) => b.addEventListener("click", () => this.enterMosaic()))
     const sh = q("shuffle")
     if (sh) sh.addEventListener("click", () => { this.reshuffle(); this.step(1) })
 
-    this.onKey = (e) => this.handleKey(e)
-    window.addEventListener("keydown", this.onKey)
+    if (!this.embedded) {
+      this.onKey = (e) => this.handleKey(e)
+      window.addEventListener("keydown", this.onKey)
+    }
 
     // Server-driven entry points.
     this.handleEvent("gallery:show", ({ guid }) => this.showGuid(guid))
@@ -85,8 +113,9 @@ const GalleryAmbient = {
   },
 
   destroyed() {
-    window.removeEventListener("keydown", this.onKey)
+    if (this.onKey) window.removeEventListener("keydown", this.onKey)
     if (this.ro) this.ro.disconnect()
+    if (this.mosaic) { this.exitMosaic(); this.mosaic.el.remove(); this.mosaic = null }
     this.pause()
   },
 
@@ -249,7 +278,7 @@ const GalleryAmbient = {
     this.open()
     this.show(guid)
     // An explicit click means they want to look at that one, not be moved on.
-    this.pause()
+    if (!this.embedded) this.pause()
   },
 
   show(guid) {
@@ -333,15 +362,172 @@ const GalleryAmbient = {
     }
   },
 
+  // ------------------------------------------------------------- mosaic
+
+  // The mosaic's DOM and CSS are created here rather than in either page's
+  // template, so /gallery and the homepage window get the identical thing
+  // from one definition.
+  ensureMosaic() {
+    if (this.mosaic) return this.mosaic
+
+    if (!document.getElementById("gal-mosaic-style")) {
+      const style = document.createElement("style")
+      style.id = "gal-mosaic-style"
+      style.textContent = `
+        .gal-mosaic { position: fixed; inset: 0; background: #000; display: none; }
+        .gal-mosaic:fullscreen { display: block; }
+        .gal-mosaic-grid {
+          position: absolute; inset: 0; display: grid; gap: 3px; padding: 3px;
+          grid-auto-flow: dense;
+        }
+        .gal-tile { position: relative; overflow: hidden; background: #0a0a0a; }
+        .gal-tile img {
+          position: absolute; inset: 0; width: 100%; height: 100%;
+          object-fit: cover; opacity: 0; transition: opacity 900ms ease;
+        }
+        .gal-tile img.on { opacity: 1; }
+        .gal-mosaic-exit {
+          position: absolute; top: 14px; right: 16px; z-index: 5;
+          font: 12px/20px "Chicago", "Geneva", Helvetica, sans-serif;
+          background: #fff; color: #000; border: 1px solid #000;
+          box-shadow: 1px 1px 0 #000; padding: 1px 10px; cursor: pointer; opacity: 0;
+          transition: opacity 200ms;
+        }
+        .gal-mosaic:hover .gal-mosaic-exit { opacity: 1; }
+        @media (prefers-reduced-motion: reduce) {
+          .gal-tile img { transition: opacity 200ms ease; }
+        }
+      `
+      document.head.appendChild(style)
+    }
+
+    const el = document.createElement("div")
+    el.className = "gal-mosaic"
+    const grid = document.createElement("div")
+    grid.className = "gal-mosaic-grid"
+    el.appendChild(grid)
+
+    const exit = document.createElement("button")
+    exit.className = "gal-mosaic-exit"
+    exit.textContent = "Close"
+    exit.addEventListener("click", () => this.exitMosaic())
+    el.appendChild(exit)
+
+    document.body.appendChild(el)
+    this.mosaic = { el, grid, tiles: [], timers: [], layout: 0 }
+    return this.mosaic
+  },
+
+  mosaicLayouts() {
+    return window.innerWidth >= window.innerHeight
+      ? { set: MOSAIC_LANDSCAPE, cols: MOSAIC_COLS.landscape }
+      : { set: MOSAIC_PORTRAIT, cols: MOSAIC_COLS.portrait }
+  },
+
+  buildMosaic() {
+    const m = this.ensureMosaic()
+    const { set, cols } = this.mosaicLayouts()
+    const layout = set[m.layout % set.length]
+    const rows = Math.max(...layout.map(([, r, , rs]) => r + rs - 1))
+
+    m.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`
+    m.grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`
+
+    // Reuse tiles across layout rotations so the photos already on screen stay
+    // put and simply change size — rebuilding would flash the whole wall.
+    while (m.tiles.length < layout.length) {
+      const tile = document.createElement("div")
+      tile.className = "gal-tile"
+      const a = document.createElement("img")
+      const b = document.createElement("img")
+      a.alt = ""; b.alt = ""
+      tile.append(a, b)
+      m.grid.appendChild(tile)
+      m.tiles.push({ el: tile, imgs: [a, b], front: 0, guid: null })
+    }
+    m.tiles.forEach((t, i) => {
+      const spec = layout[i]
+      t.el.style.display = spec ? "" : "none"
+      if (!spec) return
+      const [c, r, cs, rs] = spec
+      t.el.style.gridColumn = `${c} / span ${cs}`
+      t.el.style.gridRow = `${r} / span ${rs}`
+    })
+    return m
+  },
+
+  fillTile(tile) {
+    if (!this.deck.length) return
+    this.deckPos = (this.deckPos + 1) % this.deck.length
+    if (this.deckPos === 0) this.reshuffle()
+    const guid = this.deck[this.deckPos]
+    if (!guid || guid === tile.guid) return
+    tile.guid = guid
+
+    const next = tile.imgs[1 - tile.front]
+    const cur = tile.imgs[tile.front]
+    const src = `/gallery/img/${guid}/display`
+    const probe = new Image()
+    probe.decoding = "async"
+    probe.onload = () => {
+      next.src = src
+      next.classList.add("on")
+      cur.classList.remove("on")
+      tile.front = 1 - tile.front
+    }
+    probe.src = src
+  },
+
+  async enterMosaic() {
+    if (!this.photos.length) return
+    const m = this.buildMosaic()
+    this.pause()
+
+    try {
+      await m.el.requestFullscreen()
+    } catch (_e) {
+      // Fullscreen can be refused (no user gesture, iOS Safari). Show it as a
+      // fixed overlay instead rather than doing nothing at all.
+      m.el.style.display = "block"
+      m.el.style.zIndex = "9999"
+    }
+
+    m.tiles.forEach((t, i) => {
+      if (t.el.style.display === "none") return
+      setTimeout(() => this.fillTile(t), i * 120)
+      m.timers.push(setInterval(() => this.fillTile(t), TILE_SWAP_MS + i * TILE_STAGGER_MS))
+    })
+    m.timers.push(setInterval(() => { m.layout++; this.buildMosaic() }, LAYOUT_ROTATE_MS))
+
+    this.onFsChange = () => { if (!document.fullscreenElement) this.exitMosaic() }
+    document.addEventListener("fullscreenchange", this.onFsChange)
+    this.lockScreen()
+  },
+
+  exitMosaic() {
+    const m = this.mosaic
+    if (!m) return
+    m.timers.forEach(clearInterval)
+    m.timers = []
+    m.el.style.display = ""
+    m.el.style.zIndex = ""
+    if (this.onFsChange) {
+      document.removeEventListener("fullscreenchange", this.onFsChange)
+      this.onFsChange = null
+    }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    this.play()
+  },
+
   // ---------------------------------------------------------------- playback
 
   open() {
-    if (this.viewer) this.viewer.hidden = false
+    if (!this.embedded && this.viewer) this.viewer.hidden = false
   },
 
   close() {
     this.pause()
-    if (this.viewer) this.viewer.hidden = true
+    if (!this.embedded && this.viewer) this.viewer.hidden = true
   },
 
   play() {
