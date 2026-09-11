@@ -32,6 +32,9 @@ defmodule Blog.Gallery do
   # still has a wide margin before anything on screen goes dead.
   @url_refresh :timer.minutes(100)
   @retry_delay :timer.minutes(1)
+  # Consecutive empty responses tolerated before believing the album really is
+  # empty — three polls, i.e. about 45 minutes.
+  @empty_tolerance 3
 
   defstruct token: nil,
             host: nil,
@@ -40,7 +43,8 @@ defmodule Blog.Gallery do
             photos: [],
             urls: %{},
             urls_fetched_at: nil,
-            last_error: nil
+            last_error: nil,
+            empty_streak: 0
 
   # ---------------------------------------------------------------- public api
 
@@ -66,6 +70,41 @@ defmodule Blog.Gallery do
     else
       _ -> nil
     end
+  end
+
+  @doc """
+  The client-side payload for the ambient browser — just what the shuffled
+  deck needs. Shared by /gallery and the homepage photo window so the two
+  never drift apart.
+  """
+  @spec payload([map()]) :: [map()]
+  def payload(photos) do
+    Enum.map(photos, fn p ->
+      %{
+        guid: p.guid,
+        w: p.width,
+        h: p.height,
+        caption: p.caption,
+        date: pretty_date(p.created_at)
+      }
+    end)
+  end
+
+  @doc "A photo's date as `September 11, 2026`, or nil when it has none."
+  @spec pretty_date(DateTime.t() | nil) :: String.t() | nil
+  def pretty_date(nil), do: nil
+
+  def pretty_date(%DateTime{} = dt),
+    do: "#{month_name(dt.month)} #{dt.day}, #{dt.year}"
+
+  @doc "Month number to English name."
+  @spec month_name(1..12) :: String.t()
+  def month_name(m) do
+    elem(
+      {"January", "February", "March", "April", "May", "June", "July", "August", "September",
+       "October", "November", "December"},
+      m - 1
+    )
   end
 
   @doc "Subscribe to `{:gallery, :updated, photos}` broadcasts."
@@ -128,6 +167,7 @@ defmodule Blog.Gallery do
        ctag: state.ctag,
        urls: map_size(state.urls),
        urls_fetched_at: state.urls_fetched_at,
+       empty_streak: state.empty_streak,
        last_error: state.last_error
      }, state}
   end
@@ -142,6 +182,20 @@ defmodule Blog.Gallery do
         # Unchanged album. Urls still age out on their own schedule.
         %{state | last_error: nil}
 
+      # Apple sometimes serves an empty stream for an album it simultaneously
+      # reports as unchanged (same ctag, itemsReturned 0). Taking that at face
+      # value would blank every open page, so a previously non-empty album is
+      # kept until the emptiness looks deliberate rather than transient.
+      {:ok, %{photos: []}} when state.photos != [] and state.empty_streak < @empty_tolerance ->
+        streak = state.empty_streak + 1
+
+        Logger.warning(
+          "[gallery] empty stream for #{inspect(state.name)} " <>
+            "(#{streak}/#{@empty_tolerance}) — keeping #{length(state.photos)} cached photos"
+        )
+
+        %{state | empty_streak: streak, last_error: nil}
+
       {:ok, result} ->
         changed? = result.ctag != state.ctag
 
@@ -151,6 +205,7 @@ defmodule Blog.Gallery do
             ctag: result.ctag,
             name: result.name,
             photos: sort_photos(result.photos),
+            empty_streak: 0,
             last_error: nil
         }
 
@@ -233,6 +288,7 @@ defmodule Blog.Gallery do
   defp date_key(nil), do: 0
   defp date_key(%DateTime{} = dt), do: DateTime.to_unix(dt)
 
+  defp interval_for(%{empty_streak: n}) when n > 0, do: @retry_delay
   defp interval_for(%{last_error: nil}), do: @poll_interval
   defp interval_for(_), do: @retry_delay
 
