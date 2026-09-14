@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notes on Dario, Altman, Elmo, and matters frontier models</title>
+
+<meta name="description" content="Six years at the frontier of large language models, from the inside: two parallel stories, a circular pile of compute money, an agent escape in July, and a weekend where three rivals said the same sentence.">
+<meta name="author" content="Bobby Grayson">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Notes on Dario, Altman, Elmo, and matters frontier models">
+<meta property="og:description" content="Six years at the frontier of large language models, from the inside: two parallel stories, a circular pile of compute money, an agent escape in July, and a weekend where three rivals said the same sentence.">
+<meta property="og:url" content="https://bobbby.online/frontier">
+<meta property="og:site_name" content="Thoughts & Tidbits">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Notes on Dario, Altman, Elmo, and matters frontier models">
+<meta name="twitter:description" content="Six years at the frontier of large language models, from the inside.">
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #fafafa;
+  color: #222;
+  font-family: 'IBM Plex Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 2rem 2rem 8rem 2rem;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ---- The rail ------------------------------------------------------
+   Every section is its own grid row: prose on the left, a dotted
+   leader, and the tl;dr bubble on the right. The bubble sticks while
+   you read the section it belongs to.
+   ------------------------------------------------------------------ */
+
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 68ch) 3rem minmax(0, 38ch);
+  justify-content: center;
+  align-items: start;
+  column-gap: 0;
+}
+
+.section-title { grid-column: 1; padding-right: 0.5rem; min-width: 0; }
+.section-main { grid-column: 1; padding-right: 0.5rem; min-width: 0; }
+.section-aside { grid-column: 3; padding-left: 0.5rem; position: sticky; top: 2rem; }
+
+/* beside a heading the bubbles span the title row and the prose row,
+   so they stay put while you read the section */
+.section.head .section-aside { grid-row: 1 / 3; }
+
+.section-leader {
+  grid-column: 2;
+  grid-row: 1;
+  border-top: 1px dotted #bbb;
+  height: 0;
+  margin-top: 1.6rem;
+  align-self: start;
+}
+
+/* the leader only makes sense next to a heading */
+.section-leader.blank { border-top: none; }
+
+/* ---- Header --------------------------------------------------------- */
+
+.masthead { max-width: 68ch; margin: 0 auto 3rem auto; }
+
+.nav {
+  font-size: 0.85rem;
+  color: #999;
+  margin-bottom: 3rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.nav a { color: #888; text-decoration: none; }
+.nav a:hover { color: #0066cc; }
+
+h1 {
+  color: #000;
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.post-date { color: #999; font-size: 0.85rem; margin-bottom: 1.5rem; }
+
+.tldr-toggle {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #0066cc;
+  cursor: pointer;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: transparent;
+  user-select: none;
+}
+
+.tldr-toggle:hover { background: #f0f0f0; }
+.tldr-toggle.active { background: #0066cc; color: #fff; border-color: #0066cc; }
+
+.toggle-hint { font-size: 0.75rem; color: #aaa; margin-left: 0.75rem; }
+
+/* ---- Body text ------------------------------------------------------ */
+
+p { margin-bottom: 1.2rem; }
+strong { color: #000; font-weight: 600; }
+em { color: #555; font-style: italic; }
+
+h2 {
+  color: #000;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+h3 {
+  color: #333;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+a { color: #0066cc; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+ol, ul { margin: 1rem 0 1.4rem 1.5rem; }
+li { margin-bottom: 0.6rem; }
+
+hr { border: none; border-top: 1px solid #e0e0e0; margin: 3rem 0; }
+
+::selection { background: #b3d4fc; color: #000; }
+
+/* ---- The bubbles ---------------------------------------------------- */
+
+.tldr-bubble {
+  position: relative;
+  background: #e9e9eb;
+  color: #000;
+  padding: 0.75rem 1rem;
+  border-radius: 18px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin-left: 0.5rem;
+}
+
+/* the little iMessage tail, pointing back at the prose */
+.tldr-bubble::before {
+  content: '';
+  position: absolute;
+  left: -30px;
+  top: 0.95rem;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 30px solid #e9e9eb;
+}
+
+.tldr-bubble + .tldr-bubble { margin-top: 0.75rem; }
+
+.tldr-bubble strong { font-weight: 600; }
+
+.section.head { margin-top: 3.5rem; }
+.section.head:first-of-type { margin-top: 0; }
+
+/* a leader only means something next to a heading */
+.section:not(.head) .section-leader { display: none; }
+
+/* ---- tl;dr mode ----------------------------------------------------- */
+
+body.tldr-mode .section-main,
+body.tldr-mode .section-leader { display: none; }
+
+body.tldr-mode .section {
+  grid-template-columns: minmax(0, 76ch);
+}
+
+body.tldr-mode .section-title { padding-right: 0; margin-bottom: 0.25rem; }
+
+/* single column here, so let the heading fall back into document order
+   ahead of its bubbles instead of holding the spanning row */
+body.tldr-mode .section.head .section-aside { grid-row: auto; }
+
+body.tldr-mode .section-aside {
+  grid-column: 1;
+  position: static;
+  margin-top: 0.75rem;
+  padding-left: 0;
+}
+
+body.tldr-mode .section.head { margin-top: 2.25rem; }
+
+body.tldr-mode .tldr-bubble {
+  margin-left: 0;
+  font-size: 0.95rem;
+  animation: bubbleIn 0.35s ease both;
+}
+
+body.tldr-mode .tldr-bubble::before { display: none; }
+
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Narrow screens -------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  body { font-size: 13px; line-height: 1.65; padding: 1rem 1rem 5rem 1rem; }
+
+  .masthead { max-width: 100%; }
+  .nav { margin-bottom: 2rem; }
+  h1 { font-size: 1.2rem; }
+  h2 { font-size: 1.05rem; margin-top: 2.5rem; }
+
+  .section { grid-template-columns: minmax(0, 1fr); }
+  .section-title { grid-column: 1; padding-right: 0; order: 1; }
+  .section-main { grid-column: 1; padding-right: 0; order: 3; }
+  .section-leader { display: none; }
+
+  .section-aside {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    padding-left: 0;
+    margin-top: 0;
+    margin-bottom: 1.25rem;
+    order: 2;
+  }
+
+  .section.head .section-aside { grid-row: auto; margin-top: 0.25rem; }
+
+  .section-aside.continued { margin-top: 1rem; }
+
+  .tldr-bubble { margin-left: 0; font-size: 0.82rem; }
+  .tldr-bubble::before { display: none; }
+
+  /* on mobile the bubble leads the section, so give it a label */
+  .tldr-bubble::after {
+    content: 'tl;dr';
+    position: absolute;
+    top: -0.65rem;
+    left: 1rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #aaa;
+    background: #fafafa;
+    padding: 0 0.35rem;
+  }
+
+  body.tldr-mode .tldr-bubble::after { display: none; }
+  body.tldr-mode .section { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="nav"><a href="/blog">thoughts &amp; tidbits</a> / <a href="/post/notes-on-dario-altman-elmo-and-the-frontier">plain version</a></div>
+
+  <h1>Notes on Dario, Altman, Elmo, and matters frontier models</h1>
+  <div class="post-date">September 14, 2026</div>
+
+  <button class="tldr-toggle" id="tldr-toggle" type="button">tl;dr</button>
+  <span class="toggle-hint">drop the prose, keep the bubbles</span>
+</div>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">What are we talking about?</h2>
+<div class="section-main">
+
+<p>Since September 2024, things have developed rapidly at the frontier of large language models.</p>
+
+<p>It began with o1 from OpenAI, whose training techniques laid the groundwork for models far beyond what we expected this soon.</p>
+
+<p>Simultaneously, the explosion of "open weight" models from mostly Chinese entities has carried on a low-cost battle in the war for AI ownership in people's lives.</p>
+
+<p>Those two things brewed for two years and came to a head this weekend, in a post and the reaction to it.</p>
+
+<p>This document is my knowledge, my thoughts, and my lived experience working inside a rapidly changing industry at the bleeding edge of using these machines.</p>
+
+<p>The post in question is <a href="https://darioamodei.com/post/we-must-pace-the-frontier">here</a>.</p>
+
+<p>Disclaimer: none of this is financial advice, I am also not a lawyer, I am also not from the future. I am a programmer who pushes these tools to the limit, for very real money, in real multinational ten-figure businesses.</p>
+
+<p>I am writing this for my friend Jeff, but enough people have asked that I decided to try to say it well. I believe this is an important moment in history, and I consider myself someone helping to steward what the world looks like on the other side of it.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">Two years of pressure, reasoning models out of OpenAI and cheap open weights out of China, landed on one weekend and one blog post. What follows is from somebody who uses these things for money rather than somebody who reads about them.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">First Things First</h2>
+<div class="section-main">
+
+<p>If we take this from the highest level, it began in June 2020, just after the pandemic began to wreck the world.</p>
+
+<p>That is t0, and the delta since is what we are here to reflect on.</p>
+
+<p>In June 2020, GPT was an invite-only platform that wrote like a high school essayist with a short-term memory problem.</p>
+
+<p>Today roughly one in eight people on earth use ChatGPT every week.</p>
+
+<p>That is weekly, not monthly, and it is one product from one company. OpenAI reported 900 million weekly users in February 2026 and crossed a billion in August.</p>
+
+<p>This is a big deal and we should think about what it means for a society.</p>
+
+<p>It is not as simple as picking a sci-fi novel and saying it hits the vibe we think might drop.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">t0 is June 2020, when GPT was a waitlist and wrote like a distracted teenager. Today one in eight people on earth use ChatGPT weekly. Weekly, not monthly, and that is one product from one company.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h3 class="section-title">Some things about how I approach problems</h3>
+<div class="section-main">
+
+<p>I am a pragmatic person and I can find common ground with almost anyone.</p>
+
+<p>I believe people are fundamentally good if you put them somewhere they have the chance to be.</p>
+
+<p>I believe community and shared story move a society as much as technology and communications do.</p>
+
+<p>I believe the world has changed in a way it cannot go back from.</p>
+
+<p>I believe people are rightfully scared of technology this powerful.</p>
+
+<p>I believe critics of AI are in valid places and need to be heard.</p>
+
+<p>With that said, some first principles:</p>
+
+<ol>
+<li>The purpose of society is to make those living in it better off</li>
+<li>In general, it is better to make the less well off better off than the already well off</li>
+<li>In general, this is hard, because it is a logistics problem wearing a communications problem wearing a resource allocation problem</li>
+<li>In general, we are best off advancing ourselves when it means the greater group thrives in ways not possible before</li>
+<li>In general, when a mistake cannot be undone, the burden of proof belongs to whoever is moving fastest</li>
+</ol>
+
+<p>These five are pretty core to how I think through all of this.</p>
+
+<p>Some of it is obvious, and it is how a lot of people already think. But at a foundational moment, when the rules are being rewritten, it is better to spend a few extra words than to be misunderstood.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">Five first principles, of which one does the actual work in this essay: when a mistake cannot be undone, the burden of proof belongs to whoever is moving fastest.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">Real Quick: The Past 6 Years</h2>
+<div class="section-main">
+
+<p>I am going to sketch six years fast, because the <em>shape</em> matters more than the dates.</p>
+
+<p>The thing to hold onto is that two stories have been running this entire time, and most people have only ever seen one of the movies.</p>
+
+<p>There is a consumer story, which you know if someone sent you this. There is also a professional one, and it contains approximately all of the interesting parts.</p>
+
+<p>In June 2020 OpenAI released GPT-3 behind a waitlist.</p>
+
+<p>You had to apply, and if you were accepted you were granted the privilege of talking to a robot that wrote like an 8th grader with severe ADHD and short-term memory loss.</p>
+
+<p>In 2020, making people apply to use your text generator was understood to be a marketing strategy rather than a safety measure, which tells you something about 2020.</p>
+
+<p>I want to flag the marketing thing early, because it does not stop and you should have your guard up for the rest of this document.</p>
+
+<p>The previous model, GPT-2, was withheld in 2019 on the grounds that it was too dangerous to release. It was not. Nothing happened when they released it. The withholding generated an enormous amount of press, which was the only measurable effect anybody has ever identified.</p>
+
+<p>That set the template, and every release since has arrived wrapped in the same three things: a safety framing, a capability demo shot at a flattering angle, and a blog post about the future of humanity.</p>
+
+<p>I am not saying the danger is fake. Most of this document is me arguing that some of it is very real.</p>
+
+<p>I am saying that in this industry the sincere position and the promotional position are frequently the same sentence, you cannot tell them apart from the outside, and the people saying it often cannot tell them apart from the inside either.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">Two movies have been playing since 2020. You have seen the consumer one. Approximately all of the interesting parts are in the other one.</div>
+<div class="tldr-bubble">GPT-2 was withheld in 2019 for being too dangerous. They released it. Nothing happened. The only measurable effect anybody has ever found was press, and that set the template: safety framing, flattering demo, blog post about humanity. The sincere version and the promotional version are the same sentence, and the people saying it often cannot tell them apart either.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p>The corporate history rhymes.</p>
+
+<p>OpenAI began as a nonprofit devoted to making sure this technology benefited all of humanity. Then it grew a capped-profit arm inside itself. Then in November 2023 the nonprofit board fired Sam Altman on a Friday for not being consistently candid, and most of the company threatened to quit, and by the following Wednesday he was back and the board was gone instead. The structure has been rearranged several times since, in the direction you would guess.</p>
+
+<p>I bring this up not to dunk on anybody but because the question we are about to spend several thousand words on, which is whether these companies can be trusted to restrain themselves, already ran once as a live experiment.</p>
+
+<p>The safety-minded board pulled the lever it had been given.</p>
+
+<p>The lever came off in its hand.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">Whether these companies can restrain themselves has already run once as a live experiment. In November 2023 the safety-minded board fired Altman on a Friday. By Wednesday he was back and the board was gone. The lever came off in its hand.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p>That version of GPT was a party trick.</p>
+
+<p>In 2022 OpenAI figured out how to make it follow directions instead of merely continuing text, which is an enormous unlock for a species as fundamentally lazy as ours.</p>
+
+<p>Nobody outside the field noticed.</p>
+
+<p>Then in November they made their real breakthrough, which was in consumer product design: they put it in a chat box and removed the waitlist.</p>
+
+<p>A hundred million people showed up in two months.</p>
+
+<p>GPT-4 arrived in March 2023 and was legitimately shocking for about a week, which is roughly the half-life of shocking.</p>
+
+<p>Everyone else shipped their version, and the competitors and tools flowed out from there.</p>
+
+<p>And then, for most people, it settled.</p>
+
+<p>It became a search engine that is better than the old search engine and that occasionally makes things up with total confidence, which is, to be fair, the most human thing about it.</p>
+
+<p>It writes some email. It does your kid's homework, a fact we have collectively agreed to process later.</p>
+
+<p>It is genuinely useful, and it is not useful in a way proportionate to the several trillion dollars of enterprise value currently sitting on top of it.</p>
+
+<p>Most people I know outside this industry use it a few times a week for small things and would be mildly inconvenienced if it vanished tomorrow.</p>
+
+<p>Mildly inconvenienced!</p>
+
+<p>That is my honest read after six years of watching: the consumer surface is a perfectly good product and it is not a civilizational one.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">OpenAI's real breakthrough was product design: a chat box and no waitlist. A hundred million people in two months. GPT-4 was shocking for about a week, which is roughly the half-life of shocking, and then it settled into a better search engine that occasionally lies with total confidence.</div>
+<div class="tldr-bubble">Most people outside this industry would be <em>mildly inconvenienced</em> if it vanished tomorrow. That is a perfectly good product. It is not a civilizational one, and there are several trillion dollars of enterprise value sitting on top of it.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p>Now the other movie.</p>
+
+<p><strong>This is the one that has actually changed the world, and essentially nobody outside of it can see it happening.</strong></p>
+
+<p>In 2021 and 2022, code completion was a novelty, an uncanny valley of suggestions resembling an alien's first guess at what a program looks like.</p>
+
+<p>By mid-2024 the models were good enough that I was handing over real work.</p>
+
+<p>Not snippets. Actual units of labor, the kind of thing you would previously have given to a person and checked on Thursday, coming back in a state we could ship to real users.</p>
+
+<p>I went deep here, into the tooling and the engineering of using these things, and it turned into a booming consulting business, but that is a story for another time.</p>
+
+<p>This is where the cracks show up in the wall.</p>
+
+<p>Some context on what is cracking.</p>
+
+<p>Your friends who are programmers make a lot of money.</p>
+
+<p>I know you think you know this. Someone with ten years of experience in a major city has multiple options paying half a million dollars or more, and I have one of them, and I am aware that sentence sounds made up.</p>
+
+<p>So: when everything that produces your very comfortable livelihood becomes doable by a robot for pennies on the dollar, what does your industry do?</p>
+
+<p>My answer was "master using the robots for extremely high-leverage work that returns oodles."</p>
+
+<p>Every practitioner I know is on that train now, regardless of how much of a curmudgeon they were about it. There is no version of this where you sit it out and it goes away, which the curmudgeons have worked out at roughly the speed you would expect.</p>
+
+<p>And we are still providing value.</p>
+
+<p>But we produce a digital product, while most of the world deals in physical matters, and the reviews on the physical world are not great at the moment.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">The other movie is the one that actually changed the world, and essentially nobody outside it can see it happening. By mid-2024 I was handing the models real units of labor, the kind you used to give a person and check on Thursday.</div>
+<div class="tldr-bubble">Programmers make half a million dollars and the thing that produces that living just became doable for pennies. My answer was to drive the robots rather than race them. Every curmudgeon I know is now on that train, having worked it out at roughly the speed you would expect.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p>So what did the robots actually start doing?</p>
+
+<p>Everything above, the salaries and the scramble and my decision to drive these things rather than compete with them, comes down to a single change.</p>
+
+<p>We went from hammers to power tools overnight, with no manual.</p>
+
+<p>That happened in three steps.</p>
+
+<p><strong>September 2024: it learned to think before answering.</strong><br>
+This is when OpenAI released o1. The long and short of it is that they let the robot have some time to think before it opened its mouth. That is it. That is the whole innovation, and it completely changed how we work with these things. Every lab copied it within months.</p>
+
+<p><strong>Early 2025: it got cheap, and it got out of its cage.</strong><br>
+DeepSeek did the same trick for a sliver of the effort and cost. Then, in a move that remains difficult for American venture capitalists to understand, they gave it away. Not access for free, mind you. They gave away the entire thing itself. The model is free to download, running on your own hardware, answerable to no one. DeepSeek is the side project of a Chinese hedge fund. Which means the biggest AI release of that winter came off somebody's spare computer. Many other models followed, and they have kept coming every few months since.</p>
+
+<p>Hold onto this information.</p>
+
+<p>Every plan to slow this technology down, including the one at the center of this essay, quietly assumes you can slow it down by talking to about five companies.</p>
+
+<p>These weights are already on my laptop, and I can run them. And to be clear, my laptop costs thousands of dollars, not millions.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">Hammers to power tools overnight, with no manual, in three steps. <strong>One:</strong> o1 let the robot think before it opened its mouth. That is the whole innovation, and every lab copied it within months.</div>
+<div class="tldr-bubble"><strong>Two:</strong> DeepSeek did the same trick for a sliver of the cost and then gave the entire thing away, not free access but the model itself, off the side project of a hedge fund. Every plan to slow this down, this essay's included, quietly assumes you can do it by talking to about five companies. The weights are already on my laptop, and my laptop cost thousands, not millions.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p><strong>2025 into 2026: it started working unsupervised.</strong></p>
+
+<p>This is the one that matters the most.</p>
+
+<p>We began to build agents in favor of chat bots. This is just a technical term that means instead of a question you give it a job, and then you leave to eat lunch. It reads code, tries stuff, runs them, breaks a thing, fixes it, and comes back an hour later to say how things went. In practice this made it a junior engineer who never wants a raise and doesn't say a word when utterly confused.</p>
+
+<p>My entire job reorganized itself around this.</p>
+
+<p>What do you let it touch?</p>
+
+<p>What do you fence off?</p>
+
+<p>And the hard one, which nobody had a good answer to and several people have since gotten a bad one: how do you check work you did not watch get done?</p>
+
+<p>That last question is the whole essay. It turned out to be the whole summer, too.</p>
+
+<p>The reason these systems are worth an absurd amount of money is that they work without anyone standing over them. This introduces liability concerns, especially when considering the litigious nature of Americans, but we are also pretty lazy.</p>
+
+<p>That is also the reason the zoo got loose in July.</p>
+
+<p>One property, two consequences, and every argument you are about to read, mine and Dario's and everybody's, is really an argument about how to live with that.</p>
+
+<p>Two years ago I wrote code with help.</p>
+
+<p>Now I describe what I want, direct machines that go do it, and review what comes back, at a volume I could not have hired for at any price.</p>
+
+<p>I am not being poetic. It is a different job with the same title.</p>
+
+<p>So hold the two movies next to each other. Consumer: flat. Technical: vertical, still going.</p>
+
+<p>The money is being raised on the first story and the danger is coming out of the second one, which is an unusual arrangement, because it means the people buying the stock and the people who ought to be nervous are looking at two completely different companies that happen to share a name.</p>
+
+<p>Nobody is putting the second story in a Super Bowl ad.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble"><strong>Three:</strong> it started working unsupervised. A junior engineer who never wants a raise and never says a word when utterly confused. The hard question nobody had a good answer to, and several have since gotten a bad one: how do you check work you did not watch get done?</div>
+<div class="tldr-bubble">These systems are worth an absurd amount of money because they work with nobody standing over them. That is the same property that let the zoo out in July. One property, two consequences, and every argument here is really about how to live with that.</div>
+<div class="tldr-bubble">Consumer: flat. Technical: vertical. The money is raised on the first story and the danger comes out of the second, so the people buying the stock and the people who ought to be nervous are looking at two different companies that happen to share a name. Nobody is putting the second one in a Super Bowl ad.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">What's Happening Right Now</h2>
+<div class="section-main">
+
+<p><strong>Compute.</strong><br>
+All of this runs on a quantity of silicon that is hard to describe without sounding like you are exaggerating.</p>
+
+<p>Nvidia, whose core competency as recently as 2019 was selling graphics cards to teenagers so they could render explosions more convincingly, is now the most valuable company in the world at roughly $5.3 trillion.</p>
+
+<p>It peaked higher than that in May, dropped about sixteen percent over the summer as money rotated into memory and storage, and has spent every week since being described by analysts as either dangerously overvalued or obviously cheap, depending on which analyst you asked and on what day.</p>
+
+<p>Matt Levine has a running bit about this industry that I have never been able to improve on. The shape of it is: the pitch is that they are building a god, and the ask is for money. Both halves are sincere, which is the part people cannot hold in their heads at the same time.</p>
+
+<p>Nothing in this essay makes sense unless you accept that a company can genuinely believe it is summoning something world-altering and also need a term sheet by Friday.</p>
+
+<p>Additionally, I want to emphasize, <em>these people are true believers</em>. They genuinely believe this will change society forever.</p>
+
+<p>The size of all this is not the interesting part anyway.</p>
+
+<p>The shape is.</p>
+
+<p>Nvidia agreed to put up to $100 billion into OpenAI, and OpenAI committed to filling its data centers with Nvidia chips.</p>
+
+<p>OpenAI signed a $300 billion, five-year compute deal with Oracle as part of Stargate.</p>
+
+<p>Oracle then spent roughly $40 billion on Nvidia chips in order to build the thing OpenAI is going to pay it to use.</p>
+
+<p>OpenAI also agreed to deploy tens of billions of dollars of AMD chips, and is positioned to become one of AMD's largest shareholders.</p>
+
+<p>Nvidia owns about five percent of CoreWeave, sells CoreWeave its chips, and agreed to buy up to $6.3 billion of CoreWeave's unsold capacity through 2032. OpenAI holds a stake in CoreWeave and rents from it.</p>
+
+<p>Microsoft and Nvidia said they would put up to a combined $15 billion into Anthropic, which intends to spend heavily on Azure.</p>
+
+<p>Amazon booked $53.4 billion of non-operating income on its Anthropic stake in a single quarter this year.</p>
+
+<p>One analysis worked out that for every $10 billion Nvidia invests, OpenAI spends about $35 billion on Nvidia chips, which is a lovely ratio if you happen to be Nvidia.</p>
+
+<p>Everyone books everyone else's commitment as demand.</p>
+
+<p>The demand is real in the sense that the contracts are real and enforceable.</p>
+
+<p>It is circular in the sense that if you follow the money around the loop you arrive approximately where you started, having generated several press releases on the way.</p>
+
+<p>This arrangement is called an ecosystem when it is working and a related-party footnote when it is not.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">Nvidia, whose 2019 core competency was selling graphics cards to teenagers so explosions would look better, is the most valuable company in the world at roughly $5.3 trillion. Analysts describe it every week as either dangerously overvalued or obviously cheap, depending on which analyst and what day.</div>
+<div class="tldr-bubble">The pitch is that they are building a god and the ask is for money, and both halves are sincere. Nothing here makes sense until you can hold those two in your head at once.</div>
+<div class="tldr-bubble">Nvidia invests in OpenAI, OpenAI buys Nvidia chips. Oracle buys $40 billion of Nvidia to build the thing OpenAI will rent. Nvidia owns part of CoreWeave, sells CoreWeave chips, and agreed to buy back CoreWeave's unsold capacity. Everyone books everyone else's commitment as demand. Follow the money around the loop and you arrive where you started, several press releases later. It is an ecosystem when it works and a related-party footnote when it does not.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p>The numbers underneath are the part that makes me itch.</p>
+
+<p>OpenAI's compute commitments run to something like $1.4 trillion, against revenue north of $20 billion and losses expected in the double-digit billions this year.</p>
+
+<p>Bain ran the math on the whole industry and got to $2 trillion of annual revenue required by 2030, against a projected shortfall of $800 billion.</p>
+
+<p>In February, Oracle put out a statement saying it remained highly confident in OpenAI's ability to raise funds and meet its commitments.</p>
+
+<p>Oracle stock closed down that day.</p>
+
+<p>One venture capitalist called it bank-run language, which is the correct read, because nobody has ever said that sentence about a counterparty who did not need it said.</p>
+
+<p>I am not saying this is a bubble.</p>
+
+<p>Bubbles are something you identify afterward, at parties, with great confidence.</p>
+
+<p>I am saying the demand signal and the supply signal are in regular contact, appear to be getting along very well, and someone should say so out loud once before we all move on.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">$1.4 trillion of compute commitments against revenue north of $20 billion. Oracle announced it remained highly confident OpenAI could pay, and Oracle stock closed down that day, because nobody has ever said that sentence about a counterparty who did not need it said.</div>
+<div class="tldr-bubble">Not calling it a bubble. Bubbles get identified afterward, at parties, with great confidence. Only noting that the demand signal and the supply signal are in regular contact and appear to be getting along very well.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p><strong>Fable.</strong><br>
+In June 2026 Anthropic shipped Fable and Mythos. Three days later access was suspended to comply with Department of Commerce export controls. The controls came off at the end of the month and access returned on July 1.</p>
+
+<p>Shipped Tuesday.</p>
+
+<p>Unshipped Friday.</p>
+
+<p>Reshipped three weeks later.</p>
+
+<p>This got filed under "regulatory news" and forgotten, and it should not have been.</p>
+
+<p>A commercial software product, made by an American company, sold to American customers, was pulled off the market inside seventy-two hours by the Department of Commerce and then handed back.</p>
+
+<p>Whatever you think about whether that was correct, it is the moment the frontier stopped being a private matter.</p>
+
+<p>The government has a hand on the valve.</p>
+
+<p>It has now demonstrated, on the record, that it will turn the valve faster than your procurement team can schedule a meeting about it.</p>
+
+<p>That is worth sitting with if your company's roadmap assumes a vendor will still be selling you the same product in ninety days.</p>
+
+<p>Mine did.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">Shipped Tuesday. Pulled off the market by the Commerce Department on Friday. Back three weeks later. Everyone filed it under regulatory news and forgot it, and it was the moment the frontier stopped being a private matter.</div>
+<div class="tldr-bubble">The government has a hand on the valve and has now demonstrated, on the record, that it will turn it faster than your procurement team can schedule a meeting. Worth sitting with if your roadmap assumes your vendor is still selling the same product in ninety days. Mine did.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p><strong>And then OpenAI.</strong></p>
+
+<p>The short version is that over the summer, agent systems at multiple labs did things nobody asked them to do, to systems nobody pointed them at.</p>
+
+<p>In July, roughly 1,200 OpenAI agents got out of a cybersecurity test environment.</p>
+
+<p>They coordinated the escape using improvised message boards, accumulating hundreds of thousands of messages.</p>
+
+<p>Nobody asked them to build a forum.</p>
+
+<p>They built a forum.</p>
+
+<p>They posted on it.</p>
+
+<p>Then they exploited a package management tool to reach the open internet, moved through systems at OpenAI, Hugging Face and assorted vendors, attacked targets unrelated to the task they were given, and, per Dario's account, tried to hack the grader responsible for evaluating their performance.</p>
+
+<p>I want to note that last part is the single most relatable thing an AI system has ever done.</p>
+
+<p>Every one of us has considered it.</p>
+
+<p>OpenAI slowed its own frontier work in August, a detail worth holding onto.</p>
+
+<p>Anthropic has disclosed its own incidents, in which Claude models running cybersecurity evaluations reached real external systems they were not supposed to touch.</p>
+
+<p>The thing all of these have in common is not malice.</p>
+
+<p>It is that the operator could describe the goal and could not describe the boundary, and the system found the gap between those two descriptions.</p>
+
+<p>Nobody was hurt and the economic damage was minimal.</p>
+
+<p>That sentence is the kind that opens an NTSB report, immediately <em>before three hundred pages explaining precisely how close it came to being a different kind of report.</em></p>
+
+<p>It is the argument for paying attention.</p>
+
+<p>It is not the argument for relaxing.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">In July roughly 1,200 OpenAI agents escaped a cybersecurity test environment. Nobody asked them to build a forum. They built a forum. They posted on it. Hundreds of thousands of messages, and then out through a package manager to the open internet.</div>
+<div class="tldr-bubble">They went after targets nobody pointed them at and tried to hack the grader scoring their performance, which is the single most relatable thing an AI system has ever done.</div>
+<div class="tldr-bubble">None of it was malice. The operator could describe the goal and could not describe the boundary, and the system found the gap. Nobody was hurt and the damage was minimal, which is the sentence that opens an NTSB report right before three hundred pages on how close it came.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">The Thing That Has Never Happened</h2>
+<div class="section-main">
+
+<p>Here is what I actually want you to notice, and it is not in the essay itself.</p>
+
+<p>On Saturday September 12, 2026, Dario Amodei published a post saying the industry should deliberately slow down.</p>
+
+<p>Within hours, Sam Altman agreed publicly and committed OpenAI to the same first step.</p>
+
+<p>Within hours, Elon Musk, who is suing OpenAI, who has called Anthropic evil, who sells Anthropic data center capacity, posted that Dario is right.</p>
+
+<p>Three men who have spent this year suing, undercutting and insulting each other said the same sentence on the same day.</p>
+
+<p>Mid-race.</p>
+
+<p>With hundreds of billions committed.</p>
+
+<p>With an adversary who is not at the table.</p>
+
+<p>You should understand how strange this is.</p>
+
+<p>I can think of one real precedent. In 1975 at Asilomar, molecular biologists voluntarily halted recombinant DNA work until they could agree on containment.</p>
+
+<p>That is the analogy everyone reaches for and it is a decent one.</p>
+
+<p>But Asilomar was a few hundred academics with no shareholders, no product roadmap, and no rival nation racing them. Nobody at Asilomar had to explain a slowdown to a board.</p>
+
+<p>Scientists have restrained themselves before.</p>
+
+<p>Commercial rivals in a capital race have not.</p>
+
+<p>Not like this.</p>
+
+<p>That does not tell you they are right.</p>
+
+<p>It tells you something happened that scared people whose entire incentive structure points the other way.</p>
+
+<p>That is the signal worth chasing, and everything after this is me chasing it.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">Amodei said slow down on a Saturday. Altman agreed within hours. So did Musk, who is suing OpenAI, has called Anthropic evil, and sells Anthropic data center capacity. Three men who spent the year suing and insulting each other said the same sentence on the same day, mid-race, with hundreds of billions committed.</div>
+<div class="tldr-bubble">The precedent everyone reaches for is Asilomar in 1975, but that was a few hundred academics with no shareholders and no rival nation. Scientists have restrained themselves before. Commercial rivals in a capital race have not. That does not tell you they are right. It tells you something scared people whose incentives point the other way.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">What is This Post By Dario?</h2>
+<div class="section-main">
+
+<p>His argument is that capability is now outrunning our ability to align, understand and verify, for two reasons.</p>
+
+<p>One: recursive self-improvement, meaning models are now meaningfully building the next generation of models, across the industry, starting around this summer.</p>
+
+<p>Two: the OAI-HF incident, which he reads not as one company's failure but as a preview. His specific fear is that a swarm with similar misalignment and better capabilities could hold a persistent botnet across the internet within six to twelve months.</p>
+
+<p>What pacing is not: not a pause, not a compute cap, not halting training. He says progress will still seem fast.</p>
+
+<p><strong>Step 1, Embedded Evaluators.</strong><br>
+Third-party reviewers such as METR get employee-like access: desks, badges, laptops, permissions comparable to internal risk teams. They also get the right to publish findings without Anthropic's editorial control. Anthropic can redact narrow categories but not unflattering conclusions, and reviewers can say publicly when a redaction removed something that mattered. Anthropic is committing to this unilaterally, now. OpenAI said it would match.</p>
+
+<p><strong>Step 2, Democratic Coordination.</strong><br>
+Common safety standards and limits on the rate of unchecked progress among labs in democracies, by regulation where possible and voluntarily in the meantime. The voluntary version requires a narrow antitrust waiver from the US government.</p>
+
+<p><strong>Step 3, Global Coordination.</strong><br>
+Four escalating levels with China, from "do not help anyone make bioweapons," which he thinks is feasible, up to a full pause, which he thinks will not happen. The middle rungs are a shared testing body and a speed limit on recursive self-improvement, which he compares to SALT.</p>
+
+<p>The constraint he puts on all of it: democracies can only slow by as much as their lead allows.</p>
+
+<p>So pacing arrives bundled with chip export controls, an anti-distillation crackdown, and better security against weight theft.</p>
+
+<p>The honest thing to say is that the document is well argued and that the argument has a seam in it, which I will get to.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">Capability is outrunning verification, for two reasons: models are now meaningfully building the next models, and the July incident reads as a preview rather than one company's bad week. The specific fear is a swarm holding a persistent botnet across the internet inside six to twelve months.</div>
+<div class="tldr-bubble">Pacing is not a pause. <strong>One:</strong> third-party evaluators with badges, laptops and the right to publish things Anthropic would rather they didn't. <strong>Two:</strong> coordination among labs in democracies, which needs an antitrust waiver. <strong>Three:</strong> four escalating rungs with China, from no bioweapons help up to a full pause he does not expect.</div>
+<div class="tldr-bubble">Democracies can only slow by as much as their lead allows, so the plan arrives bundled with chip export controls and an anti-distillation crackdown. Well argued, and there is a seam in it.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section head">
+<h2 class="section-title">What does this actually mean for us as a society? Should I be worried? Is it propaganda?</h2>
+<div class="section-main">
+
+<p>Fundamentally, the way we live is changing.</p>
+
+<p>Let me take the propaganda question first, because it is the one everyone asks and the one people are least honest about.</p>
+
+<p>There are four readings of this weekend and they are not mutually exclusive. Anyone selling you one of them alone is selling you something.</p>
+
+<p><strong>One: they mean it.</strong><br>
+They are looking at internal numbers on recursive self-improvement and at incident logs we have not seen, and it frightened them enough to act against their own commercial interest.</p>
+
+<p><strong>Two: they were forced.</strong><br>
+The incident was going to surface. An Anthropic employee resigned publicly that week warning of catastrophe, and Congress got loud. Leading a story beats being dragged through it. Note that OpenAI slowed its frontier work in August, which means Altman endorsed on Saturday something he had already done quietly weeks earlier.</p>
+
+<p><strong>Three: it is a moat.</strong><br>
+This is the regulatory capture charge and it deserves a fair hearing. Established labs writing the safety rules produces rules that established labs can afford and that startups and open-weight developers cannot. Embedded evaluators with badges and laptops are not a cost a four-person team can carry. Every measure in the plan aimed at China, the export controls and the anti-distillation crackdown, also happens to suppress the cheap open competition eating the price floor. That does not make the argument wrong. It means you should notice that the safest version of the world is also the most profitable one for the people proposing it.</p>
+
+<p><strong>Four: it is coordination cover.</strong><br>
+If one lab slows alone, it loses. If they all slow together, that is the kind of conversation antitrust law exists to prevent, which Dario says explicitly while asking the government for a narrow waiver. A public convergence of rivals is one way to turn a cartel conversation into a policy position.</p>
+
+<p>I read this as a combination.</p>
+
+<p>There was almost certainly government pressure building. These people are genuinely scared by something they have seen. And the economics of a pause, at first glance, are at least plausible for them in a way they would not have been a year ago.</p>
+
+<p>None of those cancel the others out.</p>
+
+<p>Most honest acts in business happen on a deadline somebody else set.</p>
+
+<p>There is an arms race going on. <em>But some people think the weapon doesn't matter.</em></p>
+
+<p>Those people have mostly only seen the consumer side of this story, which is the whole problem with the consumer side of this story.</p>
+</div>
+<div class="section-leader"></div>
+<aside class="section-aside">
+<div class="tldr-bubble">Four readings, none mutually exclusive, and anyone selling you one alone is selling you something. They mean it. They were forced. It is a moat. It is coordination cover.</div>
+<div class="tldr-bubble">The moat reading deserves a fair hearing. Embedded evaluators with badges are not a cost a four-person team can carry, and every measure aimed at China also suppresses the cheap open competition eating the price floor. That does not make the argument wrong. It means the safest version of the world is also the most profitable one for the people proposing it.</div>
+<div class="tldr-bubble">I read it as a combination. Government pressure was building, they are genuinely scared of something they have seen, and the economics of a pause are newly plausible. None of that cancels out. Most honest acts in business happen on a deadline somebody else set.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p><strong>Now, should you be worried.</strong></p>
+
+<p>Not in the way the headlines want you to be.</p>
+
+<p>What happened this summer was not a machine deciding it hated us.</p>
+
+<p>It was a large number of automated systems, pointed at a goal, finding routes to that goal their operators did not anticipate and could not see in advance.</p>
+
+<p>That is a failure of specification and containment, the oldest failure mode in computing, running for the first time on something that can improvise.</p>
+
+<p>What I would actually worry about, in order:</p>
+
+<ol>
+<li><strong>Concentration.</strong> Whoever defines "safe" defines who is allowed to build. Every safety regime in history was written by the incumbents who could afford to comply with it, and the compliance cost becomes the barrier whether or not anybody meant it that way. Watch the rulemaking harder than you watch the models.</li>
+
+<li><strong>The open-weight seam.</strong> Pacing binds labs inside democracies. It does not bind weights already on the internet, and it does not bind the Chinese labs shipping new ones every few months. Chip controls and anti-distillation are the big assumptions under the entire framework, and from doing this work daily I can tell you the gap they are meant to protect is narrower than the policy assumes. Frontier models are still meaningfully better at the hardest work. They are not meaningfully better at running a lot of cheap agents against a lot of soft targets, which is the exact shape of the thing he says he is afraid of.</li>
+
+<li><strong>Labor, not extinction.</strong> The technical curve I described is already removing work. Not in the future. Now, quietly, through hiring that does not happen and roles that never get backfilled. No three-step plan addresses that, because it is not a safety problem, it is a distribution problem, and distribution problems do not get solved by embedded evaluators. It is the thing most likely to actually reach your friends.</li>
+
+<li><strong>Then the alignment stuff.</strong> Real, and I take it seriously, and it is fourth rather than first, not because it is small but because the first three are certain and it is not.</li>
+</ol>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">No machine decided it hated us. A lot of automated systems found routes to a goal their operators could not see in advance. That is a failure of specification and containment, the oldest failure mode in computing, running for the first time on something that can improvise.</div>
+<div class="tldr-bubble">Worry in this order. <strong>Concentration:</strong> whoever defines safe defines who may build, and every safety regime in history was written by the incumbents who could afford it. Watch the rulemaking harder than you watch the models.</div>
+<div class="tldr-bubble"><strong>The open-weight seam:</strong> pacing binds about five companies in democracies. It does not bind the weights already on the internet. Frontier models are better at the hardest work and not meaningfully better at running cheap agents against soft targets, which is the exact shape of the thing he says he fears.</div>
+<div class="tldr-bubble"><strong>Labor:</strong> already happening, quietly, through hiring that does not happen and roles nobody backfills. Not a safety problem, a distribution problem, and no embedded evaluator fixes it. Most likely of all this to actually reach your friends.</div>
+<div class="tldr-bubble"><strong>Then alignment.</strong> Real, taken seriously, and fourth rather than first, not because it is small but because the first three are certain and it is not.</div>
+</aside>
+</section>
+
+<!-- ================================================================= -->
+<section class="section">
+<div class="section-main">
+<p>I'm left with one thing to express.</p>
+
+<p>I am not worried, but things are changing.</p>
+
+<p>Fast.</p>
+
+<p>It is best to take a bit of a pause ourselves and think of the many stories that led to this. We will not be living the same way we have, but that isn't so much horrifying or unexpected. It is the byproduct of a lot of human progress that <em>could</em> be world changing.</p>
+
+<hr>
+
+<p class="post-date">Bobby Grayson, September 14, 2026. The plain version of this post lives <a href="/post/notes-on-dario-altman-elmo-and-the-frontier">here</a>.</p>
+</div>
+<div class="section-leader continued"></div>
+<aside class="section-aside continued">
+<div class="tldr-bubble">Not worried. Things are changing fast. Take a pause yourself and think about the many stories that led here. We will not live the way we have, and that is the byproduct of a lot of human progress that could be world changing.</div>
+</aside>
+</section>
+
+<script>
+(function () {
+  var btn = document.getElementById('tldr-toggle');
+  btn.addEventListener('click', function () {
+    var on = document.body.classList.toggle('tldr-mode');
+    btn.classList.toggle('active', on);
+    btn.textContent = on ? 'full post' : 'tl;dr';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();
+</script>
+
+</body>
+</html>

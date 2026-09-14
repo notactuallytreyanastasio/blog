@@ -2,6 +2,8 @@ tags: ai,tech,writing
 
 # Notes on Dario, Altman, Elmo, and matters frontier models
 
+*There is an [annotated version of this post](/frontier) with a tl;dr in the margin of every section, and a switch that drops the prose and leaves only those.*
+
 ## What are we talking about?
 
 Since September 2024, things have developed rapidly at the frontier of large language models.

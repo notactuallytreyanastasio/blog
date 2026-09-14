@@ -7,6 +7,9 @@ defmodule BlogWeb.ChessController do
   """
   def index(conn, _params) do
     path = :code.priv_dir(:blog) |> to_string() |> Path.join("static/chess9.html")
-    send_file(conn, 200, path)
+
+    conn
+    |> put_resp_content_type("text/html")
+    |> send_file(200, path)
   end
 end
