@@ -27,6 +27,7 @@ defmodule Blog.Content.Post do
     327-years-of-tree-law-in-the-usa-
     vibe-coding-rescue-missions
     chess
+    notes-on-dario-altman-elmo-and-the-frontier
   )
 
   @spec all() :: [t()]
