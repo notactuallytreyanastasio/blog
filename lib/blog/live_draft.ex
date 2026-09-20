@@ -172,7 +172,7 @@ defmodule Blog.LiveDraft do
   defp render_markdown(content) do
     content
     |> remove_tags_line()
-    |> Earmark.as_html(code_class_prefix: "language-", escape: false)
+    |> Blog.Markdown.as_html(code_class_prefix: "language-", escape: false)
     |> case do
       {:ok, html, _} -> process_details_in_html(html)
       {:error, html, _} -> process_details_in_html(html)
@@ -201,7 +201,7 @@ defmodule Blog.LiveDraft do
       trimmed = String.trim(details_content)
 
       processed =
-        case Earmark.as_html(trimmed, code_class_prefix: "language-", escape: false) do
+        case Blog.Markdown.as_html(trimmed, code_class_prefix: "language-", escape: false) do
           {:ok, inner_html, _} ->
             "<details#{details_attrs}><summary#{summary_attrs}>#{summary_content}</summary><div class=\"details-content\">#{inner_html}</div></details>"
 

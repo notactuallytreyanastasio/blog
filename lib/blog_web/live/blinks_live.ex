@@ -894,7 +894,7 @@ defmodule BlogWeb.BlinksLive do
     content
     |> Plug.HTML.html_escape()
     |> then(&Regex.replace(~r/^\#{1,2}\s/m, &1, "### "))
-    |> Earmark.as_html!(compact_output: true, smartypants: false)
+    |> Blog.Markdown.as_html!(compact_output: true, smartypants: false)
     |> String.replace(~r/href="(javascript|data|vbscript):[^"]*"/i, ~s(href="#"))
     |> String.replace("<a href=", ~s(<a target="_blank" rel="noopener nofollow" href=))
     |> highlight_mentions(chatter)

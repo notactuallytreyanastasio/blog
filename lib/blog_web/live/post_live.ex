@@ -60,7 +60,7 @@ defmodule BlogWeb.PostLive do
         # Filter out tags line and process markdown
         content_without_tags = remove_tags_line(post.body)
 
-        case Earmark.as_html(content_without_tags, code_class_prefix: "language-", escape: false) do
+        case Blog.Markdown.as_html(content_without_tags, code_class_prefix: "language-", escape: false) do
           {:ok, html, _} ->
             # Post-process the HTML to handle details blocks
             processed_html = process_details_in_html(html)
@@ -155,7 +155,7 @@ defmodule BlogWeb.PostLive do
     
     
     if looks_like_markdown?(trimmed_content) do
-      case Earmark.as_html(trimmed_content, code_class_prefix: "language-", escape: false) do
+      case Blog.Markdown.as_html(trimmed_content, code_class_prefix: "language-", escape: false) do
         {:ok, processed_content, _} ->
           "<details#{details_attrs}><summary#{summary_attrs}>#{summary_content}</summary><div class=\"details-content\">#{processed_content}</div></details>"
         
@@ -245,7 +245,7 @@ defmodule BlogWeb.PostLive do
       post ->
         post.body
         |> remove_tags_line()
-        |> Earmark.as_html(code_class_prefix: "language-", escape: false)
+        |> Blog.Markdown.as_html(code_class_prefix: "language-", escape: false)
         |> case do
           {:ok, html, _} -> process_details_in_html(html)
           {:error, html, _} -> process_details_in_html(html)

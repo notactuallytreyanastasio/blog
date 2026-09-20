@@ -101,7 +101,7 @@ defmodule Blog.Editor do
   @doc """
   Renders markdown content to HTML with custom extensions.
   Supports:
-  - Standard markdown via Earmark
+  - Standard markdown
   - Bluesky post embeds via ::bsky[url] syntax
   - YouTube video embeds via ::youtube[url] syntax
   """
@@ -110,22 +110,18 @@ defmodule Blog.Editor do
   def render_markdown(""), do: ""
 
   def render_markdown(content) do
-    # Process embeds BEFORE Earmark, wrapping them with blank lines
-    # so Earmark treats them as HTML blocks and passes them through unchanged
+    # Process embeds BEFORE the markdown, wrapping them with blank lines
+    # so they are treated as HTML blocks and passed through unchanged
     content
     |> process_bluesky_embeds()
     |> process_youtube_embeds()
-    |> render_earmark()
+    |> render_html()
   end
 
-  defp render_earmark(content) do
-    opts = %Earmark.Options{
-      code_class_prefix: "language-",
-      escape: false,
-      breaks: true
-    }
+  defp render_html(content) do
+    opts = [code_class_prefix: "language-", escape: false, breaks: true]
 
-    case Earmark.as_html(content, opts) do
+    case Blog.Markdown.as_html(content, opts) do
       {:ok, html, _} -> html
       {:error, html, _} -> html
     end
@@ -143,7 +139,7 @@ defmodule Blog.Editor do
     # Extract post info from URL like https://bsky.app/profile/user.bsky.social/post/abc123
     case parse_bluesky_url(url) do
       {:ok, handle, rkey} ->
-        # Wrap with blank lines so Earmark treats as HTML block, single line content
+        # Wrap with blank lines so it is treated as an HTML block, single line content
         "\n\n" <> ~s(<div class="bsky-embed" data-handle="#{handle}" data-rkey="#{rkey}"><div class="bsky-embed-inner"><div class="bsky-embed-header"><span class="bsky-icon">🦋</span><a href="#{url}" target="_blank" rel="noopener">@#{handle}</a></div><div class="bsky-embed-loading">Loading post...</div></div></div>) <> "\n\n"
 
       :error ->
@@ -171,7 +167,7 @@ defmodule Blog.Editor do
   defp render_youtube_embed(url) do
     case parse_youtube_url(url) do
       {:ok, video_id} ->
-        # Wrap with blank lines so Earmark treats as HTML block
+        # Wrap with blank lines so it is treated as an HTML block
         "\n\n" <> ~s(<div class="youtube-embed"><iframe src="https://www.youtube.com/embed/#{video_id}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>) <> "\n\n"
 
       :error ->

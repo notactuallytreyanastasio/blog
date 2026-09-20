@@ -516,7 +516,7 @@ defmodule BlogWeb.ZiggyLive do
   defp render_markdown(nil), do: ""
 
   defp render_markdown(text) do
-    case Earmark.as_html(text) do
+    case Blog.Markdown.as_html(text) do
       {:ok, html, _} -> Phoenix.HTML.raw(html)
       _ -> Phoenix.HTML.raw(text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string())
     end
