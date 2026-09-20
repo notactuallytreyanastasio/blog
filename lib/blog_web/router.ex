@@ -162,6 +162,7 @@ defmodule BlogWeb.Router do
     live "/lumon-celebration", LumonCelebrationLive, :index
     live "/nathan", NathanLive, :index
     live "/trees", TreesLive, :index
+    live "/temper-snake", TemperSnakeLive, :index
     live "/map", MapLive
     live "/very_direct_message", ReceiptMessageLive, :index
     live "/privacy", PrivacyLive, :index

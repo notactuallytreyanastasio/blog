@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Snake self-test</title>
+<style>
+ body { background:#14161a; color:#d7dae0; font:13px ui-monospace,Menlo,monospace; padding:16px; }
+ pre { white-space:pre-wrap; }
+ .pass { color:#9ee493; } .fail { color:#e8a0a0; }
+</style>
+<div id="app" hidden></div>
+<pre id="out">running…</pre>
+
+<script src="blimp.js"></script>
+<script src="blimp-view.js"></script>
+<script>
+// What the page cannot show you: that a keypress reaches the game.
+//
+// `index.html` is driven by a real keyboard and a real interval, neither of
+// which a headless browser supplies. This drives the same harness through the
+// same BlimpView, dispatching keydown events on `document` exactly as a
+// player's keyboard would, and checks where the head ends up.
+//
+// Open it, or: chrome --headless --virtual-time-budget=8000 --dump-dom
+(async function () {
+  const out = document.getElementById('out');
+  const lines = [];
+  const log = (ok, msg) => {
+    lines.push(`${ok ? 'PASS' : 'FAIL'}  ${msg}`);
+    out.innerHTML = lines.map(l =>
+      `<span class="${l.startsWith('PASS') ? 'pass' : 'fail'}">${l}</span>`).join('\n');
+  };
+
+  const head = () => {
+    const pre = document.querySelector('#app .blimp-code-block');
+    if (!pre) return null;
+    const rows = pre.textContent.split('\n');
+    for (let y = 0; y < rows.length; y++) {
+      const x = rows[y].indexOf('@');
+      if (x >= 0) return [y, x];
+    }
+    return null;
+  };
+  const press = (key) =>
+    document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+  try {
+    const blimp = await new Blimp().init('blimp.wasm');
+    const [lib, harness] = await Promise.all([
+      fetch('snake.blimp').then(r => r.text()),
+      fetch('harness.blimp').then(r => r.text()),
+    ]);
+    const view = new BlimpView(blimp, document.getElementById('app'), {
+      onError: (e) => log(false, 'blimp error: ' + e),
+    });
+    const r = view.mount(lib + '\n' + harness + '\napp <- :view\n', 'app');
+    log(!!(r && r.ok), 'mounts and renders a board');
+    log(head() !== null, 'the board has a head: ' + JSON.stringify(head()));
+
+    // The timer node is reconciled into a real interval, so a tick arrives on
+    // its own. Everything below waits for one rather than calling send().
+    const tick = () => new Promise(res => setTimeout(res, 260));
+
+    const before = head();
+    await tick();
+    const after = head();
+    log(after && before && after[1] === before[1] + 1 && after[0] === before[0],
+        `timer(200, :tick) moved it right on its own: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+
+    press('s');
+    const beforeDown = head();
+    await tick();
+    const afterDown = head();
+    log(afterDown && afterDown[0] === beforeDown[0] + 1 && afterDown[1] === beforeDown[1],
+        `key("s") turned it down: ${JSON.stringify(beforeDown)} -> ${JSON.stringify(afterDown)}`);
+
+    press('ArrowRight');
+    const beforeRight = head();
+    await tick();
+    const afterRight = head();
+    log(afterRight && afterRight[1] === beforeRight[1] + 1 && afterRight[0] === beforeRight[0],
+        `key("ArrowRight") turned it right: ${JSON.stringify(beforeRight)} -> ${JSON.stringify(afterRight)}`);
+
+    // The button is a `sends` attribute the host wires to a click.
+    document.querySelector('#app .blimp-button').click();
+    await new Promise(res => setTimeout(res, 50));
+    const restarted = head();
+    log(restarted !== null && restarted[1] < afterRight[1],
+        `the New game button restarted it: head back to ${JSON.stringify(restarted)}`);
+
+    lines.push('');
+    lines.push(lines.filter(l => l.startsWith('FAIL')).length === 0 ? 'ALL PASS' : 'FAILURES');
+    out.innerHTML += '\n\n' + lines[lines.length - 1];
+  } catch (e) {
+    log(false, String(e && e.message || e));
+  }
+})();
+</script>

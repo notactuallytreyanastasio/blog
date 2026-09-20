@@ -1,0 +1,135 @@
+# ── A Blimp app around the Temper-generated snake library ────────────────
+#
+# The generated library exports `newGame`, `changeDirection`, `tick` and
+# `render`, and knows nothing about where its output goes. The runner that
+# ships with the game writes to stdout and reads stdin, neither of which a
+# browser has.
+#
+# So this is a second runner. It holds the game in an actor and answers
+# `:view` with a tree the host renders, and the two effect nodes carry the
+# I/O the game loop used to do for itself:
+#
+#   timer(200, :tick)   the 200ms tick, run by the host's interval
+#   key("w", :up)       a keypress, delivered as a message
+#
+# Nothing here is snake-specific except the four direction names and the call
+# to `render`.
+
+# `render` opens with the escape that clears a terminal, and ends its lines
+# with CR LF. Neither means anything in a <pre>, and both show up as mojibake
+# if left in, so the board starts at its first `#` and loses its carriage
+# returns on the way out.
+def board_of(game: Any) -> String do
+  strip_cr(from_first_hash(render(game), 0))
+end
+
+# `char_code` rather than `slice(s, i, 1) == "#"`: the comparison allocates a
+# one-character string per character looked at, and the board is 314 of them.
+# 35 is `#`.
+def from_first_hash(s: String, i: Int) -> String do
+  r = case i >= length(s) do
+    true -> s
+    _ -> case char_code(s, i) == 35 do
+      true -> slice(s, i, length(s) - i)
+      _ -> from_first_hash(s, i + 1)
+    end
+  end
+  r
+end
+
+# Splitting and rejoining, not one character at a time. Appending a character
+# to an accumulator copies the accumulator, so building a 314-character board
+# that way is quadratic -- it was most of the cost of a frame:
+#
+#   app <- :view       50.6ms each
+#   board_of(...)     214.0ms each
+#
+# There are thirteen lines, so this is thirteen joins.
+def strip_cr(s: String) -> String do
+  reduce(split(s, "\r"), "", fn(acc: String, part: String) do
+    concat(acc, part)
+  end)
+end
+
+def direction(name: Atom) -> Any do
+  d = case name do
+    :up -> spawn Up
+    :down -> spawn Down
+    :left -> spawn Left
+    _ -> spawn Right
+  end
+  d <- :__new()
+  d
+end
+
+def playing?(game: Any) -> Bool do
+  temper_is_a(game <- :status, :Playing)
+end
+
+# The board is kept rather than recomputed, because the host asks for the view
+# after *every* message and `render` is the expensive part of a frame:
+#
+#   app <- :tick       2.8ms
+#   app <- :view      48.8ms   with a render in it
+#
+# A key press changes a direction and nothing that is drawn, so it has no
+# business paying for a render. Only a tick and a restart rebuild the board.
+actor SnakeApp do
+  state game: Any :: nil
+  state dir: Any :: nil
+  state seed: Int :: 42
+  state board: String :: ""
+
+  on :__new do
+    d = direction(:right)
+    g = newGame(20, 10, seed)
+    become game: g, dir: d, board: board_of(g)
+    reply nil
+  end
+
+  # A tick that arrives after the game is over changes nothing. The host's
+  # interval keeps firing -- it has no idea the game ended -- and a `tick` on
+  # a finished game would keep moving a dead snake.
+  on :tick do
+    case playing?(game) do
+      true ->
+        g = tick(changeDirection(game, dir))
+        become game: g, board: board_of(g)
+      _ -> nil
+    end
+    reply nil
+  end
+
+  on :up do become dir: direction(:up) reply nil end
+  on :down do become dir: direction(:down) reply nil end
+  on :left do become dir: direction(:left) reply nil end
+  on :right do become dir: direction(:right) reply nil end
+
+  # A new seed each time, or every game is the same game.
+  on :restart do
+    s = seed + 17
+    g = newGame(20, 10, s)
+    become seed: s, game: g, dir: direction(:right), board: board_of(g)
+    reply nil
+  end
+
+  on :view do
+    status = case playing?(game) do
+      true -> "playing"
+      _ -> "game over"
+    end
+    reply stack(
+      heading("Snake"),
+      text(concat("w a s d or the arrow keys -- ", status)),
+      code_block(board),
+      row(button("New game", :restart)),
+      timer(200, :tick),
+      key("w", :up), key("a", :left), key("s", :down), key("d", :right),
+      key("ArrowUp", :up), key("ArrowLeft", :left),
+      key("ArrowDown", :down), key("ArrowRight", :right)
+    )
+  end
+end
+
+app = spawn SnakeApp
+app <- :__new()

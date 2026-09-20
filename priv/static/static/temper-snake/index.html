@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Snake</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    /* 100% rather than 100vh: this page is also embedded in an iframe, where
+       a viewport-height body leaves the game floating in dead space. */
+    margin: 0; min-height: 100%; display: grid; place-items: center;
+    background: #14161a; color: #d7dae0;
+    font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+  }
+  main { padding: 16px; width: 100%; max-width: 640px; }
+  .blimp-stack { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .blimp-row { display: flex; gap: 8px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .blimp-text { color: #8b929e; }
+  /* The board is a terminal drawing. It has to keep its own spacing, and the
+     line height has to make a character cell roughly square or the snake
+     looks stretched. */
+  .blimp-code-block {
+    margin: 0; padding: 12px 14px; border: 1px solid #2a2f37; border-radius: 8px;
+    background: #0f1115; color: #9ee493;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 15px; line-height: 1.05; letter-spacing: 0.06em;
+    white-space: pre; overflow-x: auto;
+  }
+  .blimp-button {
+    padding: 6px 12px; border: 1px solid #2a2f37; border-radius: 6px;
+    background: #1b1f26; color: #d7dae0; font: inherit; cursor: pointer;
+  }
+  .blimp-button:hover { background: #232832; }
+  .blimp-error {
+    margin: 0; padding: 12px 14px; border: 1px solid #5b2a2a; border-radius: 8px;
+    background: #1d1314; color: #e8a0a0; white-space: pre-wrap;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  #status { margin-top: 16px; color: #6a717d; font-size: 12px; }
+</style>
+
+<main>
+  <div id="app"><span class="blimp-text">loading…</span></div>
+  <div id="status"></div>
+</main>
+
+<script src="blimp.js"></script>
+<script src="blimp-view.js"></script>
+<script>
+// The page loads three things and joins them:
+//
+//   blimp.wasm    the interpreter
+//   snake.blimp   the Temper library, compiled to Blimp by `temper build -b blimp`
+//   harness.blimp the actor that turns it into something a browser can show
+//
+// Then BlimpView takes over: it renders the tree `app <- :view` returns, and
+// reconciles the two effect nodes in it -- `timer(200, :tick)` becomes a
+// setInterval, `key("w", :up)` becomes a keydown listener. Nothing below
+// knows anything about snake.
+(async function () {
+  const status = document.getElementById('status');
+  const say = (s) => { status.textContent = s; };
+
+  try {
+    const blimp = await new Blimp().init('blimp.wasm');
+    const [lib, harness] = await Promise.all([
+      fetch('snake.blimp').then((r) => {
+        if (!r.ok) throw new Error('snake.blimp is missing — run ./build.sh');
+        return r.text();
+      }),
+      fetch('harness.blimp').then((r) => r.text()),
+    ]);
+
+    // `mount` evaluates the source and expects the last expression to be a
+    // view, so the source ends by asking for one.
+    const source = lib + '\n' + harness + '\napp <- :view\n';
+
+    let frames = 0, worst = 0;
+    const view = new BlimpView(blimp, document.getElementById('app'), {
+      onError: (e) => say('error: ' + e),
+      onSend: () => { view._t0 = performance.now(); },
+      onRender: () => {
+        if (view._t0 === undefined) return;
+        const ms = performance.now() - view._t0;
+        frames += 1;
+        if (ms > worst) worst = ms;
+        say(`${frames} frames · last ${ms.toFixed(0)}ms · worst ${worst.toFixed(0)}ms`);
+      },
+    });
+
+    const t0 = performance.now();
+    const r = view.mount(source, 'app');
+    if (r && r.ok) say(`loaded ${(source.length / 1024).toFixed(0)}KB in ${(performance.now() - t0).toFixed(0)}ms`);
+  } catch (e) {
+    document.getElementById('app').innerHTML =
+      '<pre class="blimp-error"></pre>';
+    document.querySelector('.blimp-error').textContent = String(e && e.message || e);
+  }
+})();
+</script>
