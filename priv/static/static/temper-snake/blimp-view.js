@@ -48,6 +48,7 @@
     this.timers = {};   // "ms|sends" -> interval id
     this.keys = {};     // KeyboardEvent.key -> message
     this._sending = false;
+    this._pending = null;
     var self = this;
     this._onKeydown = function (e) { self._handleKey(e); };
   }
@@ -69,8 +70,18 @@
 
   BlimpView.prototype.send = function (msg) {
     if (!this.mounted || this.error) return false;
-    if (this._sending) return false;
+    // A message that arrives mid-send waits its turn rather than being
+    // dropped. `blimp.eval` is synchronous and a frame of a real program can
+    // take tens of milliseconds, all of it inside this function -- so a
+    // keypress landing during a timer's tick used to go on the floor without
+    // a trace. Often enough to read as a game that ignores you.
+    //
+    // One slot, not a queue: these are a player's intentions, and the newest
+    // is the one they meant. Holding a backlog of directions would steer the
+    // snake through turns it has already given up on.
+    if (this._sending) { this._pending = msg; return true; }
     this._sending = true;
+    var ok;
     try {
       if (this.opts.onSend) this.opts.onSend(msg);
       var r1 = this.blimp.eval(this.actorVar + ' <- :' + msg);
@@ -79,10 +90,16 @@
       if (!r2.ok) { this._fail(r2.error); return false; }
       if (!r2.view) { this._fail(this.actorVar + ' <- :view did not return a view'); return false; }
       this.render(r2.view);
-      return true;
+      ok = true;
     } finally {
       this._sending = false;
     }
+    if (ok && this._pending) {
+      var queued = this._pending;
+      this._pending = null;
+      return this.send(queued);
+    }
+    return ok === true;
   };
 
   // Number of intervals currently running (pages and tests can poll this).

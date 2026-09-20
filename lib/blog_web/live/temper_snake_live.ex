@@ -5,11 +5,17 @@ defmodule BlogWeb.TemperSnakeLive do
   # snake game written in Temper, compiled to Blimp, run by the Blimp
   # interpreter compiled to WebAssembly, in the visitor's browser.
   #
-  # All of that is a self-contained page under priv/static, so this LiveView
-  # frames it rather than reimplementing it. An iframe because the page owns
-  # its own DOM -- the Blimp view host patches it on every frame, and LiveView
-  # patching the same nodes would be two writers on one document.
-  @game_path "/static/temper-snake/index.html"
+  # It renders into this page rather than into an iframe. An iframe was the
+  # first attempt and it was wrong in the way a player feels: keydown goes to
+  # whichever document has focus, and a reader's focus is on the page, not on
+  # a frame inside it, so the arrow keys did nothing until you clicked the
+  # board. The page had a line telling you to, which is a workaround wearing
+  # the clothes of an instruction.
+  #
+  # The iframe was there because the Blimp view host rewrites its container on
+  # every frame and two writers on one subtree is a bad idea. `phx-update`
+  # says that properly: LiveView leaves the subtree alone.
+  @base "/static/temper-snake/"
 
   @impl true
   def mount(_params, _session, socket) do
@@ -18,25 +24,29 @@ defmodule BlogWeb.TemperSnakeLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :game_path, @game_path)
+    assigns = assign(assigns, :base, @base)
 
     ~H"""
     <div class="max-w-2xl mx-auto px-4 py-10 space-y-6">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Snake, by way of Temper and Blimp</h1>
-        <p class="mt-1 text-sm text-gray-500">
-          w a s d or the arrow keys. Click the board first so it has focus.
-        </p>
       </div>
 
-      <iframe
-        src={@game_path}
-        title="Snake"
-        class="w-full rounded-lg border border-gray-200 dark:border-gray-800"
-        style="height: 470px;"
-        loading="lazy"
-      >
-      </iframe>
+      <link rel="stylesheet" href={@base <> "embed.css"} />
+
+      <div id="snake-host" phx-update="ignore">
+        <div id="snake-app" class="blimp-host">
+          <span class="text-sm text-gray-500">loading…</span>
+        </div>
+        <div id="snake-status" class="mt-3 text-xs text-gray-400"></div>
+      </div>
+
+      <script src={@base <> "blimp.js"}>
+      </script>
+      <script src={@base <> "blimp-view.js"}>
+      </script>
+      <script src={@base <> "embed.js"} defer>
+      </script>
 
       <div class="prose prose-sm dark:prose-invert max-w-none">
         <p>

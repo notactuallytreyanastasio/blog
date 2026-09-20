@@ -1,0 +1,28 @@
+/* The game drawn into a host page. index.html has its own copy of this for
+   the standalone version; these are scoped under .blimp-host so they cannot
+   reach anything else on the page. */
+.blimp-host .blimp-stack { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.blimp-host .blimp-row { display: flex; gap: 8px; }
+.blimp-host h1 { margin: 0; font-size: 18px; font-weight: 600; }
+.blimp-host .blimp-text { color: #6b7280; font-size: 13px; }
+
+/* The board is a terminal drawing: it keeps its own spacing, and the line
+   height has to make a character cell roughly square or the snake looks
+   stretched. */
+.blimp-host .blimp-code-block {
+  margin: 0; padding: 12px 14px; border: 1px solid #1f2430; border-radius: 8px;
+  background: #0f1115; color: #9ee493;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 15px; line-height: 1.05; letter-spacing: 0.06em;
+  white-space: pre; overflow-x: auto;
+}
+.blimp-host .blimp-button {
+  padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px;
+  background: #fff; color: #111827; font: inherit; cursor: pointer;
+}
+.blimp-host .blimp-button:hover { background: #f3f4f6; }
+.blimp-host .blimp-error {
+  margin: 0; padding: 12px 14px; border: 1px solid #fca5a5; border-radius: 8px;
+  background: #fef2f2; color: #991b1b; white-space: pre-wrap;
+  font-family: ui-monospace, Menlo, monospace; font-size: 13px;
+}
