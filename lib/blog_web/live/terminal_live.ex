@@ -920,7 +920,7 @@ defmodule BlogWeb.TerminalLive do
                   <div class="museum-detail-title">{@museum_selected_project.title}</div>
                   <div class="museum-detail-tagline">{@museum_selected_project.tagline}</div>
                   <div class="museum-detail-description">
-                    {String.trim(@museum_selected_project.description)}
+                    {String.trim(@museum_selected_project.description || "")}
                   </div>
                   <div class="museum-detail-tech">
                     <%= for tech <- @museum_selected_project.tech_stack do %>
