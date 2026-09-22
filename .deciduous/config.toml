@@ -9,3 +9,6 @@ main_branches = ["main", "master"]
 # Automatically detect and store git branch when creating nodes
 # Set to false to disable branch tracking entirely
 auto_detect = true
+
+[remote]
+url = "https://bobbby.online/deciduous-mcp"
