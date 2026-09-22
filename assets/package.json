@@ -1,4 +1,8 @@
 {
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'js/**/*.test.js'"
+  },
   "dependencies": {
     "@deck.gl/core": "^9.2.9",
     "@deck.gl/extensions": "^9.2.9",

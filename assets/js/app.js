@@ -46,6 +46,7 @@ import GalleryAmbient from "./hooks/gallery_ambient"
 import ZiggyChatInput from "./hooks/ziggy_chat_input"
 import ZiggyCopy from "./hooks/ziggy_copy"
 import tippy from "tippy.js"
+import { wireTopbarProgress } from "./topbar_progress"
 //# import * as THREE from 'three';
 
 // Sunflower Background Animation
@@ -1137,16 +1138,10 @@ let liveSocket = new LiveSocket("/live", Socket, {
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => {
-  topbar.hide()
-  // Track LiveView navigations in GA4
-  if (typeof gtag === "function") {
-    gtag("event", "page_view", {
-      page_path: window.location.pathname,
-      page_title: document.title
-    })
-  }
+wireTopbarProgress(window, topbar, {
+  getGtag: () => window.gtag,
+  getPath: () => window.location.pathname,
+  getTitle: () => document.title
 })
 
 // connect if there are any LiveViews on the page
