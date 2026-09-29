@@ -54,7 +54,7 @@ end
 def tetris_routes(routes: Map) -> Map do
   commit = trim(read_file("static/tetris/BLIMP_COMMIT"))
   lines = length(split(trim_right(read_file("static/tetris/tetris.blimp")), "\n"))
-  with_files = reduce(["tetris.blimp", "blimp.wasm", "blimp.js", "blimp-view.js", "play.js"], routes, fn(acc: Map, f: String) -> Map do
+  with_files = reduce(["tetris.blimp", "blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js", "play.js"], routes, fn(acc: Map, f: String) -> Map do
     load_asset(acc, concat("/tetris/", f), concat("static/tetris/", f))
   end)
   r1 = load_asset(with_files, "/assets/tetris.css", "assets/tetris.css")

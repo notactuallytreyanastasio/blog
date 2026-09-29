@@ -12,7 +12,8 @@ cp "$LANG_DIR/examples/tetris.blimp" tetris.blimp
 cp "$LANG_DIR/web/blimp.wasm" blimp.wasm
 cp "$LANG_DIR/web/blimp.js" blimp.js
 cp "$LANG_DIR/web/blimp-view.js" blimp-view.js
+cp "$LANG_DIR/web/canvas.js" canvas.js
 (cd "$SRC" && git rev-parse HEAD) > BLIMP_COMMIT
 grep -q 'blimp_send' blimp.js || { echo "this blimp.js has no send(); need Blimp with the view host's send mode" >&2; exit 1; }
-wc -c tetris.blimp blimp.wasm blimp.js blimp-view.js
+wc -c tetris.blimp blimp.wasm blimp.js blimp-view.js canvas.js
 cat BLIMP_COMMIT
