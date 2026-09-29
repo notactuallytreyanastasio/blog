@@ -18,7 +18,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 ORIGIN="${ORIGIN:-https://bobbby.online}"
-for page in privacy terms trees nathan knicks frontier chess; do
+# ./content/snapshot.sh              the seven kept pages
+# ./content/snapshot.sh directory    just the ones named
+pages="${*:-privacy terms trees nathan knicks frontier chess}"
+for page in $pages; do
   curl -fsS "$ORIGIN/$page" -o "pages/$page.raw.html"
   python3 - "pages/$page.raw.html" "pages/$page.html" <<'PY'
 import re, sys
