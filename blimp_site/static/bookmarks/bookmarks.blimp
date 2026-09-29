@@ -1,0 +1,108 @@
+# /bookmarks: "My Bookmarks". A port of BlogWeb.BookmarksLive.
+#
+# The LiveView listed the bookmarks in ETS whose user_id matched the
+# session's -- but nothing ever put a user_id in the session, so every
+# visit made up a fresh "user-N" and was shown an empty list. The Chrome
+# extension saved into ETS under its own id through BookmarkChannel,
+# which only it could read back. This page keeps the list, the search
+# and the delete, and starts, as every visit to the LiveView did, with
+# nothing in it.
+
+# A bookmark is %{id:, url:, title:, description:, tags:,
+# favicon_url:}; title, description and favicon_url may be nil.
+
+def bm_has(s: Any, q: String) -> Bool do
+  case s do
+    nil -> false
+    _ -> contains(downcase(s), q)
+  end
+end
+
+# Store.search_bookmarks: the query, lowercased, in the title, the
+# description, the url or any tag
+def bm_search(all: List, query: String) -> List do
+  q = downcase(query)
+  filter(all, fn(b: Map) -> Bool do
+    tagged = filter(lookup(b, "tags"), fn(t: String) -> Bool do contains(downcase(t), q) end)
+    bm_has(lookup(b, "title"), q) or bm_has(lookup(b, "description"), q) or bm_has(lookup(b, "url"), q) or tagged != []
+  end)
+end
+
+def bm_card(b: Map) -> Any do
+  favicon = case lookup(b, "favicon_url") do
+    nil -> []
+    src -> [el("img", %{src: src, class: "w-5 h-5", alt: ""})]
+  end
+  title = case lookup(b, "title") do
+    nil -> lookup(b, "url")
+    t -> t
+  end
+  description = case lookup(b, "description") do
+    nil -> []
+    d -> [el("p", %{class: "mt-1 text-xs text-gray-600"}, d)]
+  end
+  tags = case lookup(b, "tags") do
+    [] -> []
+    ts -> [el("div", %{class: "mt-2 flex flex-wrap gap-1"},
+      map(ts, fn(t: String) -> Any do el("span", %{class: "inline-flex items-center px-2 py-0.5 bg-[#000080] text-white text-xs"}, t) end))]
+  end
+  el("div", %{class: "bg-white border-2 outset p-4"},
+    el("div", %{class: "flex items-start space-x-3"},
+      favicon,
+      el("div", %{class: "flex-1 min-w-0"},
+        el("h3", %{class: "font-bold text-sm text-blue-800 truncate hover:underline"},
+          el("a", %{href: lookup(b, "url"), target: "_blank", rel: "noopener noreferrer"}, title)),
+        description,
+        tags),
+      el("div", %{class: "flex-shrink-0"},
+        el("button", %{class: "text-red-600 hover:text-red-800 text-sm font-bold", click: :delete, with: lookup(b, "id")}, "×"))))
+end
+
+actor Bookmarks do
+  state all: List :: []
+  state query: String :: ""
+
+  # nothing on the site adds bookmarks; the tests do
+  on :add(b: Map) do
+    become all: [b | all]
+    reply :ok
+  end
+
+  on :search(q: String) do
+    become query: q
+    reply :ok
+  end
+
+  on :delete(id: String) do
+    become all: filter(all, fn(b: Map) -> Bool do lookup(b, "id") != id end)
+    reply :ok
+  end
+
+  on :view do
+    shown = bm_search(all, query)
+    reply el("div", %{class: "os-desktop-win98"},
+      el("div", %{class: "os-window os-window-win98", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+        el("div", %{class: "os-titlebar"},
+          el("span", %{class: "os-titlebar-title"}, "📑 My Bookmarks - Internet Explorer"),
+          el("div", %{class: "os-titlebar-buttons"},
+            el("span", %{class: "os-btn"}, "_"),
+            el("span", %{class: "os-btn"}, "□"),
+            el("a", %{href: "/", class: "os-btn"}, "×"))),
+        el("div", %{class: "os-menubar"},
+          el("span", %{}, "File"), el("span", %{}, "Edit"), el("span", %{}, "Favorites"), el("span", %{}, "Help")),
+        el("div", %{class: "os-content", style: "height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;"},
+          el("div", %{class: "p-4"},
+            el("div", %{class: "flex justify-between items-center mb-4"},
+              el("h1", %{class: "text-xl font-bold"}, "My Bookmarks"),
+              el("div", %{class: "relative"},
+                el("form", %{class: "flex items-center"},
+                  el("input", %{type: "text", name: "query", value: query, placeholder: "Search bookmarks...", class: "w-64 px-3 py-2 border-2 inset bg-white text-sm", input: :search})))),
+            el("div", %{class: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"}, map(shown, fn(b: Map) -> Any do bm_card(b) end)))),
+        el("div", %{class: "os-statusbar"},
+          el("div", %{class: "os-statusbar-section"}, concat("Bookmarks: ", to_string(length(shown)))),
+          el("div", %{class: "os-statusbar-section", style: "flex: 1;"}, "Ready"))))
+  end
+end
+
+bookmarks = spawn Bookmarks
+bookmarks <- :view

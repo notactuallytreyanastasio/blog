@@ -1,0 +1,37 @@
+# needs: static/bookmarks/bookmarks.blimp
+
+def bm_fixture(id: String, title: Any, tags: List) -> Map do
+  %{id: id, url: concat("https://example.com/", id), title: title, description: nil, tags: tags, favicon_url: nil}
+end
+
+actor BookmarksTests do
+  test "a visit starts with nothing, as every LiveView visit did" do
+    b = spawn Bookmarks
+    html = to_html(b <- :view)
+    assert(contains(html, "Bookmarks: 0"))
+    assert(contains(html, "Search bookmarks..."))
+  end
+
+  test "search matches title, url and tags, ignoring case" do
+    b = spawn Bookmarks
+    b <- :add(bm_fixture("one", "Zig Notes", []))
+    b <- :add(bm_fixture("two", nil, ["Elixir"]))
+    b <- :search("ZIG")
+    html = to_html(b <- :view)
+    assert(contains(html, "Zig Notes"))
+    assert(contains(html, "Bookmarks: 1"))
+    b <- :search("elixir")
+    html2 = to_html(b <- :view)
+    assert(contains(html2, "https://example.com/two"))
+    refute(contains(html2, "Zig Notes"))
+    b <- :search("example.com")
+    assert(contains(to_html(b <- :view), "Bookmarks: 2"))
+  end
+
+  test "delete takes the bookmark out" do
+    b = spawn Bookmarks
+    b <- :add(bm_fixture("one", "Zig Notes", []))
+    b <- :delete("one")
+    assert(contains(to_html(b <- :view), "Bookmarks: 0"))
+  end
+end
