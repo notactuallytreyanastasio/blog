@@ -58,4 +58,6 @@ _build/assay/
 
 # blimp_site build output
 /blimp_site/_build/
+/blimp_site/temper/temper.out/
+/blimp_site/temper/temper.keep/
 /blimp_site/site.sock

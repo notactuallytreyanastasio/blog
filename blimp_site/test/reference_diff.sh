@@ -27,9 +27,12 @@ for s in $SLUGS; do
   printf '%s\t%s\n' "$s" "$f" >> _build/posts.txt
 done
 
-# Only the text helpers and the renderer: the other src files are other
-# work in progress and are not what this compares.
-cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp test/render_posts.blimp > _build/render_posts.blimp
+# Only the text helpers (what the renderer uses of the Temper library,
+# _build/temper.blimp, which build.sh makes) and the renderer: the other src
+# files are other work in progress and are not what this compares.
+./build.sh > /dev/null
+R="src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp test/render_posts.blimp"
+{ perl temper/prune.pl _build/temper.blimp $R; cat $R; } > _build/render_posts.blimp
 rm -f _build/out/*.html
 /usr/bin/time -l "$BLIMP" _build/render_posts.blimp 2> _build/render_time.txt || { cat _build/render_time.txt; exit 2; }
 awk '/real/{print "render all: " $1 "s"} /maximum resident/{printf "max RSS: %.1f MB\n", $1/1048576}' _build/render_time.txt

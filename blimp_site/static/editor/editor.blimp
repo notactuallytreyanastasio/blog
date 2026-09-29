@@ -1,7 +1,7 @@
 # /markdown-editor: a Markdown editor with a live preview, the preview
 # rendered by the same Blimp code that renders this site's posts (the file
-# is served with src/00_text, 05_actors, 10_markdown and 20_highlight in
-# front of it, as post pages get it).
+# is served with the Temper library's text helpers, 05_actors, 10_markdown
+# and 20_highlight in front of it, as post pages get it).
 #
 # A port of BlogWeb.MarkdownEditorLive and its component, and of what they
 # meant to do: format the selection. The component's comment says
