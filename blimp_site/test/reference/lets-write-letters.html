@@ -1,0 +1,115 @@
+<h1>How a fun idea came about</h1>
+<p>I just had a bunch of fun the other night, and we had to enjoy the scene in a very old school way.</p>
+<p>We were not allowed to use our phones, so it was everyone enjoying the show like the old days.</p>
+<p>Much like the old days, you also had to wait in line in person to get a ticket.
+1 ticket per person.
+$50.</p>
+<p>Not a bad deal to see <a href="https://en.wikipedia.org/wiki/Paul_McCartney">Paul McCartney</a>.</p>
+<p>Anyways, this all planted the seed of thinking about doing things the &quot;old&quot; way.</p>
+<p>I wanted to make a simple app, and I thought well maybe I should make it so that as you type random letters, you will see some kind of art display as they render.
+Maybe they fade in dramatically sometimes, and other times slide in, etc.
+Well, I never got that far.
+But I did start making something that was right along those lines.</p>
+<p>I decided that since recently I had been thinking about using constraints as a feature, I would make a constrained page:</p>
+<p>Make art by only knowing what key someone just typed, or all the keys they have typed since starting to visit.</p>
+<h2>Well, let's write some code for a Keypress Viewer page</h2>
+<p>This was remarkably easy.</p>
+<p>We can see the entire LiveView at once to get an idea of how simple it really can be for this piece.</p>
+<p>This specific piece of this exercise makes me wonder how much harder this would be in JavaScript</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1">  <span ># in router.ex</span>
+</span><span class="line" data-line="2">  <span >live</span> <span >&quot;/keylogger&quot;</span><span >,</span> <span >KeyloggerLive</span>
+</span></code></pre>
+<p>And then</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1"><span ># keylogger_live.ex</span>
+</span><span class="line" data-line="2"><span >defmodule</span> <span >BlogWeb.KeyloggerLive</span> <span >do</span>
+</span><span class="line" data-line="3">  <span >use</span> <span >BlogWeb</span><span >,</span> <span >:live_view</span>
+</span><span class="line" data-line="4">  <span >import</span> <span >BlogWeb.CoreComponents</span>
+</span><span class="line" data-line="5">  <span >require</span> <span >Logger</span>
+</span><span class="line" data-line="6">
+</span><span class="line" data-line="7">  <span >def</span> <span >mount</span><span >(</span><span >_params</span><span >,</span> <span >_session</span><span >,</span> <span >socket</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="8">    <span >&lbrace;</span><span >:ok</span><span >,</span>
+</span><span class="line" data-line="9">     <span >assign</span><span >(</span><span >socket</span><span >,</span>
+</span><span class="line" data-line="10">       <span >pressed_key: </span><span >&quot;&quot;</span><span >,</span>
+</span><span class="line" data-line="11">       <span >show_modal: </span><span >true</span><span >,</span>
+</span><span class="line" data-line="12">       <span >page_title: </span><span >&quot;Experiment - what key are you pressing&quot;</span>
+</span><span class="line" data-line="13">     <span >)</span><span >&rbrace;</span>
+</span><span class="line" data-line="14">  <span >end</span>
+</span><span class="line" data-line="15">
+</span><span class="line" data-line="16">  <span >def</span> <span >handle_event</span><span >(</span><span >&quot;keydown&quot;</span><span >,</span> <span >%</span><span >&lbrace;</span><span >&quot;key&quot;</span> <span >=&gt;</span> <span >key</span><span >&rbrace;</span><span >,</span> <span >socket</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="17">    <span >&lbrace;</span><span >:noreply</span><span >,</span> <span >assign</span><span >(</span><span >socket</span><span >,</span> <span >pressed_key: </span><span >key</span><span >)</span><span >&rbrace;</span>
+</span><span class="line" data-line="18">  <span >end</span>
+</span><span class="line" data-line="19">
+</span><span class="line" data-line="20">  <span >def</span> <span >render</span><span >(</span><span >assigns</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="21">    <span >~</span>H&quot;&quot;&quot;
+</span><span class="line" data-line="22">    <span >&lt;</span><span >div</span> <span >phx-window-keydown</span><span >=</span><span >&quot;<span >keydown</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="23">      <span >&lt;</span><span >h1</span> <span >class</span><span >=</span><span >&quot;<span >text-[75px]</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="24">        Pressing: <span >&lt;%=</span> <span ><span >@<span >pressed_key</span></span></span><span > %&gt;</span>
+</span><span class="line" data-line="25">      <span >&lt;/</span><span >h1</span><span >&gt;</span>
+</span><span class="line" data-line="26">    <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="27">    &quot;&quot;&quot;
+</span><span class="line" data-line="28">  <span >end</span>
+</span><span class="line" data-line="29"><span >end</span>
+</span></code></pre>
+<p>So this is pretty simple right?</p>
+<p>The entirety of what it gets us, honestly, is pretty impressive.</p>
+<p>We simply hook together when someone presses anything on the keyboard with supported bindings for events on keypress, and then we take the state of the page and in the tempate say hey, render the key that was just coming over the wire.</p>
+<p>Sometimes I love Elixir.</p>
+<h3>What came next?</h3>
+<p>Well, once I had one letter, I thought, &quot;what if I stored every letter someone typed&quot;.</p>
+<p>That brought about a deeper process of thought.</p>
+<p>Some people really do just type letters and want them in specific orders, and then to share those letters in specific orders with other people.</p>
+<p>I figured that I could offer a service doing this by writing some simple software.</p>
+<p>So, I started off by figuring out a way to store the state of more than just one letter.</p>
+<p>Let's take a look at what we change here</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">defmodule BlogWeb.KeyloggerLive do
+</span><span class="line" data-line="2">  # snip ...
+</span><span class="line" data-line="3">
+</span><span class="line" data-line="4">  def mount(_params, _session, socket) do
+</span><span class="line" data-line="5">    &lbrace;:ok,
+</span><span class="line" data-line="6">     assign(socket,
+</span><span class="line" data-line="7">       pressed_key: &quot;&quot;,
+</span><span class="line" data-line="8">       show_modal: true,
+</span><span class="line" data-line="9">       pressed_keys: &quot;&quot;,
+</span><span class="line" data-line="10">       page_title: &quot;Experiment - what key are you pressing&quot;
+</span><span class="line" data-line="11">     )&rbrace;
+</span><span class="line" data-line="12">  end
+</span><span class="line" data-line="13">
+</span><span class="line" data-line="14">  def handle_event(&quot;keydown&quot;, %&lbrace;&quot;key&quot; =&gt; key&rbrace;, socket) do
+</span><span class="line" data-line="15">      &lbrace;:noreply,
+</span><span class="line" data-line="16">       socket
+</span><span class="line" data-line="17">       |&gt; assign(pressed_key: key)
+</span><span class="line" data-line="18">       |&gt; assign(pressed_keys: socket.assigns.pressed_keys &lt;&gt; key)
+</span><span class="line" data-line="19">      &rbrace;
+</span><span class="line" data-line="20">  end
+</span><span class="line" data-line="21">
+</span><span class="line" data-line="22">  def render(assigns) do
+</span><span class="line" data-line="23">    ~H&quot;&quot;&quot;
+</span><span class="line" data-line="24">    &lt;div phx-window-keydown=&quot;keydown&quot;&gt;
+</span><span class="line" data-line="25">      &lt;h1 class=&quot;text-[75px]&quot;&gt;
+</span><span class="line" data-line="26">        Pressing: &lt;%= @pressed_key %&gt;
+</span><span class="line" data-line="27">      &lt;/h1&gt;
+</span><span class="line" data-line="28">      &lt;div id=&quot;history&quot;&gt;
+</span><span class="line" data-line="29">        &lt;%= @pressed_keys %&gt;
+</span><span class="line" data-line="30">      &lt;/div&gt;
+</span><span class="line" data-line="31">    &lt;/div&gt;
+</span><span class="line" data-line="32">    &quot;&quot;&quot;
+</span><span class="line" data-line="33">  end
+</span><span class="line" data-line="34">end
+</span></code></pre>
+<p>So we did a couple things:</p>
+<ol>
+<li>set <code>pressed_keys</code> to <code>&quot;&quot;</code> on mount</li>
+<li>track pressed keys in state as we go</li>
+<li>render that pressed key state in a div on the page</li>
+</ol>
+<p>Now we can remember the order of the keys someone pressed, and then show that they have pressed them.</p>
+<p><strong>I think we have reached MVP status</strong></p>
+<h1>A product person enters the room</h1>
+<p>I was telling someone about this brilliant idea and someone alerted me quickly that I shouldn't bet too big on this.</p>
+<p>What was their problem with my master plan?</p>
+<p>They told me I had just reinvented writing down letters to people, and that you can do this digitally trivially.</p>
+<p>But we met at a middle ground: what if I offered a way to send letters like they were written on a typewriter?</p>
+<p>This would mean that everything the user typed must be very deliberate and meaningful, much like my usecase of wanting to type letters in a specific order and have that be a tracked state.</p>
+<p>So, I decided we could set off with this as an idea.</p>
+<h1>Let's write letters to our friends as if we had a typewriter</h1>
+<p>I'll finish this part in the morning, I wanted to get the inspirational layout for the post done tonight.</p>

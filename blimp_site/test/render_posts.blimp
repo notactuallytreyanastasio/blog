@@ -1,0 +1,21 @@
+# Renders every post named in _build/posts.txt (lines of "slug<TAB>path",
+# written by test/reference_diff.sh) to _build/out/<slug>.html, all in one
+# process, the way the server renders them at boot.
+
+def render_manifest(lines: List) -> Int do
+  case lines do
+    [] -> 0
+    [line | rest] ->
+      parts = split(line, "\t")
+      case length(parts) == 2 do
+        false -> render_manifest(rest)
+        true ->
+          slug = head(parts)
+          html = render_markdown(read_file(head(tail(parts))))
+          write_file(concat("_build/out/", slug, ".html"), html)
+          render_manifest(rest)
+      end
+  end
+end
+
+render_manifest(split(read_file("_build/posts.txt"), "\n"))
