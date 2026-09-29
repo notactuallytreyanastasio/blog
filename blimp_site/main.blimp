@@ -118,7 +118,8 @@ def app_routes(routes: Map) -> Map do
   r4d0 = load_asset(r4c0, "/markdown-editor/editor.blimp", "_build/editor.blimp")
   r4d1a = load_asset(r4d0, "/phish/phish.blimp", "_build/phish.blimp")
   r4d1b = load_asset(r4d1a, "/moon_phish/moon.blimp", "_build/moon.blimp")
-  r4d1c = load_asset(r4d1b, "/assets/moon_phish.css", "assets/moon_phish.css")
+  r4d1c0 = load_asset(r4d1b, "/assets/moon_phish.css", "assets/moon_phish.css")
+  r4d1c = load_asset(r4d1c0, "/assets/work_log.css", "assets/work_log.css")
   r4d1 = page_route(r4d1c, "/moon_phish", app_page("Moon Phish — every Phish show vs. the lunar calendar", "Every Phish show since 1983, checked against the instant of every full moon.", [APP_CSS, "/assets/moon_phish.css"], "", "/moon_phish/moon.blimp", "moon"))
   r4e = reduce(TEMPER_SNAKE_FILES, r4d1, fn(acc: Map, f: String) -> Map do
     load_asset(acc, concat("/static/temper-snake/", f), concat(STATIC_DIR, "/static/temper-snake/", f))
@@ -137,6 +138,12 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/" -> html_response(200, desktop_page(req.query, desk, now()))
     # a new game id for every visit, so never a cached page
     "/pong" -> response(200, "text/html; charset=utf-8", "no-store", pong_page(pong_game_id()))
+    "/work-log" ->
+      page = work_log_page()
+      case page do
+        nil -> response(503, "text/plain; charset=utf-8", "no-cache", "The work log could not be read just now.\n")
+        _ -> response(200, "text/html; charset=utf-8", "public, max-age=60", page)
+      end
     _ ->
       api = phish_api(path, req.query)
       case api do

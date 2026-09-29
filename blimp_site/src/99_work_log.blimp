@@ -1,0 +1,60 @@
+# /work-log: recent pushes to GitHub, as `git log`. WorkLogLive's page,
+# rendered per request from work_log_commits (which Phoenix's
+# WorkLogPoller still fills from the GitHub API: fetching over HTTPS is
+# not something Blimp does yet). The query and the grouping are
+# Blog.GitHub.WorkLog.list_recent/0's.
+#
+# Different from the LiveView: it does not update while it is open; the
+# LiveView re-rendered when the poller broadcast. It is current as of the
+# request.
+
+WORK_LOG_SQL = "select event_id, repo, branch, additions, deletions, extract(epoch from committed_at)::bigint as at, to_char(committed_at, 'Mon DD HH24:MI') as short_at, sha, message from work_log_commits where additions >= 10 or deletions >= 10 order by inserted_at desc limit 100"
+
+# Enum.group_by/2: one entry per event, first-seen order, commits in
+# query order; then sorted newest first by the event's committed_at.
+def wl_events(rows: List) -> List do
+  ids = uniq(map(rows, fn(r: Map) -> String do r.event_id end))
+  events = map(ids, fn(id: String) -> Map do
+    commits = filter(rows, fn(r: Map) -> Bool do r.event_id == id end)
+    first = head(commits)
+    %{repo: first.repo, branch: first.branch, additions: first.additions, deletions: first.deletions, at: first.at, short_at: first.short_at, commits: commits}
+  end)
+  sort_by_keys(events, map(events, fn(e: Map) -> Int do 0 - e.at end))
+end
+
+def wl_short_repo(name: String) -> String do
+  last(split(name, "/"))
+end
+
+def wl_event_html(e: Map) -> String do
+  repo_url = concat("https://github.com/", e.repo)
+  first_sha = slice(head(e.commits).sha, 0, 7)
+  commits = join(map(e.commits, fn(c: Map) -> String do
+    concat("<div class=\"commit-line\"><span class=\"sha\"><a href=\"", escape_html(concat(repo_url, "/commit/", c.sha)), "\" target=\"_blank\">", escape_html(c.sha), "</a></span> ", escape_html(c.message), "</div>")
+  end), "")
+  concat("<div class=\"push-header\"><span class=\"sha\"><a href=\"", escape_html(repo_url), "\" target=\"_blank\">", escape_html(first_sha), "</a></span> ",
+    "<span class=\"stats\"><span class=\"p\">+", to_string(e.additions), "</span>/<span class=\"m\">-", to_string(e.deletions), "</span></span> ",
+    "<span class=\"ref\"><a href=\"", escape_html(repo_url), "\" target=\"_blank\">", escape_html(wl_short_repo(e.repo)), "</a>/", escape_html(e.branch), "</span> ",
+    "<span class=\"dt\">", e.short_at, "</span></div>", commits)
+end
+
+def work_log_page() -> Any do
+  case DB <- :query(WORK_LOG_SQL, []) do
+    {:error, reason} ->
+      puts(concat("work-log: ", reason))
+      nil
+    {:ok, rows} ->
+      events = wl_events(rows)
+      listing = case events do
+        [] -> "<div class=\"empty-msg\">No recent push events.</div>"
+        _ -> join(map(events, fn(e: Map) -> String do wl_event_html(e) end), "")
+      end
+      body = join([
+        "<div class=\"wl-desktop\"><div class=\"wl-menubar\"><a href=\"/\">bobbby.online</a><span>Work Log</span></div>",
+        "<div class=\"wl-body\"><div class=\"wl-window\"><div class=\"wl-titlebar\"><a href=\"/\" class=\"wl-close\"></a><span class=\"wl-title\">Work Log — git log</span></div>",
+        "<div class=\"wl-term\"><div class=\"prompt\">$ git log</div>", listing, "</div></div></div>",
+        "<div class=\"wl-statusbar\"><span>", to_string(length(events)), " push events</span><span>github.com/notactuallytreyanastasio</span></div></div>"
+      ], "")
+      page_layout("Work Log", site_description(), "website", [APP_CSS, "/assets/work_log.css"], body)
+  end
+end
