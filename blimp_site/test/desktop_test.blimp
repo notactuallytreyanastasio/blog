@@ -1,0 +1,162 @@
+# The homepage, rendered from the real snapshots in data/ and two made-up
+# posts (the posts need the markdown renderer, which is not this file's).
+
+def dt_posts() -> List do
+  [
+    %{slug: "chess", title: "Chess", date: "May 30, 2026", tags: ["ai", "chess"]},
+    %{slug: "heya", title: "heya", date: "January 21, 2026", tags: []}
+  ]
+end
+
+def dt_page(query: String) -> String do
+  desktop_page(query, load_desktop("data", dt_posts()), 1790640000)
+end
+
+# True when some tag in the page has an on* attribute: whitespace, "on",
+# letters, then "=".
+def dt_letters_then_eq(s: String, i: Int) -> Bool do
+  case i >= length(s) do
+    true -> false
+    false ->
+      c = char_at(s, i)
+      case c == "=" do
+        true -> i > 0
+        false ->
+          case is_alnum(c) and not(is_digit(c)) do
+            true -> dt_letters_then_eq(s, i + 1)
+            false -> false
+          end
+      end
+  end
+end
+
+def dt_has_on_attr(html: String) -> Bool do
+  lower = downcase(replace_all(replace_all(html, "\n", " "), "\t", " "))
+  parts = drop_list(split(lower, " on"), 1)
+  length(filter(parts, fn(p: String) -> Bool do dt_letters_then_eq(p, 0) end)) > 0
+end
+
+def dt_scriptless(html: String) -> Bool do
+  lower = downcase(html)
+  not(contains(lower, "<script")) and not(contains(lower, "javascript:")) and not(dt_has_on_attr(html))
+end
+
+actor DesktopTests do
+  test "the on* detector finds what it should and nothing else" do
+    assert(dt_has_on_attr("<div onclick=\"x\">"))
+    assert(dt_has_on_attr("<img src=a\nonerror=x>"))
+    refute(dt_has_on_attr("<p>on making a link blog</p><p>one=two</p>"))
+  end
+
+  test "no script, no on* attribute, no javascript: URL, in any state" do
+    queries = [
+      "", "booted=1", "cat=ml", "cat=ml&project=deciduous", "project=phangraphs&finder=1",
+      "finder=1&m=finder", "m=blog", "museum=0", "leica=1", "m=museum&museum=0&leica=1",
+      "cat=%3Cscript%3E&project=%22%20onload%3D%22x&m=javascript:alert(1)"
+    ]
+    each(queries, fn(q: String) do
+      assert(dt_scriptless(dt_page(q)))
+    end)
+  end
+
+  test "nothing from the query string is echoed unless the data knows it" do
+    html = dt_page("cat=%3Cscript%3E&project=%22onload%3D%22x&m=%3Cb%3E")
+    refute(contains(html, "script%3E"))
+    refute(contains(html, "onload"))
+    refute(contains(html, "<b>"))
+  end
+
+  test "the splash shows for a bare / and never once there is state" do
+    assert(contains(dt_page(""), "class=\"mac-boot\""))
+    refute(contains(dt_page("booted=1"), "class=\"mac-boot\""))
+    refute(contains(dt_page("project=deciduous"), "class=\"mac-boot\""))
+    assert(contains(dt_page(""), "href=\"/?booted=1\""))
+  end
+
+  test "the snapshots load" do
+    desk = load_desktop("data", dt_posts())
+    assert_eq(length(desk.museum), 32)
+    assert_eq(desk.categories, ["creative", "hardware", "maps", "ml", "music", "social", "tools", "writing"])
+    assert_eq(desk.item_count, 35)
+    assert_eq(length(split(desk.finder_html, "class=\"section-label\"")), 9)
+    assert(starts_with(desk_icon(desk.icons, "no-such-slug"), "<svg"))
+    assert_eq(desk_icon(desk.icons, "no-such-slug"), desk_icon(desk.icons, "default"))
+  end
+
+  test "descriptions keep their newlines" do
+    assert_eq(desk_unescape("a\\nb\\tc\\\\n"), "a\nb\tc\\n")
+    desk = load_desktop("data", dt_posts())
+    assert(contains(desk_find_project(desk.museum, "deciduous").description, "\n"))
+  end
+
+  test "pixel icons are the bytes pixels/1 writes" do
+    assert_eq(desk_pixels(["#.", ".#"]), "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 20\" shape-rendering=\"crispEdges\">\n<g fill=\"#000\">\n<rect x=\"0\" y=\"0\" width=\"1\" height=\"1\"/>\n<rect x=\"1\" y=\"1\" width=\"1\" height=\"1\"/>\n</g>\n</svg>\n")
+  end
+
+  test "the clock is %I:%M %p in UTC" do
+    assert_eq(desk_clock(0), "12:00 AM")
+    assert_eq(desk_clock(43200), "12:00 PM")
+    assert_eq(desk_clock(13 * 3600 + 5 * 60 + 59), "01:05 PM")
+    assert_eq(desk_clock(86400 * 20000 + 23 * 3600 + 57 * 60), "11:57 PM")
+  end
+
+  test "every link keeps the rest of the state" do
+    html = dt_page("cat=ml&finder=1")
+    assert(contains(html, "href=\"/?cat=ml&amp;project=local-llm&amp;finder=1\""))
+    assert(contains(html, "href=\"/?finder=1\">All</a>"))
+    assert(contains(html, "href=\"/?cat=ml&amp;finder=1&amp;museum=0\""))
+  end
+
+  test "the filter shows one category" do
+    html = dt_page("cat=hardware")
+    assert(contains(html, "<span>4 exhibits</span>"))
+    assert(contains(dt_page(""), "<span>32 exhibits</span>"))
+  end
+
+  test "closing the last window does not replay the splash" do
+    html = dt_page("project=deciduous")
+    assert(contains(html, "<a class=\"close-box\" href=\"/?booted=1\""))
+  end
+
+  test "the detail window" do
+    html = dt_page("project=deciduous")
+    assert(contains(html, "museum-list-item selected"))
+    assert(contains(html, "<a href=\"https://github.com/notactuallytreyanastasio/deciduous\" target=\"_blank\" class=\"museum-repo-link\">deciduous</a>"))
+    assert(contains(html, "<span>3 technologies</span>"))
+    launch = dt_page("project=role-call")
+    assert(contains(launch, "<a href=\"https://bobbby.online/role-call\" class=\"museum-launch-btn\">"))
+  end
+
+  test "finder items link to the Phoenix site, except what Blimp serves" do
+    html = dt_page("finder=1")
+    assert(contains(html, "href=\"https://bobbby.online/pong\""))
+    assert(contains(html, "<a class=\"icon\" href=\"/blog\">"))
+    assert(contains(html, "<a class=\"icon\" href=\"https://bobbby.online/phish\">"))
+    assert(contains(html, "<div class=\"icon\" tabindex=\"0\">"))
+    assert(contains(html, "<span>35 items</span>"))
+    refute(contains(dt_page(""), "id=\"finder-window\""))
+  end
+
+  test "the mobile taskbar switches windows with links" do
+    html = dt_page("m=blog")
+    assert(contains(html, "blog-window mobile-window-blog mobile-active"))
+    assert(contains(html, "mobile-taskbar-btn active\" href=\"/?m=blog\""))
+    assert(contains(html, "museum-list-window mobile-window-museum\""))
+    assert(contains(dt_page(""), "museum-list-window mobile-window-museum mobile-active"))
+    apps = dt_page("m=finder")
+    assert(contains(apps, "window mobile-window-finder mobile-active"))
+  end
+
+  test "the Leica warning opens the image and cancels with a link" do
+    html = dt_page("leica=1&m=blog")
+    assert(contains(html, "leica-warning-overlay"))
+    assert(contains(html, "href=\"https://bobbby-media.fsn1.your-objectstorage.com/leica/leica_6_by_6_full.jpg\">Load Full Resolution</a>"))
+    assert(contains(html, "<a class=\"leica-btn\" href=\"/?m=blog\">Cancel</a>"))
+  end
+
+  test "the blog window lists posts" do
+    html = dt_page("")
+    assert(contains(html, "<a href=\"/post/chess\" class=\"blog-post-row\">"))
+    assert(contains(html, "<span>2 posts</span>"))
+  end
+end

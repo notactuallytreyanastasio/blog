@@ -43,16 +43,17 @@ def build_routes(posts: List) -> Map do
   r3 = load_asset(r2, "/assets/blog.css", "assets/blog.css")
   r4 = load_asset(r3, "/assets/post.css", "assets/post.css")
   r5 = put(r4, "/assets/highlight.css", serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", highlight_css()), "GET"))
-  r6 = load_asset(r5, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
+  r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
+  r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
 end
 
 # Everything that is not a fixed route. Only GET and HEAD reach here.
-# The homepage is not ported yet; "/" goes to the blog for now.
-def dynamic(req: Map, routes: Map, posts: List) -> Map do
+# The homepage is here because its state is in the query string.
+def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
   path = req.path
   case path == "/" do
-    true -> %{status: 302, content_type: "text/plain", cache: "no-cache", body: "", location: "/blog"}
+    true -> html_response(200, desktop_page(req.query, desk, now()))
     false -> static_or_404(path)
   end
 end
@@ -74,15 +75,18 @@ def static_or_404(path: String) -> Map do
 end
 
 # The response bytes for one raw request, and its status for the log line.
-def handle(raw: String, routes: Map, posts: List) -> Tuple do
+def handle(raw: String, routes: Map, posts: List, desk: Map) -> Tuple do
   req = parse_request(raw)
   case req.method == "GET" or req.method == "HEAD" do
     false -> {serialize(response(405, "text/plain", "no-cache", "method not allowed\n"), "GET"), 405, req}
     true ->
-      fixed = lookup(routes, req.path)
+      fixed = case req.path == "/" and req.query == "" do
+        true -> bare_home(lookup(routes, "#home"))
+        false -> lookup(routes, req.path)
+      end
       case fixed do
         nil ->
-          resp = dynamic(req, routes, posts)
+          resp = dynamic(req, routes, posts, desk)
           {serialize(resp, req.method), resp.status, req}
         _ ->
           case req.method == "HEAD" do
@@ -93,45 +97,67 @@ def handle(raw: String, routes: Map, posts: List) -> Tuple do
   end
 end
 
+# The homepage with no query string is most of the traffic to "/", and all
+# of it is the same page except the clock in the menu bar. Rendering it per
+# request cost a worker about 0.8MB of garbage, so it is rendered once at
+# boot, cut at the clock, and the time is put back per request. The clock
+# is always eight bytes ("%I:%M %p"), so the prebuilt Content-Length holds.
+def home_parts(desk: Map) -> List do
+  marker = desk_clock(0)
+  wire = serialize(html_response(200, desktop_page("", desk, 0)), "GET")
+  parts = split(wire, marker)
+  case length(parts) == 2 and length(desk_clock(now())) == length(marker) do
+    true -> parts
+    false ->
+      print("the homepage clock is not a unique, fixed-width marker; cannot prebuild /")
+      exit(1)
+  end
+end
+
+def bare_home(parts: List) -> String do
+  join([head(parts), desk_clock(now()), last(parts)], "")
+end
+
 # A prebuilt response with its body cut off, for HEAD.
 def head_of(wire: String) -> String do
   concat(take(wire, index_of(wire, "\r\n\r\n")), "\r\n\r\n")
 end
 
-def work(fd: Int, routes: Map, posts: List, left: Int) -> Int do
+def work(fd: Int, routes: Map, posts: List, desk: Map, left: Int) -> Int do
   case left do
     0 -> exit(0)
     _ ->
       client = tcp_accept(fd)
       t0 = now_ms()
       raw = tcp_read(client)
-      result = handle(raw, routes, posts)
+      result = handle(raw, routes, posts, desk)
       tcp_write(client, elem(result, 0))
       tcp_close(client)
       req = elem(result, 2)
       puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
-      work(fd, routes, posts, left - 1)
+      work(fd, routes, posts, desk, left - 1)
   end
 end
 
-def spawn_worker(fd: Int, routes: Map, posts: List) -> Int do
+def spawn_worker(fd: Int, routes: Map, posts: List, desk: Map) -> Int do
   pid = fork()
   case pid do
-    0 -> work(fd, routes, posts, REQUESTS_PER_WORKER)
+    0 -> work(fd, routes, posts, desk, REQUESTS_PER_WORKER)
     _ -> pid
   end
 end
 
-def supervise(fd: Int, routes: Map, posts: List) -> Int do
+def supervise(fd: Int, routes: Map, posts: List, desk: Map) -> Int do
   waitpid(-1, false)
-  spawn_worker(fd, routes, posts)
-  supervise(fd, routes, posts)
+  spawn_worker(fd, routes, posts, desk)
+  supervise(fd, routes, posts, desk)
 end
 
 t_boot = now_ms()
 posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
-routes = build_routes(posts)
+desk = load_desktop("data", posts)
+routes = put(build_routes(posts), "#home", home_parts(desk))
 fd = tcp_listen(PORT)
 puts(concat("blimp blog: ", to_string(length(posts)), " posts rendered in ", to_string(now_ms() - t_boot), "ms, listening on :", to_string(PORT)))
-each(range(1, WORKERS), fn(i: Int) do spawn_worker(fd, routes, posts) end)
-supervise(fd, routes, posts)
+each(range(1, WORKERS), fn(i: Int) do spawn_worker(fd, routes, posts, desk) end)
+supervise(fd, routes, posts, desk)
