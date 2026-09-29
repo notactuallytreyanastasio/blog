@@ -36,7 +36,10 @@ def dt_has_on_attr(html: String) -> Bool do
   length(filter(parts, fn(p: String) -> Bool do dt_letters_then_eq(p, 0) end)) > 0
 end
 
-def dt_scriptless(html: String) -> Bool do
+# Scriptless apart from the runtime window every page has (RUNTIME_TAGS):
+# what matters here is that nothing from the query string becomes one.
+def dt_scriptless(page: String) -> Bool do
+  html = replace_all(page, RUNTIME_TAGS, "")
   lower = downcase(html)
   not(contains(lower, "<script")) and not(contains(lower, "javascript:")) and not(dt_has_on_attr(html))
 end

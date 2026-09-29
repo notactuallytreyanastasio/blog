@@ -42,9 +42,32 @@ def page_layout_html(title: String, description: String, og_type: String, styles
     "<link rel=\"icon\" href=\"/favicon.ico\">\n",
     links,
     "</head>\n<body>\n",
-    body,
+    with_runtime(body),
     "\n</body>\n</html>\n"
   ], "")
+end
+
+# Blimp's canvas, drawing the one Blimp process serving this site, as it
+# runs: a small window in the corner of every page, fed by /live/runtime
+# (static/blimp/runtime.js). A page that already loads the canvas to draw
+# a program of its own (a post, /tetris) keeps just that one.
+RUNTIME_TAGS = "<link rel=\"stylesheet\" href=\"/assets/blimp-window.css\">\n<script src=\"/blimp/canvas.js\"></script>\n<script src=\"/blimp/runtime.js\"></script>\n"
+
+def with_runtime(body: String) -> String do
+  case contains(body, "/blimp/canvas.js") do
+    true -> body
+    false -> concat(body, "\n", RUNTIME_TAGS)
+  end
+end
+
+# The same, put into a whole page someone else wrote (the snapshots in
+# content/pages), before its last </body>.
+def page_with_runtime(html: String) -> String do
+  at = pg_last_index(html, "</body>", 0, -1)
+  case at < 0 do
+    true -> concat(html, RUNTIME_TAGS)
+    false -> concat(take(html, at), RUNTIME_TAGS, drop(html, at))
+  end
 end
 
 def tag_spans(tags: List, class: String) -> String do

@@ -70,3 +70,13 @@
     margin: 16px;
   }
 }
+
+/* The runtime window (static/blimp/runtime.js), on every Blimp page. */
+.blimp-runtime { z-index: 9000; width: 300px; }
+#blimp-rt-wrap { height: 180px; background: #0e0e1a; overflow: hidden; }
+#blimp-rt { display: block; }
+#blimp-rt-closed:target + .blimp-runtime { display: none; }
+@media (max-width: 768px) {
+  .blimp-runtime { position: fixed; width: 200px; margin: 0; right: 8px; bottom: 8px; }
+  #blimp-rt-wrap { height: 110px; }
+}

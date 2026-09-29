@@ -32,6 +32,16 @@ def word_counts(posts: List) -> Map do
   reduce(posts, %{}, fn(acc: Map, p: Map) -> Map do put(acc, p.slug, p.words) end)
 end
 
+# Every page has the runtime window (RUNTIME_TAGS) exactly once; what a
+# test says about a page's own scripts it says about the rest.
+def without_runtime(html: String) -> String do
+  replace_all(html, RUNTIME_TAGS, "")
+end
+
+def runtime_once(html: String) -> Bool do
+  length(split(html, RUNTIME_TAGS)) == 2
+end
+
 actor PageTests do
   test "the handler check finds a handler and passes plain text" do
     refute(script_free("<a href=\"/\" onclick=\"x()\">"))
@@ -39,12 +49,16 @@ actor PageTests do
     assert(script_free("<p>turn it on and off, on=off</p>"))
   end
 
-  test "the index and 404 have no script; posts have only Blimp's window" do
+  test "the index and 404 have only the runtime window; posts have only Blimp's window" do
     posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
-    assert(script_free(blog_index_page(posts)))
-    assert(script_free(not_found_page("/<script>")))
+    assert(runtime_once(blog_index_page(posts)))
+    assert(script_free(without_runtime(blog_index_page(posts))))
+    assert(runtime_once(not_found_page("/<script>")))
+    assert(script_free(without_runtime(not_found_page("/<script>"))))
     each(posts, fn(p: Map) do
       html = post_page(p)
+      # a post draws its own program, so it has no runtime window
+      refute(contains(html, "/blimp/runtime.js"))
       lower = downcase(html)
       # exactly the two external scripts, nothing inline, no handlers
       assert_eq(length(split(lower, "<script")) - 1, 2)
@@ -94,7 +108,8 @@ actor PageTests do
 
   test "/pong and /pong/god have Blimp's two scripts and their own, nothing inline" do
     each([[pong_page("pong_0123456789abcdef"), PONG_SCRIPTS], [pong_god_page(), GOD_SCRIPTS]], fn(pair: List) do
-      html = head(pair)
+      assert(runtime_once(head(pair)))
+      html = without_runtime(head(pair))
       lower = downcase(html)
       assert_eq(length(split(lower, "<script")) - 1, 3)
       assert_eq(length(split(lower, "\"></script>")) - 1, 3)
@@ -110,7 +125,8 @@ actor PageTests do
   end
 
   test "an app page names its program, runs only Blimp's scripts, and can class <html>" do
-    html = app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game")
+    assert(runtime_once(app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game")))
+    html = without_runtime(app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game"))
     lower = downcase(html)
     assert_eq(length(split(lower, "<script")) - 1, 3)
     assert_eq(length(split(lower, "\"></script>")) - 1, 3)
@@ -123,7 +139,8 @@ actor PageTests do
     file = read_file("src/96_mirror.blimp")
     assert_eq(concat(mirror_source(concat("x\n", file, "y\n")), "\n"), file)
     html = mirror_page(concat("x\n", file))
-    refute(contains(downcase(html), "<script"))
+    assert(runtime_once(html))
+    refute(contains(downcase(without_runtime(html)), "<script"))
     # one span per character, multi-byte characters kept whole
     assert_eq(length(utf8_chars("aé—b")), 4)
     lines = split(file, "\n")
@@ -131,6 +148,14 @@ actor PageTests do
     assert_eq(length(split(html, "class=\"mirror-char\"")) - 1, chars)
     # the file's own markup is shown, one escaped character at a time
     assert(contains(html, "ms infinite;\">&lt;</span>"))
+  end
+
+  test "a snapshot page gets the runtime window before its own </body>" do
+    html = page_with_runtime("<html><body><p>x</p></body></html>\n")
+    assert_eq(html, concat("<html><body><p>x</p>", RUNTIME_TAGS, "</body></html>\n"))
+    each(["privacy", "knicks", "chess"], fn(name: String) do
+      assert(runtime_once(page_with_runtime(read_file(concat("content/pages/", name, ".html")))))
+    end)
   end
 
   test "a game id is pong_ and 16 hex digits, and a new one every time" do
