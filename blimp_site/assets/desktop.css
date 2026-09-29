@@ -1,0 +1,1406 @@
+/* The homepage desktop: TerminalLive's <style> block, extracted with
+ *   sed -n 1261,2614p lib/blog_web/live/terminal_live.ex \
+ *     | awk '/<style>/{f=1;next} /<\/style>/{f=0} f'
+ * Rules for windows the script-free page does not render (photos, Leica
+ * viewer, work log, Phish, tooltips) are left in place, unused. The edits
+ * are marked "blimp:"; everything else is byte-for-byte the LiveView's. */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html, body {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .mac {
+        height: 100vh;
+        background: #a8a8a8;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 14px;
+        cursor: default;
+        -webkit-font-smoothing: none;
+      }
+
+      /* Menu Bar */
+      .menu-bar {
+        height: 24px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+      }
+
+      .menu-left {
+        display: flex;
+        gap: 16px;
+      }
+
+      .apple-menu {
+        font-family: system-ui;
+        font-size: 16px;
+      }
+
+      .menu-item {
+        cursor: default;
+      }
+
+      .menu-item:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .menu-right {
+        font-size: 13px;
+      }
+
+      /* Desktop */
+      .desktop {
+        height: calc(100vh - 24px);
+        padding: 20px;
+        background: repeating-linear-gradient(
+          0deg,
+          #a8a8a8,
+          #a8a8a8 1px,
+          #b8b8b8 1px,
+          #b8b8b8 2px
+        );
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+      }
+
+      /* Window (Icons/Finder) */
+      .window {
+        width: 780px;
+        min-width: 720px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        flex-shrink: 0;
+      }
+
+      /* Blog Window */
+      .blog-window {
+        width: 100%;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Hide chat on smaller screens to prioritize main windows */
+      @media (max-width: 1200px) {
+        .aim-chat-container,
+        .aim-name-dialog,
+        .aim-toggle-btn {
+          display: none !important;
+        }
+      }
+
+      .blog-window .title-bar {
+        height: 24px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        background: repeating-linear-gradient(
+          90deg,
+          #fff 0px,
+          #fff 1px,
+          #000 1px,
+          #000 2px,
+          #fff 2px,
+          #fff 3px
+        );
+      }
+
+      .blog-window .close-box {
+        width: 12px;
+        height: 12px;
+        border: 1px solid #000;
+        background: #fff;
+        margin-right: 8px;
+      }
+
+      .blog-window .title {
+        flex: 1;
+        text-align: center;
+        background: #fff;
+        padding: 0 8px;
+        font-weight: bold;
+      }
+
+      .blog-window-content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .blog-posts-list {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .blog-post-row {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid #ccc;
+        text-decoration: none;
+        color: inherit;
+        cursor: default;
+      }
+
+      .blog-post-row:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .blog-post-row:hover .blog-tag {
+        background: #333;
+        color: #fff;
+      }
+
+      .blog-post-row:hover .blog-post-meta {
+        color: #ccc;
+      }
+
+      .blog-post-icon {
+        font-size: 22px;
+        margin-right: 10px;
+        width: 26px;
+        text-align: center;
+      }
+
+      .blog-post-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .blog-post-title {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .blog-post-meta {
+        font-size: 12px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .blog-post-tags {
+        display: flex;
+        gap: 3px;
+        flex-wrap: wrap;
+      }
+
+      .blog-tag {
+        background: #e0e0e0;
+        padding: 1px 5px;
+        border-radius: 2px;
+        font-size: 11px;
+      }
+
+      .blog-window .status-bar {
+        height: 22px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 12px;
+      }
+
+      .title-bar {
+        height: 24px;
+        background: #fff;
+        border-bottom: 1px solid #000;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        background: repeating-linear-gradient(
+          90deg,
+          #fff 0px,
+          #fff 1px,
+          #000 1px,
+          #000 2px,
+          #fff 2px,
+          #fff 3px
+        );
+      }
+
+      .close-box {
+        width: 12px;
+        height: 12px;
+        border: 1px solid #000;
+        background: #fff;
+        margin-right: 8px;
+      }
+
+      .close-box:hover {
+        background: #000;
+      }
+
+      .title {
+        flex: 1;
+        text-align: center;
+        background: #fff;
+        padding: 0 8px;
+        font-weight: bold;
+      }
+
+      .resize-box {
+        width: 12px;
+        height: 12px;
+      }
+
+      .window-content {
+        padding: 10px;
+        min-height: 300px;
+        max-height: 70vh;
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .icon-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .icon-section {
+        padding: 6px;
+        border-radius: 4px;
+      }
+
+      .icon-section:hover {
+        background: rgba(0, 0, 0, 0.03);
+      }
+
+      /* Tippy.js base styles */
+      .tippy-box {
+        position: relative;
+        background-color: #000;
+        color: #fff;
+        border-radius: 2px;
+        font-size: 11px;
+        font-family: "Geneva", "Chicago", "Helvetica Neue", sans-serif;
+        line-height: 1.4;
+        outline: 0;
+        padding: 4px 8px;
+      }
+      .tippy-box[data-placement^='top'] > .tippy-arrow { bottom: 0; }
+      .tippy-box[data-placement^='top'] > .tippy-arrow::before {
+        bottom: -7px; left: 0;
+        border-width: 8px 8px 0;
+        border-top-color: #000;
+      }
+      .tippy-box[data-placement^='bottom'] > .tippy-arrow { top: 0; }
+      .tippy-box[data-placement^='bottom'] > .tippy-arrow::before {
+        top: -7px; left: 0;
+        border-width: 0 8px 8px;
+        border-bottom-color: #000;
+      }
+      .tippy-arrow {
+        width: 16px; height: 16px;
+        color: #000;
+      }
+      .tippy-arrow::before {
+        content: '';
+        position: absolute;
+        border-color: transparent;
+        border-style: solid;
+      }
+      .tippy-content {
+        position: relative;
+        z-index: 1;
+      }
+
+      .section-label {
+        font-size: 10px;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #666;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+        padding-left: 2px;
+      }
+
+      .section-items {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .icon {
+        width: 56px;
+        text-align: center;
+        padding: 2px;
+        cursor: default;
+      }
+
+      /* blimp: phx-click="select" marked the clicked icon; focus does it now */
+      .icon.selected .icon-label,
+      .icon:focus .icon-label {
+        background: #000;
+        color: #fff;
+      }
+
+      .icon-image {
+        font-size: 28px;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .icon-label {
+        font-size: 11px;
+        margin-top: 1px;
+        padding: 1px 2px;
+        word-wrap: break-word;
+      }
+
+      .status-bar {
+        height: 22px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 12px;
+      }
+
+      /* Double click to open */
+      .icon-image {
+        cursor: pointer;
+      }
+
+      /* Phish embed window */
+      .phish-embed-window {
+        width: 100%;
+        max-width: 420px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phish-embed-content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .phish-embed-window .status-bar {
+        height: 20px;
+        border-top: 1px solid #000;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 10px;
+      }
+
+      .selected-label {
+        background: #000;
+        color: #fff;
+      }
+
+      /* Mobile taskbar - hidden on desktop */
+      .mobile-taskbar {
+        display: none;
+      }
+
+      /* ============================================
+         MOBILE STYLES (max-width: 768px)
+         ============================================ */
+      @media (max-width: 768px) {
+        /* Hide menu bar items except time on mobile */
+        .menu-left .menu-item {
+          display: none;
+        }
+
+        /* Desktop padding adjustments for mobile */
+        .desktop {
+          padding: 10px;
+          padding-bottom: 70px; /* Room for taskbar */
+        }
+
+        /* Finder window - full screen on mobile */
+        .window.mobile-window-finder {
+          position: fixed;
+          top: 20px; /* Below menu bar */
+          left: 0;
+          right: 0;
+          bottom: 60px; /* Above taskbar */
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 100;
+          display: none; /* Hidden by default */
+        }
+
+        .window.mobile-window-finder.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .window.mobile-window-finder .window-content {
+          flex: 1;
+          max-height: none;
+          min-height: auto;
+          overflow-y: auto;
+        }
+
+        /* Blog window - full screen on mobile */
+        .blog-window.mobile-window-blog {
+          position: fixed;
+          top: 20px;
+          left: 0;
+          right: 0;
+          bottom: 60px;
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 100;
+          display: none;
+        }
+
+        .blog-window.mobile-window-blog.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .blog-window.mobile-window-blog .blog-window-content {
+          flex: 1;
+          max-height: none;
+          overflow-y: auto;
+        }
+
+        /* Name dialog - full screen on mobile */
+        .aim-name-dialog.mobile-window-name_dialog {
+          position: fixed !important;
+          top: 20px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 200;
+          display: none; /* Hidden by default */
+          box-sizing: border-box;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog.mobile-active {
+          display: block;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-dialog-content {
+          padding: 20px;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-input {
+          width: 100%;
+          font-size: 16px; /* Prevent zoom on iOS */
+          padding: 12px;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-buttons {
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .aim-name-dialog.mobile-window-name_dialog .aim-name-btn {
+          width: 100%;
+          padding: 12px;
+          font-size: 16px;
+        }
+
+        /* Chat container - full screen on mobile */
+        .aim-chat-container.mobile-window-chat {
+          position: fixed !important;
+          top: 20px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          z-index: 150;
+          display: none; /* Hidden by default */
+          box-sizing: border-box;
+        }
+
+        .aim-chat-container.mobile-window-chat.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .aim-chat-container.mobile-window-chat .aim-chat-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .aim-chat-container.mobile-window-chat .aim-messages-area {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .aim-chat-container.mobile-window-chat .aim-input-box {
+          font-size: 16px; /* Prevent zoom on iOS */
+        }
+
+        /* Hide the floating chat toggle on mobile */
+        .aim-toggle-btn {
+          display: none !important;
+        }
+
+        /* Mobile taskbar - fixed at bottom */
+        .mobile-taskbar {
+          display: flex;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 50px;
+          background: linear-gradient(to bottom, #dfdfdf, #c0c0c0);
+          border-top: 2px solid #fff;
+          box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2);
+          z-index: 1000;
+          padding: 5px;
+          gap: 5px;
+        }
+
+        .mobile-taskbar-btn {
+          flex: 1;
+          background: linear-gradient(to bottom, #ececec, #d4d4d4);
+          border: 1px solid #888;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          box-shadow: 1px 1px 0 #fff inset, -1px -1px 0 #888 inset;
+        }
+
+        .mobile-taskbar-btn:active,
+        .mobile-taskbar-btn.active {
+          background: linear-gradient(to bottom, #c0c0c0, #a8a8a8);
+          box-shadow: -1px -1px 0 #fff inset, 1px 1px 0 #888 inset;
+        }
+
+        /* Icon grid adjustments for mobile */
+        .icon-grid {
+          gap: 4px;
+        }
+
+        .icon-section {
+          gap: 8px;
+          padding: 4px;
+        }
+
+        .icon {
+          width: 60px;
+        }
+
+        .icon-image {
+          font-size: 28px;
+          height: 36px;
+        }
+
+        .icon-label {
+          font-size: 9px;
+        }
+
+        /* Phish window - full screen on mobile */
+        .phish-embed-window.mobile-window-phish {
+          position: fixed !important;
+          top: 20px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          transform: none !important;
+          z-index: 200;
+          display: none;
+        }
+
+        .phish-embed-window.mobile-window-phish.mobile-active {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .phish-embed-window.mobile-window-phish .phish-embed-content {
+          flex: 1;
+          max-height: none;
+          overflow-y: auto;
+        }
+
+        /* Hide joyride tour on mobile - too complex for small screens */
+        #site-tour {
+          display: none !important;
+        }
+      }
+
+      /* ========================================
+         BOOT SPLASH SCREEN
+         ======================================== */
+
+      .mac-boot {
+        width: 100vw;
+        height: 100vh;
+        background: #a8a8a8;
+        background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%);
+        background-size: 2px 2px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        -webkit-font-smoothing: none;
+      }
+
+      .boot-screen {
+        text-align: center;
+        max-width: 600px;
+        padding: 40px;
+      }
+
+      .boot-logo {
+        margin-bottom: 40px;
+      }
+
+      .boot-logo svg {
+        display: inline-block;
+      }
+
+      .boot-text {
+        font-size: 32px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #000;
+      }
+
+      .boot-subtext {
+        font-size: 18px;
+        line-height: 1.7;
+        color: #333;
+        margin-bottom: 40px;
+      }
+
+      .boot-progress {
+        width: 340px;
+        height: 20px;
+        border: 2px solid #000;
+        margin: 0 auto 24px;
+        background: #fff;
+        padding: 3px;
+      }
+
+      .boot-progress-bar {
+        height: 100%;
+        background: #000;
+        animation: boot-fill 8s ease-in-out forwards;
+      }
+
+      @keyframes boot-fill {
+        0% { width: 0%; }
+        30% { width: 30%; }
+        60% { width: 65%; }
+        80% { width: 85%; }
+        100% { width: 100%; }
+      }
+
+      .boot-hint {
+        font-size: 13px;
+        color: #888;
+      }
+
+      /* ========================================
+         MUSEUM WINDOWS
+         ======================================== */
+
+      .museum-list-window {
+        width: 720px;
+        min-width: 600px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        flex-shrink: 0;
+      }
+
+      .museum-filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 6px 10px;
+        border-bottom: 1px solid #000;
+        background: #e8e8e8;
+        font-size: 14px;
+      }
+
+      .museum-filter-tag {
+        padding: 3px 10px;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+
+      .museum-filter-tag:hover {
+        background: #d0d0d0;
+      }
+
+      .museum-filter-tag.active {
+        background: #000;
+        color: #fff;
+      }
+
+      .museum-list-content {
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .museum-list-item {
+        display: flex;
+        gap: 12px;
+        padding: 10px 14px;
+        cursor: pointer;
+        border-bottom: 1px solid #e0e0e0;
+        align-items: flex-start;
+      }
+
+      .museum-list-item:hover {
+        background: #e8e8e8;
+      }
+
+      .museum-list-item.selected {
+        background: #000;
+        color: #fff;
+      }
+
+      .museum-list-item.selected .museum-list-tagline {
+        color: #ccc;
+      }
+
+      .museum-list-item.selected .museum-list-tech {
+        border-color: #666;
+        background: #333;
+        color: #fff;
+      }
+
+      .museum-list-icon {
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .museum-list-item.selected .museum-list-icon svg {
+        filter: invert(1);
+      }
+
+      .museum-list-icon svg {
+        width: 48px;
+        height: 48px;
+      }
+
+      .museum-list-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .museum-list-name {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+
+      .museum-list-tagline {
+        font-size: 14px;
+        color: #666;
+        line-height: 1.4;
+        margin-bottom: 5px;
+      }
+
+      .museum-list-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .museum-list-tech {
+        font-size: 12px;
+        padding: 1px 6px;
+        border: 1px solid #ccc;
+        background: #f0f0f0;
+      }
+
+      /* Right column: museum detail stacked */
+      .right-column {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex-shrink: 0;
+        align-self: flex-start;
+      }
+
+      /* Far right column: blog + phish stacked to fill viewport height */
+      .far-right-column {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 420px;
+        min-width: 320px;
+        max-width: 420px;
+        align-self: flex-start;
+        height: calc(100vh - 64px);
+        flex-shrink: 0;
+      }
+
+      /* Museum Detail Window */
+
+      .museum-detail-window {
+        width: 480px;
+        min-width: 380px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+      }
+
+      .museum-detail-content {
+        padding: 20px;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        background: #fff;
+      }
+
+      .museum-detail-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 16px;
+      }
+
+      .museum-detail-icon svg {
+        width: 80px;
+        height: 80px;
+      }
+
+      .museum-detail-title {
+        font-size: 22px;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 6px;
+      }
+
+      .museum-detail-tagline {
+        font-size: 15px;
+        color: #666;
+        text-align: center;
+        font-style: italic;
+        margin-bottom: 16px;
+      }
+
+      .museum-detail-description {
+        font-size: 15px;
+        line-height: 1.7;
+        margin-bottom: 16px;
+        white-space: pre-line;
+      }
+
+      .museum-detail-tech {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 16px;
+      }
+
+      .museum-detail-repos {
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+
+      .museum-repo-link {
+        color: #000;
+        text-decoration: underline;
+        margin-left: 6px;
+      }
+
+      .museum-repo-link:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .museum-launch-btn {
+        display: block;
+        text-align: center;
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 13px;
+        padding: 8px 16px;
+        border: 2px solid #000;
+        background: #fff;
+        color: #000;
+        text-decoration: none;
+        box-shadow: 2px 2px 0 #000;
+        cursor: pointer;
+        margin-top: 16px;
+      }
+
+      .museum-launch-btn:hover {
+        background: #000;
+        color: #fff;
+      }
+
+      .museum-launch-btn:active {
+        box-shadow: 0 0 0 #000;
+        transform: translate(2px, 2px);
+      }
+
+      @media (max-width: 768px) {
+        .museum-list-window {
+          width: 100%;
+        }
+
+        .museum-detail-window {
+          position: fixed;
+          top: 24px;
+          left: 0;
+          right: 0;
+          width: 100%;
+          height: calc(100vh - 24px);
+          z-index: 200;
+        }
+      }
+
+      /* ========================================
+         LEICA COLLAGE VIEWER
+         ======================================== */
+
+      /* Work Log window */
+      .work-log-window {
+        width: 340px;
+        min-width: 280px;
+        background: #fff;
+        border: 1px solid #000;
+        box-shadow: 1px 1px 0 #000;
+        display: flex;
+        flex-direction: column;
+        align-self: flex-start;
+        flex-shrink: 0;
+        height: calc(100vh - 64px);
+        margin-left: auto;
+      }
+
+      .work-log-term {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 12px;
+        font-family: "Monaco", "Menlo", "Courier New", monospace;
+        font-size: 12px;
+        color: #000;
+        background: #fff;
+        min-height: 200px;
+      }
+
+      .wl-push {
+        margin-bottom: 8px;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 6px;
+      }
+
+      .wl-push:last-child {
+        border-bottom: none;
+      }
+
+      .wl-push-header {
+        white-space: nowrap;
+        margin-bottom: 2px;
+      }
+
+      .wl-plus { color: #1a7f1a; margin-right: 4px; }
+      .wl-minus { color: #cc0000; margin-right: 8px; }
+      .wl-ref { color: #666; }
+      .wl-date { color: #999; margin-left: 8px; }
+
+      .wl-commit {
+        padding-left: 16px;
+      }
+
+      .wl-sha {
+        color: #0066cc;
+        text-decoration: none;
+        font-size: 11px;
+      }
+
+      .wl-sha:hover {
+        text-decoration: underline;
+        color: #0044aa;
+      }
+
+      .wl-msg {
+        display: inline;
+        white-space: pre-wrap;
+        font-family: inherit;
+        font-size: 12px;
+        color: #333;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Desktop icon - Leica */
+      .desktop-icon-leica {
+        position: absolute;
+        bottom: 50%;
+        left: 760px;
+        transform: translateY(50%);
+        text-align: center;
+        cursor: pointer;
+        z-index: 10;
+        padding: 8px;
+        border-radius: 4px;
+      }
+
+      .desktop-icon-leica:hover {
+        background: rgba(0, 0, 0, 0.1);
+      }
+
+      .desktop-icon-leica:hover .desktop-icon-label {
+        background: #000;
+        color: #fff;
+      }
+
+      .desktop-icon-img {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 4px;
+      }
+
+      .desktop-icon-label {
+        font-size: 12px;
+        font-weight: bold;
+        line-height: 1.3;
+        padding: 2px 4px;
+        white-space: nowrap;
+      }
+
+      /* Warning overlay */
+      .leica-warning-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .leica-warning-dialog {
+        width: 420px;
+        background: #fff;
+        border: 2px solid #000;
+        box-shadow: 4px 4px 0 #000;
+      }
+
+      .leica-warning-content {
+        padding: 20px;
+        text-align: center;
+      }
+
+      .leica-warning-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+        color: #cc0000;
+      }
+
+      .leica-warning-text {
+        font-size: 13px;
+        line-height: 1.6;
+        margin-bottom: 20px;
+        text-align: left;
+      }
+
+      .leica-warning-text p {
+        margin: 8px 0;
+      }
+
+      .leica-warning-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .leica-btn {
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 13px;
+        padding: 8px 20px;
+        border: 2px solid #000;
+        background: #fff;
+        color: #000;
+        cursor: pointer;
+        box-shadow: 2px 2px 0 #000;
+      }
+
+      .leica-btn:hover {
+        background: #e0e0e0;
+      }
+
+      .leica-btn:active {
+        box-shadow: 0 0 0 #000;
+        transform: translate(2px, 2px);
+      }
+
+      .leica-btn.primary {
+        background: #000;
+        color: #fff;
+      }
+
+      .leica-btn.primary:hover {
+        background: #333;
+      }
+
+      /* Viewer window */
+      /* ---- Ambient photo window (website_pics shared album) ---- */
+      .photo-window {
+        position: fixed; top: 90px; right: 40px; width: 460px;
+        background: #fff; border: 2px solid #000; box-shadow: 4px 4px 0 #000;
+        z-index: 320; display: flex; flex-direction: column;
+      }
+      .photo-window-body { display: flex; flex-direction: column; }
+      .photo-stage {
+        position: relative; height: 300px; background: #000;
+        overflow: hidden; border-bottom: 2px solid #000;
+      }
+      .photo-backdrop {
+        position: absolute; inset: -20px; background-size: cover; background-position: center;
+        filter: blur(20px) saturate(0.7) brightness(0.5);
+        opacity: 0; transition: opacity 550ms ease;
+      }
+      .photo-layer {
+        position: absolute; inset: 0; margin: auto;
+        max-width: 100%; max-height: 100%; width: auto; height: auto;
+        opacity: 0; transition: opacity 850ms ease; will-change: opacity, transform;
+      }
+      .photo-layer.on { opacity: 1; }
+      .photo-layer.drift { animation: gal-drift var(--gal-dur, 13s) linear forwards; }
+      @keyframes gal-drift {
+        from { transform: scale(1) translate(0, 0); }
+        to { transform: scale(1.075) translate(var(--gal-dx, 1%), var(--gal-dy, -1%)); }
+      }
+      .photo-nav {
+        position: absolute; top: 0; bottom: 0; width: 48px; border: 0;
+        background: transparent; color: #fff; font-size: 28px; cursor: pointer;
+        opacity: 0; transition: opacity 180ms; text-shadow: 0 0 6px #000;
+      }
+      .photo-nav.prev { left: 0; }
+      .photo-nav.next { right: 0; }
+      .photo-stage:hover .photo-nav { opacity: 0.8; }
+      .photo-nav:hover { opacity: 1 !important; background: rgba(0, 0, 0, 0.22); }
+      .photo-controls {
+        display: flex; align-items: center; gap: 6px; padding: 5px 7px;
+        background: #fff; font-family: "Geneva", Helvetica, sans-serif; font-size: 11px;
+      }
+      .photo-btn {
+        font-family: "Chicago", "Geneva", Helvetica, sans-serif; font-size: 11px;
+        line-height: 16px; border: 1px solid #000; background: #fff; color: #000;
+        padding: 0 8px; cursor: pointer; box-shadow: 1px 1px 0 #000;
+        text-decoration: none; display: inline-block;
+      }
+      .photo-btn:active { background: #000; color: #fff; transform: translate(1px, 1px); box-shadow: none; }
+      .photo-counter { flex: 1; white-space: nowrap; color: #444; }
+      .desktop-icon-photos {
+        position: absolute; top: 230px; right: 30px; width: 80px;
+        text-align: center; cursor: pointer; z-index: 5;
+      }
+      .desktop-icon-photos:hover .desktop-icon-label { background: #000; color: #fff; }
+      @media (max-width: 768px) {
+        .photo-window { position: static; width: auto; margin: 10px; }
+        .photo-stage { height: 220px; }
+        .desktop-icon-photos { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .photo-layer { transition: opacity 200ms ease; }
+        .photo-layer.drift { animation: none; }
+      }
+      .leica-viewer-window {
+        position: fixed;
+        top: 30px;
+        left: 30px;
+        right: 30px;
+        bottom: 30px;
+        background: #fff;
+        border: 2px solid #000;
+        box-shadow: 4px 4px 0 #000;
+        z-index: 400;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .leica-viewer-container {
+        flex: 1;
+        overflow: hidden;
+        background: #1a1a1a;
+        position: relative;
+        cursor: grab;
+      }
+
+      .leica-img {
+        transform-origin: 0 0;
+        will-change: transform;
+        max-width: none;
+        display: block;
+      }
+
+      .leica-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        text-align: center;
+        z-index: 5;
+      }
+
+      .leica-loading-text {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 8px;
+      }
+
+      .leica-loading-hint {
+        font-size: 12px;
+        color: #999;
+        margin-top: 8px;
+      }
+
+      /* Controls bar */
+      .leica-controls {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 36px;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        z-index: 10;
+      }
+
+      .leica-ctrl-btn {
+        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+        font-size: 13px;
+        padding: 4px 10px;
+        background: #333;
+        color: #fff;
+        border: 1px solid #666;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .leica-ctrl-btn:hover {
+        background: #555;
+      }
+
+      .leica-zoom-label {
+        color: #fff;
+        font-size: 12px;
+        min-width: 40px;
+        text-align: center;
+      }
+
+      @media (max-width: 768px) {
+        .desktop-icon-leica {
+          position: static;
+          transform: none;
+          margin: 20px auto;
+        }
+
+        .leica-viewer-window {
+          top: 24px;
+          left: 0;
+          right: 0;
+          bottom: 50px;
+        }
+
+        .leica-warning-dialog {
+          width: 90%;
+        }
+      }
+
+/* ========================================
+   blimp: what the script-free page adds
+   ======================================== */
+
+/* blimp: the root layout's Tailwind utilities, which the page no longer
+ * gets from the 146KB bundle: <html class="h-full bg-gray-100">,
+ * <body class="h-full font-mono bg-gradient-to-br from-cyan-50 to-indigo-50">,
+ * <div class="flex h-full">, <main class="flex-1 overflow-y-auto px-4"> and
+ * app.html.heex's <div class="min-h-screen">. The 16px gutters are the
+ * pale strips either side of the live desktop. */
+html { background-color: #f3f4f6; }
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background-image: linear-gradient(to bottom right, #ecfeff, #eef2ff);
+}
+.desk-frame { display: flex; height: 100%; }
+.desk-main { flex: 1 1 0%; overflow-y: auto; padding-left: 1rem; padding-right: 1rem; }
+.desk-screen { min-height: 100vh; }
+
+/* blimp: the boot splash replaced the desktop until a timer or a click
+ * swapped it out. Here it is an overlay link, after the desktop in the
+ * page so a reader without CSS gets the content first. It hides itself
+ * when boot-fill finishes; clicking it goes to /?booted=1, which renders
+ * no splash. */
+.mac-boot {
+  position: fixed;
+  top: 0;
+  left: 1rem; /* inside <main>'s px-4, where the LiveView drew it */
+  z-index: 3000;
+  color: inherit;
+  text-decoration: none;
+  animation: boot-hide 0s linear 8s forwards;
+}
+@keyframes boot-hide {
+  to { visibility: hidden; pointer-events: none; }
+}
+
+/* blimp: desktop icons, close boxes and buttons are links now. */
+a.close-box, a.icon, a.museum-list-item, a.museum-filter-tag,
+a.mobile-taskbar-btn, a.desktop-icon-leica, a.leica-btn {
+  color: inherit;
+  text-decoration: none;
+}
+a.leica-btn.primary { color: #fff; }
+a.close-box { display: block; }
