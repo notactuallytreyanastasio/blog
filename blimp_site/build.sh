@@ -18,7 +18,9 @@ if [ "${1:-}" = "test" ]; then
   status=0
   for t in test/*_test.blimp; do
     name=$(basename "$t" .blimp)
-    cat src/*.blimp "$t" > "_build/$name.blimp"
+    # A test of a program the browser runs names it: `# needs: static/pong/pong.blimp`
+    needs=$(sed -n 's/^# needs: //p' "$t")
+    cat src/*.blimp $needs "$t" > "_build/$name.blimp"
     printf '%-28s ' "$name"
     out=$("$BLIMP" "_build/$name.blimp" --test 2>&1) || true
     summary=$(printf '%s\n' "$out" | grep -E 'passed|failed' | tail -1)

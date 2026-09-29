@@ -1,0 +1,78 @@
+/* /pong and /pong/god: PongLive's look around Blimp's view tree. The
+ * window chrome is the app stylesheet's .os-* classes; the .blimp-* classes
+ * are the ones BlimpView gives every node. */
+
+.pong-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background: linear-gradient(to bottom right, #111827, #1f2937);
+}
+
+.pong-body .blimp-stack { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+.pong-body .blimp-text,
+.pong-hint,
+.god .blimp-stack > .blimp-text,
+.god-head h1 {
+  background: linear-gradient(to right, #d946ef, #a855f7, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: bold;
+}
+
+.pong-body > #pong > .blimp-stack > .blimp-text { font-size: 24px; }
+.pong-hint { font-size: 14px; margin-top: 16px; }
+
+.pong-body .blimp-button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: #111827;
+  color: #e879f9;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.pong-body .blimp-button:hover { background: #1f2937; }
+
+.blimp-draw { display: block; max-width: 100%; border-radius: 8px; }
+
+.pong-status { font-size: 11px; color: #9ca3af; margin-top: 8px; }
+.pong-status.bad { color: #f87171; white-space: pre-wrap; }
+
+.pong-links { margin-top: 8px; display: flex; gap: 8px; }
+.pong-link {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: linear-gradient(to right, #d946ef, #a855f7, #06b6d4);
+  color: #fff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+/* /pong/god */
+body:has(.god) { margin: 0; background: linear-gradient(to bottom right, #111827, #1f2937); min-height: 100vh; }
+.god { padding: 16px; color: #d1d5db; font-family: system-ui, sans-serif; }
+.god-head { text-align: center; margin-bottom: 16px; position: relative; z-index: 2; }
+.god-head h1 { font-size: 30px; margin: 0; }
+.god-head p { font-size: 11px; color: #6b7280; }
+/* the fireworks and paths sit behind the cards, as the LiveView's fixed layers did */
+.god #god > .blimp-stack > .blimp-draw:first-child { position: fixed; top: 0; left: 0; z-index: 0; pointer-events: none; border-radius: 0; }
+.god #god > .blimp-stack > .blimp-text { display: block; text-align: center; position: relative; z-index: 2; margin-bottom: 12px; }
+.god .blimp-row { display: flex; flex-wrap: wrap; gap: 16px; position: relative; z-index: 2; }
+.god .blimp-row > .blimp-stack {
+  background: linear-gradient(to right, #701a75, #164e63);
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0.85;
+  display: flex;
+  flex-direction: column;
+}
+.god .blimp-row > .blimp-stack:hover { opacity: 1; }
+.god .blimp-row > .blimp-stack > .blimp-text { color: #fff; font-size: 12px; padding: 2px 8px; }
+.god .blimp-row > .blimp-stack > .blimp-draw { border-radius: 0; }
+.god-foot { text-align: center; margin-top: 24px; position: relative; z-index: 2; }

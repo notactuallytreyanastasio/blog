@@ -1,0 +1,99 @@
+# needs: static/pong/pong.blimp
+
+# A frame as a browser sends it: final, masked.
+def client_frame(opcode: Int, payload: String, mask: String) -> String do
+  n = length(payload)
+  head = case n < 126 do
+    true -> from_char_code(128 + n)
+    false -> concat(from_char_code(128 + 126), ws_len_bytes(n, 2, ""))
+  end
+  concat(from_char_code(128 + opcode), head, mask, ws_unmask(payload, mask))
+end
+
+actor LiveTests do
+  test "a masked frame from a browser is read, and what follows it is kept" do
+    f = client_frame(1, "{\"hi\": 1}", "abcd")
+    got = ws_next(concat(f, "rest"))
+    assert_eq(elem(got, 0), :frame)
+    assert_eq(elem(got, 1), 1)
+    assert_eq(elem(got, 2), "{\"hi\": 1}")
+    assert_eq(elem(got, 3), "rest")
+  end
+
+  test "a frame that has not all arrived is :more, at every cut" do
+    f = client_frame(1, slice(doubled_to("x", 300), 0, 300), "wxyz")
+    each(range(0, length(f) - 1), fn(n: Int) do
+      assert_eq(ws_next(slice(f, 0, n)), :more)
+    end)
+    assert_eq(elem(ws_next(f), 2), slice(doubled_to("x", 300), 0, 300))
+  end
+
+  test "unmasked, fragmented and oversized frames are refused" do
+    assert_eq(elem(ws_next(concat(from_char_code(129), from_char_code(2), "hi")), 0), :bad)
+    assert_eq(elem(ws_next(concat(from_char_code(1), from_char_code(130), "abcd", "hi")), 0), :bad)
+    big = concat(from_char_code(129), from_char_code(128 + 127), ws_len_bytes(9000, 8, ""), "abcd")
+    assert_eq(elem(ws_next(big), 0), :bad)
+  end
+
+  test "a server frame carries its length in 1, 3 or 9 bytes" do
+    assert_eq(hex_encode(ws_frame(1, "hi")), "81026869")
+    assert_eq(length(ws_frame(1, slice(doubled_to("a", 125), 0, 125))), 127)
+    assert_eq(hex_encode(slice(ws_frame(1, slice(doubled_to("a", 126), 0, 126)), 0, 4)), "817e007e")
+    assert_eq(hex_encode(slice(ws_frame(1, slice(doubled_to("a", 65536), 0, 65536)), 0, 10)), "817f0000000000010000")
+  end
+
+  test "the upgrade: headers by any case, and the RFC 6455 accept key" do
+    raw = "GET /live/pong-god HTTP/1.1\r\nHost: x\r\nupgrade: WebSocket\r\nSEC-WEBSOCKET-KEY: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    assert(is_upgrade(raw))
+    refute(is_upgrade("GET / HTTP/1.1\r\nHost: x\r\n\r\n"))
+    assert(contains(ws_handshake(raw), "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"))
+  end
+
+  test "a report is rebuilt from its numbers; anything else in it is dropped" do
+    r = pong_report("pong_1", "{\"ball\": {\"x\": 9000, \"y\": 12.6}, \"paddle\": -5, \"wall\": 3, \"defeat\": true, \"ai\": \"yes\", \"html\": \"<script>\"}")
+    assert_eq(r, %{id: "pong_1", x: 800, y: 13, paddle: 0, wall: 3, defeat: true, ai: false})
+    assert_eq(pong_report("pong_1", "not json"), nil)
+    assert_eq(pong_report("pong_1", "[1, 2]"), nil)
+    assert_eq(pong_report("pong_1", "{\"paddle\": 3}"), nil)
+  end
+
+  test "the game's own report passes through the server's check unchanged" do
+    g = spawn Pong
+    g <- :start
+    each(range(1, 90), fn(i: Int) do g <- :tick end)
+    mine = json_decode(g <- :report)
+    r = pong_report("pong_x", g <- :report)
+    assert_eq(r.x, elem(mine, 1).ball.x)
+    assert_eq(r.paddle, elem(mine, 1).paddle)
+  end
+
+  test "pong: an unattended wall scores, the defeat message runs 60 frames, the ball comes back" do
+    seed(7)
+    g = spawn Pong
+    g <- :start
+    g <- :toggle_ai
+    phases = map(range(1, 3000), fn(i: Int) -> Atom do g <- :tick end)
+    scored = length(filter(phases, fn(p: Atom) -> Bool do p == :scored end))
+    assert(scored > 0)
+    report = elem(json_decode(g <- :report), 1)
+    assert_eq(report.wall, scored)
+    # each score is followed by 61 frames of the message, then play resumes
+    assert_eq(length(filter(phases, fn(p: Atom) -> Bool do p == :defeat_message end)) >= 61 * (scored - 1), true)
+  end
+
+  test "pong: a held key moves the paddle and takes it from the AI" do
+    g = spawn Pong
+    g <- :start
+    g <- :down_down
+    each(range(1, 40), fn(i: Int) do g <- :tick end)
+    r = elem(json_decode(g <- :report), 1)
+    assert_eq(r.paddle, 500)
+    assert_eq(r.ai, false)
+    g <- :down_up
+    g <- :up_down
+    each(range(1, 5), fn(i: Int) do g <- :tick end)
+    g <- :up_up
+    each(range(1, 5), fn(i: Int) do g <- :tick end)
+    assert_eq(elem(json_decode(g <- :report), 1).paddle, 450)
+  end
+end
