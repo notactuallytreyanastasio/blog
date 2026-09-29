@@ -50,7 +50,27 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  tetris_routes(r7)
+  static_page_routes(tetris_routes(r7))
+end
+
+# Pages that were LiveViews with nothing for a server to do, and two that
+# were already files, kept as the HTML Phoenix sent (content/snapshot.sh
+# says exactly what was taken out). Plus the stylesheet they link, under the
+# digested name they link it by, and the d3 the Knicks page loads.
+STATIC_PAGES = ["privacy", "terms", "trees", "nathan", "knicks", "frontier", "chess"]
+
+def static_page_routes(routes: Map) -> Map do
+  with_pages = reduce(STATIC_PAGES, routes, fn(acc: Map, name: String) -> Map do
+    body = read_file(concat("content/pages/", name, ".html"))
+    case body do
+      nil ->
+        print(concat("cannot read content/pages/", name, ".html"))
+        exit(1)
+      _ -> page_route(acc, concat("/", name), body)
+    end
+  end)
+  r1 = load_asset(with_pages, "/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "content/assets/app-3cfac71d5552d1426de906087a8be2fe.css")
+  load_asset(r1, "/static/d3.v7.min.js", "content/assets/d3.v7.min.js")
 end
 
 # Blimp in the browser: its interpreter, loader, view host and canvas, all

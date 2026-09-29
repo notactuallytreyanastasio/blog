@@ -91,4 +91,16 @@ actor PageTests do
     assert(contains(html, "<canvas id=\"tetris-viz\"></canvas>"))
     assert(contains(html, "/commit/6f1f92bbeb8c00f54511b8ff696db8c82355341e\">6f1f92b</a>"))
   end
+
+  test "the kept pages carry no LiveView client and no frozen CSRF token" do
+    each(["privacy", "terms", "trees", "nathan", "knicks", "frontier", "chess"], fn(name: String) do
+      html = read_file(concat("content/pages/", name, ".html"))
+      refute(html == nil)
+      refute(contains(html, "phx-track-static"))
+      refute(contains(html, "csrf-token"))
+      refute(contains(html, "data-phx-session"))
+      refute(contains(html, "\"/assets/app.css\""))
+      assert(contains(downcase(html), "</html>"))
+    end)
+  end
 end
