@@ -119,6 +119,20 @@ actor PageTests do
     refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
   end
 
+  test "/mirror shows exactly its own file, every character spinning" do
+    file = read_file("src/96_mirror.blimp")
+    assert_eq(concat(mirror_source(concat("x\n", file, "y\n")), "\n"), file)
+    html = mirror_page(concat("x\n", file))
+    refute(contains(downcase(html), "<script"))
+    # one span per character, multi-byte characters kept whole
+    assert_eq(length(utf8_chars("aé—b")), 4)
+    lines = split(file, "\n")
+    chars = reduce(lines, 0, fn(n: Int, l: String) -> Int do n + length(utf8_chars(l)) end)
+    assert_eq(length(split(html, "class=\"mirror-char\"")) - 1, chars)
+    # the file's own markup is shown, one escaped character at a time
+    assert(contains(html, "ms infinite;\">&lt;</span>"))
+  end
+
   test "a game id is pong_ and 16 hex digits, and a new one every time" do
     a = pong_game_id()
     assert_eq(length(a), 21)
