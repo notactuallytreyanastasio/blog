@@ -1,0 +1,70 @@
+# /directory: "Everything running on one box". DirectoryLive keeps its
+# infrastructure facts -- containers, domains, routes, loose ends -- in
+# module attributes, and reads one thing live: the museum, "so it never
+# drifts from /admin/museum". So the fixed windows are a snapshot of the
+# page Phoenix rendered (content/pages/directory.html, from
+# content/snapshot.sh), and the museum window and its counts are rendered
+# here, per request, from the rows the desktop already holds (the Site
+# reloads them from Postgres every minute). The row markup is the
+# template's, whitespace and all.
+
+DIRECTORY_TEMPLATE = read_file("content/pages/directory.html")
+
+# DirectoryLive.where/1: a path, else a URL, else its GitHub repos.
+def dir_where(p: Map) -> String do
+  case p.internal_path do
+    "" ->
+      case p.external_url do
+        "" ->
+          case length(p.repos) do
+            0 -> "—"
+            1 -> "GitHub"
+            n -> concat("GitHub ×", to_string(n))
+          end
+        url -> url
+      end
+    path -> path
+  end
+end
+
+def dir_category(c: String) -> String do
+  case c do
+    "ml" -> "ML"
+    _ -> capitalize(c)
+  end
+end
+
+def dir_row(p: Map, icons: Map) -> String do
+  join([
+    "<div class=\"dir-row\">\n              <div class=\"dir-row-icon\">", desk_icon(icons, p.slug), "</div>\n",
+    "              <div class=\"dir-row-main\">\n                <div class=\"dir-row-name\">", escape_html(p.title), "</div>\n",
+    "                <div class=\"dir-row-tagline\">", escape_html(p.tagline), "</div>\n              </div>\n",
+    "              <div class=\"dir-row-meta\">\n                <span class=\"dir-tag\">", escape_html(dir_category(p.category)), "</span>\n",
+    "                <span class=\"dir-row-where\"><code>", escape_html(dir_where(p)), "</code></span>\n              </div>\n            </div>"
+  ], "")
+end
+
+# The snapshot with the museum's rows and its two counts made live. A
+# snapshot without the markers these cut at is a boot failure, not a page
+# with the old list in it.
+def directory_page(desk: Map) -> String do
+  t = DIRECTORY_TEMPLATE
+  museum = index_of(t, "id=\"museum\"")
+  list_at = index_of_from(t, "<div class=\"dir-list\">", museum)
+  status_at = index_of_from(t, "<div class=\"dir-statusbar\">", list_at)
+  count_at = index_of_from(t, "</span>", status_at)
+  stat = index_of(t, "</b><span>Projects</span>")
+  stat_open = pg_last_index(take(t, stat), "<b>", 0, -1)
+  case museum > 0 and list_at > museum and status_at > list_at and stat_open > 0 do
+    false -> desk_die("content/pages/directory.html is not the page directory_page cuts")
+    true ->
+      n = to_string(length(desk.museum))
+      rows = join(map(desk.museum, fn(p: Map) -> String do dir_row(p, desk.icons) end), "\n            ")
+      status_open = index_of_from(t, "<span>", status_at) + 6
+      join([
+        take(t, stat_open + 3), n, slice(t, stat, list_at - stat),
+        "<div class=\"dir-list\">\n            ", rows, "\n          </div>\n        </div>\n        ",
+        slice(t, status_at, status_open - status_at), n, " items", drop(t, count_at)
+      ], "")
+  end
+end

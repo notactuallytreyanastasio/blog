@@ -138,6 +138,7 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/" -> html_response(200, desktop_page(req.query, desk, now()))
     # a new game id for every visit, so never a cached page
     "/pong" -> response(200, "text/html; charset=utf-8", "no-store", pong_page(pong_game_id()))
+    "/directory" -> html_response(200, page_with_runtime(directory_page(desk)))
     "/work-log" ->
       page = work_log_page()
       case page do

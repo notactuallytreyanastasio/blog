@@ -1,0 +1,22 @@
+actor DirectoryTests do
+  test "the snapshot's museum rows, rebuilt from the same rows, are the snapshot" do
+    desk = load_desktop("data", [])
+    html = directory_page(desk)
+    t = DIRECTORY_TEMPLATE
+    # every fixed window is untouched: only the museum list and two counts differ
+    assert(contains(html, "<div class=\"dir-title\">Loose Ends</div>"))
+    assert(contains(html, concat("<b>", to_string(length(desk.museum)), "</b><span>Projects</span>")))
+    assert(contains(html, concat("<span>", to_string(length(desk.museum)), " items</span>")))
+    assert_eq(length(split(html, "<div class=\"dir-row\">")) - 1, length(desk.museum))
+    refute(contains(html, "data-phx-session"))
+  end
+
+  test "where a project lives, as DirectoryLive.where/1 says" do
+    assert_eq(dir_where(%{internal_path: "/tetris", external_url: "x", repos: []}), "/tetris")
+    assert_eq(dir_where(%{internal_path: "", external_url: "https://x", repos: []}), "https://x")
+    assert_eq(dir_where(%{internal_path: "", external_url: "", repos: [1, 2]}), "GitHub ×2")
+    assert_eq(dir_where(%{internal_path: "", external_url: "", repos: []}), "—")
+    assert_eq(dir_category("ml"), "ML")
+    assert_eq(dir_category("tools"), "Tools")
+  end
+end
