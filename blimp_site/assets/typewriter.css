@@ -1,0 +1,14 @@
+/* /typewriter: KeyloggerLive's inline <style>, as it was. */
+html, body { background-color: white !important; color: black !important; }
+body > div, main, section, article { background-color: white !important; }
+#content-of-letter { font-family: "Courier New", Courier, monospace; line-height: 1.5; color: black; background-color: white; }
+.typewriter-text { font-family: "Courier New", Courier, monospace; white-space: pre-wrap; margin: 0; padding: 0; color: black; background-color: white; }
+.print-only { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .print-only {
+    display: block !important; visibility: visible !important; position: absolute; left: 0; top: 0; width: 100%;
+    padding: 2rem; font-family: "Courier New", Courier, monospace; font-size: 14px; line-height: 1.5;
+    white-space: pre-wrap; color: black; background-color: white;
+  }
+}

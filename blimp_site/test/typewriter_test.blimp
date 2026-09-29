@@ -1,0 +1,23 @@
+# needs: static/typewriter/typewriter.blimp
+
+actor TypewriterTests do
+  test "keys are appended as KeyloggerLive appended them" do
+    t = spawn Typewriter
+    each(["H", "i", "Shift", "!", "Meta", "Enter", "é", "Backspace", "o", "ArrowLeft"], fn(k: String) do t <- :keydown(k) end)
+    html = to_html(t <- :view)
+    assert(contains(html, "Pressing: ArrowLeft"))
+    assert(contains(html, concat(TW_HEADER, " Hi!\r\noArrowLeft")))
+  end
+
+  test "Backspace takes off a whole character, and nothing from nothing" do
+    assert_eq(tw_drop_last("aé"), "a")
+    assert_eq(tw_drop_last(""), "")
+  end
+
+  test "the first key closes the how-to" do
+    t = spawn Typewriter
+    assert(contains(to_html(t <- :view), "Write like its a typewriter."))
+    t <- :keydown("a")
+    refute(contains(to_html(t <- :view), "Write like its a typewriter."))
+  end
+end
