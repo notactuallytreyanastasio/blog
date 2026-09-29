@@ -1,0 +1,8 @@
+<span class="hljs-comment"># High-priority user-facing jobs</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-symbol">:email_queue</span>, <span class="hljs-title class_">Mailer</span>, <span class="hljs-symbol">:send_welcome_email</span>, [user_id])
+
+<span class="hljs-comment"># Background data processing</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-symbol">:analytics_queue</span>, <span class="hljs-title class_">Analytics</span>, <span class="hljs-symbol">:process_events</span>, [batch_id])
+
+<span class="hljs-comment"># Heavy computational work</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-symbol">:ml_queue</span>, <span class="hljs-title class_">ModelTrainer</span>, <span class="hljs-symbol">:train_model</span>, [dataset_id])

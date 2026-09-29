@@ -29,7 +29,7 @@ actor MarkdownTests do
   end
 
   test "fenced code with a language" do
-    assert_eq(render_markdown("```elixir\n{:ok, \"x\"}\n```"), "<pre class=\"athl\"><code class=\"language-elixir\" translate=\"no\" tabindex=\"0\"><span class=\"line\" data-line=\"1\">&lbrace;:ok, &quot;x&quot;&rbrace;\n</span></code></pre>")
+    assert_eq(render_markdown("```elixir\n{:ok, \"x\"}\n```"), "<pre class=\"athl\"><code class=\"language-elixir\" translate=\"no\" tabindex=\"0\"><span class=\"line\" data-line=\"1\">&lbrace;<span class=\"hljs-symbol\">:ok</span>, <span class=\"hljs-string\">&quot;x&quot;</span>&rbrace;\n</span></code></pre>")
   end
 
   test "fenced code without a language, and one lumis does not know" do

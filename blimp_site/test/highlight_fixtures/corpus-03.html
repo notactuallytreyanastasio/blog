@@ -1,0 +1,16 @@
+  <span class="hljs-comment"># liveview definition with mount</span>
+
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_event</span></span>(<span class="hljs-string">&quot;keydown&quot;</span>, _key, socket), <span class="hljs-symbol">do:</span> {<span class="hljs-symbol">:noreply</span>, socket}
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Pressed: <span class="hljs-subst">#{key}</span>&quot;</span>)
+    {<span class="hljs-symbol">:noreply</span>, socket}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">render</span></span>(assigns)
+    <span class="hljs-string">~H&quot;&quot;&quot;
+      &lt;div class=&quot;</span>p<span class="hljs-number">-4</span><span class="hljs-string">&quot; phx-window-keydown=&quot;</span>keydown<span class="hljs-string">&quot;&gt;
+        hi
+      &lt;/div&gt;
+    &quot;</span><span class="hljs-string">&quot;&quot;</span>
+  <span class="hljs-keyword">end</span>

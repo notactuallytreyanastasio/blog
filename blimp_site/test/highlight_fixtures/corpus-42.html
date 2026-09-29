@@ -1,0 +1,23 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.DeadLetterQueue</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_permanent_failure</span></span>(job, final_error) <span class="hljs-keyword">do</span>
+    dead_job = %{
+      <span class="hljs-symbol">original_job:</span> job,
+      <span class="hljs-symbol">failed_at:</span> <span class="hljs-title class_">DateTime</span>.utc_now(),
+      <span class="hljs-symbol">final_error:</span> final_error,
+      <span class="hljs-symbol">attempt_history:</span> job.attempt_history || [],
+      <span class="hljs-symbol">forensics:</span> collect_forensics(job)
+    }
+
+    <span class="hljs-title class_">Repo</span>.insert(%<span class="hljs-title class_">DeadJob</span>{<span class="hljs-symbol">data:</span> dead_job})
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Notifications</span>.send_dead_letter_alert(dead_job)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">defp</span> <span class="hljs-title">collect_forensics</span></span>(job) <span class="hljs-keyword">do</span>
+    %{
+      <span class="hljs-symbol">system_load:</span> <span class="hljs-symbol">:erlang</span>.statistics(<span class="hljs-symbol">:scheduler_utilization</span>),
+      <span class="hljs-symbol">memory_usage:</span> <span class="hljs-symbol">:erlang</span>.memory(),
+      <span class="hljs-symbol">queue_depths:</span> <span class="hljs-title class_">JobQueue</span>.all_queue_depths(),
+      <span class="hljs-symbol">recent_errors:</span> <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">ErrorTracker</span>.recent_errors(job.module)
+    }
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

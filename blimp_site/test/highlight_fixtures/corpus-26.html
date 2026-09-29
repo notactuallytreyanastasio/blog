@@ -1,0 +1,17 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start</span></span>(_type, _args) <span class="hljs-keyword">do</span>
+  children = [
+    <span class="hljs-comment"># Start the Producer first</span>
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Producer</span>,
+
+    <span class="hljs-comment"># Start multiple consumers</span>
+    {<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Consumer</span>, [<span class="hljs-symbol">id:</span> <span class="hljs-symbol">:consumer_1</span>]},
+    {<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Consumer</span>, [<span class="hljs-symbol">id:</span> <span class="hljs-symbol">:consumer_2</span>]},
+    {<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Consumer</span>, [<span class="hljs-symbol">id:</span> <span class="hljs-symbol">:consumer_3</span>]},
+
+    <span class="hljs-comment"># Other children</span>
+    <span class="hljs-title class_">JobProcessorWeb</span>.<span class="hljs-title class_">Endpoint</span>
+  ]
+
+  opts = [<span class="hljs-symbol">strategy:</span> <span class="hljs-symbol">:one_for_one</span>, <span class="hljs-symbol">name:</span> <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Supervisor</span>]
+  <span class="hljs-title class_">Supervisor</span>.start_link(children, opts)
+<span class="hljs-keyword">end</span>

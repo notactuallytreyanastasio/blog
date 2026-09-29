@@ -1,0 +1,1 @@
+defp bar!(a) when is_atom(a), do: :ok

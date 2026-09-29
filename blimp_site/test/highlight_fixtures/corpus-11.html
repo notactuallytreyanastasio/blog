@@ -1,0 +1,12 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_demand</span></span>(demand, state) <span class="hljs-keyword">do</span>
+  available = calculate_available_work()
+
+  <span class="hljs-keyword">if</span> available &gt;= demand <span class="hljs-keyword">do</span>
+    events = fetch_events(demand)
+    {<span class="hljs-symbol">:noreply</span>, events, state}
+  <span class="hljs-keyword">else</span>
+    <span class="hljs-comment"># Can only partially fulfill demand</span>
+    events = fetch_events(available)
+    {<span class="hljs-symbol">:noreply</span>, events, state}
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

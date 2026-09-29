@@ -1,0 +1,15 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_demand</span></span>(demand, %{<span class="hljs-symbol">rate_limit:</span> limit} = state) <span class="hljs-keyword">do</span>
+  now = <span class="hljs-title class_">System</span>.monotonic_time(<span class="hljs-symbol">:millisecond</span>)
+  time_passed = now - state.last_emit
+
+  allowed = min(demand, div(time_passed * limit, <span class="hljs-number">1000</span>))
+
+  <span class="hljs-keyword">if</span> allowed &gt; <span class="hljs-number">0</span> <span class="hljs-keyword">do</span>
+    events = generate_events(allowed)
+    {<span class="hljs-symbol">:noreply</span>, events, %{state | <span class="hljs-symbol">last_emit:</span> now}}
+  <span class="hljs-keyword">else</span>
+    <span class="hljs-comment"># Schedule retry</span>
+    <span class="hljs-title class_">Process</span>.send_after(self(), <span class="hljs-symbol">:retry_demand</span>, <span class="hljs-number">100</span>)
+    {<span class="hljs-symbol">:noreply</span>, [], state}
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

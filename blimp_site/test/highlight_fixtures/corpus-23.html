@@ -1,0 +1,8 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_events</span></span>(events, _from, state) <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">for</span> event &lt;- events <span class="hljs-keyword">do</span>
+    file_path = <span class="hljs-string">&quot;/tmp/processed_<span class="hljs-subst">#{event.id}</span>.json&quot;</span>
+    <span class="hljs-title class_">File</span>.write!(file_path, <span class="hljs-title class_">Jason</span>.encode!(event))
+  <span class="hljs-keyword">end</span>
+
+  {<span class="hljs-symbol">:noreply</span>, [], state}
+<span class="hljs-keyword">end</span>

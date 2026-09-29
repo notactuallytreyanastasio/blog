@@ -1,0 +1,199 @@
+# The posts with ```elixir blocks, relative to blimp_site/ (build.sh runs
+# from there). A new post with Elixir in it goes here too.
+def ht_posts() -> List do
+  [
+    "../priv/static/posts/2025-02-02-14-45-00-building-this-blog.md",
+    "../priv/static/posts/2025-02-14-03-22-21-a-quick-typewriter-set-letter-project.md",
+    "../priv/static/posts/2025-02-14-05-41-38-lets-write-letters.md",
+    "../priv/static/posts/2025-06-01-00-00-00-a-genstage-tutorial-and-reflection.md"
+  ]
+end
+
+# "#{" cannot be written in a Blimp string literal: see 20_highlight.blimp.
+def ht_hb() -> String do
+  concat("#", "{")
+end
+
+def ht_pad(i: Int, w: Int) -> String do
+  s = to_string(i)
+  concat(repeat("0", w - length(s)), s)
+end
+
+# Index of the last "\n" before i, or -1.
+def ht_last_nl(s: String, i: Int) -> Int do
+  case i <= 0 do
+    true -> -1
+    false ->
+      case char_at(s, i - 1) == "\n" do
+        true -> i - 1
+        false -> ht_last_nl(s, i - 1)
+      end
+  end
+end
+
+# Split on ``` and take every inside part whose info string is "elixir".
+# The code is the lines between the fence lines: drop the first line, and
+# the last "\n" plus the closing fence's indentation.
+def ht_blocks(parts: List, acc: List) -> List do
+  case parts do
+    [_ | [inside | rest]] ->
+      nl = index_of(inside, "\n")
+      case nl >= 0 and trim(slice(inside, 0, nl)) == "elixir" do
+        true ->
+          last = ht_last_nl(inside, length(inside))
+          ht_blocks(rest, [slice(inside, nl + 1, max(0, last - nl - 1)) | acc])
+        false -> ht_blocks(rest, acc)
+      end
+    _ -> reverse(acc)
+  end
+end
+
+def ht_corpus() -> List do
+  flat(map(ht_posts(), fn(p: String) -> List do ht_blocks(split(read_file(p), "```"), []) end))
+end
+
+# Drop every tag, then undo escape_html. &amp; goes last.
+def ht_plain(html: String) -> String do
+  parts = split(html, "<")
+  rest = map(tail(parts), fn(p: String) -> String do drop(p, index_of(p, ">") + 1) end)
+  text = join([head(parts) | rest], "")
+  t1 = replace_all(text, "&lt;", "<")
+  t2 = replace_all(t1, "&gt;", ">")
+  t3 = replace_all(t2, "&quot;", "\"")
+  t4 = replace_all(t3, "&#39;", "'")
+  replace_all(t4, "&amp;", "&")
+end
+
+# Every tag is <span class=...> or </span>, depth never goes below zero, and
+# ends at zero.
+def ht_balanced(html: String) -> Bool do
+  step = fn(d: Int, p: String) -> Int do
+    case d < 0 do
+      true -> -1
+      false ->
+        case starts_with(p, "span class=\"hljs-") do
+          true -> d + 1
+          false ->
+            case starts_with(p, "/span>") do
+              true -> d - 1
+              false -> -1000000
+            end
+        end
+    end
+  end
+  reduce(tail(split(html, "<")), 0, step) == 0
+end
+
+def ht_round_trips(code: String) -> Bool do
+  out = highlight("elixir", code)
+  ht_plain(out) == code and ht_balanced(out)
+end
+
+# Fixture files that disagree with highlight(), by name.
+def ht_mismatches(prefix: String, w: Int, i: Int, n: Int, acc: List) -> List do
+  case i >= n do
+    true -> acc
+    false ->
+      name = concat("test/highlight_fixtures/", prefix, ht_pad(i, w))
+      ok = highlight("elixir", read_file(concat(name, ".ex"))) == read_file(concat(name, ".html"))
+      case ok do
+        true -> ht_mismatches(prefix, w, i + 1, n, acc)
+        false -> ht_mismatches(prefix, w, i + 1, n, [name | acc])
+      end
+  end
+end
+
+def ht_fixture_drift(blocks: List, i: Int, acc: List) -> List do
+  case blocks do
+    [b | rest] ->
+      f = read_file(concat("test/highlight_fixtures/corpus-", ht_pad(i, 2), ".ex"))
+      case f == b do
+        true -> ht_fixture_drift(rest, i + 1, acc)
+        false -> ht_fixture_drift(rest, i + 1, [i | acc])
+      end
+    _ -> acc
+  end
+end
+
+actor HighlightTests do
+  test "every elixir block in the posts round-trips with balanced spans" do
+    blocks = ht_corpus()
+    assert_eq(length(blocks), 44)
+    assert_eq(filter(blocks, fn(b: String) -> Bool do not(ht_round_trips(b)) end), [])
+  end
+
+  test "the fixtures are the blocks the posts contain now" do
+    assert_eq(ht_fixture_drift(ht_corpus(), 0, []), [])
+  end
+
+  test "matches highlight.js byte for byte on every corpus block" do
+    assert_eq(ht_mismatches("corpus-", 2, 0, 44, []), [])
+  end
+
+  test "matches highlight.js byte for byte on the edge cases" do
+    assert_eq(ht_mismatches("edge-", 3, 0, 82, []), [])
+  end
+
+  test "def and defmodule" do
+    assert_eq(highlight("elixir", "def foo?(x), do: x"),
+      "<span class=\"hljs-function\"><span class=\"hljs-keyword\">def</span> <span class=\"hljs-title\">foo?</span></span>(x), <span class=\"hljs-symbol\">do:</span> x")
+    assert_eq(highlight("elixir", "defmodule A.B do"),
+      "<span class=\"hljs-class\"><span class=\"hljs-keyword\">defmodule</span> <span class=\"hljs-title\">A.B</span></span> <span class=\"hljs-keyword\">do</span>")
+  end
+
+  test "keywords, literals, module names, atoms, numbers, attributes" do
+    assert_eq(highlight("elixir", "if nil, do: Foo"),
+      "<span class=\"hljs-keyword\">if</span> <span class=\"hljs-literal\">nil</span>, <span class=\"hljs-symbol\">do:</span> <span class=\"hljs-title class_\">Foo</span>")
+    assert_eq(highlight("elixir", "@x :ok 1_000 x.end"),
+      "<span class=\"hljs-variable\">@x</span> <span class=\"hljs-symbol\">:ok</span> <span class=\"hljs-number\">1_000</span> x.end")
+  end
+
+  test "interpolation, and a # inside a string is not a comment" do
+    code = concat("\"a ", ht_hb(), "b} # c\" # d")
+    assert_eq(highlight("elixir", code),
+      concat("<span class=\"hljs-string\">&quot;a <span class=\"hljs-subst\">", ht_hb(), "b}</span> # c&quot;</span> <span class=\"hljs-comment\"># d</span>"))
+  end
+
+  test "unterminated strings, heredocs and interpolations still round-trip" do
+    assert(ht_round_trips("x = \"never closed\nsecond line"))
+    assert(ht_round_trips("@doc \"\"\"\nno end"))
+    assert(ht_round_trips(concat("\"a ", ht_hb(), " b")))
+    assert(ht_round_trips("~s(open"))
+    assert(ht_round_trips("def"))
+    assert(ht_round_trips(":"))
+    assert(ht_round_trips("\"trailing backslash \\"))
+    assert(ht_round_trips("<a href='x'>&amp;</a> \"é\" :é"))
+  end
+
+  test "other languages are escaped and nothing more" do
+    assert_eq(highlight("", "def <x> & 'y'"), "def &lt;x&gt; &amp; &#39;y&#39;")
+    assert_eq(highlight("temper", "let x = \"1\""), "let x = &quot;1&quot;")
+    assert_eq(highlight("elixir", ""), "")
+  end
+
+  test "the stylesheet covers the classes emitted" do
+    css = highlight_css()
+    assert(contains(css, ".hljs-keyword"))
+    assert(contains(css, ".hljs-title.class_"))
+    assert(contains(css, ".hljs-subst"))
+    assert(contains(css, ".hljs-regex"))
+  end
+
+  test "highlight_lines closes a span at a line end and reopens it" do
+    lines = highlight_lines("elixir", "x = \"\"\"\na\n\"\"\"")
+    assert_eq(length(lines), 3)
+    assert(ends_with(head(lines), "</span>"))
+    assert(starts_with(elem_at(lines, 1), "<span class=\"hljs-string\">"))
+  end
+
+  test "every line highlight_lines returns is balanced" do
+    code = "def f do\n  \"a\n\#{x}\n\"\nend"
+    each(highlight_lines("elixir", code), fn(l: String) do
+      assert_eq(length(split(l, "<span")), length(split(l, "</span>")))
+    end)
+  end
+
+  test "highlight_lines on plain text is the escaped lines" do
+    assert_eq(highlight_lines("", "a<b\nc"), ["a&lt;b", "c"])
+  end
+end

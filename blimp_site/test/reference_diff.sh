@@ -8,8 +8,8 @@
 #               Bluesky embeds). Nothing else is changed.
 #   no-tokens   additionally drops lumis' token spans (<span > and every
 #               </span>) inside <pre class="athl"> on both sides. The
-#               renderer emits the line spans but not syntax highlighting,
-#               which a separate highlighter will provide.
+#               renderer's highlighting is highlight.js's, not lumis's, so
+#               its hljs-* spans are dropped the same way.
 #
 # Usage: test/reference_diff.sh [-v]   (-v prints the diffs)
 set -uo pipefail
@@ -29,13 +29,13 @@ done
 
 # Only the text helpers and the renderer: the other src files are other
 # work in progress and are not what this compares.
-cat src/00_text.blimp src/10_markdown.blimp test/render_posts.blimp > _build/render_posts.blimp
+cat src/00_text.blimp src/10_markdown.blimp src/20_highlight.blimp test/render_posts.blimp > _build/render_posts.blimp
 rm -f _build/out/*.html
 /usr/bin/time -l "$BLIMP" _build/render_posts.blimp 2> _build/render_time.txt || { cat _build/render_time.txt; exit 2; }
 awk '/real/{print "render all: " $1 "s"} /maximum resident/{printf "max RSS: %.1f MB\n", $1/1048576}' _build/render_time.txt
 
 strip_scripts='undef $/; $_=<>; s/<script\b.*?<\/script>//gis; print'
-strip_tokens='undef $/; $_=<>; s{(<pre class="athl">.*?</pre>)}{ my $b=$1; $b =~ s/<span >//g; $b =~ s/<\/span>//g; $b }gse; print'
+strip_tokens='undef $/; $_=<>; s{(<pre class="athl">.*?</pre>)}{ my $b=$1; $b =~ s/<span >//g; $b =~ s/<span class="hljs-[^"]*">//g; $b =~ s/<\/span>//g; $b }gse; print'
 
 status=0
 for s in $SLUGS; do

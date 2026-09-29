@@ -1,0 +1,26 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.ProducerTest</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">ExUnit</span>.<span class="hljs-title class_">Case</span>
+  <span class="hljs-keyword">alias</span> <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Producer</span>
+
+  test <span class="hljs-string">&quot;producer emits events on demand&quot;</span> <span class="hljs-keyword">do</span>
+    {<span class="hljs-symbol">:ok</span>, producer} = <span class="hljs-title class_">Producer</span>.start_link(<span class="hljs-number">0</span>)
+
+    <span class="hljs-comment"># Manually subscribe and ask for events</span>
+    {<span class="hljs-symbol">:ok</span>, _subscription} = <span class="hljs-title class_">GenStage</span>.sync_subscribe(self(), <span class="hljs-symbol">to:</span> producer, <span class="hljs-symbol">max_demand:</span> <span class="hljs-number">5</span>)
+
+    <span class="hljs-comment"># We should receive 5 events (0 through 4)</span>
+    assert_receive {<span class="hljs-symbol">:<span class="hljs-string">&quot;$gen_consumer&quot;</span></span>, {_, _}, [<span class="hljs-number">0</span>, <span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>, <span class="hljs-number">4</span>]}
+  <span class="hljs-keyword">end</span>
+
+  test <span class="hljs-string">&quot;producer maintains state across demands&quot;</span> <span class="hljs-keyword">do</span>
+    {<span class="hljs-symbol">:ok</span>, producer} = <span class="hljs-title class_">Producer</span>.start_link(<span class="hljs-number">10</span>)
+
+    <span class="hljs-comment"># First demand</span>
+    {<span class="hljs-symbol">:ok</span>, _} = <span class="hljs-title class_">GenStage</span>.sync_subscribe(self(), <span class="hljs-symbol">to:</span> producer, <span class="hljs-symbol">max_demand:</span> <span class="hljs-number">3</span>)
+    assert_receive {<span class="hljs-symbol">:<span class="hljs-string">&quot;$gen_consumer&quot;</span></span>, {_, _}, [<span class="hljs-number">10</span>, <span class="hljs-number">11</span>, <span class="hljs-number">12</span>]}
+
+    <span class="hljs-comment"># Second demand should continue from where we left off</span>
+    send(producer, {<span class="hljs-symbol">:<span class="hljs-string">&quot;$gen_producer&quot;</span></span>, {self(), <span class="hljs-literal">nil</span>}, {<span class="hljs-symbol">:ask</span>, <span class="hljs-number">2</span>}})
+    assert_receive {<span class="hljs-symbol">:<span class="hljs-string">&quot;$gen_consumer&quot;</span></span>, {_, _}, [<span class="hljs-number">13</span>, <span class="hljs-number">14</span>]}
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

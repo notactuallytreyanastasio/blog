@@ -1,0 +1,18 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.Telemetry</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">setup</span></span> <span class="hljs-keyword">do</span>
+    events = [
+      [<span class="hljs-symbol">:job_processor</span>, <span class="hljs-symbol">:job</span>, <span class="hljs-symbol">:start</span>],
+      [<span class="hljs-symbol">:job_processor</span>, <span class="hljs-symbol">:job</span>, <span class="hljs-symbol">:stop</span>],
+      [<span class="hljs-symbol">:job_processor</span>, <span class="hljs-symbol">:job</span>, <span class="hljs-symbol">:exception</span>],
+      [<span class="hljs-symbol">:job_processor</span>, <span class="hljs-symbol">:queue</span>, <span class="hljs-symbol">:depth</span>]
+    ]
+
+    <span class="hljs-symbol">:telemetry</span>.attach_many(<span class="hljs-string">&quot;job-processor-metrics&quot;</span>, events, &amp;handle_event/<span class="hljs-number">4</span>, <span class="hljs-literal">nil</span>)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_event</span></span>([<span class="hljs-symbol">:job_processor</span>, <span class="hljs-symbol">:job</span>, <span class="hljs-symbol">:stop</span>], measurements, metadata, _config) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Metrics</span>.record_job_duration(metadata.queue, measurements.duration)
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Metrics</span>.increment_jobs_completed(metadata.queue)
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Metrics</span>.record_job_success(metadata.module, metadata.function)
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

@@ -1,0 +1,29 @@
+<span class="hljs-comment"># keylogger_live.ex</span>
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">BlogWeb.KeyloggerLive</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">BlogWeb</span>, <span class="hljs-symbol">:live_view</span>
+  <span class="hljs-keyword">import</span> <span class="hljs-title class_">BlogWeb</span>.<span class="hljs-title class_">CoreComponents</span>
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">mount</span></span>(_params, _session, socket) <span class="hljs-keyword">do</span>
+    {<span class="hljs-symbol">:ok</span>,
+     assign(socket,
+       <span class="hljs-symbol">pressed_key:</span> <span class="hljs-string">&quot;&quot;</span>,
+       <span class="hljs-symbol">show_modal:</span> <span class="hljs-literal">true</span>,
+       <span class="hljs-symbol">page_title:</span> <span class="hljs-string">&quot;Experiment - what key are you pressing&quot;</span>
+     )}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_event</span></span>(<span class="hljs-string">&quot;keydown&quot;</span>, %{<span class="hljs-string">&quot;key&quot;</span> =&gt; key}, socket) <span class="hljs-keyword">do</span>
+    {<span class="hljs-symbol">:noreply</span>, assign(socket, <span class="hljs-symbol">pressed_key:</span> key)}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">render</span></span>(assigns) <span class="hljs-keyword">do</span>
+    <span class="hljs-string">~H&quot;&quot;&quot;
+    &lt;div phx-window-keydown=&quot;</span>keydown<span class="hljs-string">&quot;&gt;
+      &lt;h1 class=&quot;</span>text-[<span class="hljs-number">75</span>px]<span class="hljs-string">&quot;&gt;
+        Pressing: &lt;%= @pressed_key %&gt;
+      &lt;/h1&gt;
+    &lt;/div&gt;
+    &quot;</span><span class="hljs-string">&quot;&quot;</span>
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

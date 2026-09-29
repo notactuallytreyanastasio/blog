@@ -1,0 +1,33 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.Producer</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">GenStage</span>
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+
+  <span class="hljs-variable">@doc</span> <span class="hljs-string">&quot;&quot;&quot;
+  Starts the producer with an initial state.
+
+  The state can be anything, but we&#39;ll use a counter to start simple.
+  &quot;&quot;&quot;</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start_link</span></span>(initial \\ <span class="hljs-number">0</span>) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenStage</span>.start_link(__MODULE__, initial, <span class="hljs-symbol">name:</span> __MODULE__)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">init</span></span>(counter) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Producer starting with counter: <span class="hljs-subst">#{counter}</span>&quot;</span>)
+    {<span class="hljs-symbol">:producer</span>, counter}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_demand</span></span>(demand, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Producer received demand for <span class="hljs-subst">#{demand}</span> events&quot;</span>)
+
+    <span class="hljs-comment"># Generate events to fulfill demand</span>
+    events = <span class="hljs-title class_">Enum</span>.to_list(state..(state + demand - <span class="hljs-number">1</span>))
+
+    <span class="hljs-comment"># Update our state</span>
+    new_state = state + demand
+
+    <span class="hljs-comment"># Return events and new state</span>
+    {<span class="hljs-symbol">:noreply</span>, events, new_state}
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

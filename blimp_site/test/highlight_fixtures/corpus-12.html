@@ -1,0 +1,4 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_info</span></span>(<span class="hljs-symbol">:new_data_available</span>, state) <span class="hljs-keyword">do</span>
+  events = fetch_available_events()
+  {<span class="hljs-symbol">:noreply</span>, events, state}
+<span class="hljs-keyword">end</span>

@@ -1,0 +1,16 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start</span></span>(_type, _args) <span class="hljs-keyword">do</span>
+  children = [
+    <span class="hljs-comment"># Start the Producer first</span>
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Producer</span>,
+
+    <span class="hljs-comment"># Then start the Consumer</span>
+    <span class="hljs-comment"># The consumer will automatically connect to the producer</span>
+    <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Consumer</span>,
+
+    <span class="hljs-comment"># Other children like Ecto, Phoenix endpoint, etc.</span>
+    <span class="hljs-title class_">JobProcessorWeb</span>.<span class="hljs-title class_">Endpoint</span>
+  ]
+
+  opts = [<span class="hljs-symbol">strategy:</span> <span class="hljs-symbol">:one_for_one</span>, <span class="hljs-symbol">name:</span> <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Supervisor</span>]
+  <span class="hljs-title class_">Supervisor</span>.start_link(children, opts)
+<span class="hljs-keyword">end</span>

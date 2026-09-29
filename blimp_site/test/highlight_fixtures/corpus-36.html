@@ -1,0 +1,12 @@
+iex -S mix
+
+<span class="hljs-comment"># Queue a simple job</span>
+<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">TestJob</span>, <span class="hljs-symbol">:hello</span>, [<span class="hljs-string">&quot;World&quot;</span>])
+
+<span class="hljs-comment"># Queue a failing job (to test retry logic)</span>
+<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">TestJob</span>, <span class="hljs-symbol">:failing_job</span>, [])
+
+<span class="hljs-comment"># Queue multiple jobs to see parallel processing</span>
+<span class="hljs-keyword">for</span> i &lt;- <span class="hljs-number">1</span>..<span class="hljs-number">10</span> <span class="hljs-keyword">do</span>
+  <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">TestJob</span>, <span class="hljs-symbol">:hello</span>, [<span class="hljs-string">&quot;Person <span class="hljs-subst">#{i}</span>&quot;</span>])
+<span class="hljs-keyword">end</span>

@@ -1,0 +1,1 @@
+@spec f(integer) :: :ok
