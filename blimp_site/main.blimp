@@ -120,7 +120,9 @@ def app_routes(routes: Map) -> Map do
   r4d1b = load_asset(r4d1a, "/moon_phish/moon.blimp", "_build/moon.blimp")
   r4d1c0 = load_asset(r4d1b, "/assets/moon_phish.css", "assets/moon_phish.css")
   r4d1c = load_asset(r4d1c0, "/assets/work_log.css", "assets/work_log.css")
-  r4d1 = page_route(r4d1c, "/moon_phish", app_page("Moon Phish — every Phish show vs. the lunar calendar", "Every Phish show since 1983, checked against the instant of every full moon.", [APP_CSS, "/assets/moon_phish.css"], "", "/moon_phish/moon.blimp", "moon"))
+  r4d1h = load_asset(r4d1c, "/hacker-news/hn.blimp", "static/hn/hn.blimp")
+  r4d1i = page_route(r4d1h, "/hacker-news", app_page("Top Hacker News Stories", "Real-time feed of top Hacker News stories", [APP_CSS], "", "/hacker-news/hn.blimp", "hn"))
+  r4d1 = page_route(r4d1i, "/moon_phish", app_page("Moon Phish — every Phish show vs. the lunar calendar", "Every Phish show since 1983, checked against the instant of every full moon.", [APP_CSS, "/assets/moon_phish.css"], "", "/moon_phish/moon.blimp", "moon"))
   r4e = reduce(TEMPER_SNAKE_FILES, r4d1, fn(acc: Map, f: String) -> Map do
     load_asset(acc, concat("/static/temper-snake/", f), concat(STATIC_DIR, "/static/temper-snake/", f))
   end)
@@ -151,7 +153,12 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
         nil ->
           moon_json = moon_api(path)
           case moon_json do
-            nil -> static_or_404(path)
+            nil ->
+              hn = hn_api(path)
+              case hn do
+                nil -> static_or_404(path)
+                _ -> hn
+              end
             _ -> moon_json
           end
         _ -> api
@@ -471,6 +478,8 @@ end
 # and send the god pages the games if they changed (at most every 50ms).
 # {requests answered, socks, games, dirty, pushed_at}
 def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
+  # the work that waits on other servers, a step at a time
+  HN <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
