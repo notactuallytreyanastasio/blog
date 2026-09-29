@@ -45,7 +45,20 @@ def build_routes(posts: List) -> Map do
   r5 = put(r4, "/assets/highlight.css", serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", highlight_css()), "GET"))
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
-  load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
+  r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
+  tetris_routes(r7)
+end
+
+# /tetris and the files it runs: the game, and Blimp's interpreter and view
+# host, all synced from one Blimp commit (static/tetris/sync.sh).
+def tetris_routes(routes: Map) -> Map do
+  commit = trim(read_file("static/tetris/BLIMP_COMMIT"))
+  lines = length(split(trim_right(read_file("static/tetris/tetris.blimp")), "\n"))
+  with_files = reduce(["tetris.blimp", "blimp.wasm", "blimp.js", "blimp-view.js", "play.js"], routes, fn(acc: Map, f: String) -> Map do
+    load_asset(acc, concat("/tetris/", f), concat("static/tetris/", f))
+  end)
+  r1 = load_asset(with_files, "/assets/tetris.css", "assets/tetris.css")
+  page_route(r1, "/tetris", tetris_page(commit, lines))
 end
 
 # Everything that is not a fixed route. Only GET and HEAD reach here.

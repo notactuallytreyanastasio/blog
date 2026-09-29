@@ -406,7 +406,7 @@ end
 # A finder path the Blimp site serves stays relative; every other app is
 # still on the Phoenix site.
 def desk_app_href(path: String) -> String do
-  case path == "/" or path == "/blog" or starts_with(path, "/post/") do
+  case path == "/" or path == "/blog" or path == "/tetris" or starts_with(path, "/post/") do
     true -> path
     false -> concat(APPS_ORIGIN, path)
   end

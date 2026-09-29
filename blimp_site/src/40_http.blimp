@@ -147,6 +147,9 @@ def content_type_for(path: String) -> String do
     "webp" -> "image/webp"
     "txt" -> "text/plain; charset=utf-8"
     "html" -> "text/html; charset=utf-8"
+    "js" -> "text/javascript; charset=utf-8"
+    "wasm" -> "application/wasm"
+    "blimp" -> "text/plain; charset=utf-8"
     "woff2" -> "font/woff2"
     _ -> "application/octet-stream"
   end
