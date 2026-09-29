@@ -292,7 +292,7 @@ defmodule BlogWeb.RoleCallLive do
           class="os-content"
           style="height: calc(100% - 80px); overflow-y: auto; position: relative;"
         >
-          <canvas id="sunflower-bg" phx-hook="SunflowerBackground"></canvas>
+          <canvas id="sunflower-bg" phx-hook="BlimpCanvas" data-src="/static/blimp/sunflower.blimp"></canvas>
           <div class="role-call">
             <header class="rc-header">
               <h1>Role Call</h1>
