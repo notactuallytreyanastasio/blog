@@ -27,7 +27,18 @@ cd "$(dirname "$0")"
 DB="${1:-blog_dev}"
 ICONS="../../lib/blog/museum/icons.ex"
 
-q() { psql -d "$DB" -X -At -F $'\t' -v ON_ERROR_STOP=1 -c "$1"; }
+# PSQL is the client to run. Production's database is only reachable inside
+# its container, so a snapshot of the live site is
+#
+#   PSQL='ssh hetzner docker exec -i blog-db-1 psql -U blog -d blog_prod' ./data/export.sh
+#
+# The SQL goes in on stdin, with the separator set there, so nothing in it
+# has to survive a remote shell's quoting; and every session is read-only.
+PSQL="${PSQL:-psql -d $DB}"
+q() {
+  printf '%s\n' '\set ON_ERROR_STOP on' '\pset format unaligned' '\pset tuples_only on' \
+    "\\pset fieldsep '\\t'" 'set default_transaction_read_only = on;' "$1;" | $PSQL -X -q
+}
 
 # Every field but description must be free of tabs, newlines, CRs and
 # backslashes; tech names also of commas, since they are joined with one.

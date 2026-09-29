@@ -1,0 +1,25 @@
+# In /opt/blog/Caddyfile, inside the `bobbby.online, www.bobbby.online`
+# block, directly above "# Everything else: the Phoenix app." Installed
+# 2026-09-29; the file before it is /opt/blog/Caddyfile.bak-20260929T141541Z.
+#
+# Caddyfile is bind-mounted as a single file, so write it in place (cat new >
+# Caddyfile), not with sed -i or mv, or the container keeps the old inode.
+# Then: docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+	# The blog, served by Blimp (blimp_site/ in the blog repo, the blimp-blog
+	# service). Only what it renders goes there: the desktop, the index, the
+	# posts and their stylesheets. A 404 from it -- a guest post, which lives in
+	# Postgres, or anything else it does not know -- is sent on to Phoenix, so
+	# no URL that worked before stops working.
+	@blimp path / /blog /post/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css
+	handle @blimp {
+		reverse_proxy blimp-blog:4100 {
+			@missing status 404
+			handle_response @missing {
+				reverse_proxy app:4000 {
+					header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+					header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+				}
+			}
+		}
+	}

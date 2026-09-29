@@ -77,8 +77,8 @@ actor DesktopTests do
     desk = load_desktop("data", dt_posts())
     assert_eq(length(desk.museum), 32)
     assert_eq(desk.categories, ["creative", "hardware", "maps", "ml", "music", "social", "tools", "writing"])
-    assert_eq(desk.item_count, 35)
-    assert_eq(length(split(desk.finder_html, "class=\"section-label\"")), 9)
+    assert_eq(desk.item_count, 30)
+    assert_eq(length(split(desk.finder_html, "class=\"section-label\"")), 7)
     assert(starts_with(desk_icon(desk.icons, "no-such-slug"), "<svg"))
     assert_eq(desk_icon(desk.icons, "no-such-slug"), desk_icon(desk.icons, "default"))
   end
@@ -86,7 +86,7 @@ actor DesktopTests do
   test "descriptions keep their newlines" do
     assert_eq(desk_unescape("a\\nb\\tc\\\\n"), "a\nb\tc\\n")
     desk = load_desktop("data", dt_posts())
-    assert(contains(desk_find_project(desk.museum, "deciduous").description, "\n"))
+    assert(contains(desk_find_project(desk.museum, "local-llm").description, "\n"))
   end
 
   test "pixel icons are the bytes pixels/1 writes" do
@@ -123,17 +123,18 @@ actor DesktopTests do
     assert(contains(html, "museum-list-item selected"))
     assert(contains(html, "<a href=\"https://github.com/notactuallytreyanastasio/deciduous\" target=\"_blank\" class=\"museum-repo-link\">deciduous</a>"))
     assert(contains(html, "<span>3 technologies</span>"))
-    launch = dt_page("project=role-call")
-    assert(contains(launch, "<a href=\"https://bobbby.online/role-call\" class=\"museum-launch-btn\">"))
+    launch = dt_page("project=phangraphs")
+    assert(contains(launch, "<a href=\"https://bobbby.online/phish\" class=\"museum-launch-btn\">"))
+    visit = dt_page("project=role-call")
+    assert(contains(visit, "<a href=\"https://notactuallytreyanasasio.github.io/role_call\" target=\"_blank\" class=\"museum-launch-btn\""))
   end
 
   test "finder items link to the Phoenix site, except what Blimp serves" do
     html = dt_page("finder=1")
     assert(contains(html, "href=\"https://bobbby.online/pong\""))
-    assert(contains(html, "<a class=\"icon\" href=\"/blog\">"))
-    assert(contains(html, "<a class=\"icon\" href=\"https://bobbby.online/phish\">"))
-    assert(contains(html, "<div class=\"icon\" tabindex=\"0\">"))
-    assert(contains(html, "<span>35 items</span>"))
+    assert(contains(html, "<a class=\"icon\" href=\"/\">"))
+    assert(contains(html, "<a class=\"icon\" href=\"https://bobbby.online/phish\" title=\"phish, just the jams, explore by rank"))
+    assert(contains(html, "<span>30 items</span>"))
     refute(contains(dt_page(""), "id=\"finder-window\""))
   end
 
