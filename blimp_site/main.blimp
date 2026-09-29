@@ -71,7 +71,7 @@ def static_page_routes(routes: Map) -> Map do
       nil ->
         print(concat("cannot read content/pages/", name, ".html"))
         exit(1)
-      _ -> page_route(acc, concat("/", name), body)
+      _ -> page_route(acc, concat("/", name), page_with_runtime(body))
     end
   end)
   r1 = load_asset(with_pages, "/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "content/assets/app-3cfac71d5552d1426de906087a8be2fe.css")
@@ -84,7 +84,7 @@ end
 def tetris_routes(routes: Map) -> Map do
   commit = trim(read_file("static/blimp/BLIMP_COMMIT"))
   lines = length(split(trim_right(read_file("static/tetris/tetris.blimp")), "\n"))
-  runtime = reduce(["blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js"], routes, fn(acc: Map, f: String) -> Map do
+  runtime = reduce(["blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js", "runtime.js"], routes, fn(acc: Map, f: String) -> Map do
     load_asset(acc, concat("/blimp/", f), concat("static/blimp/", f))
   end)
   r1 = load_asset(runtime, "/blimp/post.js", "static/post/post.js")
@@ -208,7 +208,7 @@ def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
   case raw do
     nil ->
       tcp_close(c)
-      0
+      ""
     _ ->
       case is_upgrade(raw) do
         true -> upgrade(c, raw, room)
@@ -218,7 +218,7 @@ def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
           tcp_close(c)
           req = elem(result, 2)
           puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
-          1
+          concat(req.method, " ", req.path)
       end
   end
 end
@@ -236,6 +236,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         false -> nil
       end
     "/live/pong-god" -> :god
+    "/live/runtime" -> :runtime
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -247,7 +248,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       tcp_write(c, serialize(response(status, "text/plain", "no-cache", "no such socket\n"), "GET"))
       tcp_close(c)
       puts(concat("WS ", req.path, " ", to_string(status)))
-      1
+      concat("WS ", req.path)
     false ->
       tcp_write(c, ws_handshake(raw))
       puts(concat("WS ", req.path, " 101 ", game))
@@ -257,16 +258,21 @@ end
 
 # Every connection that is waiting now, then stop: the tick must return.
 # Every connection that is waiting now, then stop: the tick must return.
-# {requests answered, sockets}, the sockets with any new WebSockets added.
-def accept_all(fd: Int, n: Int, desk: Map, home: List, socks: Map) -> Tuple do
+# {what was answered, newest first ("GET /blog"), sockets}, the sockets
+# with any new WebSockets added.
+def accept_all(fd: Int, answered: List, desk: Map, home: List, socks: Map) -> Tuple do
   c = tcp_accept(fd)
   case c do
-    nil -> {n, socks}
+    nil -> {answered, socks}
     _ ->
       got = serve_client(c, desk, home, length(keys(socks)) < LIVE_MAX_SOCKETS)
       case type_of(got) do
-        :map -> accept_all(fd, n, desk, home, put(socks, to_string(got.fd), got))
-        _ -> accept_all(fd, n + got, desk, home, socks)
+        :map -> accept_all(fd, answered, desk, home, put(socks, to_string(got.fd), got))
+        _ ->
+          case got do
+            "" -> accept_all(fd, answered, desk, home, socks)
+            _ -> accept_all(fd, [got | answered], desk, home, socks)
+          end
       end
   end
 end
@@ -354,12 +360,66 @@ def live_read_all(ready: List, socks: Map, games: Map, changed: Bool) -> Tuple d
   end
 end
 
+def sockets_of(socks: Map, kind: Atom) -> List do
+  filter(values(socks), fn(s: Map) -> Bool do s.kind == kind end)
+end
+
 # Every god page is sent every game.
 def push_gods(socks: Map, games: Map) -> Int do
   frame = ws_frame(1, pong_games_json(games))
-  gods = filter(values(socks), fn(s: Map) -> Bool do s.kind == :god end)
+  gods = sockets_of(socks, :god)
   each(gods, fn(s: Map) do tcp_write(s.fd, frame) end)
   length(gods)
+end
+
+RUNTIME_PUSH_MS = 250
+RUNTIME_MAX_RAYS = 80
+
+# What a runtime window is sent: runtime_snapshot()'s actors, and as its
+# messages the sends since the last push plus one ray per request answered
+# (to the Site, from outside it: "GET /blog"). {pending rays, pushed_at}
+def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int) -> Tuple do
+  watchers = sockets_of(socks, :runtime)
+  case watchers do
+    [] -> {[], pushed_at}
+    _ ->
+      snap = runtime_snapshot()
+      site_ref = runtime_site_ref(snap.actors)
+      asked = map(reverse(answered), fn(line: String) -> Map do %{target: site_ref, from: nil, message: line} end)
+      rays = take_rays(list_append(pending, list_append(snap.messages, asked)), RUNTIME_MAX_RAYS)
+      t = now_ms()
+      case t - pushed_at >= RUNTIME_PUSH_MS do
+        false -> {rays, pushed_at}
+        true ->
+          frame = ws_frame(1, json_encode(%{actors: snap.actors, messages: rays}))
+          each(watchers, fn(s: Map) do tcp_write(s.fd, frame) end)
+          {[], t}
+      end
+  end
+end
+
+def runtime_site_ref(actors: List) -> String do
+  sites = filter(actors, fn(a: Map) -> Bool do a.type == "Site" end)
+  case sites do
+    [] -> ""
+    [a | _] -> a.ref
+  end
+end
+
+# The last n, oldest first: a burst of requests is not a backlog.
+def take_rays(rays: List, n: Int) -> List do
+  reverse(take_first(reverse(rays), n, []))
+end
+
+def take_first(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> take_first(rest, n - 1, [h | acc])
+      end
+  end
 end
 
 def has_fd(fds: List, fd: Int) -> Bool do
@@ -384,8 +444,8 @@ end
 def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
-    true -> accept_all(fd, 0, desk, home, socks)
-    false -> {0, socks}
+    true -> accept_all(fd, [], desk, home, socks)
+    false -> {[], socks}
   end
   joined = length(keys(elem(accepted, 1))) > length(keys(socks))
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
@@ -430,6 +490,8 @@ actor Site do
   state games: Map :: %{}
   state dirty: Bool :: false
   state pushed_at: Int :: 0
+  state rt_pending: List :: []
+  state rt_at: Int :: 0
 
   on :start(port: Int, first: Map, conn: Any, opts: Any) do
     s = tcp_listen(port)
@@ -440,19 +502,20 @@ actor Site do
 
   on :tick do
     live = live_tick(fd, desk, home, socks, games, dirty, pushed_at)
-    n = elem(live, 0)
+    n = length(elem(live, 0))
+    rt = push_runtime(elem(live, 1), elem(live, 0), rt_pending, rt_at)
     case db_opts != nil and now() - desk_at >= DESK_REFRESH_S do
       false ->
-        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4)
+        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1)
         reply n
       true ->
         case refresh_desk(db, db_opts) do
           {:ok, fresh, next} ->
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
             reply n
           {:error, reason, next} ->
             puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), db: next, desk_at: now(), desk_error: reason
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), db: next, desk_at: now(), desk_error: reason
             reply n
         end
     end
