@@ -1,0 +1,104 @@
+# /hacker-news: the top 50 Hacker News stories. HackerNewsLive's template,
+# in the browser, over the same classes. The Blimp server refreshes the
+# stories every 3 minutes (src/99_hacker_news.blimp); this asks it for
+# them when the page opens and every minute after, so "Live Updates" is
+# still true without a socket.
+
+HN_ICONS = %{
+  domain: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
+  by: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+  score: "M7 11l5-5m0 0l5 5m-5-5v12",
+  comments: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
+  time: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+  thread: "M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+}
+
+def hn_icon(name: String) -> Any do
+  el("svg", %{xmlns: "http://www.w3.org/2000/svg", class: "h-4 w-4 mr-1", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor"},
+    el("path", %{"stroke-linecap": "round", "stroke-linejoin": "round", "stroke-width": "2", d: lookup(HN_ICONS, name)}))
+end
+
+def hn_meta(icon: String, text: Any) -> Any do
+  el("span", %{class: "inline-flex items-center"}, hn_icon(icon), to_string(text))
+end
+
+def hn_article(s: Map) -> Any do
+  domain = case s.domain do
+    "" -> []
+    d -> [hn_meta("domain", d)]
+  end
+  el("article", %{id: concat("story-", to_string(s.id)), class: "p-4 hover:bg-orange-50 transition-colors"},
+    el("div", %{class: "flex items-baseline space-x-2"},
+      el("span", %{class: "text-orange-500 font-mono font-semibold"}, concat(to_string(s.rank), ".")),
+      el("h2", %{class: "text-lg font-medium text-gray-900 flex-grow"},
+        el("a", %{href: s.url, target: "_blank", rel: "noopener noreferrer", class: "hover:underline"}, s.title))),
+    el("div", %{class: "ml-6 mt-1 flex flex-wrap text-sm text-gray-500 gap-x-4"},
+      domain,
+      hn_meta("by", s.by),
+      hn_meta("score", s.score),
+      hn_meta("comments", s.descendants),
+      hn_meta("time", s.posted),
+      el("a", %{href: concat("https://news.ycombinator.com/item?id=", to_string(s.id)), target: "_blank", rel: "noopener noreferrer", class: "inline-flex items-center text-orange-600 hover:underline"}, hn_icon("thread"), "Comments")))
+end
+
+actor HackerNewsPage do
+  state stories: List :: []
+  state updated: String :: ""
+  state asking: Bool :: true
+
+  on :loaded(status: Int, body: String) do
+    case status == 200 do
+      true ->
+        data = elem(json_decode(body), 1)
+        become stories: data.stories, updated: data.updated, asking: false
+      false -> become asking: false
+    end
+    reply :ok
+  end
+
+  on :refresh do
+    become asking: true
+    reply :ok
+  end
+
+  on :view do
+    updated_text = case updated do
+      "" -> "loading..."
+      u -> u
+    end
+    ask = case asking do
+      true -> [fetch("/hacker-news/stories.json", :loaded)]
+      false -> []
+    end
+    empty = case stories do
+      [] -> [el("div", %{class: "p-8 text-center"},
+        el("p", %{class: "text-gray-500"}, "Loading Hacker News stories..."),
+        el("p", %{class: "text-sm text-gray-400 mt-2"}, "This could take a moment to fetch data from the API."))]
+      _ -> []
+    end
+    reply el("div", %{class: "os-desktop-osx"},
+      el("div", %{class: "os-window os-window-osx", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+        el("div", %{class: "os-titlebar"},
+          el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close"}), el("span", %{class: "os-btn-min"}), el("span", %{class: "os-btn-max"})),
+          el("span", %{class: "os-titlebar-title"}, "Hacker News - Top Stories"),
+          el("div", %{class: "os-titlebar-spacer"})),
+        el("div", %{class: "os-content", style: "height: calc(100% - 60px); overflow-y: auto; background: #f9fafb;"},
+          el("div", %{class: "max-w-5xl mx-auto py-6 px-4"},
+            el("header", %{class: "mb-6"},
+              el("div", %{class: "flex items-center justify-between"},
+                el("h1", %{class: "text-2xl font-bold text-gray-900"}, "Top Hacker News Stories"),
+                el("div", %{class: "flex items-center"},
+                  el("span", %{class: "bg-orange-100 text-orange-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded-full"}, "Live Updates"),
+                  el("span", %{class: "text-xs text-gray-500"}, concat("Last updated: ", updated_text)))),
+              el("p", %{class: "text-gray-600 mt-2 text-sm"}, "Real-time feed of the top 50 stories from Hacker News, updated every 3 minutes.")),
+            el("div", %{class: "bg-white rounded-lg shadow divide-y"}, map(stories, fn(s: Map) -> Any do hn_article(s) end), empty))),
+        el("div", %{class: "os-statusbar"},
+          el("span", %{}, concat("Stories: ", to_string(length(stories)))),
+          el("span", %{}, concat("Updated: ", updated_text)))),
+      ask,
+      timer(60000, :refresh))
+  end
+end
+
+hn = spawn HackerNewsPage
+hn <- :view

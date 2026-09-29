@@ -1,0 +1,181 @@
+# /hacker-news: the top 50 stories, refreshed every 3 minutes. HackerNewsLive
+# fetched them in the LiveView process with Req and Task.async_stream; here
+# an HN actor does it over http_start/http_result (blimp#60), stepped by the
+# Site's tick, so no request ever holds the one process up: the story ids,
+# then each story, at most 16 in flight. The page asks for the result as
+# JSON (/hacker-news/stories.json).
+
+HN_API = "https://hacker-news.firebaseio.com/v0"
+HN_EVERY_S = 180
+HN_GIVE_UP_S = 60
+HN_IN_FLIGHT = 16
+
+# URI.parse(url).host, or "" for none (an Ask HN has no URL of its own)
+def hn_domain(url: String) -> String do
+  at = index_of(url, "://")
+  case at < 0 do
+    true -> ""
+    false ->
+      rest = drop(url, at + 3)
+      auth = hn_until(rest, ["/", "?", "#"])
+      user = index_of(auth, "@")
+      host = case user < 0 do
+        true -> auth
+        false -> drop(auth, user + 1)
+      end
+      hn_until(host, [":"])
+  end
+end
+
+def hn_until(s: String, stops: List) -> String do
+  cut = reduce(stops, length(s), fn(best: Int, stop: String) -> Int do
+    i = index_of(s, stop)
+    case i >= 0 and i < best do
+      true -> i
+      false -> best
+    end
+  end)
+  take(s, cut)
+end
+
+# HackerNewsLive.format_story/2, from an item's JSON; nil for one that
+# is not there (deleted, dead, "null")
+def hn_story(body: String, rank: Int) -> Any do
+  case json_decode(body) do
+    {:ok, item} ->
+      case type_of(item) == :map and lookup(item, :id) != nil do
+        false -> nil
+        true ->
+          id = lookup(item, :id)
+          url = case lookup(item, :url) do
+            nil -> concat("https://news.ycombinator.com/item?id=", to_string(id))
+            u -> u
+          end
+          t = lookup(item, :time)
+          when_text = case type_of(t) == :integer do
+            true -> format_time(t, "%b %d, %Y %H:%M")
+            false -> ""
+          end
+          %{id: id, rank: rank, title: hn_or(lookup(item, :title), ""), url: url, domain: hn_domain(url), score: hn_or(lookup(item, :score), 0), by: hn_or(lookup(item, :by), ""), descendants: hn_or(lookup(item, :descendants), 0), posted: when_text}
+      end
+    _ -> nil
+  end
+end
+
+def hn_or(v: Any, dflt: Any) -> Any do
+  case v do
+    nil -> dflt
+    _ -> v
+  end
+end
+
+def hn_take(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> hn_take(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+actor HackerNews do
+  state phase: Atom :: :idle
+  state next_at: Int :: 0
+  state started: Int :: 0
+  state ids_handle: Int :: -1
+  state queue: List :: []
+  state flying: List :: []
+  state got: List :: []
+  state json: String :: ""
+  state last_error: String :: ""
+
+  on :step do
+    t = now()
+    case phase do
+      :idle ->
+        case t >= next_at do
+          false -> reply :idle
+          true ->
+            h = http_start("GET", concat(HN_API, "/topstories.json"), %{}, "")
+            become phase: :ids, ids_handle: h, started: t
+            reply :started
+        end
+      :ids ->
+        r = http_result(ids_handle)
+        case r do
+          nil -> reply (self <- :give_up_if_late(t))
+          {:ok, 200, body} ->
+            ids = hn_take(elem(json_decode(body), 1), 50, [])
+            ranked = zip(ids, range(1, length(ids)))
+            become phase: :items, queue: ranked, flying: [], got: []
+            reply :items
+          _ ->
+            become phase: :idle, next_at: t + 60, last_error: concat("topstories: ", to_string(r))
+            reply :failed
+        end
+      :items ->
+        polled = map(flying, fn(f: Any) -> Any do {f, http_result(elem(f, 0))} end)
+        still = map(filter(polled, fn(p: Any) -> Bool do elem(p, 1) == nil end), fn(p: Any) -> Any do elem(p, 0) end)
+        done = filter(polled, fn(p: Any) -> Bool do elem(p, 1) != nil end)
+        stories = filter(map(done, fn(p: Any) -> Any do
+          r = elem(p, 1)
+          case r do
+            {:ok, 200, body} -> hn_story(body, elem(elem(p, 0), 1))
+            _ -> nil
+          end
+        end), fn(s: Any) -> Bool do s != nil end)
+        room = HN_IN_FLIGHT - length(still)
+        starting = hn_take(queue, room, [])
+        launched = map(starting, fn(q: Any) -> Any do
+          {http_start("GET", concat(HN_API, "/item/", to_string(elem(q, 0)), ".json"), %{}, ""), elem(q, 1)}
+        end)
+        rest = drop_list(queue, length(starting))
+        all_got = list_append(got, stories)
+        flying_now = list_append(still, launched)
+        case rest == [] and flying_now == [] do
+          false ->
+            become queue: rest, flying: flying_now, got: all_got
+            reply (self <- :give_up_if_late(t))
+          true ->
+            sorted = sort_by_keys(all_got, map(all_got, fn(s: Map) -> Int do s.rank end))
+            out = json_encode(%{updated: format_time(t, "%H:%M:%S"), stories: sorted})
+            become phase: :idle, next_at: t + HN_EVERY_S, json: out, flying: [], got: [], last_error: ""
+            reply :done
+        end
+    end
+  end
+
+  # a remote that never answers keeps its slot, but not this refresh
+  on :give_up_if_late(t: Int) do
+    case t - started > HN_GIVE_UP_S do
+      false -> reply :waiting
+      true ->
+        become phase: :idle, next_at: t + 60, flying: [], queue: [], last_error: "gave up after 60s"
+        reply :gave_up
+    end
+  end
+
+  on :json do
+    reply json
+  end
+
+  on :stats do
+    reply %{phase: phase, next_at: next_at, stories: length(got), last_error: last_error, have: length(json)}
+  end
+end
+
+HN = spawn HackerNews
+
+def hn_api(path: String) -> Any do
+  case path do
+    "/hacker-news/stories.json" ->
+      body = HN <- :json
+      case body do
+        "" -> response(503, "application/json; charset=utf-8", "no-cache", "{\"error\": \"the first refresh has not finished\"}")
+        _ -> response(200, "application/json; charset=utf-8", "no-cache", body)
+      end
+    _ -> nil
+  end
+end

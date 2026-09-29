@@ -1,0 +1,17 @@
+actor HackerNewsTests do
+  test "a story's domain, as URI.parse finds its host" do
+    assert_eq(hn_domain("https://www.example.com/a/b?c#d"), "www.example.com")
+    assert_eq(hn_domain("http://user@host.example:8080/x"), "host.example")
+    assert_eq(hn_domain("https://news.ycombinator.com/item?id=1"), "news.ycombinator.com")
+    assert_eq(hn_domain("not a url"), "")
+  end
+
+  test "an item becomes a story; a deleted one is nothing" do
+    s = hn_story("{\"id\": 7, \"title\": \"Ask HN: x?\", \"by\": \"pg\", \"score\": 3, \"time\": 1790000000}", 2)
+    assert_eq(s.url, "https://news.ycombinator.com/item?id=7")
+    assert_eq(s.rank, 2)
+    assert_eq(s.descendants, 0)
+    assert_eq(s.posted, "Sep 21, 2026 14:13")
+    assert_eq(hn_story("null", 1), nil)
+  end
+end
