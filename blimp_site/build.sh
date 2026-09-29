@@ -15,6 +15,9 @@ fi
 cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp static/post/tail.blimp > _build/post-renderer.blimp
 # The Markdown editor: the same renderer, with the editor after it.
 cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp static/editor/editor.blimp > _build/editor.blimp
+# phangraphs: the site's own list logic (src/97_phish.blimp, checked against
+# the Elixir), with the page after it.
+cat src/00_text.blimp src/40_http.blimp src/97_phish.blimp static/phish/phish.blimp > _build/phish.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

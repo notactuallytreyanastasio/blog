@@ -1,0 +1,1176 @@
+# phangraphs (/phish): Phish 3.0 jam analytics, in the browser.
+#
+# A port of BlogWeb.PhishLive, its template, and the two hooks it drew with:
+# PhishChart (a D3 timeline) and PhishAudio (a player bar). The list logic
+# -- batting average, sorting, filters -- is src/97_phish.blimp, served in
+# front of this file, the same code the server uses and checked against
+# the Elixir on the same database. The data comes from the Blimp server's
+# /phish/*.json (fetch()), the state lives in the URL (location_query()),
+# and the chart is SVG built here: d3's time ticks, linear ticks and
+# monotone curve, reimplemented.
+#
+# Different from the LiveView, by name: a point's details are its SVG
+# <title> tooltip, not an HTML box that follows the mouse; the player is
+# the browser's own <audio controls> inside PhishAudio's bar, not a drawn
+# progress bar; the filter box is not in the URL (it was not there either).
+
+PH_W = 960
+PH_H = 520
+PH_MT = 60
+PH_MR = 50
+PH_MB = 100
+PH_ML = 70
+PH_STAR = "M0,-8 L2,-3 L7,-3 L3,1 L5,6 L0,3 L-5,6 L-3,1 L-7,-3 L-2,-3 Z"
+PH_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+PH_MINS = [1, 2, 3, 5, 8, 10, 15, 20, 30, 50]
+
+# ── small things ────────────────────────────────────────────────────────
+
+def ph_nth(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> ph_nth(tail(list), i - 1)
+  end
+end
+
+def ph_take(list: List, n: Int) -> List do
+  ph_take_into(list, n, [])
+end
+
+def ph_take_into(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> ph_take_into(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+def ph_n(x: Any) -> String do
+  to_string(round(x * 100) / 100.0)
+end
+
+def ph_pad2(n: Int) -> String do
+  case n < 10 do
+    true -> concat("0", to_string(n))
+    false -> to_string(n)
+  end
+end
+
+# PhishLive.fmt_duration/1 and the chart's fmtDuration: "43:37", "?"
+def ph_dur(ms: Int) -> String do
+  case ms <= 0 do
+    true -> "?"
+    false -> concat(to_string(ms / 60000), ":", ph_pad2(rem(ms, 60000) / 1000))
+  end
+end
+
+# One decimal, as Float.round(x, 1) and toFixed(1) print: 12.0, 7.5
+def ph_1dp(x: Any) -> String do
+  tenths = round(x * 10)
+  concat(to_string(tenths / 10), ".", to_string(rem(tenths, 10)))
+end
+
+# Elixir's round/1 of a non-negative ratio a/b: half away from zero.
+def ph_round_div(a: Int, b: Int) -> Int do
+  (2 * a + b) / (2 * b)
+end
+
+def ph_fmt_set(s: Any) -> String do
+  case s do
+    "SET 1" -> "Set 1"
+    "SET 2" -> "Set 2"
+    "SET 3" -> "Set 3"
+    "ENCORE" -> "Encore"
+    "ENCORE 2" -> "Encore 2"
+    nil -> ""
+    other -> other
+  end
+end
+
+# The first n characters (not bytes) of s.
+def ph_chars(s: String, n: Int) -> String do
+  ph_chars_at(s, 0, n)
+end
+
+def ph_chars_at(s: String, i: Int, left: Int) -> String do
+  case i >= length(s) do
+    true -> s
+    false ->
+      code = char_code(char_at(s, i))
+      starts = code < 128 or code >= 192
+      case starts and left == 0 do
+        true -> slice(s, 0, i)
+        false ->
+          case starts do
+            true -> ph_chars_at(s, i + 1, left - 1)
+            false -> ph_chars_at(s, i + 1, left)
+          end
+      end
+  end
+end
+
+def ph_char_count(s: String) -> Int do
+  length(filter(ph_bytes(s), fn(c: Int) -> Bool do c < 128 or c >= 192 end))
+end
+
+def ph_bytes(s: String) -> List do
+  map(range(0, length(s) - 1), fn(i: Int) -> Int do char_code(char_at(s, i)) end)
+end
+
+# Percent-encoding for a query value: a song is "Mike's Song" or "AC/DC Bag".
+def ph_enc(s: String) -> String do
+  join(map(ph_enc_bytes(s), fn(b: Int) -> String do
+    case (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or b == 45 or b == 46 or b == 95 or b == 126 do
+      true -> from_char_code(b)
+      false -> concat("%", upcase(hex_encode(from_char_code(b))))
+    end
+  end), "")
+end
+
+def ph_enc_bytes(s: String) -> List do
+  case length(s) do
+    0 -> []
+    _ -> ph_bytes(s)
+  end
+end
+
+# ── dates, as days ──────────────────────────────────────────────────────
+
+# days_from_civil (Howard Hinnant): "2023-04-17" -> days since 1970-01-01
+def ph_days(date: String) -> Int do
+  y0 = to_int(slice(date, 0, 4))
+  m = to_int(slice(date, 5, 2))
+  d = to_int(slice(date, 8, 2))
+  y = case m <= 2 do
+    true -> y0 - 1
+    false -> y0
+  end
+  era = y / 400
+  yoe = y - era * 400
+  mp = case m > 2 do
+    true -> m - 3
+    false -> m + 9
+  end
+  doy = (153 * mp + 2) / 5 + d - 1
+  doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+  era * 146097 + doe - 719468
+end
+
+# ...and back: days -> [year, month]
+def ph_civil(z0: Int) -> List do
+  z = z0 + 719468
+  era = z / 146097
+  doe = z - era * 146097
+  yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+  doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+  mp = (5 * doy + 2) / 153
+  m = case mp < 10 do
+    true -> mp + 3
+    false -> mp - 9
+  end
+  y = case m <= 2 do
+    true -> yoe + era * 400 + 1
+    false -> yoe + era * 400
+  end
+  [y, m]
+end
+
+def ph_month_start(y: Int, m: Int) -> Int do
+  ph_days(concat(to_string(y), "-", ph_pad2(m), "-01"))
+end
+
+# ── song_stats/1 ────────────────────────────────────────────────────────
+
+# PhishLive.song_stats/1. Ties go where Elixir sends them: Enum.max_by
+# keeps the first maximum, and a small map (group_by's) iterates by key.
+def ph_max_by(list: List, key: Function) -> Any do
+  reduce(list, nil, fn(best: Any, x: Any) -> Any do
+    case best do
+      nil -> x
+      _ ->
+        case key(x) > key(best) do
+          true -> x
+          false -> best
+        end
+    end
+  end)
+end
+
+def ph_group_counts(tracks: List, key: Function) -> List do
+  names = sort(uniq(map(tracks, fn(t: Map) -> Any do key(t) end)))
+  map(names, fn(n: Any) -> List do [n, length(filter(tracks, fn(t: Map) -> Bool do key(t) == n end))] end)
+end
+
+def ph_stats(tracks: List, today: String) -> Map do
+  n = length(tracks)
+  jcs = filter(tracks, fn(t: Map) -> Bool do t.is_jamchart == 1 end)
+  total_ms = reduce(tracks, 0, fn(a: Int, t: Map) -> Int do a + t.duration_ms end)
+  longest = ph_max_by(tracks, fn(t: Map) -> Int do t.duration_ms end)
+  loved = ph_max_by(tracks, fn(t: Map) -> Int do t.likes end)
+  quotes = filter(jcs, fn(t: Map) -> Bool do t.jam_notes != "" end)
+  quote = case quotes do
+    [] -> nil
+    [q | _] ->
+      case ph_char_count(q.jam_notes) > 80 do
+        true -> concat(ph_chars(q.jam_notes, 80), "...")
+        false -> q.jam_notes
+      end
+  end
+  streak = length(ph_take_while(reverse(tracks)))
+  sets = ph_group_counts(tracks, fn(t: Map) -> Any do t.set_name end)
+  top_set = ph_max_by(sets, fn(g: List) -> Int do elem_of2(g) end)
+  jc_sets = ph_group_counts(jcs, fn(t: Map) -> Any do t.set_name end)
+  top_jc = ph_max_by(jc_sets, fn(g: List) -> Int do elem_of2(g) end)
+  jc_note = case length(jcs) >= 2 do
+    false -> nil
+    true ->
+      case ph_round_div(100 * elem_of2(top_jc), length(jcs)) >= 75 do
+        true -> concat(to_string(elem_of2(top_jc)), "/", to_string(length(jcs)), " JCs from ", ph_fmt_set(head(top_jc)))
+        false -> nil
+      end
+  end
+  first_day = case n do
+    0 -> 0
+    _ -> ph_days(head(tracks).show_date)
+  end
+  last_date = case n do
+    0 -> nil
+    _ -> last(tracks).show_date
+  end
+  years = filter(map(ph_group_counts(tracks, fn(t: Map) -> Any do slice(t.show_date, 0, 4) end), fn(g: List) -> List do
+    yr = head(g)
+    in_year = filter(tracks, fn(t: Map) -> Bool do slice(t.show_date, 0, 4) == yr end)
+    [yr, length(filter(in_year, fn(t: Map) -> Bool do t.is_jamchart == 1 end)), length(in_year)]
+  end), fn(g: List) -> Bool do ph_nth(g, 2) >= 2 end)
+  best = reduce(years, nil, fn(b: Any, g: List) -> Any do
+    case b do
+      nil -> g
+      _ ->
+        case ph_nth(g, 1) * ph_nth(b, 2) > ph_nth(b, 1) * ph_nth(g, 2) do
+          true -> g
+          false -> b
+        end
+    end
+  end)
+  avg_min = case n do
+    0 -> 0
+    _ -> total_ms / n / 60000.0
+  end
+  set_name = case top_set do
+    nil -> nil
+    _ -> head(top_set)
+  end
+  set_pct = case top_set do
+    nil -> 0
+    _ -> ph_round_div(100 * elem_of2(top_set), n)
+  end
+  days_since = case last_date do
+    nil -> nil
+    _ -> ph_days(today) - ph_days(last_date)
+  end
+  avg_gap = case n > 1 do
+    true -> ph_round_div(ph_days(last_date) - first_day, n - 1)
+    false -> nil
+  end
+  %{
+    jc_count: length(jcs),
+    avg_min: avg_min,
+    longest: longest,
+    loved: loved,
+    quote: quote,
+    streak: streak,
+    set_name: set_name,
+    set_pct: set_pct,
+    jc_note: jc_note,
+    last_played: last_date,
+    days_since: days_since,
+    avg_gap: avg_gap,
+    best: best,
+    audio: length(filter(tracks, fn(t: Map) -> Bool do t.jam_url != "" end)),
+    count: n
+  }
+end
+
+def elem_of2(g: List) -> Int do
+  head(tail(g))
+end
+
+def ph_take_while(tracks: List) -> List do
+  case tracks do
+    [] -> []
+    [t | rest] ->
+      case t.is_jamchart == 1 do
+        true -> [t | ph_take_while(rest)]
+        false -> []
+      end
+  end
+end
+
+# ── the chart ───────────────────────────────────────────────────────────
+
+# d3.ticks' tickIncrement: 1, 2 or 5 times a power of ten, near span/count.
+def ph_step(span: Any, count: Int) -> Any do
+  raw = span / (count * 1.0)
+  power = pow(10.0, floor(log10(raw)))
+  e = raw / power
+  factor = case e >= 7.0710678 do
+    true -> 10
+    false ->
+      case e >= 3.1622776 do
+        true -> 5
+        false ->
+          case e >= 1.4142135 do
+            true -> 2
+            false -> 1
+          end
+      end
+  end
+  factor * power
+end
+
+def ph_y_ticks(top: Int) -> List do
+  step = round(ph_step(top, 8))
+  map(range(0, top / step), fn(i: Int) -> Int do i * step end)
+end
+
+# d3.scaleTime().ticks(count): the interval nearest span/count of a day,
+# two days, a week, a month, three months or a year, or whole years.
+# Returns day numbers.
+def ph_x_ticks(d0: Int, d1: Int, count: Int) -> List do
+  case d1 <= d0 do
+    # one date (a song played once that year): one tick, at it
+    true -> [d0]
+    false -> ph_x_ticks_over(d0, d1, count)
+  end
+end
+
+def ph_x_ticks_over(d0: Int, d1: Int, count: Int) -> List do
+  target = (d1 - d0) / (count * 1.0)
+  case target > 365 do
+    true ->
+      step = round(ph_step(ph_nth(ph_civil(d1), 0) - ph_nth(ph_civil(d0), 0), count))
+      yr0 = ph_nth(ph_civil(d0), 0)
+      first = case ph_month_start(yr0, 1) < d0 do
+        true -> yr0 + 1
+        false -> yr0
+      end
+      aligned = first + rem(step - rem(first, step), step)
+      filter(map(range(0, 60), fn(i: Int) -> Int do ph_month_start(aligned + i * step, 1) end), fn(d: Int) -> Bool do d >= d0 and d <= d1 end)
+    false ->
+      pick = ph_pick_interval(target, [1, 2, 7, 30, 90, 365])
+      case pick >= 30 do
+        true ->
+          months = pick / 30
+          ym = ph_civil(d0)
+          idx0 = ph_nth(ym, 0) * 12 + ph_nth(ym, 1) - 1
+          start = idx0 + rem(months - rem(idx0, months), months)
+          filter(map(range(0, 240), fn(i: Int) -> Int do
+            k = start + i * months
+            ph_month_start(k / 12, rem(k, 12) + 1)
+          end), fn(d: Int) -> Bool do d >= d0 and d <= d1 end)
+        false ->
+          # days, two days, or weeks starting Sunday (1970-01-01 was a Thursday)
+          first = case pick do
+            7 -> d0 + rem(7 - rem(d0 + 4, 7), 7)
+            _ -> d0
+          end
+          filter(map(range(0, 400), fn(i: Int) -> Int do first + i * pick end), fn(d: Int) -> Bool do d <= d1 end)
+      end
+  end
+end
+
+# d3's choice between neighbouring intervals: the one whose ratio to the
+# target is smaller.
+def ph_pick_interval(target: Any, sizes: List) -> Int do
+  case tail(sizes) do
+    [] -> head(sizes)
+    [next | _] ->
+      case target < next do
+        false -> ph_pick_interval(target, tail(sizes))
+        true ->
+          case target / head(sizes) < next / target do
+            true -> head(sizes)
+            false -> next
+          end
+      end
+  end
+end
+
+def ph_tick_label(day: Int) -> String do
+  ym = ph_civil(day)
+  concat(ph_nth(PH_MONTHS, ph_nth(ym, 1) - 1), " '", slice(to_string(ph_nth(ym, 0)), 2, 2))
+end
+
+# d3.curveMonotoneX through points [x, y]: the path after the first point.
+def ph_slope3(x0: Any, y0: Any, x1: Any, y1: Any, x2: Any, y2: Any) -> Any do
+  h0 = x1 - x0
+  h1 = x2 - x1
+  # two points on one date (a song and its reprise in one show) are 0.0
+  # apart, and 0.0 == 0 is false: compare the size
+  s0 = case abs(h0) < 0.000001 do
+    true -> 0
+    false -> (y1 - y0) / h0
+  end
+  s1 = case abs(h1) < 0.000001 do
+    true -> 0
+    false -> (y2 - y1) / h1
+  end
+  p = case abs(h0 + h1) < 0.000001 do
+    true -> 0
+    false -> (s0 * h1 + s1 * h0) / (h0 + h1)
+  end
+  m = pong_like_min(abs(s0), pong_like_min(abs(s1), 0.5 * abs(p)))
+  (ph_sign(s0) + ph_sign(s1)) * m
+end
+
+def pong_like_min(a: Any, b: Any) -> Any do
+  case a < b do
+    true -> a
+    false -> b
+  end
+end
+
+def ph_sign(v: Any) -> Int do
+  case v > 0 do
+    true -> 1
+    false ->
+      case v < 0 do
+        true -> -1
+        false -> 0
+      end
+  end
+end
+
+def ph_slope2(x0: Any, y0: Any, x1: Any, y1: Any, t: Any) -> Any do
+  h = x1 - x0
+  case abs(h) < 0.000001 do
+    true -> t
+    false -> (3 * (y1 - y0) / h - t) / 2
+  end
+end
+
+def ph_curve(pts: List) -> String do
+  n = length(pts)
+  case n do
+    0 -> ""
+    1 -> concat("M", ph_n(head(head(pts))), ",", ph_n(elem_of2(head(pts))))
+    2 -> concat("M", ph_pt(head(pts)), "L", ph_pt(last(pts)))
+    _ ->
+      xs = map(pts, fn(p: List) -> Any do head(p) end)
+      ys = map(pts, fn(p: List) -> Any do elem_of2(p) end)
+      inner = map(range(1, n - 2), fn(i: Int) -> Any do
+        ph_slope3(ph_nth(xs, i - 1), ph_nth(ys, i - 1), ph_nth(xs, i), ph_nth(ys, i), ph_nth(xs, i + 1), ph_nth(ys, i + 1))
+      end)
+      t0 = ph_slope2(ph_nth(xs, 0), ph_nth(ys, 0), ph_nth(xs, 1), ph_nth(ys, 1), head(inner))
+      tn = ph_slope2(ph_nth(xs, n - 2), ph_nth(ys, n - 2), ph_nth(xs, n - 1), ph_nth(ys, n - 1), last(inner))
+      tangents = concat_all3([t0], inner, [tn])
+      concat("M", ph_pt(head(pts)), ph_segments(pts, tangents))
+  end
+end
+
+def concat_all3(a: List, b: List, c: List) -> List do
+  reduce(reverse(a), reduce(reverse(b), c, fn(acc: List, x: Any) -> List do [x | acc] end), fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def ph_pt(p: List) -> String do
+  concat(ph_n(head(p)), ",", ph_n(elem_of2(p)))
+end
+
+def ph_segments(pts: List, ts: List) -> String do
+  case tail(pts) do
+    [] -> ""
+    _ ->
+      a = head(pts)
+      b = head(tail(pts))
+      ta = head(ts)
+      tb = head(tail(ts))
+      dx = (head(b) - head(a)) / 3.0
+      seg = concat("C", ph_n(head(a) + dx), ",", ph_n(elem_of2(a) + dx * ta), ",", ph_n(head(b) - dx), ",", ph_n(elem_of2(b) - dx * tb), ",", ph_pt(b))
+      concat(seg, ph_segments(tail(pts), tail(ts)))
+  end
+end
+
+def ph_tip(t: Map) -> String do
+  jc = case t.is_jamchart == 1 do
+    true -> "★ JAMCHART\n"
+    false -> ""
+  end
+  notes = case t.jam_notes do
+    "" -> ""
+    _ -> concat("\n", t.jam_notes, "\n")
+  end
+  audio = case t.jam_url do
+    "" -> "\nNo audio available"
+    _ -> "\nCLICK TO FIND JAM AND PLAY"
+  end
+  concat(t.show_date, "\n", t.venue, "\n", t.location, "\n\n", jc, "Duration: ", ph_dur(t.duration_ms), "\nSet: ", t.set_name, ", Position ", to_string(t.position), "\nLikes: ", to_string(t.likes), "\n", notes, audio)
+end
+
+def ph_text(x: Any, y: Any, attrs: Map, s: String) -> Any do
+  el("text", merge(%{x: ph_n(x), y: ph_n(y)}, attrs), s)
+end
+
+def ph_chart(song: String, tracks: List) -> Any do
+  valid = filter(tracks, fn(t: Map) -> Bool do t.duration_ms > 0 end)
+  case valid do
+    [] -> el("svg", %{width: 960, height: 100, style: "width: 100%; max-width: 960px;"},
+      el("text", %{x: 480, y: 50, "text-anchor": "middle", style: "fill: #666; font-size: 12px; font-family: \"Chicago\", \"Geneva\", \"Helvetica\", sans-serif;"}, "No duration data available for this song"))
+    _ -> ph_chart_of(song, valid)
+  end
+end
+
+def ph_chart_of(song: String, valid: List) -> Any do
+  days = map(valid, fn(t: Map) -> Int do ph_days(t.show_date) end)
+  d0 = reduce(days, head(days), fn(m: Int, d: Int) -> Int do pong_like_min(m, d) end)
+  d1 = reduce(days, head(days), fn(m: Int, d: Int) -> Int do
+    case d > m do
+      true -> d
+      false -> m
+    end
+  end)
+  max_ms = reduce(valid, 0, fn(m: Int, t: Map) -> Int do
+    case t.duration_ms > m do
+      true -> t.duration_ms
+      false -> m
+    end
+  end)
+  top = (max_ms + 299999) / 300000 * 5 + 5
+  base = PH_H - PH_MB
+  xof = fn(d: Int) -> Any do
+    case d1 == d0 do
+      true -> (PH_ML + PH_W - PH_MR) / 2.0
+      false -> PH_ML + (d - d0) * (PH_W - PH_MR - PH_ML) / ((d1 - d0) * 1.0)
+    end
+  end
+  yof = fn(minutes: Any) -> Any do base - minutes * (base - PH_MT) / (top * 1.0) end
+  pts = map(valid, fn(t: Map) -> List do [xof(ph_days(t.show_date)), yof(t.duration_ms / 60000.0)] end)
+  line = ph_curve(pts)
+  area = concat(line, "L", ph_n(head(last(pts))), ",", to_string(base), "L", ph_n(head(head(pts))), ",", to_string(base), "Z")
+  yticks = ph_y_ticks(top)
+  count = pong_like_min(length(valid), 20)
+  xticks = ph_x_ticks(d0, d1, count)
+  indexed = zip(range(0, length(valid) - 1), valid)
+  longest = ph_max_by(valid, fn(t: Map) -> Int do t.duration_ms end)
+  lx = xof(ph_days(longest.show_date))
+  ly = yof(longest.duration_ms / 60000.0)
+  jcs = filter(valid, fn(t: Map) -> Bool do t.is_jamchart == 1 end)
+  likes = reduce(valid, 0, fn(a: Int, t: Map) -> Int do a + t.likes end)
+  avg = reduce(valid, 0, fn(a: Int, t: Map) -> Int do a + t.duration_ms end) / (length(valid) * 60000.0)
+  legend = PH_W - PH_MR - 180
+  el("svg", %{width: PH_W, height: PH_H, viewBox: "0 0 960 520", style: "width: 100%; max-width: 960px; background: #fff; border: 1px solid #000;"},
+    el("defs", %{},
+      el("linearGradient", %{id: "area-grad", x1: "0%", y1: "0%", x2: "0%", y2: "100%"},
+        el("stop", %{offset: "0%", "stop-color": "#ef4444", "stop-opacity": "0.2"}),
+        el("stop", %{offset: "100%", "stop-color": "#ef4444", "stop-opacity": "0.02"}))),
+    map(yticks, fn(v: Int) -> Any do
+      el("line", %{x1: PH_ML, x2: PH_W - PH_MR, y1: ph_n(yof(v)), y2: ph_n(yof(v)), stroke: "#ccc", "stroke-width": "0.5"})
+    end),
+    el("path", %{d: area, fill: "url(#area-grad)"}),
+    el("path", %{d: line, fill: "none", stroke: "#ef4444", "stroke-width": "2", "stroke-linejoin": "round"}),
+    map(valid, fn(t: Map) -> Any do
+      jc = t.is_jamchart == 1
+      fill = case t.jam_url == "" do
+        true -> "#fff"
+        false ->
+          case jc do
+            true -> "#ef4444"
+            false -> "#e5e7eb"
+          end
+      end
+      stroke = case jc do
+        true -> "#b91c1c"
+        false -> "#999"
+      end
+      r = case jc do
+        true -> 8
+        false -> 5
+      end
+      width = case jc do
+        true -> "2"
+        false -> "1.5"
+      end
+      dash = case t.jam_url == "" do
+        true -> "3,2"
+        false -> "none"
+      end
+      el("circle", %{class: "track-dot", cx: ph_n(xof(ph_days(t.show_date))), cy: ph_n(yof(t.duration_ms / 60000.0)), r: r, fill: fill, stroke: stroke, "stroke-width": width, "stroke-dasharray": dash, style: "cursor: pointer;"})
+    end),
+    map(jcs, fn(t: Map) -> Any do
+      el("path", %{class: "jc-star", d: PH_STAR, transform: concat("translate(", ph_n(xof(ph_days(t.show_date))), ",", ph_n(yof(t.duration_ms / 60000.0) - 16), ") scale(0.7)"), fill: "#ef4444", opacity: "0.8", style: "pointer-events: none;"})
+    end),
+    map(indexed, fn(p: Any) -> Any do
+      t = elem(p, 1)
+      el("rect", %{class: "hover-target", x: ph_n(xof(ph_days(t.show_date)) - 18), y: PH_MT, width: 36, height: PH_H - PH_MT - PH_MB, fill: "transparent", style: "cursor: pointer;", click: :open, with: elem(p, 0)},
+        el("title", %{}, ph_tip(t)))
+    end),
+    el("g", %{transform: concat("translate(0,", to_string(base), ")"), fill: "none", "font-size": "10", "font-family": "sans-serif", "text-anchor": "middle"},
+      el("path", %{class: "domain", stroke: "currentColor", d: concat("M", to_string(PH_ML), ",6V0H", to_string(PH_W - PH_MR), "V6")}),
+      map(xticks, fn(d: Int) -> Any do
+        el("g", %{class: "tick", opacity: "1", transform: concat("translate(", ph_n(xof(d)), ",0)")},
+          el("line", %{stroke: "currentColor", y2: "6"}),
+          el("text", %{fill: "currentColor", y: "9", dy: "0.71em", transform: "rotate(-40)", "text-anchor": "end", style: "font-size: 10px; fill: #333;"}, ph_tick_label(d)))
+      end)),
+    el("g", %{transform: concat("translate(", to_string(PH_ML), ",0)"), fill: "none", "font-size": "10", "font-family": "sans-serif", "text-anchor": "end"},
+      el("path", %{class: "domain", stroke: "currentColor", d: concat("M-6,", to_string(base), "H0V", to_string(PH_MT), "H-6")}),
+      map(yticks, fn(v: Int) -> Any do
+        el("g", %{class: "tick", opacity: "1", transform: concat("translate(0,", ph_n(yof(v)), ")")},
+          el("line", %{stroke: "currentColor", x2: "-6"}),
+          el("text", %{fill: "currentColor", x: "-9", dy: "0.32em", style: "font-size: 10px; fill: #333;"}, concat(to_string(v), "m")))
+      end)),
+    el("text", %{transform: "rotate(-90)", x: ph_n(0 - (PH_MT + PH_H - PH_MB) / 2.0), y: 18, "text-anchor": "middle", style: "font-size: 11px; fill: #666; font-weight: 600;"}, "Duration (minutes)"),
+    el("text", %{x: PH_W / 2, y: 24, "text-anchor": "middle", style: "font-size: 14px; fill: #000; font-weight: 700;"}, song),
+    el("text", %{x: PH_W / 2, y: 42, "text-anchor": "middle", style: "font-size: 10px; fill: #666;"}, concat(to_string(length(valid)), " performances since ", head(valid).show_date)),
+    el("circle", %{cx: legend, cy: 18, r: 4, fill: "#e5e7eb", stroke: "#999"}),
+    el("text", %{x: legend + 10, y: 22, style: "font-size: 10px; fill: #666;"}, "Standard"),
+    el("circle", %{cx: legend + 80, cy: 18, r: 6, fill: "#ef4444", stroke: "#b91c1c"}),
+    el("path", %{d: PH_STAR, transform: concat("translate(", to_string(legend + 80), ",4) scale(0.5)"), fill: "#ef4444"}),
+    el("text", %{x: legend + 92, y: 22, style: "font-size: 10px; fill: #666;"}, "Jamchart"),
+    el("circle", %{cx: legend + 148, cy: 18, r: 4, fill: "#fff", stroke: "#999", "stroke-dasharray": "3,2"}),
+    el("text", %{x: legend + 158, y: 22, style: "font-size: 10px; fill: #666;"}, "No audio"),
+    el("line", %{x1: ph_n(lx + 12), y1: ph_n(ly - 4), x2: ph_n(lx + 40), y2: ph_n(ly - 20), stroke: "#999", "stroke-width": "1"}),
+    el("text", %{x: ph_n(lx + 42), y: ph_n(ly - 22), style: "font-size: 10px; fill: #333; font-weight: 600;"}, concat(ph_dur(longest.duration_ms), " peak")),
+    el("text", %{x: PH_W / 2, y: PH_H - 18, "text-anchor": "middle", style: "font-size: 10px; fill: #666;"},
+      join([concat("Avg: ", ph_1dp(avg), "m"), concat("Longest: ", ph_dur(longest.duration_ms)),
+            concat("Jamcharts: ", to_string(length(jcs)), "/", to_string(length(valid)), " (", to_string(ph_round_div(100 * length(jcs), length(valid))), "%)"),
+            concat("Total likes: ", to_string(likes))], "    ")))
+end
+
+# ── the page ────────────────────────────────────────────────────────────
+
+def ph_year_options(years: List, year: String) -> List do
+  rest = map(years, fn(y: Int) -> Any do el("option", %{value: to_string(y), selected: to_string(y) == year}, to_string(y)) end)
+  [el("option", %{value: "all", selected: year == "all"}, "All 3.0") | rest]
+end
+
+def ph_song_options(songs: List, selected: String, sep: String) -> List do
+  map(songs, fn(s: Map) -> Any do
+    el("option", %{value: s.song_name, selected: s.song_name == selected},
+      concat(phish_fmt_avg(s), " — ", s.song_name, " (", to_string(s.jamchart_count), " JC", sep, to_string(s.times_played), "×)"))
+  end)
+end
+
+def ph_find(songs: List, name: String) -> Any do
+  found = filter(songs, fn(s: Map) -> Bool do s.song_name == name end)
+  case found do
+    [] -> nil
+    [s | _] -> s
+  end
+end
+
+def ph_line(content: List) -> Any do
+  el("div", %{style: "margin-top: 4px; text-align: left;"}, el("div", %{style: "font-size: 10px; color: #888;"}, content))
+end
+
+def ph_card_front(song: String, current: Any, st: Map) -> Any do
+  head_stats = case current do
+    nil -> []
+    _ -> [
+      el("div", %{class: "phish-card-avg"}, phish_fmt_avg(current)),
+      el("div", %{class: "phish-card-avg-label"}, "BATTING AVG"),
+      el("div", %{class: "phish-card-stats-row"},
+        el("span", %{}, el("strong", %{style: "color: #ef4444;"}, to_string(current.jamchart_count)), " JC"),
+        el("span", %{style: "color: #999;"}, "·"),
+        el("span", %{}, el("strong", %{}, to_string(current.times_played)), "× played"))
+    ]
+  end
+  longest = case st.longest do
+    nil -> []
+    t -> [el("div", %{style: "margin-top: 12px; padding-top: 10px; border-top: 1px solid #ccc; text-align: left;"},
+      el("div", %{style: "font-size: 11px; color: #333; font-weight: 700;"}, el("span", %{style: "color: #ef4444;"}, "★"), concat(" Longest: ", ph_dur(t.duration_ms))),
+      el("div", %{style: "font-size: 10px; color: #888; margin-top: 1px;"}, concat(t.show_date, " · ", t.venue)))]
+  end
+  loved = case st.loved != nil and st.loved.likes > 0 do
+    false -> []
+    true -> [el("div", %{style: "margin-top: 8px; text-align: left;"},
+      el("div", %{style: "font-size: 11px; color: #333; font-weight: 700;"}, el("span", %{style: "color: #ef4444;"}, "♥"), concat(" Most Loved: ", to_string(st.loved.likes), " likes")),
+      el("div", %{style: "font-size: 10px; color: #888; margin-top: 1px;"}, concat(st.loved.show_date, " · ", st.loved.venue)))]
+  end
+  set_line = case st.set_name do
+    nil -> []
+    s ->
+      note = case st.jc_note do
+        nil -> ""
+        n -> concat(" · ", n)
+      end
+      [el("div", %{style: "margin-top: 8px; text-align: left;"}, el("div", %{style: "font-size: 11px; color: #333; font-weight: 700;"}, concat("📊 ", to_string(st.set_pct), "% ", ph_fmt_set(s), note)))]
+  end
+  gap = case st.last_played do
+    nil -> []
+    lp ->
+      every = case st.avg_gap do
+        nil -> ""
+        g -> concat(" · avg every ", to_string(g), "d")
+      end
+      [ph_line(["Last: ", el("strong", %{style: "color: #333;"}, lp), concat(" (", to_string(st.days_since), "d ago)", every)])]
+  end
+  best = case st.best != nil and ph_nth(st.best, 1) > 0 do
+    false -> []
+    true -> [ph_line(["Best year: ", el("strong", %{style: "color: #333;"}, head(st.best)), concat(" — ", to_string(ph_nth(st.best, 1)), "/", to_string(ph_nth(st.best, 2)), " JC")])]
+  end
+  streak = case st.streak > 0 do
+    false -> []
+    true -> [ph_line(["🔥 JC Streak: ", el("strong", %{style: "color: #333;"}, to_string(st.streak)), " in a row"])]
+  end
+  quote = case st.quote do
+    nil -> []
+    q -> [el("div", %{style: "margin-top: 10px; font-size: 10px; color: #888; font-style: italic; line-height: 1.4; text-align: left;"}, concat("\"", q, "\""))]
+  end
+  peak_ms = case st.longest do
+    nil -> 0
+    t -> t.duration_ms
+  end
+  audio_style = case st.audio == 0 do
+    true -> "color: #ef4444"
+    false -> ""
+  end
+  el("div", %{class: "phish-card phish-card-front", click: :flip},
+    el("div", %{class: "phish-card-song-name"}, song),
+    el("div", %{class: "phish-card-divider"}),
+    head_stats,
+    el("div", %{class: "phish-card-stats-row", style: "font-size: 12px; color: #666; margin-top: 4px;"},
+      el("span", %{}, concat("Avg ", ph_1dp(st.avg_min), "m")),
+      el("span", %{style: "color: #999;"}, "·"),
+      el("span", %{}, concat("Peak ", ph_dur(peak_ms))),
+      el("span", %{style: "color: #999;"}, "·"),
+      el("span", %{style: audio_style}, concat("🎧 ", to_string(st.audio), "/", to_string(st.count)))),
+    longest, loved, set_line, gap, best, streak, quote,
+    el("div", %{class: "phish-card-tap-hint"}, "TAP TO SEE AND PLAY JAMS"))
+end
+
+def ph_card_back(song: String, current: Any, tracks: List, st: Map, list_filter: String, expanded: Int) -> Any do
+  shown = case list_filter do
+    "jamcharts" -> filter(tracks, fn(t: Map) -> Bool do t.is_jamchart == 1 end)
+    _ -> tracks
+  end
+  avg = case current do
+    nil -> []
+    c -> [el("span", %{style: "color: #ef4444; margin-left: 6px;"}, phish_fmt_avg(c))]
+  end
+  longest_ms = case st.longest do
+    nil -> 0
+    t -> t.duration_ms
+  end
+  rows = map(zip(range(0, length(shown) - 1), shown), fn(p: Any) -> Any do
+    i = elem(p, 0)
+    t = elem(p, 1)
+    jc = t.is_jamchart == 1
+    jc_class = case jc do
+      true -> " jamchart"
+      false -> ""
+    end
+    star = case jc do
+      true -> [el("span", %{style: "color: #ef4444;"}, "★"), " "]
+      false -> []
+    end
+    bar = case longest_ms > 0 and t.duration_ms > 0 do
+      false -> []
+      true -> [el("div", %{class: "phish-duration-bar-bg"}, el("div", %{class: concat("phish-duration-bar", jc_class), style: concat("width: ", to_string(ph_round_div(100 * t.duration_ms, longest_ms)), "%")}))]
+    end
+    notes = case t.jam_notes do
+      "" -> []
+      n ->
+        open = case expanded == i do
+          true -> " expanded"
+          false -> ""
+        end
+        [el("div", %{class: concat("phish-jam-notes", open)}, n)]
+    end
+    body_attrs = case t.jam_notes do
+      "" -> %{style: "flex: 1; min-width: 0; cursor: default;"}
+      _ -> %{style: "flex: 1; min-width: 0; cursor: pointer;", click: :toggle_notes, with: i}
+    end
+    play = case t.jam_url do
+      "" -> []
+      _ -> [el("button", %{class: "phish-play-btn", click: :play_track, with: concat(t.show_date, "|", t.jam_url)}, "▶")]
+    end
+    el("div", %{class: concat("phish-jam-row", jc_class)},
+      el("div", body_attrs,
+        el("div", %{style: "display: flex; justify-content: space-between; align-items: baseline;"},
+          el("span", %{style: "font-size: 13px; font-weight: 700;"}, star, t.show_date),
+          el("span", %{class: concat("phish-jam-duration", jc_class)}, ph_dur(t.duration_ms))),
+        bar,
+        el("div", %{style: "font-size: 10px; color: #888; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"}, concat(t.venue, " · ", t.location)),
+        notes),
+      play)
+  end)
+  empty = case shown do
+    [] -> [el("div", %{style: "text-align: center; padding: 24px; color: #999; font-size: 12px;"}, "No performances match this filter")]
+    _ -> []
+  end
+  pill = fn(value: String, label: String) -> Any do
+    cls = case list_filter == value do
+      true -> "phish-filter-pill active"
+      false -> "phish-filter-pill"
+    end
+    el("button", %{class: cls, click: :list_filter, with: value}, label)
+  end
+  el("div", %{class: "phish-card phish-card-back"},
+    el("div", %{class: "phish-card-back-header", click: :flip},
+      el("div", %{style: "font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;"}, song, avg),
+      el("div", %{style: "font-size: 9px; color: #999; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px;"}, "TAP TO FLIP BACK")),
+    el("div", %{class: "phish-filter-pills"},
+      pill("all", concat("All (", to_string(length(tracks)), ")")),
+      pill("jamcharts", concat("Jamcharts (", to_string(st.jc_count), ")")),
+      el("span", %{style: "margin-left: auto; font-size: 11px; color: #999;"}, concat(to_string(length(shown)), " jams"))),
+    el("div", %{class: "phish-jam-list"}, rows, empty))
+end
+
+def ph_modal(t: Map) -> Any do
+  jc = case t.is_jamchart == 1 do
+    true -> [el("div", %{style: "color:#ef4444;font-weight:700;font-size:12px;margin-bottom:6px"}, "★ JAMCHART")]
+    false -> []
+  end
+  notes = case t.jam_notes do
+    "" -> []
+    n -> [el("div", %{style: "border-top:1px solid #000;padding-top:6px;margin-bottom:8px;font-size:11px;color:#666;line-height:1.4"}, n)]
+  end
+  play = case t.jam_url do
+    "" -> el("div", %{style: "padding:10px;background:#eee;border:1px inset #999;text-align:center;font-size:11px;color:#999"}, "No jam clip available")
+    u -> el("button", %{class: "phish-modal-play-btn", click: :play_track, with: concat(t.show_date, "|", u)}, "▶ Play Jam")
+  end
+  el("div", %{class: "phish-modal-overlay", style: "display: flex;", click: :close_modal},
+    el("div", %{class: "phish-modal-dialog", click: :stay},
+      el("div", %{class: "os-titlebar", style: "cursor: default;"}, el("span", %{class: "os-titlebar-title", style: "font-size: 11px;"}, concat(t.show_date, " — ", t.song_name))),
+      el("div", %{style: "padding: 12px;"},
+        el("div", %{style: "font-size: 14px; font-weight: 700; margin-bottom: 2px;"}, t.show_date),
+        el("div", %{style: "color: #666; font-size: 12px;"}, t.venue),
+        el("div", %{style: "color: #999; font-size: 11px; margin-bottom: 8px;"}, t.location),
+        jc,
+        el("div", %{style: "display: flex; gap: 12px; font-size: 12px; color: #333; margin-bottom: 4px;"},
+          el("span", %{}, "Duration: ", el("strong", %{}, ph_dur(t.duration_ms))),
+          el("span", %{}, concat("Set ", t.set_name, ", #", to_string(t.position)))),
+        el("div", %{style: "font-size: 11px; color: #999; margin-bottom: 8px;"}, concat("Likes: ", to_string(t.likes))),
+        notes,
+        play)))
+end
+
+def ph_query(year: String, song: String, sort_by: String, min: Int) -> String do
+  y = case year == "all" or year == "" do
+    true -> ""
+    false -> concat("year=", ph_enc(year))
+  end
+  s = case song do
+    "" -> ""
+    _ -> concat("song=", ph_enc(song))
+  end
+  o = case sort_by do
+    "avg" -> ""
+    _ -> concat("sort=", ph_enc(sort_by))
+  end
+  m = case min do
+    5 -> ""
+    _ -> concat("min=", to_string(min))
+  end
+  join(filter([y, s, o, m], fn(p: String) -> Bool do p != "" end), "&")
+end
+
+actor Phangraphs do
+  state started: Bool :: false
+  state year: String :: ""
+  state song: String :: ""
+  state sort_by: String :: "avg"
+  state min: Int :: 5
+  state filter: String :: ""
+  state years: Any :: nil
+  state songs: Any :: nil
+  state tracks: Any :: nil
+  state today: String :: "2026-01-01"
+  state flipped: Bool :: true
+  state list_filter: String :: "jamcharts"
+  state expanded: Int :: -1
+  state modal: Int :: -1
+  state playing: Any :: nil
+  state problem: String :: ""
+
+  # PhishLive.handle_params/3: what the URL says, when the page starts.
+  on :location(q: String) do
+    y = query_param(q, "year")
+    m = to_int_or(query_param(q, "min"), 5)
+    raw_sort = query_param(q, "sort")
+    s = case raw_sort do
+      "" -> "avg"
+      _ -> raw_sort
+    end
+    become started: true, year: y, song: query_param(q, "song"), sort_by: s, min: m
+    reply :ok
+  end
+
+  on :years_loaded(status: Int, body: String) do
+    case status == 200 do
+      false ->
+        become problem: "the server did not answer with the years"
+        reply :error
+      true ->
+        ys = elem(json_decode(body), 1)
+        # no year in the URL: a random one, as PhishLive picks
+        y = case year do
+          "" -> to_string(ph_nth(ys, random(0, length(ys) - 1)))
+          _ -> year
+        end
+        become years: ys, year: y
+        reply :ok
+    end
+  end
+
+  on :songs_loaded(status: Int, body: String) do
+    case status == 200 do
+      false ->
+        become problem: "the server did not answer with the songs"
+        reply :error
+      true ->
+        list = elem(json_decode(body), 1)
+        top = ph_take(phish_sorted(list, sort_by, min, "", ""), 10)
+        pick = case song == "" and top != [] do
+          true -> ph_nth(top, random(0, length(top) - 1)).song_name
+          false -> song
+        end
+        become songs: list, song: pick
+        reply :ok
+    end
+  end
+
+  on :history_loaded(status: Int, body: String) do
+    case status == 200 do
+      false ->
+        become problem: "the server did not answer with that song"
+        reply :error
+      true ->
+        h = elem(json_decode(body), 1)
+        become tracks: h.tracks, today: h.today, expanded: -1
+        reply :ok
+    end
+  end
+
+  on :set_year(y: String) do
+    become year: y, song: "", songs: nil, tracks: nil
+    reply :ok
+  end
+
+  on :set_song(s: String) do
+    become song: s, tracks: nil
+    reply :ok
+  end
+
+  on :set_sort(s: String) do
+    become sort_by: s
+    reply :ok
+  end
+
+  on :set_min(v: String) do
+    become min: to_int_or(v, 5)
+    reply :ok
+  end
+
+  on :set_filter(f: String) do
+    become filter: f
+    reply :ok
+  end
+
+  on :flip do
+    become flipped: not(flipped)
+    reply :ok
+  end
+
+  on :list_filter(f: String) do
+    become list_filter: f, expanded: -1
+    reply :ok
+  end
+
+  on :toggle_notes(i: Int) do
+    case expanded == i do
+      true -> become expanded: -1
+      false -> become expanded: i
+    end
+    reply :ok
+  end
+
+  on :open(i: Int) do
+    become modal: i
+    reply :ok
+  end
+
+  on :close_modal do
+    become modal: -1
+    reply :ok
+  end
+
+  on :stay do
+    reply :ok
+  end
+
+  # "date|url": which performance, and its clip
+  on :play_track(what: String) do
+    bar = index_of(what, "|")
+    become playing: %{date: slice(what, 0, bar), url: drop(what, bar + 1), song: song}, modal: -1
+    reply :ok
+  end
+
+  on :stop do
+    become playing: nil
+    reply :ok
+  end
+
+  on :view do
+    asks = case started do
+      false -> []
+      true -> ph_asks(years, year, songs, song, tracks)
+    end
+    url = case started and year != "" do
+      true -> [location_query(ph_query(year, song, sort_by, min))]
+      false -> []
+    end
+    sorted = case songs do
+      nil -> []
+      _ -> phish_sorted(songs, sort_by, min, filter, song)
+    end
+    current = case songs do
+      nil -> nil
+      _ -> ph_find(songs, song)
+    end
+    stats = case tracks do
+      nil -> nil
+      _ -> ph_stats(tracks, today)
+    end
+    loading = case tracks == nil and song != "" do
+      true -> [el("span", %{style: "color: #999; font-size: 11px;"}, "Loading...")]
+      false -> []
+    end
+    chart = case tracks do
+      nil -> []
+      _ -> [ph_chart(song, tracks)]
+    end
+    card = case tracks do
+      nil -> []
+      _ ->
+        c = case flipped do
+          false -> ph_card_front(song, current, stats)
+          true -> ph_card_back(song, current, tracks, stats, list_filter, expanded)
+        end
+        [el("div", %{style: "margin: 8px;"}, c)]
+    end
+    valid = case tracks do
+      nil -> []
+      _ -> filter(tracks, fn(t: Map) -> Bool do t.duration_ms > 0 end)
+    end
+    dialog = case modal >= 0 and modal < length(valid) do
+      true -> [ph_modal(ph_nth(valid, modal))]
+      false -> []
+    end
+    player = case playing do
+      nil -> []
+      p -> [el("div", %{class: "phish-player"},
+        el("div", %{class: "phish-player-inner"},
+          el("button", %{class: "phish-player-stop", click: :stop}, "■"),
+          el("span", %{class: "phish-player-icon"}, "▶"),
+          el("div", %{class: "phish-player-info"}, el("span", %{class: "phish-player-song"}, concat(p.song, " — ", p.date))),
+          el("audio", %{src: p.url, controls: true, autoplay: true, style: "height: 28px; flex: 1; min-width: 0;"}),
+          el("span", %{class: "phish-player-via"}, "via PhishJustJams")))]
+    end
+    problems = case problem do
+      "" -> []
+      _ -> [el("p", %{style: "color: #b00; font-size: 11px;"}, problem)]
+    end
+    years_list = case years do
+      nil -> []
+      _ -> years
+    end
+    hint_year = case year == "all" do
+      true -> "for any Phish 3.0 song"
+      false -> concat("for ", year)
+    end
+    mobile_loading = case tracks == nil and song != "" do
+      true -> el("div", %{style: "text-align: center; padding: 40px; color: #999; font-size: 12px;"}, "Loading...")
+      false -> ""
+    end
+    status_song = case song do
+      "" -> "No song selected"
+      _ -> song
+    end
+    status_year = case year == "all" do
+      true -> "All Years"
+      false -> year
+    end
+    pill = fn(mode: String, label: String) -> Any do
+      cls = case sort_by == mode do
+        true -> "phish-sort-pill active"
+        false -> "phish-sort-pill"
+      end
+      el("button", %{class: cls, click: :set_sort, with: mode}, label)
+    end
+    reply el("div", %{class: "os-desktop-mac"},
+      el("div", %{class: "os-window os-window-mac", style: "width: 95vw; max-width: 1100px;"},
+        el("div", %{class: "os-titlebar"},
+          el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close"})),
+          el("span", %{class: "os-titlebar-title"}, "phangraphs — Phish 3.0 Jam Analytics"),
+          el("div", %{class: "os-titlebar-spacer"})),
+        el("div", %{style: "padding: 12px; overflow-y: auto; max-height: calc(100vh - 80px);"},
+          problems,
+          el("div", %{class: "hidden md:block"},
+            el("p", %{class: "phish-hint"}, concat("Duration timeline ", hint_year, ". Larger red dots with stars = jamchart selections. Hover for details, click for more. Want every era and every metric? Step into "),
+              el("a", %{href: "/phish_lab", style: "color: #000080; font-weight: bold;"}, "the Lab 🔬"), "."),
+            el("div", %{class: "phish-controls"},
+              el("label", %{class: "phish-label"}, "Year: ", el("select", %{name: "year", class: "phish-select", style: "width: 120px;", change: :set_year, value: year}, ph_year_options(years_list, year))),
+              el("label", %{class: "phish-label"}, "Filter: ", el("input", %{type: "text", placeholder: "Song name...", value: filter, input: :set_filter, name: "filter", class: "phish-input", style: "width: 140px;"})),
+              el("label", %{class: "phish-label"}, "Min played: ",
+                el("input", %{type: "range", min: "1", max: "50", value: to_string(min), change: :set_min, name: "min", style: "width: 80px; vertical-align: middle;"}),
+                el("span", %{style: "min-width: 20px; text-align: center; font-weight: bold;"}, to_string(min))),
+              el("label", %{class: "phish-label"}, "Sort: ",
+                el("select", %{name: "sort", class: "phish-select", change: :set_sort, value: sort_by},
+                  el("option", %{value: "avg", selected: sort_by == "avg"}, "Batting Avg"),
+                  el("option", %{value: "jc", selected: sort_by == "jc"}, "Jamchart Count"),
+                  el("option", %{value: "played", selected: sort_by == "played"}, "Times Played"))),
+              el("select", %{name: "song", class: "phish-select", style: "max-width: 380px;", change: :set_song, value: song}, ph_song_options(sorted, song, ", ")),
+              loading),
+            el("div", %{id: "phish-chart", style: "overflow-x: auto; margin-top: 8px;"}, chart)),
+          el("div", %{class: "md:hidden"},
+            el("div", %{class: "phish-mobile-controls"},
+              el("div", %{style: "display: flex; gap: 8px; margin-bottom: 8px; align-items: center;"},
+                el("span", %{style: "font-weight: 800; font-size: 14px;"}, "phangraphs"),
+                el("select", %{name: "year", class: "phish-select", style: "margin-left: auto; font-size: 12px;", change: :set_year, value: year}, ph_year_options(years_list, year))),
+              el("select", %{name: "song", class: "phish-select", style: "width: 100%; font-size: 14px; padding: 8px;", change: :set_song, value: song}, ph_song_options(sorted, song, " / ")),
+              el("div", %{style: "display: flex; gap: 6px; margin-top: 6px; align-items: center;"},
+                pill("avg", "AVG"), pill("jc", "JC"), pill("played", "PLAYED"),
+                el("select", %{name: "min", class: "phish-select", style: "margin-left: auto; font-size: 11px; padding: 3px 4px;", change: :set_min, value: to_string(min)},
+                  map(PH_MINS, fn(n: Int) -> Any do el("option", %{value: to_string(n), selected: n == min}, concat("Min ", to_string(n), "×")) end)))),
+            mobile_loading,
+            card)),
+        el("div", %{class: "os-statusbar"},
+          el("span", %{style: "font-size: 10px;"}, status_song),
+          el("span", %{style: "font-size: 10px;"}, concat("Phish 3.0 · ", status_year)))),
+      dialog,
+      player,
+      asks,
+      url)
+  end
+end
+
+def to_int_or(s: String, dflt: Int) -> Int do
+  case length(s) > 0 and length(filter(ph_bytes(s), fn(c: Int) -> Bool do c < 48 or c > 57 end)) == 0 do
+    true -> to_int(s)
+    false -> dflt
+  end
+end
+
+# What the view needs from the server that it does not have yet, and the
+# URL for the state it is in.
+def ph_asks(years: Any, year: String, songs: Any, song: String, tracks: Any) -> List do
+  need_years = case years do
+    nil -> [fetch("/phish/years.json", :years_loaded)]
+    _ -> []
+  end
+  need_songs = case songs == nil and year != "" do
+    true -> [fetch(concat("/phish/songs.json?year=", ph_enc(year)), :songs_loaded)]
+    false -> []
+  end
+  need_tracks = case tracks == nil and song != "" and songs != nil do
+    true -> [fetch(concat("/phish/history.json?song=", ph_enc(song), "&year=", ph_enc(year)), :history_loaded)]
+    false -> []
+  end
+  concat_all3(need_years, need_songs, need_tracks)
+end
+
+ph = spawn Phangraphs
+ph <- :view

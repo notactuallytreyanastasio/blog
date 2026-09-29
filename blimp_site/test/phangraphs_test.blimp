@@ -1,0 +1,48 @@
+# needs: static/phish/phish.blimp
+
+actor PhangraphsTests do
+  test "days since 1970, both ways, across leap years" do
+    assert_eq(ph_days("1970-01-01"), 0)
+    assert_eq(ph_days("2000-03-01"), 11017)
+    assert_eq(ph_days("2024-02-29") + 1, ph_days("2024-03-01"))
+    assert_eq(ph_civil(ph_days("2023-12-30")), [2023, 12])
+    assert_eq(ph_tick_label(ph_days("2023-05-01")), "May '23")
+  end
+
+  test "x ticks: months for a year's shows, one tick for a single date, years for 3.0" do
+    ticks = map(ph_x_ticks(ph_days("2023-04-17"), ph_days("2023-12-30"), 10), fn(d: Int) -> String do ph_tick_label(d) end)
+    assert_eq(ticks, ["May '23", "Jun '23", "Jul '23", "Aug '23", "Sep '23", "Oct '23", "Nov '23", "Dec '23"])
+    assert_eq(ph_x_ticks(100, 100, 1), [100])
+    years = map(ph_x_ticks(ph_days("2009-03-06"), ph_days("2026-01-31"), 20), fn(d: Int) -> String do ph_tick_label(d) end)
+    assert_eq(head(years), "Jan '10")
+    assert_eq(last(years), "Jan '26")
+  end
+
+  test "y ticks step as d3's do" do
+    assert_eq(ph_y_ticks(50), [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
+    assert_eq(ph_y_ticks(10), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  end
+
+  test "the monotone curve survives two shows on one date" do
+    assert(starts_with(ph_curve([[70, 100], [70, 50], [200, 80]]), "M70,100C"))
+    assert_eq(ph_curve([[1, 2], [3, 4]]), "M1,2L3,4")
+  end
+
+  test "the URL leaves out what is the default, and encodes a song" do
+    assert_eq(ph_query("2023", "Mike's Song", "avg", 5), "year=2023&song=Mike%27s%20Song")
+    assert_eq(ph_query("all", "AC/DC Bag", "jc", 8), "song=AC%2FDC%20Bag&sort=jc&min=8")
+  end
+
+  test "Tweezer in 2023: the card's numbers, as the LiveView showed them" do
+    h = elem(json_decode(read_file("test/fixtures/tweezer-2023.json")), 1)
+    st = ph_stats(h.tracks, h.today)
+    assert_eq(ph_1dp(st.avg_min), "16.7")
+    assert_eq(ph_dur(st.longest.duration_ms), "43:37")
+    assert_eq(st.loved.likes, 33)
+    assert_eq(st.set_pct, 100)
+    assert_eq(st.jc_note, "6/6 JCs from Set 2")
+    assert_eq(st.last_played, "2023-12-30")
+    assert_eq(st.avg_gap, 29)
+    assert_eq([st.audio, st.count], [9, 10])
+  end
+end
