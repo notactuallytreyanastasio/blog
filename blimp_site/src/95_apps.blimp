@@ -6,8 +6,18 @@
 APP_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/app.js"]
 
 def app_page(title: String, description: String, stylesheets: List, html_class: String, program: String, actor_var: String) -> String do
+  app_page_with(title, description, stylesheets, html_class, program, actor_var, false)
+end
+
+# located: the program keeps its state in the URL, and app.js tells it what
+# the URL says when it starts (actor <- :location("year=2023&...")).
+def app_page_with(title: String, description: String, stylesheets: List, html_class: String, program: String, actor_var: String, located: Bool) -> String do
+  flag = case located do
+    true -> " data-location=\"1\""
+    false -> ""
+  end
   body = join([
-    "<div id=\"blimp-app\" data-program=\"", escape_html(program), "\" data-actor=\"", escape_html(actor_var), "\"></div>\n",
+    "<div id=\"blimp-app\" data-program=\"", escape_html(program), "\" data-actor=\"", escape_html(actor_var), "\"", flag, "></div>\n",
     "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
     "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
     "that needs JavaScript to start. The program is <a href=\"", escape_html(program), "\">", escape_html(program), "</a>.</p></noscript>\n",

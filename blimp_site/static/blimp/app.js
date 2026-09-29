@@ -25,6 +25,12 @@
     if (!seeded.ok) return fail(seeded.error)
     var mounted = view.mount(source, el.dataset.actor)
     if (!mounted.ok) return fail(mounted.error)
+    // A program that keeps its state in the URL (data-location="1") is told
+    // what the URL says when it starts: actor <- :location("year=2023&...").
+    if (el.dataset.location === '1') {
+      var q = location.search.slice(1)
+      view.send('location', '"' + q.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/#\{/g, '\\#{') + '"')
+    }
     status.textContent = ''
     status.className = 'blimp-app-status'
   } catch (e) {

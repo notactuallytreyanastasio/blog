@@ -238,9 +238,14 @@
       return this._fail(e.message || String(e));
     }
     this.view = view;
-    var fx = { timers: {}, keys: {} };
+    var fx = { timers: {}, keys: {}, fetches: {}, query: null };
     this._collectEffects(view, fx);
     this._reconcileTimers(fx.timers);
+    this._reconcileFetches(fx.fetches);
+    if (fx.query !== null && typeof location !== 'undefined' && typeof history !== 'undefined') {
+      var want = fx.query === '' ? location.pathname : '?' + fx.query;
+      if (location.search !== (fx.query === '' ? '' : '?' + fx.query)) history.replaceState(null, '', want);
+    }
     this.keys = fx.keys;
     if (this.opts.onRender) this.opts.onRender(view, fx);
   };
@@ -293,10 +298,19 @@
         return el;
       case 'el':
         var etag = attrVal(attrs['@tag']);
-        el = SVG_TAGS[etag] ? document.createElementNS(SVGNS, etag) : document.createElement(etag);
+        // inside an <svg> everything is SVG, as an HTML parser has it: a
+        // <title> there is a tooltip, not the document's title
+        var svg = SVG_TAGS[etag] || this._inSvg;
+        el = svg ? document.createElementNS(SVGNS, etag) : document.createElement(etag);
         setAttrs(el, attrs, null);
         this._listen(el, attrs);
-        if (attrs.inner_html === undefined) children.forEach(function (c) { el.appendChild(self.renderView(c)); });
+        var outer = this._inSvg;
+        this._inSvg = !!svg;
+        try {
+          if (attrs.inner_html === undefined) children.forEach(function (c) { el.appendChild(self.renderView(c)); });
+        } finally {
+          this._inSvg = outer;
+        }
         applyInstructions(el, attrs, null);
         if (etag === 'select' && attrs.value !== undefined) el.value = String(attrVal(attrs.value));
         return el;
@@ -309,6 +323,8 @@
         break;
       case 'timer':
       case 'key':
+      case 'fetch':
+      case 'location_query':
         // effects render nothing; they are picked up by _collectEffects
         return document.createTextNode('');
       default: el = document.createElement('div');
@@ -418,6 +434,13 @@
 
   // -- patching ---------------------------------------------------------------
 
+  // A new element for `b` in the place of `el`, in el's namespace.
+  BlimpView.prototype._rebuild = function (el, b) {
+    var outer = this._inSvg;
+    this._inSvg = el.namespaceURI === SVGNS;
+    try { return this.renderView(b); } finally { this._inSvg = outer; }
+  };
+
   // Make `el`, which shows node `a`, show node `b`; answer the element that
   // does (el itself, unless it had to be replaced).
   BlimpView.prototype._patch = function (el, a, b) {
@@ -449,12 +472,18 @@
         applyInstructions(el, b.attrs, a.attrs);
       }
       if (b.attrs.inner_html !== undefined) return el;
-      if (ac.length !== bc.length) return this.renderView(b);
+      if (ac.length !== bc.length) return this._rebuild(el, b);
       var nodes = el.childNodes;
-      for (var j = 0; j < bc.length; j++) {
-        var c = nodes[j];
-        var n = this._patch(c, ac[j], bc[j]);
-        if (n !== c) el.replaceChild(n, c);
+      var outerNs = this._inSvg;
+      this._inSvg = el.namespaceURI === SVGNS;
+      try {
+        for (var j = 0; j < bc.length; j++) {
+          var c = nodes[j];
+          var n = this._patch(c, ac[j], bc[j]);
+          if (n !== c) el.replaceChild(n, c);
+        }
+      } finally {
+        this._inSvg = outerNs;
       }
       return el;
     }
@@ -564,6 +593,11 @@
       var ms = attrInt(attrs.ms, 0);
       var sends = attrVal(attrs.sends);
       if (ms > 0 && sends) fx.timers[ms + '|' + sends] = { ms: ms, sends: sends };
+    } else if (node.tag === 'fetch') {
+      var url = attrVal(attrs.url), fsends = attrVal(attrs.sends);
+      if (url && fsends) fx.fetches[url + '|' + fsends] = { url: url, sends: fsends };
+    } else if (node.tag === 'location_query') {
+      fx.query = String(attrVal(attrs.query));
     } else if (node.tag === 'key') {
       var code = attrVal(attrs.code);
       var msg = attrVal(attrs.sends);
@@ -586,6 +620,31 @@
         if (!self.timers[k]) return;
         self.send(t.sends);
       }, t.ms);
+    });
+  };
+
+  // Each fetch in the tree is made once while it stays there; one that
+  // leaves the tree is forgotten, so asking again fetches again.
+  BlimpView.prototype._reconcileFetches = function (wanted) {
+    var self = this;
+    this.fetched = this.fetched || {};
+    Object.keys(this.fetched).forEach(function (k) { if (!wanted[k]) delete self.fetched[k]; });
+    Object.keys(wanted).forEach(function (k) {
+      if (self.fetched[k]) return;
+      self.fetched[k] = true;
+      var f = wanted[k];
+      var deliver = function (status, body) {
+        if (!self.mounted || self.error || !self.fetched[k]) return;
+        // a send in progress (a timer, a click) finishes first
+        var go = function () {
+          if (self._sending) return setTimeout(go, 0);
+          self.send(f.sends, status + ', ' + literal(body));
+        };
+        go();
+      };
+      fetch(f.url, { credentials: 'same-origin' })
+        .then(function (r) { return r.text().then(function (t) { deliver(r.status, t); }); })
+        .catch(function () { deliver(0, ''); });
     });
   };
 
