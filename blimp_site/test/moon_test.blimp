@@ -1,0 +1,27 @@
+actor MoonTests do
+  test "Meeus: the full moon of 2024-01-25 and the new moon of 2024-01-11, to the day" do
+    fulls = map(moon_instants(2024, 2024, 0.5), fn(u: Int) -> String do moon_iso(moon_day_of(u)) end)
+    news = map(moon_instants(2024, 2024, 0.0), fn(u: Int) -> String do moon_iso(moon_day_of(u)) end)
+    assert_eq(head(fulls), "2024-01-25")
+    assert_eq(head(news), "2024-01-11")
+    assert_eq(length(fulls), 12)
+    # thirteen: the year ends with a second new moon in December (Dec 30)
+    assert_eq(length(news), 13)
+    assert_eq(last(news), "2024-12-30")
+  end
+
+  test "a show on a full moon night is Full Moon; the next night is waning gibbous, a day after" do
+    news = moon_instants(2023, 2025, 0.0)
+    fulls = moon_instants(2023, 2025, 0.5)
+    infos = moon_annotate([moon_date_days("2024-01-25"), moon_date_days("2024-01-26")], news, fulls, nil, [])
+    assert_eq(head(infos).phase, "Full Moon")
+    assert_eq(head(infos).full, true)
+    assert_eq(elem_at(infos, 1).phase, "Waning Gibbous")
+    assert(elem_at(infos, 1).days_from_full > 0.5)
+  end
+
+  test "days and dates round-trip" do
+    assert_eq(moon_iso(moon_date_days("1983-12-02")), "1983-12-02")
+    assert_eq(moon_date_days("1970-01-01"), 0)
+  end
+end

@@ -14,7 +14,7 @@
 	# posts and their stylesheets. A 404 from it -- a guest post, which lives in
 	# Postgres, or anything else it does not know -- is sent on to Phoenix, so
 	# no URL that worked before stops working.
-	@blimp path / /blog /post/* /tetris /tetris/* /blimp/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css /assets/tetris.css /assets/blimp-window.css /privacy /terms /trees /nathan /knicks /frontier /chess /static/d3.v7.min.js /assets/app-3cfac71d5552d1426de906087a8be2fe.css /pong /pong/* /live/* /assets/pong.css /2048 /2048/* /assets/apps.css /mirror /typewriter /typewriter/* /assets/typewriter.css /markdown-editor /markdown-editor/* /phish /phish/*
+	@blimp path / /blog /post/* /tetris /tetris/* /blimp/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css /assets/tetris.css /assets/blimp-window.css /privacy /terms /trees /nathan /knicks /frontier /chess /static/d3.v7.min.js /assets/app-3cfac71d5552d1426de906087a8be2fe.css /pong /pong/* /live/* /assets/pong.css /2048 /2048/* /assets/apps.css /mirror /typewriter /typewriter/* /assets/typewriter.css /markdown-editor /markdown-editor/* /phish /phish/* /moon_phish /moon_phish/* /assets/moon_phish.css
 	handle @blimp {
 		reverse_proxy blimp-blog:4100 {
 			# A deploy recreates the container, and it takes ~11s to render
