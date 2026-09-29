@@ -120,7 +120,11 @@ def app_routes(routes: Map) -> Map do
   r4d1b = load_asset(r4d1a, "/moon_phish/moon.blimp", "_build/moon.blimp")
   r4d1c = load_asset(r4d1b, "/assets/moon_phish.css", "assets/moon_phish.css")
   r4d1 = page_route(r4d1c, "/moon_phish", app_page("Moon Phish — every Phish show vs. the lunar calendar", "Every Phish show since 1983, checked against the instant of every full moon.", [APP_CSS, "/assets/moon_phish.css"], "", "/moon_phish/moon.blimp", "moon"))
-  r4d = page_route(r4d1, "/phish", app_page_with("phangraphs — Phish 3.0 Jam Analytics", "Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009.", [APP_CSS], "", "/phish/phish.blimp", "ph", true))
+  r4e = reduce(TEMPER_SNAKE_FILES, r4d1, fn(acc: Map, f: String) -> Map do
+    load_asset(acc, concat("/static/temper-snake/", f), concat(STATIC_DIR, "/static/temper-snake/", f))
+  end)
+  r4f = page_route(r4e, "/temper-snake", temper_snake_page())
+  r4d = page_route(r4f, "/phish", app_page_with("phangraphs — Phish 3.0 Jam Analytics", "Phish 3.0 jam analytics — like FanGraphs, but for jams. Batting averages, jamchart rates, duration timelines, and deep dives for every song since 2009.", [APP_CSS], "", "/phish/phish.blimp", "ph", true))
   r4c = page_route(r4d, "/typewriter", app_page("Experiment - sorta typewriter", "See what key you are pressing. It also will keep what you type on hand to print if you want", [APP_CSS, "/assets/typewriter.css"], "", "/typewriter/typewriter.blimp", "typewriter"))
   page_route(r4c, "/2048", app_page("2048 — Blitz Edition", "The classic 2048 puzzle with a twist: Blitz mode gives you seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game"))
 end
