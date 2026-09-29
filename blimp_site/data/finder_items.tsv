@@ -1,35 +1,30 @@
-games	Pong	🏓	/pong		
-games	Pong God View	👁️	/pong/god		
-games	Wordle	🔤	/wordle		
-games	Wordle God	🎯	/wordle_god		
-games	Blackjack	🃏	/blackjack		
-games	War	⚔️	/war		
-creative	Art	🎨	/generative-art		
-creative	Bezier	📐	/bezier-triangles		
-creative	Chaos	🌈	/gay_chaos		
-creative	Cursor	🖱️	/cursor-tracker		
-creative	Typewriter	⌨️	/typewriter		
-creative	Code Mirror	🪞	/mirror		
-creative	Python	🐍	/python-demo		
-creative	Markdown	✍️	/markdown-editor		
-bluesky	Emoji Skeets	😀	/emoji-skeets		
-bluesky	Bluesky YT	📺	/reddit-links		
-bluesky	No Words Chat	💬	/allowed-chats		
-nathan	Nathan	😐	/nathan		
-nathan	Nathan HP	📖	/nathan_harpers		
-nathan	Nathan TV	👗	/nathan_teen_vogue		
-nathan	Nathan BF	📋	/nathan_buzzfeed		
-nathan	Nathan UN	💻	/nathan_usenet		
-nathan	Nathan CF	🌾	/nathan_content_farm		
-nathan	Nathan Cmp	⚖️	/nathan_comparison		
-nathan	Nathan ASCII	🔣	/nathan_ascii		
+technical projects	Deciduous	🌲	/		
+technical projects	Print a receipt at my desk	🧾	/very_direct_message		It really does this. And I love it. Please send me one. Images are even allowed.
+technical projects	NYC Census Explorer	🗽	/nyc_census_and_pluto		Draw a shape on the map, get the population. I made it while stuck in the ER waiting to be treated one night lol, its census tract data + PLUTO records from NYC open data and Phoenix/LiveView
+technical projects	Role Call	📺 	/role-call		Find TV shows you'll like by seeing overlaps of writers from choosing shows you already have seen and enjoyed
+technical projects	MTA Bus Map	🚌	/mta-bus-map		I got annoyed with knowing which of the 3 bus stops outside my house to take so I made this for me and my wife
+technical projects	Emoji Skeets	😀	/emoji-skeets		Search the firehose live from Bluesky. Its pretty fun/interesting to see what's coming over that wire.
+technical projects	Youtube Links From Bluesky	📺	/reddit-links		Find YouTube links being posted from Bluesky via the firehose, live
+technical projects	Code Mirroring Itself: The module generates the module	🪞	/mirror		The page's source code produces its source code on the page, because lol
+technical projects	markdown editor	✍️	/markdown-editor		as boring as it sounds, early project 
+technical projects	No Words Chat	💬	/allowed-chats		A chat where every word is banned by default and must be yes-listed to allow it in chat
+technical projects	HN	📡	/hacker-news		an HN mirror
+technical projects	Python In Elixir	🐍	/python-demo		Run python in elixir. Currently broken.
+music	Phish Jam Explorer	🐟		toggle_phish	phish, just the jams, explore by rank based on jam charts and ratings and listen to JUST THE JAMS MAN
+art	Print A Receipt At My Desk	🧾 	/very_direct_message		It really does this. And I love it. Please send me one. Images are even allowed.
+art	Art	🎨	/generative-art		
+art	Bezier	📐	/bezier-triangles		
+art	Chaos	🌈	/gay_chaos		
+art	Cursor	🖱️	/cursor-tracker		
+art	chaos	🌈	/gay_chaos		
+art	typewriter	⌨️	/typewriter		
+interactive / social	Pong	🏓	/pong		
+interactive / social	Pong God View	👁️	/pong/god		
+interactive / social	Wordle	🔤	/wordle		
+interactive / social	Wordle God	🎯	/wordle_god		
+interactive / social	Blackjack	🃏	/blackjack		
+interactive / social	War	⚔️	/war		
+Writing beyond the blog	Nathan Fielder: A Character Study	😐	/nathan		He is just such a weird guy and I made a Nathan fielder only content social network last year and wrote this
+Writing beyond the blog	300+ Years of Tree Law	🌳	/trees		Its just exciting stuff
 maps	NYC Census	🗽	/nyc_census_and_pluto		
 maps	MTA Map	🚌	/mta-bus-map		
-utilities	Blog	📝	/blog		
-utilities	HN	📡	/hacker-news		
-utilities	Bookmarks	🔖	/bookmarks		
-utilities	Role Call	📺	/role-call		
-utilities	300+ Yrs Tree Law	🌳	/trees		
-utilities	Receipt	🧾	/very_direct_message		
-music	Phish Stats	🐟		toggle_phish	
-other	Trash	🗑️			
