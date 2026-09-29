@@ -114,7 +114,9 @@ def app_routes(routes: Map) -> Map do
   r4 = page_route(r3, "/mirror", mirror_page(read_file("_build/site.blimp")))
   r4a = load_asset(r4, "/typewriter/typewriter.blimp", "static/typewriter/typewriter.blimp")
   r4b = load_asset(r4a, "/assets/typewriter.css", "assets/typewriter.css")
-  r4c = page_route(r4b, "/typewriter", app_page("Experiment - sorta typewriter", "See what key you are pressing. It also will keep what you type on hand to print if you want", [APP_CSS, "/assets/typewriter.css"], "", "/typewriter/typewriter.blimp", "typewriter"))
+  r4c0 = page_route(r4b, "/markdown-editor", app_page("Markdown Editor", "A Markdown editor with a live preview, rendered in your browser by the Blimp code that renders this site's posts.", [APP_CSS], "", "/markdown-editor/editor.blimp", "editor"))
+  r4d = load_asset(r4c0, "/markdown-editor/editor.blimp", "_build/editor.blimp")
+  r4c = page_route(r4d, "/typewriter", app_page("Experiment - sorta typewriter", "See what key you are pressing. It also will keep what you type on hand to print if you want", [APP_CSS, "/assets/typewriter.css"], "", "/typewriter/typewriter.blimp", "typewriter"))
   page_route(r4c, "/2048", app_page("2048 — Blitz Edition", "The classic 2048 puzzle with a twist: Blitz mode gives you seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game"))
 end
 

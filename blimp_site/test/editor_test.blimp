@@ -1,0 +1,51 @@
+# needs: static/editor/editor.blimp
+
+actor EditorTests do
+  test "a format wraps the selection and selects the result" do
+    assert_eq(ed_apply("say hello now", 4, 9, "bold"), {"say **hello** now", 6, 11})
+    assert_eq(ed_apply("x", 0, 1, "link"), {"[x](https://example.com)", 1, 2})
+    assert_eq(ed_apply("ab", 1, 1, "code_block"), {"a```\ncode block\n```b", 5, 15})
+  end
+
+  test "with nothing selected the placeholder goes at the cursor, its text selected" do
+    assert_eq(ed_apply("ab", 1, 1, "italic"), {"a*italic text*b", 2, 13})
+    assert_eq(ed_apply("", 0, 0, "h2"), {"## Heading 2", 3, 12})
+    assert_eq(ed_apply("", 0, 0, "bullet_list"), {"\n- List item 1\n- List item 2\n- List item 3", 3, 14})
+    assert_eq(ed_apply("ab", 1, 1, "nope"), {"ab", 1, 1})
+  end
+
+  test "the preview is the site's own Markdown rendering" do
+    e = spawn Editor
+    e <- :typed("# Hi\n\nsome *text*\n\n```elixir\nIO.puts(1)\n```\n")
+    html = to_html(e <- :view)
+    assert(contains(html, MARKDOWN <- :render("# Hi\n\nsome *text*\n\n```elixir\nIO.puts(1)\n```\n")))
+    assert(contains(html, "<h1>Hi</h1>"))
+    assert(contains(html, "Characters: 44"))
+  end
+
+  test "Cmd+B formats the selection, as the toolbar's B does" do
+    e = spawn Editor
+    e <- :typed("é hi")
+    e <- :moved(3, 5)
+    e <- :shortcut("b")
+    assert(contains(to_html(e <- :view), "é **hi**"))
+  end
+
+  test "a pasted image goes in at the cursor; one too large is refused with a note" do
+    e = spawn Editor
+    e <- :typed("ab")
+    e <- :moved(1, 1)
+    assert_eq(e <- :image("data:image/png;base64,AAAA"), :ok)
+    assert(contains(to_html(e <- :view), "a![image](data:image/png;base64,AAAA)b"))
+    big = slice(doubled_big("A", 700001), 0, 700001)
+    assert_eq(e <- :image(big), :too_large)
+    assert(contains(to_html(e <- :view), "Image too large"))
+  end
+end
+
+def doubled_big(s: String, n: Int) -> String do
+  case length(s) >= n do
+    true -> s
+    false -> doubled_big(concat(s, s), n)
+  end
+end
