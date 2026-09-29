@@ -1,0 +1,5 @@
+<span class="hljs-comment"># Traditional approach - producer decides when to push</span>
+loop <span class="hljs-keyword">do</span>
+  job = create_job()
+  <span class="hljs-title class_">Queue</span>.push(job)  <span class="hljs-comment"># What if queue is full?</span>
+<span class="hljs-keyword">end</span>

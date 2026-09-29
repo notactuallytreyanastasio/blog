@@ -1,0 +1,30 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.QueueSupervisor</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">Supervisor</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start_link</span></span>(init_arg) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Supervisor</span>.start_link(__MODULE__, init_arg, <span class="hljs-symbol">name:</span> __MODULE__)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">init</span></span>(_init_arg) <span class="hljs-keyword">do</span>
+    children = [
+      <span class="hljs-comment"># Email queue - fast, lightweight</span>
+      queue_spec(<span class="hljs-symbol">:email_queue</span>, <span class="hljs-symbol">max_consumers:</span> <span class="hljs-number">5</span>, <span class="hljs-symbol">max_demand:</span> <span class="hljs-number">1</span>),
+
+      <span class="hljs-comment"># Analytics queue - batch processing</span>
+      queue_spec(<span class="hljs-symbol">:analytics_queue</span>, <span class="hljs-symbol">max_consumers:</span> <span class="hljs-number">3</span>, <span class="hljs-symbol">max_demand:</span> <span class="hljs-number">100</span>),
+
+      <span class="hljs-comment"># ML queue - heavy computation</span>
+      queue_spec(<span class="hljs-symbol">:ml_queue</span>, <span class="hljs-symbol">max_consumers:</span> <span class="hljs-number">1</span>, <span class="hljs-symbol">max_demand:</span> <span class="hljs-number">1</span>)
+    ]
+
+    <span class="hljs-title class_">Supervisor</span>.init(children, <span class="hljs-symbol">strategy:</span> <span class="hljs-symbol">:one_for_one</span>)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">defp</span> <span class="hljs-title">queue_spec</span></span>(queue_name, opts) <span class="hljs-keyword">do</span>
+    %{
+      <span class="hljs-symbol">id:</span> <span class="hljs-symbol">:<span class="hljs-string">&quot;<span class="hljs-subst">#{queue_name}</span>_supervisor&quot;</span></span>,
+      <span class="hljs-symbol">start:</span> {<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">QueueManager</span>, <span class="hljs-symbol">:start_link</span>, [queue_name, opts]},
+      <span class="hljs-symbol">type:</span> <span class="hljs-symbol">:supervisor</span>
+    }
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

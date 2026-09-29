@@ -1,0 +1,17 @@
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">render</span></span>(assigns) <span class="hljs-keyword">do</span>
+    <span class="hljs-string">~H&quot;&quot;&quot;
+    &lt;.head_tags meta_attrs={@meta_attrs} page_title={@page_title} /&gt;
+    &lt;div class=&quot;</span>mt<span class="hljs-number">-4</span> text-gray<span class="hljs-number">-500</span><span class="hljs-string">&quot;&gt;
+      Cursor position: &lt;%= @cursor %&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;</span>p<span class="hljs-number">-4</span><span class="hljs-string">&quot; phx-window-keydown=&quot;</span>keydown<span class="hljs-string">&quot;&gt;
+      &lt;div class=&quot;</span>space-y<span class="hljs-number">-4</span><span class="hljs-string">&quot;&gt;
+        &lt;%= for {tweet, index} &lt;- Enum.with_index(@visible_tweets) do %&gt;
+          &lt;div class={&quot;</span>p<span class="hljs-number">-4</span> border rounded <span class="hljs-comment">#{if index == 2, do: &#39;bg-blue-100&#39;}&quot;}&gt;</span>
+            &lt;%= tweet %&gt;
+          &lt;/div&gt;
+        &lt;% <span class="hljs-keyword">end</span> %&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    <span class="hljs-string">&quot;&quot;&quot;
+  end</span>

@@ -1,0 +1,41 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.WorkerRegistry</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">GenServer</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start_link</span></span>(_) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.start_link(__MODULE__, %{}, <span class="hljs-symbol">name:</span> __MODULE__)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">register_worker</span></span>(queue, pid, metadata \\ %{}) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.cast(__MODULE__, {<span class="hljs-symbol">:register</span>, queue, pid, metadata})
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">get_workers</span></span>(queue) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.call(__MODULE__, {<span class="hljs-symbol">:get_workers</span>, queue})
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">get_worker_stats</span></span> <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.call(__MODULE__, <span class="hljs-symbol">:get_stats</span>)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_cast</span></span>({<span class="hljs-symbol">:register</span>, queue, pid, metadata}, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Process</span>.monitor(pid)
+
+    worker_info = %{
+      <span class="hljs-symbol">pid:</span> pid,
+      <span class="hljs-symbol">queue:</span> queue,
+      <span class="hljs-symbol">started_at:</span> <span class="hljs-title class_">DateTime</span>.utc_now(),
+      <span class="hljs-symbol">jobs_processed:</span> <span class="hljs-number">0</span>,
+      <span class="hljs-symbol">last_job_at:</span> <span class="hljs-literal">nil</span>,
+      <span class="hljs-symbol">metadata:</span> metadata
+    }
+
+    new_workers = <span class="hljs-title class_">Map</span>.put(state.workers || %{}, pid, worker_info)
+    {<span class="hljs-symbol">:noreply</span>, %{state | <span class="hljs-symbol">workers:</span> new_workers}}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_info</span></span>({<span class="hljs-symbol">:DOWN</span>, _ref, <span class="hljs-symbol">:process</span>, pid, reason}, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.warn(<span class="hljs-string">&quot;Worker <span class="hljs-subst">#{inspect(pid)}</span> died: <span class="hljs-subst">#{inspect(reason)}</span>&quot;</span>)
+    new_workers = <span class="hljs-title class_">Map</span>.delete(state.workers, pid)
+    {<span class="hljs-symbol">:noreply</span>, %{state | <span class="hljs-symbol">workers:</span> new_workers}}
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

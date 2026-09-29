@@ -1,0 +1,30 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.CircuitBreaker</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">GenServer</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">should_process_job?</span></span>(job_type) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.call(__MODULE__, {<span class="hljs-symbol">:should_process</span>, job_type})
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">record_success</span></span>(job_type) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.cast(__MODULE__, {<span class="hljs-symbol">:success</span>, job_type})
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">record_failure</span></span>(job_type, error) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenServer</span>.cast(__MODULE__, {<span class="hljs-symbol">:failure</span>, job_type, error})
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_call</span></span>({<span class="hljs-symbol">:should_process</span>, job_type}, _from, state) <span class="hljs-keyword">do</span>
+    circuit_state = <span class="hljs-title class_">Map</span>.get(state.circuits, job_type, <span class="hljs-symbol">:closed</span>)
+
+    <span class="hljs-keyword">case</span> circuit_state <span class="hljs-keyword">do</span>
+      <span class="hljs-symbol">:closed</span> -&gt; {<span class="hljs-symbol">:reply</span>, <span class="hljs-literal">true</span>, state}
+      <span class="hljs-symbol">:open</span> -&gt;
+        <span class="hljs-keyword">if</span> circuit_should_retry?(state, job_type) <span class="hljs-keyword">do</span>
+          {<span class="hljs-symbol">:reply</span>, <span class="hljs-literal">true</span>, transition_to_half_open(state, job_type)}
+        <span class="hljs-keyword">else</span>
+          {<span class="hljs-symbol">:reply</span>, <span class="hljs-literal">false</span>, state}
+        <span class="hljs-keyword">end</span>
+      <span class="hljs-symbol">:half_open</span> -&gt; {<span class="hljs-symbol">:reply</span>, <span class="hljs-literal">true</span>, state}
+    <span class="hljs-keyword">end</span>
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

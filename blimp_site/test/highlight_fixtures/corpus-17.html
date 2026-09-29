@@ -1,0 +1,41 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.Consumer</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">GenStage</span>
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+
+  <span class="hljs-variable">@doc</span> <span class="hljs-string">&quot;&quot;&quot;
+  Starts the consumer.
+
+  Like producers, consumers are just GenServer-like processes.
+  The state can be anything you need for processing.
+  &quot;&quot;&quot;</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start_link</span></span>(opts \\ []) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenStage</span>.start_link(__MODULE__, opts)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">init</span></span>(opts) <span class="hljs-keyword">do</span>
+    <span class="hljs-comment"># The key difference: we declare ourselves as a :consumer</span>
+    <span class="hljs-comment"># and specify which producer(s) to subscribe to</span>
+    {<span class="hljs-symbol">:consumer</span>, opts, <span class="hljs-symbol">subscribe_to:</span> [<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Producer</span>]}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_events</span></span>(events, _from, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Consumer received <span class="hljs-subst">#{length(events)}</span> events&quot;</span>)
+
+    <span class="hljs-comment"># Process each event</span>
+    <span class="hljs-keyword">for</span> event &lt;- events <span class="hljs-keyword">do</span>
+      process_event(event, state)
+    <span class="hljs-keyword">end</span>
+
+    <span class="hljs-comment"># Always return {:noreply, [], state} for consumers</span>
+    <span class="hljs-comment"># The empty list means we don&#39;t emit any events (we&#39;re not a producer)</span>
+    {<span class="hljs-symbol">:noreply</span>, [], state}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">defp</span> <span class="hljs-title">process_event</span></span>(event, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-comment"># For now, just log what we received</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Processing event: <span class="hljs-subst">#{event}</span>&quot;</span>)
+    <span class="hljs-title class_">IO</span>.inspect({self(), event, state}, <span class="hljs-symbol">label:</span> <span class="hljs-string">&quot;Consumer processed&quot;</span>)
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

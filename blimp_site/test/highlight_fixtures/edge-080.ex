@@ -1,0 +1,1 @@
+x |> Enum.map(fn {k, v} -> {k, v * 2} end)

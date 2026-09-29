@@ -1,0 +1,1 @@
+defdelegate f(x), to: M

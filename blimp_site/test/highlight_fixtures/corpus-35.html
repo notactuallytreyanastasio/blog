@@ -1,0 +1,21 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.TestJob</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">hello</span></span>(name) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Hello, <span class="hljs-subst">#{name}</span>!&quot;</span>)
+    <span class="hljs-title class_">Process</span>.sleep(<span class="hljs-number">1000</span>)  <span class="hljs-comment"># Simulate some work</span>
+    <span class="hljs-string">&quot;Greeted <span class="hljs-subst">#{name}</span>&quot;</span>
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">failing_job</span></span> <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;This job will fail...&quot;</span>)
+    <span class="hljs-keyword">raise</span> <span class="hljs-string">&quot;Intentional failure for testing&quot;</span>
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">heavy_job</span></span>(duration_ms) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Starting heavy job for <span class="hljs-subst">#{duration_ms}</span>ms&quot;</span>)
+    <span class="hljs-title class_">Process</span>.sleep(duration_ms)
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Heavy job completed&quot;</span>)
+    <span class="hljs-string">&quot;Completed heavy work&quot;</span>
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

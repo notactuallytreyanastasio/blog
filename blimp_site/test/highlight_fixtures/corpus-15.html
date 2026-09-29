@@ -1,0 +1,13 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_demand</span></span>(demand, %{<span class="hljs-symbol">buffer:</span> buffer} = state) <span class="hljs-keyword">do</span>
+  {to_emit, remaining} = <span class="hljs-title class_">Enum</span>.split(buffer, demand)
+
+  <span class="hljs-keyword">if</span> length(to_emit) &lt; demand <span class="hljs-keyword">do</span>
+    <span class="hljs-comment"># Buffer exhausted, try to refill</span>
+    new_events = fetch_more_events()
+    all_events = to_emit ++ new_events
+    {to_emit_now, to_buffer} = <span class="hljs-title class_">Enum</span>.split(all_events, demand)
+    {<span class="hljs-symbol">:noreply</span>, to_emit_now, %{state | <span class="hljs-symbol">buffer:</span> to_buffer}}
+  <span class="hljs-keyword">else</span>
+    {<span class="hljs-symbol">:noreply</span>, to_emit, %{state | <span class="hljs-symbol">buffer:</span> remaining}}
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

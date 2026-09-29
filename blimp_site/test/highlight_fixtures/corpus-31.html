@@ -1,0 +1,48 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.Producer</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">GenStage</span>
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+  <span class="hljs-keyword">alias</span> <span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">JobQueue</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start_link</span></span>(_opts) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenStage</span>.start_link(__MODULE__, <span class="hljs-symbol">:ok</span>, <span class="hljs-symbol">name:</span> __MODULE__)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">init</span></span>(<span class="hljs-symbol">:ok</span>) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Job Producer starting&quot;</span>)
+    {<span class="hljs-symbol">:producer</span>, %{}, <span class="hljs-symbol">dispatcher:</span> <span class="hljs-title class_">GenStage</span>.<span class="hljs-title class_">DemandDispatcher</span>}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_demand</span></span>(demand, state) <span class="hljs-keyword">when</span> demand &gt; <span class="hljs-number">0</span> <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Producer received demand for <span class="hljs-subst">#{demand}</span> jobs&quot;</span>)
+
+    <span class="hljs-keyword">case</span> <span class="hljs-title class_">JobQueue</span>.fetch_jobs(demand) <span class="hljs-keyword">do</span>
+      {<span class="hljs-symbol">:ok</span>, {count, jobs}} <span class="hljs-keyword">when</span> count &gt; <span class="hljs-number">0</span> -&gt;
+        <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Fetched <span class="hljs-subst">#{count}</span> jobs from database&quot;</span>)
+        {<span class="hljs-symbol">:noreply</span>, jobs, state}
+
+      {<span class="hljs-symbol">:ok</span>, {<span class="hljs-number">0</span>, []}} -&gt;
+        <span class="hljs-comment"># No jobs available, schedule a check for later</span>
+        <span class="hljs-title class_">Process</span>.send_after(self(), <span class="hljs-symbol">:check_for_jobs</span>, <span class="hljs-number">1000</span>)
+        {<span class="hljs-symbol">:noreply</span>, [], state}
+
+      {<span class="hljs-symbol">:error</span>, reason} -&gt;
+        <span class="hljs-title class_">Logger</span>.error(<span class="hljs-string">&quot;Failed to fetch jobs: <span class="hljs-subst">#{inspect(reason)}</span>&quot;</span>)
+        {<span class="hljs-symbol">:noreply</span>, [], state}
+    <span class="hljs-keyword">end</span>
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_info</span></span>(<span class="hljs-symbol">:check_for_jobs</span>, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-comment"># This allows us to produce events even when there&#39;s no pending demand</span>
+    <span class="hljs-comment"># if jobs become available</span>
+    <span class="hljs-keyword">case</span> <span class="hljs-title class_">JobQueue</span>.fetch_jobs(<span class="hljs-number">10</span>) <span class="hljs-keyword">do</span>
+      {<span class="hljs-symbol">:ok</span>, {count, jobs}} <span class="hljs-keyword">when</span> count &gt; <span class="hljs-number">0</span> -&gt;
+        {<span class="hljs-symbol">:noreply</span>, jobs, state}
+      _ -&gt;
+        <span class="hljs-title class_">Process</span>.send_after(self(), <span class="hljs-symbol">:check_for_jobs</span>, <span class="hljs-number">1000</span>)
+        {<span class="hljs-symbol">:noreply</span>, [], state}
+    <span class="hljs-keyword">end</span>
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

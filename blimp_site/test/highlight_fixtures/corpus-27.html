@@ -1,0 +1,4 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">init</span></span>(counter) <span class="hljs-keyword">do</span>
+  <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Producer starting with counter: <span class="hljs-subst">#{counter}</span>&quot;</span>)
+  {<span class="hljs-symbol">:producer</span>, counter, <span class="hljs-symbol">dispatcher:</span> <span class="hljs-title class_">GenStage</span>.<span class="hljs-title class_">BroadcastDispatcher</span>}
+<span class="hljs-keyword">end</span>

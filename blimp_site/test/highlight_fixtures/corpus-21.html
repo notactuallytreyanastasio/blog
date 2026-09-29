@@ -1,0 +1,7 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_events</span></span>(events, _from, state) <span class="hljs-keyword">do</span>
+  <span class="hljs-comment"># Batch insert for efficiency</span>
+  records = <span class="hljs-title class_">Enum</span>.map(events, &amp;transform_event/<span class="hljs-number">1</span>)
+  <span class="hljs-title class_">Repo</span>.insert_all(<span class="hljs-title class_">MyTable</span>, records)
+
+  {<span class="hljs-symbol">:noreply</span>, [], state}
+<span class="hljs-keyword">end</span>

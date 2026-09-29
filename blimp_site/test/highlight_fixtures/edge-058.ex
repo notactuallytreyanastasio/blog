@@ -1,0 +1,1 @@
+with {:ok, a} <- f(), do: a

@@ -1,0 +1,15 @@
+<span class="hljs-comment"># Send an email</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">MyApp</span>.<span class="hljs-title class_">Mailer</span>, <span class="hljs-symbol">:send_welcome_email</span>, [<span class="hljs-symbol">user_id:</span> <span class="hljs-number">123</span>])
+
+<span class="hljs-comment"># Process an image</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">MyApp</span>.<span class="hljs-title class_">ImageProcessor</span>, <span class="hljs-symbol">:resize_image</span>, [<span class="hljs-string">&quot;/path/to/image.jpg&quot;</span>, <span class="hljs-number">300</span>, <span class="hljs-number">200</span>])
+
+<span class="hljs-comment"># Call an API</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">MyApp</span>.<span class="hljs-title class_">ApiClient</span>, <span class="hljs-symbol">:sync_user_data</span>, [<span class="hljs-symbol">user_id:</span> <span class="hljs-number">456</span>])
+
+<span class="hljs-comment"># Even complex data structures</span>
+<span class="hljs-title class_">JobQueue</span>.enqueue(<span class="hljs-title class_">MyApp</span>.<span class="hljs-title class_">ReportGenerator</span>, <span class="hljs-symbol">:generate_report</span>, [%{
+  <span class="hljs-symbol">user_id:</span> <span class="hljs-number">789</span>,
+  <span class="hljs-symbol">date_range:</span> <span class="hljs-title class_">Date</span>.range(<span class="hljs-string">~D[2024-01-01]</span>, <span class="hljs-string">~D[2024-01-31]</span>),
+  <span class="hljs-symbol">format:</span> <span class="hljs-symbol">:pdf</span>
+}])

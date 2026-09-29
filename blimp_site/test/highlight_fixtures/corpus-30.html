@@ -1,0 +1,98 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.JobQueue</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">import</span> <span class="hljs-title class_">Ecto</span>.<span class="hljs-title class_">Query</span>
+  <span class="hljs-keyword">alias</span> <span class="hljs-title class_">JobProcessor</span>.{<span class="hljs-title class_">Repo</span>, <span class="hljs-title class_">Job</span>}
+
+  <span class="hljs-variable">@doc</span> <span class="hljs-string">&quot;&quot;&quot;
+  Enqueue a job for processing.
+
+  This is the public API that applications use to submit work.
+  &quot;&quot;&quot;</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">enqueue</span></span>(module, function, args, opts \\ []) <span class="hljs-keyword">do</span>
+    payload = <span class="hljs-title class_">Job</span>.encode_job(module, function, args)
+
+    attrs = %{
+      <span class="hljs-symbol">payload:</span> payload,
+      <span class="hljs-symbol">max_attempts:</span> <span class="hljs-title class_">Keyword</span>.get(opts, <span class="hljs-symbol">:max_attempts</span>, <span class="hljs-number">3</span>),
+      <span class="hljs-symbol">scheduled_at:</span> <span class="hljs-title class_">Keyword</span>.get(opts, <span class="hljs-symbol">:scheduled_at</span>, <span class="hljs-title class_">DateTime</span>.utc_now())
+    }
+
+    %<span class="hljs-title class_">Job</span>{}
+    |&gt; <span class="hljs-title class_">Job</span>.changeset(attrs)
+    |&gt; <span class="hljs-title class_">Repo</span>.insert()
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@doc</span> <span class="hljs-string">&quot;&quot;&quot;
+  Fetch available jobs for processing.
+
+  This is called by our GenStage producer to get work.
+  Uses FOR UPDATE SKIP LOCKED to avoid race conditions.
+  &quot;&quot;&quot;</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">fetch_jobs</span></span>(limit) <span class="hljs-keyword">do</span>
+    now = <span class="hljs-title class_">DateTime</span>.utc_now()
+
+    <span class="hljs-title class_">Repo</span>.transaction(<span class="hljs-keyword">fn</span> -&gt;
+      <span class="hljs-comment"># Find available jobs</span>
+      job_ids =
+        from(j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>,
+          <span class="hljs-symbol">where:</span> j.status == <span class="hljs-string">&quot;queued&quot;</span> <span class="hljs-keyword">and</span> j.scheduled_at &lt;= ^now,
+          <span class="hljs-symbol">limit:</span> ^limit,
+          <span class="hljs-symbol">select:</span> j.id,
+          <span class="hljs-symbol">lock:</span> <span class="hljs-string">&quot;FOR UPDATE SKIP LOCKED&quot;</span>
+        )
+        |&gt; <span class="hljs-title class_">Repo</span>.all()
+
+      <span class="hljs-comment"># Mark them as running and return the full job data</span>
+      {count, jobs} =
+        from(j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>, <span class="hljs-symbol">where:</span> j.id <span class="hljs-keyword">in</span> ^job_ids)
+        |&gt; <span class="hljs-title class_">Repo</span>.update_all(
+          [<span class="hljs-symbol">set:</span> [<span class="hljs-symbol">status:</span> <span class="hljs-string">&quot;running&quot;</span>, <span class="hljs-symbol">started_at:</span> <span class="hljs-title class_">DateTime</span>.utc_now()]],
+          <span class="hljs-symbol">returning:</span> [<span class="hljs-symbol">:id</span>, <span class="hljs-symbol">:payload</span>, <span class="hljs-symbol">:attempts</span>, <span class="hljs-symbol">:max_attempts</span>]
+        )
+
+      {count, jobs}
+    <span class="hljs-keyword">end</span>)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@doc</span> <span class="hljs-string">&quot;&quot;&quot;
+  Mark a job as completed successfully.
+  &quot;&quot;&quot;</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">complete_job</span></span>(job_id) <span class="hljs-keyword">do</span>
+    from(j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>, <span class="hljs-symbol">where:</span> j.id == ^job_id)
+    |&gt; <span class="hljs-title class_">Repo</span>.update_all(
+      <span class="hljs-symbol">set:</span> [<span class="hljs-symbol">status:</span> <span class="hljs-string">&quot;completed&quot;</span>, <span class="hljs-symbol">completed_at:</span> <span class="hljs-title class_">DateTime</span>.utc_now()]
+    )
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@doc</span> <span class="hljs-string">&quot;&quot;&quot;
+  Mark a job as failed and handle retry logic.
+  &quot;&quot;&quot;</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">fail_job</span></span>(job_id, error_message, attempts \\ <span class="hljs-number">1</span>) <span class="hljs-keyword">do</span>
+    job = <span class="hljs-title class_">Repo</span>.get!(<span class="hljs-title class_">Job</span>, job_id)
+
+    <span class="hljs-keyword">if</span> attempts &gt;= job.max_attempts <span class="hljs-keyword">do</span>
+      <span class="hljs-comment"># Permanently failed</span>
+      from(j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>, <span class="hljs-symbol">where:</span> j.id == ^job_id)
+      |&gt; <span class="hljs-title class_">Repo</span>.update_all(
+        <span class="hljs-symbol">set:</span> [
+          <span class="hljs-symbol">status:</span> <span class="hljs-string">&quot;failed&quot;</span>,
+          <span class="hljs-symbol">error_message:</span> error_message,
+          <span class="hljs-symbol">attempts:</span> attempts,
+          <span class="hljs-symbol">completed_at:</span> <span class="hljs-title class_">DateTime</span>.utc_now()
+        ]
+      )
+    <span class="hljs-keyword">else</span>
+      <span class="hljs-comment"># Retry later</span>
+      retry_at = <span class="hljs-title class_">DateTime</span>.add(<span class="hljs-title class_">DateTime</span>.utc_now(), <span class="hljs-number">60</span> * attempts, <span class="hljs-symbol">:second</span>)
+
+      from(j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>, <span class="hljs-symbol">where:</span> j.id == ^job_id)
+      |&gt; <span class="hljs-title class_">Repo</span>.update_all(
+        <span class="hljs-symbol">set:</span> [
+          <span class="hljs-symbol">status:</span> <span class="hljs-string">&quot;queued&quot;</span>,
+          <span class="hljs-symbol">error_message:</span> error_message,
+          <span class="hljs-symbol">attempts:</span> attempts,
+          <span class="hljs-symbol">scheduled_at:</span> retry_at
+        ]
+      )
+    <span class="hljs-keyword">end</span>
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

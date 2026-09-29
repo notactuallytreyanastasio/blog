@@ -1,0 +1,57 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">BlogWeb.VimTweetsLive</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">BlogWeb</span>, <span class="hljs-symbol">:live_view</span>
+
+  <span class="hljs-variable">@window_size</span> <span class="hljs-number">25</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">mount</span></span>(_params, _session, socket) <span class="hljs-keyword">do</span>
+    tweets = <span class="hljs-title class_">Social</span>.sample(<span class="hljs-number">100</span>) |&gt; <span class="hljs-title class_">Enum</span>.map(&amp; &amp;<span class="hljs-number">1</span>.skeet)
+
+    socket = socket
+    |&gt; assign(
+      <span class="hljs-symbol">cursor:</span> <span class="hljs-number">0</span>,
+      <span class="hljs-symbol">tweets:</span> tweets,
+      <span class="hljs-symbol">visible_tweets:</span> <span class="hljs-title class_">Enum</span>.take(tweets, <span class="hljs-variable">@window_size</span>),
+      <span class="hljs-symbol">page_title:</span> <span class="hljs-string">&quot;Thoughts and Tidbits Blog: Bobby Experiment - vim navigation&quot;</span>,
+      <span class="hljs-symbol">meta_attrs:</span> <span class="hljs-variable">@meta_attrs</span>
+    )
+
+    {<span class="hljs-symbol">:ok</span>, socket}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_event</span></span>(<span class="hljs-string">&quot;keydown&quot;</span>, %{<span class="hljs-string">&quot;key&quot;</span> =&gt; <span class="hljs-string">&quot;j&quot;</span>}, socket) <span class="hljs-keyword">do</span>
+    new_cursor = min(socket.assigns.cursor + <span class="hljs-number">1</span>, length(socket.assigns.tweets) - <span class="hljs-number">1</span>)
+    visible_tweets = get_visible_tweets(socket.assigns.tweets, new_cursor)
+    {<span class="hljs-symbol">:noreply</span>, assign(socket, <span class="hljs-symbol">cursor:</span> new_cursor, <span class="hljs-symbol">visible_tweets:</span> visible_tweets)}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_event</span></span>(<span class="hljs-string">&quot;keydown&quot;</span>, %{<span class="hljs-string">&quot;key&quot;</span> =&gt; <span class="hljs-string">&quot;k&quot;</span>}, socket) <span class="hljs-keyword">do</span>
+    new_cursor = max(socket.assigns.cursor - <span class="hljs-number">1</span>, <span class="hljs-number">0</span>)
+    visible_tweets = get_visible_tweets(socket.assigns.tweets, new_cursor)
+    {<span class="hljs-symbol">:noreply</span>, assign(socket, <span class="hljs-symbol">cursor:</span> new_cursor, <span class="hljs-symbol">visible_tweets:</span> visible_tweets)}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_event</span></span>(<span class="hljs-string">&quot;keydown&quot;</span>, _key, socket), <span class="hljs-symbol">do:</span> {<span class="hljs-symbol">:noreply</span>, socket}
+
+  <span class="hljs-function"><span class="hljs-keyword">defp</span> <span class="hljs-title">get_visible_tweets</span></span>(tweets, cursor) <span class="hljs-keyword">do</span>
+    start_idx = max(<span class="hljs-number">0</span>, cursor - <span class="hljs-number">2</span>)
+    <span class="hljs-title class_">Enum</span>.slice(tweets, start_idx, <span class="hljs-variable">@window_size</span>)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">render</span></span>(assigns) <span class="hljs-keyword">do</span>
+    <span class="hljs-string">~H&quot;&quot;&quot;
+    &lt;.head_tags meta_attrs={@meta_attrs} page_title={@page_title} /&gt;
+    &lt;div class=&quot;</span>mt<span class="hljs-number">-4</span> text-gray<span class="hljs-number">-500</span><span class="hljs-string">&quot;&gt;
+      Cursor position: &lt;%= @cursor %&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;</span>p<span class="hljs-number">-4</span><span class="hljs-string">&quot; phx-window-keydown=&quot;</span>keydown<span class="hljs-string">&quot;&gt;
+      &lt;div class=&quot;</span>space-y<span class="hljs-number">-4</span><span class="hljs-string">&quot;&gt;
+        &lt;%= for {tweet, index} &lt;- Enum.with_index(@visible_tweets) do %&gt;
+          &lt;div class={&quot;</span>p<span class="hljs-number">-4</span> border rounded <span class="hljs-comment">#{if index == 2, do: &#39;bg-blue-100&#39;}&quot;}&gt;</span>
+            &lt;%= tweet %&gt;
+          &lt;/div&gt;
+        &lt;% <span class="hljs-keyword">end</span> %&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    <span class="hljs-string">&quot;&quot;&quot;
+  end
+end</span>

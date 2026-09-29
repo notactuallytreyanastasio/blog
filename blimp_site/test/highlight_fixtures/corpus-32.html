@@ -1,0 +1,50 @@
+<span class="hljs-class"><span class="hljs-keyword">defmodule</span> <span class="hljs-title">JobProcessor.Consumer</span></span> <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">use</span> <span class="hljs-title class_">GenStage</span>
+  <span class="hljs-keyword">require</span> <span class="hljs-title class_">Logger</span>
+  <span class="hljs-keyword">alias</span> <span class="hljs-title class_">JobProcessor</span>.{<span class="hljs-title class_">Job</span>, <span class="hljs-title class_">JobQueue</span>}
+
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">start_link</span></span>(opts) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">GenStage</span>.start_link(__MODULE__, opts)
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">init</span></span>(opts) <span class="hljs-keyword">do</span>
+    {<span class="hljs-symbol">:consumer</span>, opts, <span class="hljs-symbol">subscribe_to:</span> [<span class="hljs-title class_">JobProcessor</span>.<span class="hljs-title class_">Producer</span>]}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-variable">@impl</span> <span class="hljs-literal">true</span>
+  <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_events</span></span>(jobs, _from, state) <span class="hljs-keyword">do</span>
+    <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Consumer received <span class="hljs-subst">#{length(jobs)}</span> jobs&quot;</span>)
+
+    <span class="hljs-keyword">for</span> job &lt;- jobs <span class="hljs-keyword">do</span>
+      execute_job(job)
+    <span class="hljs-keyword">end</span>
+
+    {<span class="hljs-symbol">:noreply</span>, [], state}
+  <span class="hljs-keyword">end</span>
+
+  <span class="hljs-function"><span class="hljs-keyword">defp</span> <span class="hljs-title">execute_job</span></span>(%{<span class="hljs-symbol">id:</span> job_id, <span class="hljs-symbol">payload:</span> payload, <span class="hljs-symbol">attempts:</span> attempts}) <span class="hljs-keyword">do</span>
+    <span class="hljs-keyword">try</span> <span class="hljs-keyword">do</span>
+      {module, function, args} = <span class="hljs-title class_">Job</span>.decode_job(payload)
+
+      <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Executing job <span class="hljs-subst">#{job_id}</span>: <span class="hljs-subst">#{module}</span>.<span class="hljs-subst">#{function}</span>&quot;</span>)
+
+      <span class="hljs-comment"># Execute the job</span>
+      result = apply(module, function, args)
+
+      <span class="hljs-comment"># Mark as completed</span>
+      <span class="hljs-title class_">JobQueue</span>.complete_job(job_id)
+
+      <span class="hljs-title class_">Logger</span>.info(<span class="hljs-string">&quot;Job <span class="hljs-subst">#{job_id}</span> completed successfully&quot;</span>)
+
+      result
+    <span class="hljs-keyword">rescue</span>
+      error -&gt;
+        error_message = <span class="hljs-title class_">Exception</span>.format(<span class="hljs-symbol">:error</span>, error, __STACKTRACE__)
+        <span class="hljs-title class_">Logger</span>.error(<span class="hljs-string">&quot;Job <span class="hljs-subst">#{job_id}</span> failed: <span class="hljs-subst">#{error_message}</span>&quot;</span>)
+
+        <span class="hljs-comment"># Mark as failed (with retry logic)</span>
+        <span class="hljs-title class_">JobQueue</span>.fail_job(job_id, error_message, attempts + <span class="hljs-number">1</span>)
+    <span class="hljs-keyword">end</span>
+  <span class="hljs-keyword">end</span>
+<span class="hljs-keyword">end</span>

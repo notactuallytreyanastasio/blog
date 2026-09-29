@@ -1,0 +1,17 @@
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">handle_demand</span></span>(demand, state) <span class="hljs-keyword">do</span>
+  jobs = <span class="hljs-title class_">Repo</span>.all(
+    from j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>,
+    <span class="hljs-symbol">where:</span> j.status == <span class="hljs-string">&quot;pending&quot;</span>,
+    <span class="hljs-symbol">limit:</span> ^demand,
+    <span class="hljs-symbol">lock:</span> <span class="hljs-string">&quot;FOR UPDATE SKIP LOCKED&quot;</span>
+  )
+
+  job_ids = <span class="hljs-title class_">Enum</span>.map(jobs, &amp; &amp;<span class="hljs-number">1</span>.id)
+
+  <span class="hljs-title class_">Repo</span>.update_all(
+    from(j <span class="hljs-keyword">in</span> <span class="hljs-title class_">Job</span>, <span class="hljs-symbol">where:</span> j.id <span class="hljs-keyword">in</span> ^job_ids),
+    <span class="hljs-symbol">set:</span> [<span class="hljs-symbol">status:</span> <span class="hljs-string">&quot;processing&quot;</span>]
+  )
+
+  {<span class="hljs-symbol">:noreply</span>, jobs, state}
+<span class="hljs-keyword">end</span>

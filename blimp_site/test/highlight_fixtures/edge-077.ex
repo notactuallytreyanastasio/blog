@@ -1,0 +1,1 @@
+defimpl Proto, for: X do end
