@@ -5,9 +5,13 @@
 #   ./deploy.sh ship      stage, rsync to $HOST:/opt/blimp-blog, rebuild the
 #                         blimp-blog compose service
 #
-# BLIMP_SRC is a checkout of blimp with the language fixes this site needs
-# (split, interpolation, sort, and/or, join, link_libc). The interpreter is
-# cross-compiled here and shipped as a static binary.
+# BLIMP_SRC is a checkout of blimp's main, which has every language fix this
+# site needs since blimp#35-#44 were merged. The interpreter is
+# cross-compiled here and shipped as a static binary; bin/BLIMP_COMMIT says
+# which commit.
+#
+# `ship` needs the blimp-blog compose service and the Caddy route in front of
+# it to exist already; deploy/ has both, and where they go.
 set -euo pipefail
 cd "$(dirname "$0")"
 HOST="${DEPLOY_HOST:-root@5.161.181.91}"

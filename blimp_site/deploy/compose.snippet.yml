@@ -1,0 +1,14 @@
+# In /opt/blog/docker-compose.yml, under services:. Installed 2026-09-29;
+# the file before it is /opt/blog/docker-compose.yml.bak-20260929T141411Z.
+
+  # The blog, served by a server written in Blimp: blimp_site/ in the blog
+  # repo, shipped to /opt/blimp-blog by blimp_site/deploy.sh. Caddy sends it
+  # /, /blog, /post/* and its stylesheets, and gives Phoenix anything it
+  # answers 404. It forks four workers that each exit after 200 requests;
+  # the cap is there in case that arithmetic is ever wrong.
+  blimp-blog:
+    build:
+      context: /opt/blimp-blog
+    restart: always
+    mem_limit: 1536m
+    # Not exposed to host - Caddy proxies to port 4100 via Docker network
