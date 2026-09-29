@@ -21,9 +21,12 @@
 # What needed a socket or a script is not here: the AIM chat and its name
 # dialog, presence counts, the Phish window, the work log, the photo
 # window, the Leica zoom viewer, the Joyride tour, tooltips and dragging.
+#
+# What is a function of strings and numbers alone (the clock, the links,
+# the fixed HTML of the chrome) is Temper, in
+# temper/src/desktop. What reads or builds a record stays here.
 
 APPS_ORIGIN = "https://bobbby.online"
-LEICA_FULL = "https://bobbby-media.fsn1.your-objectstorage.com/leica/leica_6_by_6_full.jpg"
 
 # ── Loading the snapshots in data/ ──────────────────────────────────────
 
@@ -33,16 +36,6 @@ end
 
 def desk_field(fields: List, i: Int) -> String do
   elem_at(fields, i)
-end
-
-# export.sh writes \ as \\, newline as \n and tab as \t. Splitting on the
-# escaped backslash first keeps "\\n" (a backslash, then n) from turning
-# into a newline.
-def desk_unescape(s: String) -> String do
-  parts = split(s, "\\\\")
-  join(map(parts, fn(p: String) -> String do
-    replace_all(replace_all(p, "\\n", "\n"), "\\t", "\t")
-  end), "\\")
 end
 
 def desk_die(message: String) -> Any do
@@ -62,13 +55,6 @@ def desk_repos_for(repo_rows: List, slug: String) -> List do
   map(filter(repo_rows, fn(r: List) -> Bool do head(r) == slug end), fn(r: List) -> Map do
     %{name: desk_field(r, 1), full_name: desk_field(r, 2)}
   end)
-end
-
-def desk_split_tech(s: String) -> List do
-  case length(s) do
-    0 -> []
-    _ -> split(s, ",")
-  end
 end
 
 def desk_load_museum(tsv: String, repos_tsv: String) -> List do
@@ -160,6 +146,10 @@ end
 
 # ── Pixel icons: Blog.Museum.Icons.pixels/1 ─────────────────────────────
 
+# The pixel icons stay Blimp. In Temper they were the same loop, but a
+# character step there is u8_decode_at, temper_string_next and temper_int32,
+# three calls into temper-core where this makes one builtin char_at: loading
+# the 33 icons went from 138 ms to 638 ms.
 def desk_row_rects(row: String, x: Int, y: String, acc: List) -> List do
   case x >= length(row) do
     true -> acc
@@ -392,57 +382,11 @@ def desk_mobile(st: Map) -> String do
   end
 end
 
-# Slugs and categories go into links as they are, so the loader refuses
-# any that would need escaping in a URL or in HTML.
-def desk_url_safe_from(s: String, i: Int) -> Bool do
-  case i >= length(s) do
-    true -> true
-    false ->
-      c = char_at(s, i)
-      case is_alnum(c) or c == "-" or c == "_" or c == "." do
-        true -> desk_url_safe_from(s, i + 1)
-        false -> false
-      end
-  end
-end
-
-def desk_url_safe(s: String) -> Bool do
-  length(s) > 0 and desk_url_safe_from(s, 0)
-end
-
-# Per-request code loops by recursion, not map or filter: calling a lambda
-# measured about 3KB of garbage a call, and a render makes a few hundred.
-def desk_nonempty(list: List, acc: List) -> List do
-  case list do
-    [] -> reverse(acc)
-    [h | rest] ->
-      case length(h) > 0 do
-        true -> desk_nonempty(rest, [h | acc])
-        false -> desk_nonempty(rest, acc)
-      end
-  end
-end
-
-def desk_param(key: String, value: String) -> String do
-  case value do
-    "" -> ""
-    _ -> concat(key, "=", value)
-  end
-end
-
 # The link to a state, already escaped for an href: every value in the
 # state is a known slug, category or flag. A link to the empty state says
 # booted=1, so that closing the last window does not replay the splash.
 def desk_href(st: Map) -> String do
-  params = desk_nonempty([
-    desk_param("cat", st.cat), desk_param("project", st.project),
-    desk_param("finder", st.finder), desk_param("museum", st.museum),
-    desk_param("leica", st.leica), desk_param("m", st.m)
-  ], [])
-  case params do
-    [] -> "/?booted=1"
-    _ -> concat("/?", join(params, "&amp;"))
-  end
+  desk_href_of(st.cat, st.project, st.finder, st.museum, st.leica, st.m)
 end
 
 def desk_close_finder(st: Map) -> Map do
@@ -472,38 +416,6 @@ def desk_toggle_museum(st: Map) -> Map do
   end
 end
 
-# A finder path the Blimp site serves stays relative; every other app is
-# still on the Phoenix site.
-def desk_app_href(path: String) -> String do
-  case path == "/" or path == "/blog" or path == "/tetris" or starts_with(path, "/post/") do
-    true -> path
-    false -> concat(APPS_ORIGIN, path)
-  end
-end
-
-# Calendar.strftime(DateTime.utc_now(), "%I:%M %p")
-def desk_clock(epoch_s: Int) -> String do
-  day = rem(epoch_s, 86400)
-  h24 = day / 3600
-  minute = rem(day, 3600) / 60
-  h12 = case rem(h24, 12) do
-    0 -> 12
-    h -> h
-  end
-  ampm = case h24 < 12 do
-    true -> "AM"
-    false -> "PM"
-  end
-  concat(desk_pad2(h12), ":", desk_pad2(minute), " ", ampm)
-end
-
-def desk_pad2(n: Int) -> String do
-  case n < 10 do
-    true -> concat("0", to_string(n))
-    false -> to_string(n)
-  end
-end
-
 def desk_category_label(cat: String) -> String do
   case cat do
     "hardware" -> "Hardware"
@@ -517,38 +429,7 @@ def desk_category_label(cat: String) -> String do
   end
 end
 
-def desk_active(active: Bool, class: String) -> String do
-  case active do
-    true -> concat(class, " active")
-    false -> class
-  end
-end
-
 # ── Windows ─────────────────────────────────────────────────────────────
-
-def desk_title_bar(close_href: String, title: String) -> String do
-  join([
-    "<div class=\"title-bar\">",
-    "<a class=\"close-box\" href=\"", close_href, "\" aria-label=\"Close\"></a>",
-    "<div class=\"title\">", title, "</div>",
-    "<div class=\"resize-box\"></div>",
-    "</div>"
-  ], "")
-end
-
-def desk_menu_bar(epoch_s: Int) -> String do
-  join([
-    "<div class=\"menu-bar\">",
-    "<div class=\"menu-left\">",
-    "<span class=\"apple-menu\">&#63743;</span>",
-    "<span class=\"menu-item\">File</span>",
-    "<span class=\"menu-item\">Edit</span>",
-    "<span class=\"menu-item\">View</span>",
-    "</div>",
-    "<div class=\"menu-right\"><span>", desk_clock(epoch_s), "</span></div>",
-    "</div>"
-  ], "")
-end
 
 def desk_finder_item(item: Map) -> String do
   title = case length(item.description) > 0 do
@@ -567,22 +448,6 @@ def desk_finder_item(item: Map) -> String do
         false -> concat("<div class=\"icon\" tabindex=\"0\"", title, ">", inner, "</div>")
       end
   end
-end
-
-def desk_projects_icon() -> String do
-  join([
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" width=\"28\" height=\"28\" style=\"image-rendering: pixelated;\">",
-    "<rect x=\"2\" y=\"2\" width=\"28\" height=\"3\" fill=\"#000\" />",
-    "<rect x=\"2\" y=\"2\" width=\"3\" height=\"28\" fill=\"#000\" />",
-    "<rect x=\"2\" y=\"27\" width=\"28\" height=\"3\" fill=\"#000\" />",
-    "<rect x=\"27\" y=\"2\" width=\"3\" height=\"28\" fill=\"#000\" />",
-    "<rect x=\"7\" y=\"7\" width=\"18\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"7\" y=\"11\" width=\"14\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"7\" y=\"15\" width=\"18\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"7\" y=\"19\" width=\"10\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"7\" y=\"23\" width=\"16\" height=\"2\" fill=\"#000\" />",
-    "</svg>"
-  ], "")
 end
 
 def desk_finder_sections(finder: List) -> String do
@@ -629,9 +494,7 @@ def desk_finder_window(st: Map, desk: Map) -> String do
 end
 
 def desk_tech_tags(tech: List) -> String do
-  join(map(tech, fn(t: String) -> String do
-    concat("<span class=\"museum-list-tech\">", escape_html(t), "</span>")
-  end), "")
+  join(map(tech, fn(t: String) -> String do desk_tech_tag(t) end), "")
 end
 
 def desk_take_list(list: List, n: Int, acc: List) -> List do
@@ -666,6 +529,9 @@ def desk_museum_item(p: Map, st: Map) -> String do
   concat("<a class=\"", class, "\" href=\"", desk_href(put(st, "project", p.slug)), "\">")
 end
 
+# Per-request code loops by recursion, not map or filter: calling a lambda
+# measured about 3KB of garbage a call, and a render makes a few hundred.
+#
 # Blog.Museum.Projects.by_category/1 when a tab is chosen, all/0 when not.
 def desk_museum_rows(projects: List, st: Map, acc: List) -> List do
   case projects do
@@ -771,20 +637,7 @@ def desk_detail_window(st: Map, desk: Map) -> String do
 end
 
 def desk_leica_icon(st: Map) -> String do
-  join([
-    "<a class=\"desktop-icon-leica\" href=\"", desk_href(put(st, "leica", "1")), "\">",
-    "<div class=\"desktop-icon-img\">",
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" width=\"48\" height=\"48\" style=\"image-rendering: pixelated;\">",
-    "<rect x=\"4\" y=\"8\" width=\"24\" height=\"16\" fill=\"#000\" />",
-    "<rect x=\"6\" y=\"10\" width=\"20\" height=\"12\" fill=\"#333\" />",
-    "<rect x=\"12\" y=\"12\" width=\"8\" height=\"8\" rx=\"4\" fill=\"#666\" />",
-    "<rect x=\"14\" y=\"14\" width=\"4\" height=\"4\" rx=\"2\" fill=\"#999\" />",
-    "<rect x=\"8\" y=\"9\" width=\"4\" height=\"2\" fill=\"#555\" />",
-    "<rect x=\"24\" y=\"10\" width=\"2\" height=\"2\" fill=\"#c00\" />",
-    "</svg></div>",
-    "<div class=\"desktop-icon-label\">MY FAV<br />LEICA SHOTS</div>",
-    "</a>"
-  ], "")
+  desk_leica_icon_html(desk_href(put(st, "leica", "1")))
 end
 
 # The warning dialog is plain HTML, so it stays. Its "Load" button used to
@@ -792,25 +645,7 @@ end
 def desk_leica_warning(st: Map) -> String do
   case st.leica do
     "" -> ""
-    _ ->
-      cancel = desk_href(put(st, "leica", ""))
-      join([
-        "<div class=\"leica-warning-overlay\">",
-        "<div class=\"leica-warning-dialog\" id=\"leica-warning\">",
-        desk_title_bar(cancel, "Warning"),
-        "<div class=\"leica-warning-content\">",
-        "<div class=\"leica-warning-icon\">&#9888;</div>",
-        "<div class=\"leica-warning-text\">",
-        "<strong>Large File Warning</strong>",
-        "<p>This collage is <strong>110 MB</strong> at full resolution (30,846 &times; 20,550 pixels).</p>",
-        "<p>It will take a while to download and may use significant memory. Not recommended on mobile devices.</p>",
-        "<p>It opens as a plain image in your browser, which can zoom it and scroll around it.</p>",
-        "</div>",
-        "<div class=\"leica-warning-buttons\">",
-        "<a class=\"leica-btn primary\" href=\"", LEICA_FULL, "\">Load Full Resolution</a>",
-        "<a class=\"leica-btn\" href=\"", cancel, "\">Cancel</a>",
-        "</div></div></div></div>"
-      ], "")
+    _ -> desk_leica_dialog(desk_href(put(st, "leica", "")))
   end
 end
 
@@ -836,39 +671,7 @@ def desk_taskbar(st: Map) -> String do
   mob = desk_mobile(st)
   apps = put(put(st, "finder", "1"), "m", "finder")
   museum = put(put(st, "museum", ""), "m", "museum")
-  blog = put(st, "m", "blog")
-  join([
-    "<div class=\"mobile-taskbar\">",
-    "<a class=\"", desk_active(mob == "finder", "mobile-taskbar-btn"), "\" href=\"", desk_href(apps), "\">📁 Apps</a>",
-    "<a class=\"", desk_active(mob == "museum", "mobile-taskbar-btn"), "\" href=\"", desk_href(museum), "\">Museum</a>",
-    "<a class=\"", desk_active(mob == "blog", "mobile-taskbar-btn"), "\" href=\"", desk_href(blog), "\">Blog</a>",
-    "<a class=\"mobile-taskbar-btn\" href=\"", APPS_ORIGIN, "/phish\">🐟 Phish</a>",
-    "</div>"
-  ], "")
-end
-
-def desk_boot_splash() -> String do
-  join([
-    "<a class=\"mac-boot\" href=\"/?booted=1\">",
-    "<div class=\"boot-screen\">",
-    "<div class=\"boot-logo\">",
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" width=\"128\" height=\"128\" style=\"image-rendering: pixelated;\">",
-    "<rect x=\"12\" y=\"2\" width=\"8\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"10\" y=\"4\" width=\"12\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"8\" y=\"6\" width=\"16\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"8\" y=\"8\" width=\"16\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"10\" y=\"10\" width=\"12\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"12\" y=\"12\" width=\"8\" height=\"2\" fill=\"#000\" />",
-    "<rect x=\"14\" y=\"14\" width=\"4\" height=\"6\" fill=\"#000\" />",
-    "<rect x=\"10\" y=\"20\" width=\"12\" height=\"2\" fill=\"#000\" />",
-    "</svg></div>",
-    "<div class=\"boot-text\">Hi, this is Bobby's website</div>",
-    "<div class=\"boot-subtext\">I am a programmer, photographer, and artist living in NYC.<br />",
-    "I prefer to use things in ways they were not intended, and evoke new directions of vision by playing with the social fabric that wraps us around a computer.</div>",
-    "<div class=\"boot-progress\"><div class=\"boot-progress-bar\"></div></div>",
-    "<div class=\"boot-hint\">Click anywhere to skip</div>",
-    "</div></a>"
-  ], "")
+  desk_taskbar_html(mob == "finder", mob == "museum", mob == "blog", desk_href(apps), desk_href(museum), desk_href(put(st, "m", "blog")))
 end
 
 def desktop_page(query: String, desk: Map, epoch_s: Int) -> String do
