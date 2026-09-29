@@ -1,0 +1,203 @@
+# /markdown-editor: a Markdown editor with a live preview, the preview
+# rendered by the same Blimp code that renders this site's posts (the file
+# is served with src/00_text, 05_actors, 10_markdown and 20_highlight in
+# front of it, as post pages get it).
+#
+# A port of BlogWeb.MarkdownEditorLive and its component, and of what they
+# meant to do: format the selection. The component's comment says
+# "has_selection is currently always false (selection tracking not yet
+# implemented on the client side)", so on Phoenix every toolbar button
+# inserted its placeholder at the start of the text. Here the toolbar
+# wraps what is selected, or puts the placeholder at the cursor and
+# selects its text, as MarkdownEditorLive's own rules (unused there) say.
+#
+# Offsets are bytes, as Blimp strings count them; BlimpView converts the
+# field's selection both ways.
+
+# format -> [before, after, placeholder]
+ED_FORMATS = %{
+  bold: ["**", "**", "bold text"],
+  italic: ["*", "*", "italic text"],
+  strikethrough: ["~~", "~~", "strikethrough"],
+  code: ["`", "`", "code"],
+  code_block: ["```\n", "\n```", "code block"],
+  h1: ["# ", "", "Heading 1"],
+  h2: ["## ", "", "Heading 2"],
+  h3: ["### ", "", "Heading 3"],
+  quote: ["> ", "", "Blockquote"],
+  link: ["[", "](https://example.com)", "link text"],
+  bullet_list: ["\n- ", "\n- List item 2\n- List item 3", "List item 1"],
+  numbered_list: ["\n1. ", "\n2. List item 2\n3. List item 3", "List item 1"]
+}
+
+ED_MAX_IMAGE = 700000
+
+# {text, selection start, selection end} after applying `format`.
+def ed_apply(text: String, from: Int, upto: Int, format: String) -> Tuple do
+  rule = lookup(ED_FORMATS, format)
+  case rule do
+    nil -> {text, from, upto}
+    _ ->
+      before = elem_of(rule, 0)
+      after = elem_of(rule, 1)
+      inner = case upto > from do
+        true -> slice(text, from, upto - from)
+        false -> elem_of(rule, 2)
+      end
+      out = concat(slice(text, 0, from), before, inner, after, slice(text, upto, length(text) - upto))
+      {out, from + length(before), from + length(before) + length(inner)}
+  end
+end
+
+def elem_of(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> elem_of(tail(list), i - 1)
+  end
+end
+
+# Characters, not bytes, as String.length counted them: every byte that
+# does not continue a UTF-8 character starts one.
+def ed_chars(s: String) -> Int do
+  ed_chars_from(s, 0, 0)
+end
+
+def ed_chars_from(s: String, i: Int, n: Int) -> Int do
+  case i >= length(s) do
+    true -> n
+    false ->
+      code = char_code(char_at(s, i))
+      case code >= 128 and code < 192 do
+        true -> ed_chars_from(s, i + 1, n)
+        false -> ed_chars_from(s, i + 1, n + 1)
+      end
+  end
+end
+
+ED_BUTTONS = [
+  ["h1", "Heading 1", "", "H1"], ["h2", "Heading 2", "", "H2"], ["h3", "Heading 3", "", "H3"], "|",
+  ["bold", "Bold", " font-bold", "B"], ["italic", "Italic", " italic", "I"], ["strikethrough", "Strikethrough", " line-through", "S"], "|",
+  ["code", "Inline Code", " font-mono", "`code`"], ["code_block", "Code Block", " font-mono", "```"], "|",
+  ["quote", "Blockquote", "", "Quote"], ["link", "Link", "", "Link"], "|",
+  ["bullet_list", "Bullet List", "", "• List"], ["numbered_list", "Numbered List", "", "1. List"]
+]
+
+def ed_toolbar() -> List do
+  map(ED_BUTTONS, fn(b: Any) -> Any do
+    case b do
+      "|" -> el("span", %{class: "mx-1 text-gray-300"}, "|")
+      _ -> el("button", %{class: concat("toolbar-btn p-1 rounded hover:bg-gray-200", elem_of(b, 2)), title: elem_of(b, 1), click: :format, with: elem_of(b, 0)}, elem_of(b, 3))
+    end
+  end)
+end
+
+def ed_cheatsheet() -> Any do
+  el("details", %{class: "cursor-pointer"},
+    el("summary", %{class: "mb-2 font-medium text-blue-600"}, "Markdown Cheatsheet"),
+    el("div", %{class: "pl-4 mt-2 border-l-2 border-gray-200"},
+      el("p", %{class: "font-medium"}, "Headings:"), el("p", %{class: "pl-2 font-mono"}, "# H1, ## H2, ### H3"),
+      el("p", %{class: "font-medium mt-2"}, "Emphasis:"), el("p", %{class: "pl-2 font-mono"}, "**bold**, *italic*, ~~strikethrough~~"),
+      el("p", %{class: "font-medium mt-2"}, "Code:"), el("p", %{class: "pl-2 font-mono"}, "`inline code`"),
+      el("p", %{class: "pl-2 font-mono"}, "```", el("br", %{}), "code block", el("br", %{}), "```"),
+      el("p", %{class: "font-medium mt-2"}, "Lists:"), el("p", %{class: "pl-2 font-mono"}, "- Item 1", el("br", %{}), "- Item 2"),
+      el("p", %{class: "pl-2 font-mono"}, "1. Item 1", el("br", %{}), "2. Item 2"),
+      el("p", %{class: "font-medium mt-2"}, "Links:"), el("p", %{class: "pl-2 font-mono"}, "[Link text](URL)"),
+      el("p", %{class: "font-medium mt-2"}, "Blockquotes:"), el("p", %{class: "pl-2 font-mono"}, "> This is a quote"),
+      el("p", %{class: "font-medium mt-2"}, "Keyboard Shortcuts:"),
+      el("p", %{class: "pl-2"}, "Ctrl+B = Bold"), el("p", %{class: "pl-2"}, "Ctrl+I = Italic"), el("p", %{class: "pl-2"}, "Ctrl+K = Link"),
+      el("p", %{class: "pl-2"}, "Paste or drop an image to put it in (up to 500KB)"),
+      el("p", %{class: "pl-2 font-semibold text-blue-600 mt-2"}, "Tip: Select text first, then apply formatting!")))
+end
+
+actor Editor do
+  state text: String :: ""
+  state html: String :: ""
+  state from: Int :: 0
+  state upto: Int :: 0
+  state sel: String :: ""
+  state note: String :: ""
+
+  # The preview is rendered when the text changes, not on every view: a
+  # view is drawn for every move of the cursor.
+  on :typed(s: String) do
+    become text: s, html: MARKDOWN <- :render(s), note: ""
+    reply length(s)
+  end
+
+  on :moved(a: Int, b: Int) do
+    become from: a, upto: b
+    reply :ok
+  end
+
+  on :format(name: String) do
+    r = ed_apply(text, from, upto, name)
+    out = elem(r, 0)
+    become text: out, html: MARKDOWN <- :render(out), from: elem(r, 1), upto: elem(r, 2), sel: concat(to_string(elem(r, 1)), ",", to_string(elem(r, 2)))
+    reply :ok
+  end
+
+  on :shortcut(k: String) do
+    name = case k do
+      "b" -> "bold"
+      "i" -> "italic"
+      _ -> "link"
+    end
+    reply self <- :format(name)
+  end
+
+  # MarkdownInput's paste and drop: the image as a data: URL, at the cursor.
+  on :image(url: String) do
+    case length(url) > ED_MAX_IMAGE do
+      true ->
+        become note: "Image too large after encoding. Please use a smaller image."
+        reply :too_large
+      false ->
+        md = concat("![image](", url, ")")
+        out = concat(slice(text, 0, from), md, slice(text, upto, length(text) - upto))
+        at = from + length(md)
+        become text: out, html: MARKDOWN <- :render(out), from: at, upto: at, sel: concat(to_string(at), ",", to_string(at)), note: ""
+        reply :ok
+    end
+  end
+
+  on :view do
+    preview = case html do
+      "" -> el("div", %{id: "markdown-editor-preview", class: "markdown-preview prose prose-sm md:prose max-w-none p-6 overflow-auto min-h-[30rem]"},
+        el("div", %{class: "text-gray-400 italic flex items-center justify-center h-full"}, el("p", %{}, "Preview will appear here...")))
+      _ -> el("div", %{id: "markdown-editor-preview-html", class: "markdown-preview prose prose-sm md:prose max-w-none p-6 overflow-auto min-h-[30rem]", inner_html: html})
+    end
+    notes = case note do
+      "" -> []
+      _ -> [el("p", %{class: "mt-2 text-sm text-red-600"}, note)]
+    end
+    reply el("div", %{class: "os-desktop-winxp"},
+      el("div", %{class: "os-window os-window-winxp", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+        el("div", %{class: "os-titlebar"},
+          el("span", %{class: "os-titlebar-title"}, "📝 Markdown Editor - Untitled Document"),
+          el("div", %{class: "os-titlebar-buttons"}, el("div", %{class: "os-btn-min"}), el("div", %{class: "os-btn-max"}), el("a", %{href: "/", class: "os-btn-close"}))),
+        el("div", %{class: "os-menubar"}, el("span", %{}, "File"), el("span", %{}, "Edit"), el("span", %{}, "Format"), el("span", %{}, "View"), el("span", %{}, "Help")),
+        el("div", %{class: "os-content", style: "height: calc(100% - 80px); overflow-y: auto;"},
+          el("div", %{class: "p-4"},
+            el("div", %{class: "markdown-editor", id: "markdown-editor"},
+              el("div", %{class: "flex flex-col md:flex-row gap-6"},
+                el("div", %{class: "w-full md:w-1/2"},
+                  el("div", %{class: "bg-gray-50 border border-gray-300 rounded-md overflow-hidden"},
+                    el("div", %{class: "toolbar bg-gray-100 p-2 border-b border-gray-300 flex flex-wrap gap-1"}, ed_toolbar()),
+                    el("div", %{class: "p-4"},
+                      el("textarea", %{name: "markdown", id: "markdown-editor-input", rows: "20",
+                        class: "w-full p-3 border border-gray-300 rounded font-mono text-sm focus:ring-blue-500 focus:border-blue-500",
+                        spellcheck: "false", placeholder: "Type your Markdown here...", value: text,
+                        input: :typed, debounce: 300, select: :moved, selection: sel,
+                        shortcut: :shortcut, shortcut_keys: "bik", paste_image: :image})),
+                    notes),
+                  el("div", %{class: "mt-3 text-sm text-gray-600"}, ed_cheatsheet())),
+                el("div", %{class: "w-full md:w-1/2"},
+                  el("div", %{class: "bg-white border border-gray-300 rounded-md overflow-hidden h-full"},
+                    el("div", %{class: "bg-gray-100 p-3 border-b border-gray-300"}, el("h2", %{class: "text-lg font-semibold"}, "Preview")),
+                    preview)))))),
+        el("div", %{class: "os-statusbar"}, el("span", %{}, "Characters: #{ed_chars(text)}"), " ", el("span", %{}, "Markdown Mode"))))
+  end
+end
+
+editor = spawn Editor
+editor <- :view
