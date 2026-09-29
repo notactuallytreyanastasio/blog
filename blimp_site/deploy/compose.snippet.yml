@@ -1,14 +1,22 @@
 # In /opt/blog/docker-compose.yml, under services:. Installed 2026-09-29;
 # the file before it is /opt/blog/docker-compose.yml.bak-20260929T141411Z.
+# DATABASE_URL and depends_on added 2026-09-29 (backup in /opt/backups/blog/);
+# the URL is the one the app service has, password and all.
 
   # The blog, served by a server written in Blimp: blimp_site/ in the blog
   # repo, shipped to /opt/blimp-blog by blimp_site/deploy.sh. Caddy sends it
   # /, /blog, /post/* and its stylesheets, and gives Phoenix anything it
-  # answers 404. It forks four workers that each exit after 200 requests;
-  # the cap is there in case that arithmetic is ever wrong.
+  # answers 404. It is one long-lived process; the cap is there in case its
+  # garbage collection is ever wrong.
   blimp-blog:
     build:
       context: /opt/blimp-blog
     restart: always
     mem_limit: 1536m
+    # The homepage museum and Finder are read from the blog database.
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:<the app service's password>@db/blog_prod
     # Not exposed to host - Caddy proxies to port 4100 via Docker network

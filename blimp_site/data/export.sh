@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Snapshot the homepage's database rows into files Blimp can `split`.
 #
-# Blimp has no database client and no JSON parser, so the desktop reads
-# tab-separated lines: one record per line, NULL as an empty field.
+# Production no longer reads these: with DATABASE_URL set, the site loads
+# the same rows from Postgres itself (load_desk_db in src/60_desktop.blimp).
+# The snapshot is what the tests and a laptop without the database use:
+# tab-separated lines, one record per line, NULL as an empty field.
 #
 #   museum.tsv          visible museum_projects in sort_order:
 #                       slug title tagline description category tech_stack
