@@ -1,0 +1,62 @@
+# DB: the site's Postgres connection, as an actor.
+#
+#   case DB <- :query("select ... where x = $1", [x]) do
+#     {:ok, rows} -> ...
+#     {:error, reason} -> ...
+#   end
+#
+# A connection is a value that changes with every query (pg_query returns
+# the one to use next), so it cannot sit in a top-level binding that
+# request handlers read. The actor holds it: every query is a message, it
+# answers with the rows, and keeps the connection for the next one. It
+# connects on the first query after :open, and again on the query after a
+# connection fails, so a restart of Postgres costs one failed query.
+#
+# One connection, one query at a time: the site is one process, and
+# requests are answered one after another anyway.
+
+actor Db do
+  state opts: Any :: nil
+  state conn: Any :: nil
+  state queries: Int :: 0
+  state failures: Int :: 0
+  state last_error: String :: ""
+
+  on :open(o: Any) do
+    become opts: o, conn: nil
+    reply :ok
+  end
+
+  on :query(sql: String, params: List) do
+    case opts do
+      nil ->
+        become failures: failures + 1, last_error: "no database is configured (DATABASE_URL)"
+        reply {:error, "no database is configured (DATABASE_URL)"}
+      _ ->
+        connected = case conn do
+          nil -> pg_connect(opts)
+          _ -> {:ok, conn}
+        end
+        case connected do
+          {:error, reason} ->
+            become conn: nil, failures: failures + 1, last_error: reason
+            reply {:error, reason}
+          {:ok, live} ->
+            case pg_query(live, sql, params) do
+              {:ok, rows, next} ->
+                become conn: next, queries: queries + 1
+                reply {:ok, rows}
+              {:error, reason, next} ->
+                become conn: next, queries: queries + 1, failures: failures + 1, last_error: reason
+                reply {:error, reason}
+            end
+        end
+    end
+  end
+
+  on :stats do
+    reply %{queries: queries, failures: failures, last_error: last_error, connected: conn != nil}
+  end
+end
+
+DB = spawn Db

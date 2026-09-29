@@ -1,0 +1,35 @@
+actor PhishTests do
+  test "a batting average as PhishLive.fmt_avg writes it: thousandths, rounded" do
+    assert_eq(phish_fmt_avg(%{jamchart_count: 1, times_played: 3}), ".333")
+    assert_eq(phish_fmt_avg(%{jamchart_count: 2, times_played: 3}), ".667")
+    assert_eq(phish_fmt_avg(%{jamchart_count: 1, times_played: 11}), ".091")
+    assert_eq(phish_fmt_avg(%{jamchart_count: 4, times_played: 4}), "1.000")
+    assert_eq(phish_fmt_avg(%{jamchart_count: 0, times_played: 0}), ".000")
+  end
+
+  test "sorting: by average then jamcharts; min played and the filter spare the selected song" do
+    songs = [
+      %{song_name: "Tweezer", jamchart_count: 6, times_played: 10},
+      %{song_name: "Sand", jamchart_count: 5, times_played: 10},
+      %{song_name: "Gin", jamchart_count: 6, times_played: 8},
+      %{song_name: "Rare", jamchart_count: 1, times_played: 1}
+    ]
+    names = fn(xs: List) -> List do map(xs, fn(s: Map) -> String do s.song_name end) end
+    assert_eq(names(phish_sorted(songs, "avg", 5, "", "")), ["Gin", "Tweezer", "Sand"])
+    assert_eq(names(phish_sorted(songs, "jc", 5, "", "")), ["Gin", "Tweezer", "Sand"])
+    assert_eq(names(phish_sorted(songs, "played", 5, "", "")), ["Tweezer", "Sand", "Gin"])
+    assert_eq(names(phish_sorted(songs, "avg", 5, "twee", "Rare")), ["Rare", "Tweezer"])
+  end
+
+  test "a year is four digits or all, whatever the URL says" do
+    assert_eq(phish_year("2023"), "2023")
+    assert_eq(phish_year("20x3"), "all")
+    assert_eq(phish_year("2023; drop table phish_tracks"), "all")
+    assert_eq(phish_year(""), "all")
+  end
+
+  test "with no database configured, DB says so rather than hanging" do
+    d = spawn Db
+    assert_eq(d <- :query("select 1", []), {:error, "no database is configured (DATABASE_URL)"})
+  end
+end
