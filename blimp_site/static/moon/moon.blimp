@@ -1,0 +1,316 @@
+# Moon Phish (/moon_phish): every Phish show against the lunar calendar,
+# in the browser. A port of BlogWeb.MoonPhishLive and its template, over
+# the same classes (its inline <style> is assets/moon_phish.css). The
+# shows, each with its moon, come from /moon_phish/shows.json, which the
+# Blimp server computes with src/98_moon.blimp (Blog.Moon's Meeus ch. 49,
+# checked equal to the Elixir for all 2,136 shows).
+
+MP_PHASES = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous", "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"]
+MP_EMOJI = %{"New Moon": "🌑", "Waxing Crescent": "🌒", "First Quarter": "🌓", "Waxing Gibbous": "🌔", "Full Moon": "🌕", "Waning Gibbous": "🌖", "Last Quarter": "🌗", "Waning Crescent": "🌘"}
+MP_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+MP_ERAS = [["all", "All eras"], ["1.0", "1.0"], ["2.0", "2.0"], ["3.0", "3.0"], ["4.0", "4.0"]]
+
+def mp_nth(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> mp_nth(tail(list), i - 1)
+  end
+end
+
+def mp_year(date: String) -> Int do
+  to_int(slice(date, 0, 4))
+end
+
+# Calendar.strftime(date, "%b %d"): "Dec 02"
+def mp_date(date: String) -> String do
+  concat(slice(mp_nth(MP_MONTHS, to_int(slice(date, 5, 2)) - 1), 0, 3), " ", slice(date, 8, 2))
+end
+
+# "%B %-d, %Y": "December 2, 1983"
+def mp_long_date(date: String) -> String do
+  case date do
+    "" -> ""
+    _ -> concat(mp_nth(MP_MONTHS, to_int(slice(date, 5, 2)) - 1), " ", to_string(to_int(slice(date, 8, 2))), ", ", slice(date, 0, 4))
+  end
+end
+
+# fmt_pct/2: one decimal, from :erlang.float_to_binary(decimals: 1)
+def mp_pct(count: Int, total: Any) -> String do
+  case total > 0 do
+    false -> "0%"
+    true ->
+      tenths = round(1000 * count / (total * 1.0))
+      concat(to_string(tenths / 10), ".", to_string(rem(tenths, 10)), "%")
+  end
+end
+
+def mp_era_title(era: String) -> String do
+  case era do
+    "1.0" -> "Phish 1.0 — 1983–2000"
+    "2.0" -> "Phish 2.0 — 2002–2004"
+    "3.0" -> "Phish 3.0 — 2009–2020"
+    "4.0" -> "Phish 4.0 — 2021–now"
+    _ -> "All eras"
+  end
+end
+
+def mp_era_match(year: Int, era: String) -> Bool do
+  case era do
+    "1.0" -> year <= 2000
+    "2.0" -> year >= 2002 and year <= 2004
+    "3.0" -> year >= 2009 and year <= 2020
+    "4.0" -> year >= 2021
+    _ -> true
+  end
+end
+
+def mp_query_match(s: Map, q: String) -> Bool do
+  case q do
+    "" -> true
+    _ ->
+      needle = downcase(q)
+      contains(downcase(s.venue), needle) or contains(downcase(s.location), needle) or contains(downcase(s.tour), needle)
+  end
+end
+
+# near_full_label/1: within a day and a half of the full moon, and not on it
+def mp_near(s: Map) -> String do
+  d = abs(s.dff)
+  case s.full or d > 1.5 do
+    true -> ""
+    false ->
+      n = round(d)
+      days = case n < 1 do
+        true -> 1
+        false -> n
+      end
+      case s.dff < 0 do
+        true -> concat(to_string(days), "d before full")
+        false -> concat(to_string(days), "d after full")
+      end
+  end
+end
+
+# group_by_year/1: newest first, in runs of one year
+def mp_by_year(shows: List) -> List do
+  mp_runs(reverse(shows), [])
+end
+
+def mp_runs(shows: List, acc: List) -> List do
+  case shows do
+    [] -> reverse(acc)
+    [s | _] ->
+      y = mp_year(s.date)
+      same = mp_take_year(shows, y, [])
+      mp_runs(elem(same, 1), [[y, elem(same, 0)] | acc])
+  end
+end
+
+def mp_take_year(shows: List, y: Int, acc: List) -> Tuple do
+  case shows do
+    [] -> {reverse(acc), []}
+    [s | rest] ->
+      case mp_year(s.date) == y do
+        true -> mp_take_year(rest, y, [s | acc])
+        false -> {reverse(acc), shows}
+      end
+  end
+end
+
+def mp_class(base: String, active: Bool) -> String do
+  case active do
+    true -> concat(base, " mp95-active")
+    false -> base
+  end
+end
+
+def mp_row(s: Map) -> Any do
+  cls = case s.full do
+    true -> "mp95-row mp95-full"
+    false -> "mp95-row"
+  end
+  place = case s.location do
+    "" -> []
+    l -> [el("span", %{}, concat(" — ", l))]
+  end
+  near = case mp_near(s) do
+    "" -> []
+    n -> [" ", el("span", %{class: "mp95-near"}, concat("[", n, "]"))]
+  end
+  tour = case s.tour do
+    "" -> []
+    t -> [el("span", %{class: "mp95-row-tag"}, t)]
+  end
+  el("div", %{class: cls},
+    el("span", %{class: "mp95-row-date mp95-mono"}, mp_date(s.date)),
+    el("span", %{class: "mp95-row-moon mp95-mono", title: s.phase}, concat(s.emoji, " ", to_string(s.illum), "%")),
+    el("span", %{class: "mp95-row-venue"}, el("b", %{}, s.venue), place, near),
+    tour)
+end
+
+actor MoonPhish do
+  state shows: Any :: nil
+  state today: Any :: nil
+  state problem: String :: ""
+  state view_mode: String :: "full"
+  state era: String :: "all"
+  state phase: String :: ""
+  state q: String :: ""
+
+  on :loaded(status: Int, body: String) do
+    case status == 200 do
+      false ->
+        become problem: "the server did not answer with the shows"
+        reply :error
+      true ->
+        data = elem(json_decode(body), 1)
+        become shows: data.shows, today: data.today
+        reply length(data.shows)
+    end
+  end
+
+  on :set_view(v: String) do
+    become view_mode: v, phase: ""
+    reply :ok
+  end
+
+  on :set_era(e: String) do
+    become era: e
+    reply :ok
+  end
+
+  # set-phase: a bar filters to its phase, and a second click clears it
+  on :set_phase(p: String) do
+    case phase == p do
+      true -> become phase: "", view_mode: "all"
+      false -> become phase: p, view_mode: "all"
+    end
+    reply :ok
+  end
+
+  on :search(text: String) do
+    become q: text
+    reply :ok
+  end
+
+  on :view do
+    note = case problem do
+      "" -> "Loading every Phish show..."
+      _ -> problem
+    end
+    ask = case problem do
+      "" -> [fetch("/moon_phish/shows.json", :loaded)]
+      _ -> []
+    end
+    case shows do
+      nil -> reply el("div", %{class: "os-desktop-mac mp95-desktop"}, el("p", %{}, note), ask)
+      _ -> reply mp_page(shows, today, view_mode, era, phase, q)
+    end
+  end
+end
+
+def mp_page(shows: List, today: Map, view_mode: String, era: String, phase: String, q: String) -> Any do
+  total = length(shows)
+  fulls = length(filter(shows, fn(s: Map) -> Bool do s.full end))
+  counts = map(MP_PHASES, fn(p: String) -> Int do length(filter(shows, fn(s: Map) -> Bool do s.phase == p end)) end)
+  most = reduce(counts, 1, fn(m: Int, c: Int) -> Int do
+    case c > m do
+      true -> c
+      false -> m
+    end
+  end)
+  visible = filter(shows, fn(s: Map) -> Bool do
+    (view_mode != "full" or s.full) and (phase == "" or s.phase == phase) and mp_era_match(mp_year(s.date), era) and mp_query_match(s, q)
+  end)
+  next_full = today.next_full
+  next_line = case next_full do
+    "" -> []
+    n -> [el("span", %{}, "Next full moon: ", el("b", %{}, mp_long_date(n)), ".")]
+  end
+  next_stat = case next_full do
+    "" -> []
+    n -> [el("div", %{class: "mp95-stat"}, el("b", %{}, mp_date(n)), el("span", %{}, "next full moon"))]
+  end
+  bars = map(zip(MP_PHASES, counts), fn(p: Any) -> Any do
+    name = elem(p, 0)
+    n = elem(p, 1)
+    h = round(60 * n / (most * 1.0))
+    height = case h < 4 do
+      true -> 4
+      false -> h
+    end
+    full_flag = case name == "Full Moon" do
+      true -> true
+      false -> nil
+    end
+    el("button", %{type: "button", class: mp_class("mp95-chart-col", phase == name), "data-full": full_flag, click: :set_phase, with: name, title: concat(name, ": ", to_string(n), " shows"), "aria-pressed": to_string(phase == name)},
+      el("span", %{class: "mp95-chart-n"}, to_string(n)),
+      el("div", %{class: "mp95-chart-bar", style: concat("height: ", to_string(height), "px;")}),
+      el("span", %{class: "mp95-chart-glyph"}, lookup(MP_EMOJI, name)))
+  end)
+  eras = map(MP_ERAS, fn(e: List) -> Any do
+    el("button", %{type: "button", class: mp_class("mp95-btn", era == head(e)), click: :set_era, with: head(e), title: mp_era_title(head(e))}, mp_nth(e, 1))
+  end)
+  listing = case visible do
+    [] -> [el("div", %{class: "mp95-empty"}, el("div", %{class: "mp95-empty-box"}, "⚠️ No shows match. Try another era or clear the search."))]
+    _ -> map(mp_by_year(visible), fn(g: List) -> Any do
+      year_shows = mp_nth(g, 1)
+      n = length(year_shows)
+      unit = case n == 1 do
+        true -> "show"
+        false -> "shows"
+      end
+      under = case view_mode == "all" and phase == "" do
+        true -> [" · ", el("b", %{}, to_string(length(filter(year_shows, fn(s: Map) -> Bool do s.full end)))), " under a full moon"]
+        false -> []
+      end
+      el("section", %{},
+        el("div", %{class: "mp95-list-heading"}, concat("📁 ", to_string(head(g))), el("span", %{}, concat(to_string(n), " ", unit), under)),
+        map(year_shows, fn(s: Map) -> Any do mp_row(s) end))
+    end)
+  end
+  el("div", %{class: "os-desktop-mac mp95-desktop"},
+    el("div", %{class: "os-window os-window-mac mp95-accessory"},
+      el("div", %{class: "os-titlebar"},
+        el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close", "aria-label": "Close and go home"})),
+        el("span", %{class: "os-titlebar-title"}, "Tonight's Moon"),
+        el("div", %{class: "os-titlebar-spacer"})),
+      el("div", %{class: "mp95-accessory-body"},
+        el("span", %{class: "mp95-accessory-glyph"}, today.emoji),
+        el("span", %{}, concat(today.phase, ", ", to_string(today.illum), "% illuminated."), el("br", %{}), next_line))),
+    el("div", %{class: "os-window os-window-win95 mp95-main"},
+      el("div", %{class: "os-titlebar"},
+        el("span", %{class: "os-titlebar-title"}, "🌕 Moon Phish — C:\\PHISH\\SHOWS\\MOON.EXE"),
+        el("div", %{class: "os-titlebar-buttons"},
+          el("div", %{class: "os-btn", "aria-hidden": "true"}, "_"),
+          el("div", %{class: "os-btn", "aria-hidden": "true"}, "□"),
+          el("a", %{href: "/", class: "os-btn", "aria-label": "Close and go home"}, "✕"))),
+      el("div", %{class: "os-menubar"}, el("span", %{}, "File"), el("span", %{}, "Edit"), el("span", %{}, "View"), el("span", %{}, "Moon"), el("span", %{}, "Help")),
+      el("div", %{class: "mp95-content"},
+        el("div", %{class: "mp95-infobar"},
+          concat("Every Phish show since ", mp_long_date(head(shows).date), ", checked against the instant of every full moon. "),
+          el("b", %{}, to_string(fulls)),
+          concat(" of ", to_string(total), " shows landed on the night of a full moon — ", mp_pct(fulls, total), ", about what chance predicts (", mp_pct(1, 29.5), ").")),
+        el("div", %{class: "mp95-stats"},
+          el("div", %{class: "mp95-stat"}, el("b", %{}, to_string(total)), el("span", %{}, "shows")),
+          el("div", %{class: "mp95-stat mp95-stat-full"}, el("b", %{}, to_string(fulls)), el("span", %{}, "full-moon shows")),
+          el("div", %{class: "mp95-stat"}, el("b", %{}, mp_pct(fulls, total)), el("span", %{}, "of all shows")),
+          next_stat),
+        el("div", %{class: "mp95-chart-panel"},
+          el("div", %{class: "mp95-chart", role: "group", "aria-label": "Shows by moon phase"}, bars),
+          el("div", %{class: "mp95-chart-caption"}, "Shows by moon phase — click a bar to filter")),
+        el("div", %{class: "mp95-controls"},
+          el("button", %{type: "button", class: mp_class("mp95-btn", view_mode == "full" and phase == ""), click: :set_view, with: "full"}, "🌕 Full moons only"),
+          el("button", %{type: "button", class: mp_class("mp95-btn", view_mode == "all" or phase != ""), click: :set_view, with: "all"}, "Every show"),
+          el("div", %{class: "mp95-sep", "aria-hidden": "true"}),
+          eras,
+          el("input", %{type: "search", class: "mp95-search", placeholder: "Search venue, city, or tour", value: q, input: :search, debounce: 200, "aria-label": "Search venue, city, or tour"})),
+        el("div", %{class: "mp95-list"}, listing)),
+      el("div", %{class: "os-statusbar"},
+        el("div", %{class: "os-statusbar-section"}, concat(to_string(length(visible)), " object(s)")),
+        el("div", %{class: "os-statusbar-section"}, concat("🌕 ", to_string(fulls), " of ", to_string(total), " shows (", mp_pct(fulls, total), ")")),
+        el("div", %{class: "os-statusbar-section"}, "Data: phish.in · Moon: Meeus, ±1 min"))))
+end
+
+moon = spawn MoonPhish
+moon <- :view

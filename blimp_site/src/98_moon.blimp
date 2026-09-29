@@ -1,0 +1,299 @@
+# Moon Phish (/moon_phish): every Phish show against the lunar calendar.
+# This is Blog.Moon -- Meeus, "Astronomical Algorithms" ch. 49: the instant
+# of every new and full moon to within a couple of minutes -- and the
+# annotation MoonPhishLive made of every show, served as JSON to the page.
+
+MOON_SYNODIC = 29.530588853
+MOON_DEG = 3.141592653589793 / 180.0
+
+def moon_sin_d(degrees: Any) -> Float do
+  sin(degrees * MOON_DEG)
+end
+
+def moon_floor_f(x: Any) -> Int do
+  floor(x)
+end
+
+# Meeus ch. 49: JDE of the mean phase for lunation index k, plus periodic
+# corrections. k integer = new moon, k + 0.5 = full moon.
+def moon_phase_jde(k: Any) -> Float do
+  t = k / 1236.85
+  t2 = t * t
+  t3 = t2 * t
+  t4 = t3 * t
+  mean = 2451550.09766 + 29.530588861 * k + 0.00015437 * t2 - 0.000000150 * t3 + 0.00000000073 * t4
+  e = 1.0 - 0.002516 * t - 0.0000074 * t2
+  m = 2.5534 + 29.10535670 * k - 0.0000014 * t2 - 0.00000011 * t3
+  mp = 201.5643 + 385.81693528 * k + 0.0107582 * t2 + 0.00001238 * t3 - 0.000000058 * t4
+  f = 160.7108 + 390.67050284 * k - 0.0016118 * t2 - 0.00000227 * t3 + 0.000000011 * t4
+  om = 124.7746 - 1.56375588 * k + 0.0020672 * t2 + 0.00000215 * t3
+  full = k - floor(k) > 0.25
+  mean + moon_correction(full, e, m, mp, f, om) + moon_planetary(k, t2)
+end
+
+def moon_correction(full: Bool, e: Any, m: Any, mp: Any, f: Any, om: Any) -> Float do
+  c = case full do
+    true -> [-0.40614, 0.17302, 0.01614, 0.01043, 0.00734, -0.00515, 0.00209]
+    false -> [-0.40720, 0.17241, 0.01608, 0.01039, 0.00739, -0.00514, 0.00208]
+  end
+  c1 = elem_at(c, 0)
+  c2 = elem_at(c, 1)
+  c3 = elem_at(c, 2)
+  c4 = elem_at(c, 3)
+  c5 = elem_at(c, 4)
+  c6 = elem_at(c, 5)
+  c7 = elem_at(c, 6)
+  c1 * moon_sin_d(mp) + c2 * e * moon_sin_d(m) + c3 * moon_sin_d(2 * mp) + c4 * moon_sin_d(2 * f) + c5 * e * moon_sin_d(mp - m) + c6 * e * moon_sin_d(mp + m) + c7 * e * e * moon_sin_d(2 * m) + -0.00111 * moon_sin_d(mp - 2 * f) + -0.00057 * moon_sin_d(mp + 2 * f) + 0.00056 * e * moon_sin_d(2 * mp + m) + -0.00042 * moon_sin_d(3 * mp) + 0.00042 * e * moon_sin_d(m + 2 * f) + 0.00038 * e * moon_sin_d(m - 2 * f) + -0.00024 * e * moon_sin_d(2 * mp - m) + -0.00017 * moon_sin_d(om) + -0.00007 * moon_sin_d(mp + 2 * m) + 0.00004 * moon_sin_d(2 * mp - 2 * f) + 0.00004 * moon_sin_d(3 * m) + 0.00003 * moon_sin_d(mp + m - 2 * f) + 0.00003 * moon_sin_d(2 * mp + 2 * f) + -0.00003 * moon_sin_d(mp + m + 2 * f) + 0.00003 * moon_sin_d(mp - m + 2 * f) + -0.00002 * moon_sin_d(mp - m - 2 * f) + -0.00002 * moon_sin_d(3 * mp + m) + 0.00002 * moon_sin_d(4 * mp)
+end
+
+MOON_PLANETARY = [
+  [0.000325, 299.77, 0.107408, -0.009173], [0.000165, 251.88, 0.016321, 0], [0.000164, 251.83, 26.651886, 0],
+  [0.000126, 349.42, 36.412478, 0], [0.000110, 84.66, 18.206239, 0], [0.000062, 141.74, 53.303771, 0],
+  [0.000060, 207.14, 2.453732, 0], [0.000056, 154.84, 7.306860, 0], [0.000047, 34.52, 27.261239, 0],
+  [0.000042, 207.19, 0.121824, 0], [0.000040, 291.34, 1.844379, 0], [0.000037, 161.72, 24.198154, 0],
+  [0.000035, 239.56, 25.513099, 0], [0.000023, 331.55, 3.592518, 0]
+]
+
+def moon_planetary(k: Any, t2: Any) -> Float do
+  reduce(MOON_PLANETARY, 0.0, fn(acc: Any, p: List) -> Any do
+    acc + elem_at(p, 0) * moon_sin_d(elem_at(p, 1) + elem_at(p, 2) * k + elem_at(p, 3) * t2)
+  end)
+end
+
+# JDE -> unix seconds (dynamical time; ΔT, about a minute here, ignored as
+# Blog.Moon ignores it)
+def moon_unix(jde: Any) -> Int do
+  round((jde - 2440587.5) * 86400)
+end
+
+def moon_day_of(unix: Int) -> Int do
+  floor(unix / 86400.0)
+end
+
+# The unix instant of every new (offset 0.0) or full (0.5) moon whose UTC
+# date falls in from_year..to_year, in order.
+def moon_instants(from_year: Int, to_year: Int, offset: Any) -> List do
+  k_first = floor((from_year - 2000) * 12.3685) - 1
+  k_last = ceil((to_year + 1 - 2000) * 12.3685) + 1
+  lo = moon_days(from_year, 1, 1)
+  hi = moon_days(to_year + 1, 1, 1)
+  filter(map(range(k_first, k_last), fn(k: Int) -> Int do moon_unix(moon_phase_jde(k + offset)) end), fn(u: Int) -> Bool do
+    d = moon_day_of(u)
+    d >= lo and d < hi
+  end)
+end
+
+# days since 1970-01-01 of a civil date
+def moon_days(y0: Int, m: Int, d: Int) -> Int do
+  y = case m <= 2 do
+    true -> y0 - 1
+    false -> y0
+  end
+  era = case y >= 0 do
+    true -> y / 400
+    false -> (y - 399) / 400
+  end
+  yoe = y - era * 400
+  mp = case m > 2 do
+    true -> m - 3
+    false -> m + 9
+  end
+  doy = (153 * mp + 2) / 5 + d - 1
+  era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468
+end
+
+def moon_date_days(date: String) -> Int do
+  moon_days(to_int(slice(date, 0, 4)), to_int(slice(date, 5, 2)), to_int(slice(date, 8, 2)))
+end
+
+MOON_NAMES = [[0.033, "New Moon", "🌑"], [0.216, "Waxing Crescent", "🌒"], [0.283, "First Quarter", "🌓"], [0.467, "Waxing Gibbous", "🌔"], [0.533, "Full Moon", "🌕"], [0.717, "Waning Gibbous", "🌖"], [0.784, "Last Quarter", "🌗"], [0.967, "Waning Crescent", "🌘"], [2.0, "New Moon", "🌑"]]
+
+def moon_name_of(fraction: Any, names: List) -> List do
+  case fraction < elem_at(head(names), 0) do
+    true -> drop_list(head(names), 1)
+    false -> moon_name_of(fraction, tail(names))
+  end
+end
+
+# Blog.Moon.phase_info/3 for the day `day` (days since 1970), given the new
+# and full moon instants around it, newest last. new_before is the latest
+# new moon at or before noon of that day (nil if none).
+def moon_phase_info(day: Int, new_before: Any, nearest_full: Any) -> Map do
+  noon = day * 86400 + 43200
+  age = case new_before do
+    nil -> 0.0
+    u -> (noon - u) / 86400.0
+  end
+  from_full = case nearest_full do
+    nil -> 0.0
+    u -> (noon - u) / 86400.0
+  end
+  full = nearest_full != nil and moon_day_of(nearest_full) == day
+  fraction = age / MOON_SYNODIC
+  illum = (1.0 - cos(fraction * 2 * 3.141592653589793)) / 2.0
+  named = case full do
+    true -> ["Full Moon", "🌕"]
+    false ->
+      case fraction >= 0.467 and fraction < 0.5 do
+        true -> ["Waxing Gibbous", "🌔"]
+        false ->
+          case fraction >= 0.5 and fraction < 0.533 do
+            true -> ["Waning Gibbous", "🌖"]
+            false -> moon_name_of(fraction, MOON_NAMES)
+          end
+      end
+  end
+  %{phase: head(named), emoji: elem_at(named, 1), illumination: illum, full: full, days_from_full: from_full}
+end
+
+# Sweep: days in ascending order, with ascending new and full instants.
+def moon_annotate(days: List, news: List, fulls: List, last_new: Any, acc: List) -> List do
+  case days do
+    [] -> reverse(acc)
+    [day | rest] ->
+      noon = day * 86400 + 43200
+      advanced = moon_advance(news, noon, last_new)
+      fulls2 = moon_near(fulls, noon)
+      info = moon_phase_info(day, elem(advanced, 1), moon_nearest(fulls2, noon))
+      moon_annotate(rest, elem(advanced, 0), fulls2, elem(advanced, 1), [info | acc])
+  end
+end
+
+# drop new moons at or before noon, keeping the last one dropped
+def moon_advance(news: List, noon: Int, last: Any) -> Tuple do
+  case news do
+    [] -> {[], last}
+    [u | rest] ->
+      case u <= noon do
+        true -> moon_advance(rest, noon, u)
+        false -> {news, last}
+      end
+  end
+end
+
+# drop full moons that are no longer the nearest candidate: while the one
+# after the first is at least as close, the first cannot be nearest again
+def moon_near(fulls: List, noon: Int) -> List do
+  case fulls do
+    [a | [b | rest]] ->
+      case abs(b - noon) <= abs(a - noon) do
+        true -> moon_near([b | rest], noon)
+        false -> fulls
+      end
+    _ -> fulls
+  end
+end
+
+# Enum.min_by keeps the first minimum: of two equally near, the earlier
+def moon_nearest(fulls: List, noon: Int) -> Any do
+  case fulls do
+    [] -> nil
+    [a | _] -> a
+  end
+end
+
+MOON_SHOWS_SQL = "select to_char(date, 'YYYY-MM-DD') as date, coalesce(venue, '') as venue, coalesce(location, '') as location, coalesce(tour_name, '') as tour_name from phish_shows order by date, id"
+
+def moon_build() -> Any do
+  case DB <- :query(MOON_SHOWS_SQL, []) do
+    {:error, reason} ->
+      puts(concat("moon_phish: ", reason))
+      nil
+    {:ok, []} -> []
+    {:ok, shows} ->
+      y0 = to_int(slice(head(shows).date, 0, 4))
+      y1 = to_int(slice(last(shows).date, 0, 4)) + 1
+      infos = moon_annotate(map(shows, fn(s: Map) -> Int do moon_date_days(s.date) end), moon_instants(y0 - 1, y1, 0.0), moon_instants(y0 - 1, y1, 0.5), nil, [])
+      map(zip(shows, infos), fn(p: Any) -> Map do
+        s = elem(p, 0)
+        m = elem(p, 1)
+        %{date: s.date, venue: s.venue, location: s.location, tour: s.tour_name, phase: m.phase, emoji: m.emoji, illum: round(m.illumination * 100), full: m.full, dff: round(m.days_from_full * 100) / 100.0}
+      end)
+  end
+end
+
+# Tonight's moon and the next full one, for the desk accessory.
+def moon_today(today: Int) -> Map do
+  yr = elem_at(moon_ymd(today), 0)
+  news = moon_instants(yr - 1, yr + 1, 0.0)
+  fulls = moon_instants(yr - 1, yr + 1, 0.5)
+  info = elem_at(moon_annotate([today], news, fulls, nil, []), 0)
+  now = now()
+  after = filter(fulls, fn(u: Int) -> Bool do u > now end)
+  next = case after do
+    [] -> ""
+    [u | _] -> moon_iso(moon_day_of(u))
+  end
+  %{phase: info.phase, emoji: info.emoji, illum: round(info.illumination * 100), next_full: next}
+end
+
+def moon_ymd(z0: Int) -> List do
+  z = z0 + 719468
+  era = case z >= 0 do
+    true -> z / 146097
+    false -> (z - 146096) / 146097
+  end
+  doe = z - era * 146097
+  yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+  doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+  mp = (5 * doy + 2) / 153
+  d = doy - (153 * mp + 2) / 5 + 1
+  m = case mp < 10 do
+    true -> mp + 3
+    false -> mp - 9
+  end
+  y = case m <= 2 do
+    true -> yoe + era * 400 + 1
+    false -> yoe + era * 400
+  end
+  [y, m, d]
+end
+
+def moon_iso(day: Int) -> String do
+  ymd = moon_ymd(day)
+  concat(to_string(elem_at(ymd, 0)), "-", moon_pad(elem_at(ymd, 1)), "-", moon_pad(elem_at(ymd, 2)))
+end
+
+def moon_pad(n: Int) -> String do
+  case n < 10 do
+    true -> concat("0", to_string(n))
+    false -> to_string(n)
+  end
+end
+
+# The annotated shows are the same until the table changes, so they are
+# built once, on the first request, and kept.
+actor MoonShows do
+  state json: String :: ""
+  on :json do
+    case json do
+      "" ->
+        built = moon_build()
+        case built do
+          nil -> reply ""
+          _ ->
+            out = json_encode(built)
+            become json: out
+            reply out
+        end
+      _ -> reply json
+    end
+  end
+end
+
+MOON = spawn MoonShows
+
+def moon_api(path: String) -> Any do
+  case path do
+    "/moon_phish/shows.json" ->
+      shows = MOON <- :json
+      case shows do
+        "" -> response(503, "application/json; charset=utf-8", "no-cache", "{\"error\": \"the database did not answer\"}")
+        _ ->
+          today = moon_today(floor(now() / 86400.0))
+          body = concat("{\"today\":", json_encode(today), ",\"shows\":", shows, "}")
+          response(200, "application/json; charset=utf-8", "public, max-age=600", body)
+      end
+    _ -> nil
+  end
+end

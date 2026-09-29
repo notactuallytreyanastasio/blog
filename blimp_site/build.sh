@@ -18,6 +18,7 @@ cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight
 # phangraphs: the site's own list logic (src/97_phish.blimp, checked against
 # the Elixir), with the page after it.
 cat src/00_text.blimp src/40_http.blimp src/97_phish.blimp static/phish/phish.blimp > _build/phish.blimp
+cat src/00_text.blimp static/moon/moon.blimp > _build/moon.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
