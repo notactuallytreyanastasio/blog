@@ -1,0 +1,226 @@
+# The live layer: WebSockets on the Blimp server, and the first thing on
+# them, Pong.
+#
+# LiveView kept a socket per page and rendered on the server. Here a page's
+# program runs in the browser, in Blimp's WebAssembly interpreter, and the
+# socket carries only what has to cross between browsers: a Pong game
+# reports where its ball and paddle are, and /pong/god is sent every game at
+# once. The Site actor owns the sockets and polls them in its tick, the
+# same poll that accepts connections.
+#
+# Frames are read and written here, over tcp_read and tcp_write, not with
+# the runtime's ws_read_frame and ws_write_frame: those read a frame
+# straight off the socket, and on a non-blocking one a frame that has not
+# all arrived reads as a closed connection; and they write with a single
+# write(2), which can send half a frame.
+
+WS_MAX_PAYLOAD = 8192
+LIVE_MAX_SOCKETS = 256
+
+# ── handshake ───────────────────────────────────────────────────────────
+
+# The value of a request header, by case-insensitive name, or "".
+def header_value(raw: String, name: String) -> String do
+  header_value_in(split(raw, "\r\n"), concat(downcase(name), ":"))
+end
+
+def header_value_in(lines: List, prefix: String) -> String do
+  case lines do
+    [] -> ""
+    [l | rest] ->
+      case starts_with(downcase(l), prefix) do
+        true -> trim(drop(l, length(prefix)))
+        false -> header_value_in(rest, prefix)
+      end
+  end
+end
+
+def is_upgrade(raw: String) -> Bool do
+  downcase(header_value(raw, "Upgrade")) == "websocket" and length(header_value(raw, "Sec-WebSocket-Key")) > 0
+end
+
+def ws_handshake(raw: String) -> String do
+  concat("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ",
+         ws_accept_key(header_value(raw, "Sec-WebSocket-Key")), "\r\n\r\n")
+end
+
+# ── frames ──────────────────────────────────────────────────────────────
+
+def ws_uint(s: String, at: Int, count: Int, acc: Int) -> Int do
+  case count do
+    0 -> acc
+    _ -> ws_uint(s, at + 1, count - 1, acc * 256 + char_code(char_at(s, at)))
+  end
+end
+
+def ws_len_bytes(n: Int, count: Int, acc: String) -> String do
+  case count do
+    0 -> acc
+    _ -> ws_len_bytes(n / 256, count - 1, concat(from_char_code(rem(n, 256)), acc))
+  end
+end
+
+# A server frame (unmasked, final): opcode 1 text, 8 close, 10 pong.
+def ws_frame(opcode: Int, payload: String) -> String do
+  n = length(payload)
+  head = case n < 126 do
+    true -> from_char_code(n)
+    false ->
+      case n < 65536 do
+        true -> concat(from_char_code(126), ws_len_bytes(n, 2, ""))
+        false -> concat(from_char_code(127), ws_len_bytes(n, 8, ""))
+      end
+  end
+  concat(from_char_code(128 + opcode), head, payload)
+end
+
+# `s` doubled until it is at least `n` bytes long: log2(n) concatenations,
+# where repeat/2 does one per copy and holds every partial string, which
+# for the mask of an 8KB frame is megabytes of garbage.
+def doubled_to(s: String, n: Int) -> String do
+  case length(s) >= n do
+    true -> s
+    false -> doubled_to(concat(s, s), n)
+  end
+end
+
+def ws_unmask(payload: String, mask: String) -> String do
+  xor_bytes(payload, slice(doubled_to(mask, length(payload)), 0, length(payload)))
+end
+
+# The first frame in `buf`: {:frame, opcode, payload, rest}, :more when
+# it has not all arrived, or {:bad, reason}. A browser masks every frame
+# and does not fragment a message this small; anything else is refused.
+def ws_next(buf: String) -> Tuple do
+  case length(buf) < 2 do
+    true -> :more
+    false ->
+      b0 = char_code(char_at(buf, 0))
+      b1 = char_code(char_at(buf, 1))
+      len7 = rem(b1, 128)
+      ext = case len7 do
+        126 -> 2
+        127 -> 8
+        _ -> 0
+      end
+      case b1 < 128 or b0 < 128 do
+        true -> {:bad, "an unmasked or fragmented frame"}
+        false ->
+          case length(buf) < 2 + ext + 4 do
+            true -> :more
+            false ->
+              n = case ext do
+                0 -> len7
+                _ -> ws_uint(buf, 2, ext, 0)
+              end
+              start = 2 + ext + 4
+              case n > WS_MAX_PAYLOAD do
+                true -> {:bad, concat("a frame of ", to_string(n), " bytes")}
+                false ->
+                  case length(buf) < start + n do
+                    true -> :more
+                    false -> {:frame, rem(b0, 16), ws_unmask(slice(buf, start, n), slice(buf, 2 + ext, 4)), drop(buf, start + n)}
+                  end
+              end
+          end
+      end
+  end
+end
+
+# ── pong ────────────────────────────────────────────────────────────────
+
+def live_int(v: Any, lo: Int, hi: Int) -> Int do
+  case type_of(v) do
+    :integer -> pong_srv_clamp(v, lo, hi)
+    :float -> pong_srv_clamp(round(v), lo, hi)
+    _ -> lo
+  end
+end
+
+def pong_srv_clamp(v: Int, lo: Int, hi: Int) -> Int do
+  case v < lo do
+    true -> lo
+    false ->
+      case v > hi do
+        true -> hi
+        false -> v
+      end
+  end
+end
+
+# A report from a game, as the page sent it, rebuilt from its numbers and
+# flags: nothing a browser writes reaches another browser except those.
+# nil for a report that is not one.
+def pong_report(id: String, text: String) -> Any do
+  case json_decode(text) do
+    {:ok, r} ->
+      case type_of(r) == :map and type_of(lookup(r, :ball)) == :map do
+        false -> nil
+        true -> %{
+          id: id,
+          x: live_int(lookup(lookup(r, :ball), :x), 0, 800),
+          y: live_int(lookup(lookup(r, :ball), :y), 0, 600),
+          paddle: live_int(lookup(r, :paddle), 0, 500),
+          wall: live_int(lookup(r, :wall), 0, 1000000),
+          defeat: lookup(r, :defeat) == true,
+          ai: lookup(r, :ai) == true
+        }
+      end
+    _ -> nil
+  end
+end
+
+# What /pong/god is sent: every game, oldest first.
+def pong_games_json(games: Map) -> String do
+  json_encode(%{games: map(sort(keys(games)), fn(k: String) -> Map do lookup(games, k) end)})
+end
+
+def pong_game_id() -> String do
+  concat("pong_", take(hex_encode(random_bytes(8)), 16))
+end
+
+# ── pages ───────────────────────────────────────────────────────────────
+
+PONG_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/pong/play.js"]
+GOD_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/pong/god.js"]
+PONG_CSS = ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/assets/pong.css"]
+
+def script_tags(srcs: List) -> String do
+  join(map(srcs, fn(src: String) -> String do concat("<script src=\"", src, "\"></script>\n") end), "")
+end
+
+# PongLive's window, with Blimp's program where the board was. The game id
+# is made here so the title can show it, as the LiveView's did.
+def pong_page(id: String) -> String do
+  body = join([
+    "<div class=\"os-desktop-winxp\">",
+    "<div class=\"os-window os-window-winxp\" style=\"max-width: 900px;\">",
+    "<div class=\"os-titlebar\"><span class=\"os-titlebar-title\">Pong.exe - Game ID: ", escape_html(id), "</span>",
+    "<div class=\"os-titlebar-buttons\"><div class=\"os-btn-min\"></div><div class=\"os-btn-max\"></div><a href=\"/\" class=\"os-btn-close\"></a></div></div>",
+    "<div class=\"os-menubar\"><span>Game</span><span>Options</span><span>View</span><span>Help</span></div>",
+    "<div class=\"os-content\"><div class=\"pong-body\">",
+    "<div id=\"pong\" data-game=\"", escape_html(id), "\"></div>",
+    "<div id=\"pong-status\" class=\"pong-status\">loading Blimp...</div>",
+    "<noscript><p class=\"pong-status\">A browser starts WebAssembly from JavaScript, so this page needs it on. The game is <a href=\"/pong/pong.blimp\">pong.blimp</a>.</p></noscript>",
+    "<div class=\"pong-hint\">Use the up and down arrow keys to move the paddle</div>",
+    "<div class=\"pong-links\"><a href=\"/pong/god\" class=\"pong-link\">God Mode View</a> <a href=\"/pong/pong.blimp\" class=\"pong-link\">Read the game</a></div>",
+    "</div></div>",
+    "<div class=\"os-statusbar\"><span>Ready</span><span>pong.blimp, in Blimp</span></div>",
+    "</div></div>",
+    script_tags(PONG_SCRIPTS)
+  ], "")
+  page_layout(concat("Pong.exe - ", id), "Pong against a wall, written in Blimp and played in your browser.", "website", PONG_CSS, body)
+end
+
+def pong_god_page() -> String do
+  body = join([
+    "<div class=\"god\">",
+    "<div class=\"god-head\"><h1>Pong God Mode</h1><p id=\"god-status\">connecting...</p></div>",
+    "<div id=\"god\"></div>",
+    "<noscript><p>This page runs god.blimp in your browser, which needs JavaScript to start.</p></noscript>",
+    "<div class=\"god-foot\"><a href=\"/pong\" class=\"pong-link\">Play Pong</a> <a href=\"/pong/god.blimp\" class=\"pong-link\">Read it</a></div>",
+    "</div>",
+    script_tags(GOD_SCRIPTS)
+  ], "")
+  page_layout("Pong God Mode", "Every game of Pong being played on this site right now, drawn by Blimp.", "website", PONG_CSS, body)
+end

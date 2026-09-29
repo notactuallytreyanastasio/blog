@@ -1,0 +1,207 @@
+# /pong/god: every game of Pong on the site, drawn as it is played.
+#
+# A port of BlogWeb.PongGodLive. The server sends this page every game's
+# ball, paddle and score (god <- :games(json)) whenever one moves; this
+# keeps each ball's rainbow path, lets fireworks go off behind them, and
+# draws a card per game, twenty times a second.
+#
+# What the LiveView did that this does not: play a note when a wall scores.
+# Its sound hook was registered with window.LiveView.registerHook on a
+# phx:hook-initialized event, and LiveView's client has neither, so it never
+# played there either.
+
+GOD_TRAIL = 40
+GOD_MAX_EXPLOSIONS = 20
+GOD_COLORS = ["#FF1A8C", "#E81CFF", "#841CFF", "#1C56FF", "#1CD7FF", "#1CFF78", "#FFE81C", "#FF781C"]
+GOD_CARD_W = 240
+GOD_CARD_H = 150
+GOD_PI = 3.141592653589793
+
+def god_rand() -> Float do
+  random(0, 999999) / 1000000.0
+end
+
+def god_color(i: Int) -> String do
+  elem_of(GOD_COLORS, rem(i, length(GOD_COLORS)))
+end
+
+def elem_of(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> elem_of(tail(list), i - 1)
+  end
+end
+
+def god_take(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> god_take(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+# PongGodLive.update_rainbow_paths/3: a path per game still being played,
+# the newest point first.
+def god_paths(old: Map, games: List) -> Map do
+  reduce(games, %{}, fn(acc: Map, g: Map) -> Map do
+    was = case lookup(old, g.id) do
+      nil -> []
+      p -> p
+    end
+    point = %{x: g.x, y: g.y, color: god_color(length(was))}
+    put(acc, g.id, god_take([point | was], GOD_TRAIL, []))
+  end)
+end
+
+# PongGodLive.generate_explosion/1: a burst or a spiral somewhere on the page.
+def god_explosion() -> Map do
+  x = random(1, 800)
+  y = random(1, 600)
+  size = random(1, 5) + 8
+  kind = case random(0, 1) do
+    0 -> :burst
+    _ -> :spiral
+  end
+  particles = map(range(1, 30), fn(i: Int) -> Map do
+    case kind do
+      :burst ->
+        angle = god_rand() * 2 * GOD_PI
+        d = random(1, size * 3)
+        %{x: x + cos(angle) * d, y: y + sin(angle) * d, size: random(1, 3) + 1, color: god_color(random(0, 7))}
+      _ ->
+        angle = i / 30.0 * 2 * GOD_PI * 3
+        d = size * (i / 30.0) * 2
+        %{x: x + cos(angle) * d, y: y + sin(angle) * d, size: random(1, 2) + 1, color: god_color(i)}
+    end
+  end)
+  %{kind: kind, life: random(1, 200) + 600, particles: particles}
+end
+
+def god_age(explosions: List) -> List do
+  filter(map(explosions, fn(e: Map) -> Map do
+    step = case e.kind do
+      :spiral -> 1
+      _ -> 2
+    end
+    put(e, :life, e.life - step)
+  end), fn(e: Map) -> Bool do e.life > 0 end)
+end
+
+def god_n(x: Any) -> String do
+  to_string(round(x * 10) / 10.0)
+end
+
+# ── drawing ─────────────────────────────────────────────────────────────
+
+def god_path_ops(points: List) -> List do
+  case points do
+    [a | [b | rest]] -> ["line #{god_n(a.x)} #{god_n(a.y)} #{god_n(b.x)} #{god_n(b.y)} #{a.color} 3" | god_path_ops([b | rest])]
+    _ -> []
+  end
+end
+
+# The layer behind the cards: fireworks and every ball's path, at the
+# games' own 800x600.
+def god_backdrop(paths: Map, explosions: List) -> String do
+  sparks = flat(map(explosions, fn(e: Map) -> List do
+    ["alpha #{god_n(e.life / 800.0)}" | map(e.particles, fn(p: Map) -> String do
+      "circle #{god_n(p.x)} #{god_n(p.y)} #{god_n(p.size / 2.0)} #{p.color}"
+    end)]
+  end))
+  trails = flat(map(values(paths), fn(p: List) -> List do god_path_ops(p) end))
+  join(concat_all([sparks, ["alpha 0.7"], trails]), "\n")
+end
+
+def concat_all(lists: List) -> List do
+  flat(lists)
+end
+
+# One game's card: its board, a fifth the size.
+def god_board(g: Map) -> String do
+  sx = GOD_CARD_W / 800.0
+  sy = GOD_CARD_H / 600.0
+  border = case g.defeat do
+    true -> "#ef4444"
+    false -> "#374151"
+  end
+  defeat = case g.defeat do
+    true -> ["alpha 1", "text #{GOD_CARD_W / 2} #{GOD_CARD_H / 2} 18 h:#ef4444,#eab308 center DEFEAT"]
+    false -> []
+  end
+  join(concat_all([[
+    "rect 0 0 #{GOD_CARD_W} #{GOD_CARD_H} #{border}",
+    "rect 1 1 #{GOD_CARD_W - 2} #{GOD_CARD_H - 2} #111827",
+    "alpha 0.3",
+    "rect #{GOD_CARD_W / 2} 1 1 #{GOD_CARD_H - 2} v:#d946ef,#a855f7,#06b6d4",
+    "alpha 1",
+    "rect #{god_n(30 * sx)} #{god_n(g.paddle * sy)} 4 #{god_n(100 * sy)} v:#d946ef,#a855f7,#06b6d4",
+    "shadow 4 rgba(217,70,239,0.5)",
+    "circle #{god_n(g.x * sx)} #{god_n(g.y * sy)} 5 h:#d946ef,#a855f7,#06b6d4",
+    "shadow 0"
+  ], defeat]), "\n")
+end
+
+def god_card(g: Map) -> Any do
+  who = case g.ai do
+    true -> "AI Playing"
+    false -> "Player Control"
+  end
+  stack([
+    text("Game ID: #{g.id}"),
+    text("Score: #{g.wall} · #{who}"),
+    draw(GOD_CARD_W, GOD_CARD_H, god_board(g))
+  ])
+end
+
+actor God do
+  state games: List :: []
+  state paths: Map :: %{}
+  state explosions: List :: []
+  state connected: Bool :: false
+
+  on :games(json: String) do
+    case json_decode(json) do
+      {:ok, m} ->
+        become games: m.games, paths: god_paths(paths, m.games), connected: true
+        reply length(m.games)
+      _ ->
+        become connected: connected
+        reply -1
+    end
+  end
+
+  on :offline do
+    become connected: false
+    reply :ok
+  end
+
+  # PongGodLive's 50ms refresh and its 50ms explosion timer, as one tick.
+  on :tick do
+    aged = god_age(explosions)
+    case length(aged) < GOD_MAX_EXPLOSIONS do
+      true -> become explosions: [god_explosion() | aged]
+      false -> become explosions: aged
+    end
+    reply :ok
+  end
+
+  on :view do
+    count = length(games)
+    status = case connected do
+      true -> "Watching #{count} active games"
+      false -> "connecting..."
+    end
+    reply stack([
+      draw(800, 600, god_backdrop(paths, explosions)),
+      text(status),
+      row(map(games, fn(g: Map) -> Any do god_card(g) end)),
+      timer(50, :tick)
+    ])
+  end
+end
+
+god = spawn God
+god <- :view

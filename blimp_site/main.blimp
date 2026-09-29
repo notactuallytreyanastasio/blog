@@ -55,7 +55,7 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  static_page_routes(tetris_routes(r7))
+  pong_routes(static_page_routes(tetris_routes(r7)))
 end
 
 # Pages that were LiveViews with nothing for a server to do, and two that
@@ -97,13 +97,24 @@ def tetris_routes(routes: Map) -> Map do
   page_route(r6, "/tetris", tetris_page(commit, lines))
 end
 
+def pong_routes(routes: Map) -> Map do
+  r1 = load_asset(routes, "/pong/pong.blimp", "static/pong/pong.blimp")
+  r2 = load_asset(r1, "/pong/play.js", "static/pong/play.js")
+  r3 = load_asset(r2, "/pong/god.blimp", "static/pong/god.blimp")
+  r4 = load_asset(r3, "/pong/god.js", "static/pong/god.js")
+  r5 = load_asset(r4, "/assets/pong.css", "assets/pong.css")
+  page_route(r5, "/pong/god", pong_god_page())
+end
+
 # Everything that is not a fixed route. Only GET and HEAD reach here.
 # The homepage is here because its state is in the query string.
 def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
   path = req.path
-  case path == "/" do
-    true -> html_response(200, desktop_page(req.query, desk, now()))
-    false -> static_or_404(path)
+  case path do
+    "/" -> html_response(200, desktop_page(req.query, desk, now()))
+    # a new game id for every visit, so never a cached page
+    "/pong" -> response(200, "text/html; charset=utf-8", "no-store", pong_page(pong_game_id()))
+    _ -> static_or_404(path)
   end
 end
 
@@ -175,7 +186,7 @@ end
 # One connection: wait briefly for its request (a socket accepted from a
 # non-blocking listener is non-blocking itself on some systems), answer it,
 # close it, log a line.
-def serve_client(c: Int, desk: Map, home: List) -> Int do
+def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
   t0 = now_ms()
   ready = tcp_poll([c], 2000)
   raw = case length(ready) > 0 do
@@ -187,21 +198,191 @@ def serve_client(c: Int, desk: Map, home: List) -> Int do
       tcp_close(c)
       0
     _ ->
-      result = handle(raw, routes, posts, desk, home)
-      tcp_write(c, elem(result, 0))
+      case is_upgrade(raw) do
+        true -> upgrade(c, raw, room)
+        false ->
+          result = handle(raw, routes, posts, desk, home)
+          tcp_write(c, elem(result, 0))
+          tcp_close(c)
+          req = elem(result, 2)
+          puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
+          1
+      end
+  end
+end
+
+# A WebSocket for /live/pong?game=<id> (a game reporting) or /live/pong-god
+# (a page watching all of them): the socket, to be kept, or 1 when the
+# request was answered and closed instead.
+def upgrade(c: Int, raw: String, room: Bool) -> Any do
+  req = parse_request(raw)
+  game = query_param(req.query, "game")
+  kind = case req.path do
+    "/live/pong" ->
+      case starts_with(game, "pong_") and length(game) <= 40 and desk_url_safe(game) do
+        true -> :player
+        false -> nil
+      end
+    "/live/pong-god" -> :god
+    _ -> nil
+  end
+  case kind == nil or not(room) do
+    true ->
+      status = case room do
+        true -> 404
+        false -> 503
+      end
+      tcp_write(c, serialize(response(status, "text/plain", "no-cache", "no such socket\n"), "GET"))
       tcp_close(c)
-      req = elem(result, 2)
-      puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
+      puts(concat("WS ", req.path, " ", to_string(status)))
       1
+    false ->
+      tcp_write(c, ws_handshake(raw))
+      puts(concat("WS ", req.path, " 101 ", game))
+      %{fd: c, kind: kind, game: game, buf: ""}
   end
 end
 
 # Every connection that is waiting now, then stop: the tick must return.
-def accept_all(fd: Int, n: Int, desk: Map, home: List) -> Int do
+# Every connection that is waiting now, then stop: the tick must return.
+# {requests answered, sockets}, the sockets with any new WebSockets added.
+def accept_all(fd: Int, n: Int, desk: Map, home: List, socks: Map) -> Tuple do
   c = tcp_accept(fd)
   case c do
-    nil -> n
-    _ -> accept_all(fd, n + serve_client(c, desk, home), desk, home)
+    nil -> {n, socks}
+    _ ->
+      got = serve_client(c, desk, home, length(keys(socks)) < LIVE_MAX_SOCKETS)
+      case type_of(got) do
+        :map -> accept_all(fd, n, desk, home, put(socks, to_string(got.fd), got))
+        _ -> accept_all(fd, n + got, desk, home, socks)
+      end
+  end
+end
+
+def map_without(m: Map, gone: Any) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+# A socket closed, from either end: forget it, and its game if it had one.
+# {socks, games, changed}
+def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
+  tcp_close(sock.fd)
+  puts(concat("WS closed ", to_string(sock.kind), " ", sock.game, " ", why))
+  case sock.kind do
+    :player -> {map_without(socks, to_string(sock.fd)), map_without(games, sock.game), true}
+    _ -> {map_without(socks, to_string(sock.fd)), games, false}
+  end
+end
+
+# Read what a ready socket has and act on every whole frame in it.
+def live_read(sock: Map, socks: Map, games: Map) -> Tuple do
+  data = tcp_read(sock.fd)
+  case data do
+    nil -> {socks, games, false}
+    "" -> drop_socket(sock, socks, games, "by the browser")
+    _ -> live_frames(put(sock, :buf, concat(sock.buf, data)), socks, games, false)
+  end
+end
+
+def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
+  case ws_next(sock.buf) do
+    :more -> {put(socks, to_string(sock.fd), sock), games, changed}
+    {:bad, reason} ->
+      tcp_write(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(234))))
+      after_drop = drop_socket(sock, socks, games, reason)
+      {elem(after_drop, 0), elem(after_drop, 1), true}
+    {:frame, op, payload, rest} ->
+      next = put(sock, :buf, rest)
+      case op do
+        1 ->
+          case sock.kind do
+            :player ->
+              report = pong_report(sock.game, payload)
+              case report do
+                nil ->
+                  tcp_write(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(235))))
+                  after_bad = drop_socket(sock, socks, games, "a report that is not one")
+                  {elem(after_bad, 0), elem(after_bad, 1), true}
+                _ -> live_frames(next, socks, put(games, sock.game, report), true)
+              end
+            _ -> live_frames(next, socks, games, changed)
+          end
+        8 ->
+          tcp_write(sock.fd, ws_frame(8, ""))
+          after_close = drop_socket(sock, socks, games, "with a close frame")
+          {elem(after_close, 0), elem(after_close, 1), true}
+        9 ->
+          tcp_write(sock.fd, ws_frame(10, payload))
+          live_frames(next, socks, games, changed)
+        10 -> live_frames(next, socks, games, changed)
+        _ ->
+          after_bad = drop_socket(sock, socks, games, concat("opcode ", to_string(op)))
+          {elem(after_bad, 0), elem(after_bad, 1), true}
+      end
+  end
+end
+
+# Every ready socket, in turn. {socks, games, changed}
+def live_read_all(ready: List, socks: Map, games: Map, changed: Bool) -> Tuple do
+  case ready do
+    [] -> {socks, games, changed}
+    [fd | rest] ->
+      sock = lookup(socks, to_string(fd))
+      case sock do
+        nil -> live_read_all(rest, socks, games, changed)
+        _ ->
+          r = live_read(sock, socks, games)
+          live_read_all(rest, elem(r, 0), elem(r, 1), changed or elem(r, 2))
+      end
+  end
+end
+
+# Every god page is sent every game.
+def push_gods(socks: Map, games: Map) -> Int do
+  frame = ws_frame(1, pong_games_json(games))
+  gods = filter(values(socks), fn(s: Map) -> Bool do s.kind == :god end)
+  each(gods, fn(s: Map) do tcp_write(s.fd, frame) end)
+  length(gods)
+end
+
+def has_fd(fds: List, fd: Int) -> Bool do
+  case fds do
+    [] -> false
+    [h | rest] ->
+      case h == fd do
+        true -> true
+        false -> has_fd(rest, fd)
+      end
+  end
+end
+
+def socket_fds(socks: Map) -> List do
+  map(values(socks), fn(s: Map) -> Int do s.fd end)
+end
+
+# One tick's worth of the network: wait up to 100ms for the listener or any
+# socket, accept every connection waiting, read every socket that is ready,
+# and send the god pages the games if they changed (at most every 50ms).
+# {requests answered, socks, games, dirty, pushed_at}
+def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
+  ready = tcp_poll([fd | socket_fds(socks)], 100)
+  accepted = case has_fd(ready, fd) do
+    true -> accept_all(fd, 0, desk, home, socks)
+    false -> {0, socks}
+  end
+  joined = length(keys(elem(accepted, 1))) > length(keys(socks))
+  read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
+  t = now_ms()
+  case elem(read, 2) and t - pushed_at >= 50 do
+    true ->
+      push_gods(elem(read, 0), elem(read, 1))
+      {elem(accepted, 0), elem(read, 0), elem(read, 1), false, t}
+    false -> {elem(accepted, 0), elem(read, 0), elem(read, 1), elem(read, 2), pushed_at}
   end
 end
 
@@ -233,6 +414,10 @@ actor Site do
   state db_opts: Any :: nil
   state desk_at: Int :: 0
   state desk_error: String :: ""
+  state socks: Map :: %{}
+  state games: Map :: %{}
+  state dirty: Bool :: false
+  state pushed_at: Int :: 0
 
   on :start(port: Int, first: Map, conn: Any, opts: Any) do
     s = tcp_listen(port)
@@ -242,25 +427,32 @@ actor Site do
   end
 
   on :tick do
-    n = case length(tcp_poll([fd], 100)) > 0 do
-      true -> accept_all(fd, 0, desk, home)
-      false -> 0
-    end
+    live = live_tick(fd, desk, home, socks, games, dirty, pushed_at)
+    n = elem(live, 0)
     case db_opts != nil and now() - desk_at >= DESK_REFRESH_S do
       false ->
-        become served: served + n
+        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4)
         reply n
       true ->
         case refresh_desk(db, db_opts) do
           {:ok, fresh, next} ->
-            become served: served + n, desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
             reply n
           {:error, reason, next} ->
             puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
-            become served: served + n, db: next, desk_at: now(), desk_error: reason
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), db: next, desk_at: now(), desk_error: reason
             reply n
         end
     end
+  end
+
+  # From the prompt: the games /pong/god is being sent, and the sockets.
+  on :games do
+    reply games
+  end
+
+  on :sockets do
+    reply map(values(socks), fn(s: Map) -> List do [s.fd, s.kind, s.game] end)
   end
 
   # From the prompt: `site <- :desk` is what "/" is drawn from right now,

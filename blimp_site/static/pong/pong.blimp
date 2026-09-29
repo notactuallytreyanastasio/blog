@@ -1,0 +1,439 @@
+# Pong for bobbby.online/pong: one paddle against a wall, played in the
+# browser by Blimp's interpreter, drawn by Blimp's `draw`.
+#
+# A port of BlogWeb.PongLive and its GameLogic: the same constants, the same
+# physics, the same states (:ready, :playing, :scored, :defeat_message) and
+# the same AI, which moves every fifth frame as the LiveView's 150ms timer
+# did against its 33ms tick. What the LiveView kept in ETS for /pong/god,
+# this reports on :report, and the page sends it to the server.
+#
+# What it does not do that the LiveView did: blur the trail and the sparks
+# (the canvas draws them sharp), and rotate the square sparks.
+
+PONG_W = 800
+PONG_H = 600
+PONG_R = 10
+PONG_SPEED = 5
+PONG_PW = 15
+PONG_PH = 100
+PONG_PX = 30
+PONG_PADDLE_SPEED = 10
+PONG_TRAIL = 80
+PONG_SPARKLE_LIFE = 30
+PONG_DEFEAT_FRAMES = 60
+PONG_MAX_BOUNCES = 30
+PONG_SPEEDUP = 0.02
+PONG_MAX_MULT = 1.6
+PONG_PI = 3.141592653589793
+PONG_GRADIENT = "#d946ef,#a855f7,#06b6d4"
+
+# :rand.uniform() and :rand.uniform(n)
+def pong_rand() -> Float do
+  random(0, 999999) / 1000000.0
+end
+
+def pong_uniform(n: Int) -> Int do
+  random(1, n)
+end
+
+def pong_min(a: Any, b: Any) -> Any do
+  case a < b do
+    true -> a
+    false -> b
+  end
+end
+
+def pong_max(a: Any, b: Any) -> Any do
+  case a > b do
+    true -> a
+    false -> b
+  end
+end
+
+def pong_clamp(v: Any, lo: Any, hi: Any) -> Any do
+  pong_min(pong_max(v, lo), hi)
+end
+
+def pong_sign(x: Any) -> Int do
+  case x > 0 do
+    true -> 1
+    false ->
+      case x < 0 do
+        true -> -1
+        false -> 0
+      end
+  end
+end
+
+def pong_ball(x: Any, y: Any, dx: Any, dy: Any, bounces: Int, mult: Any) -> Map do
+  %{x: x, y: y, dx: dx, dy: dy, bounces: bounces, mult: mult}
+end
+
+def pong_first_ball() -> Map do
+  pong_ball(PONG_W / 2, PONG_H / 2, 0 - PONG_SPEED, (pong_rand() - 0.5) * PONG_SPEED, 0, 1.0)
+end
+
+# GameLogic.reset_ball/1: the ball back in the middle, jittered, at an angle.
+def pong_reset_ball(wall: Int) -> Map do
+  jitter = case wall > 0 do
+    true -> 40
+    false -> 15
+  end
+  x = pong_clamp(PONG_W / 2 + pong_uniform(jitter) - jitter / 2.0, PONG_R * 2, PONG_W - PONG_R * 2)
+  y = pong_clamp(PONG_H / 2 + pong_uniform(jitter) - jitter / 2.0, PONG_R * 2, PONG_H - PONG_R * 2)
+  max_angle = case wall > 0 do
+    true -> 40
+    false -> 20
+  end
+  angle = (pong_uniform(max_angle) - max_angle / 2.0) * PONG_PI / 180
+  dx = 0 - PONG_SPEED * cos(angle)
+  raw_dy = PONG_SPEED * sin(angle)
+  dy = case abs(raw_dy) > abs(dx) * 1.5 do
+    true -> pong_sign(raw_dy) * abs(dx) * 1.5
+    false -> raw_dy
+  end
+  pong_ball(x, y, dx, dy, 0, 1.0)
+end
+
+# ── the ball ────────────────────────────────────────────────────────────
+
+def pong_hits_paddle(x: Any, y: Any, paddle_y: Any) -> Bool do
+  y + PONG_R >= paddle_y and y - PONG_R <= paddle_y + PONG_PH and x - PONG_R <= PONG_PX + PONG_PW and x + PONG_R >= PONG_PX
+end
+
+# One step of the ball: {ball, game_state, wall_score, bounce, bounce_type},
+# where bounce is where to put a spark (nil for none).
+def pong_step_ball(ball: Map, paddle_y: Any, wall: Int) -> Tuple do
+  x = ball.x + ball.dx
+  y = ball.y + ball.dy
+  case pong_hits_paddle(x, y, paddle_y) do
+    true -> pong_paddle_bounce(ball, y, paddle_y, wall)
+    false -> pong_walls(ball, x, y, wall)
+  end
+end
+
+def pong_paddle_bounce(ball: Map, y: Any, paddle_y: Any, wall: Int) -> Tuple do
+  bounces = ball.bounces + 1
+  mult = pong_min(ball.mult + PONG_SPEEDUP, PONG_MAX_MULT)
+  new_dx = abs(ball.dx)
+  hit = (y - (paddle_y + PONG_PH / 2)) / (PONG_PH / 2)
+  angle = hit * (1.0 + pong_min(bounces / 20.0, 0.8))
+  jiggle = case bounces > PONG_MAX_BOUNCES do
+    true -> (pong_rand() - 0.5) * 0.3
+    false -> (pong_rand() - 0.5) * 0.1 * (bounces / 15.0)
+  end
+  new_dy = ball.dy + (angle + jiggle) * abs(ball.dx)
+  speed = sqrt(ball.dx * ball.dx + ball.dy * ball.dy) * mult
+  size = sqrt(new_dx * new_dx + new_dy * new_dy)
+  dy = new_dy * speed / size
+  min_dy = speed * 0.05
+  dy2 = case abs(dy) < min_dy do
+    false -> dy
+    true ->
+      case dy >= 0 do
+        true -> min_dy
+        false -> 0 - min_dy
+      end
+  end
+  bounced = pong_ball(PONG_PX + PONG_PW + PONG_R + 1, y, new_dx * speed / size, dy2, bounces, mult)
+  {bounced, :playing, wall, %{x: PONG_PX + PONG_PW, y: y}, :paddle}
+end
+
+def pong_walls(ball: Map, x: Any, y: Any, wall: Int) -> Tuple do
+  case x - PONG_R <= 0 do
+    true -> {pong_ball(x, y, 0 - ball.dx, ball.dy, ball.bounces, ball.mult), :scored, wall + 1, %{x: 0, y: y}, :wall}
+    false ->
+      case x + PONG_R >= PONG_W and ball.dx > 0 do
+        true ->
+          turn = (pong_rand() - 0.5) * 0.15
+          speed = sqrt(ball.dx * ball.dx + ball.dy * ball.dy)
+          angle = atan2(ball.dy, ball.dx) + turn
+          {pong_ball(x, y, 0 - abs(cos(angle) * speed), sin(angle) * speed, ball.bounces, ball.mult), :playing, wall, %{x: PONG_W, y: y}, :wall}
+        false ->
+          case (y + PONG_R >= PONG_H and ball.dy > 0) or (y - PONG_R <= 0 and ball.dy < 0) do
+            true ->
+              bounce_y = case y + ball.dy >= PONG_H do
+                true -> PONG_H
+                false -> 0
+              end
+              {pong_ball(x, y, ball.dx, 0 - ball.dy, ball.bounces, ball.mult), :playing, wall, %{x: x, y: bounce_y}, :wall}
+            false -> {pong_ball(x, y, ball.dx, ball.dy, ball.bounces, ball.mult), :playing, wall, nil, nil}
+          end
+      end
+  end
+end
+
+# ── the paddle ──────────────────────────────────────────────────────────
+
+def pong_move_paddle(y: Any, key: String) -> Any do
+  case key do
+    "up" -> pong_max(0, y - PONG_PADDLE_SPEED)
+    "down" -> pong_min(PONG_H - PONG_PH, y + PONG_PADDLE_SPEED)
+    _ -> y
+  end
+end
+
+# GameLogic.ai_move_paddle/2: toward the ball, with a little error in it.
+def pong_ai_paddle(y: Any, ball: Map) -> Any do
+  mult = ball.mult
+  noise = (pong_uniform(80) - 40) * (mult * 0.8)
+  target = case pong_rand() < 0.05 * mult do
+    true -> ball.y - PONG_PH / 2 + noise * 1.5
+    false -> ball.y - PONG_PH / 2 + noise
+  end
+  moved = case y < target - 10 do
+    true -> y + 10
+    false ->
+      case y > target + 10 do
+        true -> y - 10
+        false -> target
+      end
+  end
+  pong_clamp(moved, 0, PONG_H - PONG_PH)
+end
+
+# ── trail and sparks ────────────────────────────────────────────────────
+
+def pong_hsl(h: Int, s: Int, l: Int) -> String do
+  "hsl(#{h},#{s}%,#{l}%)"
+end
+
+# GameLogic.generate_rainbow_color/1, on the frame count: the WebAssembly
+# build has no clock, and the LiveView's clock only turned the hue.
+def pong_rainbow(frame: Int, index: Int) -> String do
+  pong_hsl(rem(rem(frame * 33, 360) + index * 15, 360), 90 + rem(index, 10), 50 + rem(index * 7, 20))
+end
+
+def pong_trail(trail: List, ball: Map, frame: Int) -> List do
+  [%{x: ball.x, y: ball.y, color: pong_rainbow(frame, length(trail))} | take_list(trail, PONG_TRAIL - 1)]
+end
+
+def take_list(list: List, n: Int) -> List do
+  take_list_into(list, n, [])
+end
+
+def take_list_into(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> take_list_into(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+def pong_spark_color(kind: Any) -> String do
+  case kind do
+    :paddle -> pong_hsl(pong_uniform(60) + 180, 100, 70)
+    :wall -> pong_hsl(pong_uniform(60), 100, 70)
+    _ -> pong_hsl(pong_uniform(360), 100, 70)
+  end
+end
+
+# Older by a frame, moved if it is moving, gone when its life runs out.
+def pong_age(sparks: List) -> List do
+  alive = filter(map(sparks, fn(s: Map) -> Map do
+    moved = case s.dx != 0 or s.dy != 0 do
+      true -> put(put(s, :x, s.x + s.dx), :y, s.y + s.dy)
+      false -> s
+    end
+    put(moved, :life, s.life - 1)
+  end), fn(s: Map) -> Bool do s.life > 0 end)
+  alive
+end
+
+def pong_sparks(sparks: List, at: Any, kind: Any) -> List do
+  case at do
+    nil -> pong_age(sparks)
+    _ ->
+      fresh = %{x: at.x, y: at.y, dx: 0, dy: 0, life: PONG_SPARKLE_LIFE + 1, size: pong_uniform(5) + 3, color: pong_spark_color(kind)}
+      take_list(pong_age([fresh | sparks]), 30)
+  end
+end
+
+# GameLogic.create_defeat_burst/2: thirty sparks thrown out in a circle.
+def pong_burst(sparks: List, ball: Map) -> List do
+  fresh = map(range(1, 30), fn(i: Int) -> Map do
+    angle = pong_rand() * 2 * PONG_PI
+    speed = pong_uniform(6) + 2
+    %{x: ball.x, y: ball.y, dx: cos(angle) * speed, dy: sin(angle) * speed, life: PONG_SPARKLE_LIFE + pong_uniform(20), size: pong_uniform(6) + 2, color: pong_hsl(pong_uniform(60), 100, 50 + pong_uniform(40))}
+  end)
+  aged = filter(map(sparks, fn(s: Map) -> Map do put(s, :life, s.life - 1) end), fn(s: Map) -> Bool do s.life > 0 end)
+  take_list(concat_lists(fresh, aged), 120)
+end
+
+def concat_lists(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+# ── drawing ─────────────────────────────────────────────────────────────
+
+def pong_n(x: Any) -> String do
+  to_string(round(x * 10) / 10.0)
+end
+
+def pong_trail_ops(trail: List, i: Int, acc: List) -> List do
+  case trail do
+    [] -> acc
+    [p | rest] ->
+      f = 1 - i / (PONG_TRAIL * 1.0)
+      op = "alpha #{pong_n(1 - i / (PONG_TRAIL * 1.0) * 0.7)}\ncircle #{pong_n(p.x)} #{pong_n(p.y)} #{pong_n(PONG_R * f)} #{p.color}"
+      pong_trail_ops(rest, i + 1, [op | acc])
+  end
+end
+
+def pong_spark_ops(sparks: List) -> List do
+  map(sparks, fn(s: Map) -> String do
+    a = pong_n(pong_min(1.0, s.life / (PONG_SPARKLE_LIFE * 1.0)))
+    case rem(s.life, 2) == 0 do
+      true -> "alpha #{a}\ncircle #{pong_n(s.x)} #{pong_n(s.y)} #{pong_n(s.size / 2.0)} #{s.color}"
+      false -> "alpha #{a}\nrect #{pong_n(s.x - s.size / 2.0)} #{pong_n(s.y - s.size / 2.0)} #{s.size} #{s.size} #{s.color}"
+    end
+  end)
+end
+
+def pong_ops(ball: Map, paddle_y: Any, trail: List, sparks: List, defeat: Bool) -> String do
+  board = [
+    "rect 0 0 #{PONG_W} #{PONG_H} h:#{PONG_GRADIENT}",
+    "rect 2 2 #{PONG_W - 4} #{PONG_H - 4} #111827",
+    "alpha 0.3",
+    "rect #{PONG_W / 2 - 1} 2 2 #{PONG_H - 4} v:#{PONG_GRADIENT}"
+  ]
+  message = case defeat do
+    false -> []
+    true -> [
+      "alpha 1",
+      "shadow 20 rgba(217,70,239,0.5)",
+      "text #{PONG_W / 2} #{PONG_H / 2 - 44} 36 h:#{PONG_GRADIENT} center YOU CONTINUE",
+      "text #{PONG_W / 2} #{PONG_H / 2} 36 h:#{PONG_GRADIENT} center TO EMBRACE",
+      "text #{PONG_W / 2} #{PONG_H / 2 + 44} 36 h:#{PONG_GRADIENT} center DEFEAT",
+      "shadow 0"
+    ]
+  end
+  pieces = [
+    "alpha 1",
+    "rect #{PONG_PX} #{pong_n(paddle_y)} #{PONG_PW} #{PONG_PH} v:#{PONG_GRADIENT}",
+    "shadow 4 rgba(217,70,239,0.5)",
+    "circle #{pong_n(ball.x)} #{pong_n(ball.y)} #{PONG_R} h:#{PONG_GRADIENT}",
+    "shadow 0"
+  ]
+  join(concat_lists(board, concat_lists(message, concat_lists(pong_trail_ops(trail, 0, []), concat_lists(pong_spark_ops(sparks), pieces)))), "\n")
+end
+
+# ── the game ────────────────────────────────────────────────────────────
+
+actor Pong do
+  state ball: Map :: %{}
+  state paddle_y: Any :: 250
+  state wall: Int :: 0
+  state trail: List :: []
+  state sparks: List :: []
+  state phase: Atom :: :ready
+  state timer: Int :: 0
+  state ai: Bool :: true
+  state key: String :: ""
+  state frame: Int :: 0
+
+  on :start do
+    become ball: pong_first_ball()
+    reply :ok
+  end
+
+  # Answers the phase the game is in after the tick.
+  on :tick do
+    f = frame + 1
+    case phase do
+      :scored ->
+        become phase: :defeat_message, timer: 0, frame: f
+        reply :defeat_message
+      :defeat_message ->
+        case timer >= PONG_DEFEAT_FRAMES do
+          true ->
+            become ball: pong_reset_ball(wall), trail: [], phase: :playing, frame: f
+            reply :playing
+          false ->
+            become timer: timer + 1, frame: f
+            reply :defeat_message
+        end
+      _ ->
+        steered = case ai and rem(f, 5) == 0 do
+          true -> pong_ai_paddle(paddle_y, ball)
+          false -> paddle_y
+        end
+        moved = pong_move_paddle(steered, key)
+        step = pong_step_ball(ball, moved, wall)
+        next_ball = elem(step, 0)
+        next_phase = elem(step, 1)
+        next_sparks = case next_phase do
+          :scored -> pong_burst(sparks, next_ball)
+          _ -> pong_sparks(sparks, elem(step, 3), elem(step, 4))
+        end
+        become ball: next_ball, paddle_y: moved, phase: next_phase, wall: elem(step, 2), trail: pong_trail(trail, next_ball, f), sparks: next_sparks, frame: f
+        reply next_phase
+    end
+  end
+
+  # A key taken over from the AI: pressing one hands the paddle back.
+  on :up_down do
+    become key: "up", ai: false
+    reply :ok
+  end
+
+  on :down_down do
+    become key: "down", ai: false
+    reply :ok
+  end
+
+  on :up_up do
+    case key == "up" do
+      true -> become key: ""
+      false -> become key: key
+    end
+    reply :ok
+  end
+
+  on :down_up do
+    case key == "down" do
+      true -> become key: ""
+      false -> become key: key
+    end
+    reply :ok
+  end
+
+  on :toggle_ai do
+    become ai: not(ai)
+    reply ai
+  end
+
+  # What /pong/god draws of this game, as the LiveView stored it in ETS.
+  on :report do
+    reply json_encode(%{
+      ball: %{x: round(ball.x), y: round(ball.y)},
+      paddle: round(paddle_y),
+      wall: wall,
+      phase: to_string(phase),
+      defeat: phase == :defeat_message,
+      ai: ai
+    })
+  end
+
+  on :view do
+    label = case ai do
+      true -> "AI Playing (Click to Take Control)"
+      false -> "Manual Control (Click for AI Help)"
+    end
+    reply stack([
+      text("Wall: #{wall}"),
+      button(label, :toggle_ai),
+      draw(PONG_W, PONG_H, pong_ops(ball, paddle_y, trail, sparks, phase == :defeat_message)),
+      timer(33, :tick),
+      key("ArrowUp", :up_down, :up_up),
+      key("ArrowDown", :down_down, :down_up)
+    ])
+  end
+end
+
+pong = spawn Pong
+pong <- :start
+pong <- :view
