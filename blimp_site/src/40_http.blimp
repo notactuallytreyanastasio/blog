@@ -150,6 +150,7 @@ def content_type_for(path: String) -> String do
     "js" -> "text/javascript; charset=utf-8"
     "wasm" -> "application/wasm"
     "blimp" -> "text/plain; charset=utf-8"
+    "md" -> "text/markdown; charset=utf-8"
     "woff2" -> "font/woff2"
     _ -> "application/octet-stream"
   end

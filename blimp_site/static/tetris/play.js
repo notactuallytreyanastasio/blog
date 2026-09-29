@@ -19,7 +19,7 @@
     var blimp = new Blimp()
     blimp.onPrint(function () {})
     blimp.onError(function (msg) { console.error(msg) })
-    await blimp.init("/tetris/blimp.wasm")
+    await blimp.init("/blimp/blimp.wasm")
     var res = await fetch("/tetris/tetris.blimp")
     if (!res.ok) throw new Error("tetris.blimp is " + res.status)
     var source = await res.text()

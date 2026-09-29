@@ -39,12 +39,21 @@ actor PageTests do
     assert(script_free("<p>turn it on and off, on=off</p>"))
   end
 
-  test "no page has a script, a javascript: URL or an on* handler" do
+  test "the index and 404 have no script; posts have only Blimp's window" do
     posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
     assert(script_free(blog_index_page(posts)))
     assert(script_free(not_found_page("/<script>")))
     each(posts, fn(p: Map) do
-      assert(script_free(post_page(p)))
+      html = post_page(p)
+      lower = downcase(html)
+      # exactly the two external scripts, nothing inline, no handlers
+      assert_eq(length(split(lower, "<script")) - 1, 2)
+      assert_eq(length(split(lower, "\"></script>")) - 1, 2)
+      assert(contains(html, "<script src=\"/blimp/canvas.js\"></script><script src=\"/blimp/post.js\"></script>"))
+      refute(contains(lower, "javascript:"))
+      refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
+      # the article is cut where post.js cuts it
+      assert(contains(html, "</div><div class=\"post-footer\">"))
     end)
   end
 

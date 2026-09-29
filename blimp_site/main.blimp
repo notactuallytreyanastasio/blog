@@ -36,7 +36,9 @@ end
 
 def build_routes(posts: List) -> Map do
   with_posts = reduce(posts, %{}, fn(acc: Map, p: Map) -> Map do
-    page_route(acc, concat("/post/", p.slug), post_page(p))
+    with_page = page_route(acc, concat("/post/", p.slug), post_page(p))
+    # The source, for the post page to render again in the browser.
+    put(with_page, concat("/post/", p.slug, ".md"), serialize(response(200, "text/markdown; charset=utf-8", "public, max-age=300", p.source), "GET"))
   end)
   r1 = page_route(with_posts, "/blog", blog_index_page(posts))
   r2 = load_asset(r1, "/assets/base.css", "assets/base.css")
@@ -49,16 +51,23 @@ def build_routes(posts: List) -> Map do
   tetris_routes(r7)
 end
 
-# /tetris and the files it runs: the game, and Blimp's interpreter and view
-# host, all synced from one Blimp commit (static/tetris/sync.sh).
+# Blimp in the browser: its interpreter, loader, view host and canvas, all
+# synced from one Blimp commit (static/blimp/sync.sh); the renderer program
+# post pages run; and /tetris.
 def tetris_routes(routes: Map) -> Map do
-  commit = trim(read_file("static/tetris/BLIMP_COMMIT"))
+  commit = trim(read_file("static/blimp/BLIMP_COMMIT"))
   lines = length(split(trim_right(read_file("static/tetris/tetris.blimp")), "\n"))
-  with_files = reduce(["tetris.blimp", "blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js", "play.js"], routes, fn(acc: Map, f: String) -> Map do
-    load_asset(acc, concat("/tetris/", f), concat("static/tetris/", f))
+  runtime = reduce(["blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js"], routes, fn(acc: Map, f: String) -> Map do
+    load_asset(acc, concat("/blimp/", f), concat("static/blimp/", f))
   end)
-  r1 = load_asset(with_files, "/assets/tetris.css", "assets/tetris.css")
-  page_route(r1, "/tetris", tetris_page(commit, lines))
+  r1 = load_asset(runtime, "/blimp/post.js", "static/post/post.js")
+  r1a = load_asset(r1, "/blimp/post-worker.js", "static/post/post-worker.js")
+  r2 = load_asset(r1a, "/blimp/post-renderer.blimp", "_build/post-renderer.blimp")
+  r3 = load_asset(r2, "/assets/blimp-window.css", "assets/blimp-window.css")
+  r4 = load_asset(r3, "/tetris/tetris.blimp", "static/tetris/tetris.blimp")
+  r5 = load_asset(r4, "/tetris/play.js", "static/tetris/play.js")
+  r6 = load_asset(r5, "/assets/tetris.css", "assets/tetris.css")
+  page_route(r6, "/tetris", tetris_page(commit, lines))
 end
 
 # Everything that is not a fixed route. Only GET and HEAD reach here.
