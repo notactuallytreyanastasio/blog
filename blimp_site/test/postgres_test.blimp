@@ -1,0 +1,56 @@
+actor PostgresTests do
+  test "integers go out big-endian, two's complement below zero" do
+    assert_eq(hex_encode(pg_int32(196608)), "00030000")
+    assert_eq(hex_encode(pg_int32(-1)), "ffffffff")
+    assert_eq(hex_encode(pg_int16(258)), "0102")
+    assert_eq(pg_read_int32(pg_int32(-1), 0), -1)
+    assert_eq(pg_read_int32(pg_int32(2147483647), 0), 2147483647)
+    assert_eq(pg_read_int16(pg_int16(65535), 0), 65535)
+  end
+
+  test "a message counts its own length but not its type byte" do
+    assert_eq(hex_encode(pg_message("S", "")), "5300000004")
+    assert_eq(hex_encode(pg_message("Q", "x")), "510000000578")
+  end
+
+  # RFC 7677, section 3: user "user", password "pencil".
+  test "SCRAM-SHA-256 reproduces RFC 7677's worked example" do
+    bare = "n=user,r=rOprNGfwEbeRWgbNEkqO"
+    server_first = "r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096"
+    pair = pg_scram_answer("pencil", bare, server_first)
+    client_final = elem(pair, 0)
+    expect = elem(pair, 1)
+    assert_eq(client_final, "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=")
+    assert_eq(expect, "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=")
+  end
+
+  test "parameters: NULL is length -1, the rest are text" do
+    assert_eq(hex_encode(pg_param(nil)), "ffffffff")
+    assert_eq(pg_param(true), concat(pg_int32(1), "t"))
+    assert_eq(pg_param(-42), concat(pg_int32(3), "-42"))
+    assert_eq(pg_param("ü"), concat(pg_int32(2), "ü"))
+  end
+
+  test "column values decode by type" do
+    assert_eq(pg_decode(16, "t"), true)
+    assert_eq(pg_decode(16, "f"), false)
+    assert_eq(pg_decode(20, "-9000000000"), -9000000000)
+    assert_eq(pg_decode(3802, "{\"k\": [1, 2]}"), %{k: [1, 2]})
+    assert_eq(pg_decode(1700, "3.10"), "3.10")
+    assert_eq(pg_decode(1184, "2026-09-29 17:00:00+00"), "2026-09-29 17:00:00+00")
+  end
+
+  test "DATABASE_URL, as the Phoenix app is given it" do
+    o = pg_parse_url("ecto://blog:p%40ss:w@rd@db/blog_prod")
+    assert_eq(o.user, "blog")
+    assert_eq(o.password, "p@ss:w@rd")
+    assert_eq(o.host, "db")
+    assert_eq(o.port, 5432)
+    assert_eq(o.database, "blog_prod")
+    o2 = pg_parse_url("postgres://u@127.0.0.1:55432/site_test?sslmode=disable")
+    assert_eq(o2.port, 55432)
+    assert_eq(o2.password, "")
+    assert_eq(o2.database, "site_test")
+    assert_eq(pg_parse_url("not a url"), nil)
+  end
+end

@@ -1,0 +1,424 @@
+# A Postgres client: the frontend/backend protocol, version 3, over the
+# runtime's TCP builtins, with SCRAM-SHA-256 login.
+#
+#   {:ok, db} = pg_connect(%{host: "db", port: 5432, user: "blog",
+#                            password: getenv("PGPASSWORD"), database: "blog_prod"})
+#   {:ok, rows, db} = pg_query(db, "select id, title from museum where slug = $1", ["tetris"])
+#   head(rows).title
+#
+# Every query goes through the extended protocol (Parse, Bind, Execute), so
+# a parameter is sent as a value, never pasted into the SQL. Values are sent
+# and received as text. A column comes back as:
+#
+#   bool                       true / false
+#   int2, int4, int8, oid      Int
+#   json, jsonb                what json_decode makes of it
+#   anything else              its text, exactly as Postgres writes it
+#                              (numeric, float, timestamps, arrays, ...)
+#   NULL                       nil
+#
+# `db` is a value, not a handle: a query returns the connection to use next,
+# with whatever it read past the end of its own reply. It is not safe to use
+# one `db` twice.
+
+# -- bytes -------------------------------------------------------------------
+
+def pg_int_bytes(n: Int, count: Int, acc: String) -> String do
+  case count do
+    0 -> acc
+    _ -> pg_int_bytes(n / 256, count - 1, concat(from_char_code(rem(n, 256)), acc))
+  end
+end
+
+# A big-endian 32-bit integer; a negative one in two's complement (Bind
+# sends -1 as the length of a NULL).
+def pg_int32(n: Int) -> String do
+  case n < 0 do
+    true -> pg_int_bytes(n + 4294967296, 4, "")
+    false -> pg_int_bytes(n, 4, "")
+  end
+end
+
+def pg_int16(n: Int) -> String do
+  pg_int_bytes(n, 2, "")
+end
+
+def pg_uint_at(s: String, at: Int, count: Int, acc: Int) -> Int do
+  case count do
+    0 -> acc
+    _ -> pg_uint_at(s, at + 1, count - 1, acc * 256 + char_code(char_at(s, at)))
+  end
+end
+
+def pg_read_int32(s: String, at: Int) -> Int do
+  n = pg_uint_at(s, at, 4, 0)
+  case n >= 2147483648 do
+    true -> n - 4294967296
+    false -> n
+  end
+end
+
+def pg_read_int16(s: String, at: Int) -> Int do
+  pg_uint_at(s, at, 2, 0)
+end
+
+def pg_cstring(s: String) -> String do
+  concat(s, from_char_code(0))
+end
+
+# The NUL-terminated string at `at`, and where the next field starts.
+def pg_read_cstring(s: String, at: Int) -> Tuple do
+  end_at = index_of_from(s, from_char_code(0), at)
+  {slice(s, at, end_at - at), end_at + 1}
+end
+
+# A message: its type byte, then its length (which counts itself), then body.
+def pg_message(type: String, body: String) -> String do
+  concat(type, pg_int32(length(body) + 4), body)
+end
+
+# -- reading -----------------------------------------------------------------
+
+# The next message: {:ok, type, body, db} or {:error, reason}.
+def pg_recv(db: Map) -> Tuple do
+  buf = db.buf
+  case length(buf) >= 5 do
+    true ->
+      total = pg_read_int32(buf, 1) + 1
+      case length(buf) >= total do
+        true -> {:ok, char_at(buf, 0), slice(buf, 5, total - 5), put(db, :buf, drop(buf, total))}
+        false -> pg_fill(db)
+      end
+    false -> pg_fill(db)
+  end
+end
+
+def pg_fill(db: Map) -> Tuple do
+  more = tcp_read(db.fd)
+  case more do
+    nil -> pg_fill(db)
+    "" -> {:error, "the database closed the connection"}
+    _ -> pg_recv(put(db, :buf, concat(db.buf, more)))
+  end
+end
+
+# An ErrorResponse body -> "ERROR 42P01: relation \"x\" does not exist"
+def pg_error_text(body: String) -> String do
+  fields = pg_error_fields(body, 0, %{})
+  concat(lookup(fields, "S"), " ", lookup(fields, "C"), ": ", lookup(fields, "M"))
+end
+
+def pg_error_fields(body: String, at: Int, acc: Map) -> Map do
+  case at >= length(body) or char_code(char_at(body, at)) == 0 do
+    true -> acc
+    false ->
+      pair = pg_read_cstring(body, at + 1)
+      text = elem(pair, 0)
+      next = elem(pair, 1)
+      pg_error_fields(body, next, put(acc, char_at(body, at), text))
+  end
+end
+
+# -- connecting --------------------------------------------------------------
+
+def pg_connect(opts: Map) -> Tuple do
+  fd = tcp_connect(opts.host, opts.port)
+  case fd do
+    nil -> {:error, concat("cannot reach ", opts.host, ":", to_string(opts.port))}
+    _ ->
+      params = concat(pg_cstring("user"), pg_cstring(opts.user),
+                      pg_cstring("database"), pg_cstring(opts.database),
+                      pg_cstring("client_encoding"), pg_cstring("UTF8"),
+                      from_char_code(0))
+      body = concat(pg_int32(196608), params)
+      tcp_write(fd, concat(pg_int32(length(body) + 4), body))
+      pg_login(%{fd: fd, buf: "", password: opts.password, scram: nil, params: %{}})
+  end
+end
+
+# Everything between the startup message and the first ReadyForQuery.
+def pg_login(db: Map) -> Tuple do
+  case pg_recv(db) do
+    {:error, reason} -> {:error, reason}
+    {:ok, "R", body, next} -> pg_auth(next, pg_read_int32(body, 0), drop(body, 4))
+    {:ok, "S", body, next} ->
+      pair = pg_read_cstring(body, 0)
+      name = elem(pair, 0)
+      at = elem(pair, 1)
+      pair = pg_read_cstring(body, at)
+      value = elem(pair, 0)
+      pg_login(put(next, :params, put(next.params, name, value)))
+    {:ok, "K", _, next} -> pg_login(next)
+    {:ok, "N", _, next} -> pg_login(next)
+    {:ok, "E", body, next} ->
+      tcp_close(next.fd)
+      {:error, pg_error_text(body)}
+    {:ok, "Z", _, next} -> {:ok, %{fd: next.fd, buf: next.buf, params: next.params}}
+    {:ok, type, _, next} ->
+      tcp_close(next.fd)
+      {:error, concat("unexpected message during login: ", type)}
+  end
+end
+
+def pg_auth(db: Map, code: Int, data: String) -> Tuple do
+  case code do
+    0 -> pg_login(db)
+    10 ->
+      case contains(data, pg_cstring("SCRAM-SHA-256")) do
+        false -> pg_refuse(db, "the server offers no SCRAM-SHA-256")
+        true -> pg_login(pg_scram_first(db))
+      end
+    11 -> pg_scram_final(db, data)
+    12 ->
+      case data == db.scram.expect do
+        true -> pg_login(db)
+        false -> pg_refuse(db, "the server's SCRAM signature is wrong: it does not know the password")
+      end
+    # 3 is a cleartext password, 5 MD5. Neither is sent: production is
+    # scram-sha-256 for every host connection, and a server that asks for
+    # less is not the one this was meant to reach.
+    _ -> pg_refuse(db, concat("unsupported authentication method ", to_string(code)))
+  end
+end
+
+def pg_refuse(db: Map, reason: String) -> Tuple do
+  tcp_close(db.fd)
+  {:error, reason}
+end
+
+# -- SCRAM-SHA-256 (RFC 5802, RFC 7677) --------------------------------------
+
+def pg_hmac(key: String, msg: String) -> String do
+  hex_decode(hmac_sha256(key, msg))
+end
+
+# PBKDF2-HMAC-SHA256 for one 32-byte block, which is all SCRAM uses.
+def pg_pbkdf2(password: String, salt: String, iterations: Int) -> String do
+  u = pg_hmac(password, concat(salt, pg_int32(1)))
+  pg_pbkdf2_fold(password, u, u, iterations - 1)
+end
+
+def pg_pbkdf2_fold(password: String, u: String, acc: String, left: Int) -> String do
+  case left do
+    0 -> acc
+    _ ->
+      next = pg_hmac(password, u)
+      pg_pbkdf2_fold(password, next, xor_bytes(acc, next), left - 1)
+  end
+end
+
+# SASLInitialResponse. The user name goes in the startup message, and
+# Postgres ignores the one here, so it is left empty.
+def pg_scram_first(db: Map) -> Map do
+  bare = concat("n=,r=", base64_encode(random_bytes(18)))
+  first = concat("n,,", bare)
+  body = concat(pg_cstring("SCRAM-SHA-256"), pg_int32(length(first)), first)
+  tcp_write(db.fd, pg_message("p", body))
+  put(db, :scram, %{bare: bare, expect: ""})
+end
+
+def pg_scram_attr(message: String, key: String) -> String do
+  pg_scram_attr_in(split(message, ","), concat(key, "="))
+end
+
+def pg_scram_attr_in(parts: List, prefix: String) -> String do
+  case parts do
+    [] -> ""
+    [p | rest] ->
+      case starts_with(p, prefix) do
+        true -> drop(p, length(prefix))
+        false -> pg_scram_attr_in(rest, prefix)
+      end
+  end
+end
+
+def pg_scram_final(db: Map, server_first: String) -> Tuple do
+  nonce = pg_scram_attr(server_first, "r")
+  mine = pg_scram_attr(db.scram.bare, "r")
+  case starts_with(nonce, mine) and length(nonce) > length(mine) do
+    false -> pg_refuse(db, "the server's SCRAM nonce does not extend ours")
+    true ->
+      pair = pg_scram_answer(db.password, db.scram.bare, server_first)
+      client_final = elem(pair, 0)
+      expect = elem(pair, 1)
+      tcp_write(db.fd, pg_message("p", client_final))
+      pg_login(put(db, :scram, %{bare: db.scram.bare, expect: expect}))
+  end
+end
+
+# The client's final message, and the server's final message it must get
+# back if the server knows the password too. Pure, so RFC 7677's worked
+# example can check it.
+def pg_scram_answer(password: String, bare: String, server_first: String) -> Tuple do
+  salted = pg_pbkdf2(password, base64_decode(pg_scram_attr(server_first, "s")), to_int(pg_scram_attr(server_first, "i")))
+  client_key = pg_hmac(salted, "Client Key")
+  stored_key = hex_decode(sha256(client_key))
+  without_proof = concat("c=biws,r=", pg_scram_attr(server_first, "r"))
+  auth_message = concat(bare, ",", server_first, ",", without_proof)
+  proof = xor_bytes(client_key, pg_hmac(stored_key, auth_message))
+  server_sig = pg_hmac(pg_hmac(salted, "Server Key"), auth_message)
+  {concat(without_proof, ",p=", base64_encode(proof)), concat("v=", base64_encode(server_sig))}
+end
+
+# -- queries -----------------------------------------------------------------
+
+def pg_param(v: Any) -> String do
+  case v do
+    nil -> pg_int32(-1)
+    true -> concat(pg_int32(1), "t")
+    false -> concat(pg_int32(1), "f")
+    _ ->
+      text = case type_of(v) do
+        :string -> v
+        :integer -> to_string(v)
+        :float -> to_string(v)
+        :map -> json_encode(v)
+        :list -> json_encode(v)
+        other -> bubble concat("a query parameter of type ", to_string(other))
+      end
+      concat(pg_int32(length(text)), text)
+  end
+end
+
+def pg_params(params: List, acc: String) -> String do
+  case params do
+    [] -> acc
+    [p | rest] -> pg_params(rest, concat(acc, pg_param(p)))
+  end
+end
+
+# {:ok, rows, db} with each row a map from column name to value, or
+# {:error, reason, db}. After an error the connection is ready for the next
+# query; after {:error, _, nil} it is gone.
+def pg_query(db: Map, sql: String, params: List) -> Tuple do
+  parse = pg_message("P", concat(pg_cstring(""), pg_cstring(sql), pg_int16(0)))
+  bind = pg_message("B", concat(pg_cstring(""), pg_cstring(""), pg_int16(0),
+                                pg_int16(length(params)), pg_params(params, ""), pg_int16(0)))
+  describe = pg_message("D", concat("P", pg_cstring("")))
+  execute = pg_message("E", concat(pg_cstring(""), pg_int32(0)))
+  sync = pg_message("S", "")
+  case tcp_write(db.fd, concat(parse, bind, describe, execute, sync)) do
+    :ok -> pg_collect(db, [], [], nil)
+    _ -> {:error, "the database connection is closed", nil}
+  end
+end
+
+# Read until ReadyForQuery, keeping rows (newest first) and the first error.
+def pg_collect(db: Map, columns: List, rows: List, error: Any) -> Tuple do
+  case pg_recv(db) do
+    {:error, reason} -> {:error, reason, nil}
+    {:ok, "T", body, next} -> pg_collect(next, pg_columns(body, 2, pg_read_int16(body, 0), []), rows, error)
+    {:ok, "D", body, next} -> pg_collect(next, columns, [pg_row(body, 2, columns, %{}) | rows], error)
+    {:ok, "E", body, next} ->
+      case error do
+        nil -> pg_collect(next, columns, rows, pg_error_text(body))
+        _ -> pg_collect(next, columns, rows, error)
+      end
+    {:ok, "Z", _, next} ->
+      case error do
+        nil -> {:ok, reverse(rows), next}
+        _ -> {:error, error, next}
+      end
+    # ParseComplete, BindComplete, NoData, CommandComplete, EmptyQuery,
+    # Notice, ParameterStatus: nothing to keep.
+    {:ok, _, _, next} -> pg_collect(next, columns, rows, error)
+  end
+end
+
+# RowDescription -> [{name, type_oid}], in column order.
+def pg_columns(body: String, at: Int, left: Int, acc: List) -> List do
+  case left do
+    0 -> reverse(acc)
+    _ ->
+      pair = pg_read_cstring(body, at)
+      name = elem(pair, 0)
+      next = elem(pair, 1)
+      # after the name: table oid (4), column number (2), type oid (4),
+      # type size (2), type modifier (4), format (2)
+      oid = pg_read_int32(body, next + 6)
+      pg_columns(body, next + 18, left - 1, [{to_atom(name), oid} | acc])
+  end
+end
+
+def pg_row(body: String, at: Int, columns: List, acc: Map) -> Map do
+  case columns do
+    [] -> acc
+    [{name, oid} | rest] ->
+      len = pg_read_int32(body, at)
+      case len < 0 do
+        true -> pg_row(body, at + 4, rest, put(acc, name, nil))
+        false -> pg_row(body, at + 4 + len, rest, put(acc, name, pg_decode(oid, slice(body, at + 4, len))))
+      end
+  end
+end
+
+def pg_decode(oid: Int, text: String) -> Any do
+  case oid do
+    16 -> text == "t"
+    20 -> to_int(text)
+    21 -> to_int(text)
+    23 -> to_int(text)
+    26 -> to_int(text)
+    114 -> pg_json(text)
+    3802 -> pg_json(text)
+    _ -> text
+  end
+end
+
+def pg_json(text: String) -> Any do
+  case json_decode(text) do
+    {:ok, v} -> v
+    {:error, reason} -> bubble concat("Postgres sent JSON that json_decode refuses: ", to_string(reason))
+  end
+end
+
+def pg_close(db: Map) -> Atom do
+  tcp_write(db.fd, pg_message("X", ""))
+  tcp_close(db.fd)
+  :ok
+end
+
+# "ecto://user:pass@host:5432/name" (or postgres://) -> pg_connect's options,
+# or nil for anything else. The password may be percent-encoded.
+def pg_parse_url(url: String) -> Any do
+  scheme = index_of(url, "://")
+  rest = drop(url, scheme + 3)
+  at = pg_last_index(rest, "@", 0, -1)
+  slash = index_of_from(rest, "/", at + 1)
+  case scheme > 0 and at > 0 and slash > at do
+    false -> nil
+    true ->
+      userinfo = take(rest, at)
+      hostport = slice(rest, at + 1, slash - at - 1)
+      path = drop(rest, slash + 1)
+      user_end = pg_or_length(index_of(userinfo, ":"), userinfo)
+      host_end = pg_or_length(index_of(hostport, ":"), hostport)
+      port = case host_end < length(hostport) do
+        true -> to_int(drop(hostport, host_end + 1))
+        false -> 5432
+      end
+      %{
+        user: url_decode(take(userinfo, user_end)),
+        password: url_decode(drop(userinfo, user_end + 1)),
+        host: take(hostport, host_end),
+        port: port,
+        database: take(path, pg_or_length(index_of(path, "?"), path))
+      }
+  end
+end
+
+def pg_last_index(s: String, find: String, from: Int, found: Int) -> Int do
+  i = index_of_from(s, find, from)
+  case i < 0 do
+    true -> found
+    false -> pg_last_index(s, find, i + 1, i)
+  end
+end
+
+# `i`, or the length of `s` when `i` is -1 (not found).
+def pg_or_length(i: Int, s: String) -> Int do
+  case i < 0 do
+    true -> length(s)
+    false -> i
+  end
+end

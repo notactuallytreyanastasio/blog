@@ -7,7 +7,11 @@
 #
 #   boot   read every post, render it, and build the full HTTP response for
 #          every fixed route, once. These are top-level bindings (posts,
-#          desk, routes), so the prompt can read and replace them live.
+#          routes), so the prompt can read and replace them live. The
+#          homepage's museum and Finder are Postgres rows: the Site actor
+#          holds them with its database connection, and reloads them every
+#          DESK_REFRESH_S seconds, so an edit in /admin/museum reaches "/"
+#          without a deploy.
 #   tick   wait up to 100ms for connections, answer every one that is
 #          waiting, return. Returning is what lets the host collect garbage
 #          and serve the prompt: nothing on the stack points into the heap
@@ -19,6 +23,7 @@
 # talk to.
 
 PORT = 4100
+DESK_REFRESH_S = 60
 POSTS_DIR = "../priv/static/posts"
 STATIC_DIR = "../priv/static"
 
@@ -119,13 +124,13 @@ def static_or_404(path: String) -> Map do
 end
 
 # The response bytes for one raw request, and its status for the log line.
-def handle(raw: String, routes: Map, posts: List, desk: Map) -> Tuple do
+def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
   req = parse_request(raw)
   case req.method == "GET" or req.method == "HEAD" do
     false -> {serialize(response(405, "text/plain", "no-cache", "method not allowed\n"), "GET"), 405, req}
     true ->
       fixed = case req.path == "/" and req.query == "" do
-        true -> bare_home(lookup(routes, "#home"))
+        true -> bare_home(home)
         false -> lookup(routes, req.path)
       end
       case fixed do
@@ -170,7 +175,7 @@ end
 # One connection: wait briefly for its request (a socket accepted from a
 # non-blocking listener is non-blocking itself on some systems), answer it,
 # close it, log a line.
-def serve_client(c: Int) -> Int do
+def serve_client(c: Int, desk: Map, home: List) -> Int do
   t0 = now_ms()
   ready = tcp_poll([c], 2000)
   raw = case length(ready) > 0 do
@@ -182,7 +187,7 @@ def serve_client(c: Int) -> Int do
       tcp_close(c)
       0
     _ ->
-      result = handle(raw, routes, posts, desk)
+      result = handle(raw, routes, posts, desk, home)
       tcp_write(c, elem(result, 0))
       tcp_close(c)
       req = elem(result, 2)
@@ -192,11 +197,29 @@ def serve_client(c: Int) -> Int do
 end
 
 # Every connection that is waiting now, then stop: the tick must return.
-def accept_all(fd: Int, n: Int) -> Int do
+def accept_all(fd: Int, n: Int, desk: Map, home: List) -> Int do
   c = tcp_accept(fd)
   case c do
     nil -> n
-    _ -> accept_all(fd, n + serve_client(c))
+    _ -> accept_all(fd, n + serve_client(c, desk, home), desk, home)
+  end
+end
+
+# The museum and Finder from Postgres, built into a desktop:
+# {:ok, desk, db} or {:error, reason, db}, where db is nil once the
+# connection is gone (the next refresh connects again).
+def refresh_desk(db: Any, opts: Map) -> Tuple do
+  conn = case db do
+    nil -> pg_connect(opts)
+    _ -> {:ok, db}
+  end
+  case conn do
+    {:error, reason} -> {:error, reason, nil}
+    {:ok, live} ->
+      case load_desk_db(live) do
+        {:ok, museum, finder, next} -> {:ok, build_desktop(museum, finder, ICONS, posts), next}
+        {:error, reason, next} -> {:error, reason, next}
+      end
   end
 end
 
@@ -204,22 +227,50 @@ actor Site do
   state fd: Int :: -1
   state served: Int :: 0
   state booted_at: Int :: 0
+  state desk: Map :: %{}
+  state home: List :: []
+  state db: Any :: nil
+  state db_opts: Any :: nil
+  state desk_at: Int :: 0
+  state desk_error: String :: ""
 
-  on :start(port: Int) do
+  on :start(port: Int, first: Map, conn: Any, opts: Any) do
     s = tcp_listen(port)
     tcp_set_nonblocking(s)
-    become fd: s, booted_at: now()
+    become fd: s, booted_at: now(), desk: first, home: home_parts(first), db: conn, db_opts: opts, desk_at: now()
     reply s
   end
 
   on :tick do
-    case length(tcp_poll([fd], 100)) > 0 do
-      true ->
-        n = accept_all(fd, 0)
+    n = case length(tcp_poll([fd], 100)) > 0 do
+      true -> accept_all(fd, 0, desk, home)
+      false -> 0
+    end
+    case db_opts != nil and now() - desk_at >= DESK_REFRESH_S do
+      false ->
         become served: served + n
         reply n
-      false -> reply 0
+      true ->
+        case refresh_desk(db, db_opts) do
+          {:ok, fresh, next} ->
+            become served: served + n, desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
+            reply n
+          {:error, reason, next} ->
+            puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
+            become served: served + n, db: next, desk_at: now(), desk_error: reason
+            reply n
+        end
     end
+  end
+
+  # From the prompt: `site <- :desk` is what "/" is drawn from right now,
+  # `site <- :desk_error` why the last refresh kept it ("" if it did not).
+  on :desk do
+    reply desk
+  end
+
+  on :desk_error do
+    reply desk_error
   end
 
   on :served do
@@ -229,8 +280,34 @@ end
 
 t_boot = now_ms()
 posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
-desk = load_desktop("data", posts)
-routes = put(build_routes(posts), "#home", home_parts(desk))
+ICONS = desk_load_icons(desk_read("data/icons.txt"))
+routes = build_routes(posts)
+
+# DATABASE_URL set: the museum and Finder are Postgres rows, and a site
+# that cannot read them does not start. Unset (a laptop, the tests): the
+# data/*.tsv snapshot, and the boot line says so.
+DB_OPTS = case getenv("DATABASE_URL") do
+  nil -> nil
+  "" -> nil
+  url ->
+    parsed = pg_parse_url(url)
+    case parsed do
+      nil -> desk_die("DATABASE_URL is not a postgres:// or ecto:// URL")
+      _ -> parsed
+    end
+end
+first = case DB_OPTS do
+  nil -> {:ok, load_desktop("data", posts), nil}
+  _ -> refresh_desk(nil, DB_OPTS)
+end
+case first do
+  {:error, reason, _} -> desk_die(concat("cannot load the museum from Postgres: ", reason))
+  _ -> :ok
+end
 site = spawn Site
-site <- :start(PORT)
-puts(concat("blimp blog: ", to_string(length(posts)), " posts rendered in ", to_string(now_ms() - t_boot), "ms, listening on :", to_string(PORT)))
+site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
+desk_source = case DB_OPTS do
+  nil -> "museum from data/*.tsv"
+  _ -> concat("museum from postgres ", DB_OPTS.host, "/", DB_OPTS.database)
+end
+puts(concat("blimp blog: ", to_string(length(posts)), " posts rendered in ", to_string(now_ms() - t_boot), "ms, ", desk_source, ", listening on :", to_string(PORT)))

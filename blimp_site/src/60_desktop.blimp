@@ -229,13 +229,21 @@ end
 # the HTML of every part that does not depend on the query string. A render
 # measured 2.5MB of garbage before this, most of it escape_html and the
 # nested joins around 32 pixel icons; a worker frees nothing until it exits.
+#
+# The museum and the Finder come from Postgres in production
+# (load_desktop_db) and from the data/*.tsv snapshot in tests and offline
+# (load_desktop); the pixel icons are always icons.txt, which is taken from
+# the Phoenix source, not the database.
 def load_desktop(dir: String, posts: List) -> Map do
-  icons = desk_load_icons(desk_read(concat(dir, "/icons.txt")))
   loaded = desk_load_museum(desk_read(concat(dir, "/museum.tsv")), desk_read(concat(dir, "/museum_repos.tsv")))
+  finder = desk_load_finder(desk_read(concat(dir, "/finder_sections.tsv")), desk_read(concat(dir, "/finder_items.tsv")))
+  build_desktop(loaded, finder, desk_load_icons(desk_read(concat(dir, "/icons.txt"))), posts)
+end
+
+def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
   museum = map(loaded, fn(p: Map) -> Map do
     put(put(p, "item_html", desk_item_inner(p, icons)), "detail_html", desk_detail_inner(p, icons))
   end)
-  finder = desk_load_finder(desk_read(concat(dir, "/finder_sections.tsv")), desk_read(concat(dir, "/finder_items.tsv")))
   %{
     museum: museum,
     categories: desk_categories(museum),
@@ -245,6 +253,67 @@ def load_desktop(dir: String, posts: List) -> Map do
     blog_rows: join(map(posts, fn(p: Map) -> String do blog_post_row(p) end), ""),
     post_count: length(posts)
   }
+end
+
+# ── Loading the museum and the Finder from Postgres ─────────────────────
+#
+# The same rows data/export.sh snapshots, as the same maps the snapshot
+# loader makes, so build_desktop cannot tell them apart.
+# {:ok, museum, finder, db} or {:error, reason, db}. A row the page could
+# not show honestly (a slug that needs URL escaping, a Finder action with
+# no script-free equivalent) is an error for the whole load, never a
+# skipped row: the caller keeps the desktop it has and says why.
+
+DESK_MUSEUM_SQL = "select slug, title, coalesce(tagline, '') as tagline, coalesce(description, '') as description, category, coalesce(array_to_string(tech_stack, ','), '') as tech, coalesce(internal_path, '') as internal_path, coalesce(external_url, '') as external_url from museum_projects where visible order by sort_order, id"
+DESK_REPOS_SQL = "select p.slug, coalesce(r.repo->>'name', '') as name, coalesce(r.repo->>'full_name', '') as full_name from museum_projects p, unnest(p.github_repos) with ordinality as r(repo, n) where p.visible order by p.sort_order, p.id, r.n"
+DESK_SECTIONS_SQL = "select name, coalesce(label, '') as label from finder_sections where visible order by sort_order, id"
+DESK_ITEMS_SQL = "select s.name as section, i.name, coalesce(i.icon, '') as icon, coalesce(i.path, '') as path, coalesce(i.action, '') as action, coalesce(i.description, '') as description from finder_items i join finder_sections s on s.id = i.section_id where s.visible and i.visible order by s.sort_order, s.id, i.sort_order, i.id"
+
+def desk_db_rows(db: Map, sqls: List, acc: List) -> Tuple do
+  case sqls do
+    [] -> {:ok, reverse(acc), db}
+    [sql | rest] ->
+      case pg_query(db, sql, []) do
+        {:ok, rows, next} -> desk_db_rows(next, rest, [rows | acc])
+        {:error, reason, next} -> {:error, reason, next}
+      end
+  end
+end
+
+def load_desk_db(db: Map) -> Tuple do
+  case desk_db_rows(db, [DESK_MUSEUM_SQL, DESK_REPOS_SQL, DESK_SECTIONS_SQL, DESK_ITEMS_SQL], []) do
+    {:error, reason, next} -> {:error, reason, next}
+    {:ok, sets, next} ->
+      projects = elem_at(sets, 0)
+      repos = elem_at(sets, 1)
+      items = elem_at(sets, 3)
+      bad_project = filter(projects, fn(p: Map) -> Bool do not(desk_url_safe(p.slug) and desk_url_safe(p.category)) end)
+      bad_item = filter(items, fn(i: Map) -> Bool do not(i.action == "" or i.action == "toggle_phish") end)
+      case {bad_project, bad_item} do
+        {[], []} ->
+          museum = map(projects, fn(p: Map) -> Map do
+            %{
+              slug: p.slug,
+              title: p.title,
+              tagline: p.tagline,
+              description: p.description,
+              category: p.category,
+              tech: desk_split_tech(p.tech),
+              internal_path: p.internal_path,
+              external_url: p.external_url,
+              repos: map(filter(repos, fn(r: Map) -> Bool do r.slug == p.slug end), fn(r: Map) -> Map do
+                %{name: r.name, full_name: r.full_name}
+              end)
+            }
+          end)
+          finder = map(elem_at(sets, 2), fn(s: Map) -> Map do
+            %{name: s.name, label: s.label, items: filter(items, fn(i: Map) -> Bool do i.section == s.name end)}
+          end)
+          {:ok, museum, finder, next}
+        {[p | _], _} -> {:error, concat("museum project ", p.slug, " has a slug or category (", p.category, ") that would need URL escaping"), next}
+        {_, [i | _]} -> {:error, concat("finder item ", i.name, " has action ", i.action, ", which has no script-free equivalent"), next}
+      end
+  end
 end
 
 # ── State ───────────────────────────────────────────────────────────────
