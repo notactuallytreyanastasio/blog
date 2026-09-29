@@ -46,6 +46,8 @@ stage() {
   cp -R assets data static content "$DIST/blimp_site/"
   cp Dockerfile "$DIST/Dockerfile"
   cp -R ../priv/static/posts ../priv/static/images "$DIST/priv/static/"
+  mkdir -p "$DIST/priv/static/static"
+  cp -R ../priv/static/static/temper-snake "$DIST/priv/static/static/"
   cp ../priv/static/favicon.ico ../priv/static/robots.txt "$DIST/priv/static/"
   du -sh "$DIST"
 }
