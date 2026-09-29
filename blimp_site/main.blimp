@@ -84,7 +84,7 @@ end
 def tetris_routes(routes: Map) -> Map do
   commit = trim(read_file("static/blimp/BLIMP_COMMIT"))
   lines = length(split(trim_right(read_file("static/tetris/tetris.blimp")), "\n"))
-  runtime = reduce(["blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js", "runtime.js"], routes, fn(acc: Map, f: String) -> Map do
+  runtime = reduce(["blimp.wasm", "blimp.js", "blimp-view.js", "canvas.js", "runtime.js", "page-canvas.js"], routes, fn(acc: Map, f: String) -> Map do
     load_asset(acc, concat("/blimp/", f), concat("static/blimp/", f))
   end)
   r1 = load_asset(runtime, "/blimp/post.js", "static/post/post.js")

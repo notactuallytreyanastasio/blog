@@ -80,3 +80,9 @@
   .blimp-runtime { position: fixed; width: 200px; margin: 0; right: 8px; bottom: 8px; }
   #blimp-rt-wrap { height: 110px; }
 }
+
+/* The page's own program (static/blimp/page-canvas.js), on game pages. */
+#blimp-pg-wrap { height: 180px; background: #0e0e1a; overflow: hidden; }
+#blimp-pg { display: block; }
+#blimp-pg-closed:target + .blimp-runtime { display: none; }
+@media (max-width: 768px) { #blimp-pg-wrap { height: 110px; } }

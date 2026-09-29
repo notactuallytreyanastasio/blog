@@ -16,7 +16,8 @@
     var res = await fetch('/pong/pong.blimp')
     if (!res.ok) throw new Error('pong.blimp is ' + res.status)
     var source = await res.text()
-    var view = new BlimpView(blimp, el, { send: true, onError: function (msg) { say(msg, true) } })
+    var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null
+    var view = new BlimpView(blimp, el, { send: true, onError: function (msg) { say(msg, true) }, onRender: function () { if (canvas) canvas.feed() } })
     // The WebAssembly build has no clock; without a seed every visit plays
     // the same game.
     var seeded = blimp.eval('seed(' + Date.now() + ')')

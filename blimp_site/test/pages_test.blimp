@@ -108,11 +108,13 @@ actor PageTests do
 
   test "/pong and /pong/god have Blimp's two scripts and their own, nothing inline" do
     each([[pong_page("pong_0123456789abcdef"), PONG_SCRIPTS], [pong_god_page(), GOD_SCRIPTS]], fn(pair: List) do
-      assert(runtime_once(head(pair)))
-      html = without_runtime(head(pair))
+      # the page draws its own program, so not the server's
+      refute(contains(head(pair), "/blimp/runtime.js"))
+      html = head(pair)
       lower = downcase(html)
-      assert_eq(length(split(lower, "<script")) - 1, 3)
-      assert_eq(length(split(lower, "\"></script>")) - 1, 3)
+      n = length(elem_at(pair, 1))
+      assert_eq(length(split(lower, "<script")) - 1, n)
+      assert_eq(length(split(lower, "\"></script>")) - 1, n)
       each(elem_at(pair, 1), fn(src: String) do
         assert(contains(html, concat("<script src=\"", src, "\"></script>")))
       end)
@@ -125,11 +127,12 @@ actor PageTests do
   end
 
   test "an app page names its program, runs only Blimp's scripts, and can class <html>" do
-    assert(runtime_once(app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game")))
-    html = without_runtime(app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game"))
+    html = app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game")
+    refute(contains(html, "/blimp/runtime.js"))
+    assert(contains(html, "<script src=\"/blimp/page-canvas.js\"></script>"))
     lower = downcase(html)
-    assert_eq(length(split(lower, "<script")) - 1, 3)
-    assert_eq(length(split(lower, "\"></script>")) - 1, 3)
+    assert_eq(length(split(lower, "<script")) - 1, length(APP_SCRIPTS))
+    assert_eq(length(split(lower, "\"></script>")) - 1, length(APP_SCRIPTS))
     assert(contains(html, "<html lang=\"en\" class=\"twenty48-page\">"))
     assert(contains(html, "data-program=\"/2048/twenty48.blimp\" data-actor=\"game\""))
     refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
