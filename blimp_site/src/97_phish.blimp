@@ -6,15 +6,6 @@ PHISH_SONGS_SQL = "select song_name, count(id)::int as times_played, sum(case wh
 PHISH_YEARS_SQL = "select distinct extract(year from show_date)::int as year from phish_tracks order by 1"
 PHISH_HISTORY_SQL = "select song_name, to_char(show_date, 'YYYY-MM-DD') as show_date, set_name, position, coalesce(duration_ms, 0) as duration_ms, coalesce(likes, 0) as likes, case when is_jamchart then 1 else 0 end as is_jamchart, coalesce(jam_notes, '') as jam_notes, venue, location, coalesce(jam_url, '') as jam_url from phish_tracks where song_name = $1 and ($2 = 'all' or extract(year from show_date)::int = $2::int) order by show_date, id"
 
-# A year is "all" or four digits; anything else is "all" (it goes into the
-# query as a parameter either way, never as SQL).
-def phish_year(raw: String) -> String do
-  case length(raw) == 4 and is_digit(char_at(raw, 0)) and is_digit(char_at(raw, 1)) and is_digit(char_at(raw, 2)) and is_digit(char_at(raw, 3)) do
-    true -> raw
-    false -> "all"
-  end
-end
-
 # The rows, or nil when the database did not answer (the reason is in
 # DB <- :stats and the log).
 def phish_rows(sql: String, params: List) -> Any do
@@ -42,30 +33,6 @@ def phish_song_history(song: String, year: String) -> Any do
   phish_rows(PHISH_HISTORY_SQL, [song, phish_year(year)])
 end
 
-# PhishLive.batting_avg/1 is jamcharts / times played, a float. Here it
-# is kept exact enough to sort by: scaled by 10^9 (two songs' averages
-# would have to differ by less than a billionth to tie where Elixir's
-# floats do not).
-def phish_avg9(s: Map) -> Int do
-  case s.times_played do
-    0 -> 0
-    n -> s.jamchart_count * 1000000000 / n
-  end
-end
-
-# PhishLive.fmt_avg/1: ".333", ".090", "1.000" -- thousandths, rounded.
-def phish_fmt_avg(s: Map) -> String do
-  case s.times_played do
-    0 -> ".000"
-    n ->
-      thousandths = (s.jamchart_count * 2000 + n) / (2 * n)
-      case thousandths >= 1000 do
-        true -> "1.000"
-        false -> concat(".", slice(to_string(1000 + thousandths), 1, 3))
-      end
-  end
-end
-
 # PhishLive.assign_sorted_songs/1: played at least `min` times (or the
 # selected song), name containing `filter` (or the selected song), sorted
 # as its sort_by tuples sort. sort_by_keys is stable, as Enum.sort_by is.
@@ -74,13 +41,7 @@ def phish_sorted(songs: List, sort_by: String, min: Int, filter: String, selecte
   kept = filter(songs, fn(s: Map) -> Bool do
     (s.times_played >= min or s.song_name == selected) and (needle == "" or contains(downcase(s.song_name), needle) or s.song_name == selected)
   end)
-  keys = map(kept, fn(s: Map) -> Int do
-    case sort_by do
-      "jc" -> 0 - (s.jamchart_count * 10000000000 + phish_avg9(s))
-      "played" -> 0 - s.times_played
-      _ -> 0 - (phish_avg9(s) * 10000 + s.jamchart_count)
-    end
-  end)
+  keys = map(kept, fn(s: Map) -> Int do phish_sort_key(sort_by, s.jamchart_count, s.times_played) end)
   sort_by_keys(kept, keys)
 end
 

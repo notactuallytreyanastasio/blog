@@ -21,10 +21,12 @@ PH_MR = 50
 PH_MB = 100
 PH_ML = 70
 PH_STAR = "M0,-8 L2,-3 L7,-3 L3,1 L5,6 L0,3 L-5,6 L-3,1 L-7,-3 L-2,-3 Z"
-PH_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 PH_MINS = [1, 2, 3, 5, 8, 10, 15, 20, 30, 50]
 
 # ── small things ────────────────────────────────────────────────────────
+
+# Durations, dates as days, percent-encoding and the batting average are
+# Temper: temper/src/phish/phish.temper.md.
 
 def ph_nth(list: List, i: Int) -> Any do
   case i do
@@ -52,134 +54,10 @@ def ph_n(x: Any) -> String do
   to_string(round(x * 100) / 100.0)
 end
 
-def ph_pad2(n: Int) -> String do
-  case n < 10 do
-    true -> concat("0", to_string(n))
-    false -> to_string(n)
-  end
-end
-
-# PhishLive.fmt_duration/1 and the chart's fmtDuration: "43:37", "?"
-def ph_dur(ms: Int) -> String do
-  case ms <= 0 do
-    true -> "?"
-    false -> concat(to_string(ms / 60000), ":", ph_pad2(rem(ms, 60000) / 1000))
-  end
-end
-
 # One decimal, as Float.round(x, 1) and toFixed(1) print: 12.0, 7.5
 def ph_1dp(x: Any) -> String do
   tenths = round(x * 10)
   concat(to_string(tenths / 10), ".", to_string(rem(tenths, 10)))
-end
-
-# Elixir's round/1 of a non-negative ratio a/b: half away from zero.
-def ph_round_div(a: Int, b: Int) -> Int do
-  (2 * a + b) / (2 * b)
-end
-
-def ph_fmt_set(s: Any) -> String do
-  case s do
-    "SET 1" -> "Set 1"
-    "SET 2" -> "Set 2"
-    "SET 3" -> "Set 3"
-    "ENCORE" -> "Encore"
-    "ENCORE 2" -> "Encore 2"
-    nil -> ""
-    other -> other
-  end
-end
-
-# The first n characters (not bytes) of s.
-def ph_chars(s: String, n: Int) -> String do
-  ph_chars_at(s, 0, n)
-end
-
-def ph_chars_at(s: String, i: Int, left: Int) -> String do
-  case i >= length(s) do
-    true -> s
-    false ->
-      code = char_code(char_at(s, i))
-      starts = code < 128 or code >= 192
-      case starts and left == 0 do
-        true -> slice(s, 0, i)
-        false ->
-          case starts do
-            true -> ph_chars_at(s, i + 1, left - 1)
-            false -> ph_chars_at(s, i + 1, left)
-          end
-      end
-  end
-end
-
-def ph_char_count(s: String) -> Int do
-  length(filter(ph_bytes(s), fn(c: Int) -> Bool do c < 128 or c >= 192 end))
-end
-
-def ph_bytes(s: String) -> List do
-  map(range(0, length(s) - 1), fn(i: Int) -> Int do char_code(char_at(s, i)) end)
-end
-
-# Percent-encoding for a query value: a song is "Mike's Song" or "AC/DC Bag".
-def ph_enc(s: String) -> String do
-  join(map(ph_enc_bytes(s), fn(b: Int) -> String do
-    case (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or b == 45 or b == 46 or b == 95 or b == 126 do
-      true -> from_char_code(b)
-      false -> concat("%", upcase(hex_encode(from_char_code(b))))
-    end
-  end), "")
-end
-
-def ph_enc_bytes(s: String) -> List do
-  case length(s) do
-    0 -> []
-    _ -> ph_bytes(s)
-  end
-end
-
-# ── dates, as days ──────────────────────────────────────────────────────
-
-# days_from_civil (Howard Hinnant): "2023-04-17" -> days since 1970-01-01
-def ph_days(date: String) -> Int do
-  y0 = to_int(slice(date, 0, 4))
-  m = to_int(slice(date, 5, 2))
-  d = to_int(slice(date, 8, 2))
-  y = case m <= 2 do
-    true -> y0 - 1
-    false -> y0
-  end
-  era = y / 400
-  yoe = y - era * 400
-  mp = case m > 2 do
-    true -> m - 3
-    false -> m + 9
-  end
-  doy = (153 * mp + 2) / 5 + d - 1
-  doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
-  era * 146097 + doe - 719468
-end
-
-# ...and back: days -> [year, month]
-def ph_civil(z0: Int) -> List do
-  z = z0 + 719468
-  era = z / 146097
-  doe = z - era * 146097
-  yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
-  doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
-  mp = (5 * doy + 2) / 153
-  m = case mp < 10 do
-    true -> mp + 3
-    false -> mp - 9
-  end
-  y = case m <= 2 do
-    true -> yoe + era * 400 + 1
-    false -> yoe + era * 400
-  end
-  [y, m]
-end
-
-def ph_month_start(y: Int, m: Int) -> Int do
-  ph_days(concat(to_string(y), "-", ph_pad2(m), "-01"))
 end
 
 # ── song_stats/1 ────────────────────────────────────────────────────────
@@ -397,11 +275,6 @@ def ph_pick_interval(target: Any, sizes: List) -> Int do
           end
       end
   end
-end
-
-def ph_tick_label(day: Int) -> String do
-  ym = ph_civil(day)
-  concat(ph_nth(PH_MONTHS, ph_nth(ym, 1) - 1), " '", slice(to_string(ph_nth(ym, 0)), 2, 2))
 end
 
 # d3.curveMonotoneX through points [x, y]: the path after the first point.
@@ -648,7 +521,7 @@ end
 def ph_song_options(songs: List, selected: String, sep: String) -> List do
   map(songs, fn(s: Map) -> Any do
     el("option", %{value: s.song_name, selected: s.song_name == selected},
-      concat(phish_fmt_avg(s), " — ", s.song_name, " (", to_string(s.jamchart_count), " JC", sep, to_string(s.times_played), "×)"))
+      concat(phish_fmt_avg(s.jamchart_count, s.times_played), " — ", s.song_name, " (", to_string(s.jamchart_count), " JC", sep, to_string(s.times_played), "×)"))
   end)
 end
 
@@ -668,7 +541,7 @@ def ph_card_front(song: String, current: Any, st: Map) -> Any do
   head_stats = case current do
     nil -> []
     _ -> [
-      el("div", %{class: "phish-card-avg"}, phish_fmt_avg(current)),
+      el("div", %{class: "phish-card-avg"}, phish_fmt_avg(current.jamchart_count, current.times_played)),
       el("div", %{class: "phish-card-avg-label"}, "BATTING AVG"),
       el("div", %{class: "phish-card-stats-row"},
         el("span", %{}, el("strong", %{style: "color: #ef4444;"}, to_string(current.jamchart_count)), " JC"),
@@ -747,7 +620,7 @@ def ph_card_back(song: String, current: Any, tracks: List, st: Map, list_filter:
   end
   avg = case current do
     nil -> []
-    c -> [el("span", %{style: "color: #ef4444; margin-left: 6px;"}, phish_fmt_avg(c))]
+    c -> [el("span", %{style: "color: #ef4444; margin-left: 6px;"}, phish_fmt_avg(c.jamchart_count, c.times_played))]
   end
   longest_ms = case st.longest do
     nil -> 0
@@ -888,7 +761,7 @@ actor Phangraphs do
   # PhishLive.handle_params/3: what the URL says, when the page starts.
   on :location(q: String) do
     y = query_param(q, "year")
-    m = to_int_or(query_param(q, "min"), 5)
+    m = ph_int_or(query_param(q, "min"), 5)
     raw_sort = query_param(q, "sort")
     s = case raw_sort do
       "" -> "avg"
@@ -960,7 +833,7 @@ actor Phangraphs do
   end
 
   on :set_min(v: String) do
-    become min: to_int_or(v, 5)
+    become min: ph_int_or(v, 5)
     reply :ok
   end
 
@@ -1144,13 +1017,6 @@ actor Phangraphs do
       player,
       asks,
       url)
-  end
-end
-
-def to_int_or(s: String, dflt: Int) -> Int do
-  case length(s) > 0 and length(filter(ph_bytes(s), fn(c: Int) -> Bool do c < 48 or c > 57 end)) == 0 do
-    true -> to_int(s)
-    false -> dflt
   end
 end
 
