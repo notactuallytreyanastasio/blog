@@ -1,0 +1,53 @@
+# /tetris: Blimp Tetris, played in the browser.
+#
+# This is the one page on the site with scripts on it, and they are the
+# point of it: the game is tetris.blimp, and the browser runs it in Blimp's
+# own interpreter compiled to WebAssembly. The three scripts are Blimp's
+# loader, Blimp's view host and a dozen lines that start them; the game
+# logic in them is none. test/pages_test holds the page to exactly those.
+
+TETRIS_SCRIPTS = ["/tetris/blimp.js", "/tetris/blimp-view.js", "/tetris/play.js"]
+
+def tetris_page(blimp_commit: String, source_lines: Int) -> String do
+  scripts = join(map(TETRIS_SCRIPTS, fn(src: String) -> String do
+    concat("<script src=\"", src, "\"></script>\n")
+  end), "")
+  short = take(blimp_commit, 7)
+  body = join([
+    "<div class=\"mac-blog\" style=\"overflow: auto;\">",
+    menu_bar("<a href=\"/blog\" class=\"menu-item\" style=\"text-decoration: none; color: inherit;\">Blog</a>", "running Blimp"),
+    "<div class=\"mac-desktop\"><div class=\"mac-window tetris-window\">",
+    "<div class=\"mac-title-bar\"><a href=\"/\" class=\"mac-close-box\"></a>",
+    "<div class=\"mac-title\">Blimp Tetris</div><div class=\"mac-resize-box\"></div></div>",
+    "<div class=\"mac-window-content\" style=\"max-height: none;\"><div class=\"tetris-body\">",
+    "<div class=\"tetris-game\">",
+    "<div id=\"tetris\"></div>",
+    "<div id=\"tetris-status\" class=\"tetris-status\">loading Blimp...</div>",
+    "<noscript><p class=\"tetris-status bad\">A browser starts WebAssembly from JavaScript, so this page needs it on. ",
+    "The game itself is <a href=\"/tetris/tetris.blimp\">tetris.blimp</a>.</p></noscript>",
+    "</div>",
+    "<div class=\"tetris-about\">",
+    "<p>This is Tetris written in <a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp</a>, ",
+    "a language where actors are the only abstraction. The game is ", to_string(source_lines),
+    " lines of actors: a <code>Board</code>, a <code>Piece</code>, a <code>Bag</code> of the seven shapes, ",
+    "a <code>Score</code>, a <code>Screen</code>, and a <code>Game</code> that coordinates them.</p>",
+    "<p>Your browser is running it, in Blimp's interpreter compiled to WebAssembly. Every key press is a message, ",
+    "<code>game &lt;- :left</code>, and <code>game &lt;- :view</code> answers with the whole screen as a value. ",
+    "The page draws that value and does nothing else.</p>",
+    "<table>",
+    "<tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>move</td></tr>",
+    "<tr><td><kbd>&uarr;</kbd> <kbd>x</kbd></td><td>rotate</td></tr>",
+    "<tr><td><kbd>&darr;</kbd></td><td>soft drop</td></tr>",
+    "<tr><td><kbd>space</kbd></td><td>hard drop</td></tr>",
+    "<tr><td><kbd>p</kbd> <kbd>r</kbd></td><td>pause, restart</td></tr>",
+    "</table>",
+    "<p><a href=\"/tetris/tetris.blimp\">Read the game</a> &middot; ",
+    "Blimp <a href=\"https://github.com/notactuallytreyanastasio/blimp/commit/", escape_html(blimp_commit), "\">", escape_html(short), "</a></p>",
+    "</div>",
+    "</div></div>",
+    "<div class=\"mac-status-bar\"><span>tetris.blimp</span><span>", to_string(length(TETRIS_SCRIPTS)), " scripts, no game in them</span></div>",
+    "</div></div></div>",
+    scripts
+  ], "")
+  page_layout("Blimp Tetris", "Tetris written in Blimp, running in your browser in Blimp's WebAssembly interpreter.", "website", ["/assets/base.css", "/assets/blog.css", "/assets/tetris.css"], body)
+end

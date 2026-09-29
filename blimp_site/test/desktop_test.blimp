@@ -75,7 +75,7 @@ actor DesktopTests do
 
   test "the snapshots load" do
     desk = load_desktop("data", dt_posts())
-    assert_eq(length(desk.museum), 32)
+    assert_eq(length(desk.museum), 33)
     assert_eq(desk.categories, ["creative", "hardware", "maps", "ml", "music", "social", "tools", "writing"])
     assert_eq(desk.item_count, 30)
     assert_eq(length(split(desk.finder_html, "class=\"section-label\"")), 7)
@@ -110,7 +110,8 @@ actor DesktopTests do
   test "the filter shows one category" do
     html = dt_page("cat=hardware")
     assert(contains(html, "<span>4 exhibits</span>"))
-    assert(contains(dt_page(""), "<span>32 exhibits</span>"))
+    assert(contains(dt_page(""), "<span>33 exhibits</span>"))
+    assert(contains(dt_page("cat=creative"), "<span>2 exhibits</span>"))
   end
 
   test "closing the last window does not replay the splash" do
@@ -125,6 +126,10 @@ actor DesktopTests do
     assert(contains(html, "<span>3 technologies</span>"))
     launch = dt_page("project=phangraphs")
     assert(contains(launch, "<a href=\"https://bobbby.online/phish\" class=\"museum-launch-btn\">"))
+    tetris = dt_page("project=blimp-tetris")
+    assert(contains(tetris, "<a href=\"/tetris\" class=\"museum-launch-btn\">"))
+    refute(contains(tetris, "https://bobbby.online/tetris"))
+    assert(contains(tetris, "Blimp Tetris"))
     visit = dt_page("project=role-call")
     assert(contains(visit, "<a href=\"https://notactuallytreyanasasio.github.io/role_call\" target=\"_blank\" class=\"museum-launch-btn\""))
   end

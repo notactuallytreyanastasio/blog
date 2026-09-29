@@ -39,7 +39,7 @@ stage() {
   cp "$linux_bin" "$DIST/bin/blimp"
   (cd "$BLIMP_SRC" && git rev-parse HEAD) > "$DIST/bin/BLIMP_COMMIT"
   cp _build/site.blimp "$DIST/blimp_site/_build/site.blimp"
-  cp -R assets data "$DIST/blimp_site/"
+  cp -R assets data static "$DIST/blimp_site/"
   cp Dockerfile "$DIST/Dockerfile"
   cp -R ../priv/static/posts ../priv/static/images "$DIST/priv/static/"
   cp ../priv/static/favicon.ico ../priv/static/robots.txt "$DIST/priv/static/"
