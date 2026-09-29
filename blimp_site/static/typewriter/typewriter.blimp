@@ -1,0 +1,89 @@
+# /typewriter: "Write like its a typewriter." A port of BlogWeb.KeyloggerLive.
+#
+# Every key the page gets is appended, as the LiveView did it: Backspace
+# takes a character off, Enter is a line break, Shift and Meta are
+# skipped, and any other key -- "ArrowLeft" included -- goes in as its
+# name. About one character in five spins, chosen again on every key.
+# Printing the page prints only the letter.
+
+def tw_chars(s: String) -> List do
+  tw_chars_from(s, 0, [])
+end
+
+# UTF-8 characters, so Backspace takes off a whole é
+def tw_chars_from(s: String, i: Int, acc: List) -> List do
+  case i >= length(s) do
+    true -> reverse(acc)
+    false ->
+      b = char_at(s, i)
+      code = char_code(b)
+      case code >= 128 and code < 192 and acc != [] do
+        true -> tw_chars_from(s, i + 1, [concat(head(acc), b) | tail(acc)])
+        false -> tw_chars_from(s, i + 1, [b | acc])
+      end
+  end
+end
+
+def tw_drop_last(s: String) -> String do
+  chars = tw_chars(s)
+  case chars do
+    [] -> ""
+    _ -> join(reverse(tail(reverse(chars))), "")
+  end
+end
+
+TW_HEADER = "THIS COPY IS PROVIDED WITH NO COPY AND PASTE AND IS ALL HAND WRITTEN BY YOUR COMMON HUMAN FRIEND"
+
+actor Typewriter do
+  state key: String :: ""
+  state text: String :: ""
+  state modal: Bool :: true
+
+  on :keydown(k: String) do
+    next = case k do
+      "Backspace" -> tw_drop_last(text)
+      "Meta" -> text
+      "Shift" -> text
+      "Enter" -> concat(text, "\r\n")
+      _ -> concat(text, k)
+    end
+    become key: k, text: next, modal: false
+    reply :ok
+  end
+
+  on :toggle_modal do
+    become modal: not(modal)
+    reply modal
+  end
+
+  on :view do
+    letters = map(tw_chars(text), fn(c: String) -> Any do
+      case random(1, 10) <= 2 do
+        true -> el("span", %{class: "inline-block animate-spin font-bold"}, c)
+        false -> c
+      end
+    end)
+    dialog = case modal do
+      true -> [el("div", %{class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center", click: :toggle_modal},
+        el("div", %{class: "bg-white p-8 rounded-lg shadow-lg max-w-lg", click: :toggle_modal},
+          el("div", %{class: "prose"},
+            el("p", %{class: "font-mono text-gray-800"},
+              "Write like its a typewriter. No copy or paste. Enter for newline. Backspace works. Thats it. Print screen prints it out like a real typewriter-written letter.")),
+          el("div", %{class: "mt-6 flex justify-end"},
+            el("button", %{class: "px-4 py-2 bg-gray-800 text-gray-100 rounded hover:bg-gray-700 font-mono", click: :toggle_modal}, "Close"))))]
+      false -> []
+    end
+    reply el("div", %{},
+      el("div", %{class: "print-only"}, concat(TW_HEADER, " ", text)),
+      el("h1", %{class: "text-[75px] text-black"}, concat("Pressing: ", key)),
+      dialog,
+      el("div", %{id: "content-of-letter", class: "mt-4 bg-white"},
+        el("div", %{class: "mb-4 bg-white"},
+          el("div", %{class: "text-black font-mono mb-2 bg-white"}, TW_HEADER),
+          el("pre", %{class: "typewriter-text text-4xl bg-white"}, letters))),
+      key("*", :keydown))
+  end
+end
+
+typewriter = spawn Typewriter
+typewriter <- :view
