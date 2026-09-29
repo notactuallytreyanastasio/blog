@@ -1,0 +1,63 @@
+/* /work-log: WorkLogLive's inline <style>, as it was. */
+.wl-desktop {
+  min-height: 100vh;
+  background: repeating-linear-gradient(0deg, #a8a8a8, #a8a8a8 1px, #b8b8b8 1px, #b8b8b8 2px);
+  padding: 20px;
+  font-family: "Chicago", "Geneva", "Helvetica Neue", sans-serif;
+  font-size: 12px;
+}
+.wl-menubar {
+  height: 24px; background: #fff; border-bottom: 1px solid #000;
+  display: flex; align-items: center; padding: 0 12px;
+  font-size: 13px; font-weight: bold;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+}
+.wl-menubar a { color: #000; text-decoration: none; margin-right: 16px; }
+.wl-menubar .menu-right { margin-left: auto; font-weight: normal; font-size: 11px; color: #666; }
+.wl-body { padding-top: 34px; padding-bottom: 32px; }
+.wl-window {
+  max-width: 860px; margin: 0 auto;
+  border: 2px solid #000; box-shadow: 2px 2px 0 #000;
+}
+.wl-titlebar {
+  height: 20px;
+  background: repeating-linear-gradient(90deg, #fff 0px, #fff 1px, #000 1px, #000 2px);
+  display: flex; align-items: center; padding: 0 6px; border-bottom: 2px solid #000;
+}
+.wl-close {
+  width: 12px; height: 12px; border: 1px solid #000;
+  background: #fff; flex-shrink: 0; display: block; text-decoration: none;
+}
+.wl-title {
+  flex: 1; text-align: center; font-size: 11px; font-weight: bold;
+  background: #fff; padding: 0 8px; margin: 0 40px; white-space: nowrap;
+}
+.wl-term {
+  background: #1a1a2e; color: #c8c8c8;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
+  font-size: 12px; line-height: 1.4;
+  padding: 12px 16px; min-height: 300px; max-height: 80vh;
+  overflow-y: auto; overflow-x: auto;
+}
+.wl-term a { color: inherit; text-decoration: none; }
+.wl-term a:hover { text-decoration: underline; }
+.push-header { color: #c8c8c8; margin-top: 8px; white-space: nowrap; }
+.push-header:first-child { margin-top: 0; }
+.push-header .sha { color: #e8a838; }
+.push-header .sha a { color: #e8a838; }
+.push-header .stats .p { color: #5ce65c; }
+.push-header .stats .m { color: #e65c5c; }
+.push-header .ref { color: #5ccccc; }
+.push-header .ref a { color: #5ccccc; }
+.push-header .dt { color: #666; }
+.commit-line { padding-left: 4ch; color: #fff; white-space: pre-wrap; word-break: break-word; }
+.commit-line .sha { color: #e8a838; }
+.commit-line .sha a { color: #e8a838; }
+.prompt { color: #8888aa; }
+.empty-msg { color: #8888aa; padding: 40px 0; text-align: center; }
+.wl-statusbar {
+  height: 22px; border-top: 1px solid #000; background: #fff;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 12px; font-size: 11px;
+  position: fixed; bottom: 0; left: 0; right: 0;
+}
