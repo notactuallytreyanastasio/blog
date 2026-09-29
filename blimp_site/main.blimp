@@ -55,7 +55,7 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  pong_routes(static_page_routes(tetris_routes(r7)))
+  app_routes(pong_routes(static_page_routes(tetris_routes(r7))))
 end
 
 # Pages that were LiveViews with nothing for a server to do, and two that
@@ -104,6 +104,14 @@ def pong_routes(routes: Map) -> Map do
   r4 = load_asset(r3, "/pong/god.js", "static/pong/god.js")
   r5 = load_asset(r4, "/assets/pong.css", "assets/pong.css")
   page_route(r5, "/pong/god", pong_god_page())
+end
+
+# The pages that are one Blimp program each (src/95_apps.blimp).
+def app_routes(routes: Map) -> Map do
+  r1 = load_asset(routes, "/blimp/app.js", "static/blimp/app.js")
+  r2 = load_asset(r1, "/assets/apps.css", "assets/apps.css")
+  r3 = load_asset(r2, "/2048/twenty48.blimp", "static/twenty48/twenty48.blimp")
+  page_route(r3, "/2048", app_page("2048 — Blitz Edition", "The classic 2048 puzzle with a twist: Blitz mode gives you seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game"))
 end
 
 # Everything that is not a fixed route. Only GET and HEAD reach here.

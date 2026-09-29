@@ -1,0 +1,49 @@
+# needs: static/twenty48/twenty48.blimp
+
+actor Twenty48Tests do
+  test "a line slides and merges as Twenty48.slide_and_merge does" do
+    assert_eq(t48_slide([2, 2, 4, 0, 4, 4, 8, 8]), {[4, 8, 4, 16, 0, 0, 0, 0], 28, [0, 1, 3]})
+    assert_eq(t48_slide([2, 2, 2, 2]), {[4, 4, 0, 0], 8, [0, 1]})
+    assert_eq(t48_slide([2, 0, 0, 2]), {[4, 0, 0, 0], 4, [0]})
+    assert_eq(t48_slide([4, 2, 2, 0]), {[4, 4, 0, 0], 4, [1]})
+    assert_eq(t48_slide([0, 0, 0, 0]), {[0, 0, 0, 0], 0, []})
+  end
+
+  test "each direction slides toward its own edge, and says which cells merged" do
+    b = [2, 2, 0, 0,
+         0, 0, 0, 0,
+         0, 0, 0, 2,
+         0, 0, 0, 2]
+    assert_eq(t48_shift(b, 4, :left), {[4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0], 4, [0]})
+    assert_eq(elem(t48_shift(b, 4, :right), 0), [0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2])
+    assert_eq(t48_shift(b, 4, :down), {[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 4], 4, [15]})
+    assert_eq(elem(t48_shift(b, 4, :up), 0), [2, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+  end
+
+  test "a full board with no merge left is over; one merge away is not" do
+    stuck = [2, 4, 2, 4, 4, 2, 4, 2, 2, 4, 2, 4, 4, 2, 4, 2]
+    refute(t48_any_move(stuck, 4))
+    refute(t48_any_move(t48_set(stuck, 0, 4), 4) == false)
+  end
+
+  test "the blitz clock runs out in blitz_ms and ends the game as TIME'S UP" do
+    g = spawn Twenty48
+    g <- :start_game
+    g <- :set_blitz_time(1000)
+    each(range(1, 9), fn(i: Int) do g <- :tick end)
+    refute(contains(to_html(g <- :view), "TIME'S UP!"))
+    g <- :tick
+    assert(contains(to_html(g <- :view), "TIME'S UP!"))
+    assert_eq(g <- :move(:left), :ignored)
+  end
+
+  test "the view is the template's markup: the board class, one tile per cell" do
+    g = spawn Twenty48
+    g <- :resize(10)
+    html = to_html(g <- :view)
+    assert(contains(html, "<div class=\"board-grid board-10\">"))
+    assert_eq(length(split(html, "<div class=\"tile ")) - 1, 100)
+    assert(contains(html, "class=\"howto-overlay\""))
+    refute(contains(html, "onclick"))
+  end
+end

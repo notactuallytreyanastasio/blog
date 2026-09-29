@@ -1,0 +1,470 @@
+# 2048, Blitz Edition, for bobbby.online/2048: played in the browser by
+# Blimp's interpreter.
+#
+# A port of BlogWeb.Twenty48Live and Blog.Games.Twenty48. The view is the
+# LiveView's template, element for element, with the same classes, so the
+# page is drawn by the same twenty48.css. What the LiveView did on the
+# server -- the board, the blitz timer (Process.send_after), the best score
+# -- is this actor's state; the blitz timer is a 100ms tick counting down.
+#
+# The board is one list, row after row. A move is a set of lines: for
+# :left each row from its first cell, for :right each row from its last,
+# for :up and :down each column. Sliding and merging one line is the same
+# for every direction, and the cells it merged come out of it.
+
+T48_SIZES = [4, 8, 10, 12]
+T48_BLITZ = [1000, 2000, 3000, 5000]
+
+# ── the board ───────────────────────────────────────────────────────────
+
+def t48_blank(size: Int) -> List do
+  map(range(1, size * size), fn(i: Int) -> Int do 0 end)
+end
+
+def t48_at(cells: Map, i: Int) -> Int do
+  lookup(cells, to_string(i))
+end
+
+def t48_index(board: List) -> Map do
+  t48_index_from(board, 0, %{})
+end
+
+def t48_index_from(board: List, i: Int, acc: Map) -> Map do
+  case board do
+    [] -> acc
+    [v | rest] -> t48_index_from(rest, i + 1, put(acc, to_string(i), v))
+  end
+end
+
+# The positions of every line a move slides, each in sliding order.
+def t48_lines(size: Int, dir: Atom) -> List do
+  last = size - 1
+  map(range(0, last), fn(k: Int) -> List do
+    map(range(0, last), fn(j: Int) -> Int do
+      case dir do
+        :left -> k * size + j
+        :right -> k * size + (last - j)
+        :up -> j * size + k
+        _ -> (last - j) * size + k
+      end
+    end)
+  end)
+end
+
+# Twenty48.slide_and_merge/2 on one line's values:
+# {values after the move, points scored, indices that were merges}.
+def t48_slide(values: List) -> Tuple do
+  r = t48_merge(filter(values, fn(v: Int) -> Bool do v != 0 end), 0, [], 0, [])
+  merged = elem(r, 0)
+  {concat_list(merged, map(range(1, length(values) - length(merged) + 1), fn(i: Int) -> Int do 0 end), length(values)), elem(r, 1), elem(r, 2)}
+end
+
+# Pad to exactly n: range(1, 0) is not empty in every language.
+def concat_list(a: List, b: List, n: Int) -> List do
+  t48_first(reduce(reverse(a), b, fn(acc: List, x: Int) -> List do [x | acc] end), n, [])
+end
+
+def t48_first(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> t48_first(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+def t48_merge(tiles: List, idx: Int, out: List, score: Int, merged: List) -> Tuple do
+  case tiles do
+    [] -> {reverse(out), score, reverse(merged)}
+    [x | rest] ->
+      case rest do
+        [y | more] ->
+          case x == y do
+            true -> t48_merge(more, idx + 1, [x * 2 | out], score + x * 2, [idx | merged])
+            false -> t48_merge(rest, idx + 1, [x | out], score, merged)
+          end
+        [] -> t48_merge(rest, idx + 1, [x | out], score, merged)
+      end
+  end
+end
+
+# The whole move: {board, points, merged cell indices}.
+def t48_shift(board: List, size: Int, dir: Atom) -> Tuple do
+  cells = t48_index(board)
+  done = reduce(t48_lines(size, dir), {%{}, 0, []}, fn(acc: Tuple, line: List) -> Tuple do
+    r = t48_slide(map(line, fn(i: Int) -> Int do t48_at(cells, i) end))
+    placed = reduce(zip(line, elem(r, 0)), elem(acc, 0), fn(m: Map, pair: Any) -> Map do
+      put(m, to_string(elem(pair, 0)), elem(pair, 1))
+    end)
+    merged = concat_list(map(elem(r, 2), fn(j: Int) -> Int do elem_at(line, j) end), elem(acc, 2), length(elem(r, 2)) + length(elem(acc, 2)))
+    {placed, elem(acc, 1) + elem(r, 1), merged}
+  end)
+  {map(range(0, size * size - 1), fn(i: Int) -> Int do t48_at(elem(done, 0), i) end), elem(done, 1), elem(done, 2)}
+end
+
+def elem_at(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> elem_at(tail(list), i - 1)
+  end
+end
+
+def t48_empties(board: List) -> List do
+  t48_empties_from(board, 0, [])
+end
+
+def t48_empties_from(board: List, i: Int, acc: List) -> List do
+  case board do
+    [] -> reverse(acc)
+    [v | rest] ->
+      case v == 0 do
+        true -> t48_empties_from(rest, i + 1, [i | acc])
+        false -> t48_empties_from(rest, i + 1, acc)
+      end
+  end
+end
+
+# A 2 (or, one time in ten, a 4) in a random empty cell: {board, its index}.
+def t48_add_tile(board: List) -> Tuple do
+  empty = t48_empties(board)
+  case empty do
+    [] -> {board, -1}
+    _ ->
+      at = elem_at(empty, random(0, length(empty) - 1))
+      value = case random(1, 10) == 1 do
+        true -> 4
+        false -> 2
+      end
+      {t48_set(board, at, value), at}
+  end
+end
+
+def t48_set(board: List, at: Int, value: Int) -> List do
+  t48_set_from(board, at, value, 0, [])
+end
+
+def t48_set_from(board: List, at: Int, value: Int, i: Int, acc: List) -> List do
+  case board do
+    [] -> reverse(acc)
+    [v | rest] ->
+      case i == at do
+        true -> t48_set_from(rest, at, value, i + 1, [value | acc])
+        false -> t48_set_from(rest, at, value, i + 1, [v | acc])
+      end
+  end
+end
+
+def t48_any_move(board: List, size: Int) -> Bool do
+  length(filter([:left, :right, :up, :down], fn(d: Atom) -> Bool do elem(t48_shift(board, size, d), 0) != board end)) > 0
+end
+
+def t48_max(board: List) -> Int do
+  reduce(board, 0, fn(m: Int, v: Int) -> Int do
+    case v > m do
+      true -> v
+      false -> m
+    end
+  end)
+end
+
+# ── the view ────────────────────────────────────────────────────────────
+
+def t48_tile_class(v: Int) -> String do
+  case v do
+    0 -> "tile-empty"
+    2 -> "tile-2"
+    4 -> "tile-4"
+    8 -> "tile-8"
+    16 -> "tile-16"
+    32 -> "tile-32"
+    64 -> "tile-64"
+    128 -> "tile-128"
+    256 -> "tile-256"
+    512 -> "tile-512"
+    1024 -> "tile-1024"
+    2048 -> "tile-2048"
+    _ -> "tile-super"
+  end
+end
+
+def t48_digits(v: Int) -> String do
+  case v >= 10000 do
+    true -> "d5"
+    false ->
+      case v >= 1000 do
+        true -> "d4"
+        false ->
+          case v >= 100 do
+            true -> "d3"
+            false ->
+              case v >= 10 do
+                true -> "d2"
+                false -> "d1"
+              end
+          end
+      end
+  end
+end
+
+def t48_has(list: List, x: Int) -> Bool do
+  case list do
+    [] -> false
+    [h | rest] ->
+      case h == x do
+        true -> true
+        false -> t48_has(rest, x)
+      end
+  end
+end
+
+def t48_tiles(board: List, i: Int, fresh: Int, merged: List, acc: List) -> List do
+  case board do
+    [] -> reverse(acc)
+    [v | rest] ->
+      extra = case v > 0 do
+        true -> concat(" ", t48_digits(v))
+        false -> ""
+      end
+      mark = case i == fresh do
+        true -> " tile-new"
+        false ->
+          case t48_has(merged, i) do
+            true -> " tile-merged"
+            false -> ""
+          end
+      end
+      label = case v > 0 do
+        true -> to_string(v)
+        false -> ""
+      end
+      tile = el("div", %{class: concat("tile ", t48_tile_class(v), extra, mark)}, label)
+      t48_tiles(rest, i + 1, fresh, merged, [tile | acc])
+  end
+end
+
+def t48_title_bar(title: String) -> Any do
+  el("div", %{class: "mac-title-bar"},
+    el("div", %{class: "mac-close-box"}),
+    el("div", %{class: "mac-title-stripes"}),
+    el("div", %{class: "mac-title-text"}, title),
+    el("div", %{class: "mac-title-stripes"}))
+end
+
+def t48_active(yes: Bool) -> String do
+  case yes do
+    true -> "mac-btn size-btn active"
+    false -> "mac-btn size-btn"
+  end
+end
+
+def t48_howto() -> Any do
+  el("div", %{class: "howto-overlay"},
+    el("div", %{class: "howto-window"},
+      t48_title_bar("How To Play"),
+      el("div", %{class: "howto-body"},
+        el("h2", %{}, "2048 BLITZ"),
+        el("div", %{class: "rule"}, el("b", %{}, "SWIPE or ARROW KEYS"), " Slide all tiles in one direction. Matching numbers merge and add up."),
+        el("div", %{class: "rule"}, el("b", %{}, "GOAL"), " Reach the 2048 tile. Keep going for a high score."),
+        el("div", %{class: "rule"}, el("b", %{}, "BLITZ MODE"), " Make each move before time runs out or it's game over. 5s is normal, 3s is challenging, 2s is brutal. Pick your pain."),
+        el("div", %{class: "rule"}, el("b", %{}, "BOARD SIZE"), " Play on 4x4, 8x8, 10x10, or 12x12. Bigger boards, more room, more chaos."),
+        el("button", %{class: "howto-start", click: :start_game}, "START"))))
+end
+
+# ── the game ────────────────────────────────────────────────────────────
+
+actor Twenty48 do
+  state board: List :: []
+  state size: Int :: 8
+  state score: Int :: 0
+  state best: Int :: 0
+  state over: Bool :: false
+  state won: Bool :: false
+  state fresh: Int :: -1
+  state merged: List :: []
+  state blitz: Bool :: true
+  state blitz_ms: Int :: 5000
+  state time_left: Int :: 5000
+  state expired: Bool :: false
+  state gen: Int :: 0
+  state howto: Bool :: true
+
+  # Twenty48.new/1: a blank board and two tiles.
+  on :new_game do
+    one = t48_add_tile(t48_blank(size))
+    two = t48_add_tile(elem(one, 0))
+    become board: elem(two, 0), score: 0, over: false, won: false, fresh: elem(two, 1), merged: [], expired: false, time_left: blitz_ms, gen: gen + 1
+    reply :ok
+  end
+
+  on :start_game do
+    become howto: false
+    reply :ok
+  end
+
+  on :set_size(n: Int) do
+    case t48_has(T48_SIZES, n) do
+      true -> become size: n
+      false -> become size: size
+    end
+    reply :ok
+  end
+
+  on :toggle_blitz do
+    become blitz: not(blitz), expired: false, time_left: blitz_ms, gen: gen + 1
+    reply :ok
+  end
+
+  on :set_blitz_time(ms: Int) do
+    case t48_has(T48_BLITZ, ms) do
+      true -> become blitz_ms: ms, time_left: ms, gen: gen + 1
+      false -> become blitz_ms: blitz_ms
+    end
+    reply :ok
+  end
+
+  # The blitz timer: every 100ms while a timed game is being played.
+  on :tick do
+    left = time_left - 100
+    case left <= 0 do
+      true ->
+        new_best = case score > best do
+          true -> score
+          false -> best
+        end
+        become over: true, expired: true, time_left: 0, best: new_best
+      false -> become time_left: left
+    end
+    reply :ok
+  end
+
+  on :board do
+    reply board
+  end
+
+  # Twenty48Live.do_move/2 and Twenty48.move/2.
+  on :move(dir: Atom) do
+    case howto or over do
+      true ->
+        become over: over
+        reply :ignored
+      false ->
+        moved = t48_shift(board, size, dir)
+        case elem(moved, 0) == board do
+          true ->
+            case t48_any_move(board, size) do
+              true -> become over: false
+              false -> become over: true
+            end
+            reply :stuck
+          false ->
+            placed = t48_add_tile(elem(moved, 0))
+            next = elem(placed, 0)
+            total = score + elem(moved, 1)
+            stuck = length(t48_empties(next)) == 0 and not(t48_any_move(next, size))
+            new_best = case total > best do
+              true -> total
+              false -> best
+            end
+            become board: next, score: total, best: new_best, fresh: elem(placed, 1), merged: elem(moved, 2), won: t48_max(next) >= 2048, over: stuck, time_left: blitz_ms, gen: gen + 1
+            reply :moved
+        end
+    end
+  end
+
+  on :left do
+    reply self <- :move(:left)
+  end
+
+  on :right do
+    reply self <- :move(:right)
+  end
+
+  on :up do
+    reply self <- :move(:up)
+  end
+
+  on :down do
+    reply self <- :move(:down)
+  end
+
+  on :view do
+    blitz_row = case blitz do
+      true -> map(T48_BLITZ, fn(ms: Int) -> Any do
+        el("button", %{class: t48_active(ms == blitz_ms), click: :set_blitz_time, with: ms}, concat(to_string(ms / 1000), "s"))
+      end)
+      false -> []
+    end
+    bar_class = case over do
+      true -> "blitz-bar stopped"
+      false -> "blitz-bar"
+    end
+    bar = case blitz do
+      true -> [el("div", %{class: "blitz-bar-wrap"},
+        el("div", %{id: "blitz-bar-#{gen}", class: bar_class, style: "animation-duration: #{blitz_ms}ms;"}))]
+      false -> []
+    end
+    headline = case expired do
+      true -> "TIME'S UP!"
+      false -> "GAME OVER"
+    end
+    banner = case won and not(over) do
+      true -> [el("div", %{class: "won-banner"}, "YOU HIT 2048!")]
+      false -> []
+    end
+    ended = case over do
+      true -> [el("div", %{class: "game-over-overlay"},
+        el("h2", %{}, headline),
+        el("p", %{}, "Score: #{score}"),
+        el("button", %{class: "mac-btn", click: :new_game}, "Play Again"))]
+      false -> []
+    end
+    clock = case blitz and not(over) and not(howto) do
+      true -> [timer(100, :tick)]
+      false -> []
+    end
+    overlay = case howto do
+      true -> [t48_howto()]
+      false -> []
+    end
+    reply el("div", %{id: "twenty48-container", class: "twenty48-wrap", swipe: :move},
+      el("div", %{class: "mac-window"},
+        t48_title_bar("2048"),
+        el("div", %{class: "mac-body"},
+          el("div", %{class: "score-row"},
+            el("div", %{class: "score-box"}, el("div", %{class: "label"}, "SCORE"), el("div", %{}, to_string(score))),
+            el("div", %{class: "score-box"}, el("div", %{class: "label"}, "BEST"), el("div", %{}, to_string(best))),
+            el("button", %{class: "mac-btn", click: :new_game}, "New Game")),
+          el("div", %{class: "controls-row"},
+            el("label", %{class: "blitz-check", click: :toggle_blitz},
+              el("input", %{type: "checkbox", checked: blitz, readonly: true, tabindex: "-1"}), " BLITZ"),
+            blitz_row),
+          el("div", %{class: "controls-row"},
+            el("span", %{style: "font-size:13px;color:#555;"}, "Board:"),
+            map(T48_SIZES, fn(s: Int) -> Any do
+              el("button", %{class: t48_active(s == size), click: :resize, with: s}, to_string(s))
+            end)),
+          bar,
+          banner,
+          el("div", %{class: "board-container"},
+            el("div", %{class: "board-grid board-#{size}"}, t48_tiles(board, 0, fresh, merged, [])),
+            ended))),
+      overlay,
+      clock,
+      key("ArrowLeft", :left),
+      key("ArrowRight", :right),
+      key("ArrowUp", :up),
+      key("ArrowDown", :down))
+  end
+
+  # Twenty48Live's set_size: a new board of that size.
+  on :resize(n: Int) do
+    self <- :set_size(n)
+    reply self <- :new_game
+  end
+end
+
+game = spawn Twenty48
+game <- :new_game
+game <- :view
