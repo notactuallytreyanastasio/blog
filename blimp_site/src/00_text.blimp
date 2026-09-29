@@ -26,21 +26,21 @@ def ends_with(s: String, suffix: String) -> Bool do
 end
 
 # Byte offset of the first `find` at or after `from`, or -1.
+#
+# The search is the runtime's index_of. This file used to define its own
+# index_of, a loop comparing one position at a time in Blimp; being a
+# def, it shadowed the builtin everywhere, and finding the last </body> of
+# a 200KB page took most of a second.
 def index_of_from(s: String, find: String, from: Int) -> Int do
-  n = length(s)
-  m = length(find)
-  case from + m > n do
+  case from + length(find) > length(s) do
     true -> -1
     false ->
-      case slice(s, from, m) == find do
-        true -> from
-        false -> index_of_from(s, find, from + 1)
+      at = index_of(slice(s, from, length(s) - from), find)
+      case at < 0 do
+        true -> -1
+        false -> from + at
       end
   end
-end
-
-def index_of(s: String, find: String) -> Int do
-  index_of_from(s, find, 0)
 end
 
 def is_space(c: String) -> Bool do
