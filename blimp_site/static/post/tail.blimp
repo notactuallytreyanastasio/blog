@@ -1,0 +1,16 @@
+
+# The browser's end of it: a Post that asks Markdown for the page, and keeps
+# the answer for the page to compare with what the server sent.
+actor Post do
+  state html: String :: ""
+  on :render(source: String) do
+    out = MARKDOWN <- :render(source)
+    become html: out
+    reply length(out)
+  end
+  on :html do
+    reply html
+  end
+end
+
+post = spawn Post

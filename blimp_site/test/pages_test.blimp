@@ -39,12 +39,21 @@ actor PageTests do
     assert(script_free("<p>turn it on and off, on=off</p>"))
   end
 
-  test "no page has a script, a javascript: URL or an on* handler" do
+  test "the index and 404 have no script; posts have only Blimp's window" do
     posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
     assert(script_free(blog_index_page(posts)))
     assert(script_free(not_found_page("/<script>")))
     each(posts, fn(p: Map) do
-      assert(script_free(post_page(p)))
+      html = post_page(p)
+      lower = downcase(html)
+      # exactly the two external scripts, nothing inline, no handlers
+      assert_eq(length(split(lower, "<script")) - 1, 2)
+      assert_eq(length(split(lower, "\"></script>")) - 1, 2)
+      assert(contains(html, "<script src=\"/blimp/canvas.js\"></script><script src=\"/blimp/post.js\"></script>"))
+      refute(contains(lower, "javascript:"))
+      refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
+      # the article is cut where post.js cuts it
+      assert(contains(html, "</div><div class=\"post-footer\">"))
     end)
   end
 
@@ -67,18 +76,19 @@ actor PageTests do
     assert_eq(last(posts).slug, "building-this-blog")
   end
 
-  test "/tetris has Blimp's three scripts and nothing else" do
+  test "/tetris has Blimp's four scripts and nothing else" do
     html = tetris_page("6f1f92bbeb8c00f54511b8ff696db8c82355341e", 801)
     lower = downcase(html)
-    assert_eq(length(split(lower, "<script")) - 1, 3)
+    assert_eq(length(split(lower, "<script")) - 1, 4)
     # every script is an external file, closed at once: nothing inline
-    assert_eq(length(split(lower, "\"></script>")) - 1, 3)
+    assert_eq(length(split(lower, "\"></script>")) - 1, 4)
     each(TETRIS_SCRIPTS, fn(src: String) do
       assert(contains(html, concat("<script src=\"", src, "\"></script>")))
     end)
     refute(contains(lower, "javascript:"))
     refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
     assert(contains(html, "801 lines of actors"))
+    assert(contains(html, "<canvas id=\"tetris-viz\"></canvas>"))
     assert(contains(html, "/commit/6f1f92bbeb8c00f54511b8ff696db8c82355341e\">6f1f92b</a>"))
   end
 end

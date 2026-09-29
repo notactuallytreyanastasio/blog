@@ -118,9 +118,31 @@ def post_page(post: Map) -> String do
     "<div class=\"post-footer\"><a href=\"/blog\" class=\"back-link\">← Back to all posts</a></div>",
     "</div>",
     "<div class=\"mac-status-bar\"><span>", to_string(post.words), " words</span><span>", post.read_time, "</span></div>",
-    "</div></div></div>"
+    "</div></div></div>",
+    blimp_window(post.slug)
   ], "")
-  page_layout(post.title, post.description, "article", ["/assets/base.css", "/assets/post.css", "/assets/highlight.css"], body)
+  page_layout(post.title, post.description, "article", ["/assets/base.css", "/assets/post.css", "/assets/highlight.css", "/assets/blimp-window.css"], body)
+end
+
+# The small window pinned to a post page's corner. static/post/post.js runs
+# the site's own renderer on this post in the browser, in a worker, and
+# Blimp's canvas draws it doing so; the status line says whether the bytes
+# match what the server sent. The two scripts are Blimp's canvas and that
+# starter; neither is needed to read the post, which is all above.
+POST_SCRIPTS = ["/blimp/canvas.js", "/blimp/post.js"]
+
+def blimp_window(slug: String) -> String do
+  join([
+    "<span id=\"blimp-closed\"></span>",
+    "<div id=\"blimp-window\" class=\"blimp-window\" data-slug=\"", escape_html(slug), "\">",
+    "<div class=\"mac-title-bar\"><a href=\"#blimp-closed\" class=\"mac-close-box\" title=\"close\"></a>",
+    "<div class=\"mac-title\">Blimp: this post, rendered again</div></div>",
+    "<div id=\"blimp-viz-wrap\"><canvas id=\"blimp-viz\"></canvas></div>",
+    "<div id=\"blimp-status\" class=\"blimp-status\">This post was rendered by a server written in Blimp. ",
+    "With scripts on, your browser renders it again here, with the same Blimp code.</div>",
+    "</div>",
+    join(map(POST_SCRIPTS, fn(src: String) -> String do concat("<script src=\"", src, "\"></script>") end), "")
+  ], "")
 end
 
 def not_found_page(path: String) -> String do

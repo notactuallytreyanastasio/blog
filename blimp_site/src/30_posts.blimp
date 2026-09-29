@@ -113,7 +113,8 @@ def load_post(dir: String, file: String) -> Map do
         date: date_label(year, month, day),
         sort_key: slice(file, 0, 19),
         tags: find_tags(split(source, "\n")),
-        html: render_markdown(source),
+        html: MARKDOWN <- :render(source),
+        source: source,
         words: words,
         read_time: read_time(words),
         description: concat(take(body, 250), "...")

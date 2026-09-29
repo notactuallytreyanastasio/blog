@@ -2,11 +2,13 @@
 #
 # This is the one page on the site with scripts on it, and they are the
 # point of it: the game is tetris.blimp, and the browser runs it in Blimp's
-# own interpreter compiled to WebAssembly. The three scripts are Blimp's
-# loader, Blimp's view host and a dozen lines that start them; the game
-# logic in them is none. test/pages_test holds the page to exactly those.
+# own interpreter compiled to WebAssembly. The four scripts are Blimp's
+# loader, its view host, its canvas (which draws the running program: every
+# actor a hexagon, every message a ray) and a few lines that start them; the
+# game logic in them is none. test/pages_test holds the page to exactly
+# those.
 
-TETRIS_SCRIPTS = ["/tetris/blimp.js", "/tetris/blimp-view.js", "/tetris/play.js"]
+TETRIS_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/tetris/play.js"]
 
 def tetris_page(blimp_commit: String, source_lines: Int) -> String do
   scripts = join(map(TETRIS_SCRIPTS, fn(src: String) -> String do
@@ -25,6 +27,12 @@ def tetris_page(blimp_commit: String, source_lines: Int) -> String do
     "<div id=\"tetris-status\" class=\"tetris-status\">loading Blimp...</div>",
     "<noscript><p class=\"tetris-status bad\">A browser starts WebAssembly from JavaScript, so this page needs it on. ",
     "The game itself is <a href=\"/tetris/tetris.blimp\">tetris.blimp</a>.</p></noscript>",
+    "</div>",
+    "<div class=\"tetris-viz\">",
+    "<div id=\"tetris-viz-wrap\"><canvas id=\"tetris-viz\"></canvas></div>",
+    "<p class=\"tetris-caption\">The program, running. Every actor in the game is a hexagon; every message is a ray. ",
+    "A ray from the blob is the page sending <code>:tick</code> or a key; a ray between hexagons is one actor asking another. ",
+    "Click a hexagon to highlight it.</p>",
     "</div>",
     "<div class=\"tetris-about\">",
     "<p>This is Tetris written in <a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp</a>, ",

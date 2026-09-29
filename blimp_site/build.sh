@@ -10,6 +10,9 @@ mkdir -p _build
 if [ -f main.blimp ]; then
   cat src/*.blimp main.blimp > _build/site.blimp
 fi
+# The program a post page runs in the browser: the server's own renderer,
+# file for file, and a Post actor to drive it.
+cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp static/post/tail.blimp > _build/post-renderer.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

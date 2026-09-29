@@ -1,0 +1,26 @@
+# The renderer's stages, as actors.
+#
+# The server and the browser run this same program. On the server it renders
+# every post at boot; in the browser, on a post page, it renders that post
+# again while Blimp's canvas draws it: a Markdown actor asked to render, and
+# a Highlighter asked once for every code block.
+#
+# The handlers call functions defined in later files. A handler looks its
+# names up when it runs, not when it is defined, so the order is fine; the
+# actors are spawned here so that the functions after this file, which
+# capture what is bound when they are defined, can see them.
+
+actor Highlighter do
+  on :lines(lang: String, code: String) do
+    reply highlight_lines(lang, code)
+  end
+end
+
+actor Markdown do
+  on :render(source: String) do
+    reply render_markdown(source)
+  end
+end
+
+HIGHLIGHTER = spawn Highlighter
+MARKDOWN = spawn Markdown

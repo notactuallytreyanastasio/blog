@@ -45,7 +45,7 @@ def code_block_html(lang: String, code: String) -> String do
     true -> lang
     false -> "plaintext"
   end
-  lines = map(md_drop_last(highlight_lines(lang, code)), fn(l: String) -> String do md_esc_braces(l) end)
+  lines = map(md_drop_last(HIGHLIGHTER <- :lines(lang, code)), fn(l: String) -> String do md_esc_braces(l) end)
   body = md_code_lines(lines, 1, [])
   concat("<pre class=\"athl\"><code class=\"language-", cls, "\" translate=\"no\" tabindex=\"0\">", body, "</code></pre>")
 end
