@@ -1,0 +1,139 @@
+# Pages. Each is a function from data to one HTML string.
+#
+# The markup is PostLive's and PostLive.Index's, element for element, minus
+# what needed a socket: the reader count, the comment form and the LIVE
+# badge. Nothing here emits a <script>, an on* attribute, or a javascript:
+# URL, and test/pages_test.blimp holds every page to that.
+
+def site_description() -> String do
+  "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."
+end
+
+def meta_tag(attr: String, name: String, content: String) -> String do
+  concat("<meta ", attr, "=\"", name, "\" content=\"", escape_html(content), "\">\n")
+end
+
+def page_layout(title: String, description: String, og_type: String, stylesheets: List, body: String) -> String do
+  links = join(map(stylesheets, fn(href: String) -> String do
+    concat("<link rel=\"stylesheet\" href=\"", href, "\">\n")
+  end), "")
+  join([
+    "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n",
+    "<meta charset=\"utf-8\">\n",
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n",
+    "<title>", escape_html(title), "</title>\n",
+    meta_tag("name", "description", description),
+    meta_tag("property", "og:title", title),
+    meta_tag("property", "og:description", description),
+    meta_tag("property", "og:type", og_type),
+    meta_tag("property", "og:site_name", "Thoughts & Tidbits"),
+    meta_tag("name", "twitter:card", "summary"),
+    meta_tag("name", "twitter:title", title),
+    meta_tag("name", "twitter:description", description),
+    "<link rel=\"icon\" href=\"/favicon.ico\">\n",
+    links,
+    "</head>\n<body>\n",
+    body,
+    "\n</body>\n</html>\n"
+  ], "")
+end
+
+def tag_spans(tags: List, class: String) -> String do
+  join(map(tags, fn(t: String) -> String do
+    concat("<span class=\"", class, "\">", escape_html(t), "</span>")
+  end), "")
+end
+
+def plural(n: Int, one: String, many: String) -> String do
+  case n == 1 do
+    true -> concat(to_string(n), " ", one)
+    false -> concat(to_string(n), " ", many)
+  end
+end
+
+def menu_bar(extra_links: String, right: String) -> String do
+  join([
+    "<div class=\"mac-menu-bar\">",
+    "<div class=\"menu-left\">",
+    "<span class=\"apple-menu\">&#63743;</span>",
+    "<span class=\"menu-item\">File</span>",
+    "<span class=\"menu-item\">Edit</span>",
+    "<span class=\"menu-item\">View</span>",
+    "<a href=\"/\" class=\"menu-item\" style=\"text-decoration: none; color: inherit;\">Home</a>",
+    extra_links,
+    "</div>",
+    "<div class=\"menu-right\"><span>", right, "</span></div>",
+    "</div>"
+  ], "")
+end
+
+def blog_post_row(post: Map) -> String do
+  tags = case length(post.tags) > 0 do
+    true -> concat("<span class=\"blog-post-tags\">", tag_spans(post.tags, "blog-tag"), "</span>")
+    false -> ""
+  end
+  join([
+    "<a href=\"/post/", post.slug, "\" class=\"blog-post-row\">",
+    "<div class=\"blog-post-icon\">📝</div>",
+    "<div class=\"blog-post-info\">",
+    "<div class=\"blog-post-title\">", escape_html(post.title), "</div>",
+    "<div class=\"blog-post-meta\">", post.date, " ", tags, "</div>",
+    "</div></a>"
+  ], "")
+end
+
+def blog_index_page(posts: List) -> String do
+  body = join([
+    "<div class=\"mac-blog\">",
+    menu_bar("", "served by Blimp"),
+    "<div class=\"mac-desktop\"><div class=\"mac-window\">",
+    "<div class=\"mac-title-bar\"><a href=\"/\" class=\"mac-close-box\"></a>",
+    "<div class=\"mac-title\">Thoughts &amp; Tidbits - Blog</div>",
+    "<div class=\"mac-resize-box\"></div></div>",
+    "<div class=\"mac-window-content\"><div class=\"blog-posts-list\">",
+    join(map(posts, fn(p: Map) -> String do blog_post_row(p) end), ""),
+    "</div></div>",
+    "<div class=\"mac-status-bar\"><span>", plural(length(posts), "post", "posts"), "</span>",
+    "<span>0 scripts</span></div>",
+    "</div></div></div>"
+  ], "")
+  page_layout("Thoughts and Tidbits", site_description(), "website", ["/assets/base.css", "/assets/blog.css"], body)
+end
+
+def post_page(post: Map) -> String do
+  body = join([
+    "<div class=\"mac-post\">",
+    menu_bar("<a href=\"/blog\" class=\"menu-item\" style=\"text-decoration: none; color: inherit;\">Blog</a>", "served by Blimp"),
+    "<div class=\"mac-desktop\"><div class=\"mac-window\">",
+    "<div class=\"mac-title-bar\"><a href=\"/blog\" class=\"mac-close-box\"></a>",
+    "<div class=\"mac-title\">", escape_html(post.title), "</div>",
+    "<div class=\"mac-resize-box\"></div></div>",
+    "<div class=\"mac-window-content\">",
+    "<div class=\"post-meta-bar\">",
+    "<span class=\"post-date\">", post.date, "</span>",
+    "<span class=\"post-stats\">", to_string(post.words), " words · ", post.read_time, "</span>",
+    "<div class=\"post-tags-inline\">", tag_spans(post.tags, "mac-tag"), "</div>",
+    "</div>",
+    "<div id=\"post-content\" class=\"article-content\">", post.html, "</div>",
+    "<div class=\"post-footer\"><a href=\"/blog\" class=\"back-link\">← Back to all posts</a></div>",
+    "</div>",
+    "<div class=\"mac-status-bar\"><span>", to_string(post.words), " words</span><span>", post.read_time, "</span></div>",
+    "</div></div></div>"
+  ], "")
+  page_layout(post.title, post.description, "article", ["/assets/base.css", "/assets/post.css", "/assets/highlight.css"], body)
+end
+
+def not_found_page(path: String) -> String do
+  body = join([
+    "<div class=\"mac-blog\">",
+    menu_bar("", "served by Blimp"),
+    "<div class=\"mac-desktop\"><div class=\"mac-window\">",
+    "<div class=\"mac-title-bar\"><a href=\"/\" class=\"mac-close-box\"></a>",
+    "<div class=\"mac-title\">Not Found</div><div class=\"mac-resize-box\"></div></div>",
+    "<div class=\"mac-window-content\" style=\"padding: 24px;\">",
+    "<p>There is nothing at <code>", escape_html(path), "</code>.</p>",
+    "<p style=\"margin-top: 12px;\"><a href=\"/blog\">All posts</a></p>",
+    "</div></div></div></div>"
+  ], "")
+  page_layout("Not Found", site_description(), "website", ["/assets/base.css", "/assets/blog.css"], body)
+end

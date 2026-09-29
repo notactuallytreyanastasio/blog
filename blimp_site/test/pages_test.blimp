@@ -1,0 +1,69 @@
+# Renders the real posts, so this runs from blimp_site/ like the server.
+
+# True if `html` has an attribute named on<letters>= anywhere: onclick,
+# onload, onerror, and the rest.
+def has_handler_attr(pieces: List) -> Bool do
+  case pieces do
+    [] -> false
+    [p | rest] ->
+      eq = index_of(p, "=")
+      case eq > 0 and all_letters(take(p, eq), 0) do
+        true -> true
+        false -> has_handler_attr(rest)
+      end
+  end
+end
+
+def all_letters(s: String, i: Int) -> Bool do
+  case i >= length(s) do
+    true -> true
+    false ->
+      c = char_code(char_at(s, i))
+      (c >= 97 and c <= 122) and all_letters(s, i + 1)
+  end
+end
+
+def script_free(html: String) -> Bool do
+  lower = downcase(html)
+  not(contains(lower, "<script")) and not(contains(lower, "javascript:")) and not(has_handler_attr(drop_list(split(lower, " on"), 1)))
+end
+
+def word_counts(posts: List) -> Map do
+  reduce(posts, %{}, fn(acc: Map, p: Map) -> Map do put(acc, p.slug, p.words) end)
+end
+
+actor PageTests do
+  test "the handler check finds a handler and passes plain text" do
+    refute(script_free("<a href=\"/\" onclick=\"x()\">"))
+    refute(script_free("<img src=x onerror=alert(1)>"))
+    assert(script_free("<p>turn it on and off, on=off</p>"))
+  end
+
+  test "no page has a script, a javascript: URL or an on* handler" do
+    posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
+    assert(script_free(blog_index_page(posts)))
+    assert(script_free(not_found_page("/<script>")))
+    each(posts, fn(p: Map) do
+      assert(script_free(post_page(p)))
+    end)
+  end
+
+  # The numbers Phoenix shows today, from PostLive.word_count run in Elixir
+  # over the same files.
+  test "word counts are PostLive's" do
+    w = word_counts(load_posts("../priv/static/posts", read_file("data/posts.txt")))
+    assert_eq(lookup(w, "building-this-blog"), 235)
+    assert_eq(lookup(w, "whats-my-schtick"), 5)
+    assert_eq(lookup(w, "lets-write-letters"), 778)
+    assert_eq(lookup(w, "a-genstage-tutorial-and-reflection"), 7931)
+    assert_eq(lookup(w, "327-years-of-tree-law-in-the-usa-"), 3385)
+    assert_eq(lookup(w, "chess"), 5687)
+    assert_eq(lookup(w, "notes-on-dario-altman-elmo-and-the-frontier"), 4792)
+  end
+
+  test "the index lists posts newest first" do
+    posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
+    assert_eq(head(posts).slug, "notes-on-dario-altman-elmo-and-the-frontier")
+    assert_eq(last(posts).slug, "building-this-blog")
+  end
+end

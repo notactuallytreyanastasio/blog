@@ -1,0 +1,167 @@
+# HTTP/1.1, as much of it as a blog behind Caddy needs.
+#
+# One request per connection: every response says Connection: close and the
+# worker closes the socket after writing it. Caddy keeps the connection to
+# the browser alive; this side does not have to.
+
+# "GET /post/chess?x=1 HTTP/1.1\r\nHost: ..." -> %{method, path, query}
+def parse_request(raw: String) -> Map do
+  line = head(split(raw, "\r\n"))
+  parts = split(line, " ")
+  case length(parts) >= 3 do
+    false -> %{method: "", path: "", query: ""}
+    true ->
+      target = elem_at(parts, 1)
+      q = index_of(target, "?")
+      case q >= 0 do
+        true -> %{method: head(parts), path: take(target, q), query: drop(target, q + 1)}
+        false -> %{method: head(parts), path: target, query: ""}
+      end
+  end
+end
+
+def hex_value(c: String) -> Int do
+  code = char_code(c)
+  case code >= 48 and code <= 57 do
+    true -> code - 48
+    false ->
+      case code >= 97 and code <= 102 do
+        true -> code - 87
+        false ->
+          case code >= 65 and code <= 70 do
+            true -> code - 55
+            false -> -1
+          end
+      end
+  end
+end
+
+# %XX and + in a query value. A malformed escape is kept as written.
+def url_decode_from(s: String, i: Int, acc: List) -> String do
+  case i >= length(s) do
+    true -> join(reverse(acc), "")
+    false ->
+      c = char_at(s, i)
+      case c do
+        "+" -> url_decode_from(s, i + 1, [" " | acc])
+        "%" ->
+          hi = case i + 2 < length(s) do
+            true -> hex_value(char_at(s, i + 1))
+            false -> -1
+          end
+          lo = case i + 2 < length(s) do
+            true -> hex_value(char_at(s, i + 2))
+            false -> -1
+          end
+          case hi >= 0 and lo >= 0 do
+            true -> url_decode_from(s, i + 3, [from_char_code(hi * 16 + lo) | acc])
+            false -> url_decode_from(s, i + 1, ["%" | acc])
+          end
+        _ -> url_decode_from(s, i + 1, [c | acc])
+      end
+  end
+end
+
+def url_decode(s: String) -> String do
+  url_decode_from(s, 0, [])
+end
+
+# The value of `key` in "a=1&b=2", decoded, or "" when it is absent.
+#
+# A loop rather than filter(..., fn ...): each lambda this interpreter
+# creates copies every binding in scope, top-level definitions included,
+# which in the full site is about 18KB a call. This runs on every request.
+def query_param(query: String, key: String) -> String do
+  query_param_in(split(query, "&"), concat(key, "="))
+end
+
+def query_param_in(pairs: List, prefix: String) -> String do
+  case pairs do
+    [] -> ""
+    [p | rest] ->
+      case starts_with(p, prefix) do
+        true -> url_decode(drop(p, length(prefix)))
+        false -> query_param_in(rest, prefix)
+      end
+  end
+end
+
+def status_text(status: Int) -> String do
+  case status do
+    200 -> "OK"
+    301 -> "Moved Permanently"
+    302 -> "Found"
+    304 -> "Not Modified"
+    400 -> "Bad Request"
+    404 -> "Not Found"
+    405 -> "Method Not Allowed"
+    _ -> "Internal Server Error"
+  end
+end
+
+def response(status: Int, content_type: String, cache: String, body: String) -> Map do
+  %{status: status, content_type: content_type, cache: cache, body: body, location: ""}
+end
+
+def html_response(status: Int, body: String) -> Map do
+  response(status, "text/html; charset=utf-8", "no-cache", body)
+end
+
+def redirect(location: String) -> Map do
+  %{status: 301, content_type: "text/plain", cache: "public, max-age=3600", body: "", location: location}
+end
+
+# The bytes that go on the wire. A HEAD gets the headers a GET would, with
+# the GET's Content-Length, and no body.
+def serialize(resp: Map, method: String) -> String do
+  location = case length(resp.location) > 0 do
+    true -> concat("Location: ", resp.location, "\r\n")
+    false -> ""
+  end
+  body = case method == "HEAD" do
+    true -> ""
+    false -> resp.body
+  end
+  join([
+    "HTTP/1.1 ", to_string(resp.status), " ", status_text(resp.status), "\r\n",
+    "Content-Type: ", resp.content_type, "\r\n",
+    "Content-Length: ", to_string(length(resp.body)), "\r\n",
+    "Cache-Control: ", resp.cache, "\r\n",
+    location,
+    "X-Served-By: blimp\r\n",
+    "Connection: close\r\n\r\n",
+    body
+  ], "")
+end
+
+def content_type_for(path: String) -> String do
+  ext = last(split(path, "."))
+  case downcase(ext) do
+    "css" -> "text/css; charset=utf-8"
+    "ico" -> "image/x-icon"
+    "png" -> "image/png"
+    "jpg" -> "image/jpeg"
+    "jpeg" -> "image/jpeg"
+    "gif" -> "image/gif"
+    "svg" -> "image/svg+xml"
+    "webp" -> "image/webp"
+    "txt" -> "text/plain; charset=utf-8"
+    "html" -> "text/html; charset=utf-8"
+    "woff2" -> "font/woff2"
+    _ -> "application/octet-stream"
+  end
+end
+
+# A static path is served only if every segment is plain: no "..", no empty
+# segment, nothing starting with a dot.
+def safe_static_path(path: String) -> Bool do
+  segments = drop_list(split(path, "/"), 1)
+  length(segments) > 0 and plain_segments(segments)
+end
+
+def plain_segments(segments: List) -> Bool do
+  case segments do
+    [] -> true
+    [s | rest] -> length(s) > 0 and not(starts_with(s, ".")) and plain_segments(rest)
+  end
+end

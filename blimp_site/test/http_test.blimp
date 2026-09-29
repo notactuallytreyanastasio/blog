@@ -1,0 +1,60 @@
+actor HttpTests do
+  test "parse a request line with a query" do
+    req = parse_request("GET /post/chess?open=museum HTTP/1.1\r\nHost: x\r\n\r\n")
+    assert_eq(req.method, "GET")
+    assert_eq(req.path, "/post/chess")
+    assert_eq(req.query, "open=museum")
+  end
+
+  test "parse a request line without a query" do
+    req = parse_request("HEAD / HTTP/1.1\r\n\r\n")
+    assert_eq(req.method, "HEAD")
+    assert_eq(req.path, "/")
+    assert_eq(req.query, "")
+  end
+
+  test "garbage is an empty request, not a crash" do
+    req = parse_request("hello")
+    assert_eq(req.method, "")
+  end
+
+  test "url_decode" do
+    assert_eq(url_decode("a+b%2Cc%zz"), "a b,c%zz")
+    assert_eq(url_decode("%E2%80%94"), "—")
+  end
+
+  test "query_param" do
+    assert_eq(query_param("open=museum,blog&x=1", "open"), "museum,blog")
+    assert_eq(query_param("x=1", "open"), "")
+    assert_eq(query_param("", "open"), "")
+  end
+
+  test "serialize a 200" do
+    wire = serialize(html_response(200, "hi"), "GET")
+    assert(starts_with(wire, "HTTP/1.1 200 OK\r\n"))
+    assert(contains(wire, "Content-Length: 2\r\n"))
+    assert(ends_with(wire, "\r\n\r\nhi"))
+  end
+
+  test "a HEAD has the GET's length and no body" do
+    wire = serialize(html_response(200, "hello"), "HEAD")
+    assert(contains(wire, "Content-Length: 5\r\n"))
+    assert(ends_with(wire, "\r\n\r\n"))
+  end
+
+  test "a redirect carries its location" do
+    assert(contains(serialize(redirect("/blog"), "GET"), "Location: /blog\r\n"))
+  end
+
+  test "static paths" do
+    assert(safe_static_path("/assets/post.css"))
+    refute(safe_static_path("/assets/../secret"))
+    refute(safe_static_path("/assets/.env"))
+    refute(safe_static_path("/assets//x"))
+  end
+
+  test "content types" do
+    assert_eq(content_type_for("/favicon.ico"), "image/x-icon")
+    assert_eq(content_type_for("/assets/post.css"), "text/css; charset=utf-8")
+  end
+end
