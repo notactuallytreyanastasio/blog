@@ -1,0 +1,105 @@
+actor MarkdownTests do
+  test "tags line is dropped" do
+    assert_eq(render_markdown("tags: a,b\n\n# Title\n"), "<h1>Title</h1>")
+    assert_eq(render_markdown("title: kept\ntags: x\n"), "<p>title: kept</p>")
+  end
+
+  test "atx headings" do
+    assert_eq(render_markdown("# A Me Museum "), "<h1>A Me Museum</h1>")
+    assert_eq(render_markdown("### Closed ###"), "<h3>Closed</h3>")
+    assert_eq(render_markdown("## A *b* `c`"), "<h2>A <em>b</em> <code>c</code></h2>")
+    assert_eq(render_markdown("#nospace"), "<p>#nospace</p>")
+  end
+
+  test "setext heading and thematic break" do
+    assert_eq(render_markdown("Title\n====="), "<h1>Title</h1>")
+    assert_eq(render_markdown("a\n\n---\n\nb"), "<p>a</p>\n<hr />\n<p>b</p>")
+  end
+
+  test "paragraphs keep soft breaks as newlines" do
+    assert_eq(render_markdown("a\nb\n\nc"), "<p>a\nb</p>\n<p>c</p>")
+    assert_eq(render_markdown("one \ntwo"), "<p>one\ntwo</p>")
+    assert_eq(render_markdown("one  \ntwo"), "<p>one<br />\ntwo</p>")
+    assert_eq(render_markdown("a\n\t•b"), "<p>a\n•b</p>")
+  end
+
+  test "text escaping" do
+    assert_eq(render_markdown("\"q\" & <x 'y'"), "<p>&quot;q&quot; &amp; &lt;x 'y'</p>")
+    assert_eq(render_markdown("\\*not em\\*"), "<p>*not em*</p>")
+  end
+
+  test "fenced code with a language" do
+    assert_eq(render_markdown("```elixir\n{:ok, \"x\"}\n```"), "<pre class=\"athl\"><code class=\"language-elixir\" translate=\"no\" tabindex=\"0\"><span class=\"line\" data-line=\"1\">&lbrace;:ok, &quot;x&quot;&rbrace;\n</span></code></pre>")
+  end
+
+  test "fenced code without a language, and one lumis does not know" do
+    plain = "<pre class=\"athl\"><code class=\"language-plaintext\" translate=\"no\" tabindex=\"0\"><span class=\"line\" data-line=\"1\">a &lt; b\n</span><span class=\"line\" data-line=\"2\">\n</span><span class=\"line\" data-line=\"3\">it&#39;s\n</span></code></pre>"
+    assert_eq(render_markdown("```\na < b\n\nit's\n```"), plain)
+    assert_eq(render_markdown("```temper\na < b\n\nit's\n```"), plain)
+  end
+
+  test "code_block_html" do
+    assert_eq(code_block_html("elixir", ""), "<pre class=\"athl\"><code class=\"language-elixir\" translate=\"no\" tabindex=\"0\"></code></pre>")
+    assert_eq(code_block_html("", "\n"), "<pre class=\"athl\"><code class=\"language-plaintext\" translate=\"no\" tabindex=\"0\"><span class=\"line\" data-line=\"1\">\n</span></code></pre>")
+  end
+
+  test "code spans" do
+    assert_eq(render_markdown("`{:ok, \"a\"}` and `` a`b ``"), "<p><code>&lbrace;:ok, &quot;a&quot;&rbrace;</code> and <code>a`b</code></p>")
+    assert_eq(render_markdown("`*not em*` `unclosed"), "<p><code>*not em*</code> `unclosed</p>")
+  end
+
+  test "emphasis" do
+    assert_eq(render_markdown("*a* **b** _c_ ***d***"), "<p><em>a</em> <strong>b</strong> <em>c</em> <em><strong>d</strong></em></p>")
+    assert_eq(render_markdown("snake_case_name and 2 * 3 * 4"), "<p>snake_case_name and 2 * 3 * 4</p>")
+    assert_eq(render_markdown("**bold `code`** - rest"), "<p><strong>bold <code>code</code></strong> - rest</p>")
+    assert_eq(render_markdown("**unclosed and *em*"), "<p>**unclosed and <em>em</em></p>")
+  end
+
+  test "links" do
+    assert_eq(render_markdown("[t](http://x.com/a?b=1&c=2)"), "<p><a href=\"http://x.com/a?b=1&amp;c=2\">t</a></p>")
+    assert_eq(render_markdown("[Dustin](TODO LINK BSKY) texted"), "<p>[Dustin](TODO LINK BSKY) texted</p>")
+    assert_eq(render_markdown("[**b** `c`](/p \"T\")"), "<p><a href=\"/p\" title=\"T\"><strong>b</strong> <code>c</code></a></p>")
+    assert_eq(render_markdown("![alt](/i.png)"), "<p><img src=\"/i.png\" alt=\"alt\" /></p>")
+  end
+
+  test "autolinks" do
+    assert_eq(render_markdown("<https://x.y/z>"), "<p><a href=\"https://x.y/z\">https://x.y/z</a></p>")
+    assert_eq(render_markdown("see https://example.com/a."), "<p>see <a href=\"https://example.com/a\">https://example.com/a</a>.</p>")
+    assert_eq(render_markdown("at www.x.com, ok"), "<p>at <a href=\"http://www.x.com\">www.x.com</a>, ok</p>")
+    assert_eq(render_markdown("(https://x.com/a_(b))"), "<p>(<a href=\"https://x.com/a_(b)\">https://x.com/a_(b)</a>)</p>")
+    assert_eq(render_markdown("https://x.com/§-1"), "<p><a href=\"https://x.com/%C2%A7-1\">https://x.com/§-1</a></p>")
+    assert_eq(render_markdown("[https://a.com](https://a.com)"), "<p><a href=\"https://a.com\">https://a.com</a></p>")
+  end
+
+  test "tight lists, ordered start, nesting" do
+    assert_eq(render_markdown("- a\n- b"), "<ul>\n<li>a</li>\n<li>b</li>\n</ul>")
+    assert_eq(render_markdown("3. x\n4. y"), "<ol start=\"3\">\n<li>x</li>\n<li>y</li>\n</ol>")
+    assert_eq(render_markdown("- a\n  - b\n- c"), "<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n</li>\n<li>c</li>\n</ul>")
+    assert_eq(render_markdown("- **x** - y\nlazy"), "<ul>\n<li><strong>x</strong> - y\nlazy</li>\n</ul>")
+  end
+
+  test "loose lists" do
+    assert_eq(render_markdown("1. a\n\n2. b"), "<ol>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n</ol>")
+    assert_eq(render_markdown("- a\n\n  more\n- b"), "<ul>\n<li>\n<p>a</p>\n<p>more</p>\n</li>\n<li>\n<p>b</p>\n</li>\n</ul>")
+  end
+
+  test "list ends at a paragraph" do
+    assert_eq(render_markdown("- a\n- b\n\nafter"), "<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n<p>after</p>")
+  end
+
+  test "blockquotes" do
+    assert_eq(render_markdown("> a\n> b\n\n> c"), "<blockquote>\n<p>a\nb</p>\n</blockquote>\n<blockquote>\n<p>c</p>\n</blockquote>")
+    assert_eq(render_markdown("> 1. a\n> 2. b"), "<blockquote>\n<ol>\n<li>a</li>\n<li>b</li>\n</ol>\n</blockquote>")
+  end
+
+  test "html blocks and inline html pass through" do
+    assert_eq(render_markdown("<div class=\"x\">\n*not md*\n</div>\n\n*md*"), "<div class=\"x\">\n*not md*\n</div>\n<p><em>md</em></p>")
+    assert_eq(render_markdown("a <span class=\"k\">b</span> c"), "<p>a <span class=\"k\">b</span> c</p>")
+  end
+
+  test "script elements are stripped" do
+    assert_eq(render_markdown("<div><blockquote>q</blockquote><script async src=\"e.js\"></script></div>"), "<div><blockquote>q</blockquote></div>")
+    assert_eq(render_markdown("<script>\nalert(1)\n</script>\n\nafter"), "<p>after</p>")
+    assert_eq(render_markdown("x <script>alert(1)</script> y"), "<p>x  y</p>")
+  end
+end

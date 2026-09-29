@@ -1,0 +1,1757 @@
+# Markdown to HTML, matching what the Phoenix site produced with MDEx
+# (comrak): extensions table, strikethrough, autolink, tasklist, footnotes,
+# unsafe raw HTML, no hardbreaks, code blocks through the lumis highlighter.
+#
+# It covers what the live posts use and no more: ATX and setext headings,
+# paragraphs, fenced and indented code, block quotes, bullet and ordered
+# lists (nested, tight and loose), thematic breaks, HTML blocks, code spans,
+# emphasis, links, images, <autolinks>, bare-URL autolinks, inline HTML,
+# backslash escapes and hard breaks. Not built, because no post uses them:
+# tables, strikethrough, task lists, footnotes, link reference definitions,
+# email autolinks, and entity decoding (a valid entity such as &mdash; is
+# passed through as written; comrak would emit the decoded character, which
+# renders the same).
+#
+# The one deliberate difference from the old site: <script>...</script> is
+# removed from raw HTML, block or inline.
+#
+# Shape: split into lines, parse into a list of block tuples, render. Every
+# loop is a tail call; recursion only descends into containers (quotes, list
+# items, link text), which the posts nest two or three deep.
+
+def render_markdown(source: String) -> String do
+  lines = filter(split(source, "\n"), fn(l: String) -> Bool do
+    not(starts_with(trim(l), "tags:"))
+  end)
+  blocks = elem(md_parse(lines), 0)
+  md_chop_newlines(md_render_blocks(blocks))
+end
+
+def md_chop_newlines(s: String) -> String do
+  case ends_with(s, "\n") do
+    true -> md_chop_newlines(slice(s, 0, length(s) - 1))
+    false -> s
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Code blocks. Everything goes through code_block_html so a highlighter can
+# replace it. This body reproduces lumis' markup minus the token spans: one
+# <span class="line"> per line, and lumis' escaping, which also covers
+# ' { and }. Languages lumis does not know (e.g. temper) become plaintext.
+
+def code_block_html(lang: String, code: String) -> String do
+  cls = case md_known_lang(lang) do
+    true -> lang
+    false -> "plaintext"
+  end
+  lines = md_drop_last(split(md_esc_code(code), "\n"))
+  body = md_code_lines(lines, 1, [])
+  concat("<pre class=\"athl\"><code class=\"language-", cls, "\" translate=\"no\" tabindex=\"0\">", body, "</code></pre>")
+end
+
+# Only these two are verified against the reference; the highlighter owns
+# the real list.
+def md_known_lang(lang: String) -> Bool do
+  lang == "elixir" or lang == "markdown"
+end
+
+def md_code_lines(lines: List, n: Int, acc: List) -> String do
+  case lines do
+    [] -> join(reverse(acc), "")
+    [l | rest] ->
+      piece = concat("<span class=\"line\" data-line=\"", to_string(n), "\">", l, "\n</span>")
+      md_code_lines(rest, n + 1, [piece | acc])
+  end
+end
+
+def md_drop_last(l: List) -> List do
+  case l do
+    [] -> []
+    _ -> reverse(tail(reverse(l)))
+  end
+end
+
+def md_esc_code(s: String) -> String do
+  s1 = md_esc(s)
+  s2 = md_replace_if(s1, "'", "&#39;")
+  s3 = md_replace_if(s2, "{", "&lbrace;")
+  md_replace_if(s3, "}", "&rbrace;")
+end
+
+# ---------------------------------------------------------------------------
+# Small helpers
+
+def md_replace_if(s: String, find: String, with: String) -> String do
+  case contains(s, find) do
+    true -> replace_all(s, find, with)
+    false -> s
+  end
+end
+
+# Text escaping as comrak does it: & < > and ", not '.
+def md_esc(s: String) -> String do
+  s1 = md_replace_if(s, "&", "&amp;")
+  s2 = md_replace_if(s1, "<", "&lt;")
+  s3 = md_replace_if(s2, ">", "&gt;")
+  md_replace_if(s3, "\"", "&quot;")
+end
+
+# Escaped string literals never match as case patterns (reported as a
+# Blimp bug), so cases over a character switch on this key instead.
+def md_ckey(c: Any) -> Any do
+  case c == "\n" do
+    true -> "NL"
+    false ->
+      case c == "\t" do
+        true -> "TAB"
+        false ->
+          case c == "\\" do
+            true -> "BS"
+            false ->
+              case c == "\"" do
+                true -> "DQ"
+                false -> c
+              end
+          end
+      end
+  end
+end
+
+# "--" + ">": a string literal containing an arrow inside a case arm does
+# not parse (reported as a Blimp bug).
+def md_comment_close() -> String do
+  concat("--", ">")
+end
+
+def md_is_ws(c: Any) -> Bool do
+  c == " " or c == "\t" or c == "\n"
+end
+
+def md_is_blank(line: String) -> Bool do
+  md_skip_ws(line, 0) >= length(line)
+end
+
+# First index at or after i that is not a space or tab.
+def md_skip_ws(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c == " " or c == "\t" do
+    true -> md_skip_ws(s, i + 1)
+    false -> i
+  end
+end
+
+# Leading whitespace in columns, tabs to the next multiple of 4.
+def md_indent(line: String) -> Int do
+  md_indent_loop(line, 0, 0)
+end
+
+def md_indent_loop(line: String, i: Int, col: Int) -> Int do
+  c = char_at(line, i)
+  case md_ckey(c) do
+    " " -> md_indent_loop(line, i + 1, col + 1)
+    "TAB" -> md_indent_loop(line, i + 1, col + 4 - rem(col, 4))
+    _ -> col
+  end
+end
+
+# Remove n columns of leading whitespace; a tab that overshoots leaves spaces.
+def md_strip_cols(line: String, n: Int) -> String do
+  md_strip_loop(line, n, 0, 0)
+end
+
+def md_strip_loop(line: String, n: Int, i: Int, col: Int) -> String do
+  case col >= n do
+    true -> concat(repeat(" ", col - n), drop(line, i))
+    false ->
+      c = char_at(line, i)
+      case md_ckey(c) do
+        " " -> md_strip_loop(line, n, i + 1, col + 1)
+        "TAB" -> md_strip_loop(line, n, i + 1, col + 4 - rem(col, 4))
+        _ -> drop(line, i)
+      end
+  end
+end
+
+def md_run_length(s: String, i: Int, c: String) -> Int do
+  md_run_loop(s, i, c, 0)
+end
+
+def md_run_loop(s: String, i: Int, c: String, n: Int) -> Int do
+  case char_at(s, i + n) == c do
+    true -> md_run_loop(s, i, c, n + 1)
+    false -> n
+  end
+end
+
+def md_is_ascii_punct(c: Any) -> Bool do
+  case c == nil do
+    true -> false
+    false ->
+      code = char_code(c)
+      (code >= 33 and code <= 47) or (code >= 58 and code <= 64) or (code >= 91 and code <= 96) or (code >= 123 and code <= 126)
+  end
+end
+
+def md_is_letter(c: Any) -> Bool do
+  case c == nil do
+    true -> false
+    false ->
+      code = char_code(c)
+      (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+  end
+end
+
+def md_is_alnum(c: Any) -> Bool do
+  case c == nil do
+    true -> false
+    false -> is_alnum(c)
+  end
+end
+
+def md_is_digit(c: Any) -> Bool do
+  case c == nil do
+    true -> false
+    false -> is_digit(c)
+  end
+end
+
+def md_list_take(l: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false -> md_list_take(tail(l), n - 1, [head(l) | acc])
+  end
+end
+
+def md_list_drop(l: List, n: Int) -> List do
+  case n <= 0 do
+    true -> l
+    false -> md_list_drop(tail(l), n - 1)
+  end
+end
+
+def md_digits_value(s: String, i: Int, acc: Int) -> Int do
+  c = char_at(s, i)
+  case md_is_digit(c) do
+    true -> md_digits_value(s, i + 1, acc * 10 + char_code(c) - 48)
+    false -> acc
+  end
+end
+
+def md_digit_run(s: String, i: Int) -> Int do
+  case md_is_digit(char_at(s, i)) do
+    true -> md_digit_run(s, i + 1)
+    false -> i
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Script stripping. Applied to raw HTML only; escaped text never contains a
+# literal "<script".
+
+def md_strip_scripts(s: String) -> String do
+  md_strip_scripts_loop(s, downcase(s), 0, [])
+end
+
+def md_strip_scripts_loop(s: String, low: String, from: Int, acc: List) -> String do
+  i = index_of_from(low, "<script", from)
+  case i < 0 do
+    true -> join(reverse([drop(s, from) | acc]), "")
+    false ->
+      after = char_at(low, i + 7)
+      case after == ">" or after == nil or md_is_ws(after) or after == "/" do
+        false -> md_strip_scripts_loop(s, low, i + 7, [slice(s, from, i + 7 - from) | acc])
+        true ->
+          close = index_of_from(low, "</script", i)
+          stop = case close < 0 do
+            true -> length(s)
+            false ->
+              gt = index_of_from(low, ">", close)
+              case gt < 0 do
+                true -> length(s)
+                false -> gt + 1
+              end
+          end
+          md_strip_scripts_loop(s, low, stop, [slice(s, from, i - from) | acc])
+      end
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Block structure
+#
+# Blocks are tuples:
+#   {:heading, level, text}   {:para, text}   {:code, lang, code}
+#   {:html, text}   {:hr}   {:quote, blocks}
+#   {:list, ordered, start, tight, items}   where items is a list of block lists
+#
+# md_parse returns {blocks, loose}: loose is true when a blank line separates
+# two blocks at this level, which is what makes a list item loose.
+
+def md_parse(lines: List) -> Any do
+  md_parse_loop(lines, [], [], false, false)
+end
+
+def md_flush_para(para: List, acc: List) -> List do
+  case para do
+    [] -> acc
+    _ -> [{:para, trim_right(join(reverse(para), "\n"))} | acc]
+  end
+end
+
+def md_parse_loop(lines: List, para: List, acc: List, blank: Bool, loose: Bool) -> Any do
+  case lines do
+    [] -> {reverse(md_flush_para(para, acc)), loose}
+    [line | rest] ->
+      c = md_classify(line, para != [])
+      case elem(c, 0) do
+        :blank ->
+          acc2 = md_flush_para(para, acc)
+          md_parse_loop(rest, [], acc2, acc2 != [], loose)
+        :para_line ->
+          case para do
+            [] -> md_parse_loop(rest, [elem(c, 1)], acc, false, loose or blank)
+            _ -> md_parse_loop(rest, [elem(c, 1) | para], acc, false, loose)
+          end
+        :setext ->
+          text = trim(join(reverse(para), "\n"))
+          md_parse_loop(rest, [], [{:heading, elem(c, 1), text} | acc], false, loose)
+        _ ->
+          r = md_take_block(c, line, rest)
+          acc2 = md_flush_para(para, acc)
+          md_parse_loop(elem(r, 1), [], [elem(r, 0) | acc2], false, loose or blank)
+      end
+  end
+end
+
+# What a line starts, given whether a paragraph is open (which decides lazy
+# continuation, setext underlines, and what may interrupt).
+def md_classify(line: String, in_para: Bool) -> Any do
+  ind = md_indent(line)
+  case md_is_blank(line) do
+    true -> {:blank}
+    false ->
+      case ind >= 4 do
+        true ->
+          case in_para do
+            true -> {:para_line, trim_left(line)}
+            false -> {:code_indented}
+          end
+        false -> md_classify_text(line, trim_left(line), ind, in_para)
+      end
+  end
+end
+
+def md_classify_text(line: String, t: String, ind: Int, in_para: Bool) -> Any do
+  fence = md_fence_open(t)
+  setext = case in_para do
+    true -> md_setext_level(t)
+    false -> 0
+  end
+  case fence != nil do
+    true -> {:fence, elem(fence, 0), elem(fence, 1), elem(fence, 2), ind}
+    false ->
+      case setext > 0 do
+        true -> {:setext, setext}
+        false ->
+          atx = md_atx(t)
+          case atx != nil do
+            true -> {:atx, elem(atx, 0), elem(atx, 1)}
+            false ->
+              case md_is_hr(t) do
+                true -> {:hr}
+                false ->
+                  case starts_with(t, ">") do
+                    true -> {:quote}
+                    false -> md_classify_rest(line, t, in_para)
+                  end
+              end
+          end
+      end
+  end
+end
+
+def md_classify_rest(line: String, t: String, in_para: Bool) -> Any do
+  html = md_html_start(t)
+  case html > 0 and (html < 7 or not(in_para)) do
+    true -> {:html, html}
+    false ->
+      m = md_list_marker(line)
+      case m != nil and (not(in_para) or md_marker_interrupts(m)) do
+        true -> {:list, m}
+        false -> {:para_line, t}
+      end
+  end
+end
+
+# Whether a line would start a block that ends a lazy continuation.
+def md_starts_block(line: String) -> Bool do
+  case md_is_blank(line) or md_indent(line) >= 4 do
+    true -> false
+    false ->
+      c = md_classify_text(line, trim_left(line), md_indent(line), true)
+      elem(c, 0) != :para_line and elem(c, 0) != :setext
+  end
+end
+
+def md_marker_interrupts(m: Any) -> Bool do
+  not(m.empty) and (not(m.ordered) or m.start == 1)
+end
+
+# {char, length, info} for an opening fence, or nil.
+def md_fence_open(t: String) -> Any do
+  c = char_at(t, 0)
+  case c == "`" or c == "~" do
+    false -> nil
+    true ->
+      n = md_run_length(t, 0, c)
+      info = trim(drop(t, n))
+      case n >= 3 and (c == "~" or not(contains(info, "`"))) do
+        true -> {c, n, info}
+        false -> nil
+      end
+  end
+end
+
+def md_setext_level(t: String) -> Int do
+  c = char_at(t, 0)
+  case c == "=" or c == "-" do
+    false -> 0
+    true ->
+      n = md_run_length(t, 0, c)
+      case md_is_blank(drop(t, n)) do
+        false -> 0
+        true ->
+          case c do
+            "=" -> 1
+            _ -> 2
+          end
+      end
+  end
+end
+
+# {level, content} for an ATX heading, or nil.
+def md_atx(t: String) -> Any do
+  n = md_run_length(t, 0, "#")
+  after = char_at(t, n)
+  case n >= 1 and n <= 6 and (after == nil or after == " " or after == "\t") do
+    false -> nil
+    true -> {n, md_atx_content(trim(drop(t, n)))}
+  end
+end
+
+# Drop an optional closing run of #s, which must follow a space.
+def md_atx_content(s: String) -> String do
+  stripped = md_trim_right_char(s, "#")
+  case stripped == s do
+    true -> s
+    false ->
+      case stripped == "" or ends_with(stripped, " ") or ends_with(stripped, "\t") do
+        true -> trim_right(stripped)
+        false -> s
+      end
+  end
+end
+
+def md_trim_right_char(s: String, c: String) -> String do
+  case ends_with(s, c) do
+    true -> md_trim_right_char(slice(s, 0, length(s) - 1), c)
+    false -> s
+  end
+end
+
+def md_is_hr(t: String) -> Bool do
+  c = char_at(t, 0)
+  case c == "-" or c == "*" or c == "_" do
+    false -> false
+    true -> md_hr_loop(t, c, 0, 0)
+  end
+end
+
+def md_hr_loop(t: String, c: String, i: Int, n: Int) -> Bool do
+  ch = char_at(t, i)
+  case ch == nil do
+    true -> n >= 3
+    false ->
+      case ch == c do
+        true -> md_hr_loop(t, c, i + 1, n + 1)
+        false ->
+          case ch == " " or ch == "\t" do
+            true -> md_hr_loop(t, c, i + 1, n)
+            false -> false
+          end
+      end
+  end
+end
+
+# A list item marker, as a map, or nil. `offset` is the column the item's
+# content starts at; continuation lines must be indented that far.
+def md_list_marker(line: String) -> Any do
+  ind = md_indent(line)
+  case ind >= 4 do
+    true -> nil
+    false ->
+      t = trim_left(line)
+      c = char_at(t, 0)
+      case c == "-" or c == "+" or c == "*" do
+        true -> md_marker_after(ind, t, 1, false, c, 1)
+        false ->
+          d = md_digit_run(t, 0)
+          dc = char_at(t, d)
+          case d >= 1 and d <= 9 and (dc == "." or dc == ")") do
+            true -> md_marker_after(ind, t, d + 1, true, dc, md_digits_value(t, 0, 0))
+            false -> nil
+          end
+      end
+  end
+end
+
+def md_marker_after(ind: Int, t: String, mw: Int, ordered: Bool, delim: String, start: Int) -> Any do
+  after = drop(t, mw)
+  a = char_at(after, 0)
+  case a == nil or a == " " or a == "\t" do
+    false -> nil
+    true ->
+      case md_is_blank(after) do
+        true -> %{ordered: ordered, delim: delim, start: start, offset: ind + mw + 1, content: "", empty: true}
+        false ->
+          sp = md_indent(after)
+          case sp >= 5 do
+            true -> %{ordered: ordered, delim: delim, start: start, offset: ind + mw + 1, content: md_strip_cols(after, 1), empty: false}
+            false -> %{ordered: ordered, delim: delim, start: start, offset: ind + mw + sp, content: md_strip_cols(after, sp), empty: false}
+          end
+      end
+  end
+end
+
+def md_same_list(a: Any, b: Any) -> Bool do
+  a.ordered == b.ordered and a.delim == b.delim
+end
+
+# HTML block start condition: 1 (script/pre/style/textarea), 2 (comment),
+# 6 (block-level tag), 7 (any complete tag alone on the line), or 0.
+def md_html_start(t: String) -> Int do
+  case starts_with(t, "<") do
+    false -> 0
+    true ->
+      case starts_with(t, "<!--") do
+        true -> 2
+        false ->
+          closing = char_at(t, 1) == "/"
+          ns = case closing do
+            true -> 2
+            false -> 1
+          end
+          ne = md_tag_name_end(t, ns)
+          name = downcase(slice(t, ns, ne - ns))
+          after = char_at(t, ne)
+          ends_ok = after == nil or after == " " or after == "\t" or after == ">"
+          case ne > ns do
+            false -> 0
+            true ->
+              case not(closing) and ends_ok and md_raw_tag(name) do
+                true -> 1
+                false ->
+                  case (ends_ok or starts_with(drop(t, ne), "/>")) and md_block_tag(name) do
+                    true -> 6
+                    false ->
+                      e = md_html_tag_end(t, 0)
+                      case e > 0 and md_is_blank(drop(t, e)) and not(md_raw_tag(name)) do
+                        true -> 7
+                        false -> 0
+                      end
+                  end
+              end
+          end
+      end
+  end
+end
+
+def md_raw_tag(name: String) -> Bool do
+  name == "script" or name == "pre" or name == "style" or name == "textarea"
+end
+
+def md_block_tag(name: String) -> Bool do
+  contains(" address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul ", concat(" ", name, " "))
+end
+
+def md_tag_name_end(s: String, i: Int) -> Int do
+  case md_is_letter(char_at(s, i)) do
+    false -> i
+    true -> md_tag_name_rest(s, i + 1)
+  end
+end
+
+def md_tag_name_rest(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case md_is_alnum(c) or c == "-" do
+    true -> md_tag_name_rest(s, i + 1)
+    false -> i
+  end
+end
+
+# Returns {block, remaining lines}.
+def md_take_block(c: Any, line: String, rest: List) -> Any do
+  case elem(c, 0) do
+    :fence ->
+      r = md_collect_fence(rest, elem(c, 1), elem(c, 2), elem(c, 4), [])
+      lang = head(split(elem(c, 3), " "))
+      {{:code, lang, md_lines_text(elem(r, 0))}, elem(r, 1)}
+    :atx -> {{:heading, elem(c, 1), elem(c, 2)}, rest}
+    :hr -> {{:hr}, rest}
+    :code_indented ->
+      r = md_collect_indented([line | rest], [])
+      {{:code, "", md_lines_text(elem(r, 0))}, elem(r, 1)}
+    :quote ->
+      r = md_collect_quote([line | rest], [], false)
+      {{:quote, elem(md_parse(elem(r, 0)), 0)}, elem(r, 1)}
+    :html ->
+      r = md_collect_html(elem(c, 1), [line | rest], [])
+      {{:html, md_strip_scripts(join(elem(r, 0), "\n"))}, elem(r, 1)}
+    :list -> md_take_list(elem(c, 1), rest)
+  end
+end
+
+# Kept out of the case arm above: an inline `fn ... end` inside a case arm
+# does not parse (reported as a Blimp bug).
+def md_take_list(m: Any, rest: List) -> Any do
+  r = md_collect_list(rest, m, m.offset, [m.content], [], false, md_fence_open(m.content) != nil)
+  parsed = map(elem(r, 0), fn(item: List) -> Any do md_parse(item) end)
+  any_loose = reduce(parsed, false, fn(acc: Bool, p: Any) -> Bool do acc or elem(p, 1) end)
+  items = map(parsed, fn(p: Any) -> Any do elem(p, 0) end)
+  {{:list, m.ordered, m.start, not(elem(r, 1) or any_loose), items}, elem(r, 2)}
+end
+
+def md_lines_text(lines: List) -> String do
+  case lines do
+    [] -> ""
+    _ -> concat(join(lines, "\n"), "\n")
+  end
+end
+
+def md_collect_fence(lines: List, ch: String, n: Int, ind: Int, acc: List) -> Any do
+  case lines do
+    [] -> {reverse(acc), []}
+    [l | rest] ->
+      t = trim_left(l)
+      closes = md_indent(l) < 4 and md_run_length(t, 0, ch) >= n and md_is_blank(drop(t, md_run_length(t, 0, ch)))
+      case closes do
+        true -> {reverse(acc), rest}
+        false -> md_collect_fence(rest, ch, n, ind, [md_strip_cols(l, ind) | acc])
+      end
+  end
+end
+
+def md_collect_indented(lines: List, acc: List) -> Any do
+  case lines do
+    [] -> md_indented_done(acc, [])
+    [l | rest] ->
+      case md_is_blank(l) or md_indent(l) >= 4 do
+        true -> md_collect_indented(rest, [md_strip_cols(l, 4) | acc])
+        false -> md_indented_done(acc, lines)
+      end
+  end
+end
+
+# Trailing blank lines are not part of an indented code block.
+def md_indented_done(acc: List, remaining: List) -> Any do
+  case acc do
+    [l | more] ->
+      case md_is_blank(l) do
+        true -> md_indented_done(more, ["" | remaining])
+        false -> {reverse(acc), remaining}
+      end
+    [] -> {[], remaining}
+  end
+end
+
+def md_collect_quote(lines: List, acc: List, lazy_ok: Bool) -> Any do
+  case lines do
+    [] -> {reverse(acc), []}
+    [l | rest] ->
+      t = trim_left(l)
+      case md_indent(l) < 4 and starts_with(t, ">") do
+        true ->
+          s = md_strip_cols(drop(t, 1), 1)
+          md_collect_quote(rest, [s | acc], not(md_is_blank(s)) and md_fence_open(trim_left(s)) == nil)
+        false ->
+          case lazy_ok and not(md_is_blank(l)) and not(md_starts_block(l)) do
+            true -> md_collect_quote(rest, [l | acc], true)
+            false -> {reverse(acc), lines}
+          end
+      end
+  end
+end
+
+def md_collect_html(kind: Int, lines: List, acc: List) -> Any do
+  case lines do
+    [] -> {reverse(acc), []}
+    [l | rest] ->
+      case kind == 1 or kind == 2 do
+        true ->
+          case md_html_block_ends(kind, l) do
+            true -> {reverse([l | acc]), rest}
+            false -> md_collect_html(kind, rest, [l | acc])
+          end
+        false ->
+          case md_is_blank(l) do
+            true -> {reverse(acc), lines}
+            false -> md_collect_html(kind, rest, [l | acc])
+          end
+      end
+  end
+end
+
+def md_html_block_ends(kind: Int, l: String) -> Bool do
+  case kind do
+    2 -> contains(l, md_comment_close())
+    _ ->
+      low = downcase(l)
+      contains(low, "</script>") or contains(low, "</pre>") or contains(low, "</style>") or contains(low, "</textarea>")
+  end
+end
+
+# Collect the lines of each item of one list. Returns {items, blank_between,
+# remaining}: items are lists of lines with the item's indentation removed;
+# blank_between says a blank line separated two items (a loose list);
+# trailing blank lines go back to the caller.
+def md_collect_list(lines: List, m: Any, offset: Int, cur: List, items: List, blank_between: Bool, in_fence: Bool) -> Any do
+  case lines do
+    [] -> md_list_done(cur, items, blank_between, [])
+    [l | rest] ->
+      case md_is_blank(l) do
+        true -> md_collect_list(rest, m, offset, ["" | cur], items, blank_between, in_fence)
+        false ->
+          case md_indent(l) >= offset do
+            true ->
+              s = md_strip_cols(l, offset)
+              md_collect_list(rest, m, offset, [s | cur], items, blank_between, md_toggle_fence(in_fence, s))
+            false ->
+              n = md_list_marker(l)
+              case n != nil and md_same_list(m, n) do
+                true ->
+                  trailing = md_count_blank_head(cur, 0)
+                  item = reverse(md_list_drop(cur, trailing))
+                  md_collect_list(rest, m, n.offset, [n.content], [item | items], blank_between or trailing > 0, md_fence_open(n.content) != nil)
+                false ->
+                  lazy = not(in_fence) and not(md_is_blank(head(cur))) and not(md_starts_block(l))
+                  case lazy do
+                    true -> md_collect_list(rest, m, offset, [trim_left(l) | cur], items, blank_between, in_fence)
+                    false -> md_list_done(cur, items, blank_between, lines)
+                  end
+              end
+          end
+      end
+  end
+end
+
+def md_toggle_fence(in_fence: Bool, s: String) -> Bool do
+  case md_indent(s) < 4 and md_fence_open(trim_left(s)) != nil do
+    true -> not(in_fence)
+    false -> in_fence
+  end
+end
+
+def md_count_blank_head(l: List, n: Int) -> Int do
+  case l do
+    [] -> n
+    [h | rest] ->
+      case md_is_blank(h) do
+        true -> md_count_blank_head(rest, n + 1)
+        false -> n
+      end
+  end
+end
+
+def md_list_done(cur: List, items: List, blank_between: Bool, remaining: List) -> Any do
+  trailing = md_count_blank_head(cur, 0)
+  item = reverse(md_list_drop(cur, trailing))
+  back = md_list_take(cur, trailing, [])
+  {reverse([item | items]), blank_between, md_concat_lists(back, remaining)}
+end
+
+def md_concat_lists(a: List, b: List) -> List do
+  md_prepend(reverse(a), b)
+end
+
+def md_prepend(rev: List, b: List) -> List do
+  case rev do
+    [] -> b
+    [h | rest] -> md_prepend(rest, [h | b])
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Rendering blocks
+
+def md_render_blocks(blocks: List) -> String do
+  join(map(blocks, fn(b: Any) -> String do md_render_block(b) end), "")
+end
+
+def md_render_block(b: Any) -> String do
+  case elem(b, 0) do
+    :heading ->
+      h = to_string(elem(b, 1))
+      concat("<h", h, ">", md_inline(elem(b, 2), false), "</h", h, ">\n")
+    :para -> concat("<p>", md_inline(elem(b, 1), false), "</p>\n")
+    :code -> concat(code_block_html(elem(b, 1), elem(b, 2)), "\n")
+    :html ->
+      # An HTML block that was nothing but a script leaves nothing behind.
+      case md_is_blank(elem(b, 1)) do
+        true -> ""
+        false -> concat(elem(b, 1), "\n")
+      end
+    :hr -> "<hr />\n"
+    :quote -> concat("<blockquote>\n", md_render_blocks(elem(b, 1)), "</blockquote>\n")
+    :list -> md_render_list(b)
+  end
+end
+
+def md_render_list(b: Any) -> String do
+  ordered = elem(b, 1)
+  start = elem(b, 2)
+  tight = elem(b, 3)
+  open = case ordered do
+    false -> "<ul>\n"
+    true ->
+      case start == 1 do
+        true -> "<ol>\n"
+        false -> concat("<ol start=\"", to_string(start), "\">\n")
+      end
+  end
+  close = case ordered do
+    true -> "</ol>\n"
+    false -> "</ul>\n"
+  end
+  items = map(elem(b, 4), fn(item: List) -> String do
+    concat("<li>", md_render_item(item, tight, [], false), "</li>\n")
+  end)
+  concat(open, join(items, ""), close)
+end
+
+# In a tight list a paragraph is its bare text; every other block starts on
+# a fresh line, as comrak's cr() does.
+def md_render_item(blocks: List, tight: Bool, acc: List, at_line_start: Bool) -> String do
+  case blocks do
+    [] -> join(reverse(acc), "")
+    [b | rest] ->
+      case tight and elem(b, 0) == :para do
+        true -> md_render_item(rest, tight, [md_inline(elem(b, 1), false) | acc], false)
+        false ->
+          acc2 = case at_line_start do
+            true -> acc
+            false -> ["\n" | acc]
+          end
+          md_render_item(rest, tight, [md_render_block(b) | acc2], true)
+      end
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Inlines
+#
+# md_scan turns text into tokens: {:t, html} for finished pieces and
+# {:delim, char, count, can_open, can_close} for runs of * or _. Links are
+# rendered as they are found (their text recursively), so emphasis never
+# crosses a link boundary. md_emph then matches the delimiters.
+
+def md_inline(text: String, in_link: Bool) -> String do
+  # h and w only matter when the text holds a bare URL; most paragraphs
+  # don't, and skipping them there saves a helper call per letter.
+  specials = case not(in_link) and (contains(text, "://") or contains(text, "www.")) do
+    true -> "\\`*_[!<\n&hw"
+    false -> "\\`*_[!<\n&"
+  end
+  toks = md_scan(text, 0, length(text), 0, [], in_link, specials)
+  md_emph(reverse(toks))
+end
+
+def md_flush(s: String, ts: Int, i: Int, acc: List) -> List do
+  case i > ts do
+    true -> [{:t, md_esc(slice(s, ts, i - ts))} | acc]
+    false -> acc
+  end
+end
+
+def md_scan(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool, specials: String) -> List do
+  case i >= n do
+    true -> md_flush(s, ts, i, acc)
+    false ->
+      c = char_at(s, i)
+      case contains(specials, c) do
+        false -> md_scan(s, i + 1, n, ts, acc, in_link, specials)
+        true ->
+          r = md_scan_special(s, i, n, ts, acc, in_link, c)
+          md_scan(s, elem(r, 0), n, elem(r, 1), elem(r, 2), in_link, specials)
+      end
+  end
+end
+
+# One step at a character that may start something: returns the scanner's
+# next {i, ts, acc}. The helpers return to md_scan rather than tail-calling
+# it: a scanner that tail-calls a helper which tail-calls back runs in
+# quadratic time (reported as a Blimp bug).
+def md_scan_special(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool, c: String) -> Any do
+  case md_ckey(c) do
+    "BS" -> md_scan_backslash(s, i, n, ts, acc, in_link)
+    "`" -> md_scan_code(s, i, n, ts, acc, in_link)
+    "*" -> md_scan_delim(s, i, n, ts, acc, in_link, c)
+    "_" -> md_scan_delim(s, i, n, ts, acc, in_link, c)
+    "[" -> md_scan_link(s, i, n, ts, acc, in_link, false)
+    "!" ->
+      case char_at(s, i + 1) == "[" do
+        true -> md_scan_link(s, i + 1, n, ts, acc, in_link, true)
+        false -> {i + 1, ts, acc}
+      end
+    "<" -> md_scan_angle(s, i, n, ts, acc, in_link)
+    "NL" ->
+      # Paragraph lines arrive with leading whitespace stripped, so a line
+      # ending only needs work when spaces precede it.
+      case char_at(s, i - 1) == " " or md_is_ws(char_at(s, i + 1)) do
+        true -> md_scan_newline(s, i, n, ts, acc, in_link)
+        false -> {i + 1, ts, acc}
+      end
+    "&" ->
+      e = md_entity_end(s, i)
+      case e > 0 do
+        true -> {e, e, [{:t, slice(s, i, e - i)} | md_flush(s, ts, i, acc)]}
+        false -> {i + 1, ts, acc}
+      end
+    _ -> md_scan_bare(s, i, n, ts, acc, in_link)
+  end
+end
+
+def md_scan_backslash(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool) -> Any do
+  nx = char_at(s, i + 1)
+  case nx == "\n" do
+    true ->
+      j = md_skip_ws(s, i + 2)
+      {j, j, [{:t, "<br />\n"} | md_flush(s, ts, i, acc)]}
+    false ->
+      case md_is_ascii_punct(nx) do
+        true -> {i + 2, i + 2, [{:t, md_esc(nx)} | md_flush(s, ts, i, acc)]}
+        false -> {i + 1, ts, acc}
+      end
+  end
+end
+
+# The reference escapes braces in code spans (MDEx does this so the HTML
+# can sit inside HEEx). No post has a brace in plain text, so whether text
+# braces are escaped too is unverified; they are left alone.
+def md_esc_code_span(s: String) -> String do
+  md_replace_if(md_replace_if(md_esc(s), "{", "&lbrace;"), "}", "&rbrace;")
+end
+
+# A soft break, or a hard one after two or more spaces. Spaces around the
+# line ending are dropped either way.
+def md_scan_newline(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool) -> Any do
+  j = md_back_spaces(s, i, ts)
+  brk = case i - j >= 2 do
+    true -> "<br />\n"
+    false -> "\n"
+  end
+  k = md_skip_ws(s, i + 1)
+  {k, k, [{:t, brk} | md_flush(s, ts, j, acc)]}
+end
+
+def md_back_spaces(s: String, j: Int, floor: Int) -> Int do
+  case j > floor and char_at(s, j - 1) == " " do
+    true -> md_back_spaces(s, j - 1, floor)
+    false -> j
+  end
+end
+
+def md_scan_code(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool) -> Any do
+  k = md_run_length(s, i, "`")
+  close = md_find_backticks(s, i + k, k)
+  case close < 0 do
+    true -> {i + k, ts, acc}
+    false ->
+      raw = replace_all(slice(s, i + k, close - i - k), "\n", " ")
+      body = md_code_span_trim(raw)
+      e = close + k
+      {e, e, [{:t, concat("<code>", md_esc_code_span(body), "</code>")} | md_flush(s, ts, i, acc)]}
+  end
+end
+
+# Start of the next backtick run of exactly k, or -1.
+def md_find_backticks(s: String, i: Int, k: Int) -> Int do
+  j = index_of_from(s, "`", i)
+  case j < 0 do
+    true -> -1
+    false ->
+      r = md_run_length(s, j, "`")
+      case r == k do
+        true -> j
+        false -> md_find_backticks(s, j + r, k)
+      end
+  end
+end
+
+def md_code_span_trim(s: String) -> String do
+  n = length(s)
+  case n >= 2 and char_at(s, 0) == " " and char_at(s, n - 1) == " " and trim(s) != "" do
+    true -> slice(s, 1, n - 2)
+    false -> s
+  end
+end
+
+def md_scan_delim(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool, c: String) -> Any do
+  k = md_run_length(s, i, c)
+  before = md_class_before(s, i)
+  after = md_class_at(s, i + k)
+  left = after != :ws and (after != :punct or before != :other)
+  right = before != :ws and (before != :punct or after != :other)
+  flags = case c do
+    "*" -> {left, right}
+    _ -> {left and (not(right) or before == :punct), right and (not(left) or after == :punct)}
+  end
+  tok = {:delim, c, k, elem(flags, 0), elem(flags, 1)}
+  {i + k, i + k, [tok | md_flush(s, ts, i, acc)]}
+end
+
+# Character classes for flanking: :ws, :punct or :other. Non-ASCII
+# characters are looked at whole; a few common Unicode punctuation and
+# space characters are recognised, anything else counts as a letter.
+def md_class_at(s: String, i: Int) -> Atom do
+  c = char_at(s, i)
+  case c == nil do
+    true -> :ws
+    false ->
+      code = char_code(c)
+      case code < 128 do
+        true -> md_ascii_class(c)
+        false -> md_uni_class(slice(s, i, md_utf8_len(code)))
+      end
+  end
+end
+
+def md_class_before(s: String, i: Int) -> Atom do
+  case i <= 0 do
+    true -> :ws
+    false ->
+      code = char_code(char_at(s, i - 1))
+      case code < 128 do
+        true -> md_ascii_class(char_at(s, i - 1))
+        false ->
+          j = md_utf8_start(s, i - 1)
+          md_uni_class(slice(s, j, i - j))
+      end
+  end
+end
+
+def md_ascii_class(c: String) -> Atom do
+  case md_is_ws(c) or c == "\r" do
+    true -> :ws
+    false ->
+      case md_is_ascii_punct(c) do
+        true -> :punct
+        false -> :other
+      end
+  end
+end
+
+def md_utf8_len(code: Int) -> Int do
+  case code >= 240 do
+    true -> 4
+    false ->
+      case code >= 224 do
+        true -> 3
+        false -> 2
+      end
+  end
+end
+
+def md_utf8_start(s: String, j: Int) -> Int do
+  code = char_code(char_at(s, j))
+  case j > 0 and code >= 128 and code < 192 do
+    true -> md_utf8_start(s, j - 1)
+    false -> j
+  end
+end
+
+def md_uni_class(ch: String) -> Atom do
+  case ch == concat(from_char_code(194), from_char_code(160)) or ch == " " or ch == "　" do
+    true -> :ws
+    false ->
+      case contains("—–‐“”‘’…•«»¡¿§¶·′″", ch) do
+        true -> :punct
+        false -> :other
+      end
+  end
+end
+
+# &name; &#123; &#x1F; : end index (after ;) of a valid-looking entity, or 0.
+def md_entity_end(s: String, i: Int) -> Int do
+  c = char_at(s, i + 1)
+  case c == "#" do
+    true ->
+      x = char_at(s, i + 2)
+      case x == "x" or x == "X" do
+        true -> md_entity_close(s, md_hex_run(s, i + 3), i + 3, 6)
+        false -> md_entity_close(s, md_digit_run(s, i + 2), i + 2, 7)
+      end
+    false ->
+      case md_is_letter(c) do
+        true -> md_entity_close(s, md_alnum_run(s, i + 1), i + 1, 32)
+        false -> 0
+      end
+  end
+end
+
+def md_entity_close(s: String, e: Int, start: Int, max: Int) -> Int do
+  case e > start and e - start <= max and char_at(s, e) == ";" do
+    true -> e + 1
+    false -> 0
+  end
+end
+
+def md_alnum_run(s: String, i: Int) -> Int do
+  case md_is_alnum(char_at(s, i)) do
+    true -> md_alnum_run(s, i + 1)
+    false -> i
+  end
+end
+
+def md_hex_run(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case md_is_digit(c) or (c != nil and contains("abcdefABCDEF", c)) do
+    true -> md_hex_run(s, i + 1)
+    false -> i
+  end
+end
+
+# --- links and images
+
+def md_scan_link(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool, image: Bool) -> Any do
+  # i is the index of "["; for an image, the "!" is at i - 1.
+  close = md_find_bracket_close(s, i + 1, 0)
+  tail = case close >= 0 and char_at(s, close + 1) == "(" do
+    true -> md_link_tail(s, close + 2)
+    false -> nil
+  end
+  case tail == nil do
+    true -> {i + 1, ts, acc}
+    false ->
+      inner = slice(s, i + 1, close - i - 1)
+      href = md_href(md_unescape(elem(tail, 0)))
+      title = case elem(tail, 1) == nil do
+        true -> ""
+        false -> concat(" title=\"", md_esc(md_unescape(elem(tail, 1))), "\"")
+      end
+      html = case image do
+        true -> concat("<img src=\"", href, "\" alt=\"", md_esc(md_plain(inner)), "\"", title, " />")
+        false -> concat("<a href=\"", href, "\"", title, ">", md_inline(inner, true), "</a>")
+      end
+      start = case image do
+        true -> i - 1
+        false -> i
+      end
+      e = elem(tail, 2)
+      {e, e, [{:t, html} | md_flush(s, ts, start, acc)]}
+  end
+end
+
+# Image alt text: the link text without markup characters.
+def md_plain(s: String) -> String do
+  s1 = md_replace_if(s, "*", "")
+  s2 = md_replace_if(s1, "_", "")
+  md_replace_if(s2, "`", "")
+end
+
+def md_unescape(s: String) -> String do
+  case contains(s, "\\") do
+    false -> s
+    true -> md_unescape_loop(s, 0, 0, [])
+  end
+end
+
+def md_unescape_loop(s: String, i: Int, ts: Int, acc: List) -> String do
+  c = char_at(s, i)
+  case c == nil do
+    true -> join(reverse([slice(s, ts, i - ts) | acc]), "")
+    false ->
+      case c == "\\" and md_is_ascii_punct(char_at(s, i + 1)) do
+        true -> md_unescape_loop(s, i + 2, i + 2, [char_at(s, i + 1), slice(s, ts, i - ts) | acc])
+        false -> md_unescape_loop(s, i + 1, ts, acc)
+      end
+  end
+end
+
+# Index of the "]" that closes the bracket opened just before i, or -1.
+# Backslash escapes and code spans are skipped over.
+def md_find_bracket_close(s: String, i: Int, depth: Int) -> Int do
+  c = char_at(s, i)
+  case md_ckey(c) do
+    nil -> -1
+    "BS" -> md_find_bracket_close(s, i + 2, depth)
+    "`" ->
+      k = md_run_length(s, i, "`")
+      close = md_find_backticks(s, i + k, k)
+      case close < 0 do
+        true -> md_find_bracket_close(s, i + k, depth)
+        false -> md_find_bracket_close(s, close + k, depth)
+      end
+    "[" -> md_find_bracket_close(s, i + 1, depth + 1)
+    "]" ->
+      case depth == 0 do
+        true -> i
+        false -> md_find_bracket_close(s, i + 1, depth - 1)
+      end
+    _ -> md_find_bracket_close(s, i + 1, depth)
+  end
+end
+
+def md_skip_ws_nl(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c == " " or c == "\t" or c == "\n" do
+    true -> md_skip_ws_nl(s, i + 1)
+    false -> i
+  end
+end
+
+# After "](": {destination, title or nil, index after ")"} or nil.
+def md_link_tail(s: String, i: Int) -> Any do
+  j = md_skip_ws_nl(s, i)
+  case char_at(s, j) do
+    ")" -> {"", nil, j + 1}
+    "<" ->
+      e = md_angle_dest_end(s, j + 1)
+      case e < 0 do
+        true -> nil
+        false -> md_link_title(s, slice(s, j + 1, e - j - 1), e + 1)
+      end
+    _ ->
+      e = md_dest_end(s, j, 0)
+      case e <= j do
+        true -> nil
+        false -> md_link_title(s, slice(s, j, e - j), e)
+      end
+  end
+end
+
+def md_angle_dest_end(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case md_ckey(c) do
+    nil -> -1
+    "NL" -> -1
+    "<" -> -1
+    ">" -> i
+    "BS" -> md_angle_dest_end(s, i + 2)
+    _ -> md_angle_dest_end(s, i + 1)
+  end
+end
+
+# End of a bare destination: no spaces or control characters, parentheses
+# balanced.
+def md_dest_end(s: String, i: Int, depth: Int) -> Int do
+  c = char_at(s, i)
+  case c == nil or c == " " or c == "\t" or c == "\n" do
+    true ->
+      case depth == 0 do
+        true -> i
+        false -> -1
+      end
+    false ->
+      case md_ckey(c) do
+        "BS" ->
+          case md_is_ascii_punct(char_at(s, i + 1)) do
+            true -> md_dest_end(s, i + 2, depth)
+            false -> md_dest_end(s, i + 1, depth)
+          end
+        "(" -> md_dest_end(s, i + 1, depth + 1)
+        ")" ->
+          case depth == 0 do
+            true -> i
+            false -> md_dest_end(s, i + 1, depth - 1)
+          end
+        _ ->
+          case char_code(c) < 32 do
+            true -> -1
+            false -> md_dest_end(s, i + 1, depth)
+          end
+      end
+  end
+end
+
+def md_link_title(s: String, dest: String, i: Int) -> Any do
+  j = md_skip_ws_nl(s, i)
+  c = char_at(s, j)
+  case c == ")" do
+    true -> {dest, nil, j + 1}
+    false ->
+      closer = case md_ckey(c) do
+        "DQ" -> "\""
+        "'" -> "'"
+        "(" -> ")"
+        _ -> nil
+      end
+      case closer == nil or j == i do
+        true -> nil
+        false ->
+          e = md_title_end(s, j + 1, closer)
+          case e < 0 do
+            true -> nil
+            false ->
+              k = md_skip_ws_nl(s, e + 1)
+              case char_at(s, k) == ")" do
+                true -> {dest, slice(s, j + 1, e - j - 1), k + 1}
+                false -> nil
+              end
+          end
+      end
+  end
+end
+
+def md_title_end(s: String, i: Int, closer: String) -> Int do
+  c = char_at(s, i)
+  case md_ckey(c) do
+    nil -> -1
+    "BS" -> md_title_end(s, i + 2, closer)
+    _ ->
+      case c == closer do
+        true -> i
+        false -> md_title_end(s, i + 1, closer)
+      end
+  end
+end
+
+# Percent-encode a URL the way comrak's escape_href does: these bytes pass,
+# & and ' become entities, everything else becomes %XX.
+def md_href(url: String) -> String do
+  md_href_loop(url, 0, 0, [])
+end
+
+def md_href_safe(c: String) -> Bool do
+  is_alnum(c) or contains("-_.+!*(),%#@?=;:/$~", c)
+end
+
+def md_href_loop(s: String, i: Int, ts: Int, acc: List) -> String do
+  c = char_at(s, i)
+  case c == nil do
+    true -> join(reverse([slice(s, ts, i - ts) | acc]), "")
+    false ->
+      case md_href_safe(c) do
+        true -> md_href_loop(s, i + 1, ts, acc)
+        false ->
+          enc = case c do
+            "&" -> "&amp;"
+            "'" -> "&#x27;"
+            _ -> md_pct(char_code(c))
+          end
+          md_href_loop(s, i + 1, i + 1, [enc, slice(s, ts, i - ts) | acc])
+      end
+  end
+end
+
+def md_pct(code: Int) -> String do
+  hex = "0123456789ABCDEF"
+  concat("%", slice(hex, code / 16, 1), slice(hex, rem(code, 16), 1))
+end
+
+# --- <...>: autolinks, inline HTML
+
+def md_scan_angle(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool) -> Any do
+  a = md_autolink_end(s, i)
+  case a > 0 do
+    true ->
+      url = slice(s, i + 1, a - i - 2)
+      href = case md_is_uri(url) do
+        true -> md_href(url)
+        false -> concat("mailto:", md_href(url))
+      end
+      html = concat("<a href=\"", href, "\">", md_esc(url), "</a>")
+      {a, a, [{:t, html} | md_flush(s, ts, i, acc)]}
+    false ->
+      e = md_html_tag_end(s, i)
+      case e > 0 do
+        false -> {i + 1, ts, acc}
+        true ->
+          tag = slice(s, i, e - i)
+          acc2 = md_flush(s, ts, i, acc)
+          case md_is_script_open(tag) do
+            true ->
+              stop = md_script_close_end(s, e)
+              {stop, stop, acc2}
+            false -> {e, e, [{:t, tag} | acc2]}
+          end
+      end
+  end
+end
+
+def md_is_script_open(tag: String) -> Bool do
+  low = downcase(tag)
+  starts_with(low, "<script") and md_tag_name_end(low, 1) == 7
+end
+
+def md_script_close_end(s: String, from: Int) -> Int do
+  low = downcase(s)
+  close = index_of_from(low, "</script", from)
+  case close < 0 do
+    true -> length(s)
+    false ->
+      gt = index_of_from(low, ">", close)
+      case gt < 0 do
+        true -> length(s)
+        false -> gt + 1
+      end
+  end
+end
+
+# <scheme:...> or <user@host>: index after ">", or 0.
+def md_autolink_end(s: String, i: Int) -> Int do
+  e = md_autolink_scan(s, i + 1)
+  case e < 0 do
+    true -> 0
+    false ->
+      body = slice(s, i + 1, e - i - 1)
+      case md_is_uri(body) or md_is_email(body) do
+        true -> e + 1
+        false -> 0
+      end
+  end
+end
+
+def md_autolink_scan(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c == nil or c == "<" or md_is_ws(c) do
+    true -> -1
+    false ->
+      case c == ">" do
+        true -> i
+        false -> md_autolink_scan(s, i + 1)
+      end
+  end
+end
+
+def md_is_uri(body: String) -> Bool do
+  colon = index_of(body, ":")
+  colon >= 2 and colon <= 32 and md_is_letter(char_at(body, 0)) and md_scheme_chars(body, 1, colon)
+end
+
+def md_scheme_chars(s: String, i: Int, stop: Int) -> Bool do
+  case i >= stop do
+    true -> true
+    false ->
+      c = char_at(s, i)
+      case md_is_alnum(c) or c == "+" or c == "." or c == "-" do
+        true -> md_scheme_chars(s, i + 1, stop)
+        false -> false
+      end
+  end
+end
+
+def md_is_email(body: String) -> Bool do
+  at = index_of(body, "@")
+  at > 0 and index_of_from(body, ".", at) > at + 1 and not(contains(body, "\\"))
+end
+
+# End index of an HTML tag, closing tag or comment starting at i, or -1.
+def md_html_tag_end(s: String, i: Int) -> Int do
+  case starts_with(drop(s, i), "<!--") do
+    true ->
+      e = index_of_from(s, md_comment_close(), i + 4)
+      case e < 0 do
+        true -> -1
+        false -> e + 3
+      end
+    false ->
+      case char_at(s, i + 1) == "/" do
+        true ->
+          ne = md_tag_name_end(s, i + 2)
+          case ne > i + 2 do
+            false -> -1
+            true ->
+              j = md_skip_ws_nl(s, ne)
+              case char_at(s, j) == ">" do
+                true -> j + 1
+                false -> -1
+              end
+          end
+        false ->
+          ne = md_tag_name_end(s, i + 1)
+          case ne > i + 1 do
+            false -> -1
+            true -> md_attrs_end(s, ne)
+          end
+      end
+  end
+end
+
+def md_attrs_end(s: String, i: Int) -> Int do
+  j = md_skip_ws_nl(s, i)
+  c = char_at(s, j)
+  case c do
+    ">" -> j + 1
+    "/" ->
+      case char_at(s, j + 1) == ">" do
+        true -> j + 2
+        false -> -1
+      end
+    _ ->
+      case j > i and (md_is_letter(c) or c == "_" or c == ":") do
+        false -> -1
+        true ->
+          ne = md_attr_name_end(s, j + 1)
+          k = md_skip_ws_nl(s, ne)
+          case char_at(s, k) == "=" do
+            false -> md_attrs_end(s, ne)
+            true ->
+              v = md_skip_ws_nl(s, k + 1)
+              ve = md_attr_value_end(s, v)
+              case ve < 0 do
+                true -> -1
+                false -> md_attrs_end(s, ve)
+              end
+          end
+      end
+  end
+end
+
+def md_attr_name_end(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case md_is_alnum(c) or c == "_" or c == "." or c == ":" or c == "-" do
+    true -> md_attr_name_end(s, i + 1)
+    false -> i
+  end
+end
+
+def md_attr_value_end(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c == "\"" or c == "'" do
+    true ->
+      e = index_of_from(s, c, i + 1)
+      case e < 0 do
+        true -> -1
+        false -> e + 1
+      end
+    false ->
+      e = md_unquoted_end(s, i)
+      case e > i do
+        true -> e
+        false -> -1
+      end
+  end
+end
+
+def md_unquoted_end(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c == nil or md_is_ws(c) or contains("\"'=<>`", c) do
+    true -> i
+    false -> md_unquoted_end(s, i + 1)
+  end
+end
+
+# --- bare URLs (the GFM autolink extension): www., http://, https://
+
+def md_scan_bare(s: String, i: Int, n: Int, ts: Int, acc: List, in_link: Bool) -> Any do
+  e = case in_link do
+    true -> -1
+    false -> md_bare_end(s, i)
+  end
+  case e > i do
+    false -> {i + 1, ts, acc}
+    true ->
+      url = slice(s, i, e - i)
+      href = case starts_with(url, "www.") do
+        true -> concat("http://", url)
+        false -> url
+      end
+      html = concat("<a href=\"", md_href(href), "\">", md_esc(url), "</a>")
+      {e, e, [{:t, html} | md_flush(s, ts, i, acc)]}
+  end
+end
+
+def md_bare_end(s: String, i: Int) -> Int do
+  prev = case i == 0 do
+    true -> " "
+    false -> char_at(s, i - 1)
+  end
+  case md_is_ws(prev) or contains("*_~(", prev) do
+    false -> -1
+    true ->
+      rest = slice(s, i, 8)
+      dom = case starts_with(rest, "www.") do
+        true -> i
+        false ->
+          case starts_with(rest, "https://") do
+            true -> i + 8
+            false ->
+              case starts_with(rest, "http://") do
+                true -> i + 7
+                false -> -1
+              end
+          end
+      end
+      case dom < 0 do
+        true -> -1
+        false ->
+          de = md_domain_end(s, dom)
+          case de <= dom or (dom == i and not(contains(slice(s, dom, de - dom), "."))) do
+            true -> -1
+            false -> md_autolink_trim(s, i, md_link_run_end(s, de))
+          end
+      end
+  end
+end
+
+def md_domain_end(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c != nil and (md_is_alnum(c) or c == "-" or c == "_" or c == "." or char_code(c) >= 128) do
+    true -> md_domain_end(s, i + 1)
+    false -> i
+  end
+end
+
+def md_link_run_end(s: String, i: Int) -> Int do
+  c = char_at(s, i)
+  case c == nil or md_is_ws(c) or c == "<" do
+    true -> i
+    false -> md_link_run_end(s, i + 1)
+  end
+end
+
+# Trailing punctuation is not part of the link; a ")" only is when it
+# closes a "(" inside the link.
+def md_autolink_trim(s: String, start: Int, e: Int) -> Int do
+  c = char_at(s, e - 1)
+  case e <= start do
+    true -> e
+    false ->
+      case contains("?!.,:*_~'\"", c) do
+        true -> md_autolink_trim(s, start, e - 1)
+        false ->
+          case c == ")" do
+            true ->
+              link = slice(s, start, e - start)
+              opens = length(split(link, "(")) - 1
+              closes = length(split(link, ")")) - 1
+              case closes > opens do
+                true -> md_autolink_trim(s, start, e - 1)
+                false -> e
+              end
+            false ->
+              case c == ";" do
+                true -> md_autolink_trim(s, start, md_trim_entity(s, start, e - 1))
+                false -> e
+              end
+          end
+      end
+  end
+end
+
+# "...&amp;" at the end drops the entity; any other ";" drops just itself.
+def md_trim_entity(s: String, start: Int, semi: Int) -> Int do
+  j = md_alnum_back(s, semi, start)
+  case j < semi and j > start and char_at(s, j - 1) == "&" do
+    true -> j - 1
+    false -> semi
+  end
+end
+
+def md_alnum_back(s: String, j: Int, floor: Int) -> Int do
+  case j > floor and md_is_alnum(char_at(s, j - 1)) do
+    true -> md_alnum_back(s, j - 1, floor)
+    false -> j
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Emphasis. A stack of frames, top first, over a root frame. A frame is an
+# unmatched opener: {char, remaining, original run length, can_open,
+# can_close, pieces reversed}. A closer looks down the stack for the nearest
+# opener of its character; frames above that opener become literal text,
+# the pieces in between are wrapped, and both runs give up one or two
+# characters. Whatever is left unmatched at the end is literal.
+
+def md_emph(tokens: List) -> String do
+  md_emph_run(tokens, [{"", 0, 0, false, false, []}])
+end
+
+def md_emph_run(tokens: List, stack: List) -> String do
+  case tokens do
+    [] -> md_collapse(stack)
+    [tok | rest] ->
+      case elem(tok, 0) do
+        :t -> md_emph_run(rest, md_push_piece(stack, elem(tok, 1)))
+        :delim ->
+          k = elem(tok, 2)
+          md_emph_run(rest, md_delim(stack, elem(tok, 1), k, k, elem(tok, 3), elem(tok, 4)))
+      end
+  end
+end
+
+def md_push_piece(stack: List, p: String) -> List do
+  f = head(stack)
+  f2 = {elem(f, 0), elem(f, 1), elem(f, 2), elem(f, 3), elem(f, 4), [p | elem(f, 5)]}
+  [f2 | tail(stack)]
+end
+
+def md_frame_literal(f: Any) -> String do
+  concat(repeat(elem(f, 0), elem(f, 1)), join(reverse(elem(f, 5)), ""))
+end
+
+def md_collapse(stack: List) -> String do
+  case tail(stack) do
+    [] -> join(reverse(elem(head(stack), 5)), "")
+    below -> md_collapse(md_push_piece(below, md_frame_literal(head(stack))))
+  end
+end
+
+def md_delim(stack: List, ch: String, k: Int, orig: Int, co: Bool, cc: Bool) -> List do
+  d = case cc do
+    true -> md_find_opener(stack, ch, orig, co, cc, 0)
+    false -> -1
+  end
+  case d >= 0 do
+    true ->
+      r = md_match(stack, d, k)
+      left = elem(r, 1)
+      case left > 0 do
+        true -> md_delim(elem(r, 0), ch, left, orig, co, cc)
+        false -> elem(r, 0)
+      end
+    false ->
+      case co do
+        true -> [{ch, k, orig, co, cc, []} | stack]
+        false -> md_push_piece(stack, repeat(ch, k))
+      end
+  end
+end
+
+def md_find_opener(stack: List, ch: String, orig: Int, co: Bool, cc: Bool, d: Int) -> Int do
+  case tail(stack) do
+    [] -> -1
+    _ ->
+      f = head(stack)
+      both = (elem(f, 3) and elem(f, 4)) or (co and cc)
+      rule3 = both and rem(elem(f, 2) + orig, 3) == 0 and not(rem(elem(f, 2), 3) == 0 and rem(orig, 3) == 0)
+      case elem(f, 0) == ch and not(rule3) do
+        true -> d
+        false -> md_find_opener(tail(stack), ch, orig, co, cc, d + 1)
+      end
+  end
+end
+
+# Returns {stack, closer characters left}.
+def md_match(stack: List, d: Int, k: Int) -> Any do
+  above = md_list_take(stack, d, [])
+  opener = head(md_list_drop(stack, d))
+  below = md_list_drop(stack, d + 1)
+  lit = join(map(reverse(above), fn(f: Any) -> String do md_frame_literal(f) end), "")
+  orem = elem(opener, 1)
+  use = case orem >= 2 and k >= 2 do
+    true -> 2
+    false -> 1
+  end
+  inner = join(reverse([lit | elem(opener, 5)]), "")
+  wrapped = case use do
+    2 -> concat("<strong>", inner, "</strong>")
+    _ -> concat("<em>", inner, "</em>")
+  end
+  stack2 = case orem - use == 0 do
+    true -> md_push_piece(below, wrapped)
+    false -> [{elem(opener, 0), orem - use, elem(opener, 2), elem(opener, 3), elem(opener, 4), [wrapped]} | below]
+  end
+  {stack2, k - use}
+end

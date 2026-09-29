@@ -1,0 +1,148 @@
+# String helpers the rest of the site is written against.
+#
+# Blimp strings are bytes: length, char_at and slice all count bytes, and
+# slice takes (start, length). Nothing here decodes UTF-8; multi-byte
+# characters pass through untouched because nothing here splits inside one.
+#
+# To build a long string, collect the pieces in a list and `join` them once.
+# `concat` in a loop copies everything built so far on every step, and the
+# interpreter frees none of it.
+#
+# Every loop is a tail call. A call that is not in tail position costs a
+# native stack frame, and ten thousand of them end the process.
+
+def replace_all(s: String, find: String, with: String) -> String do
+  join(split(s, find), with)
+end
+
+def starts_with(s: String, prefix: String) -> Bool do
+  length(s) >= length(prefix) and slice(s, 0, length(prefix)) == prefix
+end
+
+def ends_with(s: String, suffix: String) -> Bool do
+  n = length(s)
+  m = length(suffix)
+  n >= m and slice(s, n - m, m) == suffix
+end
+
+# Byte offset of the first `find` at or after `from`, or -1.
+def index_of_from(s: String, find: String, from: Int) -> Int do
+  n = length(s)
+  m = length(find)
+  case from + m > n do
+    true -> -1
+    false ->
+      case slice(s, from, m) == find do
+        true -> from
+        false -> index_of_from(s, find, from + 1)
+      end
+  end
+end
+
+def index_of(s: String, find: String) -> Int do
+  index_of_from(s, find, 0)
+end
+
+def is_space(c: String) -> Bool do
+  c == " " or c == "\t" or c == "\n" or c == "\r"
+end
+
+def trim_left_from(s: String, i: Int) -> String do
+  case i < length(s) and is_space(char_at(s, i)) do
+    true -> trim_left_from(s, i + 1)
+    false -> slice(s, i, length(s) - i)
+  end
+end
+
+def trim_right_to(s: String, n: Int) -> String do
+  case n > 0 and is_space(char_at(s, n - 1)) do
+    true -> trim_right_to(s, n - 1)
+    false -> slice(s, 0, n)
+  end
+end
+
+def trim(s: String) -> String do
+  trim_right_to(trim_left_from(s, 0), length(trim_left_from(s, 0)))
+end
+
+def trim_left(s: String) -> String do
+  trim_left_from(s, 0)
+end
+
+def trim_right(s: String) -> String do
+  trim_right_to(s, length(s))
+end
+
+def drop(s: String, n: Int) -> String do
+  case n >= length(s) do
+    true -> ""
+    false -> slice(s, n, length(s) - n)
+  end
+end
+
+def take(s: String, n: Int) -> String do
+  case n >= length(s) do
+    true -> s
+    false -> slice(s, 0, n)
+  end
+end
+
+def capitalize(word: String) -> String do
+  case length(word) do
+    0 -> ""
+    _ -> concat(upcase(slice(word, 0, 1)), drop(word, 1))
+  end
+end
+
+# The five characters that change meaning in HTML text or a quoted attribute.
+def escape_html(s: String) -> String do
+  s1 = replace_all(s, "&", "&amp;")
+  s2 = replace_all(s1, "<", "&lt;")
+  s3 = replace_all(s2, ">", "&gt;")
+  s4 = replace_all(s3, "\"", "&quot;")
+  replace_all(s4, "'", "&#39;")
+end
+
+def repeat_into(s: String, n: Int, acc: String) -> String do
+  case n <= 0 do
+    true -> acc
+    false -> repeat_into(s, n - 1, concat(acc, s))
+  end
+end
+
+def repeat(s: String, n: Int) -> String do
+  repeat_into(s, n, "")
+end
+
+def is_digit(c: String) -> Bool do
+  code = char_code(c)
+  code >= 48 and code <= 57
+end
+
+def is_alnum(c: String) -> Bool do
+  code = char_code(c)
+  (code >= 48 and code <= 57) or (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+end
+
+# List helpers.
+
+def elem_at(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> elem_at(tail(list), i - 1)
+  end
+end
+
+def drop_list(list: List, n: Int) -> List do
+  case n do
+    0 -> list
+    _ -> drop_list(tail(list), n - 1)
+  end
+end
+
+def last(list: List) -> Any do
+  case list do
+    [x] -> x
+    [_ | rest] -> last(rest)
+  end
+end

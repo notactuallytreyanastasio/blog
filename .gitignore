@@ -55,3 +55,6 @@ _build/assay/
 
 # macOS Finder metadata
 .DS_Store
+
+# blimp_site build output
+/blimp_site/_build/

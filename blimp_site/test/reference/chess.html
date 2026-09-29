@@ -1,0 +1,354 @@
+<p>title: An Opus 4.8 test: Workflows, 3x3 chess with shared movement boards, and prompt construction romps</p>
+<h1>An Opus 4.8 test: Workflows, 3x3 chess with shared movement boards, and prompt construction romps</h1>
+<p>I decided to give out the new [Dynamic Workflows](TODO LINK TO POST) feature a test in Opus 4.8 as well as see how far I could push it with a 1-3 shot prompt.
+The full code lives at <a href="https://github.com/notactuallytreyanastasio/chess9">github.com/notactuallytreyanastasio/chess9</a>.</p>
+<p>The first attempt, I used Claude's mobile app (not Claude Code) to make the game as an artifact in pure chat.
+This went shockingly well.
+I was able to get a pretty complex game created with almost no issues, and immediately play it in under 45 minutes and 3 prompts.</p>
+<p>To start things off, we will take a quick look at the original chat there, and then dive into how I pushed this further with Claude Code.</p>
+<h2>The Original Chat</h2>
+<p>My original prompt to the chat was this:</p>
+<p>We're going to make a chess game with multiple boards.
+This will be complicated.</p>
+<blockquote>
+<p>It will be a 3x3 grid.
+The rules are simple enough.
+Standard chess with one addition: if your piece has an &quot;ancestor&quot; (a captured piece of the same type on another board) then if you are able to you can move it to another board.
+The goal is to get as many checkmates as possible.
+Build this logically.
+Use a functional core and an imperative shell.
+Types are essential - no any types and no string hacks.
+Everything should be as pure as possible.
+Everything should be unit tested and also tested compositionally.
+This will ensure you can one shot the implementation.</p>
+</blockquote>
+<blockquote>
+<p>You should be able to drag around the boards and zoom in and out to scope what you can do.
+Two fingers to pan, pinch to zoom on mobile.</p>
+</blockquote>
+<blockquote>
+<p>Use a simple modern design with tailwind or something to make it all pretty. This game should be single player for now, with the player playing both sides. Eventually we will allow myltiplayer but as we have no server this is a demo to begin things and build out the core game logic and premise.</p>
+</blockquote>
+<blockquote>
+<p>It should be packageable as a single page bundle and shareable as an artifact.</p>
+</blockquote>
+<p>It did a really great job with 2 follow up prompts, eventually getting all the way to having a working bot that used real rudimentary strategy to play against.</p>
+<p>I can't publish the artifact cuz I made it with a work account by mistake, but here are some posts about the process with demos:</p>
+<div class="bluesky-embed-wrap"><blockquote class="bluesky-embed" data-bluesky-uri="at://did:plc:6e6n5nhhy7s2zqr7wx4s6p52/app.bsky.feed.post/3mmzd63fscs22" data-bluesky-cid="bafyreicc2js5yb7nsv2qzxakjjhnbe3b3lfpinthud7t6uqdesjfd2tami" data-bluesky-embed-color-mode="system"><p lang="en">This will be an interesting opus 4.8 test —<br>Multiple board chess where pieces can cross boards if one of the same matching type has been captured on the other board already 1:1<br>Starting with 9 boards<br><br><a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzd63fscs22?ref_src=embed">[image or embed]</a></p>&mdash; Chimney Sweepers Local 420 FKA yburyug (<a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52?ref_src=embed">@bobbby.online</a>) <a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzd63fscs22?ref_src=embed">May 29, 2026 at 8:59 PM</a></blockquote><script async src="https://embed.bsky.app/static/embed.js" charset="utf-8"></script></div>
+<div class="bluesky-embed-wrap"><blockquote class="bluesky-embed" data-bluesky-uri="at://did:plc:6e6n5nhhy7s2zqr7wx4s6p52/app.bsky.feed.post/3mmzeg2mjh22w" data-bluesky-cid="bafyreicptkhvcdszmasgdadg2ctzda74qsgxi6is3wscih5uunk7wuhapm" data-bluesky-embed-color-mode="system"><p lang="en">It got the board crossing rules wrong but the first pass is working. It had them teleporting to other boards if same type had been captured. Correcting that and zoom/pan now<br><br><a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzeg2mjh22w?ref_src=embed">[image or embed]</a></p>&mdash; Chimney Sweepers Local 420 FKA yburyug (<a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52?ref_src=embed">@bobbby.online</a>) <a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzeg2mjh22w?ref_src=embed">May 29, 2026 at 9:21 PM</a></blockquote><script async src="https://embed.bsky.app/static/embed.js" charset="utf-8"></script></div>
+<div class="bluesky-embed-wrap"><blockquote class="bluesky-embed" data-bluesky-uri="at://did:plc:6e6n5nhhy7s2zqr7wx4s6p52/app.bsky.feed.post/3mmzfg5z66k2w" data-bluesky-cid="bafyreihubniv57zo5wg7aeaqk3lnjasjukrpwawh77y2ypwws2o6xhiiji" data-bluesky-embed-color-mode="system"><p lang="en">Ok it got it round 2 one more prompt — here it is with a real board passthrough happening<br>Next I’m making it make a rudimentary engine to play the black piece game<br><br><a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzfg5z66k2w?ref_src=embed">[image or embed]</a></p>&mdash; Chimney Sweepers Local 420 FKA yburyug (<a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52?ref_src=embed">@bobbby.online</a>) <a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzfg5z66k2w?ref_src=embed">May 29, 2026 at 9:39 PM</a></blockquote><script async src="https://embed.bsky.app/static/embed.js" charset="utf-8"></script></div>
+<div class="bluesky-embed-wrap"><blockquote class="bluesky-embed" data-bluesky-uri="at://did:plc:6e6n5nhhy7s2zqr7wx4s6p52/app.bsky.feed.post/3mmzgs23dsk2v" data-bluesky-cid="bafyreigfk5bbjj63hwb7gorfkfntqcb3kq44bsqcsckdxhcsrxgyfmjtkq" data-bluesky-embed-color-mode="system"><p lang="en">Here it is with a full rudimentary engine playing against you with move highlighting<br><br><a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzgs23dsk2v?ref_src=embed">[image or embed]</a></p>&mdash; Chimney Sweepers Local 420 FKA yburyug (<a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52?ref_src=embed">@bobbby.online</a>) <a href="https://bsky.app/profile/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/post/3mmzgs23dsk2v?ref_src=embed">May 29, 2026 at 10:04 PM</a></blockquote><script async src="https://embed.bsky.app/static/embed.js" charset="utf-8"></script></div>
+<h2>A try using this with &quot;Dynamic Workflows&quot;</h2>
+<p>Dynamic Workflows are a new Claude Code feature.
+We will assume you read the post linked above in the introduction.</p>
+<p>I decided to start things off by refining the prompt a bit to tailor it to working with some web development that was a bit more complex.
+I assume I will add multiplayer here eventually, or maybe even get it to work as a React Native app or something.
+Who knows, depends on how much time I have.</p>
+<p>Here was the first prompt for this rendition:</p>
+<blockquote>
+<p>We are going to do a challenge.</p>
+</blockquote>
+<blockquote>
+<p>I want you to make a game.</p>
+</blockquote>
+<blockquote>
+<p>The game rules are as follows:</p>
+</blockquote>
+<blockquote>
+<ol>
+<li>it is a 3x3 set of chess boards</li>
+<li>all games are active at all times</li>
+<li>standard rules for moves EXCEPT: if a piece of the same kind as the moving one has been captured (in a 1:1 relationship, if 1 bishop goes you cant bring over two) on the board you want to move to from your position, you may make the move</li>
+<li>the game is played to the most checkmates possible</li>
+<li>it should be responsive and work on desktop and mobile</li>
+</ol>
+</blockquote>
+<blockquote>
+<p>the game should be built with strict standards</p>
+</blockquote>
+<blockquote>
+<ol>
+<li>typescript</li>
+<li>functional core, imperative shell</li>
+<li>no usage of Any() types, no string hacks, be truly strong contracts that represent the nature of the game(s)</li>
+<li>unit testing all over with vitest</li>
+<li>test the composition and possible game states for all edge cases</li>
+</ol>
+</blockquote>
+<blockquote>
+<p>for the other player, you are to implement a basic bot to play against. It cannot just make random moves.
+Get it to an easy to medium skill level</p>
+</blockquote>
+<blockquote>
+<p>it should be packageable as a single file that we can pass around and load and if dropped into claude code desktop, could be an artifact instantly</p>
+</blockquote>
+<blockquote>
+<p>do you have any questions? I would like you to utilize a workflow for this to test out your new capabilities</p>
+</blockquote>
+<p>Now, this is like, a pretty complex-ish game?
+Even if you got the rules right, it really complicates things when you get to moving pieces cross board and having 9 winning game states but only 1 possible move per turn etc.</p>
+<p>I figured it would be something that most reasonable people would consider &quot;a huge pain in the ass to write&quot;</p>
+<h2>Let's see what it does with this <code>workflow</code> keyword thing</h2>
+<p>It asked some clarifying questions that I think had obvious answers.
+We can gloss over them for now.</p>
+<p>The Dynamic Workflow started up after answering these.</p>
+<p>Let's take a look at what it gave us:</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">⏺ Perfect — that settles it: a real, fully-tested strict-TS project, with a bundling step bolted on that
+</span><span class="line" data-line="2">  emits one self-contained .html. That&#39;s the right engineering call.
+</span><span class="line" data-line="3">
+</span><span class="line" data-line="4">  I&#39;ll lock the rest with the sensible defaults I proposed (you didn&#39;t push back on them):
+</span><span class="line" data-line="5">
+</span><span class="line" data-line="6">  - Continuous 24×24 plane — board borders are invisible to geometry; sliding pieces glide across them.
+</span><span class="line" data-line="7">  - One boundary crossing per move — keeps the move tree and rules sane.
+</span><span class="line" data-line="8">  - Knights/pawns cross too — a knight&#39;s L-landing or a pawn&#39;s diagonal capture onto the neighboring board
+</span><span class="line" data-line="9">  counts, gated by the same own-piece-captured credit.
+</span><span class="line" data-line="10">  - Kings are board-bound — no king is ever captured, so no credit exists; per-board checkmate stays
+</span><span class="line" data-line="11">  well-defined.
+</span><span class="line" data-line="12">  - Checkmated board is frozen &amp; scored — no pieces enter or leave; most boards mated wins.
+</span><span class="line" data-line="13">  - Capture credit = your own captured pieces, 1:1.
+</span><span class="line" data-line="14">
+</span><span class="line" data-line="15">  Let me do quick environment recon, then I&#39;ll kick off a design workflow to pin the type model before I
+</span><span class="line" data-line="16">  implement.
+</span></code></pre>
+<p>So this is pretty clear, its getting started and understands what we want.</p>
+<p>The word <code>workflow</code> shows up in a rainbow when you have the feature enabled and available, that is the tell.
+From here, it kicked off a 3 subagents.</p>
+<p>It had a flow.</p>
+<blockquote>
+<p>Now the design workflow.
+Three architects independently propose the type model + architecture; a judge synthesizes one blueprint. I'll embed the full spec.</p>
+</blockquote>
+<blockquote>
+<p>⏺ Design workflow is running in the background. While it works, I'll scaffold the toolchain (independent of the design output) — strict TS config, vitest, ESLint with a hard ban on any, and the single-file bundler. Let me set these up.</p>
+</blockquote>
+<p>Now, we see this checklist</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">✶ Implementing the bot… (20m 36s · ↓ 95.7k tokens)
+</span><span class="line" data-line="2">  ⎿  ◼ Implement bot (heuristic eval + alpha-beta)
+</span><span class="line" data-line="3">     ◻ Build responsive UI shell (desktop + mobile)
+</span><span class="line" data-line="4">     ◻ Vitest coverage of core edge cases
+</span><span class="line" data-line="5">     ◻ Bundle &amp; verify single-file artifact
+</span><span class="line" data-line="6">     ✔ Implement core types &amp; coordinate system
+</span><span class="line" data-line="7">      … +2 completed
+</span></code></pre>
+<p>So this is pretty legit.
+It really is just cranking.</p>
+<p>It had gotten down to 3 tasks remaining at around the 30 minute mark.</p>
+<p>It was certainly being thorough.</p>
+<p>At 40 minutes it was still cranking away.</p>
+<p>At 58 minutes it completed, just under an hour.</p>
+<p>Let's check it out...</p>
+<p>![image](TODO UPLOAD GIF OF PLAYING)</p>
+<p>The game works great!
+The repo is at <a href="https://github.com/notactuallytreyanastasio/chess9">github.com/notactuallytreyanastasio/chess9</a> if you want to poke around.</p>
+<p>It also now launched itself into an adversarial review when I told it to check its work.</p>
+<p>This immediately summoned 40 agents</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">  ◯ chess9-core-review  Read-only adversarial review of the … 14/40 agents done
+</span><span class="line" data-line="2">  · 4m 21s · ↓ 777.4k tokens
+</span></code></pre>
+<p>So, sure man lets do it we are only 3/4 the way to our context limit why not.</p>
+<p>The 41 agents ate 1.2 million tokens and were about to come back to me.</p>
+<h2>The Review</h2>
+<p>The commit log looks sane enough at a glance:</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">7574cf2 (HEAD -&gt; feat/chess9-core) docs: README — rules, design decisions, architecture, build/run
+</span><span class="line" data-line="2">a46f1a7 feat(ui): make the bot&#39;s move unmissable (desktop ring + mobile pan/zoom)
+</span><span class="line" data-line="3">08bf575 feat(core): bot to blueprint spec — depth-3 + real crossThreatBonus
+</span><span class="line" data-line="4">4a4005c feat(core): draw &amp; termination rules (guarantee the game ends)
+</span><span class="line" data-line="5">829226f feat(core): precise MoveError diagnostics in the reducer
+</span><span class="line" data-line="6">fc99363 feat(core): castling with full tricky-case coverage
+</span><span class="line" data-line="7">00a210d test(core): end-to-end composition &amp; full-game-state edge cases
+</span><span class="line" data-line="8">b29491b feat(ui): responsive shell, single-file bundle, smoke tests
+</span><span class="line" data-line="9">2c0da90 feat(core): evaluator + alpha-beta bot (easy-medium, deterministic)
+</span><span class="line" data-line="10">44b0728 feat(core): reducer, legality filter, check/checkmate, scoring
+</span><span class="line" data-line="11">667d7da feat(core): ray geometry, attack detection, pseudo-legal move generation
+</span><span class="line" data-line="12">ee3b9cd feat(core): coordinate system, pieces, plane, ledger, initial setup
+</span><span class="line" data-line="13">dadb44c chore: scaffold strict-TS toolchain (vite, vitest, eslint no-any)
+</span><span class="line" data-line="14">ea8de83 chore: initial gitignore
+</span></code></pre>
+<p>Now, from its adversarial review its moved on to correcting the bugs it found:</p>
+<blockquote>
+<p>The adversarial review just landed — 33 findings, 27 verified, including 1 critical. Let me read the full plan, then I'll build the inventory UI you approved and relay the rest</p>
+</blockquote>
+<p>Okay, that is some good work for the first pass.
+Let's see what it flagged in a moment, I had it do some light refinement on</p>
+<p><a href="https://github.com/notactuallytreyanastasio/chess9/pull/1">The pull request is just under 10,000 lines</a>.</p>
+<p>Now, I want to take this adversarial review and implement the fixes in a daisy chained PR.</p>
+<p>I guess that is another workflow?</p>
+<p>I had to clarify some game logic before moving forward with the fixes.</p>
+<h2>Another Run: Fixing the errors it found itself with itself</h2>
+<p>The fix run took 6 commits and touched every layer of the game.</p>
+<p>The reducer had been collapsing every illegal move to a single &quot;not-in-legal-set&quot; error. That sounds minor until you are debugging why a bishop cannot move and the game just says no. The fix added a <code>diagnose()</code> pass that returns one of six specific reasons: king-cannot-cross, destination board not adjacent, no held credit for a boundary crossing, path blocked, illegal piece geometry, leaves king in check. Those still bottom out at &quot;not-in-legal-set&quot; as a final catch-all, but you get the real reason first. Sixty-nine lines of tests cover all six variants.</p>
+<p>Then castling. The first pass did not have it. The commit message says &quot;wrongly deferred,&quot; which is a polite way of saying the build shipped a chess game without castling. The fix adds both sides, the happy paths and the edge cases: castling out of, through, or into check; king-moved and rook-moved invalidation; blocked path. The one worth noting is the crossed-in attacker case. A piece that crossed onto the board via the credit system blocks castling through its squares. That is the interaction that would have taken a human tester a week to find.</p>
+<p>After that, draw rules. Without them, two lone kings would chase each other across nine boards until someone closed the tab. The fix adds per-board halfmove clocks for the 50-move rule, insufficient-material detection for bare kings or a king with a single minor piece, and a hard MAX_PLY cap. When a board hits one of those conditions it freezes as drawn rather than playing on forever.</p>
+<p>The bot had been running at depth 2. The review flagged it as too shallow. Depth 3 costs about 280ms on the opening position, which fits under the 1-3 second budget, so the fix bumped it and rewrote <code>crossThreatBonus</code> to actually check whether a held credit translates to a playable crossing move, with extra weight if that crossing delivers check or wins material.</p>
+<p>Last was a UI problem the review surfaced: on a nine-board layout the bot's move was easy to miss. The fix puts a pulsing accent ring on the destination square and a subtle tint on the source square, with <code>prefers-reduced-motion</code> respected. On mobile the board pans and zooms to center on the move, with a &quot;Zoom out&quot; button to recover. Both clear when the human moves.</p>
+<p>Thirty-three findings, 27 verified. Six commits. The model found the bugs, wrote the fix plan, and then fixed them.</p>
+<h2>Playing it surfaces the real gaps</h2>
+<p>I played the single-file build, which turned up a bug that was not one.
+A pawn could not capture across a seam, and that was the credit rule working as written, because no pawn had been lost on the destination board yet, so no crossing was earned.
+The actual gap was that the board gave me no way to see which credits I held or why a crossing was unavailable.</p>
+<p>I also asked whether the bot even knows it can cross, since I had not seen it happen.
+It does.
+The engine treats both colors with the same move generator, and the bot takes a cross-board capture the moment it holds a credit.
+It proved it by setting up a position where Black held a knight credit into a board and a white queen sat on a square a knight could reach across the seam, and the bot chose the crossing capture that took the queen.
+Black rarely holds a credit early, which is why I had not seen it in the opening.</p>
+<h2>The rules revision</h2>
+<p>Then I changed the rules in a substantial way, and this time I made it pin every ambiguity in conversation before any code moved.
+A move can cross as many board boundaries as an unobstructed slide allows, not only one, and it needs a credit for every board it enters, spending one credit per board.
+Pawns can push straight across a seam, and any pawn move that crosses a board border always promotes on arrival.
+Attack rays are no longer clipped at seams, so a piece can check a king on another board, but only when it holds the credits its capturing move would need to get there.
+Per-board stalemate went away entirely.</p>
+<p>That last one was my game-design call, and the reasoning is the win condition.
+You win by accumulating checkmates, so a board that locks into a draw is one fewer board anyone can fight over.
+Keeping boards live until a real checkmate or a genuine draw rule fires keeps the arena contestable and the scores higher, and it removes a turn-timing artifact where a board could freeze as a draw because the side to move happened to have no move on it.</p>
+<p>It shipped each change as its own pull request stacked off the base: <a href="https://github.com/notactuallytreyanastasio/chess9/pull/2">multi-board crossings</a>, <a href="https://github.com/notactuallytreyanastasio/chess9/pull/3">pawn seam-crossing and promotion</a>, <a href="https://github.com/notactuallytreyanastasio/chess9/pull/4">credit-backed cross-board checks</a>, and <a href="https://github.com/notactuallytreyanastasio/chess9/pull/7">no per-board stalemate plus the canonical RULES.md</a>.
+Merging them produced the conflicts I expected, since the three changes all touch move generation, the reducer, and the type model, and it resolved them by hand.
+The most interesting resolution extended the credit-backed check from the single-seam case it was written for to the new multi-board reality: a cross-board attacker gives check only if it holds a credit for every board its capturing slide enters, the target's board plus each intermediate one.</p>
+<h2>Fixing the keystone bug for real</h2>
+<p><a href="https://github.com/notactuallytreyanastasio/chess9/pull/6">PR #6</a> gave the review's headline finding a proper fix rather than a patch.
+Move generation now refuses to produce any move that lands on a king, so kings are uncapturable by construction and every active board keeps both kings.
+Board status gets recomputed across every non-frozen board after each move, not only the one or two boards the move touched, so a checkmate delivered across a seam onto an otherwise untouched board now registers and scores.
+Checkmate is evaluated before the draw rules, so a quiet mating move at the 50-move mark counts as a win and not a draw.
+The per-board clock only ticks the boards a move touched, so idle boards stop getting force-drawn.</p>
+<p>The UI caught up to the engine after I complained that I could not tell a dead king from a live one.
+A king under attack now gets a red pulsing ring, and a finished board gets a clear overlay that says checkmate with the winner, or draw.
+Before that, a king with no legal moves looked identical whether it was boxed in by its own pieces or checkmated.</p>
+<p>The whole ruleset went into one canonical document, written to be the source of truth, and updated in the same pull request as any rule change.</p>
+<h2>Porting it to Temper</h2>
+<p>Next I had it port the functional core to Temper.
+Temper is a language that compiles one source library to C#, Java, JavaScript, Lua, Python, and Rust, emitting idiomatic code in each target rather than a lowest-common-denominator blob.
+My core fit the brief almost exactly, because it is pure, immutable, strongly typed, and does no I/O, while the imperative UI shell stays per-platform and consumes the generated engine.</p>
+<p>The first obstacle was that the compiler did not exist on my machine.
+The <code>temper</code> command pointed at a binary under a build path that had never been produced.
+So the work started by cloning the compiler repo, building its CLI through Gradle, and pinning a working JDK 21, because my environment's JAVA_HOME pointed at a Java install that was not on disk.
+It wrote a small project wrapper script that fixed the JDK for every later invocation so the agents could not trip over it.</p>
+<p>Before porting anything, it ran a smoke test: a trivial function with one inline test, compiled and run on the interpreter backend and on JavaScript, both green.
+No point porting a real module onto a broken scaffold, and I was glad it checked instead of assuming.</p>
+<h2>How the port ran</h2>
+<p>The port ran as a sequence of agent workflows, and the structure followed Temper's one hard constraint.
+Temper compiles the whole library as one unit, and the modules form a dependency chain where everything imports the type vocabulary and the top of the stack imports nearly everything.</p>
+<p>The foundation went first and sequential, because of that chain.
+Six modules, ported one at a time, each compiled and tested before the next: the value types, the coordinates, the piece helpers, the plane, the credit ledger, and the game state with its initial setup.
+That wave ended green at 33 tests on the interpreter.</p>
+<p>I pushed to fan the work out, and the later waves did, by dependency level.
+Three agents ported the independent modules at once, each working in its own isolated copy of the project so their compiles could not collide, then writing the finished file back into the shared tree.
+The geometry and move-generation wave ran three modules in parallel and then chained the two that depended on them, ending at 71 tests.
+The engine and AI wave ported the tightly coupled check, legality, and reducer cluster as one coherent unit, then fanned out scoring and evaluation in parallel, then finished with the bot, ending at 90 tests.</p>
+<p>All of it landed in <a href="https://github.com/notactuallytreyanastasio/chess9/pull/8">PR #8</a>.</p>
+<h2>Literate Temper: the module is the documentation</h2>
+<p>Temper leans hard on literate programming, and once I read the modules the model was producing I understood why the reference I had handed it kept using that phrase.
+A module is not a code file with comments bolted on the side; it is a Markdown document whose prose is the main text and whose code lives in indented blocks that the compiler extracts and builds.
+Each module opens by naming the section of the rules it implements, argues the design decision in plain English, shows the code that decision produces, and then closes with the tests that hold the code to the claim.
+The tests are not parked in a separate suite somewhere else in the tree; they sit inline in the very same file as the code they cover, and because Temper runs them on every backend, reading a module from top to bottom walks you through a rule, the implementation it forces, and the proof that the implementation matches, all in one pass.</p>
+<p>This is the colour type as it appears in <code>types.temper.md</code>:</p>
+<pre class="athl"><code class="language-markdown" translate="no" tabindex="0"><span class="line" data-line="1">Each case is a class with no fields. Because the engine needs exactly one White and one
+</span><span class="line" data-line="2">Black and compares them by identity, we expose a single canonical instance of each as a
+</span><span class="line" data-line="3">module-level constant. Later modules write `White` / `Black` (the values), never
+</span><span class="line" data-line="4">`new ColorWhite()`, so there is only ever one of each to compare against.
+</span><span class="line" data-line="5">
+</span><span class="line" data-line="6"><span >    export class ColorWhite() extends Color &lbrace;</span>
+</span><span class="line" data-line="7"><span ><span >    </span>  public opposite(): Color &lbrace; Black &rbrace;</span>
+</span><span class="line" data-line="8"><span ><span >    </span>&rbrace;</span>
+</span><span class="line" data-line="9"><span ><span >    </span>export class ColorBlack() extends Color &lbrace;</span>
+</span><span class="line" data-line="10"><span ><span >    </span>  public opposite(): Color &lbrace; White &rbrace;</span>
+</span><span class="line" data-line="11"><span ><span >    </span>&rbrace;</span>
+</span><span class="line" data-line="12"><span ><span >    </span>export let White: Color = new ColorWhite();</span>
+</span><span class="line" data-line="13"><span ><span >    </span>export let Black: Color = new ColorBlack();</span>
+</span><span class="line" data-line="14"><span ></span>
+</span><span class="line" data-line="15"><span ></span>This invariant pins the round-trip: flipping twice is identity, and `opposite` agrees with
+</span><span class="line" data-line="16">the TS `opposite(&#39;white&#39;) === &#39;black&#39;` test in `../../src/core/pieces.test.ts`.
+</span><span class="line" data-line="17">
+</span><span class="line" data-line="18"><span >    test(&quot;Color.opposite flips and round-trips&quot;) &lbrace;</span>
+</span><span class="line" data-line="19"><span ><span >    </span>  assert(White.opposite() == Black) &lbrace; &quot;white flips to black&quot; &rbrace;;</span>
+</span><span class="line" data-line="20"><span ><span >    </span>  assert(Black.opposite() == White) &lbrace; &quot;black flips to white&quot; &rbrace;;</span>
+</span><span class="line" data-line="21"><span ><span >    </span>  assert(White.opposite().opposite() == White) &lbrace; &quot;double flip is identity&quot; &rbrace;;</span>
+</span><span class="line" data-line="22"><span ><span >    </span>&rbrace;</span>
+</span><span class="line" data-line="23"><span ></span>
+</span></code></pre>
+<p>The prose carries the intent the types alone cannot.
+A reader who has never touched Temper can follow why there is exactly one White object before meeting the syntax that makes it so, and a reader auditing the port against the original can see the exact TypeScript test each Temper test answers to, because the prose names the file it came from.
+I had the model write every module in this shape, grounded in the canonical rules document, so the finished port reads as an explanation of the engine and not a transliteration of it.</p>
+<h2>What the port is for</h2>
+<p>Then I asked whether the generated JavaScript could replace the hand-written TypeScript core in the UI.
+The model had called the port drop-in earlier, and I did not buy it, so I made it check.
+The answer is no.</p>
+<p>It ran the generated core in node and inspected the runtime shapes, which settled it with evidence.
+<code>state.toMove</code> comes back as a <code>ColorWhite</code> object, not the string <code>&quot;white&quot;</code>, so <code>=== &quot;white&quot;</code> is false.
+A square's <code>.gx</code> is a <code>GX</code> wrapper object, with the number behind a <code>.value()</code> call, not a bare number.
+A move is a <code>MoveNormal</code> instance you discriminate with <code>instanceof</code>, and its <code>.kind</code> is undefined.
+<code>applyMove</code> returns an <code>Applied</code> object, and its <code>.ok</code> is undefined.
+The names line up with the TypeScript core, and the runtime shapes do not.</p>
+<p>The good news from the same probe is that Temper's list type compiles to a plain JavaScript array, so the plane, the status array, and the move list all iterate, index, and report length unchanged.</p>
+<p>A real swap needs a thin translation shim sitting where the core's public interface is, mapping colors and piece types to strings, the coordinate wrappers to numbers, and the move, status, and result classes to the plain shapes the UI reads, plus bundling the two Temper runtime packages the old core never required.
+That reframes what the port is for.
+It was never about deleting TypeScript that already ships small and clean.
+It makes the same engine real in Python, Java, Rust, and the others, from one source, which is the whole point of writing it in Temper.
+That overclaim, and my pushing on it, was the third time the same lesson showed up.</p>
+<h2>Wiring the Temper engine into the real game</h2>
+<p>The drop-in finding nagged at me, so the next thing I had it do was build the adapter that finding called for.
+The shim is a small module that presents the exact core interface the UI already imports, and runs the Temper engine behind it.
+At the boundary it does the conversion the runtime needs: the <code>ColorWhite</code> object becomes the string <code>&quot;white&quot;</code>, the <code>GX</code> wrapper becomes a plain number, a <code>MoveNormal</code> instance becomes a <code>&lbrace; kind: &quot;normal&quot; &rbrace;</code> object, and an <code>Applied</code> result becomes <code>&lbrace; ok: true, value &rbrace;</code>.</p>
+<p>Most of that difference is the move type.
+In Temper a move is a sealed interface whose shared fields are getter methods, which is why the generated JavaScript exposes them as calls rather than properties:</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">export sealed interface Move &lbrace;
+</span><span class="line" data-line="2">  public from(): GlobalSquare;
+</span><span class="line" data-line="3">  public to(): GlobalSquare;
+</span><span class="line" data-line="4">  public piece(): Piece;
+</span><span class="line" data-line="5">  public captured(): Piece?;
+</span><span class="line" data-line="6">  public crossings(): List&lt;BoundaryCrossing&gt;;
+</span><span class="line" data-line="7">&rbrace;
+</span></code></pre>
+<p>The shim never rebuilds an engine value from a UI value.
+When the UI hands a move back to play it, the shim looks up the original Temper move it handed out earlier, kept in a <code>WeakMap</code> keyed by the plain object the UI was holding.</p>
+<p>Then I had it point the build at the shim.
+The UI source did not change at all; a one-line alias in a second build config swaps the core for the shim at bundle time, and the same plugin inlines the Temper runtime into one self-contained HTML.
+The Temper-backed file came out around 49 kilobytes against 26 for the TypeScript one, the extra weight being the engine and its runtime.
+What I had called not drop-in turned out to be drop-in behind a thin and honest seam, a better answer than the overclaim or the flat no.</p>
+<h2>Validating it in a browser, in parallel</h2>
+<p>I was not going to take &quot;the tests pass&quot; on faith for a swap this deep, so I had it write real browser tests, and write them as a fan-out.
+Four agents each wrote one Playwright scenario at the same time, against the same self-contained build, which works here because the specs are independent files and the artifact is read-only, the rare case where parallel agents do not collide.
+The scenarios split the surface: one played a multi-ply game, clicking pieces and waiting for the bot between moves; another checked selection and the clicks that should do nothing; a third confirmed that restart returns a fresh board; the last was a parity check.</p>
+<p>The parity test is the one I cared about.
+It loads the Temper build and the original TypeScript build in two browser tabs and asserts they render the identical starting position and light up the identical legal moves for the same pieces, which is the proof that the two engines agree, observed through the game a person would play.
+The whole suite ran the Temper engine in a real Chromium, not in node, and came back green at eight tests.</p>
+<p>One small thing I liked: the selection agent set out to assert that clicking a selected piece deselects it, found that this build re-selects it instead, and rewrote its own test to match what the app does rather than what its instructions assumed.
+That is the behavior I want from a test author, and it is not always what you get.</p>
+<h2>The method: workflows of agents</h2>
+<p>Dynamic workflows were half of what I was testing, so a note on how they performed.
+Most of the heavy phases ran as workflows that fan out to many short-lived agents and then collect their results, instead of one assistant typing in a loop.</p>
+<p>The type model came from a design panel.
+Three architect agents each proposed a full architecture from a different bias, a judge agent synthesized them into one blueprint, and only then did implementation start.
+The blueprint was not a vague sketch; it specified the concrete type definitions, the module layout, the build order, and the pitfalls to watch.</p>
+<p>The review had the same shape pointed at finished code.
+Seven reviewer agents each took one concern, every finding went to an independent skeptic that tried to refute it before it counted, and a final agent ranked the survivors into an ordered plan.
+That structure is why the king-capture bug got caught.
+A single reader, including me, had walked past it, and the adversarial framing existed to walk into it.</p>
+<p>The Temper port leaned on the same model under a harder constraint.
+Temper compiles the whole library at once, so two agents writing into the same source tree corrupt each other's compile, and the modules form a dependency chain where you cannot build the coordinates before the types exist.
+The foundation ran sequential for that reason, one module at a time.
+Where the dependency graph had width, the later waves fanned out, with each parallel agent working in its own copy of the project so its compile stood alone, then writing its module back into the shared tree, followed by an integrate agent that compiled all of them together and resolved any name collision.</p>
+<p>The tooling did not make this free.
+The workflow runner offers git worktree isolation for exactly this case, and it refused, because the repository had been created partway through the session and the runner had already decided the directory was not a git repo.
+So the parallel agents fell back to copying the source directory into a temporary location and compiling there, with a small per-copy wrapper that runs the compiler without a fragile directory change a background agent could not answer a prompt for.</p>
+<p>Even the plain git workflow threw a curveball.
+One of the fix pull requests got squash-merged at an earlier commit than I expected, which left two later commits, the stalemate removal and the rules document, stranded on the branch and out of the merge.
+Recovering meant cherry-picking those two commits onto the freshly merged base and opening a <a href="https://github.com/notactuallytreyanastasio/chess9/pull/7">clean pull request</a> for them, then re-verifying the whole suite on the combined result.
+The honest read is that the workflows bought real speed where the work had width, and the middle of a compiler-shaped dependency chain stays mostly sequential no matter how many agents you point at it.</p>
+<h2>Where it stands</h2>
+<p>A tested nine-board chess variant that opens as a single HTML file.
+A canonical ruleset that tracks the code in the same commits that change it.
+The entire engine living a second life across six languages from one literate source.
+And that ported engine driving the actual playable game behind a shim, checked move-for-move against the original in a real browser.</p>
+<p>What I take away about Opus 4.8 and the workflows is mixed in the useful way.
+The model held a high bar over a long, strange build and debugged its own performance and toolchain problems without much help from me.
+It also made quiet calls it should have surfaced, and the three times I pushed, on the deferred castling, the king-capture bug, and the drop-in overclaim, were the three times the result got better.
+The workflows earned their place on the design panel and the adversarial review, where independent agents see what one pass misses, and they hit the obvious wall on a single-compile dependency chain.
+My job through all of it was setting direction, making the rule calls, and not nodding when something looked finished and was not.</p>
+<h2>Porting it to Elixir</h2>
+<p>The TypeScript engine worked. The question was whether it would survive a port to a language with no mutation, pattern-matched control flow, and an immutable data model. I ran a workflow of 31 agents and roughly 1.1 million tokens to find out.</p>
+<p>The workflow mirrored the Temper port structure. The dependency chain ran sequentially: types first, then coords, then plane, all the way through reducer, eval, and bot. Modules with no shared dependencies ran in parallel. Coords, Plane, Ledger, and Pieces all went at the same time once the root types were done.</p>
+<p>The output was 17 modules. Blog.Chess holds the root struct and type definitions. Coords, Plane, and Ledger handle the board representation. Pieces, Setup, Rays, Attack, MoveGen, Check, Draws, and Legal cover the rules. Reducer, Scoring, Eval, and Bot cover game state and the computer player.</p>
+<p>The board representation was the first real design call. In TypeScript the nine boards were a flat array. In Elixir I went with a 576-element Erlang tuple. <code>elem/2</code> gives O(1) access. <code>:erlang.setelement/3</code> handles writes with copy-on-write semantics. There is an off-by-one trap: <code>elem/2</code> is zero-indexed, <code>:erlang.setelement/3</code> is one-indexed. That inconsistency is baked into the Erlang runtime and caught us in one of the test runs.</p>
+<p>Color and piece type became atoms: <code>:white</code>, <code>:black</code>, <code>:pawn</code>, <code>:knight</code>, and so on. Board status became tagged tuples: <code>:active</code>, <code>&lbrace;:check, color&rbrace;</code>, <code>&lbrace;:checkmate, winner, loser&rbrace;</code>, <code>:stalemate</code>, <code>&lbrace;:draw, reason&rbrace;</code>. Move errors work the same way. Pattern-matching on these in the LiveView is clean in a way the TypeScript discriminated unions were not.</p>
+<p>The alpha-beta bot translated almost directly. Recursive negamax with accumulators fits Elixir well enough that the port was nearly character-for-character. The Ledger, a plain map keyed on <code>&lbrace;board_index, color, piece_type&rbrace;</code> tuples, carried over without friction.</p>
+<p>238 ExUnit tests, 0 failures on the first full run after the port completed.</p>
+<p>The LiveView wraps it without much ceremony. Human plays white, the bot plays black, state lives in the socket assigns. You can play it at <a href="https://bobbby.online/chess">bobbby.online/chess</a>.</p>

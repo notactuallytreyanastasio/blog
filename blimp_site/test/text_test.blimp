@@ -1,0 +1,48 @@
+actor TextTests do
+  test "join" do
+    assert_eq(join(["a", "b", "c"], ", "), "a, b, c")
+    assert_eq(join([], ", "), "")
+    assert_eq(join(["solo"], ", "), "solo")
+  end
+
+  test "replace_all keeps adjacent matches" do
+    assert_eq(replace_all("a--b", "-", "+"), "a++b")
+    assert_eq(replace_all("nothing", "x", "y"), "nothing")
+  end
+
+  test "starts_with and ends_with" do
+    assert(starts_with("```elixir", "```"))
+    refute(starts_with("``", "```"))
+    assert(ends_with("post.md", ".md"))
+    refute(ends_with("md", ".md"))
+  end
+
+  test "index_of" do
+    assert_eq(index_of("hello world", "world"), 6)
+    assert_eq(index_of("hello", "z"), -1)
+    assert_eq(index_of_from("a-b-c", "-", 2), 3)
+  end
+
+  test "trim" do
+    assert_eq(trim("  hi \n"), "hi")
+    assert_eq(trim("   "), "")
+    assert_eq(trim_left("  x "), "x ")
+    assert_eq(trim_right("  x "), "  x")
+  end
+
+  test "escape_html" do
+    assert_eq(escape_html("<a href=\"x\">&'"), "&lt;a href=&quot;x&quot;&gt;&amp;&#39;")
+  end
+
+  test "escape_html leaves multi-byte text alone" do
+    assert_eq(escape_html("café — 🚀"), "café — 🚀")
+  end
+
+  test "capitalize, take, drop, repeat" do
+    assert_eq(capitalize("tree"), "Tree")
+    assert_eq(take("abcdef", 3), "abc")
+    assert_eq(drop("abcdef", 4), "ef")
+    assert_eq(drop("ab", 4), "")
+    assert_eq(repeat("ab", 3), "ababab")
+  end
+end

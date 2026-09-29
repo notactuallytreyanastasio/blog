@@ -1,0 +1,26 @@
+<h1>Building and Deploying This Blog</h1>
+<h2>Introduction</h2>
+<p>I didn't want to have an Ecto dependency here because I am serving static content.
+So, I made the app LiveView but didn't add Ecto at all.
+I have vendored the posts in to <code>priv</code> and read them all out from there with a primitive tagging system.</p>
+<p>I will be building some more features on top of that later, but let's cover this blog as a whole.</p>
+<h2>Building The Blog</h2>
+<p>I created a new project with no Ecto but LiveView flagged with <code>--live</code>.
+From here. I told claude-3.5-sonnet to build me a blog.</p>
+<p>The specific prompts were pretty general.
+There was a good bit of problem solving for me to get the formatting right.</p>
+<p>We ended up at a pretty sane model.</p>
+<p>We have a content context, which controls the posts.</p>
+<p>The public API is quite simple here:</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1">
+</span></code></pre>
+<p>Now that this gets us some posts, we can make a LiveView that will display them.</p>
+<p>Here is the heex.</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1">
+</span></code></pre>
+<p>We store the posts in markdown and parse them live, rather than just save HTML.
+This is low-overhead enough I hope that it just doesn't matter.
+If it does later, I can adapt.</p>
+<p>Posts are routed by slug, which is implicit by title in filename.</p>
+<p>For example, <code>priv/static/posts/2024-03-10-14-45-00-pattern-matching-in-elixir.md</code> would be routed as <code>/post/pattern-matching-in-elixir</code>.</p>
+<h3>To be continued...I am still toying with this block format</h3>

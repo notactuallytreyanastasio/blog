@@ -1,0 +1,132 @@
+<h1>A Quick Typewriter-Set Letter Project/Experiment</h1>
+<p>I decided to start off by coding up a vim-style scroller for live skeets.</p>
+<p>Let's say I have a context called <code>Social</code>, with a function <code>sample/1</code> that returns lists of skeets.</p>
+<p>Who cares where they come from, its a simple enough API that we can use as the basis here.</p>
+<p>I wanted to have a simple setup where we would scroll through a list of posts with <code>j</code> and <code>k</code>.
+I make that database table of skeets get populated live.
+I ingest the entire network, and every second I save about 1 of the 60ish skeets coming over the network.
+So this page is always fresh, and you will want to quickly mindlessly scroll.</p>
+<p>I started off with a pretty simpe LiveView:</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1"><span >defmodule</span> <span >BlogWeb.VimTweetsLive</span> <span >do</span>
+</span><span class="line" data-line="2">  <span >use</span> <span >BlogWeb</span><span >,</span> <span >:live_view</span>
+</span><span class="line" data-line="3">
+</span><span class="line" data-line="4">  <span ><span >@<span ><span >window_size <span >25</span></span></span></span></span>
+</span><span class="line" data-line="5">
+</span><span class="line" data-line="6">  <span >def</span> <span >mount</span><span >(</span><span >_params</span><span >,</span> <span >_session</span><span >,</span> <span >socket</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="7">    <span >tweets</span> <span >=</span> <span >Social</span><span >.</span><span >sample</span><span >(</span><span >100</span><span >)</span> <span >|&gt;</span> <span >Enum</span><span >.</span><span >map</span><span >(</span><span >&amp;</span> <span >&amp;</span><span >1</span><span >.</span><span >skeet</span><span >)</span>
+</span><span class="line" data-line="8">
+</span><span class="line" data-line="9">    <span >socket</span> <span >=</span> <span >socket</span>
+</span><span class="line" data-line="10">    <span >|&gt;</span> <span >assign</span><span >(</span>
+</span><span class="line" data-line="11">      <span >cursor: </span><span >0</span><span >,</span>
+</span><span class="line" data-line="12">      <span >tweets: </span><span >tweets</span><span >,</span>
+</span><span class="line" data-line="13">      <span >visible_tweets: </span><span >Enum</span><span >.</span><span >take</span><span >(</span><span >tweets</span><span >,</span> <span ><span >@<span >window_size</span></span></span><span >)</span><span >,</span>
+</span><span class="line" data-line="14">      <span >page_title: </span><span >&quot;Thoughts and Tidbits Blog: Bobby Experiment - vim navigation&quot;</span><span >,</span>
+</span><span class="line" data-line="15">      <span >meta_attrs: </span><span ><span >@<span >meta_attrs</span></span></span>
+</span><span class="line" data-line="16">    <span >)</span>
+</span><span class="line" data-line="17">
+</span><span class="line" data-line="18">    <span >&lbrace;</span><span >:ok</span><span >,</span> <span >socket</span><span >&rbrace;</span>
+</span><span class="line" data-line="19">  <span >end</span>
+</span><span class="line" data-line="20">
+</span><span class="line" data-line="21">  <span >def</span> <span >handle_event</span><span >(</span><span >&quot;keydown&quot;</span><span >,</span> <span >%</span><span >&lbrace;</span><span >&quot;key&quot;</span> <span >=&gt;</span> <span >&quot;j&quot;</span><span >&rbrace;</span><span >,</span> <span >socket</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="22">    <span >new_cursor</span> <span >=</span> <span >min</span><span >(</span><span >socket</span><span >.</span><span >assigns</span><span >.</span><span >cursor</span> <span >+</span> <span >1</span><span >,</span> <span >length</span><span >(</span><span >socket</span><span >.</span><span >assigns</span><span >.</span><span >tweets</span><span >)</span> <span >-</span> <span >1</span><span >)</span>
+</span><span class="line" data-line="23">    <span >visible_tweets</span> <span >=</span> <span >get_visible_tweets</span><span >(</span><span >socket</span><span >.</span><span >assigns</span><span >.</span><span >tweets</span><span >,</span> <span >new_cursor</span><span >)</span>
+</span><span class="line" data-line="24">    <span >&lbrace;</span><span >:noreply</span><span >,</span> <span >assign</span><span >(</span><span >socket</span><span >,</span> <span >cursor: </span><span >new_cursor</span><span >,</span> <span >visible_tweets: </span><span >visible_tweets</span><span >)</span><span >&rbrace;</span>
+</span><span class="line" data-line="25">  <span >end</span>
+</span><span class="line" data-line="26">
+</span><span class="line" data-line="27">  <span >def</span> <span >handle_event</span><span >(</span><span >&quot;keydown&quot;</span><span >,</span> <span >%</span><span >&lbrace;</span><span >&quot;key&quot;</span> <span >=&gt;</span> <span >&quot;k&quot;</span><span >&rbrace;</span><span >,</span> <span >socket</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="28">    <span >new_cursor</span> <span >=</span> <span >max</span><span >(</span><span >socket</span><span >.</span><span >assigns</span><span >.</span><span >cursor</span> <span >-</span> <span >1</span><span >,</span> <span >0</span><span >)</span>
+</span><span class="line" data-line="29">    <span >visible_tweets</span> <span >=</span> <span >get_visible_tweets</span><span >(</span><span >socket</span><span >.</span><span >assigns</span><span >.</span><span >tweets</span><span >,</span> <span >new_cursor</span><span >)</span>
+</span><span class="line" data-line="30">    <span >&lbrace;</span><span >:noreply</span><span >,</span> <span >assign</span><span >(</span><span >socket</span><span >,</span> <span >cursor: </span><span >new_cursor</span><span >,</span> <span >visible_tweets: </span><span >visible_tweets</span><span >)</span><span >&rbrace;</span>
+</span><span class="line" data-line="31">  <span >end</span>
+</span><span class="line" data-line="32">
+</span><span class="line" data-line="33">  <span >def</span> <span >handle_event</span><span >(</span><span >&quot;keydown&quot;</span><span >,</span> <span >_key</span><span >,</span> <span >socket</span><span >)</span><span >,</span> <span >do: </span><span >&lbrace;</span><span >:noreply</span><span >,</span> <span >socket</span><span >&rbrace;</span>
+</span><span class="line" data-line="34">
+</span><span class="line" data-line="35">  <span >defp</span> <span >get_visible_tweets</span><span >(</span><span >tweets</span><span >,</span> <span >cursor</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="36">    <span >start_idx</span> <span >=</span> <span >max</span><span >(</span><span >0</span><span >,</span> <span >cursor</span> <span >-</span> <span >2</span><span >)</span>
+</span><span class="line" data-line="37">    <span >Enum</span><span >.</span><span >slice</span><span >(</span><span >tweets</span><span >,</span> <span >start_idx</span><span >,</span> <span ><span >@<span >window_size</span></span></span><span >)</span>
+</span><span class="line" data-line="38">  <span >end</span>
+</span><span class="line" data-line="39">
+</span><span class="line" data-line="40">  <span >def</span> <span >render</span><span >(</span><span >assigns</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="41">    <span >~</span>H&quot;&quot;&quot;
+</span><span class="line" data-line="42">    <span >&lt;</span><span >.</span><span >head_tags</span> <span >meta_attrs</span><span >=</span><span >&lbrace;</span><span ><span >@<span >meta_attrs</span></span></span><span >&rbrace;</span> <span >page_title</span><span >=</span><span >&lbrace;</span><span ><span >@<span >page_title</span></span></span><span >&rbrace;</span> <span >/&gt;</span>
+</span><span class="line" data-line="43">    <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >mt-4 text-gray-500</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="44">      Cursor position: <span >&lt;%=</span> <span ><span >@<span >cursor</span></span></span><span > %&gt;</span>
+</span><span class="line" data-line="45">    <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="46">    <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >p-4</span>&quot;</span> <span >phx-window-keydown</span><span >=</span><span >&quot;<span >keydown</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="47">      <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >space-y-4</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="48">        <span >&lt;%=</span> <span >for</span> <span >&lbrace;</span><span >tweet</span><span >,</span> <span >index</span><span >&rbrace;</span> <span >&lt;-</span> <span >Enum</span><span >.</span><span >with_index</span><span >(</span><span ><span >@<span >visible_tweets</span></span></span><span >)</span> <span >do</span> <span >%&gt;</span>
+</span><span class="line" data-line="49">          <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&lbrace;</span><span >&quot;p-4 border rounded #&lbrace;if index == 2, do: &#39;bg-blue-100&#39;&rbrace;&quot;</span><span >&rbrace;</span><span >&gt;</span>
+</span><span class="line" data-line="50">            <span >&lt;%=</span> <span >tweet</span><span > %&gt;</span>
+</span><span class="line" data-line="51">          <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="52">        <span >&lt;%</span> <span >end</span><span > %&gt;</span>
+</span><span class="line" data-line="53">      <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="54">    <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="55">    &quot;&quot;&quot;
+</span><span class="line" data-line="56">  <span >end</span>
+</span><span class="line" data-line="57"><span >end</span>
+</span></code></pre>
+<p>Let's break this down into pieces.</p>
+<h3>Key Events</h3>
+<p>We can really easily intercept key events in Phoenix/LiveView.</p>
+<p>Let's take a look at the core of how that works:</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1">  <span ># liveview definition with mount</span>
+</span><span class="line" data-line="2">
+</span><span class="line" data-line="3">  <span >require</span> <span >Logger</span>
+</span><span class="line" data-line="4">
+</span><span class="line" data-line="5">  <span >def</span> <span >handle_event</span><span >(</span><span >&quot;keydown&quot;</span><span >,</span> <span >_key</span><span >,</span> <span >socket</span><span >)</span><span >,</span> <span >do: </span><span >&lbrace;</span><span >:noreply</span><span >,</span> <span >socket</span><span >&rbrace;</span>
+</span><span class="line" data-line="6">    <span >Logger</span><span >.</span><span >info</span><span >(</span><span >&quot;Pressed: <span >#&lbrace;</span><span >key</span><span >&rbrace;</span>&quot;</span><span >)</span>
+</span><span class="line" data-line="7">    <span >&lbrace;</span><span >:noreply</span><span >,</span> <span >socket</span><span >&rbrace;</span>
+</span><span class="line" data-line="8">  <span >end</span>
+</span><span class="line" data-line="9">
+</span><span class="line" data-line="10">  <span >def</span> <span >render</span><span >(</span><span >assigns</span><span >)</span>
+</span><span class="line" data-line="11">    <span >~</span>H&quot;&quot;&quot;
+</span><span class="line" data-line="12">      <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >p-4</span>&quot;</span> <span >phx-window-keydown</span><span >=</span><span >&quot;<span >keydown</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="13">        hi
+</span><span class="line" data-line="14">      <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="15">    &quot;&quot;&quot;
+</span><span class="line" data-line="16">  <span >end</span>
+</span></code></pre>
+<p>Now, this starts off with <code>phx-window-keydown</code> which is set to <code>&quot;keydown&quot;</code>.</p>
+<p>We can get <a href="https://hexdocs.pm/phoenix_live_view/bindings.html#key-events">key events</a> from the provided APIs using this.</p>
+<pre class="athl"><code class="language-plaintext" translate="no" tabindex="0"><span class="line" data-line="1">The onkeydown, and onkeyup events are supported via the phx-keydown, and phx-keyup bindings.
+</span><span class="line" data-line="2">Each binding supports a phx-key attribute, which triggers the event for the specific key press.
+</span><span class="line" data-line="3">If no phx-key is provided, the event is triggered for any key press.
+</span><span class="line" data-line="4">When pushed, the value sent to the server will contain the &quot;key&quot; that was pressed, plus any user-defined metadata.
+</span><span class="line" data-line="5">For example, pressing the Escape key looks like this:
+</span><span class="line" data-line="6">
+</span><span class="line" data-line="7">%&lbrace;&quot;key&quot; =&gt; &quot;Escape&quot;&rbrace;
+</span></code></pre>
+<p>Great, so with this, we are now logging what we are pressing.</p>
+<p>So now, we can wire into <code>j</code> and <code>k</code> and make it so the &quot;visible&quot; batch of skeets is offset by the change in index.</p>
+<p>With that change, we make a new &quot;cursor&quot; which is just an index position, and a new batch of &quot;visible skeets&quot; that are simply the ones from the batch we have deemed currenty viewable.</p>
+<p>This all is quite simple and elegant, in my opinion.</p>
+<p>If we go and look at the HTML we can see how this ties together so simply:</p>
+<pre class="athl"><code class="language-elixir" translate="no" tabindex="0"><span class="line" data-line="1">  <span >def</span> <span >render</span><span >(</span><span >assigns</span><span >)</span> <span >do</span>
+</span><span class="line" data-line="2">    <span >~</span>H&quot;&quot;&quot;
+</span><span class="line" data-line="3">    <span >&lt;</span><span >.</span><span >head_tags</span> <span >meta_attrs</span><span >=</span><span >&lbrace;</span><span ><span >@<span >meta_attrs</span></span></span><span >&rbrace;</span> <span >page_title</span><span >=</span><span >&lbrace;</span><span ><span >@<span >page_title</span></span></span><span >&rbrace;</span> <span >/&gt;</span>
+</span><span class="line" data-line="4">    <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >mt-4 text-gray-500</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="5">      Cursor position: <span >&lt;%=</span> <span ><span >@<span >cursor</span></span></span><span > %&gt;</span>
+</span><span class="line" data-line="6">    <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="7">    <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >p-4</span>&quot;</span> <span >phx-window-keydown</span><span >=</span><span >&quot;<span >keydown</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="8">      <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&quot;<span >space-y-4</span>&quot;</span><span >&gt;</span>
+</span><span class="line" data-line="9">        <span >&lt;%=</span> <span >for</span> <span >&lbrace;</span><span >tweet</span><span >,</span> <span >index</span><span >&rbrace;</span> <span >&lt;-</span> <span >Enum</span><span >.</span><span >with_index</span><span >(</span><span ><span >@<span >visible_tweets</span></span></span><span >)</span> <span >do</span> <span >%&gt;</span>
+</span><span class="line" data-line="10">          <span >&lt;</span><span >div</span> <span >class</span><span >=</span><span >&lbrace;</span><span >&quot;p-4 border rounded #&lbrace;if index == 2, do: &#39;bg-blue-100&#39;&rbrace;&quot;</span><span >&rbrace;</span><span >&gt;</span>
+</span><span class="line" data-line="11">            <span >&lt;%=</span> <span >tweet</span><span > %&gt;</span>
+</span><span class="line" data-line="12">          <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="13">        <span >&lt;%</span> <span >end</span><span > %&gt;</span>
+</span><span class="line" data-line="14">      <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="15">    <span >&lt;/</span><span >div</span><span >&gt;</span>
+</span><span class="line" data-line="16">    &quot;&quot;&quot;
+</span><span class="line" data-line="17">  <span >end</span>
+</span></code></pre>
+<p>We are handling keydown and for the indexed tweet, highlighting its coor.
+Then if we key up or down, we redefine whats viewable here, and the rest are just displayed.</p>
+<p>What we end up with is beautifully simple looking.</p>
+<p>You can check it out <a href="https://salmon-unselfish-aphid.gigalixirapp.com/vim">here</a>.</p>
+<h2>Making this</h2>
+<p>This all was fun, and inspired something else:</p>
+<p>A letter writer.
+Where you cannot copy and paste.
+You must take the time to write.
+You must be truly original and keep your mistakes except for backspace being allowed.</p>
+<p>That project is partially shipped and I will write more about it later.</p>
