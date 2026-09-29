@@ -14,7 +14,7 @@ COPY priv/static /app/priv/static
 COPY blimp_site /app/blimp_site
 WORKDIR /app/blimp_site
 EXPOSE 4100
-# The parent forks the workers. Stopping the container takes the whole PID
-# namespace with it, workers included; outside a container, killing only
-# the parent leaves the workers blocked in accept.
-CMD ["blimp", "_build/site.blimp"]
+# One process: `--serve` boots the site and ticks it forever. The control
+# socket is a prompt on the running site, for whoever can exec into the
+# container:  docker exec -it blog-blimp-blog-1 blimp --attach site.sock
+CMD ["blimp", "--serve", "_build/site.blimp", "--tick", "site <- :tick", "--control", "site.sock"]

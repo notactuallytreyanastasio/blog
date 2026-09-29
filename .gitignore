@@ -58,3 +58,4 @@ _build/assay/
 
 # blimp_site build output
 /blimp_site/_build/
+/blimp_site/site.sock

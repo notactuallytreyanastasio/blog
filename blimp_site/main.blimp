@@ -1,22 +1,24 @@
-# The server.
+# The server: one Blimp program for as long as the site runs.
 #
-# The interpreter frees nothing while it runs, so a process that loops over
-# requests forever grows forever: about 147KB a request, measured, for a
-# loop that answers with the longest post. So this is a prefork server.
+# It runs under `blimp --serve`, which evaluates this file once and then
+# `site <- :tick` forever, collecting garbage between ticks and taking Blimp
+# from a control socket (see the Dockerfile for the command line, and
+# `blimp --attach site.sock` for a prompt on the running site).
 #
-#   boot     the parent reads every post, renders it, and builds the full
-#            HTTP response for every fixed route, once
-#   fork     WORKERS children inherit all of that copy-on-write, and each
-#            accepts on the shared listening socket
-#   recycle  a child exits after REQUESTS_PER_WORKER requests, and the
-#            parent, blocked in waitpid, forks a fresh one in its place
+#   boot   read every post, render it, and build the full HTTP response for
+#          every fixed route, once. These are top-level bindings (posts,
+#          desk, routes), so the prompt can read and replace them live.
+#   tick   wait up to 100ms for connections, answer every one that is
+#          waiting, return. Returning is what lets the host collect garbage
+#          and serve the prompt: nothing on the stack points into the heap
+#          between ticks.
 #
-# The parent allocates a few values per replacement and nothing per request.
-# A worker's garbage is bounded by the requests it serves.
+# This replaced a prefork server whose workers died every 200 requests,
+# because the interpreter never freed anything. That held memory down but
+# could keep no state between requests, and there was no one program to
+# talk to.
 
 PORT = 4100
-WORKERS = 4
-REQUESTS_PER_WORKER = 200
 POSTS_DIR = "../priv/static/posts"
 STATIC_DIR = "../priv/static"
 
@@ -145,41 +147,70 @@ def head_of(wire: String) -> String do
   concat(take(wire, index_of(wire, "\r\n\r\n")), "\r\n\r\n")
 end
 
-def work(fd: Int, routes: Map, posts: List, desk: Map, left: Int) -> Int do
-  case left do
-    0 -> exit(0)
+# One connection: wait briefly for its request (a socket accepted from a
+# non-blocking listener is non-blocking itself on some systems), answer it,
+# close it, log a line.
+def serve_client(c: Int) -> Int do
+  t0 = now_ms()
+  ready = tcp_poll([c], 2000)
+  raw = case length(ready) > 0 do
+    true -> tcp_read(c)
+    false -> nil
+  end
+  case raw do
+    nil ->
+      tcp_close(c)
+      0
     _ ->
-      client = tcp_accept(fd)
-      t0 = now_ms()
-      raw = tcp_read(client)
       result = handle(raw, routes, posts, desk)
-      tcp_write(client, elem(result, 0))
-      tcp_close(client)
+      tcp_write(c, elem(result, 0))
+      tcp_close(c)
       req = elem(result, 2)
       puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
-      work(fd, routes, posts, desk, left - 1)
+      1
   end
 end
 
-def spawn_worker(fd: Int, routes: Map, posts: List, desk: Map) -> Int do
-  pid = fork()
-  case pid do
-    0 -> work(fd, routes, posts, desk, REQUESTS_PER_WORKER)
-    _ -> pid
+# Every connection that is waiting now, then stop: the tick must return.
+def accept_all(fd: Int, n: Int) -> Int do
+  c = tcp_accept(fd)
+  case c do
+    nil -> n
+    _ -> accept_all(fd, n + serve_client(c))
   end
 end
 
-def supervise(fd: Int, routes: Map, posts: List, desk: Map) -> Int do
-  waitpid(-1, false)
-  spawn_worker(fd, routes, posts, desk)
-  supervise(fd, routes, posts, desk)
+actor Site do
+  state fd: Int :: -1
+  state served: Int :: 0
+  state booted_at: Int :: 0
+
+  on :start(port: Int) do
+    s = tcp_listen(port)
+    tcp_set_nonblocking(s)
+    become fd: s, booted_at: now()
+    reply s
+  end
+
+  on :tick do
+    case length(tcp_poll([fd], 100)) > 0 do
+      true ->
+        n = accept_all(fd, 0)
+        become served: served + n
+        reply n
+      false -> reply 0
+    end
+  end
+
+  on :served do
+    reply served
+  end
 end
 
 t_boot = now_ms()
 posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 desk = load_desktop("data", posts)
 routes = put(build_routes(posts), "#home", home_parts(desk))
-fd = tcp_listen(PORT)
+site = spawn Site
+site <- :start(PORT)
 puts(concat("blimp blog: ", to_string(length(posts)), " posts rendered in ", to_string(now_ms() - t_boot), "ms, listening on :", to_string(PORT)))
-each(range(1, WORKERS), fn(i: Int) do spawn_worker(fd, routes, posts, desk) end)
-supervise(fd, routes, posts, desk)
