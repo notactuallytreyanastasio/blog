@@ -1,0 +1,150 @@
+# Posts: markdown files named YYYY-MM-DD-HH-MM-SS-<slug>.md.
+#
+# Blimp cannot list a directory, so data/posts.txt names the files to serve.
+# That list plays the part of Blog.Content.Post's @allowed_slugs: a file that
+# is not in it is not a post.
+#
+# Each rule below is the one Blog.Content.Post and PostLive apply, including
+# their quirks, so the two sites agree on titles, dates, tags and counts.
+
+def month_name(m: Int) -> String do
+  case m do
+    1 -> "January"
+    2 -> "February"
+    3 -> "March"
+    4 -> "April"
+    5 -> "May"
+    6 -> "June"
+    7 -> "July"
+    8 -> "August"
+    9 -> "September"
+    10 -> "October"
+    11 -> "November"
+    12 -> "December"
+  end
+end
+
+# "building-this-blog" -> "Building This Blog". Like the Elixir version, a
+# trailing "-" becomes a trailing space: "327 Years Of Tree Law In The Usa ".
+def humanize_title(slug: String) -> String do
+  join(map(split(replace_all(slug, "-", " "), " "), fn(w: String) -> String do capitalize(downcase(w)) end), " ")
+end
+
+# Calendar.strftime(date, "%B %d, %Y"): the day is zero-padded.
+def date_label(year: String, month: String, day: String) -> String do
+  "#{month_name(to_int(month))} #{day}, #{year}"
+end
+
+def is_tags_line(line: String) -> Bool do
+  starts_with(trim(line), "tags:")
+end
+
+# Tags come from the first line that starts with "tags:", untrimmed, as in
+# Blog.Content.Post.parse_tags. An empty tag survives, as it does there.
+def find_tags(lines: [String]) -> List do
+  case lines do
+    [] -> []
+    [line | rest] ->
+      case starts_with(line, "tags:") do
+        true -> map(split(trim(replace_all(line, "tags:", "")), ","), fn(t: String) -> String do trim(t) end)
+        false -> find_tags(rest)
+      end
+  end
+end
+
+def body_without_tags(source: String) -> String do
+  join(filter(split(source, "\n"), fn(l: String) -> Bool do not(is_tags_line(l)) end), "\n")
+end
+
+# String.split(content, ~r/\s+/, trim: true) |> length: runs of whitespace
+# separate words, and leading or trailing whitespace makes no empty word.
+def count_words_from(s: String, i: Int, n: Int, in_word: Bool, count: Int) -> Int do
+  case i >= n do
+    true -> count
+    false ->
+      c = char_at(s, i)
+      space = c == " " or c == "\n" or c == "\t" or c == "\r" or c == "\f" or c == "\v"
+      case space do
+        true -> count_words_from(s, i + 1, n, false, count)
+        false ->
+          case in_word do
+            true -> count_words_from(s, i + 1, n, true, count)
+            false -> count_words_from(s, i + 1, n, true, count + 1)
+          end
+      end
+  end
+end
+
+def word_count(s: String) -> Int do
+  count_words_from(s, 0, length(s), false, 0)
+end
+
+# PostLive: minutes = Float.ceil(words / 250, 1); under 1.0 is "< 1 min read",
+# anything else is trunc(minutes). This is the same rule in exact tenths.
+#
+# The two disagree on 29 word counts below 20000 (225, 1225, 1475, 1725, ...):
+# Float.ceil rounds the binary expansion of words / 250, and 0.9 as a double
+# is 0.900000000000000022, which ceils to 1.0. Phoenix says "1 min read" for
+# a 225-word post; this says "< 1 min read". No post has one of those counts.
+def read_time(words: Int) -> String do
+  tenths = (words * 10 + 249) / 250
+  case tenths < 10 do
+    true -> "< 1 min read"
+    false -> "#{tenths / 10} min read"
+  end
+end
+
+def load_post(dir: String, file: String) -> Map do
+  parts = split(slice(file, 0, length(file) - 3), "-")
+  year = elem_at(parts, 0)
+  month = elem_at(parts, 1)
+  day = elem_at(parts, 2)
+  slug = join(drop_list(parts, 6), "-")
+  source = read_file(concat(dir, "/", file))
+  case source do
+    nil -> bubble_missing_post(concat(dir, "/", file))
+    _ ->
+      body = body_without_tags(source)
+      words = word_count(body)
+      %{
+        file: file,
+        slug: slug,
+        title: humanize_title(slug),
+        date: date_label(year, month, day),
+        sort_key: slice(file, 0, 19),
+        tags: find_tags(split(source, "\n")),
+        html: render_markdown(source),
+        words: words,
+        read_time: read_time(words),
+        description: concat(take(body, 250), "...")
+      }
+  end
+end
+
+# A post named in data/posts.txt that cannot be read stops the boot. Serving
+# the other fourteen and a 404 for the fifteenth would look like it worked.
+def bubble_missing_post(path: String) -> Map do
+  print(concat("cannot read post ", path))
+  exit(1)
+end
+
+def post_files(listing: String) -> List do
+  filter(map(split(listing, "\n"), fn(l: String) -> String do trim(l) end), fn(l: String) -> Bool do length(l) > 0 end)
+end
+
+# Newest first, by the timestamp at the front of the file name.
+def load_posts(dir: String, listing: String) -> List do
+  files = reverse(sort(post_files(listing)))
+  map(files, fn(f: String) -> Map do load_post(dir, f) end)
+end
+
+def find_post(posts: List, slug: String) -> Any do
+  case posts do
+    [] -> nil
+    [p | rest] ->
+      case p.slug == slug do
+        true -> p
+        false -> find_post(rest, slug)
+      end
+  end
+end

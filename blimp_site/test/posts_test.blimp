@@ -1,0 +1,38 @@
+actor PostTests do
+  test "titles are humanized the way Blog.Content.Post does it" do
+    assert_eq(humanize_title("building-this-blog"), "Building This Blog")
+    assert_eq(humanize_title("327-years-of-tree-law-in-the-usa-"), "327 Years Of Tree Law In The Usa ")
+  end
+
+  test "dates are %B %d, %Y with a zero-padded day" do
+    assert_eq(date_label("2025", "02", "02"), "February 02, 2025")
+    assert_eq(date_label("2026", "09", "14"), "September 14, 2026")
+  end
+
+  test "tags come from the first tags: line" do
+    assert_eq(find_tags(["tags: blog, programming,elixir", "# Title"]), ["blog", "programming", "elixir"])
+    assert_eq(find_tags(["# no tags"]), [])
+  end
+
+  test "the tags line is dropped from the body" do
+    assert_eq(body_without_tags("tags: a, b\n\n# Hi"), "\n# Hi")
+  end
+
+  test "word count splits on runs of whitespace" do
+    assert_eq(word_count("  one two\n\nthree\t four  "), 4)
+    assert_eq(word_count(""), 0)
+  end
+
+  test "read time rounds up to a tenth, then truncates" do
+    assert_eq(read_time(0), "< 1 min read")
+    assert_eq(read_time(224), "< 1 min read")
+    assert_eq(read_time(249), "1 min read")
+    assert_eq(read_time(250), "1 min read")
+    assert_eq(read_time(499), "2 min read")
+    assert_eq(read_time(10000), "40 min read")
+  end
+
+  test "post_files ignores blank lines" do
+    assert_eq(post_files("a.md\n\nb.md\n"), ["a.md", "b.md"])
+  end
+end
