@@ -1,0 +1,23 @@
+# Pages that are one Blimp program, run in the browser: the server sends a
+# page with an empty #blimp-app naming the program and the actor it ends
+# with, and static/blimp/app.js mounts it. The program is the page; the
+# server only says where it is.
+
+APP_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/app.js"]
+
+def app_page(title: String, description: String, stylesheets: List, html_class: String, program: String, actor_var: String) -> String do
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", escape_html(program), "\" data-actor=\"", escape_html(actor_var), "\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", escape_html(program), "\">", escape_html(program), "</a>.</p></noscript>\n",
+    script_tags(APP_SCRIPTS)
+  ], "")
+  page_layout_html(title, description, "website", list_append(stylesheets, ["/assets/apps.css"]), body, html_class)
+end
+
+APP_CSS = "/assets/app-3cfac71d5552d1426de906087a8be2fe.css"
+
+def list_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
