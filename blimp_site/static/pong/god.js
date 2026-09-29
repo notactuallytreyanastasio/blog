@@ -17,7 +17,8 @@
     await blimp.init('/blimp/blimp.wasm')
     var res = await fetch('/pong/god.blimp')
     if (!res.ok) throw new Error('god.blimp is ' + res.status)
-    var view = new BlimpView(blimp, el, { send: true, onError: function (msg) { status.textContent = msg } })
+    var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null
+    var view = new BlimpView(blimp, el, { send: true, onError: function (msg) { status.textContent = msg }, onRender: function () { if (canvas) canvas.feed() } })
     blimp.eval('seed(' + Date.now() + ')')
     var mounted = view.mount(await res.text(), 'god')
     if (!mounted.ok) return

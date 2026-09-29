@@ -181,9 +181,9 @@ end
 
 # ── pages ───────────────────────────────────────────────────────────────
 
-PONG_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/pong/play.js"]
-GOD_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/pong/god.js"]
-PONG_CSS = ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/assets/pong.css"]
+PONG_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/pong/play.js"]
+GOD_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/pong/god.js"]
+PONG_CSS = ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/assets/pong.css", "/assets/blimp-window.css"]
 
 def script_tags(srcs: List) -> String do
   join(map(srcs, fn(src: String) -> String do concat("<script src=\"", src, "\"></script>\n") end), "")

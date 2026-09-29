@@ -20,7 +20,8 @@
     var res = await fetch(el.dataset.program)
     if (!res.ok) throw new Error(el.dataset.program + ' is ' + res.status)
     var source = await res.text()
-    var view = new BlimpView(blimp, el, { send: true, onError: fail })
+    var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null
+    var view = new BlimpView(blimp, el, { send: true, onError: fail, onRender: function () { if (canvas) canvas.feed() } })
     var seeded = blimp.eval('seed(' + Date.now() + ')')
     if (!seeded.ok) return fail(seeded.error)
     var mounted = view.mount(source, el.dataset.actor)
