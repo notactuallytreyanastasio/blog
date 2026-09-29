@@ -34,7 +34,9 @@ end
 
 # /temper-snake: Snake written in Temper, compiled to Blimp, running in the
 # browser -- TemperSnakeLive's page, as the Blimp server's. The game and its
-# host (/static/temper-snake/*) are the files Phoenix served, unchanged.
+# runner (/static/temper-snake/*) are the files Phoenix served, unchanged;
+# they run on the site's Blimp (static/snake/play.js), which draws the game
+# in the Blimp window.
 TEMPER_SNAKE_FILES = ["blimp.js", "blimp-view.js", "blimp.wasm", "embed.css", "embed.js", "harness.blimp", "snake.blimp", "index.html", "selftest.html"]
 
 def temper_snake_page() -> String do
@@ -45,7 +47,8 @@ def temper_snake_page() -> String do
     "<link rel=\"stylesheet\" href=\"", base, "embed.css\">",
     "<div id=\"snake-host\"><div id=\"snake-app\" class=\"blimp-host\"><span class=\"text-sm text-gray-500\">loading…</span></div>",
     "<div id=\"snake-status\" class=\"mt-3 text-xs text-gray-400\"></div></div>",
-    "<script src=\"", base, "blimp.js\"></script>\n<script src=\"", base, "blimp-view.js\"></script>\n<script src=\"", base, "embed.js\" defer></script>",
+    "<link rel=\"stylesheet\" href=\"/assets/blimp-window.css\">",
+    script_tags(["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/snake/play.js"]),
     "<div class=\"prose prose-sm dark:prose-invert max-w-none\">",
     "<p>The game is about 300 lines of <a href=\"https://github.com/temperlang/temper\">Temper</a>, a language that compiles to several others. ",
     "<a href=\"https://github.com/notactuallytreyanastasio/temper_snake\">Someone wrote it</a> to run on six backends. This is a seventh: Blimp, an actor language with a tree-walking interpreter written in Zig.</p>",

@@ -30,17 +30,38 @@
     this.sent = 0
   }
 
+  // Past this many actors, draw the ones in use: those a message went to or
+  // came from since the last feed, and those a top-level name holds. Snake,
+  // compiled from Temper, makes an actor of every point: about 500 a frame,
+  // and none go away.
+  var MAX_DRAWN = 300
+
   BlimpPageCanvas.prototype.feed = function () {
     var self = this
     if (this.pending) return
     this.pending = setTimeout(function () {
       self.pending = null
+      var t0 = performance.now()
       var state = self.blimp.getState()
-      self.viz.feed(state, null)
-      self.sent += (state.messages || []).length
-      var n = (state.actors || []).length
-      self.status.textContent = n + (n === 1 ? ' actor' : ' actors') + ', ' + self.sent + ' messages while you watched'
-    }, 200)
+      var cost = performance.now() - t0
+      var actors = state.actors || []
+      var messages = state.messages || []
+      var shown = actors
+      if (actors.length > MAX_DRAWN) {
+        var busy = {}
+        messages.forEach(function (m) { busy[m.target] = true; if (m.from) busy[m.from] = true })
+        ;(state.vars || []).forEach(function (v) { if (v.value && v.value.indexOf('ref<') === 0) busy[v.value] = true })
+        shown = actors.filter(function (a) { return busy[a.ref] }).slice(0, MAX_DRAWN)
+      }
+      self.viz.feed({ vars: state.vars, actors: shown, messages: messages }, null)
+      self.sent += messages.length
+      var n = actors.length
+      self.status.textContent = n + (n === 1 ? ' actor' : ' actors') +
+        (shown.length < n ? ' (drawing the ' + shown.length + ' in use)' : '') +
+        ', ' + self.sent + ' messages while you watched'
+      // building the state costs what the program is; a big one is read less often
+      self.every = Math.min(10000, Math.max(200, cost * 30))
+    }, this.every || 200)
   }
 
   window.BlimpPageCanvas = BlimpPageCanvas
