@@ -573,6 +573,7 @@ case first do
   {:error, reason, _} -> desk_die(concat("cannot load the museum from Postgres: ", reason))
   _ -> :ok
 end
+DB <- :open(DB_OPTS)
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do
