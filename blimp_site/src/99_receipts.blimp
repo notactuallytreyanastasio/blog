@@ -1,0 +1,157 @@
+# The receipt printer's writes: POST /api/receipt_messages/:id/printed,
+# /failed and /retry, which BlogWeb.Api.ReceiptMessageController answered.
+# The printer (priv/scripts/receipt_printer_service.py) polls
+# GET /api/receipt_messages/pending, prints, and reports back here. The two
+# GETs (pending, and a message's image) stay in Phoenix for now.
+#
+# Phoenix's order is kept: the token first, then the id, then the row. The
+# token is the auth_token parameter (query, form or JSON body) or else the
+# X-Auth-Token header, compared with RECEIPT_PRINTER_API_TOKEN. Phoenix
+# falls back to a token committed in config/runtime.exs when that variable
+# is unset; this does not. Without it every request here is 401, and the
+# boot log says so.
+#
+# The JSON is Phoenix's to the byte (receipt_message says why its keys are
+# in the order they are): created_at is the NaiveDateTime inserted_at with
+# no zone, printed_at the utc_datetime with a Z.
+
+RECEIPT_TOKEN = web_or(getenv("RECEIPT_PRINTER_API_TOKEN"), "")
+RECEIPT_JSON = "application/json; charset=utf-8"
+# what Phoenix sends on every response it builds with json/2
+RECEIPT_CACHE = "max-age=0, private, must-revalidate"
+
+def receipt_routes() -> List do
+  receipt_routes_with(RECEIPT_TOKEN)
+end
+
+# The routes, checking `token` (the tests pass their own).
+def receipt_routes_with(token: String) -> List do
+  pipeline = [fn(conn: Map) -> Map do receipt_require_token(conn, token) end]
+  [
+    web_route("POST", "/api/receipt_messages/:id/printed", pipeline, receipt_printed),
+    web_route("POST", "/api/receipt_messages/:id/failed", pipeline, receipt_failed),
+    web_route("POST", "/api/receipt_messages/:id/retry", pipeline, receipt_retry)
+  ]
+end
+
+# ReceiptMessages.mark_as_printed/1, mark_as_failed/1, and the controller's
+# update to pending with printed_at cleared. updated_at moves only when
+# something changed, as Ecto's Repo.update does for an empty changeset.
+RECEIPT_NOW = "date_trunc('second', timezone('UTC', now()))"
+
+def receipt_update_sql(printed_at: String) -> String do
+  join([
+    "UPDATE receipt_messages SET status = $2::text, printed_at = ", printed_at, ", ",
+    "updated_at = CASE WHEN status IS DISTINCT FROM $2::text OR printed_at IS DISTINCT FROM ", printed_at,
+    " THEN ", RECEIPT_NOW, " ELSE updated_at END ",
+    "WHERE id = $1::bigint RETURNING id, content, sender_name, sender_ip, status, image_url, ",
+    "to_char(inserted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS') AS created_at, ",
+    "to_char(printed_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS printed_at, ",
+    "coalesce(octet_length(image_data), 0) > 0 AS has_upload"
+  ], "")
+end
+
+RECEIPT_PRINTED_SQL = receipt_update_sql(RECEIPT_NOW)
+RECEIPT_FAILED_SQL = receipt_update_sql("printed_at")
+RECEIPT_RETRY_SQL = receipt_update_sql("NULL::timestamp")
+
+def receipt_printed(conn: Map) -> Map do
+  receipt_mark(conn, RECEIPT_PRINTED_SQL, "printed")
+end
+
+def receipt_failed(conn: Map) -> Map do
+  receipt_mark(conn, RECEIPT_FAILED_SQL, "failed")
+end
+
+def receipt_retry(conn: Map) -> Map do
+  receipt_mark(conn, RECEIPT_RETRY_SQL, "pending")
+end
+
+def receipt_json(conn: Map, status: Int, body: String) -> Map do
+  put(web_send(conn, status, RECEIPT_JSON, body), :cache, RECEIPT_CACHE)
+end
+
+def receipt_error(conn: Map, status: Int, detail: String) -> Map do
+  receipt_json(conn, status, json_encode(%{errors: %{detail: detail}}))
+end
+
+# Plug: the controller's authorized?/1. params["auth_token"] wins over the
+# header, as `params["auth_token"] || get_req_header(...)` does.
+def receipt_require_token(conn: Map, token: String) -> Map do
+  param = web_param(conn, "auth_token")
+  sent = case param do
+    nil -> web_header(conn, "x-auth-token")
+    _ -> param
+  end
+  ok = token != "" and type_of(sent) == :string and web_secure_eq(sent, token, conn.secret)
+  case ok do
+    true -> conn
+    false -> web_halt(receipt_json(conn, 401, json_encode(%{error: "Invalid or missing auth token"})))
+  end
+end
+
+# Repo.get!(ReceiptMessage, id): an id Ecto cannot cast to an integer is
+# Ecto.Query.CastError, 400; one with no row is Ecto.NoResultsError, 404.
+def receipt_mark(conn: Map, sql: String, status: String) -> Map do
+  id = web_param(conn, "id")
+  case receipt_id_kind(id) do
+    :bad -> receipt_error(conn, 400, "Bad Request")
+    :none -> receipt_error(conn, 404, "Not Found")
+    :ok ->
+      got = DB <- :query(sql, [id, status])
+      case got do
+        {:error, reason} ->
+          puts(concat("receipts: ", reason))
+          receipt_error(conn, 503, "Service Unavailable")
+        {:ok, []} -> receipt_error(conn, 404, "Not Found")
+        {:ok, rows} -> receipt_json(conn, 200, json_encode(%{message: receipt_message(head(rows)), status: "ok"}))
+      end
+  end
+end
+
+# :ok for digits that fit a bigint. Anything else Ecto can cast to an
+# integer ("-5", or 20 digits) has no row: :none, a 404 without asking.
+# (Phoenix sends 20 digits to Postgres, which cannot encode it, and answers
+# 500.) What Ecto cannot cast (" 5", "5x", "") is :bad.
+def receipt_id_kind(id: Any) -> Atom do
+  str = type_of(id) == :string
+  digits = case str do
+    true ->
+      case starts_with(id, "-") do
+        true -> drop(id, 1)
+        false -> id
+      end
+    false -> ""
+  end
+  case length(digits) >= 1 and web_all_digits(digits, 0) do
+    false -> :bad
+    true ->
+      # 9223372036854775807, compared as its first 18 digits and its last
+      fits = length(digits) < 19 or (length(digits) == 19 and (to_int(take(digits, 18)) < 922337203685477580 or (to_int(take(digits, 18)) == 922337203685477580 and to_int(drop(digits, 18)) <= 7)))
+      case fits and not(starts_with(id, "-")) do
+        true -> :ok
+        false -> :none
+      end
+  end
+end
+
+# format_message/1, keys in the order Phoenix writes them. That is not
+# sorted: since OTP 26 a small map with atom keys is ordered by the atoms'
+# index in the VM's atom table, not their names, and Jason writes a map in
+# its own order. Observed from Phoenix on the same rows:
+#   {"id":2,"status":"printed","created_at":...,"image_url":...,"content":...,
+#    "sender_name":null,"sender_ip":null,"printed_at":...}
+# image_url is left out when the row has neither an upload nor a URL; an
+# upload wins over a URL.
+def receipt_message(row: Map) -> Map do
+  base = %{id: row.id, status: row.status, created_at: row.created_at}
+  with_image = case row.has_upload do
+    true -> put(base, :image_url, concat("/api/receipt_messages/", to_string(row.id), "/image"))
+    false ->
+      case row.image_url do
+        nil -> base
+        _ -> put(base, :image_url, row.image_url)
+      end
+  end
+  put(put(put(put(with_image, :content, row.content), :sender_name, row.sender_name), :sender_ip, row.sender_ip), :printed_at, row.printed_at)
+end

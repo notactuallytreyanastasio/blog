@@ -948,8 +948,13 @@ routes = blog_tag_routes(routes, posts)
 # src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
 # src/99_admin.blimp: /admin/museum and /admin/finder
 # src/99_guest_posts.blimp: guest posts and their comments
-WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes())
+# src/99_receipts.blimp: the receipt printer's POSTs
+WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes()), receipt_routes())
 WEB_SECRET = web_session_secret()
+case RECEIPT_TOKEN do
+  "" -> puts("receipts: RECEIPT_PRINTER_API_TOKEN is not set, so every POST /api/receipt_messages/* is 401")
+  _ -> :ok
+end
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
 # that cannot read them does not start. Unset (a laptop, the tests): the

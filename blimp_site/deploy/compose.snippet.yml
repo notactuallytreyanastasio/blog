@@ -49,4 +49,11 @@
       # strikes in one day. BLINKS_WATCH_MS (default 3000, or off) is how
       # often src/99_blinkswatch.blimp looks for rows Phoenix wrote.
       # BLINKS_ALL_WRITES: "on"
+      # The receipt printer's token (src/99_receipts.blimp). Unset, every
+      # POST /api/receipt_messages/* is 401. It must be the token Phoenix
+      # checks: RECEIPT_PRINTER_API_TOKEN from /opt/blog/.env if the app
+      # service has it, else the fallback in config/runtime.exs, which is
+      # what the printer was set up with. Put it in .env before Caddy sends
+      # these POSTs here.
+      RECEIPT_PRINTER_API_TOKEN: ${RECEIPT_PRINTER_API_TOKEN}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network
