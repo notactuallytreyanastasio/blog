@@ -102,8 +102,8 @@ actor WebTests do
     got = wt_send("PUT", "/web/echo", [], "")
     assert_eq(wt_status(got), 405)
     assert(contains(wt_wire(got), "Allow: GET, POST, HEAD\r\n"))
-    del = wt_send("GET", "/web/echo/7", [], "")
-    assert(contains(wt_wire(del), "Allow: PATCH, DELETE\r\n"))
+    put_item = wt_send("PUT", "/web/echo/7", [], "")
+    assert(contains(wt_wire(put_item), "Allow: PATCH, DELETE\r\n"))
     assert_eq(wt_send("GET", "/blog", [], ""), nil)
     assert_eq(wt_send("HEAD", "/nowhere", [], ""), nil)
     post = wt_send("POST", "/blog", [], "x")
@@ -245,5 +245,19 @@ actor WebTests do
       assert(contains(wt_wire(got), "Content-Type: text/plain; charset=utf-8\r\n"))
       assert_eq(wt_body(got), "internal server error\n")
     end)
+  end
+  test "a route for another method does not take a GET away from the fixed table or dynamic()" do
+    routes = [web_route("POST", "/directory", [], fn(c: Map) -> Map do web_text(c, 200, "posted") end)]
+    get = wt_raw("GET", "/directory", [], "")
+    assert_eq(web_dispatch(get, parse_request(get), routes, WT_SECRET), nil)
+    hd = wt_raw("HEAD", "/directory", [], "")
+    assert_eq(web_dispatch(hd, parse_request(hd), routes, WT_SECRET), nil)
+    # the web side does not know PUT, and dynamic() never sees one: 405
+    pt = wt_raw("PUT", "/directory", [], "")
+    got = web_dispatch(pt, parse_request(pt), routes, WT_SECRET)
+    assert_eq(wt_status(got), 405)
+    assert(contains(wt_wire(got), "Allow: POST\r\n"))
+    # the demo's PATCH/DELETE-only path is not ours for GET either
+    assert_eq(wt_send("GET", "/web/echo/7", [], ""), nil)
   end
 end

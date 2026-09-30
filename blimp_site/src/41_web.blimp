@@ -289,8 +289,16 @@ end
 
 # {:ok, route, path_params} | {:method, allowed} | nil. HEAD is answered by
 # a GET route; allowed lists every method some route has for this path.
+# A GET or HEAD is claimed only by a GET route. A route for another method
+# on the same path does not make it 405: the GET goes on to the fixed table
+# and dynamic(), which may well serve that path (POST /directory beside
+# dynamic()'s GET /directory).
 def web_find(routes: List, method: String, path: String) -> Any do
-  web_find_in(routes, method, drop_list(split(path, "/"), 1), [])
+  got = web_find_in(routes, method, drop_list(split(path, "/"), 1), [])
+  case got != nil and elem(got, 0) == :method and (method == "GET" or method == "HEAD") do
+    true -> nil
+    false -> got
+  end
 end
 
 def web_find_in(routes: List, method: String, parts: List, allowed: List) -> Any do
