@@ -358,4 +358,120 @@ actor WebTests do
     page = wt_send("GET", "/web/echo", [], "")
     refute(contains(wt_wire(page), "Secure"))
   end
+
+  test "invalid UTF-8 in a query, a form or a JSON body is Plug.Parsers' 400, before any plug" do
+    # the plug marks the response; a 400 without the mark means no plug ran
+    mark = fn(c: Map) -> Map do web_put_resp_header(c, "X-Plug", "ran") end
+    echo = fn(c: Map) -> Map do web_json(c, 200, [web_param(c, "a")]) end
+    routes = [web_route("POST", "/u", [mark], echo), web_route("GET", "/u", [mark], echo), web_route("POST", "/u/:id", [mark], fn(c: Map) -> Map do web_text(c, 200, hex_encode(web_param(c, "id"))) end)]
+    send = fn(method: String, target: String, headers: List, body: String) -> Tuple do
+      raw = wt_raw(method, target, headers, body)
+      web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+    end
+    form = "Content-Type: application/x-www-form-urlencoded"
+    json = "Content-Type: application/json"
+    bad = [
+      send("POST", "/u", [form], "a=%FF"),
+      send("POST", "/u", [form], concat("a=A", hex_decode("ff"), "B")),
+      send("POST", "/u", [form], "a%FF=1"),
+      # each half alone is a broken sequence; together they would be é
+      send("POST", "/u", [form], "a=%C3&b=%A9"),
+      # the bad value is overwritten in the map, and still refused
+      send("POST", "/u", [form], "a=%FF&a=ok"),
+      send("POST", "/u", [form], "a=%C0%AF"),
+      send("POST", "/u", [form], "a=%ED%A0%80"),
+      send("POST", "/u?x=%E2%82", [], ""),
+      send("GET", "/u?x=%FF", [], ""),
+      send("POST", "/u", [json], concat("{\"a\":\"", hex_decode("ff"), "\"}")),
+      send("POST", "/u", [json], "{\"a\":\"\\ud800\"}"),
+      send("POST", "/u", [json], concat("{\"a", hex_decode("ff"), "\":1}")),
+      # Plug.Parsers says the same about JSON that is not JSON at all
+      send("POST", "/u", [json], "{\"a\":")
+    ]
+    each(bad, fn(got: Tuple) do
+      assert_eq(wt_status(got), 400)
+      assert_eq(wt_body(got), "Bad Request")
+      assert(contains(wt_wire(got), "Content-Type: text/html; charset=utf-8\r\n"))
+      assert(contains(wt_wire(got), "Cache-Control: max-age=0, private, must-revalidate\r\n"))
+      refute(contains(wt_wire(got), "X-Plug"))
+    end)
+    # a HEAD has the headers and no body
+    head = send("HEAD", "/u?x=%FF", [], "")
+    assert_eq(wt_status(head), 400)
+    assert_eq(wt_body(head), "")
+    # before CSRF too: the demo form route without a token is 400, not 403
+    assert_eq(wt_status(wt_send("POST", "/web/echo", [form], "message=%FF")), 400)
+    # valid UTF-8, encoded or raw, a U+FFFD the client sent, a stray %, a
+    # surrogate pair in JSON: all reach the handler
+    each([
+      send("POST", "/u", [form], "a=%E2%9C%93"),
+      send("POST", "/u", [form], concat("a=", hex_decode("e29c93"))),
+      send("POST", "/u", [form], "a=%EF%BF%BD"),
+      send("POST", "/u?x=%ZZ", [form], "a=%ZZ%"),
+      send("POST", "/u", [json], "{\"a\":\"\\ud83d\\ude00\"}")
+    ], fn(got: Tuple) do
+      assert_eq(wt_status(got), 200)
+      assert(contains(wt_wire(got), "X-Plug: ran"))
+    end)
+    # Phoenix's router does not check a path segment, so neither does this:
+    # the controller gets the bytes (DELETE /api/blinks/1/tags/%FF is a 200
+    # that removes nothing there)
+    p = send("POST", "/u/%FF", [], "")
+    assert_eq(wt_status(p), 200)
+    assert_eq(wt_body(p), "ff")
+    assert(contains(wt_wire(p), "X-Plug: ran"))
+  end
+
+  test "the 400's body follows Accept as Phoenix's render_errors does, and _format in a good query" do
+    echo = fn(c: Map) -> Map do web_text(c, 200, "ok") end
+    routes = [web_route("POST", "/u", [], echo)]
+    send = fn(target: String, headers: List) -> Tuple do
+      raw = wt_raw("POST", target, list_append(["Content-Type: application/x-www-form-urlencoded"], headers), "a=%FF")
+      web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+    end
+    json_body = "{\"errors\":{\"detail\":\"Bad Request\"}}"
+    each([
+      ["", "html"], ["*/*", "html"], ["text/html", "html"], ["application/json", "json"],
+      ["application/json, text/html", "json"], ["text/html, application/json", "html"],
+      ["application/json, */*", "html"], ["*/*, application/json", "html"],
+      ["application/json;q=0.5, text/html", "html"], ["text/html;q=0.5, application/json;q=0.9", "json"],
+      ["text/plain", "html"], ["application/xml", "html"], ["text/*", "html"], ["application/*", "json"],
+      ["APPLICATION/JSON", "json"], ["application/vnd.api+json", "html"], ["application/json; charset=utf-8", "json"],
+      ["application/json;q=0.5,text/html;q=0.5", "json"], ["text/html;q=0.4, application/json;q=0.5x", "json"],
+      ["application/json;q=0", "json"], ["text/html;q=0.5e, application/json;q=0.4", "html"],
+      ["application/json;q=+0.5, text/html;q=0.9", "html"]
+    ], fn(c: List) do
+      accept = head(c)
+      hs = case accept do
+        "" -> []
+        _ -> [concat("Accept: ", accept)]
+      end
+      got = send("/u", hs)
+      assert_eq(wt_status(got), 400)
+      case last(c) do
+        "json" ->
+          assert_eq(wt_body(got), json_body)
+          assert(contains(wt_wire(got), "Content-Type: application/json; charset=utf-8\r\n"))
+        _ ->
+          assert_eq(wt_body(got), "Bad Request")
+          assert(contains(wt_wire(got), "Content-Type: text/html; charset=utf-8\r\n"))
+      end
+    end)
+    assert_eq(wt_body(send("/u?_format=json", [])), json_body)
+    assert_eq(wt_body(send("/u?_format=html", ["Accept: application/json"])), "Bad Request")
+    assert_eq(wt_body(send("/u?_format=xml", ["Accept: application/json"])), "Bad Request")
+    # a query that is itself bad cannot be read for _format
+    assert_eq(wt_body(send("/u?_format=json&x=%FF", [])), "Bad Request")
+  end
+
+  test "web_utf8_valid: utf8_valid where the interpreter has it, json_encode where it does not, same answers" do
+    each([["", true], ["41", true], ["e29c93", true], ["efbfbd", true], ["f09f9880", true], ["00", true],
+          ["ed9fbf", true], ["ee8080", true], ["f48fbfbf", true], ["7f", true],
+          ["ff", false], ["41ff42", false], ["c0af", false], ["eda080", false], ["e282", false],
+          ["f4908080", false], ["c2", false], ["80", false], ["fe", false], ["e0808f", false], ["f08f8f8f", false]], fn(c: List) do
+      s = hex_decode(head(c))
+      assert_eq(web_utf8_valid(s), last(c))
+      assert_eq(web_utf8_valid_json(s), last(c))
+    end)
+  end
 end
