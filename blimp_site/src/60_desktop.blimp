@@ -1,30 +1,24 @@
-# The homepage: TerminalLive's classic Mac OS desktop, with no JavaScript.
+# The homepage: the server drawn live, the pages it serves, the newest
+# posts, and the museum. It works without JavaScript; with it, the canvas
+# at the top draws this very process (static/blimp/home.js).
 #
-# Every phx-click that changed what was on screen is a link now, and the
-# state it changed lives in the query string:
+# The state that changes what is on screen lives in the query string:
 #
-#   cat=<category>   museum filter tab (absent: All)
-#   project=<slug>   the museum detail window
-#   finder=1         the Finder window ("Apps & Games")
-#   museum=0         the museum list closed
+#   cat=<category>   museum filter (absent: All)
+#   project=<slug>   the museum exhibit shown open
 #   leica=1          the Leica large-file warning
-#   m=<window>       the window the mobile taskbar brought forward
 #
 # Every link carries the rest of the state along. A value is echoed back
 # into a link only after it has been checked against the data, so nothing a
 # visitor types into the URL reaches the page.
 #
 # The boot splash shows only for a bare "/". Any query string at all, even
-# the /?booted=1 that clicking the splash leads to, means the visitor is
-# already on the desktop.
-#
-# What needed a socket or a script is not here: the AIM chat and its name
-# dialog, presence counts, the Phish window, the work log, the photo
-# window, the Leica zoom viewer, the Joyride tour, tooltips and dragging.
+# the /?booted=1 that clicking the splash leads to, means the visitor has
+# seen it.
 #
 # What is a function of strings and numbers alone (the clock, the links,
-# the fixed HTML of the chrome) is Temper, in
-# temper/src/desktop. What reads or builds a record stays here.
+# fixed HTML) is Temper, in temper/src/desktop. What reads or builds a
+# record stays here.
 
 APPS_ORIGIN = "https://bobbby.online"
 
@@ -235,7 +229,7 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
   own = desk_path_entries(desk_lines(icon_text), "", [], %{})
   hangar = desk_load_hangar(desk_read("data/hangar.tsv"), own, %{})
   museum = map(loaded, fn(p: Map) -> Map do
-    put(put(p, "item_html", desk_item_inner(p, icons)), "detail_html", desk_detail_inner(p, icons))
+    put(put(p, "title_html", escape_html(p.title)), "detail_html", desk_detail_inner(p, icons))
   end)
   %{
     museum: museum,
@@ -243,16 +237,14 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
     finder_html: desk_finder_sections(finder),
     item_count: reduce(finder, 0, fn(n: Int, s: Map) -> Int do n + length(s.items) end),
     icons: icons,
-    blog_rows: join(map(posts, fn(p: Map) -> String do blog_post_row(p) end), ""),
+    blog_html: desk_blog_lines(posts),
     post_count: length(posts),
     hangar_html: desk_hangar_html(hangar),
-    hangar_count: length(hangar),
-    stack_icon: lookup(own, "hg-stack"),
-    mirror_icon: lookup(own, "code-mirror")
+    hangar_count: length(hangar)
   }
 end
 
-# ── The Hangar: the pages that run on Blimp ─────────────────────────────
+# ── The manifest: the pages that run on Blimp ───────────────────────────
 #
 # data/hangar.tsv: group, path, name, icon, pitch. The icon is one of
 # data/hangar_icons.txt's (drawn for this window) or of icons.txt's (the
@@ -506,12 +498,14 @@ def desk_flag(pairs: List, key: String, want: String) -> String do
   end
 end
 
-# The query string, reduced to values the data vouches for.
+# The query string, reduced to values the data vouches for. The old
+# desktop's finder=, museum= and m= opened and closed windows that are not
+# windows any more; a link that still carries them gets the page without
+# them, and they are not echoed back.
 def desk_state(query: String, desk: Map) -> Map do
   pairs = split(query, "&")
   cat = desk_qp(pairs, "cat=")
   slug = desk_qp(pairs, "project=")
-  m = desk_qp(pairs, "m=")
   known_cat = case desk_member(desk.categories, cat) do
     true -> cat
     false -> ""
@@ -520,69 +514,18 @@ def desk_state(query: String, desk: Map) -> Map do
     nil -> ""
     _ -> slug
   end
-  known_m = case m == "finder" or m == "museum" or m == "blog" or m == "hangar" do
-    true -> m
-    false -> ""
-  end
-  %{
-    cat: known_cat,
-    project: known_slug,
-    finder: desk_flag(pairs, "finder", "1"),
-    museum: desk_flag(pairs, "museum", "0"),
-    leica: desk_flag(pairs, "leica", "1"),
-    m: known_m
-  }
-end
-
-def desk_show_finder(st: Map) -> Bool do
-  st.finder == "1" or st.m == "finder"
-end
-
-def desk_show_museum(st: Map) -> Bool do
-  st.museum != "0" or st.m == "museum"
-end
-
-# On a phone the windows stack, and the one the taskbar chose goes first;
-# with none chosen, the Hangar leads.
-def desk_mobile(st: Map) -> String do
-  case st.m do
-    "" -> "hangar"
-    m -> m
-  end
+  %{cat: known_cat, project: known_slug, leica: desk_flag(pairs, "leica", "1")}
 end
 
 # The link to a state, already escaped for an href: every value in the
-# state is a known slug, category or flag. A link to the empty state says
-# booted=1, so that closing the last window does not replay the splash.
+# state is a known slug, category or flag.
 def desk_href(st: Map) -> String do
-  desk_href_of(st.cat, st.project, st.finder, st.museum, st.leica, st.m)
+  desk_href_of(st.cat, st.project, st.leica)
 end
 
-def desk_close_finder(st: Map) -> Map do
-  m = case st.m == "finder" do
-    true -> ""
-    false -> st.m
-  end
-  put(put(st, "finder", ""), "m", m)
-end
-
-def desk_toggle_finder(st: Map) -> Map do
-  case desk_show_finder(st) do
-    true -> desk_close_finder(st)
-    false -> put(st, "finder", "1")
-  end
-end
-
-def desk_toggle_museum(st: Map) -> Map do
-  case desk_show_museum(st) do
-    true ->
-      m = case st.m == "museum" do
-        true -> ""
-        false -> st.m
-      end
-      put(put(st, "museum", "0"), "m", m)
-    false -> put(st, "museum", "")
-  end
+# A link that changes the museum lands back on the museum, not the top.
+def desk_museum_href(st: Map) -> String do
+  concat(desk_href(st), "#museum")
 end
 
 def desk_category_label(cat: String) -> String do
@@ -598,23 +541,31 @@ def desk_category_label(cat: String) -> String do
   end
 end
 
-# ── Windows ─────────────────────────────────────────────────────────────
+# ── Built once: the log, the other pages ────────────────────────────────
 
+# The newest posts, one line each: date, then title. The rest are on /blog.
+HOME_POSTS = 10
+
+def desk_blog_lines(posts: List) -> String do
+  join(map(desk_take_list(posts, HOME_POSTS, []), fn(p: Map) -> String do
+    concat("<li><a href=\"/post/", p.slug, "\"><span class=\"log-date\">", p.date, "</span><span class=\"log-title\">", escape_html(p.title), "</span></a></li>")
+  end), "")
+end
+
+# The Finder's sections, as one line of links each. An item with nowhere
+# to go is its name, not a link that goes nowhere.
 def desk_finder_item(item: Map) -> String do
   title = case length(item.description) > 0 do
     true -> concat(" title=\"", escape_html(item.description), "\"")
     false -> ""
   end
-  inner = concat(
-    "<div class=\"icon-image\">", escape_html(item.icon), "</div>",
-    "<div class=\"icon-label\">", escape_html(item.name), "</div>"
-  )
+  name = escape_html(item.name)
   case item.action do
-    "toggle_phish" -> concat("<a class=\"icon\" href=\"", APPS_ORIGIN, "/phish\"", title, ">", inner, "</a>")
+    "toggle_phish" -> concat("<a href=\"", APPS_ORIGIN, "/phish\"", title, ">", name, "</a>")
     _ ->
       case length(item.path) > 0 do
-        true -> concat("<a class=\"icon\" href=\"", escape_html(desk_app_href(item.path)), "\"", title, ">", inner, "</a>")
-        false -> concat("<div class=\"icon\" tabindex=\"0\"", title, ">", inner, "</div>")
+        true -> concat("<a href=\"", escape_html(desk_app_href(item.path)), "\"", title, ">", name, "</a>")
+        false -> concat("<span", title, ">", name, "</span>")
       end
   end
 end
@@ -626,40 +577,11 @@ def desk_finder_sections(finder: List) -> String do
       false -> s.name
     end
     join([
-      "<div class=\"icon-section\">",
-      "<div class=\"section-label\">", escape_html(label), "</div>",
-      "<div class=\"section-items\">",
-      join(map(s.items, fn(i: Map) -> String do desk_finder_item(i) end), ""),
-      "</div></div>"
+      "<div class=\"more-row\"><h3 class=\"plate-label\">", escape_html(label), "</h3><p>",
+      join(map(s.items, fn(i: Map) -> String do desk_finder_item(i) end), "<span class=\"sep\"> / </span>"),
+      "</p></div>"
     ], "")
   end), "")
-end
-
-def desk_finder_window(st: Map, desk: Map) -> String do
-  mobile = case desk_mobile(st) == "finder" do
-    true -> " mobile-active"
-    false -> ""
-  end
-  museum_label = case desk_show_museum(st) do
-    true -> "icon-label selected-label"
-    false -> "icon-label"
-  end
-  join([
-    "<div class=\"window mobile-window-finder", mobile, "\" id=\"finder-window\">",
-    desk_title_bar(desk_href(desk_close_finder(st)), "bobbby.online"),
-    "<div class=\"window-content\"><div class=\"icon-grid\">",
-    desk.finder_html,
-    "<div class=\"icon-section\">",
-    "<div class=\"section-label\">Other Work &amp; Frivolity</div>",
-    "<div class=\"section-items\">",
-    "<a class=\"icon\" href=\"", desk_href(desk_toggle_museum(st)), "\" id=\"icon-museum-toggle\">",
-    "<div class=\"icon-image\">", desk_projects_icon(), "</div>",
-    "<div class=\"", museum_label, "\">Projects</div>",
-    "</a></div></div>",
-    "</div></div>",
-    "<div class=\"status-bar\"><span>", to_string(desk.item_count), " items</span></div>",
-    "</div>"
-  ], "")
 end
 
 def desk_tech_tags(tech: List) -> String do
@@ -677,37 +599,56 @@ def desk_take_list(list: List, n: Int, acc: List) -> List do
   end
 end
 
-# Everything inside a museum list row but the row's own <a>.
-def desk_item_inner(p: Map, icons: Map) -> String do
-  join([
-    "<div class=\"museum-list-icon\">", desk_icon(icons, p.slug), "</div>",
-    "<div class=\"museum-list-info\">",
-    "<div class=\"museum-list-name\">", escape_html(p.title), "</div>",
-    "<div class=\"museum-list-tagline\">", escape_html(p.tagline), "</div>",
-    "<div class=\"museum-list-tags\">", desk_tech_tags(desk_take_list(p.tech, 3, [])), "</div>",
-    "</div></a>"
-  ], "")
-end
+# ── The museum ──────────────────────────────────────────────────────────
 
-# A row's opening tag; the prebuilt item_html follows it as its own piece.
-def desk_museum_item(p: Map, st: Map) -> String do
-  class = case st.project == p.slug do
-    true -> "museum-list-item selected"
-    false -> "museum-list-item"
+# An exhibit's page below its heading, built once per exhibit.
+def desk_detail_inner(p: Map, icons: Map) -> String do
+  repos = case p.repos do
+    [] -> ""
+    _ -> join([
+      "<p class=\"ex-repos\"><span class=\"plate-label\">Source</span> ",
+      join(map(p.repos, fn(r: Map) -> String do
+        concat("<a href=\"https://github.com/", escape_html(r.full_name), "\" target=\"_blank\" class=\"ex-repo\">", escape_html(r.name), "</a>")
+      end), " "),
+      "</p>"
+    ], "")
   end
-  concat("<a class=\"", class, "\" href=\"", desk_href(put(st, "project", p.slug)), "\">")
+  launch = case length(p.internal_path) > 0 do
+    true -> concat("<a href=\"", escape_html(desk_app_href(p.internal_path)), "\" class=\"btn primary\">Launch &#x25B6;</a>")
+    false -> ""
+  end
+  visit = case length(p.external_url) > 0 do
+    true -> concat("<a href=\"", escape_html(p.external_url), "\" target=\"_blank\" class=\"btn\">Visit &#x2197;</a>")
+    false -> ""
+  end
+  join([
+    "<div class=\"ex-icon\">", desk_icon(icons, p.slug), "</div>",
+    "<div class=\"ex-body\">",
+    "<h3 class=\"ex-title\">", escape_html(p.title), "</h3>",
+    "<p class=\"ex-tagline\">", escape_html(p.tagline), "</p>",
+    "<p class=\"ex-desc\">", escape_html(trim(p.description)), "</p>",
+    "<p class=\"ex-techs\">", desk_tech_tags(p.tech), "</p>",
+    repos,
+    "<p class=\"ex-actions\">", launch, visit, "</p>",
+    "<p class=\"ex-meta\">", escape_html(p.category), " &middot; ", plural(length(p.tech), "technology", "technologies"), "</p>",
+    "</div>"
+  ], "")
 end
 
 # Per-request code loops by recursion, not map or filter: calling a lambda
 # measured about 3KB of garbage a call, and a render makes a few hundred.
-#
-# Blog.Museum.Projects.by_category/1 when a tab is chosen, all/0 when not.
 def desk_museum_rows(projects: List, st: Map, acc: List) -> List do
   case projects do
     [] -> reverse(acc)
     [p | rest] ->
       case st.cat == "" or st.cat == p.category do
-        true -> desk_museum_rows(rest, st, [p.item_html, desk_museum_item(p, st) | acc])
+        true ->
+          class = case st.project == p.slug do
+            true -> "ex on"
+            false -> "ex"
+          end
+          row = concat("<li><a class=\"", class, "\" href=\"", desk_museum_href(put(st, "project", p.slug)), "\">", p.title_html, "</a></li>")
+          desk_museum_rows(rest, st, [row | acc])
         false -> desk_museum_rows(rest, st, acc)
       end
   end
@@ -717,163 +658,122 @@ def desk_tabs(cats: List, st: Map, acc: List) -> List do
   case cats do
     [] -> reverse(acc)
     [c | rest] ->
-      tab = concat("<a class=\"", desk_active(st.cat == c, "museum-filter-tag"), "\" href=\"", desk_href(put(st, "cat", c)), "\">", desk_category_label(c), "</a>")
+      tab = concat("<a class=\"", desk_active(st.cat == c, "tab"), "\" href=\"", desk_museum_href(put(st, "cat", c)), "\">", desk_category_label(c), "</a>")
       desk_tabs(rest, st, [tab | acc])
   end
 end
 
-# A list of pieces, not a string: the rows hold 32 pixel icons, about
-# 190KB, and joining them here would copy them once more per request.
-def desk_museum_window(st: Map, desk: Map) -> List do
-  mobile = case desk_mobile(st) == "museum" do
-    true -> " mobile-active"
-    false -> ""
-  end
-  rows = desk_museum_rows(desk.museum, st, [])
-  tabs = join(desk_tabs(desk.categories, st, []), "")
-  finder_on = desk_show_finder(st)
-  finder_href = desk_href(desk_toggle_finder(st))
-  status_style = case finder_on do
-    true -> "cursor: pointer; background: #000; color: #fff; padding: 0 6px;"
-    false -> "cursor: pointer; text-decoration: underline; padding: 0 6px;"
-  end
-  flat([
-    "<div class=\"museum-list-window mobile-window-museum", mobile, "\" id=\"museum-list-window\">",
-    desk_title_bar(desk_href(desk_toggle_museum(st)), "Technical Museum"),
-    "<div class=\"museum-filter-row\">",
-    "<a class=\"", desk_active(st.cat == "", "museum-filter-tag"), "\" href=\"", desk_href(put(st, "cat", "")), "\">All</a>",
-    tabs,
-    "<span style=\"flex: 1;\"></span>",
-    "<a class=\"", desk_active(finder_on, "museum-filter-tag"), "\" href=\"", finder_href, "\" style=\"border: 1px solid #999;\">Apps &amp; Games</a>",
-    "</div>",
-    "<div class=\"museum-list-content\">",
-    rows,
-    "</div>",
-    "<div class=\"status-bar\">",
-    "<span>", to_string(length(rows) / 2), " exhibits</span>",
-    "<a href=\"", finder_href, "\" style=\"", status_style, "\">Apps &amp; Games</a>",
-    "</div>",
-    "</div>"
-  ])
-end
-
-# The detail window below its title bar.
-def desk_detail_inner(p: Map, icons: Map) -> String do
-  repos = case p.repos do
-    [] -> ""
-    _ -> join([
-      "<div class=\"museum-detail-repos\"><strong>Source:</strong>",
-      join(map(p.repos, fn(r: Map) -> String do
-        concat("<a href=\"https://github.com/", escape_html(r.full_name), "\" target=\"_blank\" class=\"museum-repo-link\">", escape_html(r.name), "</a>")
-      end), ""),
-      "</div>"
-    ], "")
-  end
-  launch = case length(p.internal_path) > 0 do
-    true -> concat("<a href=\"", escape_html(desk_app_href(p.internal_path)), "\" class=\"museum-launch-btn\">Launch &#x25B6;</a>")
-    false -> ""
-  end
-  visit = case length(p.external_url) > 0 do
-    true -> concat("<a href=\"", escape_html(p.external_url), "\" target=\"_blank\" class=\"museum-launch-btn\" style=\"margin-top: 8px;\">Visit &#x2197;</a>")
-    false -> ""
-  end
-  join([
-    "<div class=\"museum-detail-content\">",
-    "<div class=\"museum-detail-icon\">", desk_icon(icons, p.slug), "</div>",
-    "<div class=\"museum-detail-title\">", escape_html(p.title), "</div>",
-    "<div class=\"museum-detail-tagline\">", escape_html(p.tagline), "</div>",
-    "<div class=\"museum-detail-description\">", escape_html(trim(p.description)), "</div>",
-    "<div class=\"museum-detail-tech\">", desk_tech_tags(p.tech), "</div>",
-    repos, launch, visit,
-    "</div>",
-    "<div class=\"status-bar\"><span>", escape_html(p.category), "</span>",
-    "<span>", to_string(length(p.tech)), " technologies</span></div>"
-  ], "")
-end
-
-def desk_detail_window(st: Map, desk: Map) -> String do
+def desk_detail(st: Map, desk: Map) -> String do
   p = desk_find_project(desk.museum, st.project)
   case p do
     nil -> ""
     _ ->
       join([
-        "<div class=\"museum-detail-window\" id=\"museum-detail-window\">",
-        desk_title_bar(desk_href(put(st, "project", "")), escape_html(p.title)),
+        "<article class=\"ex-detail\" id=\"museum-detail\">",
+        "<a class=\"ex-close\" href=\"", desk_museum_href(put(st, "project", "")), "\" aria-label=\"Close\">&#x2715;</a>",
         p.detail_html,
-        "</div>"
+        "</article>"
       ], "")
   end
 end
 
-def desk_leica_icon(st: Map) -> String do
-  desk_leica_icon_html(desk_href(put(st, "leica", "1")))
-end
-
-# The warning dialog is plain HTML, so it stays. Its "Load" button used to
-# start the zoom-and-pan viewer; now it opens the image itself.
-def desk_leica_warning(st: Map) -> String do
-  case st.leica do
-    "" -> ""
-    _ -> desk_leica_dialog(desk_href(put(st, "leica", "")))
-  end
-end
-
-def desk_blog_window(st: Map, desk: Map) -> String do
-  mobile = case desk_mobile(st) == "blog" do
-    true -> " mobile-active"
-    false -> ""
-  end
+def desk_museum(st: Map, desk: Map) -> String do
+  rows = desk_museum_rows(desk.museum, st, [])
   join([
-    "<div class=\"blog-window mobile-window-blog", mobile, "\" id=\"blog-window\">",
-    "<div class=\"title-bar\"><div class=\"close-box\"></div>",
-    "<div class=\"title\">Thoughts &amp; Tidbits - Blog</div>",
-    "<div class=\"resize-box\"></div></div>",
-    "<div class=\"blog-window-content\"><div class=\"blog-posts-list\">",
-    desk.blog_rows,
-    "</div></div>",
-    "<div class=\"status-bar\"><span>", to_string(desk.post_count), " posts</span></div>",
-    "</div>"
+    "<section class=\"archive\" id=\"museum\" aria-labelledby=\"museum-h\">",
+    "<header class=\"sec-head\"><h2 id=\"museum-h\">Technical museum</h2><span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
+    "<p class=\"sec-note\">Older work, most of it from before Blimp. Pick one to read about it.</p>",
+    "<nav class=\"tabs\" aria-label=\"Museum categories\">",
+    "<a class=\"", desk_active(st.cat == "", "tab"), "\" href=\"", desk_museum_href(put(st, "cat", "")), "\">All</a>",
+    join(desk_tabs(desk.categories, st, []), ""),
+    "</nav>",
+    desk_detail(st, desk),
+    "<ul class=\"ex-list\">", join(rows, ""), "</ul>",
+    "</section>"
   ], "")
 end
 
-def desk_taskbar(st: Map) -> String do
-  mob = desk_mobile(st)
-  apps = put(put(st, "finder", "1"), "m", "finder")
-  museum = put(put(st, "museum", ""), "m", "museum")
-  hangar = case st.m do
-    "" -> st
-    _ -> put(st, "m", "hangar")
+# ── The page ────────────────────────────────────────────────────────────
+
+# Blimp's canvas and the script that feeds it the server. With these in the
+# body, page_layout adds no corner runtime window: the page is the window.
+# home.js is linked by its content hash, like the stylesheets, because
+# Cloudflare keeps /blimp/* too.
+def desk_script_href(url: String, path: String) -> String do
+  body = read_file(path)
+  case body do
+    nil -> desk_die(concat("cannot read ", path))
+    _ -> concat(url, "?v=", take(sha256(body), 10))
   end
-  desk_taskbar_links(mob == "hangar", mob == "museum", mob == "blog", mob == "finder", desk_href(hangar), desk_href(museum), desk_href(put(st, "m", "blog")), desk_href(apps))
 end
 
-def desk_hangar_window(st: Map, desk: Map, live: String) -> String do
-  mobile = case desk_mobile(st) == "hangar" do
-    true -> " mobile-active"
-    false -> ""
-  end
+HOME_TAGS = concat("<script src=\"/blimp/canvas.js\"></script><script src=\"", desk_script_href("/blimp/home.js", "static/blimp/home.js"), "\"></script>")
+
+HOME_FONTS = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
+
+def desk_rail(epoch_s: Int) -> String do
   join([
-    "<div class=\"hangar-window mobile-window-hangar", mobile, "\" id=\"hangar-window\">",
-    "<div class=\"title-bar\"><div class=\"close-box\"></div><div class=\"title\">The Hangar</div><div class=\"resize-box\"></div></div>",
-    "<div class=\"hangar-head\">", desk_blimp_svg(88),
-    "<div><div class=\"hangar-headline\">Every page on this site is served by one Blimp process.</div>",
-    "<p>Blimp is the actor language I have been writing. The server is its interpreter, in Zig; the games run that same interpreter in your browser, as WebAssembly. Phoenix, which ran all this until September, is in the Trash.</p></div></div>",
+    "<header class=\"rail\">",
+    "<a class=\"mark\" href=\"/?booted=1\">", desk_blimp_svg(46), "<span class=\"mark-name\">bobbby<span>.online</span></span></a>",
+    "<nav class=\"rail-nav\" aria-label=\"Site\">",
+    "<a href=\"/blog\">Blog</a><a href=\"/stack\">How it is built</a><a href=\"/mirror\">Source</a><a href=\"/directory\">Directory</a>",
+    "</nav>",
+    "<p class=\"rail-clock\"><span>UTC</span> ", desk_clock(epoch_s), "</p>",
+    "</header>"
+  ], "")
+end
+
+def desk_scope(live: String) -> String do
+  join([
+    "<section class=\"scope-col\" aria-labelledby=\"scope-h\">",
+    "<h1 id=\"scope-h\" class=\"headline\">This page came from one Blimp process. <em>Here it is, running.</em></h1>",
+    "<figure class=\"scope\">",
+    "<div class=\"scope-screen\" id=\"scope-wrap\"><canvas id=\"scope-canvas\" aria-label=\"The server's actors and the messages between them, live\"></canvas>",
+    "<p class=\"scope-status\" id=\"scope-status\">Scripts are off, so the drawing is too. The gauges below are the server's own numbers, as of this request.</p></div>",
+    "<figcaption>",
+    "<span class=\"key\"><svg viewBox=\"0 0 20 20\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path d=\"M10 1l8 4.5v9L10 19l-8-4.5v-9z\"/></svg> an actor inside the server</span>",
+    "<span class=\"key\"><svg viewBox=\"0 0 24 8\" width=\"24\" height=\"8\" aria-hidden=\"true\"><path d=\"M1 4h20M17 1l4 3-4 3\"/></svg> a message between two</span>",
+    "<span class=\"key-note\">Blimp is an actor language I am writing; its interpreter, in Zig, is the web server. Every request, yours included, is a message to the Site actor. The picture is the server's own snapshot, pushed over <code>/live/runtime</code> a few times a second.</span>",
+    "</figcaption>",
+    "</figure>",
     live,
-    "<div class=\"hangar-body\">", desk.hangar_html, "</div>",
-    "<div class=\"status-bar\"><span>", to_string(desk.hangar_count), " pages, one process</span><a href=\"/stack\">how it is built &#x2192;</a></div>",
-    "</div>"
+    "</section>"
   ], "")
 end
 
-def desk_side_icons(st: Map, desk: Map) -> String do
+def desk_manifest(desk: Map) -> String do
   join([
-    "<div class=\"side-icons\">",
-    desk_side_icon("/stack", desk.stack_icon, "The Stack"),
-    desk_side_icon("/mirror", desk.mirror_icon, "View Source"),
-    desk_side_icon("/directory", desk_projects_icon(), "Directory"),
-    desk_leica_icon(st),
-    desk_side_icon("https://old.bobbby.online", desk_trash_svg(), "Trash<br>(Phoenix)"),
-    "</div>"
+    "<aside class=\"manifest\" aria-labelledby=\"manifest-h\">",
+    "<header class=\"sec-head\"><h2 id=\"manifest-h\">Aboard</h2><span class=\"sec-count\">", to_string(desk.hangar_count), " pages, one process</span></header>",
+    "<div class=\"mf-groups\">", desk.hangar_html, "</div>",
+    "</aside>"
+  ], "")
+end
+
+def desk_log(desk: Map) -> String do
+  join([
+    "<section class=\"log\" aria-labelledby=\"log-h\">",
+    "<header class=\"sec-head\"><h2 id=\"log-h\">Log</h2><a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
+    "<ol class=\"log-list\">", desk.blog_html, "</ol>",
+    "</section>"
+  ], "")
+end
+
+def desk_more(st: Map, desk: Map) -> String do
+  join([
+    "<section class=\"more\" aria-labelledby=\"more-h\">",
+    "<header class=\"sec-head\"><h2 id=\"more-h\">Apps &amp; games, the full list</h2><span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
+    desk.finder_html,
+    "</section>"
+  ], "")
+end
+
+def desk_foot(st: Map) -> String do
+  join([
+    "<footer class=\"foot\">",
+    "<p><strong>Phoenix</strong> served this site until September 2026. It has been retired, not scrapped: it still takes visitors at <a href=\"https://old.bobbby.online\">old.bobbby.online</a>.</p>",
+    "<p class=\"foot-links\"><a href=\"/very_direct_message\">Print on my desk</a><a href=\"", desk_href(put(st, "leica", "1")), "\">My favourite Leica shots (110 MB)</a><a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp on GitHub</a><a href=\"/\">Replay the boot screen</a></p>",
+    "</footer>"
   ], "")
 end
 
@@ -890,45 +790,36 @@ end
 def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, prebuilt: Bool) -> String do
   t0 = now_ms()
   st = desk_state(query, desk)
-  finder = case desk_show_finder(st) do
-    true -> desk_finder_window(st, desk)
-    false -> ""
-  end
-  museum = case desk_show_museum(st) do
-    true -> desk_museum_window(st, desk)
-    false -> []
-  end
   splash = case query do
     "" -> desk_boot_splash()
     _ -> ""
   end
-  menu = desk_menu_bar_links(epoch_s, desk_href(desk_toggle_museum(st)), desk_href(desk_toggle_finder(st)))
-  blog = desk_blog_window(st, desk)
-  detail = desk_detail_window(st, desk)
-  icons = desk_side_icons(st, desk)
-  warning = desk_leica_warning(st)
-  taskbar = desk_taskbar(st)
+  warning = case st.leica do
+    "" -> ""
+    _ -> desk_leica_dialog(desk_href(put(st, "leica", "")))
+  end
+  museum = desk_museum(st, desk)
+  more = desk_more(st, desk)
+  foot = desk_foot(st)
   render = case prebuilt do
     true -> "prebuilt at boot"
     false -> concat(to_string(now_ms() - t0), " ms")
   end
-  body = join(flat([
-    "<div class=\"desk-frame\"><main class=\"desk-main\"><div class=\"desk-screen\">",
-    "<div class=\"mac\">",
-    menu,
-    "<div class=\"desktop\">",
-    "<a class=\"blimp-flyer\" href=\"https://github.com/notactuallytreyanastasio/blimp\" title=\"Blimp, the language this site runs on\">", desk_blimp_svg(56), "</a>",
-    desk_hangar_window(st, desk, desk_live_html(counts, render)),
+  body = join([
+    "<div class=\"home\">",
+    desk_rail(epoch_s),
+    "<main class=\"deck\">",
+    desk_scope(desk_live_html(counts, render)),
+    desk_manifest(desk),
+    desk_log(desk),
     museum,
-    blog,
-    finder,
-    "<div class=\"right-column\">", detail, "</div>",
-    icons,
+    more,
+    "</main>",
+    foot,
+    "</div>",
     warning,
-    taskbar,
-    "</div></div>",
     splash,
-    "</div></main></div>"
-  ]), "")
-  page_layout("Thoughts and Tidbits", site_description(), "website", ["/assets/base.css", "/assets/desktop.css"], body)
+    HOME_TAGS
+  ], "")
+  page_layout("Thoughts and Tidbits", site_description(), "website", [HOME_FONTS, "/assets/desktop.css"], body)
 end
