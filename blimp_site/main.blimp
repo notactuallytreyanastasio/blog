@@ -754,8 +754,23 @@ RUNTIME_MAX_RAYS = 80
 # What a runtime window is sent: runtime_snapshot()'s actors, and as its
 # messages the sends since the last push plus one ray per request answered
 # (to the Site, from outside it: "GET /blog"). {pending rays, pushed_at}
-def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int) -> Tuple do
+# A window that has just connected is sent the meter's last two minutes
+# first, so the homepage's graph starts full; after that every push carries
+# the latest sample. `seen` is the runtime sockets that have had the
+# history. {pending rays, pushed_at, seen}
+def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int, seen: List) -> Tuple do
   watchers = sockets_of(socks, :runtime)
+  fds = map(watchers, fn(s: Map) -> Int do s.fd end)
+  fresh = filter(fds, fn(fd: Int) -> Bool do not(has_fd(seen, fd)) end)
+  case fresh do
+    [] -> nil
+    _ -> live_push(ROOMS, fresh, json_encode(%{meter_history: METER <- :samples}))
+  end
+  pushed = push_runtime_rays(watchers, answered, pending, pushed_at)
+  {elem(pushed, 0), elem(pushed, 1), fds}
+end
+
+def push_runtime_rays(watchers: List, answered: List, pending: List, pushed_at: Int) -> Tuple do
   case watchers do
     [] -> {[], pushed_at}
     _ ->
@@ -767,7 +782,7 @@ def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int) -> T
       case t - pushed_at >= RUNTIME_PUSH_MS do
         false -> {rays, pushed_at}
         true ->
-          live_push(ROOMS, map(watchers, fn(s: Map) -> Int do s.fd end), json_encode(%{actors: snap.actors, messages: rays}))
+          live_push(ROOMS, map(watchers, fn(s: Map) -> Int do s.fd end), json_encode(%{actors: snap.actors, messages: rays, meter: METER <- :latest}))
           {[], t}
       end
   end
@@ -895,6 +910,7 @@ actor Site do
   state pushed_at: Int :: 0
   state rt_pending: List :: []
   state rt_at: Int :: 0
+  state rt_seen: List :: []
 
   on :start(port: Int, first: Map, conn: Any, opts: Any) do
     s = tcp_listen(port)
@@ -906,19 +922,20 @@ actor Site do
   on :tick do
     live = live_tick(fd, desk, home, socks, games, dirty, pushed_at)
     n = length(elem(live, 0))
-    rt = push_runtime(elem(live, 1), elem(live, 0), rt_pending, rt_at)
+    METER <- :sample
+    rt = push_runtime(elem(live, 1), elem(live, 0), rt_pending, rt_at, rt_seen)
     case db_opts != nil and now() - desk_at >= DESK_REFRESH_S do
       false ->
-        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1)
+        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2)
         reply n
       true ->
         case refresh_desk(db, db_opts) do
           {:ok, fresh, next} ->
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
             reply n
           {:error, reason, next} ->
             puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), db: next, desk_at: now(), desk_error: reason
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), db: next, desk_at: now(), desk_error: reason
             reply n
         end
     end
