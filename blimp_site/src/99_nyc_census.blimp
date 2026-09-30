@@ -1,0 +1,126 @@
+# /nyc_census_and_pluto: draw a shape on a map of New York, get how many
+# people live in it. NycCensusAndPlutoLive estimated on the server, per
+# drawing, in a Task; here the estimate runs in the visitor's browser
+# (static/nyc_census/census.blimp, the arithmetic in temper/src/nyc_census),
+# and the server only hands over rows. Postgres writes them as JSON itself
+# (json_agg), so answering is one query and no Blimp per row: this process
+# answers every other page on the site while it works, and 26,000 lots
+# decoded a column at a time would hold all of them up.
+#
+#   /nyc_census_and_pluto/tracts.json   every census tract once: its PLUTO
+#       code -> [avg lat, avg lng, residential units], and every 2020
+#       Census population by geoid. What Pluto.tract_centroids/0,
+#       Pluto.tract_total_units/1 and Census.Cache read, all at once (180KB);
+#       it never changes, so the first answer is kept.
+#   /nyc_census_and_pluto/lots.json?bbox=min_lat,max_lat,min_lng,max_lng
+#       every lot in the box (Pluto.lots_in_bbox/1), as arrays.
+#
+# The map is Leaflet, as it was: static/nyc_census/map.js, the NycMap hook
+# with the LiveView's side of it moved into the program.
+
+NYC_TRACTS_SQL = "select json_build_object('tracts', (select coalesce(json_object_agg(bct2020, json_build_array(lat, lng, units)), '{}') from (select bct2020, avg(latitude) as lat, avg(longitude) as lng, coalesce(sum(units_res), 0) as units from lots where bct2020 is not null and bct2020 <> '' and latitude is not null and longitude is not null group by bct2020) t), 'pops', (select coalesce(json_object_agg(geoid, population), '{}') from census_tracts))::text as body"
+
+# [lat, lng, units, bct2020, address, bbl, bldg_class, num_floors,
+# year_built] per lot, or a null body when there are more than $5.
+NYC_LOTS_SQL = "with b as (select latitude, longitude, coalesce(units_res, 0) as units, coalesce(bct2020, '') as tract, coalesce(address, '') as address, coalesce(bbl, '') as bbl, coalesce(bldg_class, '') as bldg_class, coalesce(num_floors, 0) as floors, coalesce(year_built, 0) as year from lots where latitude >= $1::float8 and latitude <= $2::float8 and longitude >= $3::float8 and longitude <= $4::float8 limit $5::int + 1) select count(*)::int as n, case when count(*) > $5::int then null else coalesce(json_agg(json_build_array(latitude, longitude, units, tract, address, bbl, bldg_class, floors, year)), '[]')::text end as body from b"
+
+# The LiveView had no limit. A box over all of Brooklyn is 270,000 lots and
+# some 25MB of JSON, for one process that serves the whole site and a
+# browser that then has to draw a marker for each; Manhattan below 59th
+# Street is about 26,000.
+NYC_MAX_LOTS = 40000
+
+actor NycCensusStore do
+  state tracts: Any :: nil
+
+  # The body of tracts.json, or nil when Postgres did not answer.
+  on :tracts do
+    case tracts do
+      nil ->
+        case DB <- :query(NYC_TRACTS_SQL, []) do
+          {:ok, rows} ->
+            body = head(rows).body
+            become tracts: body
+            reply body
+          {:error, reason} ->
+            puts(concat("nyc census: ", reason))
+            reply nil
+        end
+      _ -> reply tracts
+    end
+  end
+end
+
+NYC_CENSUS = spawn NycCensusStore
+
+def nyc_json(status: Int, cache: String, body: String) -> Map do
+  response(status, "application/json; charset=utf-8", cache, body)
+end
+
+def nyc_tracts_response() -> Map do
+  body = NYC_CENSUS <- :tracts
+  case body do
+    nil -> nyc_json(503, "no-cache", "{\"error\": \"the database did not answer\"}")
+    _ -> nyc_json(200, "public, max-age=3600", body)
+  end
+end
+
+# A coordinate as a browser would send one: digits with at most one point
+# between them, perhaps a minus sign.
+NYC_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+def nyc_number(s: String) -> Bool do
+  body = case starts_with(s, "-") do
+    true -> drop(s, 1)
+    false -> s
+  end
+  rest = reduce(NYC_DIGITS, body, fn(acc: String, d: String) -> String do replace(acc, d, "") end)
+  (rest == "" or rest == ".") and length(body) > length(rest) and length(body) <= 24 and not(starts_with(body, ".")) and not(ends_with(body, "."))
+end
+
+def nyc_numbers(parts: List) -> Bool do
+  length(filter(parts, fn(p: String) -> Bool do nyc_number(p) end)) == length(parts)
+end
+
+def nyc_lots_response(query: String) -> Map do
+  box = split(query_param(query, "bbox"), ",")
+  case length(box) == 4 and nyc_numbers(box) do
+    false -> nyc_json(400, "no-cache", "{\"error\": \"bbox is min_lat,max_lat,min_lng,max_lng\"}")
+    true ->
+      case DB <- :query(NYC_LOTS_SQL, list_append(box, [NYC_MAX_LOTS])) do
+        {:error, reason} ->
+          puts(concat("nyc census: ", reason))
+          nyc_json(503, "no-cache", "{\"error\": \"the database did not answer\"}")
+        {:ok, rows} ->
+          row = head(rows)
+          case row.body do
+            nil -> nyc_json(413, "no-cache", concat("{\"error\": \"That shape covers more than ", nyc_format(NYC_MAX_LOTS), " tax lots. Draw a smaller one.\"}"))
+            body -> nyc_json(200, "public, max-age=3600", body)
+          end
+      end
+  end
+end
+
+def nyc_census_page() -> String do
+  body = join([
+    "<div id=\"map-wrapper\" class=\"nyc-map-wrapper\">\n",
+    "<div id=\"nyc-map\" class=\"nyc-map\"></div>\n",
+    "<div class=\"nyc-results-panel\">\n",
+    "<h1 class=\"nyc-title\">How Many People Live Here?</h1>\n",
+    "<p class=\"nyc-subtitle\">Draw a shape on the map to estimate population.</p>\n",
+    "<button id=\"heatmap-toggle\" class=\"nyc-heatmap-btn\">Show Density Heatmap</button>\n",
+    "<div id=\"blimp-app\" data-program=\"/nyc_census_and_pluto/census.blimp\" data-actor=\"census\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "</div>\n</div>\n",
+    "<noscript><p>This page is a Leaflet map and a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "both need JavaScript. The program is <a href=\"/nyc_census_and_pluto/census.blimp\">/nyc_census_and_pluto/census.blimp</a>.</p></noscript>\n",
+    script_tags(list_append(APP_SCRIPTS, ["/nyc_census_and_pluto/map.js"]))
+  ], "")
+  page_layout("NYC Census & Density Explorer",
+    "Draw a shape on the map and get a population estimate. Powered by NYC PLUTO tax lot data and the 2020 US Census.",
+    "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css"], body)
+end
+
+NYC_CENSUS_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", nyc_census_page())
+NYC_CENSUS_PROGRAM = bjt_asset("_build/nyc_census.blimp", "text/plain; charset=utf-8")
+NYC_CENSUS_JS = bjt_asset("static/nyc_census/map.js", "text/javascript; charset=utf-8")

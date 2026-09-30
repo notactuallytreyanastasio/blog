@@ -1,0 +1,200 @@
+# /nyc_census_and_pluto in the browser: NycCensusAndPlutoLive's state and
+# template, and Blog.Population.Estimator's pipeline, as one actor. The
+# arithmetic is Temper (temper/src/nyc_census); this file is the loops over
+# rows, the state, and the results panel.
+#
+# The map is not Blimp. static/nyc_census/map.js drives Leaflet, as the
+# NycMap hook did, and talks to this actor the way the hook talked to the
+# LiveView:
+#
+#   census <- :tracts(status, body)   tracts.json, once; replies the
+#                                     heatmap's [lat, lng, people] points
+#   census <- :drawn(polygon_json)    a shape; replies the lots.json URL for
+#                                     its bounding box
+#   census <- :lots(status, body)     that URL's answer; replies the markers
+#   census <- :clear                  the shape was deleted
+#
+# The markers go back as replies instead of sitting in the state: the
+# canvas in the corner reads the state after every render, and a shape can
+# hold thousands of lots.
+
+def nyc_decode(body: String) -> Any do
+  case json_decode(body) do
+    {:ok, v} -> v
+    _ -> nil
+  end
+end
+
+def nyc_or0(x: Any) -> Any do
+  case x do
+    nil -> 0
+    _ -> x
+  end
+end
+
+# An error body's text ({"error": ...}), else what went wrong.
+def nyc_error_of(status: Int, body: String) -> String do
+  v = nyc_decode(body)
+  case type_of(v) == :map and lookup(v, "error") != nil do
+    true -> lookup(v, "error")
+    false -> concat("Estimation failed: the server answered ", to_string(status))
+  end
+end
+
+# Estimator.heatmap_points/0: each tract's centre and its people, leaving
+# out the tracts nobody lives in.
+def nyc_heat(tracts: Map, pops: Map) -> List do
+  reduce(keys(tracts), [], fn(acc: List, code: Any) -> List do
+    t = lookup(tracts, code)
+    pop = nyc_or0(lookup(pops, nyc_geoid(to_string(code))))
+    case pop == 0 do
+      true -> acc
+      false -> [[elem(t, 0), elem(t, 1), pop] | acc]
+    end
+  end)
+end
+
+# Estimator.estimate/1 after the query: the lots inside the polygon, each
+# given its share of its tract's people. A lot is [lat, lng, units, tract,
+# address, bbl, bldg_class, floors, year] (src/99_nyc_census.blimp).
+# {summary, [[lat, lng, people, lot], ...]}
+def nyc_estimate(lots: List, lats: List, lngs: List, tracts: Map, pops: Map) -> Tuple do
+  # + 0.0: JSON has one kind of number, and Postgres writes a longitude
+  # of exactly -74 as -74, which Blimp reads as an Int (two lots do this)
+  inside = filter(lots, fn(l: List) -> Bool do nyc_inside(elem(l, 0) + 0.0, elem(l, 1) + 0.0, lats, lngs) end)
+  shared = map(inside, fn(l: List) -> List do
+    code = elem(l, 3)
+    t = lookup(tracts, code)
+    tract_units = case t do
+      nil -> 0
+      _ -> elem(t, 2)
+    end
+    [nyc_share(elem(l, 2), tract_units, nyc_or0(lookup(pops, nyc_geoid(code)))), tract_units, l]
+  end)
+  codes = uniq(filter(map(inside, fn(l: List) -> String do elem(l, 3) end), fn(c: String) -> Bool do c != "" end))
+  people = reduce(shared, 0.0, fn(acc: Float, s: List) -> Float do acc + elem(s, 0) end)
+  units = reduce(inside, 0, fn(acc: Int, l: List) -> Int do acc + elem(l, 2) end)
+  summary = %{people: round(people), lots: length(inside), units: units, tracts: length(codes)}
+  {summary, shared}
+end
+
+# renderMarkers: [lat, lng, radius, colour, popup] per lot, sized and
+# coloured against the most crowded lot in the shape.
+def nyc_markers(shared: List) -> List do
+  most = reduce(shared, 0.0, fn(acc: Float, s: List) -> Float do
+    case elem(s, 0) > acc do
+      true -> elem(s, 0)
+      false -> acc
+    end
+  end)
+  map(shared, fn(s: List) -> List do
+    pop = elem(s, 0)
+    l = elem(s, 2)
+    k = nyc_intensity(pop, most)
+    floors = elem(l, 7)
+    [elem(l, 0), elem(l, 1), nyc_radius(k), nyc_color(k), nyc_popup(elem(l, 4), pop, elem(l, 2), elem(s, 1), to_string(floors), elem(l, 8), elem(l, 5))]
+  end)
+end
+
+def nyc_census_view(phase: Atom, summary: Map, error: String) -> Any do
+  case phase do
+    :loading ->
+      el("div", %{class: "nyc-loading"},
+        el("div", %{class: "nyc-spinner"}, ""),
+        el("p", %{}, "Estimating population..."))
+    :error -> el("div", %{class: "nyc-error"}, el("p", %{}, error))
+    :results ->
+      el("div", %{class: "nyc-results"},
+        el("div", %{class: "nyc-stat nyc-primary"},
+          el("span", %{class: "nyc-stat-value"}, nyc_format(summary.people)),
+          el("span", %{class: "nyc-stat-label"}, "estimated people")),
+        el("div", %{class: "nyc-stat-grid"},
+          nyc_stat(nyc_format(summary.lots), "tax lots"),
+          nyc_stat(nyc_format(summary.units), "residential units"),
+          nyc_stat(to_string(summary.tracts), "census tracts")),
+        el("button", %{class: "nyc-clear-btn", click: :clear}, "Clear & Start Over"))
+    _ -> el("div", %{}, "")
+  end
+end
+
+def nyc_stat(value: String, label: String) -> Any do
+  el("div", %{class: "nyc-stat"},
+    el("span", %{class: "nyc-stat-value"}, value),
+    el("span", %{class: "nyc-stat-label"}, label))
+end
+
+actor Census do
+  state tracts: Map :: %{}
+  state pops: Map :: %{}
+  state lats: List :: []
+  state lngs: List :: []
+  state phase: Atom :: :idle
+  state summary: Map :: %{}
+  state error: String :: ""
+
+  on :tracts(status: Int, body: String) do
+    v = case status do
+      200 -> nyc_decode(body)
+      _ -> nil
+    end
+    case type_of(v) == :map do
+      false ->
+        become phase: :error, error: "The census data could not be loaded."
+        reply []
+      true ->
+        t = lookup(v, "tracts")
+        p = lookup(v, "pops")
+        become tracts: t, pops: p
+        reply nyc_heat(t, p)
+    end
+  end
+
+  # shape_drawn: [[lat, lng], ...] as Leaflet.draw gives it
+  on :drawn(polygon: String) do
+    points = nyc_decode(polygon)
+    la = map(points, fn(p: List) -> Float do elem(p, 0) + 0.0 end)
+    ln = map(points, fn(p: List) -> Float do elem(p, 1) + 0.0 end)
+    box = nyc_bbox(la, ln)
+    become lats: la, lngs: ln, phase: :loading, summary: %{}, error: ""
+    reply concat("/nyc_census_and_pluto/lots.json?bbox=", join(map(box, fn(x: Float) -> String do to_string(x) end), ","))
+  end
+
+  on :lots(status: Int, body: String) do
+    lots = case status do
+      200 -> nyc_decode(body)
+      _ -> nil
+    end
+    case type_of(lots) == :list do
+      false ->
+        become phase: :error, error: nyc_error_of(status, body)
+        reply []
+      true ->
+        est = nyc_estimate(lots, lats, lngs, tracts, pops)
+        become phase: :results, summary: elem(est, 0)
+        reply nyc_markers(elem(est, 1))
+    end
+  end
+
+  on :failed(why: String) do
+    become phase: :error, error: why
+    reply :ok
+  end
+
+  # clear_shape, and the panel's button
+  on :clear do
+    become phase: :idle, summary: %{}, error: ""
+    reply :ok
+  end
+
+  # after a send that did not render (map.js), to render
+  on :shown do
+    reply :ok
+  end
+
+  on :view do
+    reply nyc_census_view(phase, summary, error)
+  end
+end
+
+census = spawn Census
+census <- :view
