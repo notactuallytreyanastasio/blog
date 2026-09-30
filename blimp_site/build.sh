@@ -134,6 +134,13 @@ with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.
 # (temper/src/blinks); walking the rows, the actors and the views Blimp.
 with_temper _build/blinks.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/paper.blimp
 with_temper _build/blinks-reader.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/reader.blimp
+# The other blinks pages: which doors, what to leave out of a pick, dates
+# and channel numbers are Temper (temper/src/blinks_pages); the picking and
+# ranking Postgres's, the actors and views Blimp.
+with_temper _build/blinks-surf.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/pages.blimp static/blinks/surf.blimp
+with_temper _build/blinks-walk.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/pages.blimp static/blinks/walk.blimp
+with_temper _build/blinks-tv.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/pages.blimp static/blinks/tv.blimp
+with_temper _build/blinks-review.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/pages.blimp static/blinks/review.blimp
 # Stumble: the menus, rules, sort key and cutting are Temper
 # (temper/src/stumble), the actor and view Blimp.
 with_temper _build/stumble.blimp static/stumble/stumble.blimp
