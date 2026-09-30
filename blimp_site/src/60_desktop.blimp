@@ -239,9 +239,36 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
     icons: icons,
     blog_html: desk_blog_lines(posts),
     post_count: length(posts),
-    hangar_html: desk_hangar_html(hangar),
-    hangar_count: length(hangar)
+    hangar_groups: desk_hangar_groups(hangar),
+    hangar_count: length(hangar),
+    art_html: desk_art(desk_art_seed(now()))
   }
+end
+
+# ── The background: a Temper Art picture ────────────────────────────────
+#
+# temper/src/art's Bauhaus generator, the one /art draws, as the page's
+# wallpaper. Bauhaus is a grid of a few dozen shapes, about 5KB; Flow is
+# thousands of line segments and several hundred KB, too much to put behind
+# every page view. The engine's palette is dropped by desktop.css, which
+# paints the shapes in the page's own ink and signal colour at a few
+# percent, so the picture follows light and dark. The seed is the day the
+# desktop was built (days since 1970): it changes when the server restarts
+# or the museum reloads on a new day.
+DESK_ART_W = 1600
+DESK_ART_H = 1000
+
+def desk_art_seed(epoch_s: Int) -> Int do
+  epoch_s / 86400
+end
+
+def desk_art(seed: Int) -> String do
+  concat(
+    "<div class=\"bg-art\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ",
+    to_string(DESK_ART_W * 10), " ", to_string(DESK_ART_H * 10),
+    "\" preserveAspectRatio=\"xMidYMid slice\" stroke-linecap=\"round\" data-seed=\"", to_string(seed), "\">",
+    art_shapes(seed, "bauhaus", DESK_ART_W, DESK_ART_H),
+    "</svg></div>")
 end
 
 # ── The manifest: the pages that run on Blimp ───────────────────────────
@@ -325,13 +352,15 @@ def desk_load_hangar(tsv: String, own: Map, museum_icons: Map) -> List do
   end)
 end
 
-def desk_hangar_html(pages: List) -> String do
+# One card a group, in data/hangar.tsv's order: its slug, label, count and
+# the tiles' HTML.
+def desk_hangar_groups(pages: List) -> List do
   groups = desk_uniq(map(pages, fn(p: Map) -> String do p.group end), [])
-  join(map(groups, fn(g: String) -> String do
+  map(groups, fn(g: String) -> Map do
     mine = filter(pages, fn(p: Map) -> Bool do p.group == g end)
     tiles = join(map(mine, fn(p: Map) -> String do desk_hangar_tile(p.path, p.icon, p.name, p.pitch) end), "")
-    desk_hangar_group(desk_hangar_label(g), length(mine), tiles)
-  end), "")
+    %{group: g, label: desk_hangar_label(g), count: length(mine), tiles: tiles}
+  end)
 end
 
 # The Blimp commit the server binary was built from: deploy.sh writes it to
@@ -542,13 +571,63 @@ end
 
 # ── Built once: the log, the other pages ────────────────────────────────
 
-# The newest posts, one line each: date, then title. The rest are on /blog.
-HOME_POSTS = 10
+# The newest three posts: title, date and the opening of the post. The
+# rest are on /blog.
+HOME_POSTS = 3
 
 def desk_blog_lines(posts: List) -> String do
   join(map(desk_take_list(posts, HOME_POSTS, []), fn(p: Map) -> String do
-    concat("<li><a href=\"/post/", p.slug, "\"><span class=\"log-date\">", p.date, "</span><span class=\"log-title\">", escape_html(p.title), "</span></a></li>")
+    source = lookup(p, "source")
+    excerpt = case source do
+      nil -> ""
+      _ -> desk_excerpt(source, 190)
+    end
+    lede = case excerpt do
+      "" -> ""
+      _ -> concat("<span class=\"log-lede\">", escape_html(excerpt), "</span>")
+    end
+    concat("<li><a href=\"/post/", p.slug, "\"><span class=\"log-title\">", escape_html(p.title), "</span><span class=\"log-date\">", p.date, "</span>", lede, "</a></li>")
   end), "")
+end
+
+# The opening prose of a post's Markdown, as plain text: the first lines
+# before the first code fence that are not a header field, a heading, an image, HTML, a table
+# or a rule, with emphasis marks dropped and [text](url) made text, cut at
+# a word to at most n characters.
+def desk_prose_line(l: String) -> Bool do
+  t = trim(l)
+  not(length(t) == 0 or starts_with(t, "#") or starts_with(t, "```") or starts_with(t, "!") or starts_with(t, "<") or starts_with(t, "|") or starts_with(t, "---") or starts_with(t, "title:") or starts_with(t, "tags:"))
+end
+
+def desk_unlink(pieces: List, acc: List) -> String do
+  case pieces do
+    [] -> join(reverse(acc), "")
+    [p | rest] ->
+      close = index_of(p, ")")
+      kept = case close < 0 do
+        true -> p
+        false -> drop(p, close + 1)
+      end
+      desk_unlink(rest, [kept | acc])
+  end
+end
+
+def desk_cut(s: String, n: Int) -> String do
+  case length(s) <= n do
+    true -> s
+    false ->
+      words = split(take(s, n), " ")
+      concat(join(desk_take_list(words, length(words) - 1, []), " "), "…")
+  end
+end
+
+def desk_excerpt(source: String, n: Int) -> String do
+  before_code = head(split(source, "```"))
+  prose = join(desk_take_list(filter(split(before_code, "\n"), fn(l: String) -> Bool do desk_prose_line(l) end), 3, []), " ")
+  pieces = split(prose, "](")
+  unlinked = concat(head(pieces), desk_unlink(tail(pieces), []))
+  plain = replace_all(replace_all(replace_all(replace_all(unlinked, "[", ""), "*", ""), "`", ""), "  ", " ")
+  desk_cut(trim(plain), n)
 end
 
 # The Finder's sections, as one line of links each. An item with nowhere
@@ -679,7 +758,8 @@ end
 def desk_museum(st: Map, desk: Map) -> String do
   rows = desk_museum_rows(desk.museum, st, [])
   join([
-    "<section class=\"archive\" id=\"museum\" aria-labelledby=\"museum-h\">",
+    "<section class=\"card archive\" id=\"museum\" aria-labelledby=\"museum-h\">",
+    desk_card_kicker("Older projects", 2, desk_card_total(desk)),
     "<header class=\"sec-head\"><h2 id=\"museum-h\">The museum</h2><span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
     "<p class=\"sec-note\">Older projects: hardware, maps, music, machine learning, social experiments. Pick one to read about it.</p>",
     "<nav class=\"tabs\" aria-label=\"Museum categories\">",
@@ -782,29 +862,73 @@ def desk_meter() -> String do
   ], "")
 end
 
-def desk_manifest(desk: Map) -> String do
-  join([
-    "<aside class=\"manifest\" id=\"work\" aria-labelledby=\"manifest-h\">",
-    "<header class=\"sec-head\"><h2 id=\"manifest-h\">Things I made that you can use</h2><span class=\"sec-count\">", to_string(desk.hangar_count), "</span></header>",
-    "<div class=\"mf-groups\">", desk.hangar_html, "</div>",
-    "</aside>"
-  ], "")
+# ── The cards: the right-hand column ────────────────────────────────────
+#
+# Writing, the museum, the four groups of things to use, photographs and
+# everything else, in that order, one card each. On a wide screen the page
+# scrolls through them with scroll-snap (desktop.css) while the intro and
+# the scope stay put on the left; on a phone they follow the scope. Each
+# says where it is in the run, so the position needs no script.
+
+def desk_card_total(desk: Map) -> Int do
+  length(desk.hangar_groups) + 4
+end
+
+def desk_card_kicker(label: String, n: Int, total: Int) -> String do
+  concat("<p class=\"plate-label card-kicker\">", label, " <span>", desk_pad(n, 2), " / ", desk_pad(total, 2), "</span></p>")
 end
 
 def desk_log(desk: Map) -> String do
   join([
-    "<section class=\"log\" id=\"writing\" aria-labelledby=\"log-h\">",
+    "<section class=\"card log\" id=\"writing\" aria-labelledby=\"log-h\">",
+    desk_card_kicker("The newest posts", 1, desk_card_total(desk)),
     "<header class=\"sec-head\"><h2 id=\"log-h\">Writing</h2><a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
     "<ol class=\"log-list\">", desk.blog_html, "</ol>",
     "</section>"
   ], "")
 end
 
-def desk_more(st: Map, desk: Map) -> String do
+# The first group's card is #work, the anchor "Things I made" has always
+# gone to.
+def desk_hangar_cards(groups: List, n: Int, total: Int, acc: List) -> List do
+  case groups do
+    [] -> reverse(acc)
+    [g | rest] ->
+      id = case n == 3 do
+        true -> "work"
+        false -> concat("work-", g.group)
+      end
+      card = join([
+        "<section class=\"card manifest\" id=\"", id, "\" aria-labelledby=\"", id, "-h\">",
+        desk_card_kicker("Things I made that you can use", n, total),
+        "<header class=\"sec-head\"><h2 id=\"", id, "-h\">", escape_html(g.label), "</h2><span class=\"sec-count\">", desk_pad(g.count, 2), "</span></header>",
+        "<ul class=\"mf-list\">", g.tiles, "</ul>",
+        "</section>"
+      ], "")
+      desk_hangar_cards(rest, n + 1, total, [card | acc])
+  end
+end
+
+def desk_photos(st: Map, desk: Map) -> String do
+  total = desk_card_total(desk)
   join([
-    "<section class=\"more\" id=\"more\" aria-labelledby=\"more-h\">",
+    "<section class=\"card photos\" id=\"photographs\" aria-labelledby=\"photos-h\">",
+    desk_card_kicker("From the Leica", total - 1, total),
+    "<header class=\"sec-head\"><h2 id=\"photos-h\">Photographs</h2><span class=\"sec-count\">110 MB</span></header>",
+    "<p class=\"sec-note\">My favourite shots from the Leica, in one very large image. It is 110 megabytes, so the link asks before it loads.</p>",
+    "<p class=\"ex-actions\"><a class=\"btn primary\" href=\"", desk_href(put(st, "leica", "1")), "\">See the photographs &#x25B6;</a><a class=\"btn\" href=\"/gallery\">The gallery</a></p>",
+    "</section>"
+  ], "")
+end
+
+def desk_more(st: Map, desk: Map) -> String do
+  total = desk_card_total(desk)
+  join([
+    "<section class=\"card more\" id=\"more\" aria-labelledby=\"more-h\">",
+    desk_card_kicker("The old desktop&#8217;s Finder", total, total),
     "<header class=\"sec-head\"><h2 id=\"more-h\">Everything else</h2><span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
-    desk.finder_html,
+    "<div class=\"more-rows\">", desk.finder_html, "</div>",
+    desk_foot(st),
     "</section>"
   ], "")
 end
@@ -841,23 +965,26 @@ def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, pr
   end
   museum = desk_museum(st, desk)
   more = desk_more(st, desk)
-  foot = desk_foot(st)
   render = case prebuilt do
     true -> "prebuilt at boot"
     false -> concat(to_string(now_ms() - t0), " ms")
   end
+  total = desk_card_total(desk)
   body = join([
+    desk.art_html,
     "<div class=\"home\">",
+    "<div class=\"pane\">",
     desk_rail(epoch_s, st),
-    "<main class=\"deck\">",
     desk_intro(st),
-    desk_manifest(desk),
-    desk_log(desk),
     desk_scope(desk_live_html(counts, render)),
+    "</div>",
+    "<main class=\"cards\">",
+    desk_log(desk),
     museum,
+    join(desk_hangar_cards(desk.hangar_groups, 3, total, []), ""),
+    desk_photos(st, desk),
     more,
     "</main>",
-    foot,
     "</div>",
     warning,
     splash,

@@ -168,24 +168,53 @@ actor DesktopTests do
     refute(contains(dt_page("cat=ml"), "leica-veil"))
   end
 
-  test "the log is one line a post, newest ten, and a link to the rest" do
+  test "the log is the newest three posts, each with its opening, and a link to the rest" do
     html = dt_page("")
-    assert(contains(html, "<li><a href=\"/post/chess\"><span class=\"log-date\">May 30, 2026</span><span class=\"log-title\">Chess</span></a></li>"))
+    assert(contains(html, "<li><a href=\"/post/chess\"><span class=\"log-title\">Chess</span><span class=\"log-date\">May 30, 2026</span></a></li>"))
     assert(contains(html, "href=\"/blog\">all 2 posts"))
     refute(contains(html, "blog-tag"))
     many = map(range(1, 15), fn(i: Int) -> Map do %{slug: concat("p", to_string(i)), title: "t", date: "d", tags: ["x"]} end)
     lines = desk_blog_lines(many)
-    assert_eq(length(split(lines, "<li>")) - 1, 10)
-    refute(contains(lines, "/post/p11\""))
+    assert_eq(length(split(lines, "<li>")) - 1, 3)
+    refute(contains(lines, "/post/p4\""))
+    src = "title: T\ntags: a,b\n\n# Heading\n\n*Updated.* See [the notes](/frontier) and `code`.\n\n```\nnot this\n```\n"
+    assert_eq(desk_excerpt(src, 200), "Updated. See the notes and code.")
+    assert_eq(desk_excerpt("one two three four", 12), "one two…")
+    lede = desk_blog_lines([%{slug: "x", title: "X", date: "d", source: "Hello <b> world"}])
+    assert(contains(lede, "<span class=\"log-lede\">Hello &lt;b&gt; world</span>"))
   end
 
-  test "the manifest lists every page in data/hangar.tsv, each with an icon" do
+  test "the background is Temper Art's Bauhaus, drawn once, a day's seed" do
+    desk = load_desktop("data", dt_posts())
+    assert(starts_with(desk.art_html, "<div class=\"bg-art\" aria-hidden=\"true\"><svg"))
+    assert(contains(desk.art_html, "<rect") or contains(desk.art_html, "<circle"))
+    assert(length(desk.art_html) < 20000)
+    assert_eq(desk_art_seed(86400 * 3 + 5), 3)
+    assert(contains(dt_page("booted=1"), desk.art_html))
+  end
+
+  test "the manifest lists every page in data/hangar.tsv, each with an icon, a card a group" do
     html = dt_page("booted=1")
     assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 30)
     assert(contains(html, "<a class=\"mf-row\" href=\"/chess-lv\">"))
-    assert(contains(html, "Things I made that you can use</h2><span class=\"sec-count\">30</span>"))
-    assert(contains(html, "Games <span>07</span>"))
+    assert_eq(length(split(html, "Things I made that you can use <span>")) - 1, 4)
+    assert(contains(html, "id=\"work\" aria-labelledby=\"work-h\">"))
+    assert(contains(html, "<h2 id=\"work-h\">Games</h2><span class=\"sec-count\">07</span>"))
+    assert(contains(html, "<h2 id=\"work-wire-h\">Live from the internet</h2>"))
     refute(contains(html, "mf-icon\"></span>"))
+  end
+
+  test "the cards come in order and say where they are" do
+    html = dt_page("booted=1")
+    at = fn(s: String) -> Int do length(head(split(html, s))) end
+    assert(at("id=\"writing\"") < at("id=\"museum\""))
+    assert(at("id=\"museum\"") < at("id=\"work\""))
+    assert(at("id=\"work\"") < at("id=\"work-toys\""))
+    assert(at("id=\"work-toys\"") < at("id=\"photographs\""))
+    assert(at("id=\"photographs\"") < at("id=\"more\""))
+    assert(contains(html, "The newest posts <span>01 / 08</span>"))
+    assert(contains(html, "<span>08 / 08</span>"))
+    assert_eq(length(split(html, "<section class=\"card")) - 1, 8)
   end
 
   test "the counters are fixed width, so the prebuilt / can be spliced" do
@@ -227,15 +256,17 @@ actor DesktopTests do
     assert(contains(blog_index_page([]), "<meta name=\"twitter:card\" content=\"summary\">"))
   end
 
-  test "the landing is about Bobby first, and the machine comes after the work" do
+  test "the landing is about Bobby first, then the machine, then the work" do
     html = dt_page("booted=1")
     assert(contains(html, "Hi, I&#8217;m Bobby."))
     assert(contains(html, "programmer, photographer, and artist living in NYC"))
     intro = length(head(split(html, "class=\"intro\"")))
-    work = length(head(split(html, "id=\"work\"")))
     scope = length(head(split(html, "class=\"scope-col\"")))
-    assert(intro < work)
-    assert(work < scope)
+    cards = length(head(split(html, "<main class=\"cards\">")))
+    work = length(head(split(html, "id=\"work\"")))
+    assert(intro < scope)
+    assert(scope < cards)
+    assert(cards < work)
     assert(contains(html, "href=\"/?leica=1\">Photographs</a>"))
   end
 
