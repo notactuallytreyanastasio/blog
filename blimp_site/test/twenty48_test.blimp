@@ -1,12 +1,12 @@
 # needs: static/twenty48/twenty48.blimp
 
 actor Twenty48Tests do
-  test "a line slides and merges as Twenty48.slide_and_merge does" do
-    assert_eq(t48_slide([2, 2, 4, 0, 4, 4, 8, 8]), {[4, 8, 4, 16, 0, 0, 0, 0], 28, [0, 1, 3]})
-    assert_eq(t48_slide([2, 2, 2, 2]), {[4, 4, 0, 0], 8, [0, 1]})
-    assert_eq(t48_slide([2, 0, 0, 2]), {[4, 0, 0, 0], 4, [0]})
-    assert_eq(t48_slide([4, 2, 2, 0]), {[4, 4, 0, 0], 4, [1]})
-    assert_eq(t48_slide([0, 0, 0, 0]), {[0, 0, 0, 0], 0, []})
+  test "a line slides and merges as Twenty48.slide_and_merge does: [values, [points], merges]" do
+    assert_eq(t48_slide_line([2, 2, 4, 0, 4, 4, 8, 8]), [[4, 8, 4, 16, 0, 0, 0, 0], [28], [0, 1, 3]])
+    assert_eq(t48_slide_line([2, 2, 2, 2]), [[4, 4, 0, 0], [8], [0, 1]])
+    assert_eq(t48_slide_line([2, 0, 0, 2]), [[4, 0, 0, 0], [4], [0]])
+    assert_eq(t48_slide_line([4, 2, 2, 0]), [[4, 4, 0, 0], [4], [1]])
+    assert_eq(t48_slide_line([0, 0, 0, 0]), [[0, 0, 0, 0], [0], []])
   end
 
   test "each direction slides toward its own edge, and says which cells merged" do
@@ -24,6 +24,28 @@ actor Twenty48Tests do
     stuck = [2, 4, 2, 4, 4, 2, 4, 2, 2, 4, 2, 4, 4, 2, 4, 2]
     refute(t48_any_move(stuck, 4))
     refute(t48_any_move(t48_set(stuck, 0, 4), 4) == false)
+  end
+
+  test "can move is exactly: one of the four moves changes the board" do
+    boards = map(range(1, 40), fn(i: Int) -> List do
+      map(range(1, 16), fn(j: Int) -> Int do elem([0, 2, 4, 8], random(0, 3)) end)
+    end)
+    wrong = filter(boards, fn(b: List) -> Bool do
+      changes = length(filter([:left, :right, :up, :down], fn(d: Atom) -> Bool do elem(t48_shift(b, 4, d), 0) != b end)) > 0
+      t48_any_move(b, 4) != changes
+    end)
+    assert_eq(wrong, [])
+    assert_eq(t48_any_move(t48_blank(4), 4), false)
+  end
+
+  test "merged cells come back in board order across lines; tiles get their classes" do
+    b = [2, 2, 0, 0,
+         4, 4, 0, 0,
+         0, 0, 0, 0,
+         8, 0, 8, 0]
+    assert_eq(t48_shift(b, 4, :left), {[4, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0], 28, [0, 4, 12]})
+    assert_eq(map([0, 2, 2048, 4096, 3], fn(v: Int) -> String do t48_tile_class(v) end), ["tile-empty", "tile-2", "tile-2048", "tile-super", "tile-super"])
+    assert_eq(map([1, 10, 100, 1000, 10000], fn(v: Int) -> String do t48_digits(v) end), ["d1", "d2", "d3", "d4", "d5"])
   end
 
   test "the blitz clock runs out in blitz_ms and ends the game as TIME'S UP" do

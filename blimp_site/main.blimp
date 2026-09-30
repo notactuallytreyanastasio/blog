@@ -110,7 +110,7 @@ end
 def app_routes(routes: Map) -> Map do
   r1 = load_asset(routes, "/blimp/app.js", "static/blimp/app.js")
   r2 = load_asset(r1, "/assets/apps.css", "assets/apps.css")
-  r3 = load_asset(r2, "/2048/twenty48.blimp", "static/twenty48/twenty48.blimp")
+  r3 = load_asset(r2, "/2048/twenty48.blimp", "_build/twenty48.blimp")
   r4 = page_route(r3, "/mirror", mirror_page(read_file("_build/site.blimp")))
   r4a = load_asset(r4, "/typewriter/typewriter.blimp", "static/typewriter/typewriter.blimp")
   r4b = load_asset(r4a, "/assets/typewriter.css", "assets/typewriter.css")
