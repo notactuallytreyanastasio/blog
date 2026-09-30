@@ -37,7 +37,6 @@ WEB_MAX_HEAD = 16384
 # server answers nobody else meanwhile, so this is short.
 WEB_READ_MS = 2000
 WEB_SESSION_COOKIE = "_blimp_session"
-WEB_COOKIE_ATTRS = "; Path=/; HttpOnly; Secure; SameSite=Lax"
 WEB_MAX_COOKIE = 4000
 WEB_DEV_SECRET = "blimp-dev-session-secret-not-for-production-use-000"
 
@@ -802,6 +801,21 @@ def web_session_secret() -> String do
       end
   end
 end
+
+# The session cookie's attributes. Secure in production (DATABASE_URL set,
+# the rule web_session_secret uses): the browser sends it over HTTPS only.
+# Without DATABASE_URL, not Secure. A browser treats http://localhost as
+# secure but not http://192.168.x.y, so a Secure cookie set over plain
+# HTTP to a LAN IP is dropped: the session never comes back, and every
+# POST that checks the CSRF token is refused.
+def web_cookie_attrs(prod: Bool) -> String do
+  case prod do
+    true -> "; Path=/; HttpOnly; Secure; SameSite=Lax"
+    false -> "; Path=/; HttpOnly; SameSite=Lax"
+  end
+end
+
+WEB_COOKIE_ATTRS = web_cookie_attrs(web_or(getenv("DATABASE_URL"), "") != "")
 
 # ---------------------------------------------------------------- pipelines
 

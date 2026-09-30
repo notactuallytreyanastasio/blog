@@ -142,7 +142,7 @@ actor WebTests do
     assert_eq(wt_status(page), 200)
     cookie = wt_cookie(page)
     assert(starts_with(cookie, "_blimp_session="))
-    assert(contains(wt_wire(page), "; Path=/; HttpOnly; Secure; SameSite=Lax\r\n"))
+    assert(contains(wt_wire(page), concat(WEB_COOKIE_ATTRS, "\r\n")))
     token = wt_token(wt_body(page))
     assert_eq(length(token), 43)
     posted = wt_send("POST", "/web/echo", [concat("Cookie: ", cookie), "Content-Type: application/x-www-form-urlencoded"], concat("_csrf_token=", web_url_encode(token), "&message=hello+there"))
@@ -287,5 +287,13 @@ actor WebTests do
     assert_eq(web_dispatch(wt_raw("GET", "/blog", [big], ""), parse_request(wt_raw("GET", "/blog", [big], "")), web_demo_routes(), WT_SECRET), nil)
     ok = wt_raw("POST", "/web/api/echo", ["Content-Type: application/json", take(big, 15000)], "[1]")
     assert_eq(wt_status(web_dispatch(ok, parse_request(ok), web_demo_routes(), WT_SECRET)), 200)
+  end
+  test "the cookie is Secure in production, and not in dev, so a LAN IP over plain HTTP keeps its session" do
+    assert_eq(web_cookie_attrs(true), "; Path=/; HttpOnly; Secure; SameSite=Lax")
+    assert_eq(web_cookie_attrs(false), "; Path=/; HttpOnly; SameSite=Lax")
+    # the tests run with DATABASE_URL unset, as a laptop does
+    assert_eq(WEB_COOKIE_ATTRS, web_cookie_attrs(web_or(getenv("DATABASE_URL"), "") != ""))
+    page = wt_send("GET", "/web/echo", [], "")
+    refute(contains(wt_wire(page), "Secure"))
   end
 end
