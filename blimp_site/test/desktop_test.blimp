@@ -183,7 +183,7 @@ actor DesktopTests do
     html = dt_page("booted=1")
     assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 30)
     assert(contains(html, "<a class=\"mf-row\" href=\"/chess-lv\">"))
-    assert(contains(html, "30 pages, one process</span>"))
+    assert(contains(html, "Things I made that you can use</h2><span class=\"sec-count\">30</span>"))
     assert(contains(html, "Games <span>07</span>"))
     refute(contains(html, "mf-icon\"></span>"))
   end
@@ -225,5 +225,17 @@ actor DesktopTests do
     assert(contains(html, "I love you\">"))
     refute(contains(blog_index_page([]), "og:image"))
     assert(contains(blog_index_page([]), "<meta name=\"twitter:card\" content=\"summary\">"))
+  end
+
+  test "the landing is about Bobby first, and the machine comes after the work" do
+    html = dt_page("booted=1")
+    assert(contains(html, "Hi, I&#8217;m Bobby."))
+    assert(contains(html, "programmer, photographer, and artist living in NYC"))
+    intro = length(head(split(html, "class=\"intro\"")))
+    work = length(head(split(html, "id=\"work\"")))
+    scope = length(head(split(html, "class=\"scope-col\"")))
+    assert(intro < work)
+    assert(work < scope)
+    assert(contains(html, "href=\"/?leica=1\">Photographs</a>"))
   end
 end
