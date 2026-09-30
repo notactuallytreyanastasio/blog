@@ -1,6 +1,6 @@
 # What makes /blinks-next the live, editable page, for paper.blimp: the
 # outbox the program says its writes into, and the parts of the page that
-# only exist once it can write (the tour, admin, the chat window's stub,
+# only exist once it can write (the tour, admin, the chat window,
 # the push bell and its dialog).
 #
 # The outbox. A Blimp program in the browser can GET (fetch()) and keep
@@ -197,13 +197,227 @@ def bkv_admin_box(admin: Bool, error: String) -> Any do
   el("div", %{class: "sidebox"}, el("h2", %{}, "admin"), el("div", %{class: "body"}, inner))
 end
 
-# -- the chat window (chapter 71's) -------------------------------------------
+# -- the chat window ------------------------------------------------------------
 
-# BlinksLive's AIM window, as far as this chapter takes it: the title, who
-# is here (presence works: the page says which room it is in), the link.
-# Messages, sign-on, votes and replies are chapter 71's.
-# TODO(chapter 71): the room itself, blink:<id> in chat_messages.
-def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, count: Int) -> List do
+# BlinksLive's AIM window over the /live/blinks socket (the server's half
+# is src/99_blinkschat.blimp). `cw` is what the socket said and what is
+# typed: %{me (%{id, name, color} | nil), returning, msgs, votes
+# ({"id": [up, down]}), mine ({"id": 1 | -1}), replying (an id, 0: none),
+# input, suggest}.
+
+# top_messages/1: not a reply, or a reply whose parent is not loaded.
+def bkx_top(msgs: List) -> List do
+  ids = map(msgs, fn(m: Map) -> Int do m.id end)
+  filter(msgs, fn(m: Map) -> Bool do m.reply_to_id == 0 or not(bkv_has(ids, m.reply_to_id)) end)
+end
+
+def bkx_replies(msgs: List, parent: Int) -> List do
+  filter(msgs, fn(m: Map) -> Bool do m.reply_to_id == parent end)
+end
+
+def bkx_find(msgs: List, id: Int) -> Any do
+  got = filter(msgs, fn(m: Map) -> Bool do m.id == id end)
+  case got do
+    [] -> nil
+    [m | _] -> m
+  end
+end
+
+# The server wraps every @mention; whose is "me" depends on who reads.
+def bkx_html(html: String, me: Any) -> String do
+  case me do
+    nil -> html
+    _ ->
+      mine = concat("<span class=\"mention\">@", me.name, "</span>")
+      replace(html, mine, concat("<span class=\"mention me\">@", me.name, "</span>"))
+  end
+end
+
+def bkx_counts(votes: Map, id: Int) -> List do
+  v = lookup(votes, to_string(id))
+  case type_of(v) == :list and length(v) == 2 do
+    true -> v
+    false -> [0, 0]
+  end
+end
+
+def bkx_mine(mine: Map, id: Int) -> Int do
+  v = lookup(mine, to_string(id))
+  case type_of(v) do
+    :integer -> v
+    _ -> 0
+  end
+end
+
+# class={[my_vote == v && "on", count > 0 && "haz"]}
+def bkx_vote_class(lit: Bool, haz: Bool) -> String do
+  a = case lit do
+    true -> ["on"]
+    false -> []
+  end
+  b = case haz do
+    true -> ["haz"]
+    false -> []
+  end
+  join(bk_append(a, b), " ")
+end
+
+def bkx_message(m: Map, cls: String, cw: Map) -> Any do
+  n = bkx_counts(cw.votes, m.id)
+  up = head(n)
+  down = head(tail(n))
+  my = bkx_mine(cw.mine, m.id)
+  el("div", %{class: cls},
+    el("span", %{class: "sn", style: concat("color: ", m.color, "; cursor: pointer;"), click: :mention, with: m.name}, concat(m.name, ":")), " ",
+    el("span", %{class: "ts"}, m.at), " ",
+    el("a", %{class: "reply-link", click: :reply, with: m.id}, "reply"),
+    el("div", %{class: "md", inner_html: bkx_html(m.html, cw.me)}),
+    el("span", %{class: "votes"},
+      el("a", %{class: bkx_vote_class(my == 1, up > 0), click: :vote, with: concat(to_string(m.id), " 1")}, concat("👍", to_string(up))), " ",
+      el("a", %{class: bkx_vote_class(my == -1, down > 0), click: :vote, with: concat(to_string(m.id), " -1")}, concat("👎", to_string(down)))))
+end
+
+def bkx_thread(m: Map, cw: Map) -> Any do
+  el("div", %{class: "aim-msg"},
+    bkx_message(m, "msg-main", cw),
+    map(bkx_replies(cw.msgs, m.id), fn(r: Map) -> Any do bkx_message(r, "aim-reply", cw) end))
+end
+
+def bkx_word(c: String) -> Bool do
+  case c == "" do
+    true -> false
+    false ->
+      k = char_code(c)
+      (k >= 48 and k <= 57) or (k >= 65 and k <= 90) or (k >= 97 and k <= 122) or c == "_" or c == "." or c == "-"
+  end
+end
+
+# Where ~r/@([\w.\-]*)$/ matches: the index of that @, or -1.
+def bkx_at(text: String) -> Int do
+  bkx_at_from(text, length(text) - 1)
+end
+
+def bkx_at_from(text: String, i: Int) -> Int do
+  case i < 0 do
+    true -> -1
+    false ->
+      c = slice(text, i, 1)
+      case c == "@" do
+        true -> i
+        false ->
+          case bkx_word(c) do
+            true -> bkx_at_from(text, i - 1)
+            false -> -1
+          end
+      end
+  end
+end
+
+# mention_candidates/1: who is here now (not lurkers), then who has
+# posted, once each, never "Anonymous".
+def bkx_candidates(buddies: List, msgs: List) -> List do
+  names = bk_append(filter(map(buddies, fn(b: Map) -> String do b.name end), fn(n: String) -> Bool do n != "lurker" end),
+    map(msgs, fn(m: Map) -> String do m.name end))
+  filter(reduce(names, [], fn(acc: List, n: String) -> List do bkv_add(acc, n) end), fn(n: String) -> Bool do n != "Anonymous" end)
+end
+
+# chat-typing: up to five names starting with what follows a trailing @.
+def bkx_suggest(text: String, buddies: List, msgs: List) -> List do
+  at = bkx_at(text)
+  case at < 0 do
+    true -> []
+    false ->
+      down = downcase(drop(text, at + 1))
+      bkx_take(filter(bkx_candidates(buddies, msgs), fn(n: String) -> Bool do starts_with(downcase(n), down) end), 5)
+  end
+end
+
+def bkx_take(l: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case l do
+        [] -> []
+        [x | rest] -> [x | bkx_take(rest, n - 1)]
+      end
+  end
+end
+
+# complete-mention: the trailing @prefix becomes "@name ".
+def bkx_complete(input: String, name: String) -> String do
+  at = bkx_at(input)
+  case at < 0 do
+    true -> input
+    false -> concat(take(input, at), "@", name, " ")
+  end
+end
+
+# mention (a name clicked): "@name " after what is typed.
+def bkx_mention(input: String, name: String) -> String do
+  t = bkx_trim_end(input)
+  case t do
+    "" -> concat("@", name, " ")
+    _ -> concat(t, " @", name, " ")
+  end
+end
+
+def bkx_trim_end(s: String) -> String do
+  case length(s) > 0 and bkx_space(slice(s, length(s) - 1, 1)) do
+    true -> bkx_trim_end(take(s, length(s) - 1))
+    false -> s
+  end
+end
+
+def bkx_space(c: String) -> Bool do
+  c == " " or c == "\n" or c == "\t" or c == "\r"
+end
+
+def bkx_signon(returning: String) -> Any do
+  title = case returning do
+    "" -> "Sign On to chat"
+    _ -> "Welcome back — confirm your name"
+  end
+  el("div", %{class: "aim-signon"},
+    el("div", %{class: "man"}, "🏃"),
+    el("b", %{}, title),
+    el("form", %{submit: :sign_on},
+      el("input", %{type: "text", name: "screen_name", value: returning, placeholder: "Screen Name", maxlength: "30", autocomplete: "off"}),
+      el("br", %{}),
+      el("button", %{type: "submit", class: "aim-send"}, "Sign On")),
+    el("div", %{style: "color:#888; font-size:10px;"}, "it'll stick around for next time"))
+end
+
+def bkx_room(cw: Map, buddies: List) -> List do
+  me = cw.me
+  replying = case cw.replying > 0 do
+    false -> []
+    true ->
+      t = bkx_find(cw.msgs, cw.replying)
+      case t do
+        nil -> []
+        _ -> [el("div", %{class: "replying-bar"}, "↪ replying to ", el("b", %{}, t.name), " “", t.short, "” ",
+          el("a", %{click: :cancel_reply, style: "cursor:pointer; color:#b33000; font-weight:bold;"}, "✕"))]
+      end
+  end
+  suggest = case cw.suggest do
+    [] -> []
+    names -> [el("div", %{class: "mention-suggest"}, "@… ",
+      map(names, fn(n: String) -> Any do el("button", %{type: "button", class: "tag", click: :complete_mention, with: n}, n) end))]
+  end
+  bk_append([
+    el("div", %{class: "aim-messages", id: "blink-chat-messages"},
+      el("div", %{class: "aim-msg"}, el("span", %{class: "sn", style: "color:#000080;"}, "ChatBot"), el("div", %{}, "This is both a comments section and a live discussion, join it")),
+      map(bkx_top(cw.msgs), fn(m: Map) -> Any do bkx_thread(m, cw) end))],
+    bk_append(replying, bk_append(suggest, [
+      el("form", %{class: "aim-compose", submit: :send_chat},
+        el("textarea", %{name: "message", class: "aim-box", placeholder: concat("chatting as ", me.name, " — say something real"), maxlength: "500", value: cw.input, input: :chat_typing}),
+        el("div", %{class: "aim-compose-row"},
+          el("button", %{type: "button", class: "aim-send", click: :toggle_buddies}, concat("Who's Here (", to_string(length(buddies)), ")")),
+          el("span", %{style: "font-size:9px; color:#666;"}, concat("you're ", me.name, " "), el("a", %{click: :sign_off, style: "color:#369; cursor:pointer;"}, "(not you?)")),
+          el("button", %{type: "submit", class: "aim-send"}, "Send")))])))
+end
+
+def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, cw: Map) -> List do
   case id > 0 do
     false -> []
     true ->
@@ -219,12 +433,15 @@ def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, count: I
         nil -> ""
         _ -> b.url
       end
-      said = case count do
-        0 -> "Nothing has been said here yet."
-        1 -> "1 message so far."
-        _ -> concat(to_string(count), " messages so far.")
+      cls = case cw.me do
+        nil -> "win95"
+        _ -> "win95 sized"
       end
-      window = el("div", %{class: "win95", id: "blink-chat-window", "data-joyride": "chat-window"},
+      body = case cw.me do
+        nil -> [bkx_signon(cw.returning)]
+        _ -> bkx_room(cw, buddies)
+      end
+      window = el("div", %{class: cls, id: "blink-chat-window", "data-joyride": "chat-window"},
         el("div", %{class: "win95-titlebar title-bar"},
           el("span", %{}, "💬"),
           el("span", %{class: "t"}, concat("AOL Instant Messenger — ", shown)),
@@ -233,12 +450,7 @@ def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, count: I
           el("span", %{}, "File"), el("span", %{}, "Edit"), el("span", %{}, "Insert"), " ",
           el("span", %{style: "cursor:pointer; text-decoration:underline;", click: :toggle_buddies}, concat("People (", to_string(length(buddies)), ")"))),
         el("div", %{class: "aim-link"}, "re: ", el("a", %{href: url, target: "_blank", rel: "noopener", style: "color:#369;"}, url)),
-        el("div", %{class: "aim-signon"},
-          el("div", %{class: "man"}, "🏃"),
-          el("b", %{}, "This room has not moved to Blimp yet"),
-          el("div", %{style: "margin:8px 0;"}, concat(said, " Chat, sign-on, votes and replies come with chapter 71; until then the room is live at "),
-            el("a", %{href: concat("/blinks?chat=", to_string(id)), style: "color:#369;"}, concat("/blinks?chat=", to_string(id))), "."),
-          el("div", %{style: "color:#888; font-size:10px;"}, "who's here is live: you count toward this link's “here now”")))
+        body)
       buddy_list = case show_buddies do
         false -> []
         true -> [el("div", %{class: "win95 buddies", id: "buddies-window"},
@@ -249,7 +461,7 @@ def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, count: I
           el("div", %{class: "buddy-panel"},
             el("b", %{style: "font-size:10px; color:#000080;"}, concat("WHO'S HERE (", to_string(length(buddies)), ")")),
             map(buddies, fn(m: Map) -> Any do
-              el("div", %{}, el("span", %{class: "buddy-dot"}), el("span", %{style: concat("color: ", m.color, ";"), title: "mention them"}, m.name))
+              el("div", %{}, el("span", %{class: "buddy-dot"}), el("span", %{style: concat("color: ", m.color, "; cursor: pointer;"), click: :mention, with: m.name, title: "mention them"}, m.name))
             end),
             el("div", %{style: "color:#888; font-size:9px; margin-top:6px;"}, "click a name to @ them in the chat")))]
       end

@@ -225,7 +225,7 @@ def paper_row(b: Map, rank: Int, first: Bool, cx: Map) -> Any do
         [el("span", %{}, el("span", %{class: tcls, click: :toggle_tag, with: t}, t, x)), " "]
       end)), add)]
   end
-  chats = b.chat_count
+  chats = b.chat_count + bkv_get(cx.said, to_string(b.id), 0)
   chat_style = case chats > 0 do
     true -> "color:#369;"
     false -> ""
@@ -367,6 +367,19 @@ end
 
 # -- the program ------------------------------------------------------------------
 
+# A message from the socket, with every field there.
+def paper_msg(m: Any) -> Map do
+  %{id: bkv_get(m, "id", 0), reply_to_id: bkv_get(m, "reply_to_id", 0), name: bkv_get(m, "name", "Anonymous"),
+    color: bkv_get(m, "color", "#666"), at: bkv_get(m, "at", ""), html: bkv_get(m, "html", ""), short: bkv_get(m, "short", "")}
+end
+
+def paper_trim_start(s: String) -> String do
+  case length(s) > 0 and bkx_space(take(s, 1)) do
+    true -> paper_trim_start(drop(s, 1))
+    false -> s
+  end
+end
+
 actor Paper do
   state started: Bool :: false
   state q: String :: ""
@@ -401,6 +414,17 @@ actor Paper do
   state fresh: List :: []
   state members: Map :: %{}
   state show_buddies: Bool :: false
+  # the chat room (src/99_blinkschat.blimp says who this is and what was said)
+  state me: Any :: nil
+  state returning: String :: ""
+  state msgs: List :: []
+  state votes: Map :: %{}
+  state mine: Map :: %{}
+  state replying: Int :: 0
+  state chat_input: String :: ""
+  state suggest: List :: []
+  # messages that arrived for a room since page.json last counted them
+  state said: Map :: %{}
   # admin, as BlinksLive keeps it: unlocked by the API key
   state admin: Bool :: false
   state admin_key: String :: ""
@@ -484,7 +508,7 @@ actor Paper do
         become problem: concat("the server answered ", to_string(status), " for this page's links"), loaded: paper_data_url(nodork, page, q, paper_shuffled(view, shuffle, always), seed, similar, t, tags, view, week, size, rev)
         reply :error
       true ->
-        become data: elem(json_decode(body), 1), problem: "", loaded: paper_data_url(nodork, page, q, paper_shuffled(view, shuffle, always), seed, similar, t, tags, view, week, size, rev)
+        become data: elem(json_decode(body), 1), problem: "", said: %{}, loaded: paper_data_url(nodork, page, q, paper_shuffled(view, shuffle, always), seed, similar, t, tags, view, week, size, rev)
         reply :ok
     end
   end
@@ -522,6 +546,46 @@ actor Paper do
           false -> fresh
         end
         become rev: rev + 1, fresh: f
+      "me" ->
+        c = bkv_get(m, "chatter", nil)
+        who = case type_of(c) do
+          :map -> %{id: bkv_get(c, "id", 0), name: bkv_get(c, "name", ""), color: bkv_get(c, "color", "#666")}
+          _ -> nil
+        end
+        become me: who, returning: bkv_get(m, "returning", "")
+      "chat" ->
+        case bkv_get(m, "room", "") == blkl_room(chat) do
+          true -> become msgs: map(bkv_get(m, "messages", []), paper_msg), votes: bkv_get(m, "votes", %{}), mine: bkv_get(m, "mine", %{})
+          false -> :ok
+        end
+      "msg" ->
+        room = bkv_get(m, "room", "")
+        case room == blkl_room(chat) do
+          true ->
+            msg = paper_msg(bkv_get(m, "message", %{}))
+            k = to_string(chat)
+            case bkx_find(msgs, msg.id) do
+              nil -> become msgs: bk_append(msgs, [msg]), said: put(said, k, bkv_get(said, k, 0) + 1)
+              _ -> :ok
+            end
+          false -> :ok
+        end
+      "votes" ->
+        case bkv_get(m, "room", "") == blkl_room(chat) do
+          true -> become votes: put(votes, to_string(bkv_get(m, "id", 0)), [bkv_get(m, "up", 0), bkv_get(m, "down", 0)])
+          false -> :ok
+        end
+      "mine" ->
+        case bkv_get(m, "room", "") == blkl_room(chat) do
+          true -> become mine: bkv_get(m, "mine", %{})
+          false -> :ok
+        end
+      "myvote" ->
+        k = to_string(bkv_get(m, "id", 0))
+        case bkv_get(m, "val", 0) do
+          0 -> become mine: bkv_drop_key(mine, k)
+          v -> become mine: put(mine, k, v)
+        end
       _ -> become members: bkv_presence(members, m)
     end
     reply :ok
@@ -735,16 +799,86 @@ actor Paper do
     reply :ok
   end
 
-  # -- chat (the rooms are chapter 71's; who is in them is here) ----------------
+  # -- chat (src/99_blinkschat.blimp keeps the rooms) ----------------------------
 
   on :open_chat(id: Int) do
-    become chat: id, show_buddies: false, outbox: paper_room_op(outbox, seq, chat, id), seq: seq + 1
+    ms = case id == chat do
+      true -> msgs
+      false -> []
+    end
+    become chat: id, show_buddies: false, replying: 0, msgs: ms, outbox: paper_room_op(outbox, seq, chat, id), seq: seq + 1
     reply :ok
   end
 
   on :close_chat do
-    become chat: 0, show_buddies: false, outbox: paper_room_op(outbox, seq, chat, 0), seq: seq + 1
+    become chat: 0, show_buddies: false, replying: 0, msgs: [], votes: %{}, mine: %{}, outbox: paper_room_op(outbox, seq, chat, 0), seq: seq + 1
     reply :ok
+  end
+
+  # sign-on: a name, trimmed; nothing for a blank one
+  on :sign_on(json: String) do
+    name = bkx_trim_end(paper_trim_start(bk_str(bkv_get(bkv_json(json), "screen_name", ""))))
+    case name do
+      "" -> reply :ok
+      _ ->
+        become outbox: [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", json_encode(%{t: "sign_on", name: name}), "", "")) | outbox], seq: seq + 1
+        reply :ok
+    end
+  end
+
+  on :sign_off do
+    become outbox: [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", "{\"t\":\"sign_off\"}", "", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  # send-chat-message: said only when signed on and not blank; the box
+  # empties either way
+  on :send_chat(json: String) do
+    text = bk_str(bkv_get(bkv_json(json), "message", ""))
+    ob = case me != nil and chat > 0 and bkx_trim_end(paper_trim_start(text)) != "" do
+      true -> [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", json_encode(%{t: "say", text: text, reply_to: replying}), "", "")) | outbox]
+      false -> outbox
+    end
+    become outbox: ob, seq: seq + 1, chat_input: "", replying: 0, suggest: []
+    reply :ok
+  end
+
+  on :chat_typing(text: String) do
+    become chat_input: text, suggest: bkx_suggest(text, bkv_buddies(members, blkl_room(chat)), msgs)
+    reply :ok
+  end
+
+  on :mention(name: String) do
+    become chat_input: bkx_mention(chat_input, name)
+    reply :ok
+  end
+
+  on :complete_mention(name: String) do
+    become chat_input: bkx_complete(chat_input, name), suggest: []
+    reply :ok
+  end
+
+  on :reply(id: Int) do
+    become replying: id
+    reply :ok
+  end
+
+  on :cancel_reply do
+    become replying: 0
+    reply :ok
+  end
+
+  # vote-msg: "id 1" or "id -1"
+  on :vote(arg: String) do
+    parts = split(arg, " ")
+    id = to_int(head(parts))
+    v = to_int(head(tail(parts)))
+    case me != nil and bkx_find(msgs, id) != nil do
+      true ->
+        become outbox: [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", json_encode(%{t: "vote", id: id, val: v}), "", "")) | outbox], seq: seq + 1
+        reply :ok
+      false -> reply :ok
+    end
   end
 
   on :toggle_buddies do
@@ -943,12 +1077,9 @@ actor Paper do
       nil -> []
       _ -> data.tags
     end
-    cx = %{selected: tags, open_tags: open_tags, admin: admin, editing: editing, tag_editing: tag_editing, fresh: fresh, rooms: bkv_rooms(members)}
+    cx = %{selected: tags, open_tags: open_tags, admin: admin, editing: editing, tag_editing: tag_editing, fresh: fresh, rooms: bkv_rooms(members), said: said}
     chat_b = bk_find(rows_all, chat)
-    chat_count = case chat_b do
-      nil -> 0
-      _ -> chat_b.chat_count
-    end
+    cw = %{me: me, returning: returning, msgs: msgs, votes: votes, mine: mine, replying: replying, input: chat_input, suggest: suggest}
     steps = blkl_tour_steps(chat > 0)
     reply el("div", %{id: "blinks-page"},
       bkv_tour_view(tour_on, steps, tour_i, tour_rect),
@@ -966,7 +1097,7 @@ actor Paper do
           el("div", %{class: "paper", id: "paper"}, paper_columns(rows, (page - 1) * size + 1, cx)),
           paper_pager(data, has_more, page)),
         paper_sidebar(tag_list, tags, singles_open, admin, admin_error)),
-      bkv_chat_window(chat, chat_b, bkv_buddies(members, blkl_room(chat)), show_buddies, chat_count),
+      bkv_chat_window(chat, chat_b, bkv_buddies(members, blkl_room(chat)), show_buddies, cw),
       paper_lightbox(rows, media),
       bkv_outbox_view(outbox),
       asks,
@@ -1262,3 +1393,4 @@ end
 
 blinks = spawn Paper
 blinks <- :view
+

@@ -518,9 +518,10 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         true -> ZG <- :join(c)
         false -> :ok
       end
-      # a /blinks-next page hears of every save and who is in which chat
+      # a /blinks-next page hears of every save and who is in which chat,
+      # and is told which chatter it is (src/99_blinkschat.blimp)
       case kind == :blinks do
-        true -> bkl_join(ROOMS, c)
+        true -> bkl_open(ROOMS, c, raw)
         false -> :ok
       end
       # a /cameras page is told when a sweep finishes
@@ -664,7 +665,7 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             :ziggy ->
               ZG <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
-            # which link's chat room it has open (src/99_blinkslive.blimp)
+            # which chat room it is in, and what it says there (src/99_blinkslive.blimp, src/99_blinkschat.blimp)
             :blinks ->
               bkl_recv(ROOMS, sock.fd, payload)
               live_frames(next, socks, games, changed)
