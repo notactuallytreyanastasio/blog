@@ -1,0 +1,183 @@
+# needs: static/phish_lab/phish_lab.blimp
+#
+# The expected values are d3 7.9's and Elixir's on the lab's own data:
+# node ran the hook's makeScale/ticks/tickFormat/bin, and `mix run` ran
+# PhishLabLive.inspect_rows/2 and friends, over priv/static/data. (All 618
+# axis cases at five widths, all 22,685 inspector panels and 203,179 tooltip
+# numbers were compared that way when this was written; these are a few of
+# each, kept.)
+
+def pl_test_main() -> Map do
+  m0 = elem(json_decode(read_file("../priv/static/data/phish_lab.json")), 1)
+  put(put(m0, :shows, lab_prepare(m0.shows, ["d"])), :songs, lab_prepare(m0.songs, ["first", "last"]))
+end
+
+def pl_test_perfs() -> List do
+  lab_prepare(elem(json_decode(read_file("../priv/static/data/phish_lab_perfs.json")), 1).perfs, ["d"])
+end
+
+# domain, x labels and y labels of an axis over `rows`, 842px wide
+def pl_test_axis(rows: List, ds: String, key: String, use_log: Bool) -> List do
+  a = lab_axis(ds, key)
+  vals = filter(map(rows, fn(r: Map) -> Any do lab_value(r, a) end), fn(v: Any) -> Bool do v != nil and (use_log == false or v > 0) end)
+  x = lab_scale(a, use_log, vals, 66.0, 822.0)
+  y = lab_scale(a, use_log, vals, 391.0, 16.0)
+  xt = lab_scale_ticks(x, pl_x_count(842))
+  yt = lab_scale_ticks(y, 6)
+  [[x.d0, x.d1], lab_labels(x, a.fmt, xt, 10), lab_labels(y, a.fmt, yt, 10)]
+end
+
+def pl_test_bins(rows: List, ds: String, key: String) -> List do
+  a = lab_axis(ds, key)
+  vals = filter(map(rows, fn(r: Map) -> Any do lab_value(r, a) end), fn(v: Any) -> Bool do v != nil end)
+  map(lab_hist(rows, vals, a, false, 842, 438, 1.0).bins, fn(b: Map) -> Int do b.n end)
+end
+
+actor PhishLabTests do
+  test "linear axes: d3's nice domain, ticks and labels (sigma, days, plain numbers)" do
+    main = pl_test_main()
+    perfs = pl_test_perfs()
+    z = pl_test_axis(perfs, "perfs", "z", false)
+    assert_eq(elem(z, 0), [-10.0, 12.0])
+    assert_eq(elem(z, 1), ["-10σ", "-8σ", "-6σ", "-4σ", "-2σ", "0σ", "+2σ", "+4σ", "+6σ", "+8σ", "+10σ", "+12σ"])
+    assert_eq(elem(z, 2), ["-10σ", "-5σ", "0σ", "+5σ", "+10σ"])
+    gap = pl_test_axis(main.songs, "songs", "maxgap", false)
+    assert_eq(elem(gap, 1), ["-1000d", "0d", "3y", "5y", "8y", "11y", "14y", "16y", "19y", "22y", "25y", "27y", "30y"])
+    cv = pl_test_axis(main.songs, "songs", "cv", false)
+    assert_eq(elem(cv, 1), ["0.0", "0.2", "0.4", "0.6", "0.8", "1.0", "1.2"])
+    rating = pl_test_axis(main.shows, "shows", "rating", false)
+    assert_eq(elem(rating, 2), ["4.0", "5.0", "6.0", "7.0", "8.0", "9.0", "10.0"])
+  end
+
+  test "time axes: nice to the interval, and d3's multi-scale labels" do
+    main = pl_test_main()
+    all = pl_test_axis(main.shows, "shows", "d", false)
+    assert_eq(map(elem(all, 0), fn(d: Int) -> String do pl_date(d) end), ["1990-01-01", "2030-01-01"])
+    assert_eq(elem(all, 1), ["1990", "1995", "2000", "2005", "2010", "2015", "2020", "2025", "2030"])
+    # era 2.0 alone (its chip left on): quarters, named as d3 names them
+    two = pl_test_axis(filter(main.shows, fn(r: Map) -> Bool do lab_era_of(r) == "2.0" end), "shows", "d", false)
+    assert_eq(map(elem(two, 0), fn(d: Int) -> String do pl_date(d) end), ["2002-10-01", "2004-10-01"])
+    assert_eq(elem(two, 1), ["October", "2003", "April", "July", "October", "2004", "April", "July", "October"])
+    assert_eq(pl_time_label(pl_days("1997-03-09")), "Mar 09")
+    assert_eq(pl_time_label(pl_days("1997-03-10")), "Mon 10")
+    # floor, ceil and next land on boundaries (pl_time_is, d3's every()'s
+    # filter), for every interval, from every day of two years
+    days = range(pl_days("1999-11-01"), pl_days("2001-11-01"))
+    each([[0, 1], [0, 2], [1, 1], [2, 1], [2, 3], [3, 1], [3, 5]], fn(iv: List) -> Any do
+      k = elem(iv, 0)
+      st = elem(iv, 1)
+      each(days, fn(z: Int) -> Any do
+        f = pl_time_floor(z, k, st)
+        c = pl_time_ceil(z, k, st)
+        assert(pl_time_is(f, k, st) and f <= z and pl_time_is(c, k, st) and c >= z and pl_time_next(f, k, st) > z)
+      end)
+    end)
+  end
+
+  test "log axes: decades nice'd out, 1-9 multiples, the hook's own labels" do
+    main = pl_test_main()
+    dur = pl_test_axis(main.shows, "shows", "dur", true)
+    assert_eq(elem(dur, 0), [1000.0, 100000.0])
+    assert_eq(elem(dur, 1), ["16:40", "33:20", "50:00", "66:40", "83:20", "100:00", "116:40", "133:20", "150:00", "166:40", "333:20", "500:00", "666:40", "833:20", "1000:00", "1166:40", "1333:20", "1500:00", "1666:40"])
+    assert_eq(pl_d3_si(20000.0), "20k")
+    assert_eq(pl_d3_si(1500.0), "1.5k")
+    assert_eq(pl_d3_si(0.5), "500m")
+  end
+
+  test "histogram bins, the zero-width last one included" do
+    main = pl_test_main()
+    assert_eq(pl_test_bins(main.songs, "songs", "cv"), [0, 0, 4, 53, 63, 48, 43, 34, 31, 25, 24, 15, 7, 9, 2, 1, 1, 1, 4, 0, 0, 3, 0, 0, 0, 0, 1, 0, 0])
+    assert_eq(pl_test_bins(main.shows, "shows", "rating"), [0, 1, 1, 1, 0, 1, 3, 3, 2, 5, 7, 10, 18, 22, 27, 35, 47, 62, 71, 54, 60, 77, 101, 94, 122, 119, 47, 1, 0, 0, 0])
+  end
+
+  test "numbers as JavaScript wrote them: toFixed on the exact double" do
+    assert_eq(pl_to_fixed(0.35, 1), "0.3")
+    assert_eq(pl_to_fixed(0.25, 1), "0.3")
+    assert_eq(pl_to_fixed(-0.04, 1), "-0.0")
+    assert_eq(pl_js_sigma(-0.04), "-0.0σ")
+    assert_eq(pl_js_sigma(1.25), "+1.3σ")
+    assert_eq(pl_num3(7.0), "7")
+    # 0.1005 is 0.10050000000000000600..., 1.0005 is 1.00049999999999994...
+    assert_eq(pl_num3(0.1005), "0.101")
+    assert_eq(pl_num3(1.0005), "1")
+    assert_eq(pl_js_sec(-50.0), "-1:-50")
+    assert_eq(pl_js_days(1821.0), "5.0y")
+    assert_eq(pl_d3_fixed(-2.0, 1), "−2.0")
+    assert_eq(pl_d3_fixed(19814.0, 0), "19,814")
+  end
+
+  test "numbers as Elixir wrote them: .0 kept, Erlang's two-place rounding" do
+    assert_eq(pl_ex_float(7.0), "7.0")
+    assert_eq(pl_ex_float(0.101), "0.101")
+    assert_eq(pl_ex_days(1821), "5.0y")
+    assert_eq(pl_ex_days(5), "5d")
+    assert_eq(pl_ex_sec(901.0), "15:01")
+    assert_eq(pl_score(0.345), "0.35")
+    assert_eq(pl_score(0.285), "0.28")
+    assert_eq(pl_score(1.0), "1.00")
+  end
+
+  test "the inspector: PhishLabLive.inspect_rows/2, title and scorecard" do
+    main = pl_test_main()
+    show = elem(main.shows, 4)
+    assert_eq(lab_inspect_title(show, "shows"), "1993-02-10 — Smith Opera House")
+    assert_eq(lab_inspect_rows(show, "shows"), [["Venue", "Smith Opera House"], ["Location", "Geneva, NY"], ["Tour", "Winter/Spring Tour 1993"], ["Era", "1.0"], ["Show date", "1993-02-10"], ["Show length", "170:55"], ["Songs played", "24"], ["Sets", "3"], ["Avg song length", "7:07"], ["Longest song", "19:57"], ["Setlist rarity index", "7.38"], ["Fan rating (relisten)", "6.31"], ["# of ratings", "50"], ["Rating vs year", "-2.18σ"], ["Jamminess vs era", "-0.6σ"], ["Anomaly score", "1.12"], ["PJJ jams", "1"], ["Longest song", "You Enjoy Myself (19:57)"]])
+    assert_eq(map(lab_style_bars(show), fn(b: List) -> List do [elem(b, 0), pl_score_width(elem(b, 1)), pl_score(elem(b, 1))] end),
+      [["TensionAndRelease", 72, "0.72"], ["Psychedelic", 56, "0.56"], ["MachineGunTrey", 51, "0.51"], ["Dark-Evil", 41, "0.41"], ["Hose", 37, "0.37"], ["OutOfTheBlue", 37, "0.37"], ["Bliss", 35, "0.35"], ["StopStart", 34, "0.34"]])
+    song = elem(main.songs, 5)
+    assert_eq(lab_inspect_rows(song, "songs"), [["Song", "Divided Sky"], ["Times played", "167"], ["First played", "1993-02-03"], ["Last played", "2025-12-30"], ["Avg duration", "15:01"], ["Median duration", "14:59"], ["Longest version", "19:12"], ["Duration std dev", "1:31"], ["Unpredictability (CV)", "0.101"], ["Longest shelf gap", "5.0y"], ["Jamchart entries", "6"], ["Jamchart rate", "0.1"], ["Avg likes", "3.6"], ["PJJ jams", "0"], ["Longest version", "19:12 on 2003-07-10"], ["Shelf gap", "2004-06-17 → 2009-06-12"]])
+  end
+
+  test "the actor: data, presets, a leaderboard jump, the form's quirks" do
+    l = spawn Lab
+    l <- :main_loaded(200, read_file("../priv/static/data/phish_lab.json"))
+    assert_eq((l <- :state).status, "loading…")
+    l <- :resize(842, 100)
+    assert_eq((l <- :state).status, "1,024 shows plotted")
+    l <- :perfs_loaded(200, read_file("../priv/static/data/phish_lab_perfs.json"))
+    l <- :preset("anomaly-scan")
+    s = l <- :state
+    assert_eq(s.status, "19,814 performances plotted (855 lack data for these axes)")
+    assert_eq(s.cfg.y, "z")
+    # a new dataset resets the axes; the same one does not
+    l <- :set_ds("songs")
+    assert_eq((l <- :state).cfg, %{ds: "songs", chart: "scatter", x: "plays", y: "avg", color: "cv", size: "none", logx: false, logy: false})
+    # log Y is dropped by a change made while the chart is a histogram
+    l <- :set_logy(true)
+    l <- :set_chart("hist")
+    assert_eq((l <- :state).cfg.logy, true)
+    l <- :set_x("avg")
+    assert_eq((l <- :state).cfg.logy, false)
+    # Style-Defining Songs, second entry: Reba, ringed, on the Bliss axis
+    l <- :set_lb("style_definers")
+    l <- :jump(1)
+    j = l <- :state
+    assert_eq(j.cfg.x, "style:Bliss")
+    assert_eq(j.cfg.chart, "scatter")
+    assert_eq(j.highlight, %{d: nil, s: "Reba"})
+    # a point opens its file; a stale chart's number opens nothing
+    t = l <- :targets
+    l <- :pick(t.serial + 1, 0)
+    assert_eq((l <- :state).inspecting, "no selection")
+    l <- :pick(t.serial, 0)
+    assert_ne((l <- :state).inspecting, "no selection")
+    tip = l <- :tip(t.serial, 0)
+    assert_eq(length(tip.l), 3)
+  end
+
+  test "the era chips hide and bring back an era" do
+    l = spawn Lab
+    l <- :main_loaded(200, read_file("../priv/static/data/phish_lab.json"))
+    l <- :resize(842, 100)
+    l <- :toggle_era("2.0")
+    assert_eq((l <- :state).status, "986 shows plotted (38 lack data for these axes)")
+    l <- :toggle_era("2.0")
+    assert_eq((l <- :state).status, "1,024 shows plotted")
+  end
+
+  test "lists made without prepending: distinct, and a table in one go" do
+    assert_eq(lab_distinct([1, 1, 2, 3, 3, 3]), [1, 2, 3])
+    assert_eq(lab_distinct([]), [])
+    assert_eq(lookup(lab_table(["a", "b"], ["1", "\"x\""]), "b"), "x")
+  end
+end

@@ -1,0 +1,1345 @@
+# Phish Lab (/phish_lab): anomaly detection for a band from Vermont, in the
+# browser.
+#
+# A port of BlogWeb.PhishLabLive, its template, Blog.PhishLab, and the d3
+# hook that drew its chart (assets/js/hooks/phish_lab.js). Everything the
+# LiveView kept per visitor -- the chart's settings, the leaderboard, the
+# point being inspected -- is this actor's state, and the data is the two
+# files Phoenix served from priv/static/data, fetched from the Blimp server
+# as /phish_lab/lab.json (shows, songs, leaderboards, 1 MB) and, when the
+# performances are asked for, /phish_lab/perfs.json (20,669 of them, 2.5 MB).
+#
+# The chart is this program's too. The axes, grid, labels, histogram bars
+# and highlight rings are SVG built here; the points, up to 19,814 of them,
+# are one draw() -- a canvas painted from a display list, a line per point.
+# The scales, ticks, tick labels, bins, colours and number formats are
+# Temper (temper/src/phish_lab), ports of the d3 functions the hook called.
+# A draw() canvas does not report the mouse, so static/phish_lab/
+# phish_lab.js does: it asks `lab <- :hit(x, y)` what is under the pointer
+# (a bare send, no render, so hovering does not repaint 600 KB of points)
+# and sends :pick(x, y) on a click and :resize(width, dpr) when the chart's
+# box changes.
+
+LAB_TOP = 16
+LAB_RIGHT = 20
+LAB_BOTTOM = 46
+LAB_LEFT = 66
+LAB_ERAS = ["1.0", "2.0", "3.0", "4.0"]
+LAB_DEFAULT = "#3a5fbf"
+LAB_NULL = "#c8c8c8"
+LAB_HIGHLIGHT = "#ffd400"
+
+def lab_era_color(era: String) -> String do
+  case era do
+    "1.0" -> "#3355cc"
+    "2.0" -> "#cc6600"
+    "3.0" -> "#00998f"
+    "4.0" -> "#aa3377"
+    _ -> LAB_DEFAULT
+  end
+end
+
+# ── lists ───────────────────────────────────────────────────────────────
+
+# A list is an array here: [x | xs] copies xs, so a list grown by
+# prepending in a reduce costs the square of its length (20,000 prepends:
+# 0.2 s and 1.6 GB). Long lists are made by map, filter, zip, flat and
+# sort, which are native and linear.
+def lab_cat(a: List, b: List) -> List do
+  flat([a, b])
+end
+
+def lab_find(xs: List, key: String) -> Any do
+  hits = filter(xs, fn(m: List) -> Bool do elem(m, 0) == key end)
+  case hits do
+    [] -> nil
+    [h | _] -> h
+  end
+end
+
+# A sorted list without its repeats: each element that differs from the
+# one before it. (uniq/1 compares every pair: 0.6 s for twenty thousand.)
+def lab_distinct(sorted: List) -> List do
+  case sorted do
+    [] -> []
+    _ ->
+      firsts = filter(zip(sorted, [:none | sorted]), fn(p: Any) -> Bool do elem(p, 0) != elem(p, 1) end)
+      map(firsts, fn(p: Any) -> Any do elem(p, 0) end)
+  end
+end
+
+# Where v is (or would go) in a sorted list.
+def lab_bsearch(xs: List, v: Any, lo: Int, hi: Int) -> Int do
+  case lo >= hi do
+    true -> lo
+    false ->
+      mid = (lo + hi) / 2
+      case elem(xs, mid) < v do
+        true -> lab_bsearch(xs, v, mid + 1, hi)
+        false -> lab_bsearch(xs, v, lo, mid)
+      end
+  end
+end
+
+def lab_ssqrt(x: Float) -> Float do
+  case x < 0.0 do
+    true -> 0.0 - sqrt(0.0 - x)
+    false -> sqrt(x)
+  end
+end
+
+# min and max take Ints; these take any two numbers.
+def lab_lesser(a: Any, b: Any) -> Any do
+  case b < a do
+    true -> b
+    false -> a
+  end
+end
+
+def lab_greater(a: Any, b: Any) -> Any do
+  case b > a do
+    true -> b
+    false -> a
+  end
+end
+
+def lab_f(v: Any) -> Float do
+  v + 0.0
+end
+
+# A number in a draw op or an SVG attribute: tenths are finer than a pixel.
+def lab_n(v: Any) -> String do
+  to_string(round(v * 10.0) / 10.0)
+end
+
+# ── the catalog (Blog.PhishLab.metrics/1, PhishLabLive.axis_info/2) ────
+
+def lab_metrics(ds: String) -> List do
+  lab_cat(pl_base_metrics(ds), pl_style_metrics(ds))
+end
+
+# An axis carries how to read it off a row, worked out once rather than
+# per row: `by` is "none", "era", "style" (a PJJ score, `field` the style)
+# or "field" (`field` the key; for a date, the "_d"-style key that holds
+# it as days).
+def lab_axis(ds: String, key: String) -> Map do
+  case key do
+    "none" -> %{key: "none", label: "", fmt: "num", by: "none", field: ""}
+    "era" -> %{key: "era", label: "Era", fmt: "cat", by: "era", field: ""}
+    _ ->
+      m = lab_find(lab_metrics(ds), key)
+      a = case m do
+        nil -> %{key: key, label: key, fmt: "num"}
+        _ -> %{key: key, label: elem(m, 1), fmt: elem(m, 2)}
+      end
+      case index_of(key, "style:") == 0 do
+        true -> put(put(a, :by, "style"), :field, slice(key, 6, length(key)))
+        false ->
+          case a.fmt == "date" do
+            true -> put(put(a, :by, "field"), :field, concat("_", key))
+            false -> put(put(a, :by, "field"), :field, key)
+          end
+      end
+  end
+end
+
+# ── a row's values (the hook's value/keyOf/titleOf/isHighlighted) ──────
+
+def lab_date_of(row: Map) -> Any do
+  d = lookup(row, "d")
+  case d do
+    nil -> lookup(row, "first")
+    _ -> d
+  end
+end
+
+def lab_era_of(row: Map) -> String do
+  lookup(row, "_era")
+end
+
+# ── dates, once ─────────────────────────────────────────────────────────
+
+# Every date field as days (pl_days), and every row's era (pl_era), put on
+# the rows when they arrive: "_d", "_first", "_last", "_era". Temper does
+# the arithmetic, on each distinct date once -- about a thousand, since
+# every date here is a show's. Per row it was the chart's whole cost: 20,669
+# pl_days calls take 0.7 s in the native interpreter, their memo 75 ms.
+def lab_prepare(rows: List, fields: List) -> List do
+  dates = lab_distinct(sort(filter(flat(map(rows, fn(r: Map) -> List do map(fields, fn(f: String) -> Any do lookup(r, f) end) end)), fn(d: Any) -> Bool do d != nil end)))
+  days = lab_table(dates, map(dates, fn(d: String) -> String do to_string(pl_days(d)) end))
+  eras = lab_table(dates, map(dates, fn(d: String) -> String do json_encode(pl_era(d)) end))
+  map(rows, fn(r: Map) -> Map do
+    first = lab_date_of(r)
+    era = case first do
+      nil -> "4.0"
+      _ -> lookup(eras, first)
+    end
+    with_era = put(r, "_era", era)
+    lab_put_days(lab_put_days(with_era, r, fields, 0, days), r, fields, 1, days)
+  end)
+end
+
+# A map from each key to its value (JSON text), made in one go: a Blimp
+# map grown by put copies itself each time, and json_decode builds one
+# natively.
+def lab_table(keys: List, values: List) -> Map do
+  pairs = map(zip(keys, values), fn(p: Any) -> String do concat(json_encode(elem(p, 0)), ":", elem(p, 1)) end)
+  elem(json_decode(concat("{", join(pairs, ","), "}")), 1)
+end
+
+# Row r's date field number i (if it has that many) as days.
+def lab_put_days(acc: Map, r: Map, fields: List, i: Int, days: Map) -> Map do
+  case i < length(fields) do
+    false -> acc
+    true ->
+      f = elem(fields, i)
+      v = lookup(r, f)
+      case v do
+        nil -> acc
+        _ -> put(acc, concat("_", f), lookup(days, v))
+      end
+  end
+end
+
+# What the hook's value(row, axis) answered, with dates as days.
+def lab_value(row: Map, a: Map) -> Any do
+  case a.by do
+    "field" -> lookup(row, a.field)
+    "style" ->
+      styles = lookup(row, "styles")
+      case styles do
+        nil -> nil
+        _ -> lookup(styles, a.field)
+      end
+    "era" -> lookup(row, "_era")
+    _ -> nil
+  end
+end
+
+def lab_title_of(row: Map, ds: String) -> String do
+  case ds do
+    "shows" -> concat(to_string(row.d), " — ", lab_str(lookup(row, "venue")))
+    "songs" -> to_string(row.s)
+    _ -> concat(to_string(row.s), " — ", to_string(row.d))
+  end
+end
+
+def lab_str(v: Any) -> String do
+  case v do
+    nil -> ""
+    _ -> to_string(v)
+  end
+end
+
+def lab_is_highlighted(row: Map, ds: String, h: Any) -> Bool do
+  case h do
+    nil -> false
+    _ ->
+      hd = lookup(h, "d")
+      hs = lookup(h, "s")
+      case hd == nil and hs == nil do
+        true -> false
+        false ->
+          case ds do
+            "shows" -> lookup(row, "d") == hd
+            "songs" -> lookup(row, "s") == hs
+            _ -> (hd == nil or lookup(row, "d") == hd) and (hs == nil or lookup(row, "s") == hs)
+          end
+      end
+  end
+end
+
+# ── scales ──────────────────────────────────────────────────────────────
+
+# The hook's makeScale: a time scale for dates, a log scale when asked,
+# otherwise linear over the extent padded 4%; each nice()d.
+def lab_scale(a: Map, use_log: Bool, vals: List, r0: Float, r1: Float) -> Map do
+  sorted = sort(vals)
+  lo = head(sorted)
+  hi = elem(sorted, length(sorted) - 1)
+  case a.fmt == "date" do
+    true ->
+      iv = pl_time_interval(lo, hi, 10.0)
+      d0 = pl_time_floor(lo, elem(iv, 0), elem(iv, 1))
+      d1 = pl_time_ceil(hi, elem(iv, 0), elem(iv, 1))
+      lab_scale_of("time", d0, d1, pl_affine(lab_f(d0), lab_f(d1), r0, r1), r0, r1)
+    false ->
+      case use_log do
+        true ->
+          n = pl_log_nice(lab_f(lo), lab_f(hi))
+          lab_scale_of("log", elem(n, 0), elem(n, 1), pl_affine(log(elem(n, 0)), log(elem(n, 1)), r0, r1), r0, r1)
+        false ->
+          pad = pl_pad(lab_f(lo), lab_f(hi))
+          n = pl_nice(lab_f(lo) - pad, lab_f(hi) + pad, 10.0)
+          lab_scale_of("lin", elem(n, 0), elem(n, 1), pl_affine(elem(n, 0), elem(n, 1), r0, r1), r0, r1)
+      end
+  end
+end
+
+def lab_scale_of(kind: String, d0: Any, d1: Any, kb: List, r0: Float, r1: Float) -> Map do
+  %{kind: kind, d0: d0, d1: d1, k: elem(kb, 0), b: elem(kb, 1), r0: r0, r1: r1}
+end
+
+def lab_at(s: Map, v: Any) -> Float do
+  case s.kind do
+    "log" -> log(v) * s.k + s.b
+    _ -> v * s.k + s.b
+  end
+end
+
+# d3.ticks(start, stop, count), on an ascending domain.
+def lab_ticks(d0: Any, d1: Any, count: Int) -> List do
+  a = lab_f(d0)
+  b = lab_f(d1)
+  case count <= 0 do
+    true -> []
+    false ->
+      case a == b do
+        true -> [a]
+        false ->
+          spec = pl_tick_spec(a, b, lab_f(count))
+          i1 = round(elem(spec, 0))
+          i2 = round(elem(spec, 1))
+          inc = elem(spec, 2)
+          case i2 >= i1 do
+            false -> []
+            true -> map(range(i1, i2), fn(i: Int) -> Float do pl_tick_at(lab_f(i), inc) end)
+          end
+      end
+  end
+end
+
+# The log scale's ticks(count), base 10.
+def lab_log_ticks(u: Float, v: Float, count: Int) -> List do
+  i = pl_log10(u)
+  j = pl_log10(v)
+  case j - i < count do
+    # as many decades as ticks asked for, or more: ticks of the exponents,
+    # which on a nice()d domain are whole
+    false -> map(lab_ticks(i, j, min(round(j - i), count)), fn(e: Float) -> Float do pl_pow10(round(e)) end)
+    true ->
+      z = flat(map(range(floor(i), ceil(j)), fn(e: Int) -> List do
+        filter(map(range(1, 9), fn(k: Int) -> Float do pl_log_tick(e, k) end), fn(t: Float) -> Bool do t >= u and t <= v end)
+      end))
+      case length(z) * 2 < count do
+        true -> lab_ticks(u, v, count)
+        false -> z
+      end
+  end
+end
+
+def lab_time_ticks(d0: Int, d1: Int, count: Int) -> List do
+  iv = pl_time_interval(d0, d1, lab_f(count))
+  lab_time_walk(pl_time_ceil(d0, elem(iv, 0), elem(iv, 1)), d1, elem(iv, 0), elem(iv, 1), [])
+end
+
+def lab_time_walk(t: Int, d1: Int, kind: Int, step: Int, acc: List) -> List do
+  case t > d1 do
+    true -> reverse(acc)
+    false -> lab_time_walk(pl_time_next(t, kind, step), d1, kind, step, [t | acc])
+  end
+end
+
+def lab_scale_ticks(s: Map, count: Int) -> List do
+  case s.kind do
+    "time" -> lab_time_ticks(s.d0, s.d1, count)
+    "log" -> lab_log_ticks(s.d0, s.d1, count)
+    _ -> lab_ticks(s.d0, s.d1, count)
+  end
+end
+
+# How an axis writes its ticks: the hook's tickFormatter where it gave one,
+# d3's own otherwise -- the time scale's multi-format, a linear scale's
+# ",.Nf" at the precision of its step for `count`, a log scale's "~s" with
+# the leading digits past k left blank.
+def lab_labels(s: Map, fmt: String, ticks: List, count: Int) -> List do
+  case s.kind == "time" do
+    true -> map(ticks, fn(t: Int) -> String do pl_time_label(t) end)
+    false ->
+      case fmt do
+        "sec" -> map(ticks, fn(t: Float) -> String do pl_js_sec(t) end)
+        "sigma" -> map(ticks, fn(t: Float) -> String do pl_sigma_tick(t) end)
+        "days" -> map(ticks, fn(t: Float) -> String do pl_days_tick(t) end)
+        _ ->
+          case s.kind do
+            "log" ->
+              k = lab_greater(1.0, 100.0 / length(lab_log_ticks(s.d0, s.d1, 10)))
+              map(ticks, fn(t: Float) -> String do
+                case pl_log_label_ok(t, k) do
+                  true -> pl_d3_si(t)
+                  false -> ""
+                end
+              end)
+            _ ->
+              p = pl_precision_fixed(pl_tick_step(lab_f(s.d0), lab_f(s.d1), lab_f(count)))
+              map(ticks, fn(t: Float) -> String do pl_d3_fixed(t, p) end)
+          end
+      end
+  end
+end
+
+# ── numbers as the hook's tooltip and legend wrote them (fmtVal) ────────
+
+def lab_fmt(v: Any, fmt: String) -> String do
+  case v do
+    nil -> "—"
+    _ ->
+      case fmt do
+        "date" -> pl_date(v)
+        "sec" -> pl_js_sec(lab_f(v))
+        "sigma" -> pl_js_sigma(lab_f(v))
+        "days" -> pl_js_days(lab_f(v))
+        _ ->
+          case type_of(v) == :string do
+            true -> v
+            false -> pl_num3(lab_f(v))
+          end
+      end
+  end
+end
+
+# ── numbers as Blog.PhishLab.fmt_val/2 wrote them (the inspector) ───────
+
+def lab_ex(v: Any, fmt: String) -> String do
+  case v do
+    nil -> "—"
+    _ ->
+      case fmt do
+        "sec" -> pl_ex_sec(lab_f(v))
+        "days" -> pl_ex_days(v)
+        "sigma" -> concat(lab_ex_num(v), "σ")
+        _ -> lab_ex_num(v)
+      end
+  end
+end
+
+def lab_ex_num(v: Any) -> String do
+  case type_of(v) do
+    :float -> pl_ex_float(v)
+    _ -> to_string(v)
+  end
+end
+
+# ── the chart ───────────────────────────────────────────────────────────
+
+# Everything the chart shows, worked out once when something it depends
+# on changes: the draw ops, the SVG under and over them, the legend, the
+# status line, and what is where for the pointer.
+def lab_chart(all: List, cfg: Map, hidden: List, highlight: Any, width: Int, dpr: Float) -> Map do
+  w = max(320, width)
+  h = pl_height(w)
+  xa = lab_axis(cfg.ds, cfg.x)
+  ya = lab_axis(cfg.ds, cfg.y)
+  ca = lab_axis(cfg.ds, cfg.color)
+  hist = cfg.chart == "hist"
+  use_logx = cfg.logx and xa.fmt != "date"
+  use_logy = cfg.logy and ya.fmt != "date"
+  era_off = hidden != [] and ca.key == "era"
+  # [row, x, y] for the rows that have both (the histogram needs only x)
+  cand = map(all, fn(r: Map) -> List do
+    case hist do
+      true -> [r, lab_value(r, xa), 1]
+      false -> [r, lab_value(r, xa), lab_value(r, ya)]
+    end
+  end)
+  kept = filter(cand, fn(c: List) -> Bool do
+    xv = elem(c, 1)
+    yv = elem(c, 2)
+    xv != nil and (use_logx == false or xv > 0) and yv != nil and (use_logy == false or hist or yv > 0) and (era_off == false or contains_era(hidden, lab_era_of(elem(c, 0))) == false)
+  end)
+  rows = map(kept, fn(c: List) -> Map do elem(c, 0) end)
+  n = length(rows)
+  total = length(all)
+  noun = pl_noun(cfg.ds)
+  lacking = case n < total do
+    true -> concat(" (", pl_d3_fixed(lab_f(total - n), 0), " lack data for these axes)")
+    false -> ""
+  end
+  status = concat(pl_d3_fixed(lab_f(n), 0), " ", noun, " plotted", lacking)
+  body = case n == 0 do
+    true -> lab_empty(w, h)
+    false ->
+      case hist do
+        true -> lab_hist(rows, map(kept, fn(c: List) -> Any do elem(c, 1) end), xa, use_logx, w, h, dpr)
+        false -> lab_scatter(rows, map(kept, fn(c: List) -> Any do elem(c, 1) end), map(kept, fn(c: List) -> Any do elem(c, 2) end), cfg, xa, ya, ca, use_logx, use_logy, highlight, w, h, dpr)
+      end
+  end
+  # a new number for every chart, so phish_lab.js knows its targets are old
+  put(put(put(put(put(body, :status, status), :w, w), :h, h), :dpr, dpr), :serial, random(1, 1000000000))
+end
+
+def contains_era(hidden: List, era: String) -> Bool do
+  filter(hidden, fn(e: String) -> Bool do e == era end) != []
+end
+
+# d3 cannot draw an axis over nothing either; the hook threw, and left the
+# last chart up. This leaves an empty frame.
+def lab_empty(w: Int, h: Int) -> Map do
+  %{ops: "", under: [], over: [], legend: [], px: [], py: [], rows: [], bins: []}
+end
+
+def lab_scatter(rows: List, xs: List, ys: List, cfg: Map, xa: Map, ya: Map, ca: Map, use_logx: Bool, use_logy: Bool, highlight: Any, w: Int, h: Int, dpr: Float) -> Map do
+  x = lab_scale(xa, use_logx, xs, lab_f(LAB_LEFT), lab_f(w - LAB_RIGHT))
+  y = lab_scale(ya, use_logy, ys, lab_f(h - LAB_BOTTOM), lab_f(LAB_TOP))
+  under = lab_axes(x, y, xa, ya, ya.label, w, h, dpr)
+  n = length(rows)
+
+  # colour: the era palette, a sequential ramp over the colour metric's
+  # extent (dates are not coloured by: the hook dropped Date values), or one
+  # blue
+  cvals = case ca.key == "era" or ca.key == "none" or ca.fmt == "date" do
+    true -> []
+    false -> map(rows, fn(r: Map) -> Any do lab_value(r, ca) end)
+  end
+  cmode = case ca.key do
+    "era" -> "era"
+    _ ->
+      case filter(cvals, fn(v: Any) -> Bool do v != nil end) do
+        [] -> "one"
+        _ -> "seq"
+      end
+  end
+  colors = case cmode do
+    "era" -> map(rows, fn(r: Map) -> String do lab_era_color(lab_era_of(r)) end)
+    "seq" -> lab_ramp_all(cvals)
+    _ -> map(rows, fn(r: Map) -> String do LAB_DEFAULT end)
+  end
+  cext = case cmode do
+    "seq" -> lab_extent(cvals)
+    _ -> []
+  end
+
+  # size
+  sa = lab_axis(cfg.ds, cfg.size)
+  base = pl_base_r(n)
+  svals = case sa.key == "none" do
+    true -> []
+    false -> map(rows, fn(r: Map) -> Any do lab_value(r, sa) end)
+  end
+  sext = lab_extent(svals)
+  radii = case sext do
+    [] -> map(rows, fn(r: Map) -> Float do base end)
+    _ ->
+      kb = pl_affine(pl_ssqrt(lab_f(elem(sext, 0))), pl_ssqrt(lab_f(elem(sext, 1))), 1.8, pl_max_r(n))
+      k = elem(kb, 0)
+      b = elem(kb, 1)
+      map(svals, fn(v: Any) -> Float do
+        case v do
+          nil -> 1.5
+          _ -> lab_ssqrt(lab_f(v)) * k + b
+        end
+      end)
+  end
+
+  pxs = map(xs, fn(v: Any) -> Float do lab_at(x, v) end)
+  pys = map(ys, fn(v: Any) -> Float do lab_at(y, v) end)
+  marks = case highlight do
+    nil -> map(rows, fn(r: Map) -> Bool do false end)
+    _ -> map(rows, fn(r: Map) -> Bool do lab_is_highlighted(r, cfg.ds, highlight) end)
+  end
+  # [x, y, r, colour, highlighted]
+  pts = zip(zip(pxs, pys), zip(zip(radii, colors), marks))
+  # the hook stroked each point with 0.6px of white at 0.9: a draw()
+  # circle has no stroke, so a white disc 0.3px wider goes under a
+  # coloured one 0.3px narrower. With one size for all, the radii are
+  # written once.
+  uniform = sext == []
+  halo = concat(" ", lab_n((base + 0.3) * dpr), " rgba(255,255,255,0.9)\ncircle ")
+  disc = concat(" ", lab_n((base - 0.3) * dpr), " ")
+  lines = map(pts, fn(p: Any) -> String do
+    case elem(elem(p, 1), 1) do
+      true -> ""
+      false ->
+        xy = elem(p, 0)
+        rc = elem(elem(p, 1), 0)
+        at = concat(lab_n(elem(xy, 0) * dpr), " ", lab_n(elem(xy, 1) * dpr))
+        case uniform do
+          true -> concat("circle ", at, halo, at, disc, elem(rc, 1))
+          false ->
+            pr = elem(rc, 0)
+            join(["circle ", at, " ", lab_n((pr + 0.3) * dpr), " rgba(255,255,255,0.9)\ncircle ", at, " ", lab_n((pr - 0.3) * dpr), " ", elem(rc, 1)], "")
+        end
+    end
+  end)
+  ops = join([concat("alpha ", to_string(pl_alpha(n))) | filter(lines, fn(l: String) -> Bool do l != "" end)], "\n")
+  over = flat(map(pts, fn(p: Any) -> List do
+    case elem(elem(p, 1), 1) do
+      false -> []
+      true ->
+        xy = elem(p, 0)
+        cx = lab_n(elem(xy, 0))
+        cy = lab_n(elem(xy, 1))
+        r = lab_greater(elem(elem(elem(p, 1), 0), 0), 4.0)
+        [el("g", %{},
+          el("circle", %{cx: cx, cy: cy, r: lab_n(r), fill: LAB_HIGHLIGHT, stroke: "#000", "stroke-width": "1.4"}),
+          el("circle", %{cx: cx, cy: cy, r: lab_n(r + 5.0), fill: "none", stroke: "#000", "stroke-width": "1.4", "stroke-dasharray": "3,2"}))]
+    end
+  end))
+  color_key = case cmode do
+    "era" -> [:era_chips]
+    "seq" -> [el("span", %{style: "display: inline-flex; align-items: center; gap: 5px;"},
+      concat(lab_fmt(elem(cext, 0), ca.fmt), " "),
+      el("span", %{class: "plab-legend-grad", style: "background:linear-gradient(90deg, #dbe4f7, #16265c)"}),
+      concat(" ", lab_fmt(elem(cext, 1), ca.fmt), " — ", ca.label))]
+    _ -> []
+  end
+  size_key = case sa.key == "none" do
+    true -> []
+    false -> [el("span", %{}, concat("⌀ sized by ", sa.label))]
+  end
+  legend = lab_cat(color_key, size_key)
+  %{ops: ops, under: under, over: over, legend: legend, px: pxs, py: pys,
+    rows: rows, bins: [], xa: xa, ya: ya, ca: ca, sa: sa}
+end
+
+# [lowest, highest] of the values that are there, or [] if none are.
+def lab_extent(vals: List) -> List do
+  there = sort(filter(vals, fn(v: Any) -> Bool do v != nil end))
+  case there do
+    [] -> []
+    _ -> [head(there), elem(there, length(there) - 1)]
+  end
+end
+
+# Each value's colour on the ramp over their extent, the null colour for
+# none. pl_ramp is Temper building a string (21 µs a call natively), so it
+# is called once per distinct value -- a few thousand at most -- and each
+# value looks its colour up.
+def lab_ramp_all(vals: List) -> List do
+  distinct = lab_distinct(sort(filter(vals, fn(v: Any) -> Bool do v != nil end)))
+  lo = lab_f(head(distinct))
+  hi = lab_f(elem(distinct, length(distinct) - 1))
+  colors = lab_table(map(distinct, fn(v: Any) -> String do to_string(v) end),
+    map(distinct, fn(v: Any) -> String do json_encode(pl_ramp(pl_seq_t(lab_f(v), lo, hi))) end))
+  map(vals, fn(v: Any) -> String do
+    case v do
+      nil -> LAB_NULL
+      _ -> lookup(colors, to_string(v))
+    end
+  end)
+end
+
+def lab_hist(rows: List, vals: List, xa: Map, use_logx: Bool, w: Int, h: Int, dpr: Float) -> Map do
+  x = lab_scale(xa, use_logx, vals, lab_f(LAB_LEFT), lab_f(w - LAB_RIGHT))
+  x0 = x.d0
+  x1 = x.d1
+  tz = filter(lab_scale_ticks(x, pl_hist_count(w)), fn(t: Any) -> Bool do t > x0 and t <= x1 end)
+  m = length(tz)
+  inside = sort(map(filter(vals, fn(v: Any) -> Bool do v >= x0 and v <= x1 end), fn(v: Any) -> Float do lab_f(v) end))
+  below = map(tz, fn(t: Any) -> Int do pl_bisect_left(inside, lab_f(t)) end)
+  counts = map(range(0, m), fn(i: Int) -> Int do
+    hi = case i == m do
+      true -> length(inside)
+      false -> elem(below, i)
+    end
+    lo = case i == 0 do
+      true -> 0
+      false -> elem(below, i - 1)
+    end
+    hi - lo
+  end)
+  lefts = [x0 | tz]
+  rights = lab_cat(tz, [x1])
+  top = max(1, reduce(counts, 0, fn(a: Int, c: Int) -> Int do max(a, c) end))
+  yn = pl_nice(0.0, lab_f(top), 10.0)
+  y = lab_scale_of("lin", elem(yn, 0), elem(yn, 1), pl_affine(elem(yn, 0), elem(yn, 1), lab_f(h - LAB_BOTTOM), lab_f(LAB_TOP)), lab_f(h - LAB_BOTTOM), lab_f(LAB_TOP))
+  under = lab_axes(x, y, xa, nil, "count", w, h, dpr)
+  base_y = lab_f(h - LAB_BOTTOM)
+  bins = map(range(0, m), fn(i: Int) -> Map do
+    a = elem(lefts, i)
+    b = elem(rights, i)
+    %{x0: a, x1: b, n: elem(counts, i), left: lab_at(x, a), right: lab_at(x, b), top: lab_at(y, elem(counts, i))}
+  end)
+  bars = filter(map(bins, fn(b: Map) -> List do
+    [b.left + 1.0, b.top, lab_greater(1.0, b.right - b.left - 2.0), base_y - b.top]
+  end), fn(r: List) -> Bool do elem(r, 3) > 0.0 end)
+  outline = join(map(bars, fn(r: List) -> String do lab_bar_path(elem(r, 0), elem(r, 1), elem(r, 2), elem(r, 3)) end), "")
+  over = [
+    el("div", %{class: "plab-bars", style: concat("clip-path: path('", outline, "');")}),
+    el("svg", %{width: to_string(w), height: to_string(h)},
+      el("path", %{d: outline, fill: "none", stroke: "#000080", "stroke-width": "0.75"}))]
+  legend = [el("span", %{}, "distribution of ", el("b", %{}, xa.label))]
+  %{ops: "", under: under, over: over, legend: legend, px: [], py: [], rows: rows, bins: bins, xa: xa}
+end
+
+# The bars as the hook painted them: the Windows 95 dither (a 4px tile of
+# #1084d0 with two #000080 2px squares, laid from the chart's corner) in a
+# rectangle with its top corners rounded 2px, stroked 0.75px #000080.
+# SVG would fill with a <pattern>, which el() does not make, and draw()
+# ops would take a rect per 2px square. So the dither is the background of
+# one div the size of the chart (.plab-bars in assets/phish_lab.css),
+# clipped to the bars' outline, and the outline is stroked by an SVG path
+# over it: the tile stays on the chart's pixel grid, as the canvas
+# pattern did.
+def lab_bar_path(x: Float, y: Float, w: Float, h: Float) -> String do
+  r = lab_lesser(2.0, lab_lesser(w / 2.0, h))
+  join(["M", lab_n(x), ",", lab_n(y + h), "V", lab_n(y + r),
+    "A", lab_n(r), ",", lab_n(r), ",0,0,1,", lab_n(x + r), ",", lab_n(y),
+    "H", lab_n(x + w - r),
+    "A", lab_n(r), ",", lab_n(r), ",0,0,1,", lab_n(x + w), ",", lab_n(y + r),
+    "V", lab_n(y + h), "Z"], "")
+end
+
+# The hook's drawAxes: grid lines at the y ticks, d3.axisBottom and
+# d3.axisLeft as they build their groups, and the two axis titles.
+def lab_axes(x: Map, y: Map, xa: Map, ya: Any, y_label: String, w: Int, h: Int, dpr: Float) -> List do
+  off = case dpr > 1.0 do
+    true -> 0.0
+    false -> 0.5
+  end
+  xcount = pl_x_count(w)
+  xt = lab_scale_ticks(x, xcount)
+  xl = lab_labels(x, xa.fmt, xt, 10)
+  yt = lab_scale_ticks(y, 6)
+  yfmt = case ya do
+    nil -> "num"
+    _ -> ya.fmt
+  end
+  # a histogram's count axis kept d3's own format, at the axis's 6 ticks
+  yl = case ya do
+    nil -> lab_labels(y, "num", yt, 6)
+    _ -> lab_labels(y, yfmt, yt, 10)
+  end
+  grid = el("g", %{}, map(yt, fn(t: Any) -> Any do
+    p = lab_n(lab_at(y, t))
+    el("line", %{x1: to_string(LAB_LEFT), x2: to_string(w - LAB_RIGHT), y1: p, y2: p, stroke: "#e4e4e4"})
+  end))
+  xr0 = lab_n(x.r0 + off)
+  xr1 = lab_n(x.r1 + off)
+  gx = el("g", %{transform: concat("translate(0,", to_string(h - LAB_BOTTOM), ")"), fill: "none", "font-size": "10", "font-family": "sans-serif", "text-anchor": "middle"},
+    el("path", %{class: "domain", stroke: "#888", d: concat("M", xr0, ",6V", lab_n(off), "H", xr1, "V6")}),
+    map(zip(xt, xl), fn(p: Any) -> Any do
+      el("g", %{class: "tick", opacity: "1", transform: concat("translate(", lab_n(lab_at(x, elem(p, 0)) + off), ",0)")},
+        el("line", %{stroke: "#888", y2: "6"}),
+        el("text", %{fill: "#333", y: "9", dy: "0.71em", style: "font-size: 10px; fill: rgb(51, 51, 51);"}, elem(p, 1)))
+    end))
+  yr0 = lab_n(y.r0 + off)
+  yr1 = lab_n(y.r1 + off)
+  gy = el("g", %{transform: concat("translate(", to_string(LAB_LEFT), ",0)"), fill: "none", "font-size": "10", "font-family": "sans-serif", "text-anchor": "end"},
+    el("path", %{class: "domain", stroke: "#888", d: concat("M-6,", yr0, "H", lab_n(off), "V", yr1, "H-6")}),
+    map(zip(yt, yl), fn(p: Any) -> Any do
+      el("g", %{class: "tick", opacity: "1", transform: concat("translate(0,", lab_n(lab_at(y, elem(p, 0)) + off), ")")},
+        el("line", %{stroke: "#888", x2: "-6"}),
+        el("text", %{fill: "#333", x: "-9", dy: "0.32em", style: "font-size: 10px; fill: rgb(51, 51, 51);"}, elem(p, 1)))
+    end))
+  mid_x = lab_n(LAB_LEFT + (w - LAB_LEFT - LAB_RIGHT) / 2.0)
+  mid_y = lab_n(LAB_TOP + (h - LAB_TOP - LAB_BOTTOM) / 2.0)
+  [grid, gx, gy,
+    el("text", %{x: mid_x, y: to_string(h - 8), "text-anchor": "middle", style: "font-size: 10px; fill: rgb(0, 0, 0);"}, xa.label),
+    el("text", %{transform: concat("translate(12,", mid_y, ") rotate(-90)"), "text-anchor": "middle", style: "font-size: 10px; fill: rgb(0, 0, 0);"}, y_label)]
+end
+
+# ── the pointer (the hook's onMove and pick) ─────────────────────────────
+
+# What phish_lab.js searches under the pointer: every point's place, or
+# every bar's box, in CSS pixels, in plotted order. The search is the
+# script's (the hook's quadtree.find(x, y, 14), and its walk over the
+# bins): every send to this program ends in a copy of its whole heap,
+# which with the performances loaded is 30 ms, so a send per mouse move
+# cannot keep up with a mouse. The script sends only when what is under
+# the pointer changes, and asks for its tooltip (:tip) or opens it (:pick).
+def lab_targets(chart: Any, cfg: Map) -> Any do
+  case chart do
+    nil -> nil
+    _ ->
+      case cfg.chart == "hist" do
+        true -> %{kind: "bins", serial: chart.serial, boxes: map(chart.bins, fn(b: Map) -> List do [b.left, b.right, b.top, lab_f(chart.h - LAB_BOTTOM)] end)}
+        false -> %{kind: "points", serial: chart.serial, x: chart.px, y: chart.py}
+      end
+  end
+end
+
+# The tooltip for point (or bar) i: %{t: title, l: lines}, or nil.
+def lab_tip(chart: Any, cfg: Map, i: Int) -> Any do
+  case chart do
+    nil -> nil
+    _ ->
+      case cfg.chart == "hist" do
+        true ->
+          b = elem(chart.bins, i)
+          f = chart.xa.fmt
+          %{t: concat(lab_fmt(b.x0, f), " – ", lab_fmt(b.x1, f)), l: [concat(to_string(b.n), " in bin")]}
+        false ->
+          r = elem(chart.rows, i)
+          xa = chart.xa
+          ya = chart.ya
+          ca = chart.ca
+          sa = chart.sa
+          lines = [concat(xa.label, ": ", lab_fmt(lab_value(r, xa), xa.fmt)), concat(ya.label, ": ", lab_fmt(lab_value(r, ya), ya.fmt))]
+          cl = case ca.key == "none" or ca.key == "era" do
+            true -> []
+            false -> [concat(ca.label, ": ", lab_fmt(lab_value(r, ca), ca.fmt))]
+          end
+          sl = case sa.key == "none" or sa.key == ca.key do
+            true -> []
+            false -> [concat(sa.label, ": ", lab_fmt(lab_value(r, sa), sa.fmt))]
+          end
+          %{t: lab_title_of(r, cfg.ds), l: lab_cat(lines, lab_cat(cl, sl))}
+      end
+  end
+end
+
+# ── the inspector (PhishLabLive.inspect_rows/2 and friends) ─────────────
+
+def lab_inspect_rows(item: Map, kind: String) -> List do
+  ids = case kind do
+    "shows" -> [["Venue", lab_str(lookup(item, "venue"))], ["Location", lab_str(lookup(item, "loc"))], ["Tour", lab_str(lookup(item, "tour"))], ["Era", lab_str(lookup(item, "era"))]]
+    "songs" -> [["Song", lab_str(lookup(item, "s"))]]
+    "perfs" -> [["Song", lab_str(lookup(item, "s"))], ["Set", lab_str(lookup(item, "set"))]]
+    _ -> []
+  end
+  ms = filter(pl_base_metrics(kind), fn(m: List) -> Bool do lookup(item, elem(m, 0)) != nil end)
+  metrics = map(ms, fn(m: List) -> List do [elem(m, 1), lab_ex(lookup(item, elem(m, 0)), elem(m, 2))] end)
+  extra = case kind do
+    "shows" -> [["Longest song", concat(lab_str(lookup(item, "max_song_t")), " (", lab_ex(lookup(item, "max_song"), "sec"), ")")]]
+    "songs" ->
+      from = lookup(item, "maxgap_from")
+      gap = case from do
+        nil -> []
+        _ -> [["Shelf gap", concat(to_string(from), " → ", lab_str(lookup(item, "maxgap_to")))]]
+      end
+      [["Longest version", concat(lab_ex(lookup(item, "max"), "sec"), " on ", lab_str(lookup(item, "max_d")))] | gap]
+    _ -> []
+  end
+  lab_cat(ids, lab_cat(metrics, extra))
+end
+
+def lab_inspect_title(item: Any, kind: String) -> String do
+  case item do
+    nil -> "no selection"
+    _ ->
+      case kind do
+        "shows" -> concat(lab_str(lookup(item, "d")), " — ", lab_str(lookup(item, "venue")))
+        "songs" -> lab_str(lookup(item, "s"))
+        _ -> concat(lab_str(lookup(item, "s")), " — ", lab_str(lookup(item, "d")))
+      end
+  end
+end
+
+# The eight highest PJJ scores, highest first; ties in name order, as
+# Enum.sort_by over an Elixir map's (sorted) entries left them.
+def lab_style_bars(item: Any) -> List do
+  styles = case item do
+    nil -> nil
+    _ -> lookup(item, "styles")
+  end
+  case styles do
+    nil -> []
+    _ ->
+      names = sort(map(keys(styles), fn(k: Any) -> String do to_string(k) end))
+      scored = map(names, fn(s: String) -> List do [s, lab_f(lookup(styles, s))] end)
+      ranked = sort_by_keys(scored, map(scored, fn(p: List) -> Float do 0.0 - elem(p, 1) end))
+      lab_take(ranked, 8)
+  end
+end
+
+def lab_take(xs: List, n: Int) -> List do
+  case n <= 0 or xs == [] do
+    true -> []
+    false -> [head(xs) | lab_take(tail(xs), n - 1)]
+  end
+end
+
+# ── the actor ───────────────────────────────────────────────────────────
+
+LAB_START = %{ds: "shows", chart: "scatter", x: "d", y: "avg_song", color: "era", size: "none", logx: false, logy: false}
+
+actor Lab do
+  state main: Any :: nil
+  state perfs: Any :: nil
+  state problem: String :: ""
+  state cfg: Map :: LAB_START
+  state highlight: Any :: nil
+  state hidden: List :: []
+  state lb: String :: "perfs_outliers"
+  state insp: Any :: nil
+  state insp_kind: String :: ""
+  state width: Int :: 0
+  state dpr: Float :: 1.0
+  state chart: Any :: nil
+
+  on :main_loaded(status: Int, body: String) do
+    decoded = json_decode(body)
+    case status == 200 and elem(decoded, 0) == :ok do
+      false ->
+        become problem: "The lab's data could not be loaded."
+        reply :error
+      true ->
+        m0 = elem(decoded, 1)
+        m = put(put(m0, :shows, lab_prepare(m0.shows, ["d"])), :songs, lab_prepare(m0.songs, ["first", "last"]))
+        become main: m, chart: lab_redraw(m, perfs, cfg, hidden, highlight, width, dpr)
+        reply :ok
+    end
+  end
+
+  on :perfs_loaded(status: Int, body: String) do
+    decoded = json_decode(body)
+    case status == 200 and elem(decoded, 0) == :ok do
+      false ->
+        become problem: "The performances could not be loaded."
+        reply :error
+      true ->
+        p = lab_prepare(elem(decoded, 1).perfs, ["d"])
+        become perfs: p, chart: lab_redraw(main, p, cfg, hidden, highlight, width, dpr)
+        reply :ok
+    end
+  end
+
+  # The chart's box, from phish_lab.js: its width in CSS pixels, and the
+  # screen's pixels per CSS pixel (in hundredths).
+  on :resize(w: Int, d: Int) do
+    ratio = lab_greater(1.0, d / 100.0)
+    become width: w, dpr: ratio, chart: lab_redraw(main, perfs, cfg, hidden, highlight, w, ratio)
+    reply :ok
+  end
+
+  # One of the form's fields changed: PhishLabLive's "set-config".
+  on :set_ds(v: String) do
+    c1 = lab_config(cfg, "ds", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_chart(v: String) do
+    c1 = lab_config(cfg, "chart", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_x(v: String) do
+    c1 = lab_config(cfg, "x", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_y(v: String) do
+    c1 = lab_config(cfg, "y", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_color(v: String) do
+    c1 = lab_config(cfg, "color", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_size(v: String) do
+    c1 = lab_config(cfg, "size", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_logx(v: Bool) do
+    c1 = lab_config(cfg, "logx", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :set_logy(v: Bool) do
+    c1 = lab_config(cfg, "logy", v)
+    become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+    reply :ok
+  end
+
+  on :preset(name: String) do
+    p = pl_preset(name)
+    case p do
+      [] -> reply :ok
+      _ ->
+        c1 = put(put(put(put(put(put(cfg, :ds, elem(p, 0)), :x, elem(p, 1)), :y, elem(p, 2)), :color, elem(p, 3)), :size, elem(p, 4)), :chart, "scatter")
+        become cfg: c1, highlight: nil, hidden: [], chart: lab_redraw(main, perfs, c1, [], nil, width, dpr)
+        reply :ok
+    end
+  end
+
+  on :set_lb(v: String) do
+    become lb: v
+    reply :ok
+  end
+
+  # "lb-jump": the leaderboard's chart, with the entry ringed.
+  on :jump(i: Int) do
+    entry = elem(lab_entries(main, lb), i)
+    p = pl_board_preset(lb)
+    style = lookup(entry, "style")
+    x = case lb == "style_definers" and style != nil do
+      true -> concat("style:", style)
+      false -> elem(p, 1)
+    end
+    c1 = put(put(put(put(cfg, :ds, elem(p, 0)), :x, x), :y, elem(p, 2)), :chart, "scatter")
+    hl = %{d: lookup(entry, "d"), s: lookup(entry, "s")}
+    become cfg: c1, highlight: hl, hidden: [], chart: lab_redraw(main, perfs, c1, [], hl, width, dpr)
+    reply :ok
+  end
+
+  on :toggle_era(era: String) do
+    h1 = case contains_era(hidden, era) do
+      true -> filter(hidden, fn(e: String) -> Bool do e != era end)
+      false -> [era | hidden]
+    end
+    become hidden: h1, chart: lab_redraw(main, perfs, cfg, h1, highlight, width, dpr)
+    reply :ok
+  end
+
+  # For phish_lab.js: what can be pointed at, and a tooltip. Neither
+  # changes anything, so neither is followed by :view.
+  on :targets do
+    reply lab_targets(chart, cfg)
+  end
+
+  on :tip(serial: Int, i: Int) do
+    case chart == nil or chart.serial != serial do
+      true -> reply nil
+      false -> reply lab_tip(chart, cfg, i)
+    end
+  end
+
+  # A click on point i opens its file.
+  on :pick(serial: Int, i: Int) do
+    case chart == nil or cfg.chart == "hist" or chart.serial != serial do
+      true -> reply :ok
+      false ->
+        become insp: elem(chart.rows, i), insp_kind: cfg.ds
+        reply :ok
+    end
+  end
+
+  on :close_inspect do
+    become insp: nil, insp_kind: ""
+    reply :ok
+  end
+
+  on :state do
+    reply %{cfg: cfg, lb: lb, hidden: hidden, highlight: highlight, width: width, status: lab_status(chart), inspecting: lab_inspect_title(insp, insp_kind)}
+  end
+
+  on :view do
+    reply lab_page(main, problem, cfg, lb, insp, insp_kind, hidden, chart, lab_asks(main, perfs, problem, cfg))
+  end
+end
+
+# PhishLabLive's "set-config": the form's fields, one of them changed. A
+# new dataset resets the axes (reset_axes/1). The form sent log Y only while
+# it had that box, so a change made while the chart is a histogram turns
+# log Y off -- which the LiveView did, by reading the absent box as false.
+def lab_config(cfg: Map, field: String, v: Any) -> Map do
+  logy = case cfg.chart == "hist" do
+    true -> false
+    false -> cfg.logy
+  end
+  c1 = put(put(cfg, :logy, logy), to_atom(field), v)
+  case field == "ds" and v != cfg.ds do
+    false -> c1
+    true ->
+      axes = pl_reset_axes(v)
+      put(put(put(put(c1, :x, elem(axes, 0)), :y, elem(axes, 1)), :color, elem(axes, 2)), :size, elem(axes, 3))
+  end
+end
+
+def lab_status(chart: Any) -> String do
+  case chart do
+    nil -> "loading…"
+    _ -> chart.status
+  end
+end
+
+# The chart for the data at hand, or nil until there is data and a width.
+def lab_redraw(main: Any, perfs: Any, cfg: Map, hidden: List, highlight: Any, width: Int, dpr: Float) -> Any do
+  rows = case cfg.ds do
+    "perfs" -> perfs
+    "songs" -> case main do
+      nil -> nil
+      _ -> main.songs
+    end
+    _ -> case main do
+      nil -> nil
+      _ -> main.shows
+    end
+  end
+  case rows == nil or width <= 0 do
+    true -> nil
+    false -> lab_chart(rows, cfg, hidden, highlight, width, dpr)
+  end
+end
+
+def lab_asks(main: Any, perfs: Any, problem: String, cfg: Map) -> List do
+  a = case main == nil and problem == "" do
+    true -> [fetch("/phish_lab/lab.json", :main_loaded)]
+    false -> []
+  end
+  b = case cfg.ds == "perfs" and perfs == nil and problem == "" do
+    true -> [fetch("/phish_lab/perfs.json", :perfs_loaded)]
+    false -> []
+  end
+  lab_cat(a, b)
+end
+
+def lab_entries(main: Any, lb: String) -> List do
+  case main do
+    nil -> []
+    _ ->
+      board = lookup(main.leaderboards, lb)
+      case board do
+        nil -> []
+        _ -> board.entries
+      end
+  end
+end
+
+# ── the page (phish_lab_live.html.heex) ─────────────────────────────────
+
+def lab_page(main: Any, problem: String, cfg: Map, lb: String, insp: Any, insp_kind: String, hidden: List, chart: Any, effects: List) -> Any do
+  meta = case main do
+    nil -> %{}
+    _ -> main.meta
+  end
+  el("div", %{id: "phish-lab", class: "os-desktop-win95"},
+    el("div", %{class: "plab-desk"},
+      lab_accessory(meta, problem),
+      lab_main_window(meta, cfg, hidden, chart),
+      el("div", %{class: "plab-side"},
+        lab_board_window(main, lb),
+        lab_inspector(insp, insp_kind))),
+    effects)
+end
+
+def lab_meta(meta: Map, k: String) -> String do
+  lab_str(lookup(meta, k))
+end
+
+def lab_range(meta: Map) -> String do
+  concat(lab_meta(meta, "date_min"), " → ", lab_meta(meta, "date_max"))
+end
+
+def lab_accessory(meta: Map, problem: String) -> Any do
+  text = case problem do
+    "" -> el("span", %{},
+      el("b", %{}, lab_meta(meta, "n_perfs")), " song performances across ", el("b", %{}, lab_meta(meta, "n_shows")),
+      concat(" shows (", lab_range(meta), "), scored against "), el("b", %{}, lab_meta(meta, "n_jams")),
+      " jams from the phishjustjams scorecard. Plot anything against anything. Find the versions that should not statistically exist.")
+    _ -> el("span", %{}, problem)
+  end
+  el("div", %{class: "os-window os-window-mac plab-accessory"},
+    el("div", %{class: "os-titlebar"},
+      el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close", "aria-label": "Close and go home"})),
+      el("span", %{class: "os-titlebar-title"}, "About This Laboratory"),
+      el("div", %{class: "os-titlebar-spacer"})),
+    el("div", %{class: "plab-accessory-body"},
+      el("span", %{class: "plab-accessory-glyph"}, "🔬"),
+      text))
+end
+
+def lab_options(pairs: List, current: String) -> List do
+  map(pairs, fn(p: List) -> Any do el("option", %{value: elem(p, 0), selected: elem(p, 0) == current}, elem(p, 1)) end)
+end
+
+def lab_metric_options(ds: String) -> List do
+  map(lab_metrics(ds), fn(m: List) -> List do [elem(m, 0), elem(m, 1)] end)
+end
+
+def lab_color_options(ds: String) -> List do
+  era = case ds == "shows" or ds == "perfs" do
+    true -> [["era", "Era (1.0–4.0)"]]
+    false -> []
+  end
+  lab_cat([["none", "— none —"]], lab_cat(era, lab_metric_options(ds)))
+end
+
+def lab_size_options(ds: String) -> List do
+  numeric = filter(lab_metrics(ds), fn(m: List) -> Bool do elem(m, 2) != "date" end)
+  [["none", "— uniform —"] | map(numeric, fn(m: List) -> List do [elem(m, 0), elem(m, 1)] end)]
+end
+
+# A select whose options depend on the dataset gets an id that does too:
+# a new element, so the browser shows the value it is given rather than
+# the one the visitor last picked from a different list.
+def lab_select(id: String, label: String, sends: Atom, current: String, pairs: List) -> Any do
+  el("div", %{class: "plab-field"},
+    el("label", %{"for": id}, label),
+    el("select", %{id: id, name: id, change: sends, value: current}, lab_options(pairs, current)))
+end
+
+def lab_main_window(meta: Map, cfg: Map, hidden: List, chart: Any) -> Any do
+  ds = cfg.ds
+  scatter = cfg.chart == "scatter"
+  always = [
+    lab_select("plab-ds", "Dataset", :set_ds, ds, pl_datasets),
+    lab_select("plab-chart-type", "Chart", :set_chart, cfg.chart, [["scatter", "Scatter"], ["hist", "Histogram"]]),
+    lab_select(concat("plab-x-", ds), "X axis", :set_x, cfg.x, lab_metric_options(ds))]
+  more = case scatter do
+      true -> [
+        lab_select(concat("plab-y-", ds), "Y axis", :set_y, cfg.y, lab_metric_options(ds)),
+        lab_select(concat("plab-color-", ds), "Color by", :set_color, cfg.color, lab_color_options(ds)),
+        lab_select(concat("plab-size-", ds), "Size by", :set_size, cfg.size, lab_size_options(ds))]
+      false -> []
+    end
+  fields = lab_cat(always, more)
+  logy = case scatter do
+    true -> [el("label", %{}, el("input", %{type: "checkbox", name: "logy", value: "true", checked: cfg.logy, change: :set_logy}), " log Y")]
+    false -> []
+  end
+  logs = el("div", %{class: "plab-field plab-logs"},
+    el("label", %{}, el("input", %{type: "checkbox", name: "logx", value: "true", checked: cfg.logx, change: :set_logx}), " log X"),
+    logy)
+  el("div", %{class: "os-window os-window-win95 plab-main"},
+    el("div", %{class: "os-titlebar"},
+      el("span", %{class: "os-titlebar-title"}, "🔬 Phish Lab — C:\\PHISH\\LAB\\CHART-O-MATIC.EXE"),
+      el("div", %{class: "os-titlebar-buttons"},
+        el("div", %{class: "os-btn", "aria-hidden": "true"}, "_"),
+        el("div", %{class: "os-btn", "aria-hidden": "true"}, "□"),
+        el("a", %{href: "/", class: "os-btn", "aria-label": "Close and go home"}, "✕"))),
+    el("div", %{class: "os-menubar"},
+      el("span", %{}, "File"), el("span", %{}, "Edit"), el("span", %{}, "View"), el("span", %{}, "Plot"), el("span", %{}, "Lab"), el("span", %{}, "Help")),
+    el("div", %{class: "plab-content"},
+      el("div", %{class: "plab-infobar"},
+        "Pick a dataset and two metrics; every point is a show, a song, or a single performance. Click any point to open its file. Click a leaderboard entry to jump straight to that anomaly."),
+      el("div", %{class: "plab-presets", role: "group", "aria-label": "Preset charts"},
+        map(pl_presets, fn(p: List) -> Any do
+          el("button", %{type: "button", class: "plab-btn", click: :preset, with: elem(p, 0)}, elem(p, 1))
+        end)),
+      el("form", %{},
+        el("div", %{class: "plab-controls"}, lab_cat(fields, [logs]))),
+      el("div", %{class: "plab-chart-well"},
+        el("div", %{id: "plab-chart"}, lab_stage(chart), lab_legend(chart, hidden)))),
+    el("div", %{class: "os-statusbar"},
+      el("span", %{class: "os-statusbar-section", id: "plab-status-n"}, lab_status(chart)),
+      el("span", %{class: "os-statusbar-section"}, concat(lab_meta(meta, "n_shows"), " shows · ", lab_range(meta))),
+      el("span", %{class: "os-statusbar-section"}, "scorecard: phishjustjams.com")))
+end
+
+# The stage always has the same three children, so the canvas the points
+# are painted on is patched, not replaced, from one chart to the next.
+def lab_stage(chart: Any) -> Any do
+  case chart do
+    nil -> el("div", %{class: "plab-stage"},
+      el("svg", %{class: "plab-axes", width: "0", height: "0"}),
+      draw(1, 1, ""),
+      el("div", %{class: "plab-over"}))
+    _ ->
+      w = to_string(chart.w)
+      h = to_string(chart.h)
+      el("div", %{class: "plab-stage", style: concat("height: ", h, "px;"), "data-serial": to_string(chart.serial)},
+        el("svg", %{class: "plab-axes", width: w, height: h, style: "font-family: \"MS Sans Serif\", Tahoma, sans-serif;"}, chart.under),
+        draw(max(1, round(chart.w * lab_dpr_of(chart))), max(1, round(chart.h * lab_dpr_of(chart))), chart.ops),
+        lab_over(chart, w, h))
+  end
+end
+
+# Over the points: the highlight rings (SVG), or a histogram's bars (divs).
+def lab_over(chart: Map, w: String, h: String) -> Any do
+  case chart.bins do
+    [] -> el("div", %{class: "plab-over"}, el("svg", %{width: w, height: h}, chart.over))
+    _ -> el("div", %{class: "plab-over"}, chart.over)
+  end
+end
+
+def lab_dpr_of(chart: Map) -> Float do
+  lookup(chart, "dpr")
+end
+
+def lab_legend(chart: Any, hidden: List) -> Any do
+  items = case chart do
+    nil -> []
+    _ -> flat(map(chart.legend, fn(x: Any) -> List do
+      case x == :era_chips do
+        true -> map(LAB_ERAS, fn(era: String) -> Any do
+          off = case contains_era(hidden, era) do
+            true -> "1"
+            false -> ""
+          end
+          el("button", %{type: "button", class: "plab-legend-chip", "data-off": off, title: concat("toggle era ", era), click: :toggle_era, with: era},
+            el("span", %{class: "plab-legend-swatch", style: concat("background:", lab_era_color(era))}), era)
+        end)
+        false -> [x]
+      end
+    end))
+  end
+  el("div", %{class: "plab-legend"}, items)
+end
+
+def lab_board_window(main: Any, lb: String) -> Any do
+  boards = case main do
+    nil -> %{}
+    _ -> main.leaderboards
+  end
+  opts = map(filter(pl_board_order, fn(k: String) -> Bool do lookup(boards, k) != nil end), fn(k: String) -> List do [k, lookup(boards, k).title] end)
+  entries = lab_entries(main, lb)
+  rows = map(zip(range(0, length(entries) - 1), entries), fn(p: Any) -> Any do
+    i = elem(p, 0)
+    e = elem(p, 1)
+    style = lookup(e, "style")
+    label = case style do
+      nil -> lab_str(lookup(e, "label"))
+      _ -> concat(style, ": ", lab_str(lookup(e, "s")))
+    end
+    d = lookup(e, "detail")
+    detail = case d do
+      nil -> []
+      _ -> [el("span", %{class: "plab-lb-detail"}, d)]
+    end
+    el("button", %{type: "button", class: "plab-lb-row", click: :jump, with: i},
+      el("span", %{class: "plab-lb-rank"}, concat(to_string(i + 1), ".")),
+      el("span", %{class: "plab-lb-label"}, label, detail),
+      el("span", %{class: "plab-lb-val"}, lab_str(lookup(e, "value"))))
+  end)
+  el("div", %{class: "os-window os-window-win95"},
+    el("div", %{class: "os-titlebar"},
+      el("span", %{class: "os-titlebar-title"}, "⚠ ANOMALY.LOG"),
+      el("div", %{class: "os-titlebar-buttons"},
+        el("div", %{class: "os-btn", "aria-hidden": "true"}, "_"),
+        el("div", %{class: "os-btn", "aria-hidden": "true"}, "□"),
+        el("div", %{class: "os-btn", "aria-hidden": "true"}, "✕"))),
+    el("div", %{class: "plab-content"},
+      el("form", %{},
+        el("select", %{class: "plab-lb-select", name: "lb", "aria-label": "Pick a leaderboard", change: :set_lb, value: lb}, lab_options(opts, lb))),
+      el("div", %{class: "plab-lb-list"}, rows)))
+end
+
+def lab_inspector(insp: Any, kind: String) -> Any do
+  close = case insp do
+    nil -> []
+    _ -> [el("button", %{type: "button", class: "os-btn-close", click: :close_inspect, "aria-label": "Clear selection"})]
+  end
+  body = case insp do
+    nil -> el("div", %{class: "plab-inspector-empty"}, "Click a point on the chart —", el("br", %{}), "its lab file opens here.")
+    _ ->
+      bars = lab_style_bars(insp)
+      card = case bars do
+        [] -> []
+        _ -> [el("div", %{class: "plab-scorecard"},
+          el("div", %{class: "plab-scorecard-title"}, "PJJ SCORECARD"),
+          map(bars, fn(b: List) -> Any do
+            score = elem(b, 1)
+            el("div", %{class: "plab-score-row"},
+              el("span", %{}, elem(b, 0)),
+              el("span", %{class: "plab-score-track"},
+                el("span", %{class: "plab-score-fill", style: concat("display:block;width:", to_string(pl_score_width(score)), "%")})),
+              el("span", %{class: "plab-score-num"}, pl_score(score)))
+          end))]
+      end
+      date = lookup(insp, "d")
+      links = case date do
+        nil -> []
+        _ -> [
+          el("a", %{href: concat("https://phish.in/", date), target: "_blank", rel: "noopener"}, "listen on phish.in →"),
+          el("a", %{href: concat("https://phish.net/setlists/?d=", date), target: "_blank", rel: "noopener"}, "setlist on phish.net →")]
+      end
+      el("div", %{class: "plab-inspector-body"},
+        el("table", %{class: "plab-prop-table"},
+          el("tbody", %{}, map(lab_inspect_rows(insp, kind), fn(r: List) -> Any do
+            el("tr", %{}, el("td", %{}, elem(r, 0)), el("td", %{}, elem(r, 1)))
+          end))),
+        card,
+        el("div", %{class: "plab-inspector-links"}, links))
+  end
+  el("div", %{class: "os-window os-window-mac"},
+    el("div", %{class: "os-titlebar"},
+      el("div", %{class: "os-titlebar-buttons"}, close),
+      el("span", %{class: "os-titlebar-title"}, lab_inspect_title(insp, kind)),
+      el("div", %{class: "os-titlebar-spacer"})),
+    body)
+end
+
+lab = spawn Lab
+lab <- :view

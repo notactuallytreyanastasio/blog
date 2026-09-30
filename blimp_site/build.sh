@@ -111,6 +111,9 @@ if [ ! -f _build/sky_points.json.gz ] || [ -n "$(find static/sky/build_points.bl
   gzip -9 -n -f _build/sky_points.json
 fi
 with_temper _build/sky.blimp static/sky/sky.blimp
+# Phish Lab: scales, ticks, bins, colours and number formats are Temper
+# (temper/src/phish_lab), the chart's loops, actor and view Blimp.
+with_temper _build/phish_lab.blimp static/phish_lab/phish_lab.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
