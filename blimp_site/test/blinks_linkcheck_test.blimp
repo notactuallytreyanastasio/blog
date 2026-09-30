@@ -1,0 +1,103 @@
+# The dead-link sentinel (src/99_blinkscheck.blimp, temper/src/blinks_check).
+# The record_result/2 cases are LinkCheck's own tests
+# (test/blog_web/live/blinks_live_test.exs), as the values the UPDATE gets.
+# The actor runs with stand-ins for http_start/http_result and no database:
+# a sweep needs the due blinks from Postgres, so what is driven here is the
+# part before that (the schedule) and the verdicts and the discard rule
+# on their own; the whole sweep was run against Phoenix's (see the PR).
+
+actor FakeChecks do
+  state started: List :: []
+  state answers: Map :: %{}
+
+  on :start(u: String, o: Map) do
+    h = length(started)
+    become started: list_append(started, [%{url: u, opts: o}])
+    reply h
+  end
+
+  on :answer(h: Int, r: Any) do
+    become answers: put(answers, to_string(h), r)
+    reply :ok
+  end
+
+  on :result(h: Int) do
+    reply lookup(answers, to_string(h))
+  end
+
+  on :started do
+    reply started
+  end
+end
+
+actor BlinksLinkCheckTests do
+  test "check_url/1: below 400 is ok, 404 and 410 dead, anything else unknown; no such host is dead" do
+    assert_eq(blc_verdict("https://a.com", {:ok, 200, ""}), "ok")
+    assert_eq(blc_verdict("https://a.com", {:ok, 304, ""}), "ok")
+    assert_eq(blc_verdict("https://a.com", {:ok, 404, ""}), "dead")
+    assert_eq(blc_verdict("https://a.com", {:ok, 410, ""}), "dead")
+    assert_eq(blc_verdict("https://a.com", {:ok, 403, ""}), "unknown")
+    assert_eq(blc_verdict("https://a.com", {:ok, 429, ""}), "unknown")
+    assert_eq(blc_verdict("https://a.com", {:ok, 503, ""}), "unknown")
+    assert_eq(blc_verdict("https://a.com", {:error, "UnknownHostName"}), "dead")
+    assert_eq(blc_verdict("https://a.com", {:error, "timeout"}), "unknown")
+    assert_eq(blc_verdict("https://a.com", {:error, "TooManyHttpRedirects"}), "unknown")
+    assert_eq(blc_verdict("https://a.com", {:error, "ResponseTooLarge"}), "unknown")
+    # an http:// redirect is not followed (it panics the interpreter), so
+    # where it goes was not looked at
+    assert_eq(blc_verdict("http://a.com", {:ok, 301, ""}), "unknown")
+    assert_eq(blc_verdict("http://a.com", {:ok, 200, ""}), "ok")
+  end
+
+  test "a sweep of 5 or more where over 30% failed is thrown away" do
+    assert_eq(blc_discard(4, 4), false)
+    assert_eq(blc_discard(5, 1), false)
+    assert_eq(blc_discard(5, 2), true)
+    assert_eq(blc_discard(10, 3), false)
+    assert_eq(blc_discard(10, 4), true)
+    assert_eq(blc_discard(163, 48), false)
+    assert_eq(blc_discard(163, 49), true)
+  end
+
+  test "dead links: one strike is forgiven, the second kills; ok clears it" do
+    assert_eq(blc_record("dead", 0), [1, 1])
+    assert_eq(blc_record("dead", 1), [2, 2])
+    assert_eq(blc_record("dead", 5), [6, 2])
+    assert_eq(blc_record("ok", 2), [0, 1])
+  end
+
+  test "a link we couldn't check is not a link that died, nor one that recovered" do
+    assert_eq(blc_record("unknown", 0), [-1, 0])
+    assert_eq(blc_record("unknown", 1), [-1, 0])
+  end
+
+  test "off unless turned on, and ten minutes after boot when it is" do
+    c = spawn BlinksLinkCheck
+    assert_eq(c <- :step, :idle)
+    c <- :config(true, now() + 600)
+    assert_eq(c <- :step, :idle)
+    assert_eq((c <- :stats).next_at >= now() + 599, true)
+    # due now, but no database: it says so and waits a day
+    c <- :config(true, 0)
+    assert_eq(c <- :step, :failed)
+    assert_eq((c <- :stats).next_at >= now() + 86399, true)
+  end
+
+  test "an url that is not http(s) is unknown without a request; the check's options are LinkCheck's" do
+    net = spawn FakeChecks
+    s = fn(m: String, u: String, h: Map, b: String, o: Map) -> Int do net <- :start(u, o) end
+    assert_eq(blc_start(s, "ftp://a.com"), -2)
+    assert_eq(blc_poll(fn(h: Int) -> Any do nil end, -2), {:error, "not an http(s) url"})
+    assert_eq(blc_start(s, "https://a.com"), 0)
+    o = head(net <- :started).opts
+    assert_eq(o.timeout_ms, 15000)
+    assert_eq(o.max_redirects, 5)
+    blc_start(s, "http://a.com")
+    assert_eq(head(tail(net <- :started)).opts.max_redirects, 0)
+  end
+
+  test "commit: a discarded sweep writes nothing" do
+    rows = map(range(1, 6), fn(i: Int) -> Tuple do {%{id: i, url: "https://a.com", fail_count: 0}, "unknown"} end)
+    assert_eq(blc_commit(rows), {0, 0})
+  end
+end

@@ -730,6 +730,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   ZG <- :step
   # saved links' pages and Bluesky threads (src/99_blinksenrich.blimp)
   BKE <- :step
+  # the daily dead-link sweep (src/99_blinkscheck.blimp)
+  BLC <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
