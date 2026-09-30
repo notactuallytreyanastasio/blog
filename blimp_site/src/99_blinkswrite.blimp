@@ -232,6 +232,12 @@ end
 
 # ---------------------------------------------------------------- SQL
 
+# This file's statements are built with Alloy in
+# temper/src/db/blinks_write.temper.md (blkw_*_q). What is left here are
+# the pieces other files still splice into their own SQL strings:
+# src/99_blinkslive.blimp, src/99_blinkspush.blimp and
+# src/99_push_devices.blimp.
+
 # String.trim/1's whitespace (temper/src/blinks_write) as a Postgres
 # literal for btrim(), UTF-8 encoded here because Temper's strings cannot be
 # built from code points on this backend. A test checks the two agree.
@@ -249,13 +255,6 @@ def blkw_norm_tags(arr: String) -> String do
     ") with ordinality u(t, o) group by 1) z where z.n <> '' order by z.o)"], "")
 end
 
-# normalize_quotes/1: trim, drop "", the first 2,000 characters, keep the
-# first of each.
-def blkw_norm_quotes(arr: String) -> String do
-  join(["array(select z.n from (select left(btrim(u.t, ", BLKW_WS_SQL, "), 2000) as n, min(u.o) as o from unnest(", arr,
-    ") with ordinality u(t, o) group by 1) z where z.n <> '' order by z.o)"], "")
-end
-
 # A JSON list parameter as text[] (the pg client sends a list as JSON).
 def blkw_text_array(param: String) -> String do
   concat("array(select jsonb_array_elements_text(", param, "::jsonb))")
@@ -265,80 +264,10 @@ end
 # would round .7 up).
 BLKW_NOW = "date_trunc('second', now() at time zone 'UTC')"
 
-# An UPDATE that Ecto would make: `o` is the row as it is to be, computed
-# from `b` (the row now); updated_at moves only if something changed, as
-# Repo.update/1 sends nothing for a changeset without changes. Answers the
-# row, or nothing when there is no such id.
-def blkw_update_sql(where: String, title: String, description: String, tags: String, quotes: String) -> String do
-  concat(join([
-    "with o as (select b.id, ", title, " as title, ", description, " as description, ", tags, " as tags, ", quotes, " as quotes",
-    " from blinks b where ", where, "),",
-    " w as (update blinks b set title = o.title, description = o.description, tags = o.tags, quotes = o.quotes,",
-    " updated_at = case when (b.title, b.description, b.tags, b.quotes) is not distinct from (o.title, o.description, o.tags, o.quotes)",
-    " then b.updated_at else ", BLKW_NOW, " end",
-    " from o where b.id = o.id returning b.*) "
-  ], ""), blk_one_sql("w"))
+# A statement built in temper/src/db/blinks_write.temper.md: [sql, params...].
+def blkw_db(q: List) -> Any do
+  DB <- :query(head(q), tail(q))
 end
-
-# save_blink/1, a new url: $1 url, $2 title, $3 description, $4 tags and
-# $5 quotes as JSON lists.
-BLKW_INSERT_SQL = concat(join([
-  "with w as (insert into blinks (url, title, description, tags, quotes, inserted_at, updated_at)",
-  " select $1::text, $2::text, $3::text, ", blkw_norm_tags(blkw_text_array("$4")), ", ", blkw_norm_quotes(blkw_text_array("$5")),
-  ", ", BLKW_NOW, ", ", BLKW_NOW, " returning *) "
-], ""), blk_one_sql("w"))
-
-BLKW_EXISTING_SQL = "select id, title, description from blinks where url = $1::text"
-
-# save_blink/1, a url already saved: $1 id, $2 "1" to keep the title,
-# $3 the title otherwise, $4 description (null: keep), $5 tags, $6 quotes.
-# The lists are the old ones followed by the new, normalized together.
-BLKW_MERGE_SQL = blkw_update_sql("b.id = $1::bigint",
-  "case when $2::text = '1' then b.title else $3::text end",
-  "coalesce($4::text, b.description)",
-  blkw_norm_tags(concat("b.tags || ", blkw_text_array("$5"))),
-  blkw_norm_quotes(concat("b.quotes || ", blkw_text_array("$6"))))
-
-# update_meta/2: $1 id, $2 "1" to keep the title, $3 title, $4 description
-# (already trimmed by String.trim/1's rule; null clears it).
-BLKW_META_SQL = blkw_update_sql("b.id = $1::bigint",
-  "case when $2::text = '1' then b.title else $3::text end",
-  "$4::text", "b.tags", "b.quotes")
-
-# add_tags/2: $1 id, $2 the new tags as a JSON list.
-BLKW_ADD_TAGS_SQL = blkw_update_sql("b.id = $1::bigint", "b.title", "b.description",
-  blkw_norm_tags(concat("b.tags || ", blkw_text_array("$2"))), "b.quotes")
-
-# remove_tag/2: List.delete/2 takes the first tag equal to $2 out, then the
-# list is normalized again.
-BLKW_REMOVE_TAG_SQL = blkw_update_sql("b.id = $1::bigint", "b.title", "b.description",
-  blkw_norm_tags("array(select u.t from unnest(b.tags) with ordinality u(t, o) where u.o is distinct from (select min(v.o) from unnest(b.tags) with ordinality v(t, o) where v.t = $2::text) order by u.o)"),
-  "b.quotes")
-
-BLKW_EXISTS_SQL = "select id from blinks where id = $1::bigint"
-
-# delete_blink/1: the blink (its comments, saves and reactions go by
-# ON DELETE CASCADE) and every message in its chat room, blink:<id>.
-BLKW_DELETE_SQL = join([
-  "with d as (delete from blinks where id = $1::bigint returning id),",
-  " m as (delete from chat_messages where room = 'blink:' || (select id from d))",
-  " select id from d"
-], "")
-
-# import_candidates/1: $1 the entries as JSON. A url that is a string
-# starting "http" and is not already a blink goes in as pending; one
-# already queued is skipped by the unique index. Titles are cut to 1,000
-# characters, folders to 200, urls to 4,096.
-BLKW_CANDIDATES_SQL = join([
-  "with i as (insert into bookmark_candidates (url, title, folder, status, inserted_at, updated_at)",
-  " select left(e.v->>'url', 4096), left(e.v->>'title', 1000), left(e.v->>'folder', 200), 'pending', ", BLKW_NOW, ", ", BLKW_NOW,
-  " from jsonb_array_elements($1::jsonb) with ordinality e(v, o)",
-  " where jsonb_typeof(e.v->'url') = 'string' and left(e.v->>'url', 4) = 'http'",
-  " and not exists (select 1 from blinks b where b.url = e.v->>'url')",
-  " order by e.o",
-  " on conflict (url) do nothing returning 1)",
-  " select count(*) as n from i"
-], "")
 
 # Blinks.broadcast/2. Open /blinks pages hear of every save, edit and
 # delete on the "blinks" room (src/99_blinkslive.blimp), in the same tick:
@@ -395,7 +324,7 @@ end
 # Phoenix looks the blink up before it validates anything, so an invalid
 # edit of a blink that is not there is a 404, not a 422.
 def blkw_unprocessable(conn: Map, id: Int) -> Map do
-  case DB <- :query(BLKW_EXISTS_SQL, [id]) do
+  case blkw_db(blkw_exists_q(id)) do
     {:error, reason} -> blkw_no_db(conn, reason)
     {:ok, rows} ->
       case rows do
@@ -439,7 +368,7 @@ def blkw_create(conn: Map) -> Map do
   end
   existing = case url_text do
     nil -> {:ok, []}
-    _ -> DB <- :query(BLKW_EXISTING_SQL, [url_text])
+    _ -> blkw_db(blkw_existing_q(url_text))
   end
   case existing do
     {:error, reason} -> blkw_no_db(conn, reason)
@@ -489,8 +418,8 @@ def blkw_insert(conn: Map, url: Any, title: Any, desc: Any, tags: Any, quotes: A
   case length(keys(errs)) > 0 do
     true -> blkw_json(conn, 422, blkw_errors_json(errs))
     false ->
-      params = [u, blkw_ok_value(title), d, blkw_ok_value(tags), blkw_ok_value(quotes)]
-      blkw_saved(conn, DB <- :query(BLKW_INSERT_SQL, params))
+      q = blkw_insert_q(u, blkw_ok_value(title), d, json_encode(blkw_ok_value(tags)), json_encode(blkw_ok_value(quotes)))
+      blkw_saved(conn, blkw_db(q))
   end
 end
 
@@ -528,8 +457,8 @@ def blkw_merge(conn: Map, row: Map, title_raw: Any, title: Any, desc: Any, tags:
         :invalid -> []
         _ -> elem(quotes, 1)
       end
-      params = [row.id, keep, blkw_ok_value(title), new_desc, new_tags, new_quotes]
-      blkw_saved(conn, DB <- :query(BLKW_MERGE_SQL, params))
+      q = blkw_merge_q(row.id, keep, blkw_ok_value(title), new_desc, json_encode(new_tags), json_encode(new_quotes))
+      blkw_saved(conn, blkw_db(q))
   end
 end
 
@@ -593,8 +522,7 @@ def blkw_update_id(conn: Map, id: Int) -> Map do
         true -> "1"
         false -> ""
       end
-      params = [id, keep, elem(title, 1), elem(desc, 1)]
-      blkw_edited(conn, DB <- :query(BLKW_META_SQL, params), :blink_updated)
+      blkw_edited(conn, blkw_db(blkw_meta_q(id, keep, elem(title, 1), elem(desc, 1))), :blink_updated)
   end
 end
 
@@ -607,7 +535,7 @@ def blkw_add_tags_id(conn: Map, id: Int) -> Map do
   tags = blkw_cast_list(blkw_wrap(blkw_or(web_param(conn, "tags"), [])))
   case tags do
     :invalid -> blkw_unprocessable(conn, id)
-    _ -> blkw_edited(conn, DB <- :query(BLKW_ADD_TAGS_SQL, [id, elem(tags, 1)]), :blink_updated)
+    _ -> blkw_edited(conn, blkw_db(blkw_add_tags_q(id, json_encode(elem(tags, 1)))), :blink_updated)
   end
 end
 
@@ -616,7 +544,7 @@ def blkw_remove_tag(conn: Map) -> Map do
 end
 
 def blkw_remove_tag_id(conn: Map, id: Int) -> Map do
-  blkw_edited(conn, DB <- :query(BLKW_REMOVE_TAG_SQL, [id, blkw_tag_param(conn)]), :blink_updated)
+  blkw_edited(conn, blkw_db(blkw_remove_tag_q(id, blkw_tag_param(conn))), :blink_updated)
 end
 
 # :tag, or nil when its bytes are not UTF-8 (/tags/%FF, /tags/ok%C3). The
@@ -639,7 +567,7 @@ def blkw_delete(conn: Map) -> Map do
 end
 
 def blkw_delete_id(conn: Map, id: Int) -> Map do
-  case DB <- :query(BLKW_DELETE_SQL, [id]) do
+  case blkw_db(blkw_delete_q(id)) do
     {:error, reason} -> blkw_no_db(conn, reason)
     {:ok, rows} ->
       case rows do
@@ -664,7 +592,7 @@ def blkw_candidates(conn: Map) -> Map do
       bad = filter(cs, fn(e: Any) -> Bool do not(blkw_candidate_ok(e)) end)
       case bad do
         [] ->
-          case DB <- :query(BLKW_CANDIDATES_SQL, [cs]) do
+          case blkw_db(blkw_candidates_q(json_encode(cs))) do
             {:error, reason} -> blkw_no_db(conn, reason)
             {:ok, rows} -> blkw_json(conn, 200, concat("{\"status\":\"ok\",\"imported\":", to_string(head(rows).n), "}"))
           end

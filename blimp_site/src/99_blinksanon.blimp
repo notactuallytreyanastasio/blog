@@ -51,8 +51,6 @@ BLKA_EMOJIS = ["❤️", "😂", "🔥", "👍", "💀", "👀"]
 # lower-cased text
 BLKA_BLOCKED = ["nigger", "nigga", "faggot", "kike", "spic", "chink", "tranny"]
 
-BLKA_NOW = "date_trunc('second', now() at time zone 'UTC')"
-
 BLKA_OK = "{\"status\":\"ok\"}"
 BLKA_NOT_FOUND = "{\"error\":\"not found\"}"
 BLKA_BAD_ID = "{\"error\":\"bad id\"}"
@@ -422,27 +420,15 @@ end
 
 # ---------------------------------------------------------------- saves
 
-# save_for_device/2: 404 for a blink that is not there, else the insert
-# (idempotent) and the count after it. The count reads the table as it was
-# before the insert (one snapshot), so the inserted row is added.
-BLKA_SAVE_SQL = join([
-  "with b as (select id from blinks where id = $1::bigint),",
-  " i as (insert into blink_saves (blink_id, device_hash, inserted_at, updated_at)",
-  " select b.id, $2::text, ", BLKA_NOW, ", ", BLKA_NOW, " from b",
-  " on conflict (blink_id, device_hash) do nothing returning 1)",
-  " select (select count(*) from b) as found,",
-  " (select count(*) from blink_saves where blink_id = $1::bigint) + (select count(*) from i) as n"
-], "")
-
-# unsave_for_device/2: no 404, the count after the delete.
-BLKA_UNSAVE_SQL = join([
-  "with d as (delete from blink_saves where blink_id = $1::bigint and device_hash = $2::text returning 1)",
-  " select (select count(*) from blink_saves where blink_id = $1::bigint) - (select count(*) from d) as n"
-], "")
-
 def blka_saved(conn: Map, n: Int) -> Map do
   blkw_json(conn, 200, concat("{\"status\":\"ok\",\"save_count\":", to_string(n), "}"))
 end
+
+# save_for_device/2: 404 for a blink that is not there, else the insert
+# (idempotent) and the count after it; unsave_for_device/2: no 404, the
+# count after the delete. The statements are blka_save_q and blka_unsave_q
+# in temper/src/db/blinks_write.temper.md, as are the
+# other statements this file owns.
 
 # with_device/3: the device id is 8 to 64 bytes and the IP is under 30
 # saves a minute, else 400 "device_id required" (the limit is folded into
@@ -458,7 +444,7 @@ end
 
 def blka_save(ctx: Map, conn: Map) -> Map do
   blka_with_device(ctx, conn, fn(id: Int, hash: String) -> Map do
-    case DB <- :query(BLKA_SAVE_SQL, [id, hash]) do
+    case blkw_db(blka_save_q(id, hash)) do
       {:error, reason} -> blkw_no_db(conn, reason)
       {:ok, rows} ->
         row = head(rows)
@@ -472,7 +458,7 @@ end
 
 def blka_unsave(ctx: Map, conn: Map) -> Map do
   blka_with_device(ctx, conn, fn(id: Int, hash: String) -> Map do
-    case DB <- :query(BLKA_UNSAVE_SQL, [id, hash]) do
+    case blkw_db(blka_unsave_q(id, hash)) do
       {:error, reason} -> blkw_no_db(conn, reason)
       {:ok, rows} -> blka_saved(conn, head(rows).n)
     end
@@ -484,14 +470,6 @@ end
 # import_candidates/1 with one entry: skipped when the url is already a
 # blink (compared whole, before the cut) or already queued (the unique
 # index). The url is cut to 4,096 graphemes and the title to 1,000.
-BLKA_SUGGEST_SQL = join([
-  "with i as (insert into bookmark_candidates (url, title, folder, status, inserted_at, updated_at)",
-  " select $1::text, $2::text, 'app-suggest', 'pending', ", BLKA_NOW, ", ", BLKA_NOW,
-  " where not exists (select 1 from blinks b where b.url = $3::text)",
-  " on conflict (url) do nothing returning 1)",
-  " select count(*) as n from i"
-], "")
-
 def blka_suggest(ctx: Map, conn: Map) -> Map do
   ip = blka_client_ip(conn)
   url = blka_param(conn, "url")
@@ -515,7 +493,7 @@ def blka_suggest(ctx: Map, conn: Map) -> Map do
                     nil -> nil
                     _ -> grapheme_take(title, 1000)
                   end
-                  case DB <- :query(BLKA_SUGGEST_SQL, [grapheme_take(url, 4096), cut_title, url]) do
+                  case blkw_db(blka_suggest_q(grapheme_take(url, 4096), cut_title, url)) do
                     {:error, reason} -> blkw_no_db(conn, reason)
                     {:ok, rows} ->
                       q = case head(rows).n == 1 do
@@ -630,22 +608,11 @@ end
 
 # duplicate?/1: the same trimmed body on the same blink in the last ten
 # minutes. Only a string body is looked for.
-BLKA_DUPLICATE_SQL = join([
-  "select count(*) as n from blink_comments where blink_id = $1::bigint and content = $2::text",
-  " and inserted_at > (now() at time zone 'UTC') - interval '600 seconds'"
-], "")
-
-BLKA_INSERT_COMMENT_SQL = join([
-  "with w as (insert into blink_comments (blink_id, author_name, content, ip_hash, report_count, inserted_at, updated_at)",
-  " values ($1::bigint, $2::text, $3::text, $4::text, 0, ", BLKA_NOW, ", ", BLKA_NOW, ") returning *)",
-  " select row_to_json(c)::text as body, c.blink_id from (select w.id, w.blink_id, w.author_name, w.content, w.inserted_at, '{}'::json as reactions from w) c"
-], "")
-
 def blka_duplicate(id: Int, content: Any) -> Any do
   case type_of(content) == :string do
     false -> {:ok, false}
     true ->
-      case DB <- :query(BLKA_DUPLICATE_SQL, [id, blkw_trim(content)]) do
+      case blkw_db(blka_duplicate_q(id, blkw_trim(content))) do
         {:error, reason} -> {:error, reason}
         {:ok, rows} -> {:ok, head(rows).n > 0}
       end
@@ -685,8 +652,7 @@ def blka_create_comment(ctx: Map, conn: Map, id: Int, ip: String) -> Map do
           message = blka_first_error(blka_field_errors(author, blka_max_author, false), blka_field_errors(content, blka_max_content, true))
           case message do
             "" ->
-              params = [id, elem(author, 1), elem(content, 1), blka_hash(ip, ctx.secret)]
-              case DB <- :query(BLKA_INSERT_COMMENT_SQL, params) do
+              case blkw_db(blka_insert_comment_q(id, elem(author, 1), elem(content, 1), blka_hash(ip, ctx.secret))) do
                 {:error, reason} ->
                   # foreign_key_constraint(:blink_id): no such blink
                   case contains(reason, "blink_comments_blink_id_fkey") do
@@ -707,19 +673,12 @@ end
 # report_comment/1: one more report; the one that reaches 3 hides it.
 # Ecto's update also moves updated_at. Every report of a hidden comment
 # broadcasts :comment_hidden again, as Phoenix does.
-BLKA_REPORT_SQL = join([
-  "update blink_comments set report_count = report_count + 1,",
-  " hidden_at = case when report_count + 1 >= $2::int and hidden_at is null then ", BLKA_NOW, " else hidden_at end,",
-  " updated_at = ", BLKA_NOW,
-  " where id = $1::bigint returning id, blink_id, (hidden_at is not null) as hidden"
-], "")
-
 def blka_report(ctx: Map, conn: Map) -> Map do
   blka_with_id(conn, "id", fn(id: Int) -> Map do
     case blka_allow(ctx, concat("comment_report:", blka_client_ip(conn)), 10, 60) do
       false -> blkw_json(conn, 429, BLKA_LIMITED)
       true ->
-        case DB <- :query(BLKA_REPORT_SQL, [id, blka_hide_at]) do
+        case blkw_db(blka_report_q(id, blka_hide_at)) do
           {:error, reason} -> blkw_no_db(conn, reason)
           {:ok, rows} ->
             case rows do
@@ -738,28 +697,7 @@ end
 
 # toggle_reaction/4. The write and the count are two statements: in one,
 # the count would read the table from before the write.
-BLKA_REACT_SQL = join([
-  "with c as (select id, blink_id from blink_comments where id = $1::bigint),",
-  " i as (insert into blink_comment_reactions (comment_id, emoji, device_hash, inserted_at, updated_at)",
-  " select c.id, $2::text, $3::text, ", BLKA_NOW, ", ", BLKA_NOW, " from c",
-  " on conflict (comment_id, emoji, device_hash) do nothing returning 1)",
-  " select c.blink_id from c"
-], "")
-
-BLKA_UNREACT_SQL = join([
-  "with c as (select id, blink_id from blink_comments where id = $1::bigint),",
-  " d as (delete from blink_comment_reactions r using c where r.comment_id = c.id and r.emoji = $2::text and r.device_hash = $3::text returning 1)",
-  " select c.blink_id from c"
-], "")
-
-# reactions_for/1 of one comment: {"emoji": n}, keys sorted by their bytes
-# as Jason writes a small map.
-BLKA_REACTIONS_SQL = join([
-  "select coalesce((select '{' || string_agg(to_json(r.emoji)::text || ':' || r.n, ',' order by r.emoji collate \"C\") || '}'",
-  " from (select emoji, count(*) as n from blink_comment_reactions where comment_id = $1::bigint group by emoji) r), '{}') as body"
-], "")
-
-def blka_reaction(ctx: Map, conn: Map, sql: String) -> Map do
+def blka_reaction(ctx: Map, conn: Map, write: Any) -> Map do
   device = blka_param(conn, "device_id")
   case type_of(device) == :string and blka_device_id_ok(length(device)) do
     false -> blkw_json(conn, 400, BLKA_NO_DEVICE)
@@ -772,13 +710,13 @@ def blka_reaction(ctx: Map, conn: Map, sql: String) -> Map do
             case type_of(emoji) == :string and has_string(BLKA_EMOJIS, emoji) do
               false -> blkw_json(conn, 422, "{\"error\":\"bad emoji\"}")
               true ->
-                case DB <- :query(sql, [id, emoji, blka_hash(device, ctx.secret)]) do
+                case blkw_db(write(id, emoji, blka_hash(device, ctx.secret))) do
                   {:error, reason} -> blkw_no_db(conn, reason)
                   {:ok, rows} ->
                     case rows do
                       [] -> blkw_json(conn, 404, BLKA_NOT_FOUND)
                       [row | _] ->
-                        case DB <- :query(BLKA_REACTIONS_SQL, [id]) do
+                        case blkw_db(blka_reactions_q(id)) do
                           {:error, reason} -> blkw_no_db(conn, reason)
                           {:ok, counted} ->
                             reactions = head(counted).body
@@ -794,11 +732,9 @@ def blka_reaction(ctx: Map, conn: Map, sql: String) -> Map do
 end
 
 # delete/2 (admin). Its reactions go by ON DELETE CASCADE, as in Phoenix.
-BLKA_DELETE_COMMENT_SQL = "delete from blink_comments where id = $1::bigint returning id, blink_id"
-
 def blka_delete_comment(ctx: Map, conn: Map) -> Map do
   blka_with_id(conn, "id", fn(id: Int) -> Map do
-    case DB <- :query(BLKA_DELETE_COMMENT_SQL, [id]) do
+    case blkw_db(blka_delete_comment_q(id)) do
       {:error, reason} -> blkw_no_db(conn, reason)
       {:ok, rows} ->
         case rows do
@@ -870,8 +806,8 @@ def blka_routes_at(base: String, ctx: Map, token: String, owned: Bool) -> List d
     web_route("OPTIONS", concat(base, "/:blink_id/comments"), c, blkw_preflight),
     web_route("POST", concat(base, "/comments/:id/report"), cw, fn(conn: Map) -> Map do blka_report(ctx, conn) end),
     web_route("OPTIONS", concat(base, "/comments/:id/report"), c, blkw_preflight),
-    web_route("POST", concat(base, "/comments/:id/react"), cw, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_REACT_SQL) end),
-    web_route("DELETE", concat(base, "/comments/:id/react"), cw, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_UNREACT_SQL) end),
+    web_route("POST", concat(base, "/comments/:id/react"), cw, fn(conn: Map) -> Map do blka_reaction(ctx, conn, blka_react_q) end),
+    web_route("DELETE", concat(base, "/comments/:id/react"), cw, fn(conn: Map) -> Map do blka_reaction(ctx, conn, blka_unreact_q) end),
     web_route("OPTIONS", concat(base, "/comments/:id/react"), c, blkw_preflight),
     web_route("DELETE", concat(base, "/comments/:id"), admin, fn(conn: Map) -> Map do blka_delete_comment(ctx, conn) end),
     web_route("OPTIONS", concat(base, "/comments/:id"), c, blkw_preflight),
