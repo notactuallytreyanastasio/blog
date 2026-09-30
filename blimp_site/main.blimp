@@ -251,6 +251,21 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/role-call/show.json" -> role_call_api(path, req.query)
     "/role-call/person.json" -> role_call_api(path, req.query)
     "/role-call/titles.json" -> role_call_api(path, req.query)
+    # bobby's links, the other pages (src/99_blinks_pages.blimp): surf, walk,
+    # tv, review and privacy, and what their programs ask for
+    "/blinks-next/surf" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk" -> blinks_pages_route(path, req.query)
+    "/blinks-next/tv" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review" -> blinks_pages_route(path, req.query)
+    "/blinks-next/privacy" -> blinks_pages_route(path, req.query)
+    "/blinks-next/surf.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/tv.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/pages.css" -> blinks_pages_route(path, req.query)
+    "/blinks-next/pick.json" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk.json" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review.json" -> blinks_pages_route(path, req.query)
     # bobby's links, read side (src/99_blinks.blimp): Phoenix's GET API at
     # its own paths and under /blinks-next, the feed, and the two pages
     "/api/blinks" -> blinks_route(path, req.query)
@@ -456,6 +471,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/firehose" -> :firehose
     "/live/mta" -> :mta
     "/live/ziggy" -> :ziggy
+    "/live/blinks" -> :blinks
     "/live/cameras" -> :cameras
     _ -> nil
   end
@@ -500,6 +516,12 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a /ziggy page is told whether its chat can be unlocked
       case kind == :ziggy do
         true -> ZG <- :join(c)
+        false -> :ok
+      end
+      # a /blinks-next page hears of every save and who is in which chat,
+      # and is told which chatter it is (src/99_blinkschat.blimp)
+      case kind == :blinks do
+        true -> bkl_open(ROOMS, c, raw)
         false -> :ok
       end
       # a /cameras page is told when a sweep finishes
@@ -567,6 +589,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
       {map_without(socks, to_string(sock.fd)), games, false}
     :ziggy ->
       ZG <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
+    :blinks ->
+      bkl_leave(ROOMS, sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
     :cameras ->
       CAMERAS <- :leave(sock.fd)
@@ -639,6 +664,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # an unlock, a question or a suggestion; ZG answers it itself
             :ziggy ->
               ZG <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # which chat room it is in, and what it says there (src/99_blinkslive.blimp, src/99_blinkschat.blimp)
+            :blinks ->
+              bkl_recv(ROOMS, sock.fd, payload)
               live_frames(next, socks, games, changed)
             # a star, a hide or a note; CAMERAS tells every page itself
             :cameras ->
@@ -776,6 +805,11 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   MTA <- :step
   GALLERY <- :step
   ZG <- :step
+  # saved links' pages and Bluesky threads (src/99_blinksenrich.blimp)
+  BKE <- :step
+  # the daily dead-link sweep (src/99_blinkscheck.blimp)
+  BLC <- :step
+  PUSHER <- :step(now())
   CAMERAS <- :step
   CAM_SWEEP <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
@@ -902,7 +936,9 @@ routes = blog_tag_routes(routes, posts)
 # src/41_web.blimp: the routes that take methods, bodies and sessions, and
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).
-WEB_ROUTES = web_demo_routes()
+# src/99_blinkswrite.blimp: BlinkController's token-gated writes
+# src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
+WEB_ROUTES = list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes())
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site

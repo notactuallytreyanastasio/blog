@@ -1,0 +1,240 @@
+# Blinks, the live page: what /blinks-next needs from the server beyond
+# 62's page.json and 64's token-gated writes, so that it can be the page
+# BlinksLive is.
+#
+#   GET  /blinks-next          the page. BlinksPrefs' work: the
+#                              blinksAlwaysShuffle cookie and a shuffle seed
+#                              go into the session and into the page, so the
+#                              first fetch is already shuffled (Phoenix reads
+#                              the cookie before the first render for the
+#                              same reason: a shuffled front page must never
+#                              flash in date order first)
+#   GET  /blinks-next/live.js  the page's socket and its outbox (see the file)
+#   POST /blinks-next/dork     the dork list, as save-dork-tags writes it.
+#                              Phoenix lets anyone do this (the event has no
+#                              admin check), so this does too, behind the
+#                              session's CSRF token as a LiveView event is
+#                              behind its socket's
+#   GET  /blinks-next/admin    200 for the right X-Blinks-Token, 401 else:
+#                              the admin box's "unlock", which Phoenix
+#                              answers with valid_key?/1 inside the LiveView
+#   WS   /live/blinks          every open page, in two rooms (src/89_rooms):
+#
+# "blinks" is Blinks.topic(): every save, edit and delete that 64's API
+# makes is said there as {"t":"blink","event":"blink_saved","id":7}, and
+# each page asks for its page.json again, as BlinksLive reloads on
+# {:blink_saved, blink}. The row itself is not sent: which rows a page
+# shows depends on its filters, its shuffle and its page, all of which
+# page.json already knows how to apply.
+#
+# "blinks_rooms_presence" is @rooms_presence: one topic for every link's
+# chat room, so the list can show "· 2 here now" beside a link without
+# joining every room. A page is a member from the start with room "" and
+# says {"t":"room","room":"blink:7"} when it opens a chat window, as
+# BlinksLive tracks itself there only while a chat is open; a member whose
+# room is "" is nobody's occupancy. The name is the chatter's once one is
+# signed on (src/99_blinkschat.blimp), "lurker" before.
+
+BKL_TOPIC = "blinks"
+BKL_PRESENCE = "blinks_rooms_presence"
+
+# -- the socket -----------------------------------------------------------
+
+def bkl_join(hub: Any, fd: Int) -> Any do
+  hub <- :open(BKL_TOPIC, %{diffs: false})
+  hub <- :join(BKL_TOPIC, fd, "page", %{})
+  hub <- :join(BKL_PRESENCE, fd, concat("v_", to_string(fd)), %{room: "", name: "lurker", color: "#888"})
+end
+
+# A socket from the upgrade: 70's two rooms, and who it is (the chatter
+# its X-Forwarded-For has signed on before, src/99_blinkschat.blimp).
+def bkl_open(hub: Any, fd: Int, raw: String) -> Any do
+  bkl_join(hub, fd)
+  BKC <- :hello(hub, fd, bkc_client_ip(raw))
+end
+
+def bkl_leave(hub: Any, fd: Int) -> Any do
+  BKC <- :bye(fd)
+  hub <- :drop(fd)
+end
+
+# "" or "blink:<digits>", nothing else: a room name is shown to everyone.
+def bkl_room_ok(room: String) -> Bool do
+  case room do
+    "" -> true
+    _ ->
+      case starts_with(room, "blink:") and length(room) <= 26 do
+        false -> false
+        true -> blk_id(drop(room, 6)) > 0 and to_string(blk_id(drop(room, 6))) == drop(room, 6)
+      end
+  end
+end
+
+# What a page says: which room it is in, and (src/99_blinkschat.blimp)
+# sign-on, sign-off, a message, a vote. Anything else, or anything over
+# the socket's rate, is dropped without an answer.
+def bkl_recv(hub: Any, fd: Int, payload: String) -> Any do
+  bkl_recv_with(hub, BKC, fd, payload)
+end
+
+def bkl_recv_with(hub: Any, chat: Any, fd: Int, payload: String) -> Any do
+  case hub <- :inbound(fd) do
+    :limited -> :limited
+    _ ->
+      got = json_decode(payload)
+      case elem(got, 0) == :ok and type_of(elem(got, 1)) == :map do
+        false -> :ignored
+        true ->
+          m = elem(got, 1)
+          room = lookup(m, "room")
+          case lookup(m, "t") == "room" do
+            false -> bkc_recv(hub, chat, fd, m)
+            true ->
+              case type_of(room) == :string and bkl_room_ok(room) do
+                false -> :ignored
+                true ->
+                  patched = hub <- :patch(BKL_PRESENCE, fd, %{room: room})
+                  case patched == nil do
+                    true -> :ignored
+                    false -> bkl_ok(chat <- :room(hub, fd, room))
+                  end
+              end
+          end
+      end
+  end
+end
+
+def bkl_ok(_done: Any) -> Atom do
+  :ok
+end
+
+# Blinks.broadcast/2: the event and the blink's id, to every open page.
+# `what` is a saved or edited row (62's three-piece row) or a deleted id.
+def bkl_event_json(event: Any, id: Int) -> String do
+  json_encode(%{t: "blink", event: to_string(event), id: id})
+end
+
+def bkl_row_id(what: Any) -> Int do
+  case type_of(what) do
+    :integer -> what
+    :map ->
+      pre = json_decode(what.pre)
+      case elem(pre, 0) do
+        :ok -> lookup(elem(pre, 1), "id")
+        _ -> 0
+      end
+    _ -> 0
+  end
+end
+
+def bkl_broadcast_on(hub: Any, event: Any, what: Any) -> Any do
+  hub <- :broadcast(BKL_TOPIC, bkl_event_json(event, bkl_row_id(what)))
+end
+
+# -- the page -------------------------------------------------------------
+
+# Phoenix's seed is Base.encode16 of 4 random bytes: 8 hex digits. md5 of
+# it and the id orders a shuffle, so any string will do; this one looks the
+# same. `random` is unseeded on the server (the same sequence after every
+# restart), so the bytes come from random_bytes.
+def bkl_seed() -> String do
+  upcase(slice(hex_encode(random_bytes(4)), 0, 8))
+end
+
+def bkl_attr(name: String, value: String) -> String do
+  concat(" data-", name, "=\"", escape_html(value), "\"")
+end
+
+def bkl_page_html(always: Bool, seed: String, csrf: String, vapid: String) -> String do
+  always_s = case always do
+    true -> "1"
+    false -> ""
+  end
+  program = "/blinks-next/blinks.blimp"
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", program, "\" data-actor=\"blinks\"",
+    bkl_attr("always", always_s), bkl_attr("seed", seed), bkl_attr("csrf", csrf), bkl_attr("vapid", vapid), "></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
+    script_tags(list_append(APP_SCRIPTS, ["/blinks-next/live.js"]))
+  ], "")
+  page_layout_html("Blinks: Bobbby's links", BLK_DESCRIPTION, "website", [APP_CSS, "/assets/blinks.css", "/assets/apps.css", "/assets/blimp-window.css"], body, "blinks-html")
+end
+
+# The VAPID key the bell subscribes with (src/99_blinkspush.blimp). "" when
+# VAPID_* is unset: then there is no bell at all, as Phoenix draws none when
+# WebPush.public_key() is nil.
+def bkl_vapid() -> String do
+  case bkp_vapid_public() do
+    nil -> ""
+    k -> k
+  end
+end
+
+def bkl_page(conn: Map) -> Map do
+  always = lookup(conn.cookies, "blinksAlwaysShuffle") == "1"
+  seed = bkl_seed()
+  c1 = web_put_session(web_put_session(conn, "blinks_always_shuffle", always), "blinks_shuffle_seed", seed)
+  c2 = web_ensure_csrf(c1)
+  web_html(c2, 200, bkl_page_html(always, seed, c2.csrf_token, bkl_vapid()))
+end
+
+BKL_JS = bjt_asset("static/blinks/live.js", "text/javascript; charset=utf-8")
+
+def bkl_js(conn: Map) -> Map do
+  put(web_send(conn, 200, BKL_JS.content_type, BKL_JS.body), :cache, BKL_JS.cache)
+end
+
+# -- the dork list ----------------------------------------------------------
+
+# Blinks.set_dork_tags/1 on String.split(value, ","): trimmed, lower-cased,
+# empties dropped, first of each kept, in order. Postgres does the trimming
+# (the whitespace String.trim/1 takes, 64's BLKW_WS_SQL) and the lower-casing
+# (lower() is Unicode's, as String.downcase/1 is; Blimp's downcase is ASCII).
+# A def, not a constant: this file sorts before 99_blinkswrite.blimp, whose
+# BLKW_WS_SQL it uses, so at load time that name is not there yet.
+def bkl_dork_sql() -> String do
+  join([
+  "with v as (select array(select t from (select lower(btrim(e.x, ", BLKW_WS_SQL, ")) as t, e.o",
+  " from jsonb_array_elements_text($1::jsonb) with ordinality e(x, o)) s",
+  " where t <> '' group by t order by min(o)) as tags)",
+  " insert into blink_settings (key, value, inserted_at, updated_at)",
+  " select 'dork_tags', v.tags, now(), now() from v",
+  " on conflict (key) do update set value = excluded.value, updated_at = now()",
+  " returning to_json(value)::text as tags"
+  ], "")
+end
+
+def bkl_dork(conn: Map) -> Map do
+  v = web_param(conn, "dork_tags")
+  case type_of(v) == :string do
+    false -> blkw_json(conn, 422, "{\"status\":\"error\",\"error\":\"dork_tags is a comma separated string\"}")
+    true ->
+      case DB <- :query(bkl_dork_sql(), [json_encode(split(v, ","))]) do
+        {:error, reason} -> blkw_no_db(conn, reason)
+        {:ok, rows} -> blkw_json(conn, 200, concat("{\"status\":\"ok\",\"stored\":", head(rows).tags, "}"))
+      end
+  end
+end
+
+# -- admin ----------------------------------------------------------------
+
+def bkl_admin(conn: Map) -> Map do
+  blkw_json(conn, 200, "{\"status\":\"ok\"}")
+end
+
+# -- routes ---------------------------------------------------------------
+
+def blinks_live_routes() -> List do
+  blinks_live_routes_for(web_or(getenv("BLINKS_API_TOKEN"), ""))
+end
+
+def blinks_live_routes_for(token: String) -> List do
+  [
+    web_route("GET", "/blinks-next", [web_fetch_session], bkl_page),
+    web_route("GET", "/blinks-next/live.js", [], bkl_js),
+    web_route("GET", "/blinks-next/admin", [blkw_require_token(token)], bkl_admin),
+    web_route("POST", "/blinks-next/dork", list_append(WEB_BROWSER, [web_require_json]), bkl_dork)
+  ]
+end

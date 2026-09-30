@@ -1,0 +1,229 @@
+# The token-gated blink writes (src/99_blinkswrite.blimp), through the
+# router as a request arrives (web_dispatch), with no database: DB here is
+# never opened, so a request that gets as far as a query is answered 503.
+# That makes "got past the token and the validation" visible without
+# Postgres. What the queries write was compared with Phoenix's own answers
+# against two copies of one database (see the PR).
+
+BWT_TOKEN = "test-blinks-token"
+BWT_SECRET = "test-secret-test-secret-test-secret-0123"
+BWT_ROUTES = blinks_write_routes_for(BWT_TOKEN)
+
+def bwt_send(method: String, target: String, headers: List, body: String) -> Tuple do
+  raw = wt_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), BWT_ROUTES, BWT_SECRET)
+end
+
+def bwt_json(method: String, target: String, headers: List, body: String) -> Tuple do
+  bwt_send(method, target, list_append(["Content-Type: application/json"], headers), body)
+end
+
+def bwt_authed(method: String, target: String, body: String) -> Tuple do
+  bwt_json(method, target, [concat("X-Blinks-Token: ", BWT_TOKEN)], body)
+end
+
+# wt_raw and friends, as test/web_test.blimp has them (each test file is
+# built on its own).
+def wt_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD" or method == "OPTIONS") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+# What a handler is given for its params: the route's path params, as
+# web_dispatch merges them over the query and body.
+def bwt_conn(method: String, path: String) -> Map do
+  %{params: elem(web_find(BWT_ROUTES, method, path), 2)}
+end
+
+def bwt_param(method: String, path: String, name: String) -> Any do
+  web_param(bwt_conn(method, path), name)
+end
+
+def bwt_status(got: Tuple) -> Int do
+  elem(got, 1)
+end
+
+def bwt_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def bwt_head(got: Tuple) -> String do
+  w = elem(got, 0)
+  take(w, index_of(w, "\r\n\r\n"))
+end
+
+UNAUTH = "{\"error\":\"Invalid or missing auth token\"}"
+
+actor BlinksWriteTests do
+  test "no token, a wrong one, or none configured: 401 with Phoenix's body, before any query" do
+    assert_eq(bwt_body(bwt_json("POST", "/api/blinks", [], "{\"url\":\"https://a.b\"}")), UNAUTH)
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", ["X-Blinks-Token: nope"], "{\"url\":\"https://a.b\"}")), 401)
+    assert_eq(bwt_status(bwt_send("DELETE", "/api/blinks/3", [], "")), 401)
+    assert_eq(bwt_status(bwt_json("PATCH", "/api/blinks/3", [], "{}")), 401)
+    assert_eq(bwt_status(bwt_send("GET", "/api/blinks/lookup?url=x", [], "")), 401)
+    assert_eq(bwt_status(bwt_send("GET", "/api/blinks/export", [], "")), 401)
+    # BLINKS_API_TOKEN unset: nothing gets through, not even an empty token
+    none = blinks_write_routes_for("")
+    raw = wt_raw("POST", "/api/blinks?token=", ["X-Blinks-Token: "], "")
+    assert_eq(elem(web_dispatch(raw, parse_request(raw), none, BWT_SECRET), 1), 401)
+  end
+
+  test "the token in X-Blinks-Token, a Bearer header, ?token= or the body" do
+    # 503: past the gate, at the (unopened) database
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks", "{\"url\":\"https://a.b\"}")), 503)
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", [concat("Authorization: Bearer ", BWT_TOKEN)], "{\"url\":\"https://a.b\"}")), 503)
+    assert_eq(bwt_status(bwt_json("POST", concat("/api/blinks?token=", BWT_TOKEN), [], "{\"url\":\"https://a.b\"}")), 503)
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", [], concat("{\"url\":\"https://a.b\",\"token\":\"", BWT_TOKEN, "\"}"))), 503)
+    assert_eq(bwt_status(bwt_send("GET", concat("/api/blinks/lookup?url=x&token=", BWT_TOKEN), [], "")), 503)
+  end
+
+  test "a header that is there and wrong is not overruled further down, as in require_token/2" do
+    # a wrong X-Blinks-Token beats a right Bearer
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", ["X-Blinks-Token: nope", concat("Authorization: Bearer ", BWT_TOKEN)], "{}")), 401)
+    # an empty X-Blinks-Token beats a right ?token=
+    assert_eq(bwt_status(bwt_json("POST", concat("/api/blinks?token=", BWT_TOKEN), ["X-Blinks-Token: "], "{}")), 401)
+    # "bearer" is not "Bearer "; a wrong Bearer beats a right ?token=
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", [concat("Authorization: bearer ", BWT_TOKEN)], "{}")), 401)
+    assert_eq(bwt_status(bwt_json("POST", concat("/api/blinks?token=", BWT_TOKEN), ["Authorization: Bearer nope"], "{}")), 401)
+    # but an Authorization that is not Bearer falls through to ?token=
+    assert_eq(bwt_status(bwt_json("POST", concat("/api/blinks?token=", BWT_TOKEN), ["Authorization: Basic abc"], "{\"url\":\"https://a.b\"}")), 503)
+    # a token that is not a string is no token
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", [], "{\"token\":5}")), 401)
+  end
+
+  test "every answer carries CORSPlug's headers, and OPTIONS is a preflight" do
+    h = bwt_head(bwt_json("POST", "/api/blinks", [], "{}"))
+    assert(contains(h, "access-control-allow-origin: *\r\n"))
+    assert(contains(h, "access-control-allow-credentials: true\r\n"))
+    assert(contains(h, "Cache-Control: max-age=0, private, must-revalidate"))
+    assert(contains(h, "Content-Type: application/json; charset=utf-8"))
+    pre = bwt_send("OPTIONS", "/api/blinks/12/tags", ["Origin: https://bsky.app", "Access-Control-Request-Method: POST"], "")
+    assert_eq(bwt_status(pre), 204)
+    assert(contains(bwt_head(pre), "access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS\r\n"))
+    assert(contains(bwt_head(pre), "access-control-allow-headers: Authorization,Content-Type,"))
+    assert_eq(bwt_body(pre), "")
+  end
+
+  test "create: Ecto's errors, keyed in the order Phoenix sends them, without a query" do
+    assert_eq(bwt_body(bwt_authed("POST", "/api/blinks", "{\"tags\":[\"x\"]}")), "{\"status\":\"error\",\"errors\":{\"url\":[\"can't be blank\"]}}")
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks", "{\"url\":\"  \"}")), 422)
+    assert_eq(bwt_body(bwt_authed("POST", "/api/blinks", "{\"url\":5}")), "{\"status\":\"error\",\"errors\":{\"url\":[\"is invalid\"]}}")
+    all_bad = bwt_authed("POST", "/api/blinks", "{\"url\":3,\"description\":4,\"tags\":5,\"title\":7,\"quotes\":[1]}")
+    assert_eq(bwt_body(all_bad), "{\"status\":\"error\",\"errors\":{\"description\":[\"is invalid\"],\"title\":[\"is invalid\"],\"url\":[\"is invalid\"],\"tags\":[\"is invalid\"],\"quotes\":[\"is invalid\"]}}")
+    # a JSON array body has no url: Phoenix puts it under "_json"
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks", "[\"x\"]")), 422)
+    # a null inside tags is invalid here (Phoenix raises in String.trim/1 and answers 500)
+    assert_eq(bwt_body(bwt_authed("POST", "/api/blinks", "{\"tags\":[null]}")), "{\"status\":\"error\",\"errors\":{\"url\":[\"can't be blank\"],\"tags\":[\"is invalid\"]}}")
+    # tags: false and quotes: false are `|| []`; quote is the fallback; a blank tags string is Ecto's empty []
+    assert_eq(bwt_body(bwt_authed("POST", "/api/blinks", "{\"tags\":false,\"quotes\":false,\"quote\":5}")), "{\"status\":\"error\",\"errors\":{\"url\":[\"can't be blank\"],\"quotes\":[\"is invalid\"]}}")
+    assert_eq(bwt_body(bwt_authed("POST", "/api/blinks", "{\"tags\":\" \",\"title\":false}")), "{\"status\":\"error\",\"errors\":{\"title\":[\"is invalid\"],\"url\":[\"can't be blank\"]}}")
+  end
+
+  test "lengths are code points, counted without walking the string" do
+    assert_eq(blkw_chars("héllo ü"), 7)
+    assert_eq(blkw_chars("❤️"), 2)
+    assert_eq(blkw_chars(""), 0)
+    e10001 = join(map(range(1, 10001), fn(i: Int) -> String do "é" end), "")
+    assert_eq(length(e10001), 20002)
+    assert_eq(blkw_chars(e10001), 10001)
+    assert(blkw_too_long(e10001, 10000))
+    assert(not(blkw_too_long(drop(e10001, 2), 10000)))
+    # 4,096 bytes of "é" is 2,048 characters: a valid url, which only Postgres can then refuse
+    assert(not(blkw_too_long(concat("https://x/", take(e10001, 4096)), 4096)))
+    long_url = concat("https://x/", join(map(range(0, 4090), fn(i: Int) -> String do "a" end), ""))
+    # a url that is a string is looked up first (Repo.get_by), so the
+    # insert's validation is called here directly
+    raw = wt_raw("POST", "/api/blinks", [], "")
+    conn = web_conn(raw, parse_request(raw), BWT_SECRET)
+    got = blkw_insert(conn, {:ok, long_url}, {:ok, nil}, {:ok, e10001}, {:ok, []}, {:ok, []})
+    assert_eq(got.status, 422)
+    assert_eq(got.resp_body, "{\"status\":\"error\",\"errors\":{\"description\":[\"should be at most 10000 character(s)\"],\"url\":[\"should be at most 4096 character(s)\"]}}")
+  end
+
+  test "String.trim/1's whitespace, and the Postgres literal built from the same list" do
+    assert_eq(blkw_trim(" \t x y \n"), "x y")
+    assert_eq(blkw_trim(concat(hex_decode("c2a0e38080"), "tag", hex_decode("e28083"))), "tag")
+    # U+200B and U+FEFF are not whitespace to Elixir
+    assert_eq(blkw_trim(hex_decode("e2808b")), hex_decode("e2808b"))
+    assert(blkw_blank(join(BLKW_WS, "")))
+    assert_eq(length(BLKW_WS), 25)
+    each(BLKW_WS, fn(w: String) -> Any do assert(blkw_blank(w)) end)
+    assert(not(blkw_blank("x")))
+  end
+
+  test "path ids are Integer.parse/1's, whole: +3 is 3, -3 is a 404, 3x and ' 3' are 400s" do
+    assert_eq(blkw_path_id("177"), 177)
+    assert_eq(blkw_path_id("+3"), 3)
+    assert_eq(blkw_path_id("-3"), -3)
+    assert_eq(blkw_path_id("3x"), :bad)
+    assert_eq(blkw_path_id(" 3"), :bad)
+    assert_eq(blkw_path_id("+"), :bad)
+    assert_eq(blkw_path_id(""), :bad)
+    assert_eq(blkw_path_id("1234567890123456789"), :missing)
+    assert_eq(bwt_body(bwt_authed("PATCH", "/api/blinks/abc", "{}")), "{\"error\":\"bad id\"}")
+    assert_eq(bwt_status(bwt_authed("DELETE", "/api/blinks/%203", "")), 400)
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks/x/tags", "{}")), 400)
+    assert_eq(bwt_status(bwt_authed("DELETE", "/api/blinks/x/tags/a", "")), 400)
+    assert_eq(bwt_body(bwt_authed("DELETE", "/api/blinks/99999999999999999999", "")), "{\"error\":\"not found\"}")
+    # "+" in a path is a plus, not a space (the router decodes a path like a form)
+    assert_eq(bwt_status(bwt_authed("PATCH", "/api/blinks/+3", "{}")), 503)
+    # the router binds :id and :tag with %XX decoded and "+" kept
+    assert_eq(bwt_param("DELETE", "/api/blinks/1/tags/c++", "tag"), "c++")
+    assert_eq(bwt_param("DELETE", "/api/blinks/1/tags/two%20words", "tag"), "two words")
+    assert_eq(bwt_param("POST", "/blinks-next/api/blinks/+12/tags", "id"), "+12")
+    assert_eq(bwt_param("PATCH", "/api/blinks/+3", "id"), "+3")
+  end
+
+  test "a tag that is not UTF-8 is an absent tag, not a parameter Postgres refuses" do
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/c++")), "c++")
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/%E2%9C%93")), hex_decode("e29c93"))
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/%FF")), nil)
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/ok%C3")), nil)
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/%ED%A0%80")), nil)
+    # still past the token and the id: with no database that is the 503
+    assert_eq(bwt_status(bwt_authed("DELETE", "/api/blinks/1/tags/%FF", "")), 503)
+    assert_eq(bwt_status(bwt_authed("DELETE", "/api/blinks/x/tags/%FF", "")), 400)
+  end
+
+  test "candidates: a list, of objects whose title and folder are strings or null" do
+    assert_eq(bwt_body(bwt_authed("POST", "/api/blinks/candidates", "{\"candidates\":\"x\"}")), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks/candidates", "{}")), 400)
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks/candidates", "{\"candidates\":[\"x\"]}")), 422)
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks/candidates", "{\"candidates\":[{\"url\":\"https://a\",\"title\":5}]}")), 422)
+    assert_eq(bwt_status(bwt_authed("POST", "/api/blinks/candidates", "{\"candidates\":[{\"url\":5},{\"title\":null,\"folder\":\"f\"}]}")), 503)
+  end
+
+  test "the same routes answer under /blinks-next, and methods Phoenix has not got are 405s" do
+    assert_eq(bwt_status(bwt_json("POST", "/blinks-next/api/blinks", [], "{}")), 401)
+    assert_eq(bwt_status(bwt_authed("PATCH", "/blinks-next/api/blinks/x", "{}")), 400)
+    assert_eq(bwt_status(bwt_authed("PUT", "/api/blinks/3", "{}")), 405)
+    # the PATCH still reaches the database with a body that is not JSON: Phoenix takes forms too
+    assert_eq(bwt_status(bwt_send("PATCH", "/api/blinks/3", [concat("X-Blinks-Token: ", BWT_TOKEN), "Content-Type: application/x-www-form-urlencoded"], "title=x")), 503)
+  end
+
+  test "the SQL writes timestamps as Ecto does and normalizes lists in Postgres" do
+    assert(contains(BLKW_INSERT_SQL, "date_trunc('second', now() at time zone 'UTC')"))
+    assert(contains(BLKW_INSERT_SQL, "lower(btrim(u.t, "))
+    assert(contains(BLKW_MERGE_SQL, "b.tags || array(select jsonb_array_elements_text($5::jsonb))"))
+    assert(contains(BLKW_DELETE_SQL, "room = 'blink:' || (select id from d)"))
+    # the literal is the list, quoted: no quote inside it to break out of
+    assert_eq(BLKW_WS_SQL, concat("'", join(BLKW_WS, ""), "'"))
+    assert(not(contains(join(BLKW_WS, ""), "'")))
+  end
+
+  test "a form's tags[] is a list, as Plug decodes it" do
+    raw = wt_raw("POST", "/api/blinks", ["Content-Type: application/x-www-form-urlencoded"], "url=https%3A%2F%2Fa.b&tags%5B%5D=A&tags[]=two+words&quote=q")
+    conn = blkw_form_lists(web_parse_body(web_conn(raw, parse_request(raw), BWT_SECRET)))
+    assert_eq(web_param(conn, "tags"), ["A", "two words"])
+    assert_eq(web_param(conn, "url"), "https://a.b")
+    assert_eq(web_param(conn, "quote"), "q")
+    # a JSON body is left alone
+    raw2 = wt_raw("POST", "/api/blinks", ["Content-Type: application/json"], "{\"tags[]\":\"x\"}")
+    conn2 = blkw_form_lists(web_parse_body(web_conn(raw2, parse_request(raw2), BWT_SECRET)))
+    assert_eq(web_param(conn2, "tags"), nil)
+  end
+end
