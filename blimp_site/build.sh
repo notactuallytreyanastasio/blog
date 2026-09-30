@@ -114,6 +114,14 @@ with_temper _build/sky.blimp static/sky/sky.blimp
 # Phish Lab: scales, ticks, bins, colours and number formats are Temper
 # (temper/src/phish_lab), the chart's loops, actor and view Blimp.
 with_temper _build/phish_lab.blimp static/phish_lab/phish_lab.blimp
+# The Ziggy Account: the prompts, search words, character titles and the
+# reply sanitiser are Temper (temper/src/ziggy), the window and chat Blimp;
+# the explorer is d3 (static/ziggy/ziggy.js). query_param is the server's.
+with_temper _build/ziggy.blimp src/40_http.blimp static/ziggy/ziggy.blimp
+# The graph is the Phoenix app's (priv/ziggy, copied from the tim_blausey
+# repo after a `deciduous sync`); the image has only priv/static, so the
+# server reads a copy here.
+cp ../priv/ziggy/graph-data.json _build/ziggy-graph.json
 
 if [ "${1:-}" = "test" ]; then
   status=0

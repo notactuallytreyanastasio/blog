@@ -1,0 +1,19 @@
+{
+  "id": "chatcmpl-fixture-2",
+  "object": "chat.completion",
+  "created": 1790000003,
+  "model": "gpt-5.1-2025-11-13",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "It's a **map mixup** in chapter-2:\n\n- Garrett's last booth is *Willis Mutual Holdings Corp* (WMHC), not Wallace.\n- Beth warns him off it.\n\nSee [the node](/ziggy?view=search&node=24) or [this](javascript:alert(1)).\n\n<img src=x onerror=alert(1)>\n\ntags: not a post",
+        "refusal": null,
+        "annotations": []
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 2410, "completion_tokens": 88, "total_tokens": 2498}
+}

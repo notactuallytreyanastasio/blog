@@ -229,6 +229,13 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     # photos, /gallery/img/:guid/:size, are gallery_or_404's
     "/gallery" -> gallery_route(path)
     "/gallery/gallery.js" -> GAL_JS
+    # The Ziggy Account (src/99_ziggy.blimp): the page, its program, the
+    # explorer and its css, and the graph the explorer draws
+    "/ziggy" -> ZG_PAGE
+    "/ziggy/ziggy.blimp" -> ZG_PROGRAM
+    "/ziggy/ziggy.js" -> ZG_JS
+    "/ziggy/ziggy.css" -> ZG_CSS
+    "/ziggy/graph.json" -> ZG_GRAPH_JSON
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -381,6 +388,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/map" -> :map
     "/live/firehose" -> :firehose
     "/live/mta" -> :mta
+    "/live/ziggy" -> :ziggy
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -419,6 +427,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # an MTA bus map page, which says what it watches once it is open
       case kind == :mta do
         true -> MTA <- :join(c)
+        false -> :ok
+      end
+      # a /ziggy page is told whether its chat can be unlocked
+      case kind == :ziggy do
+        true -> ZG <- :join(c)
         false -> :ok
       end
       %{fd: c, kind: kind, game: game, buf: ""}
@@ -477,6 +490,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
     :mta ->
       MTA <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
+    :ziggy ->
+      ZG <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
 end
@@ -527,6 +543,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # which routes a bus map page watches, or its Update button
             :mta ->
               MTA <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # an unlock, a question or a suggestion; ZG answers it itself
+            :ziggy ->
+              ZG <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             :wordle ->
               taken = WORDLE <- :report(sock.game, payload)
@@ -659,6 +679,7 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   HN <- :step
   MTA <- :step
   GALLERY <- :step
+  ZG <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -814,6 +835,9 @@ case getenv("FIREHOSE") do
 end
 # The MTA bus map's Bus Time key; without it the page says so
 MTA <- :key(mta_key())
+# /ziggy's graph, and its chat's key, password and models
+ZG <- :graph(ZG_GRAPH)
+ZG <- :config(zg_env("OPENAI_API_KEY", ""), zg_env("ZIGGY_CHAT_PASSWORD", ""), zg_env("OPENAI_MODEL", "gpt-5.1"), zg_env("OPENAI_AUTOCOMPLETE_MODEL", "gpt-5.4-nano"), zg_env("OPENAI_BASE_URL", "https://api.openai.com/v1"))
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do

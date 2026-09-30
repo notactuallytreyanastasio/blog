@@ -1,0 +1,9 @@
+{
+  "id": "chatcmpl-fixture-3",
+  "object": "chat.completion",
+  "created": 1790000005,
+  "model": "gpt-5.4-nano",
+  "choices": [
+    {"index": 0, "message": {"role": "assistant", "content": " end up at the wrong booth?  ", "refusal": null, "annotations": []}, "finish_reason": "stop"}
+  ]
+}
