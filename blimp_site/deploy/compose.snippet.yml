@@ -41,4 +41,12 @@
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-https://bobbby.online}
+      # The /blinks cutover (74). Phoenix still creates links and takes
+      # comment writes (Caddy sends them there); here those answer 421
+      # until BLINKS_ALL_WRITES=on, which is for the day Phoenix is off.
+      # Leave BLINKS_LINK_CHECK and BLINKS_ENRICH_BACKFILL unset while
+      # Phoenix's LinkCheck and Enricher run: two sweeps give a link both
+      # strikes in one day. BLINKS_WATCH_MS (default 3000, or off) is how
+      # often src/99_blinkswatch.blimp looks for rows Phoenix wrote.
+      # BLINKS_ALL_WRITES: "on"
     # Not exposed to host - Caddy proxies to port 4100 via Docker network

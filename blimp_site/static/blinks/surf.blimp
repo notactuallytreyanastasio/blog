@@ -1,4 +1,4 @@
-# /blinks-next/surf: BlinksSurfLive, StumbleUpon for the link stack, as a
+# /blinks/surf: BlinksSurfLive, StumbleUpon for the link stack, as a
 # Blimp program in the browser. One link at a time; STUMBLE! asks the
 # server for a random one this visit has not seen (Postgres picks it, as it
 # did for Phoenix), a channel narrows the pool to one tag (?tag=, the URL's
@@ -233,7 +233,7 @@ actor Surf do
     end
     reply el("div", %{id: "surf-page"},
       el("div", %{class: "bar"},
-        el("span", %{class: "wordmark"}, el("a", %{href: "/blinks-next"}, "bobbby's links"), " / stumble 🎲"),
+        el("span", %{class: "wordmark"}, el("a", %{href: "/blinks"}, "bobbby's links"), " / stumble 🎲"),
         el("button", %{class: "stumble-btn", click: :stumble}, "STUMBLE!"),
         el("button", %{class: "back-btn", click: :back, disabled: history == []}, "◀ back"),
         el("form", %{},
@@ -241,8 +241,8 @@ actor Surf do
             el("option", %{value: "", selected: channel == ""}, "all channels"),
             options)),
         el("span", %{class: "meter"}, concat(to_string(length(seen)), " stumbled · ", to_string(pool), " in channel")),
-        el("a", %{href: "/blinks-next/walk"}, "walk 🥾"),
-        el("a", %{href: "/blinks-next/tv"}, "tv 📺")),
+        el("a", %{href: "/blinks/walk"}, "walk 🥾"),
+        el("a", %{href: "/blinks/tv"}, "tv 📺")),
       el("div", %{class: "stage"}, stage),
       el("div", %{class: "hint"},
         el("kbd", %{}, "→"), " or ", el("kbd", %{}, "s"), " stumble · ", el("kbd", %{}, "←"), " back · click a tag to tune the channel"),

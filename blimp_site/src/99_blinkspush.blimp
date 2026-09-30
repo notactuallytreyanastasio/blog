@@ -6,8 +6,7 @@
 #   POST   /api/push/web/test   {endpoint}
 #   GET    /blinks-sw.js        the service worker, Service-Worker-Allowed: /blinks
 #
-# (and the three /api ones again under /blinks-next/api, as 64 did). Public
-# on purpose, as in Phoenix: anyone with the home-screen install may
+# Public on purpose, as in Phoenix: anyone with the home-screen install may
 # subscribe, and a bogus subscription is pruned when its push service says
 # 404 or 410.
 #
@@ -671,11 +670,29 @@ def bkp_read_sw(static_dir: String) -> String do
   end
 end
 
+# The /blinks home-screen app's manifest and icons: Phoenix serves them with
+# Plug.Static from priv/static/static/blinks-pwa, and every /blinks page
+# links the manifest, so they come with the pages (deploy.sh ships the
+# directory; sw.js from it is a route below). Cache-Control is Plug.Static's
+# "public"; the max-age=14400 production shows on the icons is Cloudflare's.
+def blinks_pwa_routes(static_dir: String, routes: Map) -> Map do
+  reduce(["manifest.json", "icon-180.png", "icon-192.png", "icon-512.png"], routes, fn(acc: Map, name: String) -> Map do
+    file = concat(static_dir, "/static/blinks-pwa/", name)
+    body = read_file(file)
+    case body do
+      nil ->
+        puts(concat("cannot read ", file, ": refusing to start"))
+        exit(1)
+      _ -> put(acc, concat("/static/blinks-pwa/", name), serialize(response(200, content_type_for(name), "public", body), "GET"))
+    end
+  end)
+end
+
 # static_dir: main.blimp's STATIC_DIR.
 def blinks_push_routes(static_dir: String) -> List do
   c = [blkw_cors]
   sw = [web_route("GET", "/blinks-sw.js", c, bkp_service_worker(bkp_read_sw(static_dir)))]
-  list_append(sw, flat(map(["/api/push/web", "/blinks-next/api/push/web"], fn(base: String) -> List do
+  list_append(sw, flat(map(["/api/push/web"], fn(base: String) -> List do
     [
       web_route("POST", base, c, bkp_subscribe),
       web_route("DELETE", base, c, bkp_unsubscribe),

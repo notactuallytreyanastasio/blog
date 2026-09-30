@@ -11,10 +11,10 @@
 # are BlinkController's and BlinkFeedController's GETs, answering with the
 # same bytes (checked against https://bobbby.online, see the PR). Caddy does
 # not send those paths here yet; Phoenix still answers them. The same
-# handlers answer under /blinks-next/api/... and /blinks-next/blinks.rss,
-# which Caddy does send, and the page at /blinks-next (the newspaper) and
-# /blinks-next/reader (the contact sheet) are Blimp programs in the browser
-# (static/blinks/) that read /blinks-next/page.json: one query per page
+# handlers answer under /api/... and /blinks.rss,
+# which Caddy does send, and the page at /blinks (the newspaper) and
+# /blinks-reader (the contact sheet) are Blimp programs in the browser
+# (static/blinks/) that read /blinks/page.json: one query per page
 # state, the rows, the tag cloud, the counts and the archive weeks at once.
 #
 # Postgres writes the JSON. Jason wrote Phoenix's, and the one place they
@@ -156,7 +156,7 @@ BLK_EXPORT_HTML_SQL = join([
   " chr(10) order by w.rn), '') as items from w"
 ], "")
 
-# The page's state, all at once, for /blinks-next/page.json: the count, the
+# The page's state, all at once, for /blinks/page.json: the count, the
 # dork list, the tag cloud (less the dork tags when they are hidden), the
 # rows with their chat counts, the archive weeks when asked for ($10 = "1",
 # with $8 = 0 rows), and the link the rows are similar to ($11, a row of
@@ -407,16 +407,18 @@ def blk_stumble() -> Map do
     {:error, reason} -> blk_no_db(reason)
     {:ok, rows} ->
       to = case rows do
-        [] -> "/blinks-next"
+        [] -> "/blinks"
         [row | _] -> elem(json_decode(row.pre), 1).url
       end
-      %{status: 302, content_type: "text/html; charset=utf-8", cache: "no-store", body: "", location: to}
+      # redirect(conn, external: to), body and cache header as Phoenix sends them
+      %{status: 302, content_type: "text/html; charset=utf-8", cache: BLK_CACHE,
+        body: concat("<html><body>You are being <a href=\"", escape_html(to), "\">redirected</a>.</body></html>"), location: to}
   end
 end
 
 # -- the page's data ---------------------------------------------------------
 #
-# /blinks-next/page.json takes the page's own query string (q, tags, t,
+# /blinks/page.json takes the page's own query string (q, tags, t,
 # nodork, week, view, similar) plus what only the program knows: seed (the
 # shuffle, "" for none), page, and size (rows a page holds). It answers
 # size + 1 rows when there are that many, so the program knows there is
@@ -479,22 +481,20 @@ end
 BLK_DESCRIPTION = "every link I want to keep — tagged, searched, archived"
 
 def blk_page_html(title: String, program: String) -> String do
-  app_page_with(title, BLK_DESCRIPTION, [APP_CSS, "/assets/blinks.css"], "blinks-html", program, "blinks", true)
+  blk_pwa_head(app_page_with(title, BLK_DESCRIPTION, [APP_CSS, "/assets/blinks.css"], "blinks-html", program, "blinks", true))
 end
 
-BLK_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks: Bobbby's links", "/blinks-next/blinks.blimp"))
-BLK_READER_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks reader", "/blinks-next/reader.blimp"))
+
+BLK_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks: Bobbby's links", "/blinks/blinks.blimp"))
+BLK_READER_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks reader", "/blinks/reader.blimp"))
 BLK_PROGRAM = bjt_asset("_build/blinks.blimp", "text/plain; charset=utf-8")
 BLK_READER_PROGRAM = bjt_asset("_build/blinks-reader.blimp", "text/plain; charset=utf-8")
 BLK_CSS = bjt_asset("assets/blinks.css", "text/css; charset=utf-8")
 
-# Every GET above by path, or nil. The API answers at Phoenix's paths and
-# again under /blinks-next, which is the prefix Caddy sends here.
+# Every GET above by path, or nil, at Phoenix's own paths. (/blinks-next/...
+# is rewritten to these by blinks_next_alias/1 before it gets here.)
 def blinks_route(path: String, query: String) -> Any do
-  p = case starts_with(path, "/blinks-next/api/") or path == "/blinks-next/blinks.rss" do
-    true -> drop(path, 12)
-    false -> path
-  end
+  p = path
   case p do
     "/api/blinks" -> blk_list(query)
     "/api/blinks/tags" -> blk_tags()
@@ -502,12 +502,12 @@ def blinks_route(path: String, query: String) -> Any do
     "/api/blinks/lookup" -> blk_lookup(query)
     "/api/blinks/export" -> blk_export(query)
     "/blinks.rss" -> blk_rss(query)
-    "/blinks-next" -> BLK_PAGE
-    "/blinks-next/reader" -> BLK_READER_PAGE
-    "/blinks-next/blinks.blimp" -> BLK_PROGRAM
-    "/blinks-next/reader.blimp" -> BLK_READER_PROGRAM
-    "/blinks-next/page.json" -> blk_page_json(query)
-    "/blinks-next/stumble" -> blk_stumble()
+    "/blinks" -> BLK_PAGE
+    "/blinks-reader" -> BLK_READER_PAGE
+    "/blinks/blinks.blimp" -> BLK_PROGRAM
+    "/blinks/reader.blimp" -> BLK_READER_PROGRAM
+    "/blinks/page.json" -> blk_page_json(query)
+    "/blinks/stumble" -> blk_stumble()
     "/assets/blinks.css" -> BLK_CSS
     _ ->
       parts = split(p, "/")
@@ -526,4 +526,88 @@ def blinks_or_404(path: String) -> Map do
     nil -> static_or_404(path)
     _ -> answer
   end
+end
+
+# -- /blinks-next, after the cutover -----------------------------------------
+#
+# Chapters 62-72 served all of this under /blinks-next while Phoenix kept
+# /blinks. Since 74 the paths are Phoenix's own, and /blinks-next is kept so
+# a bookmark or a tab left open still works: a page there is a 302 to its
+# real path (one address per page), and anything else under it (a program,
+# page.json, the API) is answered as the same path without the prefix.
+# Requests are rewritten before anything routes them, so no route knows the
+# old name.
+
+BLK_NEXT_PAGES = ["/blinks", "/blinks-reader", "/blinks/surf", "/blinks/walk", "/blinks/tv", "/blinks/review", "/blinks/privacy"]
+
+# The path a /blinks-next path now has; any other path as it is.
+def blinks_next_path(p: String) -> String do
+  case p == "/blinks-next" or starts_with(p, "/blinks-next/") do
+    false -> p
+    true ->
+      case p do
+        "/blinks-next" -> "/blinks"
+        "/blinks-next/reader" -> "/blinks-reader"
+        "/blinks-next/blinks.rss" -> "/blinks.rss"
+        _ ->
+          case starts_with(p, "/blinks-next/api/") do
+            true -> drop(p, 12)
+            false -> concat("/blinks/", drop(p, 13))
+          end
+      end
+  end
+end
+
+# The 302 for a GET or HEAD of a page under /blinks-next, query kept, or nil.
+def blinks_next_moved(req: Map) -> Any do
+  to = blinks_next_path(req.path)
+  case to != req.path and (req.method == "GET" or req.method == "HEAD") and desk_member(BLK_NEXT_PAGES, to) do
+    false -> nil
+    true ->
+      where = case req.query do
+        "" -> to
+        q -> concat(to, "?", q)
+      end
+      %{status: 302, content_type: "text/html; charset=utf-8", cache: "no-store",
+        body: concat("<html><body>You are being <a href=\"", escape_html(where), "\">redirected</a>.</body></html>"), location: where}
+  end
+end
+
+# The request with its /blinks-next path rewritten (blinks_next_path/1).
+def blinks_next_alias(req: Map) -> Map do
+  put(req, :path, blinks_next_path(req.path))
+end
+
+# Phoenix's endpoint runs CORSPlug on every response, so every /blinks
+# answer carries access-control-allow-origin: * (the Safari extension's
+# Bluesky button reads /api/blinks/tags from bsky.app's origin). The web
+# routes add it themselves (blkw_cors); this is for the GETs dynamic()
+# answers. Plug.Static answers before CORSPlug, so the PWA's files have
+# none, and neither do they here (they are fixed routes).
+# The LiveView pages also went through the router's :blinks pipeline, whose
+# put_secure_browser_headers adds these (x-frame-options among them).
+def blinks_cors(path: String, resp: Map) -> Map do
+  ours = path == "/blinks" or starts_with(path, "/blinks/") or path == "/blinks-reader" or path == "/blinks.rss" or path == "/api/blinks" or starts_with(path, "/api/blinks/")
+  case ours do
+    false -> resp
+    true ->
+      case desk_member(BLK_LV_PAGES, path) do
+        true -> put(resp, :headers, list_append(BLKW_CORS, BLK_SECURE_HEADERS))
+        false -> put(resp, :headers, BLKW_CORS)
+      end
+  end
+end
+
+BLK_LV_PAGES = ["/blinks", "/blinks-reader", "/blinks/surf", "/blinks/walk", "/blinks/tv", "/blinks/review"]
+BLK_SECURE_HEADERS = [
+  ["referrer-policy", "strict-origin-when-cross-origin"],
+  ["x-content-type-options", "nosniff"],
+  ["x-download-options", "noopen"],
+  ["x-frame-options", "SAMEORIGIN"],
+  ["x-permitted-cross-domain-policies", "none"]
+]
+
+# The same for /blinks itself, a web route (src/99_blinkslive.blimp).
+def blk_page_headers(conn: Map) -> Map do
+  put(conn, :resp_headers, list_append(list_append(conn.resp_headers, BLKW_CORS), BLK_SECURE_HEADERS))
 end

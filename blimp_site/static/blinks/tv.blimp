@@ -1,4 +1,4 @@
-# /blinks-next/tv: BlinksTvLive, the stack as late-night cable, as a Blimp
+# /blinks/tv: BlinksTvLive, the stack as late-night cable, as a Blimp
 # program in the browser. The screen tunes to a new link every nine seconds
 # with a burst of static (a CSS animation that starts again because the
 # frame's id changes); the top twelve tags are the channels. ↑/↓ change
@@ -55,7 +55,7 @@ actor Tv do
   state blink: Any :: nil
   state no_signal: Bool :: false
   # the pick being fetched: mount tunes channel 0 at once
-  state ask: String :: "/blinks-next/pick.json?image=1&n=0"
+  state ask: String :: "/blinks/pick.json?image=1&n=0"
   state n: Int :: 0
   # rearm/1: the dwell clock is a timer in the view, and a new message name
   # is a new timer, so flipping this starts the nine seconds again
@@ -197,9 +197,9 @@ actor Tv do
         el("button", %{class: "vcr-btn", click: :toggle_play}, play_label),
         el("span", %{class: "spacer"}),
         el("span", %{class: "hint"}, "↑↓ channel · → skip · space pause · click screen to visit"),
-        el("a", %{href: "/blinks-next"}, "all links"),
-        el("a", %{href: "/blinks-next/surf"}, "stumble 🎲"),
-        el("a", %{href: "/blinks-next/walk"}, "walk 🥾")),
+        el("a", %{href: "/blinks"}, "all links"),
+        el("a", %{href: "/blinks/surf"}, "stumble 🎲"),
+        el("a", %{href: "/blinks/walk"}, "walk 🥾")),
       clock,
       key("ArrowUp", :channel_up),
       key("ArrowDown", :channel_down),

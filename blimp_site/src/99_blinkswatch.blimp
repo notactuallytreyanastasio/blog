@@ -1,0 +1,136 @@
+# Blinks, noticing Phoenix's writes (chapter 74, the cutover).
+#
+# After the cutover Phoenix still makes every link: POST /api/blinks stays
+# there, because only Blinks.save_blink/1 starts the APNs push to the iOS
+# app (HTTP/2, which Blimp lacks), the Web Push fan-out and the Enricher.
+# Phoenix announces the new row on Phoenix.PubSub, which no Blimp page
+# hears, and so does the Enricher when it fills in the image a second
+# later, and the LinkCheck when it marks a link dead. The /blinks pages are
+# Blimp's now, and a page left open would never see those.
+#
+# So this actor looks at the table every BLINKS_WATCH_MS (3000 by default)
+# with one query, and says what changed on the "blinks" room exactly as
+# 64's own writes do (src/99_blinkslive.blimp): a new id is
+# {"t":"blink","event":"blink_saved","id":N}, so the page tunes it in, and
+# any other change (an edit, an enrichment, a dead mark, a delete) is one
+# {"event":"blink_updated","id":0}, which makes every open page ask for
+# its page.json again. A page does not care which row changed: which rows
+# it shows depends on its filters, shuffle and page, and page.json knows.
+#
+# It only broadcasts. It never pushes and never enriches: the Pusher
+# (src/99_blinkspush.blimp) and BKE (src/99_blinksenrich.blimp) are fed by
+# blkw_create alone, so a row Phoenix made is pushed and enriched by
+# Phoenix, once. Blimp's own edits are seen here too, a tick later, so an
+# edit made on this server reaches a page twice (two refetches of one
+# page.json). That costs a request per open page per admin edit, and is
+# left that way rather than teach the write path about this actor.
+#
+# The query is one sequential scan of blinks: a count, the largest id, and
+# an md5 over every (id, xmin). xmin is the transaction that wrote the
+# row's current version, so it moves on every UPDATE and the md5 moves on
+# every insert, update and delete. The obvious signature, updated_at, is
+# wrong: Ecto writes it to the second, so an edit in the same second as
+# the insert (the Enricher is often that quick) leaves it where it was, and
+# the first run of this missed exactly that.
+# New ids come from a second query, only when the largest id has grown.
+# BLINKS_WATCH_MS=off turns it off.
+
+BKW_SIG_SQL = "select count(*)::text as n, coalesce(max(id), 0)::text as max_id, coalesce(md5(string_agg(id::text || '@' || xmin::text, ',' order by id)), '') as sig from blinks"
+BKW_NEW_SQL = "select coalesce(json_agg(id order by id), '[]'::json)::text as ids from blinks where id > $1::bigint"
+
+def bkw_interval() -> Int do
+  v = web_or(getenv("BLINKS_WATCH_MS"), "")
+  case v do
+    "" -> 3000
+    "off" -> 0
+    _ ->
+      case blkw_is_int(v) and to_int(v) >= 250 do
+        true -> to_int(v)
+        false ->
+          puts(concat("BLINKS_WATCH_MS must be off or a number of ms of at least 250, not ", v, ": refusing to start"))
+          exit(1)
+      end
+  end
+end
+
+# What to say about one change of the table: the new ids first, each a
+# blink_saved; one blink_updated when the table changed but no id is new.
+def bkw_events(was: Map, now_sig: Map, new_ids: List) -> List do
+  case was.sig == now_sig.sig do
+    true -> []
+    false ->
+      case new_ids do
+        [] -> [{:blink_updated, 0}]
+        _ -> map(new_ids, fn(id: Int) -> Tuple do {:blink_saved, id} end)
+      end
+  end
+end
+
+actor BlinksWatch do
+  state every: Int :: 0
+  state due: Int :: 0
+  state hub: Any :: nil
+  # %{n, max_id, sig} as last seen, or nil before the first look
+  state seen: Any :: nil
+  state looks: Int :: 0
+  state said: Int :: 0
+  state ms: Int :: 0
+  state failing: Bool :: false
+  state last_error: String :: ""
+
+  on :config(every_ms: Int, h: Any) do
+    become every: every_ms, hub: h
+    reply :ok
+  end
+
+  on :step(t: Int) do
+    case every > 0 and t >= due do
+      false -> reply :idle
+      true ->
+        t0 = now_ms()
+        got = DB <- :query(BKW_SIG_SQL, [])
+        case got do
+          {:error, reason} ->
+            # said once when it starts failing, and once when it stops
+            case failing do
+              false -> puts(concat("blinks watch: ", to_string(reason)))
+              true -> :ok
+            end
+            become due: t + every, failing: true, last_error: to_string(reason), looks: looks + 1
+            reply :error
+          {:ok, rows} ->
+            case failing do
+              true -> puts("blinks watch: reading blinks again")
+              false -> :ok
+            end
+            r = head(rows)
+            sig = %{n: r.n, max_id: r.max_id, sig: r.sig}
+            events = case seen do
+              nil -> []
+              _ ->
+                grew = to_int(sig.max_id) > to_int(seen.max_id)
+                ids = case grew do
+                  false -> []
+                  true ->
+                    case DB <- :query(BKW_NEW_SQL, [seen.max_id]) do
+                      {:ok, id_rows} -> elem(json_decode(head(id_rows).ids), 1)
+                      _ -> []
+                    end
+                end
+                bkw_events(seen, sig, ids)
+            end
+            each(events, fn(e: Tuple) -> Any do bkl_broadcast_on(hub, elem(e, 0), elem(e, 1)) end)
+            become seen: sig, due: t + every, failing: false, looks: looks + 1, said: said + length(events), ms: now_ms() - t0
+            reply length(events)
+        end
+    end
+  end
+
+  # at the prompt: BKW <- :stats
+  on :stats do
+    reply %{every: every, looks: looks, said: said, last_ms: ms, failing: failing, last_error: last_error, seen: seen}
+  end
+end
+
+BKW = spawn BlinksWatch
+BKW <- :config(bkw_interval(), ROOMS)

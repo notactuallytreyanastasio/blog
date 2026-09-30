@@ -1,24 +1,24 @@
 # Blinks, the other pages: /blinks/surf, /blinks/walk, /blinks/tv,
-# /blinks/review and /blinks/privacy, under /blinks-next.
+# /blinks/review and /blinks/privacy, at Phoenix's paths.
 #
-#   /blinks-next/surf      BlinksSurfLive, one random link at a time
-#   /blinks-next/walk      BlinksWalkLive, hop between similar links (?from=ID)
-#   /blinks-next/tv        BlinksTvLive, a new link every nine seconds
-#   /blinks-next/review    BlinksReviewLive, the bookmark queue (?key=, the API token)
-#   /blinks-next/privacy   BlinkFeedController.privacy/2, the iOS app's policy
+#   /blinks/surf      BlinksSurfLive, one random link at a time
+#   /blinks/walk      BlinksWalkLive, hop between similar links (?from=ID)
+#   /blinks/tv        BlinksTvLive, a new link every nine seconds
+#   /blinks/review    BlinksReviewLive, the bookmark queue (?key=, the API token)
+#   /blinks/privacy   BlinkFeedController.privacy/2, the iOS app's policy
 #
 # The four LiveViews are Blimp programs in the browser (static/blinks/),
 # which ask this server for what Phoenix asked Postgres:
 #
-#   /blinks-next/pick.json    ?exclude=1,2 &tag= &image=1
+#   /blinks/pick.json    ?exclude=1,2 &tag= &image=1
 #                             Blinks.random_blink/1, plus the pool it drew from
-#   /blinks-next/walk.json    ?id= (or none, for a random one) &exclude= &limit=
+#   /blinks/walk.json    ?id= (or none, for a random one) &exclude= &limit=
 #                             a blink and Blinks.list_similar/2 of it
-#   /blinks-next/review.json  ?key=  pending_candidates/0 and candidate_counts/0
+#   /blinks/review.json  ?key=  pending_candidates/0 and candidate_counts/0
 #
 # The randomness is Postgres's `order by random()`, as it is for Phoenix;
 # the similarity ranking is the same statement as list_similar/2. The
-# channel lists come from /blinks-next/api/blinks/tags (src/99_blinks.blimp).
+# channel lists come from /api/blinks/tags (src/99_blinks.blimp).
 #
 # Nothing here writes. A review vote (review_candidate/2 makes a blink or
 # dismisses a bookmark) is a write; the page draws the arrows and says so
@@ -122,20 +122,22 @@ end
 
 # Phoenix's redirect/2 answer, body and all.
 BKP_TO_LINKS = %{status: 302, content_type: "text/html; charset=utf-8", cache: BKP_CACHE,
-  body: "<html><body>You are being <a href=\"/blinks-next\">redirected</a>.</body></html>", location: "/blinks-next"}
+  body: "<html><body>You are being <a href=\"/blinks\">redirected</a>.</body></html>", location: "/blinks"}
 
 # -- the pages ---------------------------------------------------------------
 
+
+
 def bkp_page(title: String, program: String, actor_var: String, located: Bool) -> Map do
-  html = app_page_with(title, BKP_DESCRIPTION, [APP_CSS, "/blinks-next/pages.css"], "blinks-html", program, actor_var, located)
+  html = blk_pwa_head(app_page_with(title, BKP_DESCRIPTION, [APP_CSS, "/blinks/pages.css"], "blinks-html", program, actor_var, located))
   response(200, "text/html; charset=utf-8", "public, max-age=300", html)
 end
 
-BKP_SURF_PAGE = bkp_page("Blinks: stumble", "/blinks-next/surf.blimp", "surf", true)
-BKP_WALK_PAGE = bkp_page("Blinks: walk", "/blinks-next/walk.blimp", "walk", true)
-BKP_TV_PAGE = bkp_page("Blinks TV", "/blinks-next/tv.blimp", "tv", false)
+BKP_SURF_PAGE = bkp_page("Blinks: stumble", "/blinks/surf.blimp", "surf", true)
+BKP_WALK_PAGE = bkp_page("Blinks: walk", "/blinks/walk.blimp", "walk", true)
+BKP_TV_PAGE = bkp_page("Blinks TV", "/blinks/tv.blimp", "tv", false)
 # the page only answers with the key in its URL: nothing shared keeps it
-BKP_REVIEW_PAGE = put(bkp_page("bookmark review", "/blinks-next/review.blimp", "review", true), :cache, BKP_CACHE)
+BKP_REVIEW_PAGE = put(bkp_page("bookmark review", "/blinks/review.blimp", "review", true), :cache, BKP_CACHE)
 BKP_SURF_PROGRAM = bjt_asset("_build/blinks-surf.blimp", "text/plain; charset=utf-8")
 BKP_WALK_PROGRAM = bjt_asset("_build/blinks-walk.blimp", "text/plain; charset=utf-8")
 BKP_TV_PROGRAM = bjt_asset("_build/blinks-tv.blimp", "text/plain; charset=utf-8")
@@ -148,23 +150,23 @@ BKP_PRIVACY = put(bjt_asset("static/blinks/privacy.html", "text/html; charset=ut
 # Every path above, or nil.
 def blinks_pages_route(path: String, query: String) -> Any do
   case path do
-    "/blinks-next/surf" -> BKP_SURF_PAGE
-    "/blinks-next/walk" -> BKP_WALK_PAGE
-    "/blinks-next/tv" -> BKP_TV_PAGE
-    "/blinks-next/review" ->
+    "/blinks/surf" -> BKP_SURF_PAGE
+    "/blinks/walk" -> BKP_WALK_PAGE
+    "/blinks/tv" -> BKP_TV_PAGE
+    "/blinks/review" ->
       case bkp_key_ok(query) do
         true -> BKP_REVIEW_PAGE
         false -> BKP_TO_LINKS
       end
-    "/blinks-next/privacy" -> BKP_PRIVACY
-    "/blinks-next/surf.blimp" -> BKP_SURF_PROGRAM
-    "/blinks-next/walk.blimp" -> BKP_WALK_PROGRAM
-    "/blinks-next/tv.blimp" -> BKP_TV_PROGRAM
-    "/blinks-next/review.blimp" -> BKP_REVIEW_PROGRAM
-    "/blinks-next/pages.css" -> BKP_CSS
-    "/blinks-next/pick.json" -> bkp_pick(query)
-    "/blinks-next/walk.json" -> bkp_walk(query)
-    "/blinks-next/review.json" -> bkp_review_json(query)
+    "/blinks/privacy" -> BKP_PRIVACY
+    "/blinks/surf.blimp" -> BKP_SURF_PROGRAM
+    "/blinks/walk.blimp" -> BKP_WALK_PROGRAM
+    "/blinks/tv.blimp" -> BKP_TV_PROGRAM
+    "/blinks/review.blimp" -> BKP_REVIEW_PROGRAM
+    "/blinks/pages.css" -> BKP_CSS
+    "/blinks/pick.json" -> bkp_pick(query)
+    "/blinks/walk.json" -> bkp_walk(query)
+    "/blinks/review.json" -> bkp_review_json(query)
     _ -> nil
   end
 end

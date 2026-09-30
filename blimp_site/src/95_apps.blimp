@@ -28,6 +28,42 @@ end
 
 APP_CSS = "/assets/app-3cfac71d5552d1426de906087a8be2fe.css"
 
+# What BlinksLive's root layout (blinks_root.html.heex) puts in every
+# /blinks page's head beyond the site's own: the home-screen app (the
+# manifest, the icons, standalone on iOS, where Web Push only works from an
+# installed app) and the link preview. Without the manifest "Add to Home
+# Screen" makes a bookmark, not the app the bell's pushes go to. It is here, not
+# with the blinks files, because three of them build pages at load time and
+# the shell's glob order among 99_blinks.blimp, 99_blinks_pages.blimp and
+# 99_blinkslive.blimp depends on the locale.
+def blk_pwa_head_tags() -> String do
+  join([
+  "<link rel=\"manifest\" href=\"/static/blinks-pwa/manifest.json\">\n",
+  "<link rel=\"apple-touch-icon\" href=\"/static/blinks-pwa/icon-180.png\">\n",
+  "<link rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/static/blinks-pwa/icon-192.png\">\n",
+  "<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n",
+  "<meta name=\"mobile-web-app-capable\" content=\"yes\">\n",
+  "<meta name=\"apple-mobile-web-app-title\" content=\"Blinks\">\n",
+  "<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"default\">\n",
+  "<meta name=\"theme-color\" content=\"#f5f2ea\">\n",
+  "<meta property=\"og:url\" content=\"https://bobbby.online/blinks\">\n",
+  "<meta property=\"og:image\" content=\"https://bobbby.online/static/blinks-og.png\">\n",
+  "<meta property=\"og:image:width\" content=\"1200\">\n",
+  "<meta property=\"og:image:height\" content=\"630\">\n"
+  ], "")
+end
+
+def blk_pwa_head(html: String) -> String do
+  i = index_of(html, "</head>")
+  case i >= 0 do
+    true -> concat(take(html, i), blk_pwa_head_tags(), drop(html, i))
+    # every page_layout_html has one; a page without it is a bug to see
+    false ->
+      puts("blk_pwa_head: a /blinks page has no </head>: refusing to start")
+      exit(1)
+  end
+end
+
 def list_append(a: List, b: List) -> List do
   reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
 end

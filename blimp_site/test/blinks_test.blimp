@@ -1,6 +1,6 @@
 # needs: static/blinks/common.blimp static/blinks/live.blimp static/blinks/paper.blimp static/blinks/reader.blimp
 #
-# /blinks-next and the blinks read API: the Temper helpers
+# /blinks and the blinks read API: the Temper helpers
 # (temper/src/blinks), the server's row encoding and routing
 # (src/99_blinks.blimp, without a database: the tests have none), and the
 # two browser programs (static/blinks/) fed a page.json the server wrote
@@ -120,12 +120,12 @@ actor BlinksTests do
     assert_eq(blinks_route("/api/blinks/12/comments", "").status, 503)
     assert_eq(blinks_route("/api/blinks/12/extra", ""), nil)
     assert_eq(blinks_route("/api/blinksx", ""), nil)
-    # the same API under /blinks-next, which Caddy sends here
-    assert_eq(blinks_route("/blinks-next/api/blinks/lookup", "").status, 401)
-    assert_eq(blinks_route("/blinks-next/page.json", "size=500").status, 400)
-    assert_eq(blinks_route("/blinks-next", "").status, 200)
-    assert_eq(contains(BLK_PAGE.body, "data-program=\"/blinks-next/blinks.blimp\""), true)
-    assert_eq(contains(BLK_READER_PAGE.body, "data-program=\"/blinks-next/reader.blimp\""), true)
+    # the same API under /blinks, which Caddy sends here
+    assert_eq(blinks_route("/api/blinks/lookup", "").status, 401)
+    assert_eq(blinks_route("/blinks/page.json", "size=500").status, 400)
+    assert_eq(blinks_route("/blinks", "").status, 200)
+    assert_eq(contains(BLK_PAGE.body, "data-program=\"/blinks/blinks.blimp\""), true)
+    assert_eq(contains(BLK_READER_PAGE.body, "data-program=\"/blinks/reader.blimp\""), true)
     assert_eq(contains(BLK_PAGE.body, "data-location=\"1\""), true)
     assert_eq(status_text(401), "Unauthorized")
   end
@@ -139,8 +139,8 @@ actor BlinksTests do
     assert_eq(contains(v0, "<option value=\"1mo\" selected>past month</option>"), true)
     # what it asks for (effects draw nothing, so asked of the functions the
     # view calls): page 2 of 30, and the URL as BlinksLive's patch/2 writes it
-    assert_eq(paper_data_url(false, 2, "", false, "7", 0, "1mo", "nyc", "", "", 30, 0), "/blinks-next/page.json?page=2&size=30&t=1mo&tags=nyc")
-    assert_eq(paper_data_url(true, 1, "a b", true, "7", 0, "", "", "", "", 30, 0), "/blinks-next/page.json?nodork=1&page=1&q=a+b&seed=7&size=30")
+    assert_eq(paper_data_url(false, 2, "", false, "7", 0, "1mo", "nyc", "", "", 30, 0), "/blinks/page.json?page=2&size=30&t=1mo&tags=nyc")
+    assert_eq(paper_data_url(true, 1, "a b", true, "7", 0, "", "", "", "", 30, 0), "/blinks/page.json?nodork=1&page=1&q=a+b&seed=7&size=30")
     assert_eq(paper_query(0, "53.1", true, 2, "x", "1", 0, "1w", "nyc,art", "", ""), "media=53.1&nodork=1&page=2&q=x&shuffle=1&t=1w&tags=nyc%2Cart")
     assert_eq(paper_query(0, "", false, 1, "", "", 0, "", "", "archives", "2026-09-14"), "view=archives&week=2026-09-14")
     p <- :location("tags=nyc")
@@ -153,7 +153,7 @@ actor BlinksTests do
     assert_eq(contains(v, "<span class=\"rank\">14</span>"), true)
     # two columns, numbered straight through
     assert_eq(blkt_count(v, "class=\"col\""), 2)
-    assert_eq(contains(v, "/blinks-next/blinks.rss?tags=nyc"), true)
+    assert_eq(contains(v, "/blinks.rss?tags=nyc"), true)
     # the admin box takes a key (chapter 70 made it work)
     assert_eq(contains(v, "paste API key…"), true)
     p <- :not_ported("chat:167")
@@ -199,6 +199,6 @@ actor BlinksTests do
     # BlinksReaderLive.patch/2's order, and a tag clicked goes first
     assert_eq(reader_query(false, 1, "", false, "", "art,nyc"), "tags=art%2Cnyc")
     assert_eq(reader_query(true, 3, "q", true, "1d", ""), "q=q&t=1d&page=3&shuffle=1&nodork=1")
-    assert_eq(reader_data_url(false, 1, "", false, "9", "", "nyc"), "/blinks-next/page.json?page=1&size=60&tags=nyc")
+    assert_eq(reader_data_url(false, 1, "", false, "9", "", "nyc"), "/blinks/page.json?page=1&size=60&tags=nyc")
   end
 end

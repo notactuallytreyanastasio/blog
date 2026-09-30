@@ -174,7 +174,7 @@ actor BlinksWriteTests do
     # the router binds :id and :tag with %XX decoded and "+" kept
     assert_eq(bwt_param("DELETE", "/api/blinks/1/tags/c++", "tag"), "c++")
     assert_eq(bwt_param("DELETE", "/api/blinks/1/tags/two%20words", "tag"), "two words")
-    assert_eq(bwt_param("POST", "/blinks-next/api/blinks/+12/tags", "id"), "+12")
+    assert_eq(bwt_param("POST", "/api/blinks/+12/tags", "id"), "+12")
     assert_eq(bwt_param("PATCH", "/api/blinks/+3", "id"), "+3")
   end
 
@@ -197,9 +197,9 @@ actor BlinksWriteTests do
     assert_eq(bwt_status(bwt_authed("POST", "/api/blinks/candidates", "{\"candidates\":[{\"url\":5},{\"title\":null,\"folder\":\"f\"}]}")), 503)
   end
 
-  test "the same routes answer under /blinks-next, and methods Phoenix has not got are 405s" do
-    assert_eq(bwt_status(bwt_json("POST", "/blinks-next/api/blinks", [], "{}")), 401)
-    assert_eq(bwt_status(bwt_authed("PATCH", "/blinks-next/api/blinks/x", "{}")), 400)
+  test "the same routes answer under /blinks, and methods Phoenix has not got are 405s" do
+    assert_eq(bwt_status(bwt_json("POST", "/api/blinks", [], "{}")), 401)
+    assert_eq(bwt_status(bwt_authed("PATCH", "/api/blinks/x", "{}")), 400)
     assert_eq(bwt_status(bwt_authed("PUT", "/api/blinks/3", "{}")), 405)
     # the PATCH still reaches the database with a body that is not JSON: Phoenix takes forms too
     assert_eq(bwt_status(bwt_send("PATCH", "/api/blinks/3", [concat("X-Blinks-Token: ", BWT_TOKEN), "Content-Type: application/x-www-form-urlencoded"], "title=x")), 503)

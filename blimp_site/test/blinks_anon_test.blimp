@@ -183,7 +183,7 @@ actor BlinksAnonTests do
     assert_eq(got, [503, 503, 503, 503, 429])
     assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/5/comments", ip, bat_comment(10, "hi"))), BLKA_LIMITED)
     # another visitor is not
-    assert_eq(bat_status(bat_json(routes, "POST", "/blinks-next/api/blinks/5/comments", "198.51.100.1", bat_comment(10, "hi"))), 503)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/5/comments", "198.51.100.1", bat_comment(10, "hi"))), 503)
   end
 
   test "the daily limits: 60 comments and 20 suggestions a day per IP, whatever the minute says" do
@@ -221,7 +221,7 @@ actor BlinksAnonTests do
     assert_eq(bat_body(bat_json(routes, "GET", "/api/blinks/%205/comments", ip, "")), BLKA_BAD_ID)
     assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/+5/save", ip, BAT_DEVICE)), 503)
     assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/%205/save", ip, BAT_DEVICE)), BLKA_BAD_ID)
-    assert_eq(bat_status(bat_json(routes, "POST", "/blinks-next/api/blinks/comments/+1/react", ip, "{\"emoji\":\"🔥\",\"device_id\":\"device-abc-12345\"}")), 503)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/comments/+1/react", ip, "{\"emoji\":\"🔥\",\"device_id\":\"device-abc-12345\"}")), 503)
     assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/comments/1x/react", ip, BAT_DEVICE)), BLKA_BAD_ID)
   end
 
@@ -287,7 +287,7 @@ actor BlinksAnonTests do
     pre = bat_send(routes, "OPTIONS", "/api/blinks/comments/3/react", [], "")
     assert_eq(bat_status(pre), 204)
     assert(contains(bat_head(pre), "access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS"))
-    assert_eq(bat_status(bat_send(routes, "OPTIONS", "/blinks-next/api/blinks/9/save", [], "")), 204)
+    assert_eq(bat_status(bat_send(routes, "OPTIONS", "/api/blinks/9/save", [], "")), 204)
   end
 
   test "invalid UTF-8 in a form body or a query is Plug.Parsers' 400 from 41_web.blimp: \"Bad Request\", no CORS" do
@@ -299,7 +299,7 @@ actor BlinksAnonTests do
       form("/api/blinks/106/comments", "author_name=bytes&content=A%FFB&website=&post_token=x"),
       form("/api/blinks/106/comments", concat("content=A", hex_decode("ff"), "B")),
       form("/api/blinks/comments/1/report", "a%FF=1"),
-      form("/blinks-next/api/blinks/5/save", "device_id=device-abc-%C0%AF"),
+      form("/api/blinks/5/save", "device_id=device-abc-%C0%AF"),
       bat_send(routes, "POST", "/api/blinks/comments/1/report?x=%FF", [], ""),
       bat_send(routes, "GET", "/api/blinks/5/comments?x=%E2%82", [], "")
     ], fn(got: Tuple) do

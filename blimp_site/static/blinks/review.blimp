@@ -1,7 +1,7 @@
-# /blinks-next/review: BlinksReviewLive, the bookmark triage queue, as a
+# /blinks/review: BlinksReviewLive, the bookmark triage queue, as a
 # Blimp program in the browser. The server lets the page load only with
 # ?key= the API token, as the LiveView's mount did, and hands the program
-# the pending bookmarks and the counts (/blinks-next/review.json).
+# the pending bookmarks and the counts (/blinks/review.json).
 #
 # A vote is a write: ▲ makes the bookmark a blink, ▼ dismisses it
 # (Blinks.review_candidate/2). Writes are not ported, so the arrows are
@@ -80,7 +80,7 @@ actor Review do
 
   on :view do
     asks = case key != "" and not(loaded) do
-      true -> [fetch(concat("/blinks-next/review.json?", blk_query(["key"], [key])), :loaded)]
+      true -> [fetch(concat("/blinks/review.json?", blk_query(["key"], [key])), :loaded)]
       false -> []
     end
     counts = case data do
@@ -116,7 +116,7 @@ actor Review do
           concat(to_string(added + dismissed), " / ", to_string(review_sum(counts)), " reviewed · "),
           el("b", %{class: "added"}, concat(to_string(added), " blinked")),
           concat(" · ", to_string(dismissed), " passed")),
-        el("a", %{class: "backlink", href: "/blinks-next"}, "→ back to blinks")),
+        el("a", %{class: "backlink", href: "/blinks"}, "→ back to blinks")),
       el("div", %{class: "list"},
         el("div", %{class: "hint"}, "▲ makes it a blink (tagged ", el("b", %{}, "bookmarks"), " + its folder) · ▼ dismisses it forever"),
         notes,

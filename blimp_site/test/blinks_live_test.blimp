@@ -1,6 +1,6 @@
 # needs: static/blinks/common.blimp static/blinks/live.blimp static/blinks/paper.blimp
 #
-# Chapter 70: /blinks-next as the live, editable page. The server side
+# Chapter 70: /blinks as the live, editable page. The server side
 # (src/99_blinkslive.blimp: the socket's rooms, the broadcast 64 left as a
 # TODO, the page, the dork list, the admin check) through the router with
 # no database, so a request that gets as far as a query is a 503; the
@@ -151,40 +151,40 @@ actor BlinksLiveTests do
   end
 
   test "the page reads the always-shuffle cookie before the first render, and gives the page a seed and a CSRF token" do
-    plain = blt_send("GET", "/blinks-next", [], "")
+    plain = blt_send("GET", "/blinks", [], "")
     assert_eq(elem(plain, 1), 200)
     html = blt_body(plain)
     assert_eq(blt_attr(html, "always"), "")
     assert_eq(length(blt_attr(html, "seed")), 8)
     assert_eq(length(blt_attr(html, "csrf")), 43)
-    assert_eq(contains(html, "<script src=\"/blinks-next/live.js\"></script>"), true)
+    assert_eq(contains(html, "<script src=\"/blinks/live.js\"></script>"), true)
     assert_eq(contains(html, "data-location"), false)
     assert_eq(contains(elem(plain, 0), "Cache-Control: no-store"), true)
     assert_eq(starts_with(blt_cookie(plain), "_blimp_session="), true)
-    lit = blt_body(blt_send("GET", "/blinks-next", ["Cookie: blinksAlwaysShuffle=1"], ""))
+    lit = blt_body(blt_send("GET", "/blinks", ["Cookie: blinksAlwaysShuffle=1"], ""))
     assert_eq(blt_attr(lit, "always"), "1")
     # two loads, two seeds (random_bytes, not the unseeded random)
     assert_eq(blt_attr(lit, "seed") != blt_attr(html, "seed"), true)
-    js = blt_send("GET", "/blinks-next/live.js", [], "")
+    js = blt_send("GET", "/blinks/live.js", [], "")
     assert_eq(contains(blt_body(js), "blinksAlwaysShuffle") or contains(blt_body(js), "/live/blinks"), true)
   end
 
   test "unlock: the API token or 401; the dork list takes the session's CSRF token, then asks the database" do
-    assert_eq(elem(blt_send("GET", "/blinks-next/admin", [], ""), 1), 401)
-    assert_eq(elem(blt_send("GET", "/blinks-next/admin", ["X-Blinks-Token: nope"], ""), 1), 401)
-    ok = blt_send("GET", "/blinks-next/admin", [concat("X-Blinks-Token: ", BLT_TOKEN)], "")
+    assert_eq(elem(blt_send("GET", "/blinks/admin", [], ""), 1), 401)
+    assert_eq(elem(blt_send("GET", "/blinks/admin", ["X-Blinks-Token: nope"], ""), 1), 401)
+    ok = blt_send("GET", "/blinks/admin", [concat("X-Blinks-Token: ", BLT_TOKEN)], "")
     assert_eq(elem(ok, 1), 200)
     assert_eq(blt_body(ok), "{\"status\":\"ok\"}")
-    page = blt_send("GET", "/blinks-next", [], "")
+    page = blt_send("GET", "/blinks", [], "")
     cookie = blt_cookie(page)
     token = blt_attr(blt_body(page), "csrf")
     body = "{\"dork_tags\":\"code, NYC\"}"
-    no_token = blt_send("POST", "/blinks-next/dork", [concat("Cookie: ", cookie), "Content-Type: application/json"], body)
+    no_token = blt_send("POST", "/blinks/dork", [concat("Cookie: ", cookie), "Content-Type: application/json"], body)
     assert_eq(elem(no_token, 1), 403)
     # past the token, the database: none here, so 503
-    with_token = blt_send("POST", "/blinks-next/dork", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], body)
+    with_token = blt_send("POST", "/blinks/dork", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], body)
     assert_eq(elem(with_token, 1), 503)
-    bad = blt_send("POST", "/blinks-next/dork", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], "{\"dork_tags\":[1]}")
+    bad = blt_send("POST", "/blinks/dork", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], "{\"dork_tags\":[1]}")
     assert_eq(elem(bad, 1), 422)
     # the SQL trims, lower-cases in Postgres, drops empties, keeps the first of each
     assert_eq(contains(bkl_dork_sql(), "lower(btrim(e.x, "), true)
@@ -236,9 +236,9 @@ actor BlinksLiveTests do
     assert_eq(contains(v, "2 hidden by you · "), true)
     # always-shuffle from the cookie: shuffled on the first fetch, seed from the server
     assert_eq(contains(v, "✓ shuffled — undo"), true)
-    assert_eq(paper_data_url(false, 1, "", true, "ABCD1234", 0, "", "nyc", "", "", 30, 0), "/blinks-next/page.json?page=1&seed=ABCD1234&size=30&tags=nyc")
+    assert_eq(paper_data_url(false, 1, "", true, "ABCD1234", 0, "", "nyc", "", "", 30, 0), "/blinks/page.json?page=1&seed=ABCD1234&size=30&tags=nyc")
     # the stored key is tried before admin shows
-    assert_eq(bk_contains(blt_ops(p), "http GET /blinks-next/admin"), true)
+    assert_eq(bk_contains(blt_ops(p), "http GET /blinks/admin"), true)
     assert_eq(contains(v, "class=\"del\""), false)
     p <- :done(blt_n(p, "http"), 200, "{\"status\":\"ok\"}")
     va = blt_html(p <- :view)
@@ -258,17 +258,17 @@ actor BlinksLiveTests do
     p <- :done(blt_n(p, "http"), 200, "{\"status\":\"ok\"}")
     assert_eq(bk_contains(blt_ops(p), "store blinksAdminKey right"), true)
     p <- :save_edit("{\"id\":\"167\",\"title\":\"T\",\"description\":\" d \"}")
-    assert_eq(bk_contains(blt_ops(p), "http PATCH /blinks-next/api/blinks/167"), true)
+    assert_eq(bk_contains(blt_ops(p), "http PATCH /api/blinks/167"), true)
     p <- :add_tags("{\"id\":\"167\",\"tags\":\"Foo, bar\"}")
-    assert_eq(bk_contains(blt_ops(p), "http POST /blinks-next/api/blinks/167/tags"), true)
+    assert_eq(bk_contains(blt_ops(p), "http POST /api/blinks/167/tags"), true)
     p <- :remove_tag("167 two words")
-    assert_eq(bk_contains(blt_ops(p), "http DELETE /blinks-next/api/blinks/167/tags/two%20words"), true)
+    assert_eq(bk_contains(blt_ops(p), "http DELETE /api/blinks/167/tags/two%20words"), true)
     p <- :remove_tag("167 c++")
-    assert_eq(bk_contains(blt_ops(p), "http DELETE /blinks-next/api/blinks/167/tags/c%2B%2B"), true)
+    assert_eq(bk_contains(blt_ops(p), "http DELETE /api/blinks/167/tags/c%2B%2B"), true)
     p <- :delete_blink(167)
     n = blt_n(p, "confirm")
     p <- :done(n, 1, "")
-    assert_eq(bk_contains(blt_ops(p), "http DELETE /blinks-next/api/blinks/167"), true)
+    assert_eq(bk_contains(blt_ops(p), "http DELETE /api/blinks/167"), true)
     html = blt_html(p <- :view)
     assert_eq(contains(html, "data-key=\"right\""), true)
   end
@@ -303,7 +303,7 @@ actor BlinksLiveTests do
     # a dropped socket asks again when it is back
     p <- :socket("closed")
     p <- :socket("open")
-    assert_eq(paper_data_url(false, 1, "", false, "", 0, "", "nyc", "", "", 30, 2), "/blinks-next/page.json?page=1&r=2&size=30&tags=nyc")
+    assert_eq(paper_data_url(false, 1, "", false, "", 0, "", "nyc", "", "", 30, 2), "/blinks/page.json?page=1&r=2&size=30&tags=nyc")
   end
 
   test "always shuffle is a cookie; the stumble promo and the push prompt are remembered" do

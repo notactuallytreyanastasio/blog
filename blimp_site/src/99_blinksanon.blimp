@@ -11,7 +11,6 @@
 #   DELETE /api/blinks/:id/save             {device_id}
 #   POST   /api/blinks/suggest              {url, title, website} into the review queue
 #
-# (and all of it again under /blinks-next/api/blinks, as 64 does)
 #
 # Who a visitor is. Saves and reactions are keyed by a device hash and
 # comments carry an IP hash: the first 16 hex digits of
@@ -843,30 +842,36 @@ def blinks_anon_routes() -> List do
     "" -> puts("blinks: SECRET_KEY_BASE is not set; comments, saves, reactions and suggestions answer 503")
     _ -> :ok
   end
-  blinks_anon_routes_for(secret, web_or(getenv("BLINKS_API_TOKEN"), ""), BLKA_LIMITER)
+  blinks_anon_routes_owned(secret, web_or(getenv("BLINKS_API_TOKEN"), ""), BLKA_LIMITER, BLKW_PHOENIX_OWNS)
 end
 
 def blinks_anon_routes_for(secret: String, token: String, limiter: Any) -> List do
+  blinks_anon_routes_owned(secret, token, limiter, false)
+end
+
+# owned: Phoenix answers the comment writes (BLKW_PHOENIX_OWNS says why).
+def blinks_anon_routes_owned(secret: String, token: String, limiter: Any, owned: Bool) -> List do
   key = case secret do
     "" -> ""
     _ -> blka_pbkdf2(secret, BLKA_SALT)
   end
   ctx = %{secret: secret, key: key, limiter: limiter}
-  flat(map(["/api/blinks", "/blinks-next/api/blinks"], fn(base: String) -> List do blka_routes_at(base, ctx, token) end))
+  blka_routes_at("/api/blinks", ctx, token, owned)
 end
 
-def blka_routes_at(base: String, ctx: Map, token: String) -> List do
+def blka_routes_at(base: String, ctx: Map, token: String, owned: Bool) -> List do
   c = [blkw_cors]
   w = [blkw_cors, blka_require_secret(ctx)]
-  admin = [blkw_cors, blka_require_token(token)]
+  cw = blkw_owned(owned, "a comment write", w)
+  admin = blkw_owned(owned, "a comment write", [blkw_cors, blka_require_token(token)])
   [
     web_route("GET", concat(base, "/:blink_id/comments"), c, fn(conn: Map) -> Map do blka_comments(ctx, conn) end),
-    web_route("POST", concat(base, "/:blink_id/comments"), w, fn(conn: Map) -> Map do blka_comment(ctx, conn) end),
+    web_route("POST", concat(base, "/:blink_id/comments"), cw, fn(conn: Map) -> Map do blka_comment(ctx, conn) end),
     web_route("OPTIONS", concat(base, "/:blink_id/comments"), c, blkw_preflight),
-    web_route("POST", concat(base, "/comments/:id/report"), w, fn(conn: Map) -> Map do blka_report(ctx, conn) end),
+    web_route("POST", concat(base, "/comments/:id/report"), cw, fn(conn: Map) -> Map do blka_report(ctx, conn) end),
     web_route("OPTIONS", concat(base, "/comments/:id/report"), c, blkw_preflight),
-    web_route("POST", concat(base, "/comments/:id/react"), w, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_REACT_SQL) end),
-    web_route("DELETE", concat(base, "/comments/:id/react"), w, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_UNREACT_SQL) end),
+    web_route("POST", concat(base, "/comments/:id/react"), cw, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_REACT_SQL) end),
+    web_route("DELETE", concat(base, "/comments/:id/react"), cw, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_UNREACT_SQL) end),
     web_route("OPTIONS", concat(base, "/comments/:id/react"), c, blkw_preflight),
     web_route("DELETE", concat(base, "/comments/:id"), admin, fn(conn: Map) -> Map do blka_delete_comment(ctx, conn) end),
     web_route("OPTIONS", concat(base, "/comments/:id"), c, blkw_preflight),

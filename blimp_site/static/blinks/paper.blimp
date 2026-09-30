@@ -1,7 +1,7 @@
-# /blinks-next: BlinksLive, the newspaper, as a Blimp program in the
+# /blinks: BlinksLive, the newspaper, as a Blimp program in the
 # browser. The state is the URL's, as it was the LiveView's (?chat= ?q=
 # &tags= &t= &nodork= &shuffle= &page= &view=archives &week= &similar=
-# &media=), and every change of it asks /blinks-next/page.json for the page
+# &media=), and every change of it asks /blinks/page.json for the page
 # again. What BlinksLive kept per device (hidden links, the tour's "seen",
 # the admin key, the stumble promo, the always-shuffle cookie) arrives in
 # :boot from static/blinks/live.js before the first fetch; everything the
@@ -55,7 +55,7 @@ def paper_data_url(nodork: Bool, page: Int, q: String, shuffled: Bool, seed: Str
     true -> to_string(rev)
     false -> ""
   end
-  concat("/blinks-next/page.json?", blk_query(["nodork", "page", "q", "r", "seed", "similar", "size", "t", "tags", "view", "week"],
+  concat("/blinks/page.json?", blk_query(["nodork", "page", "q", "r", "seed", "similar", "size", "t", "tags", "view", "week"],
     [nodork_s, to_string(page), q, rev_s, seed_s, similar_s, to_string(size), t, tags, view, week]))
 end
 
@@ -269,7 +269,7 @@ def paper_row(b: Map, rank: Int, first: Bool, cx: Map) -> Any do
     el("div", %{class: "entry"},
       el("a", %{class: title_cls, href: bk_title_href(b), target: "_blank", rel: "noopener", title: bk_title_tip(b)}, bk_headline(b, 140)), " ",
       pill, " ",
-      el("span", %{class: "domain"}, favicon, "(", el("a", %{href: concat("/blinks-next?", blk_query(["q"], [domain]))}, bk_site(b)), ")"),
+      el("span", %{class: "domain"}, favicon, "(", el("a", %{href: concat("/blinks?", blk_query(["q"], [domain]))}, bk_site(b)), ")"),
       subtitle,
       quoting,
       media,
@@ -357,7 +357,7 @@ def paper_sidebar(tags: List, selected: String, singles_open: Bool, admin: Bool,
     el("div", %{class: "sidebox"},
       el("h2", %{}, "feeds"),
       el("div", %{class: "body"},
-        el("a", %{href: blk_rss_href("/blinks-next/blinks.rss", selected), style: "color:#369;"}, "rss"),
+        el("a", %{href: blk_rss_href("/blinks.rss", selected), style: "color:#369;"}, "rss"),
         for_tags)),
     bkv_admin_box(admin, admin_error),
     el("div", %{class: "sidebox"},
@@ -481,7 +481,7 @@ actor Paper do
     hid = bkv_int_list(bkv_get(m, "hidden", []))
     sd = bkv_get(m, "seed", "")
     ob0 = case type_of(key) == :string and key != "" do
-      true -> [bkv_entry_arg(seq + 1, "recheck", merge(bkv_op(seq + 1, "http", "GET", "/blinks-next/admin", ""), %{"data-key": key}), key) | outbox]
+      true -> [bkv_entry_arg(seq + 1, "recheck", merge(bkv_op(seq + 1, "http", "GET", "/blinks/admin", ""), %{"data-key": key}), key) | outbox]
       false -> outbox
     end
     seen = bkv_get(m, "seenTour", false) == true
@@ -618,7 +618,7 @@ actor Paper do
         case status == 1 do
           true ->
             id = e.arg
-            become outbox: [bkv_entry(seq + 1, "write", merge(bkv_op(seq + 1, "http", "DELETE", concat("/blinks-next/api/blinks/", id), ""), %{"data-key": admin_key})) | rest], seq: seq + 1
+            become outbox: [bkv_entry(seq + 1, "write", merge(bkv_op(seq + 1, "http", "DELETE", concat("/api/blinks/", id), ""), %{"data-key": admin_key})) | rest], seq: seq + 1
           false -> become outbox: rest
         end
       "write" ->
@@ -921,7 +921,7 @@ actor Paper do
 
   on :unlock_admin(fields: String) do
     key = bk_str(lookup(elem(json_decode(fields), 1), "key"))
-    become outbox: [bkv_entry_arg(seq + 1, "unlock", merge(bkv_op(seq + 1, "http", "GET", "/blinks-next/admin", ""), %{"data-key": key}), key) | outbox], seq: seq + 1
+    become outbox: [bkv_entry_arg(seq + 1, "unlock", merge(bkv_op(seq + 1, "http", "GET", "/blinks/admin", ""), %{"data-key": key}), key) | outbox], seq: seq + 1
     reply :ok
   end
 
@@ -943,7 +943,7 @@ actor Paper do
     id = blk_id(bk_str(lookup(got, "id")))
     body = json_encode(%{title: bk_str(lookup(got, "title")), description: bk_str(lookup(got, "description"))})
     case admin and id > 0 do
-      true -> become editing: 0, outbox: [paper_write(seq + 1, "PATCH", concat("/blinks-next/api/blinks/", to_string(id)), body, admin_key) | outbox], seq: seq + 1
+      true -> become editing: 0, outbox: [paper_write(seq + 1, "PATCH", concat("/api/blinks/", to_string(id)), body, admin_key) | outbox], seq: seq + 1
       false -> become editing: 0
     end
     reply :ok
@@ -962,7 +962,7 @@ actor Paper do
     id = blk_id(bk_str(lookup(got, "id")))
     body = json_encode(%{tags: split(bk_str(lookup(got, "tags")), ",")})
     case admin and id > 0 do
-      true -> become tag_editing: 0, outbox: [paper_write(seq + 1, "POST", concat("/blinks-next/api/blinks/", to_string(id), "/tags"), body, admin_key) | outbox], seq: seq + 1
+      true -> become tag_editing: 0, outbox: [paper_write(seq + 1, "POST", concat("/api/blinks/", to_string(id), "/tags"), body, admin_key) | outbox], seq: seq + 1
       false -> become tag_editing: 0
     end
     reply :ok
@@ -974,7 +974,7 @@ actor Paper do
     id = take(what, max(cut, 0))
     tag = drop(what, cut + 1)
     case admin and cut > 0 do
-      true -> become outbox: [paper_write(seq + 1, "DELETE", concat("/blinks-next/api/blinks/", id, "/tags/", paper_path_encode(tag)), "", admin_key) | outbox], seq: seq + 1
+      true -> become outbox: [paper_write(seq + 1, "DELETE", concat("/api/blinks/", id, "/tags/", paper_path_encode(tag)), "", admin_key) | outbox], seq: seq + 1
       false -> become note: ""
     end
     reply :ok
@@ -1007,7 +1007,7 @@ actor Paper do
   on :save_dork(fields: String) do
     got = elem(json_decode(fields), 1)
     body = json_encode(%{dork_tags: bk_str(lookup(got, "dork_tags"))})
-    become outbox: [bkv_entry(seq + 1, "dork", merge(bkv_op(seq + 1, "http", "POST", "/blinks-next/dork", body), %{"data-csrf": csrf})) | outbox], seq: seq + 1
+    become outbox: [bkv_entry(seq + 1, "dork", merge(bkv_op(seq + 1, "http", "POST", "/blinks/dork", body), %{"data-csrf": csrf})) | outbox], seq: seq + 1
     reply :ok
   end
 
@@ -1272,9 +1272,9 @@ def paper_masthead(live: Bool, total: String, t: String, shuffled: Bool, q: Stri
     el("nav", %{class: "tabs"}, tab(live, "live", ""), tab(not(live), "archives", "archives")),
     el("span", %{class: "dateline"}, concat(total, " saved")),
     el("a", %{class: "tour-link", click: :start_tour}, "tour"),
-    el("a", %{class: "tour-link", href: "/blinks-next/surf", title: "stumbleupon mode: one random link at a time"}, "stumble 🎲"),
-    el("a", %{class: "tour-link", href: "/blinks-next/walk", title: "wiki-walk: hop between similar links"}, "walk 🥾"),
-    el("a", %{class: "tour-link", href: "/blinks-next/tv", title: "lean-back channel surfing"}, "tv 📺"),
+    el("a", %{class: "tour-link", href: "/blinks/surf", title: "stumbleupon mode: one random link at a time"}, "stumble 🎲"),
+    el("a", %{class: "tour-link", href: "/blinks/walk", title: "wiki-walk: hop between similar links"}, "walk 🥾"),
+    el("a", %{class: "tour-link", href: "/blinks/tv", title: "lean-back channel surfing"}, "tv 📺"),
     window,
     shuffle,
     always_box,
@@ -1299,7 +1299,7 @@ def paper_promo(show: Bool) -> List do
     false -> []
     true -> [el("div", %{class: "stumble-promo"},
       el("span", %{class: "sp-dice"}, "🎲"),
-      el("a", %{class: "stumble-drag", href: "/blinks-next/stumble", title: "Drag me to your bookmarks bar!"}, "STUMBLE into a Bobbby link"),
+      el("a", %{class: "stumble-drag", href: "/blinks/stumble", title: "Drag me to your bookmarks bar!"}, "STUMBLE into a Bobbby link"),
       el("span", %{class: "sp-text"}, "← drag this button onto your bookmarks bar. click it whenever you're bored and it takes you somewhere from the collection."),
       el("a", %{class: "sp-dismiss", click: :dismiss_promo, title: "hide this"}, "✕ got it"))]
   end
@@ -1345,7 +1345,7 @@ def paper_filterbars(data: Any, tags: String, q: String, view: String, week: Str
         _ -> []
       end
       [el("div", %{class: "bundles"}, empty, map(weeks, fn(w: Map) -> Any do
-        el("a", %{class: "bundle", href: concat("/blinks-next?view=archives&week=", w.monday), click: :set_week, with: w.monday},
+        el("a", %{class: "bundle", href: concat("/blinks?view=archives&week=", w.monday), click: :set_week, with: w.monday},
           el("b", %{}, blk_week_label(w.monday)),
           el("span", %{class: "bcount"}, concat(to_string(w.count), " links")),
           el("div", %{class: "bpreview"}, join(map(w.titles, fn(x: Any) -> String do bk_str(x) end), " · ")))
@@ -1355,7 +1355,7 @@ def paper_filterbars(data: Any, tags: String, q: String, view: String, week: Str
     "" -> []
     _ -> [el("div", %{class: "filterbar"}, el("b", %{}, blk_week_label(week)),
       concat(" · ", to_string(length(rows)), " links · "),
-      el("a", %{class: "clear", href: "/blinks-next?view=archives", click: :set_view, with: "archives"}, "← all weeks"))]
+      el("a", %{class: "clear", href: "/blinks?view=archives", click: :set_view, with: "archives"}, "← all weeks"))]
   end
   paper_concat([sim, filtering, bundles, week_bar])
 end

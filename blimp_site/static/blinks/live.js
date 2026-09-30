@@ -1,4 +1,4 @@
-// /blinks-next's transport, after app.js has mounted the page's Blimp
+// /blinks's transport, after app.js has mounted the page's Blimp
 // program (window.BlimpApp, actor `blinks`). BlinksLive had four hooks
 // (BlinksPrefs, BlinksPush, PaperFit, the tour's Joyride) and a LiveView
 // socket; what they did that a Blimp program in the browser cannot do by
@@ -74,17 +74,17 @@
           if (perm !== 'granted') return pushState()
           return navigator.serviceWorker.ready
             .then(function (reg) { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) }) })
-            .then(function (sub) { return fetch('/blinks-next/api/push/web', { method: 'POST', headers: json, body: JSON.stringify({ subscription: sub.toJSON() }) }) })
+            .then(function (sub) { return fetch('/api/push/web', { method: 'POST', headers: json, body: JSON.stringify({ subscription: sub.toJSON() }) }) })
             .then(function (res) { if (!res.ok) throw new Error('server said ' + res.status); return pushState() })
         }).catch(function (e) { return pushState({ error: String(e) }) })
       }
       return pushState().then(function (r) {
         if (!r.sub) return r
         if (action === 'unsubscribe') {
-          return fetch('/blinks-next/api/push/web?endpoint=' + encodeURIComponent(r.sub.endpoint), { method: 'DELETE' })
+          return fetch('/api/push/web?endpoint=' + encodeURIComponent(r.sub.endpoint), { method: 'DELETE' })
             .then(function () { return r.sub.unsubscribe() }).catch(function () {}).then(function () { return pushState() })
         }
-        return fetch('/blinks-next/api/push/web/test', { method: 'POST', headers: json, body: JSON.stringify({ endpoint: r.sub.endpoint }) })
+        return fetch('/api/push/web/test', { method: 'POST', headers: json, body: JSON.stringify({ endpoint: r.sub.endpoint }) })
           .then(function (res) { return pushState(res.ok ? { tested: true } : { error: 'test failed (' + res.status + ')' }) })
           .catch(function (e) { return pushState({ error: String(e) }) })
       })
