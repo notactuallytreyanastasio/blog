@@ -203,6 +203,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/sky/profile.json" -> sky_profile_json(query_param(req.query, "handle"))
     "/assets/sky.css" -> SKY_CSS
     "/sky/points.json.gz" -> SKY_POINTS
+    # the MTA bus map (src/99_mta.blimp): the page, its program, Leaflet with mta.js
+    "/mta-bus-map" -> MTA_PAGE
+    "/mta-bus-map/mta.blimp" -> MTA_PROGRAM
+    "/mta-bus-map/mta.js" -> MTA_JS
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -345,6 +349,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/cursors" -> :cursors
     "/live/map" -> :map
     "/live/firehose" -> :firehose
+    "/live/mta" -> :mta
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -378,6 +383,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a firehose page is sent what it watches (the YouTube grid at once)
       case kind == :firehose do
         true -> FIREHOSE <- :join(c, query_param(req.query, "page"))
+        false -> :ok
+      end
+      # an MTA bus map page, which says what it watches once it is open
+      case kind == :mta do
+        true -> MTA <- :join(c)
         false -> :ok
       end
       %{fd: c, kind: kind, game: game, buf: ""}
@@ -433,6 +443,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
     :firehose ->
       FIREHOSE <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
+    :mta ->
+      MTA <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
 end
@@ -479,6 +492,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # a tag; MAP_ROOM sends it to every /map page itself
             :map ->
               MAP_ROOM <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # which routes a bus map page watches, or its Update button
+            :mta ->
+              MTA <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             :wordle ->
               taken = WORDLE <- :report(sock.game, payload)
@@ -609,6 +626,7 @@ end
 def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
   # the work that waits on other servers, a step at a time
   HN <- :step
+  MTA <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -761,6 +779,8 @@ case getenv("FIREHOSE") do
   "off" -> :ok
   _ -> RELAY_HOSE <- :want(true)
 end
+# The MTA bus map's Bus Time key; without it the page says so
+MTA <- :key(mta_key())
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do
