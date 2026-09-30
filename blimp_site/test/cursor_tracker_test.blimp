@@ -58,6 +58,7 @@ actor CursorTrackerTests do
 
   test "the room: a visitor is given an id and a colour, and everyone is sent at most every 50ms" do
     room = spawn CursorRoom
+    room <- :hub(spawn Rooms)
     a = room <- :join(-1)
     b = room <- :join(-2)
     assert_eq(length(a), 16)
@@ -83,6 +84,7 @@ actor CursorTrackerTests do
 
   test "the room: a browser's numbers are clamped, and anything else is :bad" do
     room = spawn CursorRoom
+    room <- :hub(spawn Rooms)
     room <- :join(-1)
     room <- :recv(-1, "{\"t\":\"move\",\"rx\":-50,\"ry\":999999,\"inside\":\"yes\"}")
     u = head((room <- :room).users)
@@ -96,6 +98,7 @@ actor CursorTrackerTests do
 
   test "the room: points are kept newest first, one per 100ms per visitor, and cleared" do
     room = spawn CursorRoom
+    room <- :hub(spawn Rooms)
     a = room <- :join(-1)
     b = room <- :join(-2)
     assert_eq(room <- :recv(-1, "{\"t\":\"point\",\"x\":5,\"y\":6}"), :point)
@@ -109,6 +112,7 @@ actor CursorTrackerTests do
 
   test "the room: the points go when the hour turns, and not before" do
     room = spawn CursorRoom
+    room <- :hub(spawn Rooms)
     room <- :join(-1)
     hour = 3600 * 488664
     room <- :push(1000, hour + 10)
@@ -117,6 +121,41 @@ actor CursorTrackerTests do
     assert_eq(length((room <- :room).points), 1)
     room <- :push(1200, hour + 3600)
     assert_eq((room <- :room).points, [])
+  end
+
+  test "the room's frames go out through its hub, in the page's own shapes, at the flush" do
+    hub = spawn Rooms
+    room = spawn CursorRoom
+    room <- :hub(hub)
+    a = room <- :join(-1)
+    b = room <- :join(-2)
+    # nothing is written before the flush
+    assert_eq(hub <- :sent(-1), [])
+    room <- :push(1000, 3600 * 10)
+    hub <- :flush
+    got_a = map(hub <- :sent(-1), fn(s: String) -> Map do ctt_decoded(s) end)
+    got_b = map(hub <- :sent(-2), fn(s: String) -> Map do ctt_decoded(s) end)
+    assert_eq(map(got_a, fn(f: Map) -> String do f.t end), ["hello", "users"])
+    assert_eq(map(got_b, fn(f: Map) -> String do f.t end), ["hello", "users"])
+    assert_eq(head(got_a).id, a)
+    # a's hello was said before b came; b's has both
+    assert_eq(map(head(got_a).users, fn(u: Map) -> String do u.id end), [a])
+    assert_eq(map(head(got_b).users, fn(u: Map) -> String do u.id end), [a, b])
+    assert_eq(elem(json_decode(ct_users_json(hub <- :list("cursors"))), 1), head(tail(got_b)))
+    # no presence frames: the page never had any
+    room <- :leave(-2)
+    room <- :push(1100, 3600 * 10)
+    hub <- :flush
+    assert_eq(map(hub <- :sent(-1), fn(s: String) -> String do ctt_decoded(s).t end), ["users"])
+  end
+
+  test "the room: a page sending faster than the hub allows is :limited" do
+    room = spawn CursorRoom
+    room <- :hub(spawn Rooms)
+    room <- :join(-1)
+    said = map(range(1, ROOMS_BURST + 5), fn(i: Int) -> Atom do room <- :recv(-1, "{\"t\":\"move\",\"rx\":1,\"ry\":1,\"inside\":true}") end)
+    assert(length(filter(said, fn(v: Atom) -> Bool do v == :limited end)) >= 4)
+    assert_eq(head(said), :move)
   end
 
   test "the page: the room's frames become what it draws" do

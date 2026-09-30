@@ -251,6 +251,21 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/role-call/show.json" -> role_call_api(path, req.query)
     "/role-call/person.json" -> role_call_api(path, req.query)
     "/role-call/titles.json" -> role_call_api(path, req.query)
+    # bobby's links, the other pages (src/99_blinks_pages.blimp): surf, walk,
+    # tv, review and privacy, and what their programs ask for
+    "/blinks-next/surf" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk" -> blinks_pages_route(path, req.query)
+    "/blinks-next/tv" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review" -> blinks_pages_route(path, req.query)
+    "/blinks-next/privacy" -> blinks_pages_route(path, req.query)
+    "/blinks-next/surf.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/tv.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/pages.css" -> blinks_pages_route(path, req.query)
+    "/blinks-next/pick.json" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk.json" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review.json" -> blinks_pages_route(path, req.query)
     # bobby's links, read side (src/99_blinks.blimp): Phoenix's GET API at
     # its own paths and under /blinks-next, the feed, and the two pages
     "/api/blinks" -> blinks_route(path, req.query)
@@ -272,6 +287,25 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/blinks-next/page.json" -> blinks_route(path, req.query)
     "/blinks-next/stumble" -> blinks_route(path, req.query)
     "/assets/blinks.css" -> BLK_CSS
+    # Stumble (src/99_stumble.blimp): the page, its program, script and
+    # css, and Blog.PokeAround's queries
+    "/stumble" -> ST_PAGE
+    "/stumble/stumble.blimp" -> ST_PROGRAM
+    "/stumble/stumble.js" -> ST_JS
+    "/assets/stumble.css" -> ST_CSS
+    "/stumble/links.json" -> stumble_api(path, req)
+    "/stumble/tags.json" -> stumble_api(path, req)
+    "/stumble/tag.json" -> stumble_api(path, req)
+    "/stumble/count.json" -> stumble_api(path, req)
+    "/stumble/go" -> stumble_api(path, req)
+    # the Camera Browser (src/99_cameras.blimp): the page, its program,
+    # script and css, list_listings/1's rows and one listing
+    "/cameras" -> CAM_PAGE
+    "/cameras/cameras.blimp" -> CAM_PROGRAM
+    "/cameras/cameras.js" -> CAM_JS
+    "/cameras/cameras.css" -> CAM_CSS
+    "/cameras/listings.json" -> cameras_listings_json(req.query)
+    "/cameras/listing.json" -> cameras_listing_json(req.query)
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -437,6 +471,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/firehose" -> :firehose
     "/live/mta" -> :mta
     "/live/ziggy" -> :ziggy
+    "/live/cameras" -> :cameras
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -482,6 +517,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         true -> ZG <- :join(c)
         false -> :ok
       end
+      # a /cameras page is told when a sweep finishes
+      case kind == :cameras do
+        true -> CAMERAS <- :join(c)
+        false -> :ok
+      end
       %{fd: c, kind: kind, game: game, buf: ""}
   end
 end
@@ -520,6 +560,8 @@ end
 # {socks, games, changed}
 def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
   tcp_close(sock.fd)
+  # whatever ROOMS still owes this fd is for a connection that is gone
+  ROOMS <- :drop(sock.fd)
   puts(concat("WS closed ", to_string(sock.kind), " ", sock.game, " ", why))
   case sock.kind do
     :player -> {map_without(socks, to_string(sock.fd)), map_without(games, sock.game), true}
@@ -541,8 +583,25 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
     :ziggy ->
       ZG <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
+    :cameras ->
+      CAMERAS <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
+end
+
+# The sockets ROOMS kicked this tick (too far behind, stalled, or gone;
+# it logs which), closed. {socks, games, changed}
+def rooms_kick(fds: List, read: Tuple) -> Tuple do
+  reduce(fds, read, fn(acc: Tuple, fd: Int) -> Tuple do
+    sock = lookup(elem(acc, 0), to_string(fd))
+    case sock == nil do
+      true -> acc
+      false ->
+        r = drop_socket(sock, elem(acc, 0), elem(acc, 1), "kicked by rooms")
+        {elem(r, 0), elem(r, 1), elem(acc, 2) or elem(r, 2)}
+    end
+  end)
 end
 
 # Read what a ready socket has and act on every whole frame in it.
@@ -595,6 +654,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # an unlock, a question or a suggestion; ZG answers it itself
             :ziggy ->
               ZG <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # a star, a hide or a note; CAMERAS tells every page itself
+            :cameras ->
+              CAMERAS <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             :wordle ->
               taken = WORDLE <- :report(sock.game, payload)
@@ -728,6 +791,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   MTA <- :step
   GALLERY <- :step
   ZG <- :step
+  CAMERAS <- :step
+  CAM_SWEEP <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -737,8 +802,14 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
   WORDLE <- :push(elem(read, 0))
   CURSORS <- :push(now_ms(), now())
+  # what the rooms said this tick goes out, one write a socket that never
+  # waits (src/89_rooms.blimp); a socket too far behind is closed
+  flushed = ROOMS <- :flush
+  read = rooms_kick(flushed.kicked, read)
   # the Bluesky relays: drain what arrived, push to the firehose pages
   FIREHOSE <- :tick(now_ms())
+  # /stumble's links from Graze's turbostream, when STUMBLE_INGEST is on
+  STI <- :tick(now_ms())
   t = now_ms()
   case elem(read, 2) and t - pushed_at >= 50 do
     true ->
@@ -892,6 +963,14 @@ MTA <- :key(mta_key())
 # /ziggy's graph, and its chat's key, password and models
 ZG <- :graph(ZG_GRAPH)
 ZG <- :config(zg_env("OPENAI_API_KEY", ""), zg_env("ZIGGY_CHAT_PASSWORD", ""), zg_env("OPENAI_MODEL", "gpt-5.1"), zg_env("OPENAI_AUTOCOMPLETE_MODEL", "gpt-5.4-nano"), zg_env("OPENAI_BASE_URL", "https://api.openai.com/v1"))
+# /cameras' star, hide and note need BLINKS_API_TOKEN; without it nobody can
+case CAM_TOKEN do
+  "" -> puts("cameras: BLINKS_API_TOKEN is not set, so nobody can star, hide or note a listing")
+  _ -> :ok
+end
+# The Craigslist sweep that fills camera_listings (src/99_camera_sweep.blimp):
+# off unless CAMERAS_SWEEP=1, which is for after Phoenix's Poller is stopped
+puts(CAM_SWEEP <- :config(cs_boot_config(cs_env_config(), DB_OPTS != nil)))
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do
