@@ -1,0 +1,512 @@
+# /stumble's links, collected: Blog.PokeAround's turbostream consumer and
+# link extractor, in the one server process. OFF unless STUMBLE_INGEST=1.
+#
+# Phoenix does this today, and must stop before this starts. Two ingesters
+# at once would each insert every link; the unique index on url_hash turns
+# the second insert into a no-op, but each one still burns a sequence id
+# and a round trip, and the two would race on every row. The switch-over:
+#
+#   1. Phoenix: config :blog, Blog.PokeAround.Supervisor, enabled: false
+#      (config/config.exs), deploy, and see "PokeAround system disabled"
+#      in the app's log.
+#   2. blimp-blog: STUMBLE_INGEST=1 in its environment
+#      (/opt/blog/docker-compose.yml), `docker compose up -d blimp-blog`,
+#      and see "stumble ingest: on" in its log, then a stats line a minute.
+#   3. `STI <- :stats` at the prompt: frames, stored rows, db errors.
+#
+# Going back is the same two steps the other way round.
+#
+# What Phoenix did, and what this does instead:
+#
+#   Firehose    WebSockex on Graze's turbostream, which hydrates every post
+#               with its author's profile. Each frame was JSON-decoded, and
+#               each post create broadcast over PubSub. Here the Hose actor
+#               of src/98_firehose.blimp holds the connection (reconnects
+#               with backoff, treats 30s of silence as a dead connection).
+#               Turbostream ignores ?cursor= (asked for two minutes back on
+#               2026-09-30, it started at the live edge, as without), so
+#               a reconnect loses what was sent meanwhile, as Phoenix's did.
+#   Jetstream   Phoenix also fed the extractor Jetstream's posts while
+#   fallback    turbostream was down. They never qualified: Jetstream has
+#               no follower counts, bios or index dates, so every author
+#               had 0 followers (1,937 recorded posts, 987 links, 0 rows).
+#               It is not ported; it would hold a second connection and
+#               decode 34 frames a second to store nothing.
+#   Extractor   Parser.parse_post, extract_links, qualifies?, and
+#               Links.store_link: one INSERT per link. Here a frame is
+#               decoded only if its text could qualify (it names a link
+#               card or a link facet, and "en" or "en-..."), which is 23%
+#               of them. The decisions are Temper (temper/src/stumble/
+#               ingest.temper.md), checked against Elixir on every link,
+#               date and text of five recorded minutes. Rows wait, and go
+#               in STI_BATCH at a time, or after STI_FLUSH_MS.
+#   AI tagger   config'd off in Phoenix (enabled: false) and not ported.
+#
+# Turbostream sends about 32 frames a second, 6.4 KB each; 94% are post
+# creates, and about one in 180 becomes a row: some 10 a minute.
+
+STI_URL = "wss://api.graze.social/app/api/v1/turbostream/turbostream"
+STI_BATCH = 20
+STI_FLUSH_MS = 30000
+STI_MAX_PENDING = 500
+STI_STATS_MS = 60000
+STI_TYPE = to_atom("$type")
+STI_NUL = from_char_code(0)
+
+# ── one frame ───────────────────────────────────────────────────────────
+
+# Whether a frame could hold a post the extractor stores, read without
+# decoding it: a qualifying post has a link card or a link facet, and a
+# language that is "en" or starts "en-". Both are in the frame's text as
+# written; the hydrated parent and quoted posts can make this say yes when
+# the post itself has neither, never no when it has both.
+def sti_may_qualify(frame: String) -> Bool do
+  (contains(frame, "app.bsky.embed.external") or contains(frame, "app.bsky.richtext.facet#link")) and (contains(frame, "\"en\"") or contains(frame, "\"en-"))
+end
+
+def sti_is(v: Any, t: Atom) -> Bool do
+  type_of(v) == t
+end
+
+# nil, or a string: what Elixir could read without raising. Anything else
+# (a number where a string goes) made Phoenix's parser raise, and the post
+# was dropped.
+def sti_str_or_nil(v: Any) -> Bool do
+  v == nil or sti_is(v, :string)
+end
+
+# Parser.parse_external_embed/1: the link card's uri, of an external embed
+# or of the media of a record-with-media. {:ok, uri or nil} or :bad.
+def sti_card(embed: Any) -> Any do
+  case sti_is(embed, :map) do
+    false -> {:ok, nil}
+    true ->
+      kind = lookup(embed, STI_TYPE)
+      case kind do
+        "app.bsky.embed.external" ->
+          ext = lookup(embed, :external)
+          case ext == nil or sti_is(ext, :map) do
+            false -> :bad
+            true -> {:ok, fh_get(ext, :uri)}
+          end
+        "app.bsky.embed.recordWithMedia" -> sti_card(lookup(embed, :media))
+        _ -> {:ok, nil}
+      end
+  end
+end
+
+# Parser.parse_facet_links/1: the uris of the link features, in order.
+# {:ok, uris} or :bad where Elixir raised (a facet, index or feature that
+# is not a map).
+def sti_facet_uris(facets: Any) -> Any do
+  case facets do
+    nil -> {:ok, []}
+    _ ->
+      case sti_is(facets, :list) do
+        false -> :bad
+        true ->
+          reduce(facets, {:ok, []}, fn(acc: Any, f: Any) -> Any do
+            case acc do
+              :bad -> :bad
+              _ -> sti_facet_add(elem(acc, 1), f)
+            end
+          end)
+      end
+  end
+end
+
+def sti_facet_add(acc: List, f: Any) -> Any do
+  index = fh_get(f, :index)
+  features = fh_get(f, :features)
+  shape_ok = (f == nil or sti_is(f, :map)) and (index == nil or sti_is(index, :map))
+  feats = case features do
+    nil -> []
+    _ ->
+      case sti_is(features, :list) do
+        true -> features
+        false -> :bad
+      end
+  end
+  case shape_ok and feats != :bad do
+    false -> :bad
+    true ->
+      case sti_all(feats, fn(x: Any) -> Bool do x == nil or sti_is(x, :map) end) do
+        false -> :bad
+        true ->
+          links = filter(feats, fn(x: Any) -> Bool do fh_get(x, STI_TYPE) == "app.bsky.richtext.facet#link" end)
+          {:ok, sti_append_all(acc, map(links, fn(x: Any) -> Any do fh_get(x, :uri) end))}
+      end
+  end
+end
+
+def sti_append_all(a: List, b: List) -> List do
+  reduce(b, a, fn(acc: List, x: Any) -> List do append(acc, x) end)
+end
+
+def sti_any(xs: List, f: Any) -> Bool do
+  filter(xs, f) != []
+end
+
+def sti_all(xs: List, f: Any) -> Bool do
+  length(filter(xs, f)) == length(xs)
+end
+
+# A list less its first n.
+def sti_drop(xs: List, n: Int) -> List do
+  case n <= 0 or xs == [] do
+    true -> xs
+    false -> sti_drop(tail(xs), n - 1)
+  end
+end
+
+# Ecto's cast: a blank string is stored as NULL.
+def sti_nil_blank(v: Any) -> Any do
+  case sti_is(v, :string) do
+    true ->
+      case st_blank(v) do
+        true -> nil
+        false -> v
+      end
+    false -> v
+  end
+end
+
+def sti_text_fields(row: Map) -> List do
+  [row.url, row.url_hash, row.post_uri, row.post_text, row.author_did, row.author_handle, row.author_display_name, row.domain]
+end
+
+# A value Postgres would refuse: longer than a varchar(255), or holding a
+# NUL byte. Phoenix's insert raised on it, and the row was not stored.
+def sti_refused(row: Map) -> Bool do
+  short = [row.post_uri, row.author_did, row.author_handle, row.author_display_name, row.domain]
+  long = sti_any(short, fn(v: Any) -> Bool do sti_is(v, :string) and not(st_fits(v, 255)) end) or sti_any(row.langs, fn(v: String) -> Bool do not(st_fits(v, 255)) end)
+  nul = sti_any(sti_append_all(sti_text_fields(row), row.langs), fn(v: Any) -> Bool do sti_is(v, :string) and contains(v, STI_NUL) end)
+  long or nul
+end
+
+# What the extractor made of one decoded frame, at now_ms:
+#   {:row, row, links}   a row for pa_links (links = distinct links found)
+#   {:skip, why, links}  why is an atom, for the stats
+def sti_decide(ev: Any, now_ms: Int) -> Tuple do
+  at_uri = fh_get(ev, :at_uri)
+  commit = fh_get(fh_get(ev, :message), :commit)
+  create = sti_is(at_uri, :string) and contains(at_uri, "/app.bsky.feed.post/") and fh_get(commit, :operation) == "create"
+  case create do
+    false -> {:skip, :not_post, 0}
+    true ->
+      record0 = fh_get(commit, :record)
+      record = case record0 do
+        nil -> %{}
+        _ -> record0
+      end
+      case sti_is(record, :map) do
+        false -> {:skip, :unreadable, 0}
+        true -> sti_decide_post(ev, at_uri, record, now_ms)
+      end
+  end
+end
+
+def sti_decide_post(ev: Any, at_uri: String, record: Map, now_ms: Int) -> Tuple do
+  text0 = lookup(record, :text)
+  text = case text0 do
+    nil -> ""
+    _ -> text0
+  end
+  created = lookup(record, :createdAt)
+  user0 = fh_get(fh_get(ev, :hydrated_metadata), :user)
+  user = case sti_is(user0, :map) do
+    true -> user0
+    false -> nil
+  end
+  indexed = fh_get(user, :indexed_at)
+  card = sti_card(lookup(record, :embed))
+  facets = sti_facet_uris(lookup(record, :facets))
+  readable = sti_str_or_nil(created) and sti_str_or_nil(indexed) and card != :bad and facets != :bad
+  case readable do
+    false -> {:skip, :unreadable, 0}
+    true ->
+      cands = filter([elem(card, 1) | elem(facets, 1)], fn(x: Any) -> Bool do sti_is(x, :string) end)
+      n = st_link_count(cands)
+      link = st_the_link(cands)
+      case link == "" do
+        true -> {:skip, :not_one_link, n}
+        false -> sti_decide_link(link, n, at_uri, text, created, user, record, now_ms)
+      end
+  end
+end
+
+def sti_decide_link(link: String, n: Int, at_uri: String, text: Any, created: Any, user: Any, record: Map, now_ms: Int) -> Tuple do
+  langs0 = lookup(record, :langs)
+  langs = case sti_is(langs0, :list) do
+    true -> langs0
+    false -> []
+  end
+  followers0 = fh_get(user, :followers_count)
+  follows0 = fh_get(user, :follows_count)
+  followers = case followers0 do
+    nil -> 0
+    _ -> followers0
+  end
+  follows = case follows0 do
+    nil -> 0
+    _ -> follows0
+  end
+  bio = fh_get(user, :description)
+  counts_ok = sti_is(followers, :integer) and sti_is(follows, :integer)
+  case user == nil or not(counts_ok) or not(sti_str_or_nil(bio)) or not(sti_is(text, :string)) do
+    true -> {:skip, :unqualified, n}
+    false ->
+      str_langs = filter(langs, fn(x: Any) -> Bool do sti_is(x, :string) end)
+      indexed = fh_get(user, :indexed_at)
+      qualifies = st_lang_ok(str_langs) and st_author_ok(followers, follows) and bio != nil and not(st_blank(bio)) and indexed != nil and st_age_ok(indexed, now_ms) and st_text_ok(text)
+      case qualifies do
+        false -> {:skip, :unqualified, n}
+        true ->
+          case st_url_banned(link) do
+            true -> {:skip, :banned, n}
+            false -> sti_make_row(link, n, at_uri, text, created, user, followers, follows, langs0)
+          end
+      end
+  end
+end
+
+# Links.store_link/1 and Link.changeset/2: the hash and domain, then what
+# Ecto's cast keeps. A langs list with anything but strings in it, or a
+# DID, handle or name that is not a string, failed the cast.
+def sti_make_row(link: String, n: Int, at_uri: String, text: String, created: Any, user: Map, followers: Int, follows: Int, langs0: Any) -> Tuple do
+  langs = case langs0 do
+    nil -> []
+    _ -> langs0
+  end
+  did = lookup(user, :did)
+  handle = lookup(user, :handle)
+  name = lookup(user, :display_name)
+  castable = sti_str_or_nil(did) and sti_str_or_nil(handle) and sti_str_or_nil(name) and sti_all(langs, fn(x: Any) -> Bool do sti_is(x, :string) end)
+  case castable do
+    false -> {:skip, :uncastable, n}
+    true ->
+      at = case created do
+        nil -> ""
+        _ -> st_utc(created)
+      end
+      case at == "" and created != nil and (sti_starts_with(created, "-") or sti_starts_with(created, "0000-")) do
+        true -> puts(concat("stumble ingest: createdAt ", created, " is a year before 1, which Elixir reads and this does not; stored as NULL"))
+        false -> :ok
+      end
+      domain = st_url_domain(link)
+      created_at = case at do
+        "" -> nil
+        _ -> at
+      end
+      row = %{url: link, url_hash: slice(sha256(st_url_normal(link)), 0, 32), post_uri: sti_nil_blank(at_uri), post_text: sti_nil_blank(text),
+              post_created_at: created_at,
+              author_did: sti_nil_blank(did), author_handle: sti_nil_blank(handle), author_display_name: sti_nil_blank(name),
+              author_followers_count: followers, score: st_score(followers, follows),
+              domain: sti_nil_blank(domain), langs: langs}
+      case sti_refused(row) do
+        true -> {:skip, :refused, n}
+        false -> {:row, row, n}
+      end
+  end
+end
+
+def sti_starts_with(s: String, p: String) -> Bool do
+  index_of(s, p) == 0
+end
+
+# A frame's whole way: filtered, decoded, decided. {:row, row, links},
+# {:skip, why, links}, or {:skip, :filtered, 0} for one never decoded.
+def sti_frame(frame: String, now_ms: Int) -> Tuple do
+  case sti_may_qualify(frame) do
+    false -> {:skip, :filtered, 0}
+    true ->
+      case json_decode(frame) do
+        {:ok, ev} -> sti_decide(ev, now_ms)
+        _ -> {:skip, :unreadable, 0}
+      end
+  end
+end
+
+# Frames in, {rows oldest first, counts}. Pure, for the tests.
+def sti_frames(frames: List, now_ms: Int) -> Tuple do
+  got = reduce(frames, {[], %{}}, fn(acc: Tuple, f: String) -> Tuple do
+    r = sti_frame(f, now_ms)
+    why = case elem(r, 0) do
+      :row -> :row
+      _ -> elem(r, 1)
+    end
+    counts = put(elem(acc, 1), why, sti_lookup_or(elem(acc, 1), why, 0) + 1)
+    counts2 = put(counts, :links, sti_lookup_or(counts, :links, 0) + elem(r, 2))
+    case elem(r, 0) do
+      :row -> {[elem(r, 1) | elem(acc, 0)], counts2}
+      _ -> {elem(acc, 0), counts2}
+    end
+  end)
+  {reverse(elem(got, 0)), elem(got, 1)}
+end
+
+def sti_lookup_or(m: Map, k: Any, dflt: Any) -> Any do
+  v = lookup(m, k)
+  case v do
+    nil -> dflt
+    _ -> v
+  end
+end
+
+# ── the insert ──────────────────────────────────────────────────────────
+
+STI_COLUMNS = "url, url_hash, post_uri, post_text, post_created_at, author_did, author_handle, author_display_name, author_followers_count, score, domain, langs, inserted_at, updated_at"
+
+def sti_values(k: Int) -> String do
+  b = k * 12
+  p = fn(i: Int) -> String do concat("$", to_string(b + i)) end
+  concat("(", p(1), "::text, ", p(2), "::text, ", p(3), "::text, ", p(4), "::text, ", p(5), "::timestamp, ", p(6), "::text, ", p(7), "::text, ", p(8), "::text, ",
+         p(9), "::int, ", p(10), "::int, ", p(11), "::text, array(select x from json_array_elements_text(", p(12), "::json) with ordinality as l(x, n) order by n)::varchar[], ",
+         "now() at time zone 'utc', now() at time zone 'utc')")
+end
+
+# One statement for n rows. ON CONFLICT DO NOTHING is Ecto's
+# on_conflict: :nothing: a url already stored (by url_hash) is skipped,
+# and so is a second row with the same hash in this batch.
+def sti_insert_sql(n: Int) -> String do
+  concat("insert into pa_links (", STI_COLUMNS, ") values ", join(map(range(0, n - 1), fn(k: Int) -> String do sti_values(k) end), ", "), " on conflict do nothing returning id")
+end
+
+def sti_params(rows: List) -> List do
+  reduce(rows, [], fn(acc: List, r: Map) -> List do
+    sti_append_all(acc, [r.url, r.url_hash, r.post_uri, r.post_text, r.post_created_at, r.author_did, r.author_handle, r.author_display_name, r.author_followers_count, r.score, r.domain, r.langs])
+  end)
+end
+
+# rows (oldest first) into Postgres: {inserted, rows to try again}. When
+# the batch fails with the connection up, each row is tried alone, so one
+# row Postgres refuses costs only itself, as it did in Phoenix, where the
+# insert raised. When the connection is gone, the rows wait for the next
+# flush (at most STI_MAX_PENDING of them).
+def sti_insert(rows: List) -> Tuple do
+  case DB <- :query(sti_insert_sql(length(rows)), sti_params(rows)) do
+    {:ok, got} -> {length(got), []}
+    {:error, reason} ->
+      case (DB <- :stats).connected do
+        false ->
+          puts(concat("stumble ingest: no database (", reason, "); ", to_string(length(rows)), " rows wait"))
+          {0, rows}
+        true -> sti_insert_each(rows, reason)
+      end
+  end
+end
+
+def sti_insert_each(rows: List, reason: String) -> Tuple do
+  puts(concat("stumble ingest: insert of ", to_string(length(rows)), " rows failed (", reason, "); trying each alone"))
+  each_one = map(rows, fn(r: Map) -> Any do
+    case DB <- :query(sti_insert_sql(1), sti_params([r])) do
+      {:ok, got} -> length(got)
+      {:error, why} ->
+        puts(concat("stumble ingest: not stored: ", r.url, " (", why, ")"))
+        -1
+    end
+  end)
+  {sum(filter(each_one, fn(x: Int) -> Bool do x > 0 end)), []}
+end
+
+# ── the actor ───────────────────────────────────────────────────────────
+
+actor StumbleIngest do
+  state enabled: Bool :: false
+  state pending: List :: []
+  state first_at: Int :: 0
+  state counts: Map :: %{}
+  state frames: Int :: 0
+  state rows: Int :: 0
+  state inserted: Int :: 0
+  state flushes: Int :: 0
+  state dropped: Int :: 0
+  state work_ms: Int :: 0
+  state db_ms: Int :: 0
+  state stats_at: Int :: 0
+  state started_at: Int :: 0
+
+  on :config(want: Bool) do
+    become enabled: want, started_at: now_ms(), stats_at: now_ms()
+    STI_HOSE <- :want(want)
+    reply want
+  end
+
+  # Every Site tick: the frames since the last one, then the insert if
+  # STI_BATCH rows wait or the oldest has waited STI_FLUSH_MS.
+  on :tick(t: Int) do
+    case enabled do
+      false -> reply 0
+      true ->
+        t0 = now_ms()
+        got = STI_HOSE <- :poll(t)
+        # the account-age test needs the wall clock: t is now_ms(), which
+        # under --serve counts from an arbitrary start (415376544 on a
+        # laptop), and every author looked a year short of old enough
+        fresh = sti_frames(got, now() * 1000)
+        waiting = sti_append_all(pending, elem(fresh, 0))
+        since = case pending == [] do
+          true -> t
+          false -> first_at
+        end
+        merged = reduce(keys(elem(fresh, 1)), counts, fn(acc: Map, k: Any) -> Map do put(acc, k, sti_lookup_or(acc, k, 0) + lookup(elem(fresh, 1), k)) end)
+        t1 = now_ms()
+        due = length(waiting) >= STI_BATCH or (waiting != [] and t - since >= STI_FLUSH_MS)
+        out = case due do
+          true -> sti_insert(waiting)
+          false -> {0, waiting}
+        end
+        t2 = now_ms()
+        kept0 = elem(out, 1)
+        over = length(kept0) - STI_MAX_PENDING
+        kept = case over > 0 do
+          true -> sti_drop(kept0, over)
+          false -> kept0
+        end
+        lost = max(over, 0)
+        first = case due do
+          true -> t
+          false -> since
+        end
+        work = work_ms + (t1 - t0)
+        dbt = db_ms + (t2 - t1)
+        stats = case t - stats_at >= STI_STATS_MS do
+          true ->
+            puts(concat("stumble ingest: ", to_string(frames + length(got)), " frames, ", to_string(rows + length(elem(fresh, 0))), " rows, ",
+                        to_string(inserted + elem(out, 0)), " inserted, ", to_string(length(kept)), " waiting, decide ", to_string(work), "ms, db ", to_string(dbt), "ms"))
+            t
+          false -> stats_at
+        end
+        flushed = case due do
+          true -> 1
+          false -> 0
+        end
+        become pending: kept, first_at: first, counts: merged, frames: frames + length(got), rows: rows + length(elem(fresh, 0)),
+               inserted: inserted + elem(out, 0), flushes: flushes + flushed, dropped: dropped + lost, work_ms: work, db_ms: dbt, stats_at: stats
+        reply length(got)
+    end
+  end
+
+  # From the prompt: `STI <- :stats`.
+  on :stats do
+    reply %{enabled: enabled, frames: frames, rows: rows, inserted: inserted, pending: length(pending), flushes: flushes, dropped: dropped,
+            work_ms: work_ms, db_ms: db_ms, counts: counts, since_ms: now_ms() - started_at, hose: STI_HOSE <- :stats}
+  end
+end
+
+def sti_env_on(v: Any) -> Bool do
+  v == "1" or v == "true" or v == "on"
+end
+
+STI_HOSE = spawn Hose
+STI_HOSE <- :setup(STI_URL)
+STI = spawn StumbleIngest
+case sti_env_on(getenv("STUMBLE_INGEST")) do
+  false -> :ok
+  true ->
+    STI <- :config(true)
+    case getenv("DATABASE_URL") do
+      nil -> puts("stumble ingest: on, but DATABASE_URL is not set: rows will wait and then be dropped")
+      _ -> puts("stumble ingest: on, reading Graze's turbostream into pa_links; Phoenix's Blog.PokeAround must be off")
+    end
+end
