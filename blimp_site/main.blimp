@@ -251,6 +251,27 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/role-call/show.json" -> role_call_api(path, req.query)
     "/role-call/person.json" -> role_call_api(path, req.query)
     "/role-call/titles.json" -> role_call_api(path, req.query)
+    # bobby's links, read side (src/99_blinks.blimp): Phoenix's GET API at
+    # its own paths and under /blinks-next, the feed, and the two pages
+    "/api/blinks" -> blinks_route(path, req.query)
+    "/api/blinks/tags" -> blinks_route(path, req.query)
+    "/api/blinks/random" -> blinks_route(path, req.query)
+    "/api/blinks/lookup" -> blinks_route(path, req.query)
+    "/api/blinks/export" -> blinks_route(path, req.query)
+    "/blinks.rss" -> blinks_route(path, req.query)
+    "/blinks-next/api/blinks" -> blinks_route(path, req.query)
+    "/blinks-next/api/blinks/tags" -> blinks_route(path, req.query)
+    "/blinks-next/api/blinks/random" -> blinks_route(path, req.query)
+    "/blinks-next/api/blinks/lookup" -> blinks_route(path, req.query)
+    "/blinks-next/api/blinks/export" -> blinks_route(path, req.query)
+    "/blinks-next/blinks.rss" -> blinks_route(path, req.query)
+    "/blinks-next" -> BLK_PAGE
+    "/blinks-next/reader" -> BLK_READER_PAGE
+    "/blinks-next/blinks.blimp" -> BLK_PROGRAM
+    "/blinks-next/reader.blimp" -> BLK_READER_PROGRAM
+    "/blinks-next/page.json" -> blinks_route(path, req.query)
+    "/blinks-next/stumble" -> blinks_route(path, req.query)
+    "/assets/blinks.css" -> BLK_CSS
     # Stumble (src/99_stumble.blimp): the page, its program, script and
     # css, and Blog.PokeAround's queries
     "/stumble" -> ST_PAGE
@@ -299,7 +320,7 @@ end
 def gallery_or_404(path: String) -> Map do
   photo = gallery_route(path)
   case photo do
-    nil -> static_or_404(path)
+    nil -> blinks_or_404(path)
     _ -> photo
   end
 end

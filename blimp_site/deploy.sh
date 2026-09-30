@@ -60,6 +60,8 @@ stage() {
   cp _build/phish_lab.blimp "$DIST/blimp_site/_build/phish_lab.blimp"
   cp _build/ziggy.blimp _build/ziggy-graph.json "$DIST/blimp_site/_build/"
   cp _build/role_call.blimp "$DIST/blimp_site/_build/role_call.blimp"
+  cp _build/blinks.blimp "$DIST/blimp_site/_build/blinks.blimp"
+  cp _build/blinks-reader.blimp "$DIST/blimp_site/_build/blinks-reader.blimp"
   cp _build/stumble.blimp "$DIST/blimp_site/_build/stumble.blimp"
   cp _build/cameras.blimp "$DIST/blimp_site/_build/cameras.blimp"
   mkdir -p "$DIST/priv/static/data"

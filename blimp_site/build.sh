@@ -130,6 +130,10 @@ cp ../priv/ziggy/graph-data.json _build/ziggy-graph.json
 # Role Call: the tab, the sets, the tour and the printing are Temper
 # (temper/src/role_call), the actor and view Blimp; query_param is the server's.
 with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.blimp
+# /blinks-next: domains, headlines, dates, query strings and tags are Temper
+# (temper/src/blinks); walking the rows, the actors and the views Blimp.
+with_temper _build/blinks.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/paper.blimp
+with_temper _build/blinks-reader.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/reader.blimp
 # Stumble: the menus, rules, sort key and cutting are Temper
 # (temper/src/stumble), the actor and view Blimp.
 with_temper _build/stumble.blimp static/stumble/stumble.blimp

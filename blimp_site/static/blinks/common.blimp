@@ -1,0 +1,192 @@
+# What /blinks-next (paper.blimp) and /blinks-next/reader (reader.blimp)
+# share: reading a row of /blinks-next/page.json, its pictures, and the
+# lightbox both pages open over themselves. The string work (domains,
+# headlines, dates, query strings, tags) is Temper, temper/src/blinks; a row
+# is a decoded JSON map, which Temper cannot take, so walking one is here.
+
+def bk_str(v: Any) -> String do
+  case v do
+    nil -> ""
+    _ -> v
+  end
+end
+
+def bk_posts(b: Map) -> List do
+  t = lookup(b, "thread")
+  case t do
+    nil -> []
+    _ ->
+      ps = lookup(t, "posts")
+      case type_of(ps) do
+        :list -> ps
+        _ -> []
+      end
+  end
+end
+
+# The quote the first post of a thread quotes, or nil.
+def bk_root_quote(b: Map) -> Any do
+  ps = bk_posts(b)
+  case ps do
+    [] -> nil
+    [first | _] ->
+      q = lookup(first, "quote")
+      case type_of(q) do
+        :map -> q
+        _ -> nil
+      end
+  end
+end
+
+def bk_root_post(b: Map) -> Any do
+  ps = bk_posts(b)
+  case ps do
+    [] -> nil
+    [first | _] -> first
+  end
+end
+
+# A post's (or a quote's) pictures: its images, then its video's still.
+def bk_media_from(m: Any) -> List do
+  case type_of(m) do
+    :map ->
+      imgs = lookup(m, "images")
+      images = case type_of(imgs) do
+        :list -> map(filter(imgs, fn(i: Any) -> Bool do type_of(i) == :map and lookup(i, "thumb") != nil end), fn(i: Map) -> Map do
+          full_given = lookup(i, "full")
+          full = case full_given do
+            nil -> i.thumb
+            _ -> full_given
+          end
+          %{kind: :image, thumb: i.thumb, full: full, alt: bk_str(lookup(i, "alt"))}
+        end)
+        _ -> []
+      end
+      v = lookup(m, "video")
+      case type_of(v) == :map and lookup(v, "thumb") != nil do
+        true -> bk_append(images, [%{kind: :video, thumb: v.thumb, full: v.thumb, alt: ""}])
+        false -> images
+      end
+    _ -> []
+  end
+end
+
+def bk_media_count(m: Any) -> Int do
+  length(bk_media_from(m))
+end
+
+# Every picture of a link in reading order: each post, then what it quotes.
+def bk_media_items(b: Map) -> List do
+  reduce(bk_posts(b), [], fn(acc: List, p: Map) -> List do
+    bk_append(acc, bk_append(bk_media_from(p), bk_media_from(lookup(p, "quote"))))
+  end)
+end
+
+def bk_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def bk_headline(b: Map, max: Int) -> String do
+  quotes = b.quotes
+  first_quote = case quotes do
+    [] -> ""
+    [q | _] -> q
+  end
+  posts = bk_posts(b)
+  thread_text = case posts do
+    [] -> ""
+    [p | _] -> bk_str(lookup(p, "text"))
+  end
+  blk_headline(first_quote, quotes != [], thread_text, posts != [], bk_str(b.title), b.title != nil, b.url, max)
+end
+
+def bk_site(b: Map) -> String do
+  blk_site_label(bk_str(b.site_name), b.url)
+end
+
+def bk_title_href(b: Map) -> String do
+  case b.dead_at do
+    nil -> b.url
+    _ -> blk_dead_href(b.url)
+  end
+end
+
+def bk_title_tip(b: Map) -> String do
+  case b.dead_at do
+    nil -> ""
+    _ -> "original link is dead — points at the wayback copy"
+  end
+end
+
+def bk_find(rows: List, id: Int) -> Any do
+  found = filter(rows, fn(b: Map) -> Bool do b.id == id end)
+  case found do
+    [] -> nil
+    [b | _] -> b
+  end
+end
+
+def bk_nth(list: List, i: Int) -> Any do
+  case i <= 0 do
+    true -> head(list)
+    false -> bk_nth(tail(list), i - 1)
+  end
+end
+
+def bk_mod(a: Int, n: Int) -> Int do
+  r = rem(a, n)
+  case r < 0 do
+    true -> r + n
+    false -> r
+  end
+end
+
+def bk_contains(list: List, x: Any) -> Bool do
+  filter(list, fn(y: Any) -> Bool do y == x end) != []
+end
+
+# The lightbox, as both LiveViews draw it. `shot` is a media item, `b` its
+# link, `i`/`count` where it is in what the arrows walk.
+def bk_lightbox(shot: Map, b: Map, i: Int, count: Int, max: Int) -> Any do
+  site = bk_site(b)
+  nav = case count > 1 do
+    true -> [
+      el("button", %{type: "button", class: "lbnav lbprev", click: :step_media, with: 0 - 1, title: "previous"}, "‹"),
+      el("button", %{type: "button", class: "lbnav lbnext", click: :step_media, with: 1, title: "next"}, "›")]
+    false -> []
+  end
+  alt = case shot.alt do
+    "" -> []
+    a -> [el("div", %{class: "lbalt"}, a)]
+  end
+  video = shot.kind == :video
+  open_label = case video do
+    true -> concat("▶ watch on ", site)
+    false -> concat("open ", site)
+  end
+  still = case video do
+    true -> [el("span", %{class: "lbvideo"}, "still frame — playback lives on the source")]
+    false -> []
+  end
+  el("div", %{class: "lb", click: :close_media},
+    el("button", %{type: "button", class: "lbclose", click: :close_media, title: "close"}, "✕"),
+    nav,
+    el("div", %{class: "lbstage"}, el("img", %{src: shot.full, alt: shot.alt})),
+    alt,
+    el("div", %{class: "lbbar"},
+      el("span", %{class: "lbtitle"}, bk_headline(b, max)),
+      el("a", %{href: b.url, target: "_blank", rel: "noopener"}, open_label),
+      still,
+      el("span", %{class: "lbcount"}, concat(to_string(i + 1), " / ", to_string(count), " · ← → to browse, esc to close"))),
+    key("Escape", :close_media),
+    key("ArrowLeft", :key_prev),
+    key("ArrowRight", :key_next))
+end
+
+# The note a control that is not ported yet shows when it is clicked.
+def bk_note_bar(note: String) -> List do
+  case note do
+    "" -> []
+    _ -> [el("div", %{class: "filterbar notyet"}, note, " ", el("span", %{class: "clear", click: :dismiss_note}, "ok"))]
+  end
+end

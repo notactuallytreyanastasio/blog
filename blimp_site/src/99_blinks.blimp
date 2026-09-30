@@ -1,0 +1,520 @@
+# Blinks, read side: bobby's links (Blog.Blinks), everything a reader GETs.
+#
+#   /api/blinks            ?q= &tags= (or &tag=) &sort=popular &limit= (max 500) &offset=
+#   /api/blinks/tags       every tag with its count
+#   /api/blinks/random     ?exclude=1,2,3
+#   /api/blinks/lookup     ?url= &token=      (token-gated, as in Phoenix)
+#   /api/blinks/export     ?format=html &token= (token-gated)
+#   /api/blinks/:id/comments
+#   /blinks.rss            ?tags=
+#
+# are BlinkController's and BlinkFeedController's GETs, answering with the
+# same bytes (checked against https://bobbby.online, see the PR). Caddy does
+# not send those paths here yet; Phoenix still answers them. The same
+# handlers answer under /blinks-next/api/... and /blinks-next/blinks.rss,
+# which Caddy does send, and the page at /blinks-next (the newspaper) and
+# /blinks-next/reader (the contact sheet) are Blimp programs in the browser
+# (static/blinks/) that read /blinks-next/page.json: one query per page
+# state, the rows, the tag cloud, the counts and the archive weeks at once.
+#
+# Postgres writes the JSON. Jason wrote Phoenix's, and the one place they
+# disagree is a jsonb column: Postgres keeps a jsonb object's keys shortest
+# first ("at", "name", "text", "quote", "handle") with ", " and ": " between
+# them, where Jason, decoding it into an Elixir map and encoding it again,
+# writes them sorted and tight. So a row comes back in three pieces, and the
+# thread in the middle (33 of 163 rows have one) is decoded and written again
+# here with its keys sorted. Every other byte is Postgres's.
+#
+# Nothing here writes. Saving a link, bookmarking one, commenting, reacting
+# and the admin edits are POSTs and stay Phoenix's (chapter 60 brings request
+# bodies to this server).
+
+BLK_JSON_TYPE = "application/json; charset=utf-8"
+# what Phoenix sends with every JSON answer
+BLK_CACHE = "max-age=0, private, must-revalidate"
+
+def blk_json(status: Int, body: String) -> Map do
+  response(status, BLK_JSON_TYPE, BLK_CACHE, body)
+end
+
+def blk_no_db(reason: String) -> Map do
+  puts(concat("blinks: ", reason))
+  blk_json(503, "{\"error\":\"the database did not answer\"}")
+end
+
+# -- the query --------------------------------------------------------------
+#
+# Blinks.list_blinks/1 as one statement. $1 q, $2 tags (JSON list), $3 "1"
+# to leave out the dork tags, $4 days back (0: all time), $5 a Monday or "",
+# $6 "popular" or "", $7 a shuffle seed or "", $8 limit, $9 offset. The
+# order is Phoenix's: most saved, or md5(seed || id), then newest, then id.
+# A search is websearch_to_tsquery over the generated search_vector or an
+# ILIKE on title, description, url or any tag, with the query as the
+# pattern's middle exactly as Blinks.maybe_search/2 pastes it (so % and _
+# in a query are wildcards there too).
+
+BLK_DORK_BASE = "array['code', 'programming', 'ai', 'ml', 'programming-languages', 'tech-commentary']"
+
+BLK_CTE = join([
+  "with d as (select array(select t from unnest(", BLK_DORK_BASE, " || coalesce((select value from blink_settings where key = 'dork_tags'), '{}'::text[])) with ordinality u(t, o) group by t order by min(o)) as dork),",
+  " p as (select $1::text as q,",
+  " array(select json_array_elements_text($2::json)) as tags,",
+  " case when $3::text = '1' then (select dork from d) else '{}'::text[] end as ex,",
+  " case when $4::int > 0 then (now() at time zone 'UTC') - make_interval(days => $4::int) end as since,",
+  " nullif($5::text, '')::date as wk,",
+  " $6::text as sort,",
+  " nullif($7::text, '') as seed),",
+  " f as (select b.id, b.url, b.title, b.description, b.tags, b.quotes, b.thread, b.favicon_url, b.image_url, b.site_name, b.inserted_at, b.dead_at,",
+  " row_number() over (order by",
+  " case when p.sort = 'popular' then (select count(*) from blink_saves s where s.blink_id = b.id) end desc nulls last,",
+  " case when p.seed is not null then md5(p.seed || b.id::text) end,",
+  " b.inserted_at desc, b.id desc) as rn",
+  " from blinks b cross join p",
+  " where (p.since is null or b.inserted_at >= p.since)",
+  " and (case when p.q = '' then true else",
+  " b.search_vector @@ websearch_to_tsquery('english', p.q)",
+  " or b.title ilike '%' || p.q || '%' or b.description ilike '%' || p.q || '%' or b.url ilike '%' || p.q || '%'",
+  " or exists (select 1 from unnest(b.tags) tg where tg ilike '%' || p.q || '%') end)",
+  " and (cardinality(p.tags) = 0 or b.tags && p.tags)",
+  " and (cardinality(p.ex) = 0 or not (b.tags && p.ex))",
+  " and (p.wk is null or (b.inserted_at >= p.wk and b.inserted_at < p.wk + 7))),",
+  " w as (select * from f where rn > $9::int and rn <= $9::int + $8::int)"
+], "")
+
+BLK_COMMENTS_OF = "(select count(*) from blink_comments bc where bc.blink_id = w.id and bc.hidden_at is null)"
+BLK_SAVES_OF = "(select count(*) from blink_saves bs where bs.blink_id = w.id)"
+
+# A Blink as Jason writes it, in three pieces: the fields before the thread,
+# the thread, the fields after. `counts` false is a Blink loaded without
+# list_blinks' select_merge, whose two virtual counts are nil.
+def blk_row_sql(counts: Bool) -> String do
+  tail_counts = case counts do
+    true -> concat(BLK_COMMENTS_OF, " as comment_count, ", BLK_SAVES_OF, " as save_count")
+    false -> "null::int as comment_count, null::int as save_count"
+  end
+  join([
+    "(select row_to_json(x) from (select w.id, w.url, w.title, w.description, w.tags, w.quotes) x)::text as pre,",
+    " w.thread::text as thread,",
+    " (select row_to_json(y) from (select w.favicon_url, w.image_url, w.site_name, w.inserted_at, ", tail_counts, ") y)::text as post"
+  ], "")
+end
+
+BLK_LIST_SQL = concat(BLK_CTE, " select ", blk_row_sql(true), " from w order by w.rn")
+
+# One blink with no counts, for random and lookup: `w` is whatever FROM
+# clause picks it.
+def blk_one_sql(from: String) -> String do
+  concat("select ", blk_row_sql(false), " from ", from)
+end
+
+BLK_RANDOM_SQL = blk_one_sql("(select * from blinks where not (id = any(array(select json_array_elements_text($1::json))::bigint[])) order by random() limit 1) w")
+BLK_LOOKUP_SQL = blk_one_sql("(select * from blinks where url = $1) w")
+
+# Blinks.list_tags/2 with nothing selected: every tag and how many carry it.
+BLK_TAGS_SQL = "select coalesce(string_agg(row_to_json(z)::text, ',' order by z.count desc, z.name asc), '') as body from (select count(*) as count, t.name from blinks b cross join lateral unnest(b.tags) as t(name) group by t.name) z"
+
+# Blog.Blinks.Comments.list_comments/1 and reactions_for/1. Reactions are a
+# map with string keys, which Jason writes sorted by their bytes.
+BLK_COMMENTS_SQL = join([
+  "select coalesce(string_agg(row_to_json(c)::text, ',' order by c.inserted_at, c.id), '') as body from (",
+  "select bc.id, bc.blink_id, bc.author_name, bc.content, bc.inserted_at,",
+  " coalesce((select ('{' || string_agg(to_json(r.emoji)::text || ':' || r.n, ',' order by r.emoji collate \"C\") || '}')::json",
+  " from (select emoji, count(*) as n from blink_comment_reactions where comment_id = bc.id group by emoji) r), '{}'::json) as reactions",
+  " from blink_comments bc where bc.blink_id = $1::bigint and bc.hidden_at is null order by bc.inserted_at, bc.id limit 200) c"
+], "")
+
+# XML text, as BlinkFeedController.xml_escape/1: & < > " and not '.
+def blk_sql_xml(expr: String) -> String do
+  concat("replace(replace(replace(replace(", expr, ", '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '\"', '&quot;')")
+end
+
+# The feed's items: its heredoc, one per blink, each ending in a newline and
+# joined by another. The description is the notes and the tags, whichever
+# there are, joined by " — " (concat_ws skips a NULL, keeps an "").
+BLK_RSS_SQL = join([
+  BLK_CTE,
+  " select coalesce(string_agg(",
+  "'<item>' || chr(10) ||",
+  " '  <title>' || ", blk_sql_xml("coalesce(w.title, w.url)"), " || '</title>' || chr(10) ||",
+  " '  <link>' || ", blk_sql_xml("w.url"), " || '</link>' || chr(10) ||",
+  " '  <guid isPermaLink=\"false\">blink-' || w.id || '</guid>' || chr(10) ||",
+  " '  <pubDate>' || to_char(w.inserted_at, 'Dy, DD Mon YYYY HH24:MI:SS \"GMT\"') || '</pubDate>' || chr(10) ||",
+  " '  <description>' || ", blk_sql_xml("concat_ws(' — ', w.description, nullif('tags: ' || array_to_string(w.tags, ', '), 'tags: '))"), " || '</description>' || chr(10) ||",
+  " '</item>' || chr(10), chr(10) order by w.rn), '') as items from w"
+], "")
+
+# Plug.HTML.html_escape/1: & < > " and '.
+def blk_sql_html(expr: String) -> String do
+  concat("replace(", blk_sql_xml(expr), ", '''', '&#39;')")
+end
+
+BLK_EXPORT_HTML_SQL = join([
+  BLK_CTE,
+  " select coalesce(string_agg(",
+  "'<DT><A HREF=\"' || ", blk_sql_html("w.url"), " || '\" ADD_DATE=\"' || extract(epoch from w.inserted_at)::bigint || '\" TAGS=\"' || ", blk_sql_html("array_to_string(w.tags, ',')"), " || '\">' || ", blk_sql_html("coalesce(w.title, w.url)"), " || '</A>'",
+  " || case when w.description is null then '' else chr(10) || '<DD>' || ", blk_sql_html("w.description"), " end,",
+  " chr(10) order by w.rn), '') as items from w"
+], "")
+
+# The page's state, all at once, for /blinks-next/page.json: the count, the
+# dork list, the tag cloud (less the dork tags when they are hidden), the
+# rows with their chat counts, the archive weeks when asked for ($10 = "1",
+# with $8 = 0 rows), and the link the rows are similar to ($11, a row of
+# `s`, or null).
+def blk_page_select(similar: String) -> String do
+  join([
+    " select json_build_object(",
+    "'total', (select count(*) from blinks),",
+    " 'dork', (select dork from d),",
+    " 'tags', (select coalesce(json_agg(json_build_object('name', z.name, 'count', z.n) order by z.n desc, z.name asc), '[]'::json)",
+    " from (select t.name, count(*) as n from blinks b cross join lateral unnest(b.tags) as t(name), p where not (b.tags && p.ex) group by t.name) z),",
+    " 'blinks', (select coalesce(json_agg(json_build_object('id', w.id, 'url', w.url, 'title', w.title, 'description', w.description,",
+    " 'tags', w.tags, 'quotes', w.quotes, 'thread', w.thread, 'favicon_url', w.favicon_url, 'image_url', w.image_url, 'site_name', w.site_name,",
+    " 'inserted_at', w.inserted_at, 'dead_at', w.dead_at, 'comment_count', ", BLK_COMMENTS_OF, ", 'save_count', ", BLK_SAVES_OF, ",",
+    " 'chat_count', (select count(*) from chat_messages m where m.room = 'blink:' || w.id)) order by w.rn), '[]'::json) from w),",
+    " 'weeks', case when $10::text = '1' then (select coalesce(json_agg(json_build_object('monday', k.wk, 'count', k.n, 'titles', k.titles) order by k.wk desc), '[]'::json)",
+    " from (select date_trunc('week', inserted_at)::date as wk, count(*) as n, (array_agg(coalesce(title, url) order by inserted_at desc))[1:3] as titles from blinks group by 1) k) end,",
+    " 'similar', ", similar,
+    ")::text as body"
+  ], "")
+end
+
+BLK_PAGE_SQL = concat(BLK_CTE, blk_page_select("null"))
+
+# Blinks.list_similar/2: shared tags count double, then trigram similarity
+# of the titles, then newest; 25 of them. $11 is the blink; the list
+# parameters still arrive (for the cloud and the dork list) and $8/$9 are
+# unused, as Phoenix ignores paging on this view.
+BLK_SIMILAR_SQL = join([
+  replace(BLK_CTE, " w as (select * from f where rn > $9::int and rn <= $9::int + $8::int)",
+    concat(" s as (select id, url, title, tags from blinks where id = $11::bigint),",
+      " w as (select b.*, row_number() over (order by (select count(*) from unnest(b.tags) t where t = any(s.tags)) * 2 + similarity(coalesce(b.title, ''), coalesce(s.title, '')) desc, b.inserted_at desc) as rn",
+      " from blinks b, s where b.id <> s.id and $8::int >= 0 and $9::int >= 0 order by rn limit 25)")),
+  blk_page_select("(select json_build_object('id', s.id, 'url', s.url, 'title', s.title) from s)")
+], "")
+
+# -- rows -------------------------------------------------------------------
+
+# A JSON value written as Jason writes one decoded from jsonb: objects with
+# their keys sorted by their bytes.
+def blk_sorted(v: Any) -> Any do
+  case type_of(v) do
+    :map -> reduce(sort(keys(v)), %{}, fn(acc: Map, k: Any) -> Map do put(acc, k, blk_sorted(lookup(v, k))) end)
+    :list -> map(v, fn(x: Any) -> Any do blk_sorted(x) end)
+    _ -> v
+  end
+end
+
+def blk_thread_json(text: Any) -> String do
+  case text do
+    nil -> "null"
+    _ -> json_encode(blk_sorted(elem(json_decode(text), 1)))
+  end
+end
+
+# One row's three pieces as one object.
+def blk_row_json(row: Map) -> String do
+  concat(take(row.pre, length(row.pre) - 1), ",\"thread\":", blk_thread_json(row.thread), ",", drop(row.post, 1))
+end
+
+def blk_rows_json(rows: List) -> String do
+  concat("[", join(map(rows, fn(r: Map) -> String do blk_row_json(r) end), ","), "]")
+end
+
+# -- parameters -------------------------------------------------------------
+
+# ?tags= or ?tag=, split on commas, trimmed, empties dropped, as a JSON list
+# for $2.
+def blk_tags_param(query: String) -> String do
+  raw = query_param(query, "tags")
+  csv = case raw do
+    "" -> query_param(query, "tag")
+    _ -> raw
+  end
+  json_encode(blk_tag_list(csv))
+end
+
+# A non-negative integer written as digits and nothing else, or nil.
+# (Phoenix's String.to_integer raises on anything else and answers 500;
+# this answers 400.)
+def blk_int(s: String) -> Any do
+  n = blk_id(s)
+  case n >= 0 and trim(s) == s do
+    true -> n
+    false -> nil
+  end
+end
+
+# The ids in ?exclude=1,2,3 that Integer.parse/1 takes whole.
+def blk_ids(csv: String) -> List do
+  parts = map(split(csv, ","), fn(p: String) -> Int do blk_id(p) end)
+  filter(parts, fn(n: Int) -> Bool do n >= 0 end)
+end
+
+# -- the endpoints ----------------------------------------------------------
+
+def blk_list(query: String) -> Map do
+  lim_s = query_param(query, "limit")
+  off_s = query_param(query, "offset")
+  lim = case lim_s do
+    "" -> 100
+    _ -> blk_int(lim_s)
+  end
+  off = case off_s do
+    "" -> 0
+    _ -> blk_int(off_s)
+  end
+  case lim == nil or off == nil do
+    true -> blk_json(400, "{\"error\":\"limit and offset are whole numbers\"}")
+    false ->
+      sort = case query_param(query, "sort") do
+        "popular" -> "popular"
+        _ -> ""
+      end
+      params = [query_param(query, "q"), blk_tags_param(query), "", 0, "", sort, "", min(lim, 500), off]
+      case DB <- :query(BLK_LIST_SQL, params) do
+        {:error, reason} -> blk_no_db(reason)
+        {:ok, rows} -> blk_json(200, concat("{\"status\":\"ok\",\"blinks\":", blk_rows_json(rows), "}"))
+      end
+  end
+end
+
+def blk_tags() -> Map do
+  case DB <- :query(BLK_TAGS_SQL, []) do
+    {:error, reason} -> blk_no_db(reason)
+    {:ok, rows} -> blk_json(200, concat("{\"status\":\"ok\",\"tags\":[", head(rows).body, "]}"))
+  end
+end
+
+def blk_random(query: String) -> Map do
+  case DB <- :query(BLK_RANDOM_SQL, [json_encode(blk_ids(query_param(query, "exclude")))]) do
+    {:error, reason} -> blk_no_db(reason)
+    {:ok, rows} ->
+      case rows do
+        [] -> blk_json(404, "{\"error\":\"no blinks\"}")
+        [row | _] -> blk_json(200, concat("{\"status\":\"ok\",\"blink\":", blk_row_json(row), "}"))
+      end
+  end
+end
+
+# BlinkController's require_token: X-Blinks-Token, a Bearer header, or
+# ?token=. This server does not hand dynamic() the request's headers, so
+# only ?token= is read here; a client sending the header gets the 401 it
+# would get without one. No BLINKS_API_TOKEN, no access, as in Phoenix.
+def blk_token_ok(query: String) -> Bool do
+  expected = getenv("BLINKS_API_TOKEN")
+  offered = query_param(query, "token")
+  expected != nil and expected != "" and offered == expected
+end
+
+BLK_UNAUTHORIZED = "{\"error\":\"Invalid or missing auth token\"}"
+
+def blk_lookup(query: String) -> Map do
+  case blk_token_ok(query) do
+    false -> blk_json(401, BLK_UNAUTHORIZED)
+    true ->
+      url = query_param(query, "url")
+      case url do
+        "" -> blk_json(200, "{\"status\":\"ok\",\"blink\":null}")
+        _ ->
+          case DB <- :query(BLK_LOOKUP_SQL, [url]) do
+            {:error, reason} -> blk_no_db(reason)
+            {:ok, rows} ->
+              case rows do
+                [] -> blk_json(200, "{\"status\":\"ok\",\"blink\":null}")
+                [row | _] -> blk_json(200, concat("{\"status\":\"ok\",\"blink\":", blk_row_json(row), "}"))
+              end
+          end
+      end
+  end
+end
+
+# Phoenix sends both with content-disposition: attachment; this server's
+# responses carry no extra headers yet, so a browser shows the export
+# instead of saving it.
+def blk_export(query: String) -> Map do
+  case blk_token_ok(query) do
+    false -> blk_json(401, BLK_UNAUTHORIZED)
+    true ->
+      all = ["", "[]", "", 0, "", "", "", 100000, 0]
+      case query_param(query, "format") do
+        "html" ->
+          case DB <- :query(BLK_EXPORT_HTML_SQL, all) do
+            {:error, reason} -> blk_no_db(reason)
+            {:ok, rows} ->
+              body = join([
+                "<!DOCTYPE NETSCAPE-Bookmark-file-1>\n",
+                "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=UTF-8\">\n",
+                "<TITLE>Bookmarks</TITLE>\n<H1>blinks</H1>\n<DL><p>\n",
+                head(rows).items, "\n</DL><p>\n"
+              ], "")
+              response(200, "text/html; charset=utf-8", BLK_CACHE, body)
+          end
+        _ ->
+          case DB <- :query(BLK_LIST_SQL, all) do
+            {:error, reason} -> blk_no_db(reason)
+            {:ok, rows} -> blk_json(200, concat("{\"status\":\"ok\",\"blinks\":", blk_rows_json(rows), "}"))
+          end
+      end
+  end
+end
+
+# BlinkCommentController.index/2, without the post_token: that is a
+# Phoenix.Token signed with the app's secret_key_base, and it exists only to
+# be sent back with a POST, which this server does not take.
+def blk_comments(id_s: String) -> Map do
+  id = blk_int(id_s)
+  case id do
+    nil -> blk_json(400, "{\"error\":\"bad id\"}")
+    _ ->
+      case DB <- :query(BLK_COMMENTS_SQL, [id]) do
+        {:error, reason} -> blk_no_db(reason)
+        {:ok, rows} -> blk_json(200, concat("{\"status\":\"ok\",\"comments\":[", head(rows).body, "]}"))
+      end
+  end
+end
+
+def blk_rss(query: String) -> Map do
+  tags_json = blk_tags_param(query)
+  case DB <- :query(BLK_RSS_SQL, ["", tags_json, "", 0, "", "", "", 100, 0]) do
+    {:error, reason} -> blk_no_db(reason)
+    {:ok, rows} ->
+      title = blk_feed_title(join(elem(json_decode(tags_json), 1), ","))
+      body = join([
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\">\n  <channel>\n",
+        "    <title>", blk_xml_escape(title), "</title>\n",
+        "    <link>https://bobbby.online/blinks</link>\n",
+        "    <description>bobby's links</description>\n",
+        "    ", head(rows).items, "\n  </channel>\n</rss>\n"
+      ], "")
+      response(200, "application/rss+xml; charset=utf-8", BLK_CACHE, body)
+  end
+end
+
+# BlinkFeedController.stumble/2: a 302 to a random link, or to the list
+# when there are none.
+def blk_stumble() -> Map do
+  case DB <- :query(BLK_RANDOM_SQL, ["[]"]) do
+    {:error, reason} -> blk_no_db(reason)
+    {:ok, rows} ->
+      to = case rows do
+        [] -> "/blinks-next"
+        [row | _] -> elem(json_decode(row.pre), 1).url
+      end
+      %{status: 302, content_type: "text/html; charset=utf-8", cache: "no-store", body: "", location: to}
+  end
+end
+
+# -- the page's data ---------------------------------------------------------
+#
+# /blinks-next/page.json takes the page's own query string (q, tags, t,
+# nodork, week, view, similar) plus what only the program knows: seed (the
+# shuffle, "" for none), page, and size (rows a page holds). It answers
+# size + 1 rows when there are that many, so the program knows there is
+# a next page, as BlinksLive asks for page_size + 1.
+def blk_page_json(query: String) -> Map do
+  size = blk_int(query_param(query, "size"))
+  page = blk_page(query_param(query, "page"))
+  case size == nil or size > 120 do
+    true -> blk_json(400, "{\"error\":\"size is a whole number up to 120\"}")
+    false ->
+      view = query_param(query, "view")
+      week = blk_monday(query_param(query, "week"))
+      weeks = case view == "archives" and week == "" do
+        true -> "1"
+        false -> ""
+      end
+      live = view != "archives"
+      days = case live do
+        true -> blk_window_days(query_param(query, "t"))
+        false -> 0
+      end
+      seed = case live do
+        true -> query_param(query, "seed")
+        false -> ""
+      end
+      lim = case weeks do
+        "1" -> 0
+        _ -> size + 1
+      end
+      nodork = case query_param(query, "nodork") do
+        "1" -> "1"
+        _ -> ""
+      end
+      week_param = case live do
+        true -> ""
+        false -> week
+      end
+      params = [query_param(query, "q"), json_encode(blk_tag_list(query_param(query, "tags"))), nodork, days, week_param, "", seed, lim, (page - 1) * size, weeks]
+      similar = blk_id(query_param(query, "similar"))
+      answer = case similar > 0 and live do
+        true -> DB <- :query(BLK_SIMILAR_SQL, list_append(params, [similar]))
+        false -> DB <- :query(BLK_PAGE_SQL, params)
+      end
+      case answer do
+        {:error, reason} -> blk_no_db(reason)
+        {:ok, rows} ->
+          body = head(rows).body
+          # a similar= for a blink that is not there is no filter at all
+          # (BlinksLive's get_blink/1 is nil): ask again without it
+          case similar > 0 and live and contains(body, "\"similar\" : null") do
+            true -> blk_page_json(replace(query, concat("similar=", query_param(query, "similar")), ""))
+            false -> response(200, BLK_JSON_TYPE, "no-cache", body)
+          end
+      end
+  end
+end
+
+# -- the pages ---------------------------------------------------------------
+
+BLK_DESCRIPTION = "every link I want to keep — tagged, searched, archived"
+
+def blk_page_html(title: String, program: String) -> String do
+  app_page_with(title, BLK_DESCRIPTION, [APP_CSS, "/assets/blinks.css"], "blinks-html", program, "blinks", true)
+end
+
+BLK_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks: Bobbby's links", "/blinks-next/blinks.blimp"))
+BLK_READER_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks reader", "/blinks-next/reader.blimp"))
+BLK_PROGRAM = bjt_asset("_build/blinks.blimp", "text/plain; charset=utf-8")
+BLK_READER_PROGRAM = bjt_asset("_build/blinks-reader.blimp", "text/plain; charset=utf-8")
+BLK_CSS = bjt_asset("assets/blinks.css", "text/css; charset=utf-8")
+
+# Every GET above by path, or nil. The API answers at Phoenix's paths and
+# again under /blinks-next, which is the prefix Caddy sends here.
+def blinks_route(path: String, query: String) -> Any do
+  p = case starts_with(path, "/blinks-next/api/") or path == "/blinks-next/blinks.rss" do
+    true -> drop(path, 12)
+    false -> path
+  end
+  case p do
+    "/api/blinks" -> blk_list(query)
+    "/api/blinks/tags" -> blk_tags()
+    "/api/blinks/random" -> blk_random(query)
+    "/api/blinks/lookup" -> blk_lookup(query)
+    "/api/blinks/export" -> blk_export(query)
+    "/blinks.rss" -> blk_rss(query)
+    "/blinks-next" -> BLK_PAGE
+    "/blinks-next/reader" -> BLK_READER_PAGE
+    "/blinks-next/blinks.blimp" -> BLK_PROGRAM
+    "/blinks-next/reader.blimp" -> BLK_READER_PROGRAM
+    "/blinks-next/page.json" -> blk_page_json(query)
+    "/blinks-next/stumble" -> blk_stumble()
+    "/assets/blinks.css" -> BLK_CSS
+    _ ->
+      parts = split(p, "/")
+      case length(parts) == 5 and starts_with(p, "/api/blinks/") and ends_with(p, "/comments") do
+        true -> blk_comments(elem_at(parts, 3))
+        false -> nil
+      end
+  end
+end
+
+# The last link of dynamic()'s chain before a 404: the paths with an id in
+# them (dynamic() names every fixed one, with its query).
+def blinks_or_404(path: String) -> Map do
+  answer = blinks_route(path, "")
+  case answer do
+    nil -> static_or_404(path)
+    _ -> answer
+  end
+end
