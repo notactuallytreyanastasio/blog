@@ -314,10 +314,28 @@ actor BlinksLiveTests do
     assert_eq(bk_contains(blt_ops(p), "cookie blinksAlwaysShuffle=;path=/;max-age=0 "), true)
     p <- :dismiss_promo
     assert_eq(bk_contains(blt_ops(p), "store blinksStumblePromoHidden 1"), true)
-    # no VAPID key on this server yet (chapter 69): the bell is drawn, and says why it is off
+    # no VAPID key (VAPID_* unset): no bell at all, as Phoenix
+    p <- :push_state("{\"supported\":true,\"permission\":\"default\"}")
     v = blt_html(p <- :view)
-    assert_eq(contains(v, "tour-link notyet"), true)
-    p <- :not_ported("notify")
-    assert_eq(contains(blt_html(p <- :view), "chapter 69"), true)
+    assert_eq(contains(v, "notify me"), false)
+    assert_eq(contains(v, "tour-link notyet"), false)
+  end
+
+  test "with a VAPID key the bell subscribes: allow is a push op carrying the key, and the answer turns the bell on" do
+    p = blt_paper("{\"hidden\":[],\"seenTour\":true,\"vapid\":\"BKEY\"}")
+    p <- :push_state("{\"supported\":true,\"permission\":\"default\"}")
+    assert_eq(contains(blt_html(p <- :view), "🔔 notify me"), true)
+    p <- :push_dialog_open
+    assert_eq(contains(blt_html(p <- :view), "id=\"push-dialog\""), true)
+    p <- :push_allow
+    ops = blt_ops(p)
+    assert_eq(bk_contains(ops, "push subscribe BKEY"), true)
+    assert_eq(bk_contains(ops, "store blinksPushPromptSeen 1"), true)
+    p <- :done(blt_n(p, "push"), 200, "{\"supported\":true,\"permission\":\"granted\",\"subscribed\":true}")
+    v = blt_html(p <- :view)
+    assert_eq(contains(v, "🔔 on"), true)
+    assert_eq(contains(v, "id=\"push-dialog\""), false)
+    p <- :push_test
+    assert_eq(bk_contains(blt_ops(p), "push test BKEY"), true)
   end
 end

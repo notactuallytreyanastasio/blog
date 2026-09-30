@@ -272,9 +272,6 @@ BKV_NO_PUSH = %{supported: false, ios: false, mobile: false, standalone: false, 
 def bkv_bell(vapid: String, push: Map, dialog: Bool) -> Any do
   face = blkl_bell(vapid != "", push.ios, push.standalone, push.subscribed, push.supported, push.permission)
   shown = case face do
-    # TODO(chapter 69): /api/push/web is Phoenix's until Web Push moves, so
-    # this page has no key to subscribe with and the bell says so.
-    "" -> [el("a", %{class: "tour-link notyet", click: :not_ported, with: "notify", title: "get a nudge when a new link lands"}, "🔔 notify me")]
     "ios" -> [el("a", %{class: "tour-link", click: :push_dialog_open, title: "iOS only allows notifications for home-screen apps"}, "🔔 get alerts")]
     "on" ->
       tested = case push.tested do

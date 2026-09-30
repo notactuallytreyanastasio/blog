@@ -145,11 +145,14 @@ def bkl_page_html(always: Bool, seed: String, csrf: String, vapid: String) -> St
   page_layout_html("Blinks: Bobbby's links", BLK_DESCRIPTION, "website", [APP_CSS, "/assets/blinks.css", "/assets/apps.css", "/assets/blimp-window.css"], body, "blinks-html")
 end
 
-# The VAPID key the bell subscribes with; "" leaves the bell drawn but off.
-# TODO(chapter 69): bkp_vapid_public() once Web Push is served from here;
-# until then /api/push/web is Phoenix's, so the key is not handed out.
+# The VAPID key the bell subscribes with (src/99_blinkspush.blimp). "" when
+# VAPID_* is unset: then there is no bell at all, as Phoenix draws none when
+# WebPush.public_key() is nil.
 def bkl_vapid() -> String do
-  ""
+  case bkp_vapid_public() do
+    nil -> ""
+    k -> k
+  end
 end
 
 def bkl_page(conn: Map) -> Map do

@@ -877,7 +877,7 @@ actor Paper do
     reply :ok
   end
 
-  # -- push (chapter 69 serves it) ------------------------------------------------
+  # -- push (src/99_blinkspush.blimp serves it) ------------------------------------------------
 
   on :push_dialog_open do
     become push_dialog: true
@@ -1045,7 +1045,6 @@ def paper_note(what: String) -> String do
         "hide" -> "Hiding a link on this device is not ported to Blimp yet."
         "dork" -> "Editing the dork list is not ported to Blimp yet; it is an admin write."
         "tour" -> "The tour is not ported to Blimp yet."
-        "notify" -> "Push notifications move to Blimp with chapter 69 (Web Push); until then /blinks has them."
         "always" -> "\"always shuffle\" is a cookie Phoenix keeps; it is not ported to Blimp yet."
         _ -> concat(what, " is not ported to Blimp yet.")
       end
