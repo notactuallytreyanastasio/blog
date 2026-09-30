@@ -130,6 +130,17 @@
       var box = document.getElementById('bkl-outbox')
       if (box) Array.prototype.forEach.call(box.querySelectorAll('i[data-op]'), run)
       fit()
+      chatScroll()
+    }
+    // ChatScroll: the messages pane at its bottom whenever it changes
+    var lastChat = ''
+    function chatScroll() {
+      var pane = document.getElementById('blink-chat-messages')
+      if (!pane) { lastChat = ''; return }
+      var now = pane.childElementCount + ':' + pane.querySelectorAll('.aim-reply').length
+      if (now === lastChat) return
+      lastChat = now
+      pane.scrollTop = pane.scrollHeight
     }
     // every render: the outbox, synchronously, so an op a click asked for
     // (the push allow button) is still inside that click

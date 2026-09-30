@@ -293,12 +293,13 @@ actor BlinksLiveTests do
     assert_eq(contains(v2, " · 2 here now"), true)
     p <- :frame("{\"t\":\"presence_diff\",\"topic\":\"blinks_rooms_presence\",\"joins\":[],\"leaves\":[{\"ref\":\"1.1\"},{\"ref\":\"2.3\"}]}")
     assert_eq(contains(blt_html(p <- :view), "here now"), false)
-    # opening a chat says so on the socket, and draws chapter 71's stub
+    # opening a chat says so on the socket, and draws the window (signed
+    # out until the socket says who this is: the sign-on form)
     p <- :open_chat(167)
     assert_eq(bk_contains(blt_ops(p), "ws {&quot;t&quot;:&quot;room&quot;,&quot;room&quot;:&quot;blink:167&quot;} ") or bk_contains(blt_ops(p), "ws {\"t\":\"room\",\"room\":\"blink:167\"} "), true)
     vc = blt_html(p <- :view)
     assert_eq(contains(vc, "AOL Instant Messenger — "), true)
-    assert_eq(contains(vc, "/blinks?chat=167"), true)
+    assert_eq(contains(vc, "Sign On to chat"), true)
     # a dropped socket asks again when it is back
     p <- :socket("closed")
     p <- :socket("open")

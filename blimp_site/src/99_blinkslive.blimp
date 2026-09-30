@@ -32,8 +32,8 @@
 # joining every room. A page is a member from the start with room "" and
 # says {"t":"room","room":"blink:7"} when it opens a chat window, as
 # BlinksLive tracks itself there only while a chat is open; a member whose
-# room is "" is nobody's occupancy. The names are "lurker" until the chat
-# rooms themselves move (chapter 71 signs people on).
+# room is "" is nobody's occupancy. The name is the chatter's once one is
+# signed on (src/99_blinkschat.blimp), "lurker" before.
 
 BKL_TOPIC = "blinks"
 BKL_PRESENCE = "blinks_rooms_presence"
@@ -46,7 +46,15 @@ def bkl_join(hub: Any, fd: Int) -> Any do
   hub <- :join(BKL_PRESENCE, fd, concat("v_", to_string(fd)), %{room: "", name: "lurker", color: "#888"})
 end
 
+# A socket from the upgrade: 70's two rooms, and who it is (the chatter
+# its X-Forwarded-For has signed on before, src/99_blinkschat.blimp).
+def bkl_open(hub: Any, fd: Int, raw: String) -> Any do
+  bkl_join(hub, fd)
+  BKC <- :hello(hub, fd, bkc_client_ip(raw))
+end
+
 def bkl_leave(hub: Any, fd: Int) -> Any do
+  BKC <- :bye(fd)
   hub <- :drop(fd)
 end
 
@@ -62,9 +70,14 @@ def bkl_room_ok(room: String) -> Bool do
   end
 end
 
-# What a page says: only which room it is in. Anything else, or anything
-# over the socket's rate, is dropped without an answer.
+# What a page says: which room it is in, and (src/99_blinkschat.blimp)
+# sign-on, sign-off, a message, a vote. Anything else, or anything over
+# the socket's rate, is dropped without an answer.
 def bkl_recv(hub: Any, fd: Int, payload: String) -> Any do
+  bkl_recv_with(hub, BKC, fd, payload)
+end
+
+def bkl_recv_with(hub: Any, chat: Any, fd: Int, payload: String) -> Any do
   case hub <- :inbound(fd) do
     :limited -> :limited
     _ ->
@@ -74,21 +87,25 @@ def bkl_recv(hub: Any, fd: Int, payload: String) -> Any do
         true ->
           m = elem(got, 1)
           room = lookup(m, "room")
-          case lookup(m, "t") == "room" and type_of(room) == :string do
-            false -> :ignored
+          case lookup(m, "t") == "room" do
+            false -> bkc_recv(hub, chat, fd, m)
             true ->
-              case bkl_room_ok(room) do
+              case type_of(room) == :string and bkl_room_ok(room) do
                 false -> :ignored
                 true ->
                   patched = hub <- :patch(BKL_PRESENCE, fd, %{room: room})
                   case patched == nil do
                     true -> :ignored
-                    false -> :ok
+                    false -> bkl_ok(chat <- :room(hub, fd, room))
                   end
               end
           end
       end
   end
+end
+
+def bkl_ok(_done: Any) -> Atom do
+  :ok
 end
 
 # Blinks.broadcast/2: the event and the blink's id, to every open page.
