@@ -206,10 +206,22 @@ actor BlinksWriteTests do
   end
 
   test "the SQL writes timestamps as Ecto does and normalizes lists in Postgres" do
-    assert(contains(BLKW_INSERT_SQL, "date_trunc('second', now() at time zone 'UTC')"))
-    assert(contains(BLKW_INSERT_SQL, "lower(btrim(u.t, "))
-    assert(contains(BLKW_MERGE_SQL, "b.tags || array(select jsonb_array_elements_text($5::jsonb))"))
-    assert(contains(BLKW_DELETE_SQL, "room = 'blink:' || (select id from d)"))
+    ins = blkw_insert_q("https://a.b/", nil, "d", "[\"A\"]", "[]")
+    assert(contains(head(ins), "date_trunc('second', now() at time zone 'UTC')"))
+    # String.trim/1's whitespace, from Temper's escapes, is the same text as Blimp's
+    assert(contains(head(ins), concat("lower(btrim(u.t, ", BLKW_WS_SQL, "))")))
+    assert(contains(head(ins), concat("left(btrim(u.t, ", BLKW_WS_SQL, "), 2000)")))
+    # values are parameters; a missing title is NULL in the text
+    assert(contains(head(ins), "select $1::text, NULL::text, $2::text, "))
+    assert_eq(tail(ins), ["https://a.b/", "d", "[\"A\"]", "[]"])
+    merge = blkw_merge_q(7, "1", nil, nil, "[\"x\"]", "[]")
+    assert(contains(head(merge), "b.tags || array(select jsonb_array_elements_text($2::jsonb))"))
+    assert(contains(head(merge), "where b.id = $4::bigint"))
+    assert_eq(tail(merge), ["1", "[\"x\"]", "[]", "7"])
+    assert(contains(head(blkw_remove_tag_q(7, nil)), "where v.t = NULL::text"))
+    assert_eq(tail(blkw_remove_tag_q(7, "a b")), ["a b", "7"])
+    assert_eq(blkw_delete_q(9), ["with d as (delete from blinks where id = $1::bigint returning id), m as (delete from chat_messages where room = 'blink:' || (select id from d)) select id from d", "9"])
+    assert(contains(head(blka_reactions_q(1)), "order by r.emoji collate \"C\")"))
     # the literal is the list, quoted: no quote inside it to break out of
     assert_eq(BLKW_WS_SQL, concat("'", join(BLKW_WS, ""), "'"))
     assert(not(contains(join(BLKW_WS, ""), "'")))

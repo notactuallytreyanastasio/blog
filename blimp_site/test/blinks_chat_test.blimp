@@ -29,8 +29,9 @@ actor FakeChatDb do
     reply messages
   end
 
-  on :query(sql: String, params: List) do
+  on :query(sql: String, sent: List) do
     become asked: list_append(asked, [sql])
+    params = bct_args(bct_kind(sql), sent)
     case bct_kind(sql) do
       :by_ip ->
         reply {:ok, filter(chatters, fn(c: Map) -> Bool do lookup(c, "ip") == head(params) end)}
@@ -116,7 +117,28 @@ actor FakeChatDb do
   end
 end
 
-BCT_KINDS = [{BKC_BY_IP_SQL, :by_ip}, {BKC_TAKEN_SQL, :taken}, {BKC_CREATE_SQL, :create}, {BKC_RENAME_SQL, :rename}, {BKC_HISTORY_SQL, :history}, {BKC_VOTES_SQL, :votes}, {BKC_REPLY_TO_SQL, :reply_to}, {BKC_SAY_SQL, :say}, {BKC_ROOM_OF_SQL, :room_of}, {BKC_VOTE_SQL, :vote}, {BKC_COUNTS_SQL, :counts}]
+# Which statement: its text, from temper/src/db/blinks_write.temper.md.
+BCT_KINDS = [{head(bkc_by_ip_q("")), :by_ip}, {head(bkc_taken_q("", 0)), :taken}, {head(bkc_create_q("", "", "")), :create},
+  {head(bkc_rename_q("", 0)), :rename}, {head(bkc_history_q("")), :history}, {head(bkc_votes_q("", 0)), :votes},
+  {head(bkc_reply_to_q(0, "")), :reply_to}, {head(bkc_say_q("", "", 0, 0)), :say}, {head(bkc_room_of_q(0)), :room_of},
+  {head(bkc_vote_q(0, 0, 0)), :vote}, {head(bkc_counts_q(0, 0)), :counts}]
+
+# The parameters as Postgres gets them (text, numbered in the order they
+# appear in the statement) back as the actor's values, in the order the
+# statement's function takes them.
+def bct_args(kind: Atom, p: List) -> List do
+  case kind do
+    :taken -> [head(p), to_int(elem_at(p, 1))]
+    :rename -> [head(p), to_int(elem_at(p, 1))]
+    :votes -> [elem_at(p, 1), to_int(head(p))]
+    :reply_to -> [to_int(head(p)), elem_at(p, 1)]
+    :say -> [head(p), elem_at(p, 1), to_int(elem_at(p, 2)), to_int(elem_at(p, 3))]
+    :room_of -> [to_int(head(p))]
+    :vote -> [to_int(head(p)), to_int(elem_at(p, 1)), to_int(elem_at(p, 2))]
+    :counts -> [to_int(elem_at(p, 1)), to_int(head(p))]
+    _ -> p
+  end
+end
 
 def bct_kind(sql: String) -> Atom do
   got = filter(BCT_KINDS, fn(t: Tuple) -> Bool do elem(t, 0) == sql end)

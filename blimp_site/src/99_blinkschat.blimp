@@ -53,59 +53,8 @@
 # said on Phoenix reaches Blimp's pages only when they load the room
 # again, and the other way round, until one server serves both.
 
-BKC_NOW = "date_trunc('second', now() at time zone 'UTC')"
-
-BKC_BY_IP_SQL = "select id, screen_name as name, color from chatters where ip_hash = $1 order by id limit 1"
-
-BKC_TAKEN_SQL = "select count(*)::int as n from chatters where screen_name = $1 and id <> $2"
-
-BKC_CREATE_SQL = concat("insert into chatters (screen_name, ip_hash, color, inserted_at, updated_at) values ($1, $2, $3, ", BKC_NOW, ", ", BKC_NOW, ") returning id, screen_name as name, color")
-
-BKC_RENAME_SQL = concat("update chatters set screen_name = $1, updated_at = ", BKC_NOW, " where id = $2 returning id, screen_name as name, color")
-
-# list_messages(room, 100): the newest hundred, oldest first.
-BKC_LAST_100 = "select id from chat_messages where room = $1 order by inserted_at desc, id desc limit 100"
-
-BKC_HISTORY_SQL = join([
-  "select coalesce(json_agg(json_build_object('id', x.id, 'reply_to_id', coalesce(x.reply_to_id, 0), 'content', x.content,",
-  " 'at', to_char(x.inserted_at, 'HH12:MI AM'), 'name', x.name, 'color', x.color) order by x.inserted_at, x.id), '[]')::text as body",
-  " from (select m.id, m.reply_to_id, m.content, m.inserted_at, c.screen_name as name, c.color",
-  " from chat_messages m left join chatters c on c.id = m.chatter_id where m.id in (", BKC_LAST_100, ")) x"
-], "")
-
-# vote_counts/1 and my_votes/2 over those hundred: {"id": [up, down]}, {"id": v}.
-BKC_VOTES_SQL = join([
-  "select coalesce(json_object_agg(v.message_id, json_build_array(v.up, v.down)), '{}')::text as counts,",
-  " coalesce(json_object_agg(v.message_id, v.mine) filter (where v.mine <> 0), '{}')::text as mine",
-  " from (select message_id, count(*) filter (where value > 0) as up, count(*) filter (where value < 0) as down,",
-  " coalesce(max(value) filter (where chatter_id = $2), 0) as mine",
-  " from chat_message_votes where message_id in (", BKC_LAST_100, ") group by message_id) v"
-], "")
-
-# create_message/4: the reply target, only within the room; a reply to a
-# reply hangs off its top-level message (threads are one deep).
-BKC_REPLY_TO_SQL = "select coalesce(reply_to_id, id) as top from chat_messages where id = $1 and room = $2"
-
-BKC_SAY_SQL = concat("insert into chat_messages (content, room, chatter_id, reply_to_id, inserted_at, updated_at)",
-  " values ($1, $2, $3, nullif($4::bigint, 0), ", BKC_NOW, ", ", BKC_NOW, ")",
-  " returning id, coalesce(reply_to_id, 0) as reply_to_id, to_char(inserted_at, 'HH12:MI AM') as at")
-
-BKC_ROOM_OF_SQL = "select room from chat_messages where id = $1"
-
-# vote_message/3: none -> insert; the same value -> delete; the other -> switch.
-BKC_VOTE_SQL = join([
-  "with old as (select id, value from chat_message_votes where message_id = $1 and chatter_id = $2),",
-  " gone as (delete from chat_message_votes where id in (select id from old where value = $3) returning id),",
-  " switched as (update chat_message_votes set value = $3, updated_at = ", BKC_NOW, " where id in (select id from old where value <> $3) returning id),",
-  " added as (insert into chat_message_votes (message_id, chatter_id, value, inserted_at, updated_at)",
-  " select $1, $2, $3, ", BKC_NOW, ", ", BKC_NOW, " where not exists (select 1 from old) returning id)",
-  " select (select count(*) from gone)::int + (select count(*) from switched)::int + (select count(*) from added)::int as n"
-], "")
-
-BKC_COUNTS_SQL = join([
-  "select count(*) filter (where value > 0)::int as up, count(*) filter (where value < 0)::int as down,",
-  " coalesce(max(value) filter (where chatter_id = $2), 0)::int as mine from chat_message_votes where message_id = $1"
-], "")
+# Every statement is built with Alloy in temper/src/db/blinks_write.temper.md
+# (bkc_*_q) and comes here as [sql, params...].
 
 # -- who --------------------------------------------------------------------
 
@@ -290,10 +239,10 @@ def bkc_room_id(room: String) -> Int do
   end
 end
 
-def bkc_q(fake: Any, sql: String, params: List) -> Any do
+def bkc_q(fake: Any, q: List) -> Any do
   case fake do
-    nil -> DB <- :query(sql, params)
-    _ -> fake <- :query(sql, params)
+    nil -> DB <- :query(head(q), tail(q))
+    _ -> fake <- :query(head(q), tail(q))
   end
 end
 
@@ -336,7 +285,7 @@ def bkc_unique(fake: Any, name: String, except: Int, n: Int) -> String do
     true -> name
     false -> concat(name, to_string(n))
   end
-  taken = bkc_one(bkc_q(fake, BKC_TAKEN_SQL, [candidate, except]))
+  taken = bkc_one(bkc_q(fake, bkc_taken_q(candidate, except)))
   case taken != nil and lookup(taken, "n") > 0 do
     true -> bkc_unique(fake, name, except, max(n, 1) + 1)
     false -> candidate
@@ -352,13 +301,13 @@ end
 # find_or_create_chatter/2: the chatter, or nil where Phoenix's changeset
 # said no (then nothing changes, as the LiveView ignores {:error, _}).
 def bkc_find_or_create(fake: Any, name: String, ip_hash: String) -> Any do
-  had = bkc_chatter_of(bkc_one(bkc_q(fake, BKC_BY_IP_SQL, [ip_hash])))
+  had = bkc_chatter_of(bkc_one(bkc_q(fake, bkc_by_ip_q(ip_hash))))
   case had do
     nil ->
       unique = bkc_unique(fake, name, 0, 1)
       case bkc_name_ok(unique) do
         false -> nil
-        true -> bkc_chatter_of(bkc_one(bkc_q(fake, BKC_CREATE_SQL, [unique, ip_hash, bkc_color()])))
+        true -> bkc_chatter_of(bkc_one(bkc_q(fake, bkc_create_q(unique, ip_hash, bkc_color()))))
       end
     _ ->
       case had.name == name do
@@ -367,19 +316,19 @@ def bkc_find_or_create(fake: Any, name: String, ip_hash: String) -> Any do
           unique = bkc_unique(fake, name, had.id, 1)
           case bkc_name_ok(unique) do
             false -> nil
-            true -> bkc_chatter_of(bkc_one(bkc_q(fake, BKC_RENAME_SQL, [unique, had.id])))
+            true -> bkc_chatter_of(bkc_one(bkc_q(fake, bkc_rename_q(unique, had.id))))
           end
       end
   end
 end
 
 def bkc_history_json(fake: Any, room: String, chatter: Any) -> String do
-  rows = bkc_json_field(bkc_one(bkc_q(fake, BKC_HISTORY_SQL, [room])), "body", [])
+  rows = bkc_json_field(bkc_one(bkc_q(fake, bkc_history_q(room))), "body", [])
   me = case chatter do
     nil -> 0
     _ -> chatter.id
   end
-  v = bkc_one(bkc_q(fake, BKC_VOTES_SQL, [room, me]))
+  v = bkc_one(bkc_q(fake, bkc_votes_q(room, me)))
   mine = case me do
     0 -> %{}
     _ -> bkc_json_field(v, "mine", %{})
@@ -388,7 +337,7 @@ def bkc_history_json(fake: Any, room: String, chatter: Any) -> String do
 end
 
 def bkc_mine_json(fake: Any, room: String, chatter: Any) -> String do
-  v = bkc_one(bkc_q(fake, BKC_VOTES_SQL, [room, chatter.id]))
+  v = bkc_one(bkc_q(fake, bkc_votes_q(room, chatter.id)))
   json_encode(%{t: "mine", room: room, mine: bkc_json_field(v, "mine", %{})})
 end
 
@@ -419,7 +368,7 @@ actor BlinksChat do
   # signed on before is signed on already.
   on :hello(hub: Any, fd: Int, ip: String) do
     h = bkc_hash_ip(ip)
-    c = bkc_chatter_of(bkc_one(bkc_q(fake, BKC_BY_IP_SQL, [h])))
+    c = bkc_chatter_of(bkc_one(bkc_q(fake, bkc_by_ip_q(h))))
     returning = case c do
       nil -> ""
       _ -> c.name
@@ -506,14 +455,14 @@ actor BlinksChat do
           false ->
             top = case reply_to > 0 do
               true ->
-                r = bkc_one(bkc_q(fake, BKC_REPLY_TO_SQL, [reply_to, s.room]))
+                r = bkc_one(bkc_q(fake, bkc_reply_to_q(reply_to, s.room)))
                 case r do
                   nil -> 0
                   _ -> lookup(r, "top")
                 end
               false -> 0
             end
-            row = bkc_one(bkc_q(fake, BKC_SAY_SQL, [text, s.room, s.chatter.id, top]))
+            row = bkc_one(bkc_q(fake, bkc_say_q(text, s.room, s.chatter.id, top)))
             case row do
               nil -> reply :refused
               _ ->
@@ -535,15 +484,15 @@ actor BlinksChat do
     case s == nil or id <= 0 do
       true -> reply :ignored
       false ->
-        where = bkc_one(bkc_q(fake, BKC_ROOM_OF_SQL, [id]))
+        where = bkc_one(bkc_q(fake, bkc_room_of_q(id)))
         case s.chatter == nil or where == nil or s.room == "" do
           true -> reply :refused
           false ->
             case lookup(where, "room") != s.room do
               true -> reply :refused
               false ->
-                bkc_q(fake, BKC_VOTE_SQL, [id, s.chatter.id, v])
-                n = bkc_one(bkc_q(fake, BKC_COUNTS_SQL, [id, s.chatter.id]))
+                bkc_q(fake, bkc_vote_q(id, s.chatter.id, v))
+                n = bkc_one(bkc_q(fake, bkc_counts_q(id, s.chatter.id)))
                 up = bkc_int(n, "up")
                 down = bkc_int(n, "down")
                 hub <- :broadcast(s.room, json_encode(%{t: "votes", room: s.room, id: id, up: up, down: down}))
