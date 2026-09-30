@@ -1,10 +1,12 @@
 tags: blimp,temper,programming,ai
 
-# This site is Blimp now, mostly: a Temper-to-Blimp case study
+# This site is Blimp now: a Temper-to-Blimp case study, and how the port finished
 
-Most of what you can load on bobbby.online today comes from one Blimp process, and since tonight a good share of that process's logic is written in Temper. This post is a technical account of how that happened, written with the Temper team in mind: what the Blimp backend emits, what I had to change in it, what it costs at run time, and what Temper could not express for a real site.
+*Updated September 30, 2026. When this went up on the 29th, "Blimp now" had a "mostly" after it. A day later nothing on bobbby.online is served by Phoenix: every page comes from one Blimp process, and the few Phoenix pages left live at old.bobbby.online. The first part below is the post as it was, a case study of moving the site's logic into Temper. The second part, "The rest of the port", is how the last forty routes got across and what the interpreter had to learn on the way.*
 
-[Blimp](https://github.com/notactuallytreyanastasio/blimp) is a language I have been building where actors are the only abstraction. [Temper](https://temperlang.dev/) compiles one library to many languages. The backend that makes Temper emit Blimp lives in [temper-blimp](https://github.com/notactuallytreyanastasio/temper-blimp), as a stacked series of pull requests; this post covers what [#113](https://github.com/notactuallytreyanastasio/temper-blimp/pull/113) added to it. The site side is pull requests [#41 through #80](https://github.com/notactuallytreyanastasio/blog/pulls?q=is%3Apr+is%3Amerged) in the blog repository, one chapter each.
+Every page on bobbby.online comes from one Blimp process, and a good share of that process's logic is written in Temper. The first half of this post is a technical account of the Temper part, written with the Temper team in mind: what the Blimp backend emits, what I had to change in it, what it costs at run time, and what Temper could not express for a real site.
+
+[Blimp](https://github.com/notactuallytreyanastasio/blimp) is a language I have been building where actors are the only abstraction. [Temper](https://temperlang.dev/) compiles one library to many languages. The backend that makes Temper emit Blimp lives in [temper-blimp](https://github.com/notactuallytreyanastasio/temper-blimp), as a stacked series of pull requests; this post covers what [#113](https://github.com/notactuallytreyanastasio/temper-blimp/pull/113) added to it. The site side is pull requests [#41 through #134](https://github.com/notactuallytreyanastasio/blog/pulls?q=is%3Apr+is%3Amerged) in the blog repository, one chapter each.
 
 There is a map of all of it at [/stack](/stack): every compiler, build step, file, process and service between the Temper source and your screen, as a Blimp page whose graph and layout are themselves Temper. Click a box to see what it comes from and what it feeds.
 
@@ -255,8 +257,61 @@ Wordle's yellow letters were the one bug kept on purpose, as described above.
 
 A workflow of Claude agents did the Temper ports. One agent set up the library, the build and the text module. Six more ported one module each, at the same time, in separate git worktrees. A final agent re-ran all of their checks and tried to refute each claim; it refuted none, and caught one overclaim (2048's "120 random boards" was the same 40 boards three times, because the server's `random` is never seeded). The six coordinated on the decision graph's message board: the phangraphs agent posted the Int64 fix so nobody would make it twice, and the highlighter agent told the Markdown agent which build lines named its file.
 
-## What is left
+## The rest of the port
 
-About forty routes still go to Phoenix. Some read the Bluesky firehose, which needs a long-lived TLS WebSocket client the Blimp server does not have. Some take uploads and resize images. Six already return 500 in production. Agents are porting `/art`, `/cursor-tracker` and `/chess-lv` as I publish this.
+What follows was merged on September 30: about sixty pull requests to the blog, and the Blimp changes they needed. As before, Claude wrote nearly all of it, agents worked in parallel worktrees, and the numbers are the ones the commits recorded.
 
-On the Temper side, the next useful thing is the first item in the list above: letting a value-like class compile to a value instead of an actor. Most of what stayed in Blimp stayed because of it.
+### Phoenix is at old.bobbby.online
+
+The last change was a Caddy edit ([#129](https://github.com/notactuallytreyanastasio/blog/pull/129)). Nothing in the bobbby.online site block proxies to Phoenix any more. Every path that used to fall through to it now answers with a redirect. Checked while writing this:
+
+```text
+$ curl -sI https://bobbby.online/blinks      HTTP/2 200   x-served-by: blimp
+$ curl -sI https://bobbby.online/stack       HTTP/2 200   x-served-by: blimp
+$ curl -sI https://bobbby.online/gif-maker   HTTP/2 308   location: https://old.bobbby.online/gif-maker
+```
+
+Phoenix still runs, as its own site with its own host name, so its LiveView sockets accept connections there. Keeping it running is also the rollback: put the old Caddyfile back and it serves everything again.
+
+### What the interpreter had to learn
+
+The first forty routes needed only an HTTP server and a template. The last forty talked to other machines, and to move them the interpreter had to learn how.
+
+- **HTTPS out** ([blimp#60](https://github.com/notactuallytreyanastasio/blimp/pull/60)): `h = http_start(method, url, headers, body)` hands the request to a worker thread, and a tick polls `http_result(h)` until it is `{:ok, status, body}` or `{:error, reason}`. The program never blocks on the network. Timeouts and redirects came later ([#74](https://github.com/notactuallytreyanastasio/blimp/pull/74)), and so did the rule that nothing a remote server sends (a reset, a cut-off body, an http redirect from an https URL) can kill the process ([#76](https://github.com/notactuallytreyanastasio/blimp/pull/76)).
+- **A WebSocket client** ([blimp#67](https://github.com/notactuallytreyanastasio/blimp/pull/67)) for the Bluesky firehose. Reading Jetstream at about 38 frames a second costs the server under 1% of a core ([#91](https://github.com/notactuallytreyanastasio/blog/pull/91)).
+- **TLS 1.2 with ECDSA certificates** ([blimp#75](https://github.com/notactuallytreyanastasio/blimp/pull/75)). Before it, Blimp could not reach a TLS 1.2 server with an ECDSA certificate, which is what Craigslist runs. The camera sweep was waiting on it; with this change, Craigslist answers 200.
+- **Web Push** ([blimp#71](https://github.com/notactuallytreyanastasio/blimp/pull/71)): RFC 8291's encryption, checked byte for byte against the RFC's own example, and ES256 signatures that node and openssl accept. The Blinks web app's notifications come from Blimp now.
+- **Postgres**, as a client written in Blimp, so the museum, Blinks, Role Call and the rest read the same database Phoenix wrote.
+- **POST, sessions and CSRF tokens** ([#100](https://github.com/notactuallytreyanastasio/blog/pull/100)), and rooms with presence ([#102](https://github.com/notactuallytreyanastasio/blog/pull/102)) for the pages where visitors see each other.
+
+One bug is worth telling in full, because the obvious reading of it was wrong. The site hung in production with no error. The obvious suspect was a slow request. The actual cause was the live runtime socket that draws the canvas on every page. On Linux a socket returned by `accept()` does not inherit `O_NONBLOCK` from the listening socket, so every accepted connection was blocking. A browser tab that stopped reading its `/live/runtime` feed made the server's next write wait on it, and the server is one thread, so every other visitor waited too. The fix ([#124](https://github.com/notactuallytreyanastasio/blog/pull/124), [blimp#73](https://github.com/notactuallytreyanastasio/blimp/pull/73)) sets each accepted socket non-blocking and writes only what the peer will take.
+
+### What moved
+
+About sixty pages and endpoints, as chapters. Some run on the server; some are Blimp programs your browser runs in the WebAssembly build of the same interpreter. The rule for the canvas in the corner follows from that: a page that runs in your browser draws its own program, and a page the server renders draws the server.
+
+- Games: 2048, Tetris, Chess-9, Wordle, Blackjack, Pong and Snake. Blackjack's tables are one server actor now, so two players finally share a game ([#79](https://github.com/notactuallytreyanastasio/blog/pull/79)).
+- Live from the internet: the firehose pages, the cursor tracker, Tag a Wook's map and the MTA bus map. The bus map has one poller for every visitor instead of one per tab ([#93](https://github.com/notactuallytreyanastasio/blog/pull/93)).
+- Data: phangraphs, Phish Lab's 20,000-point chart, the NYC census estimate (worked out in your browser, in Temper, to the same marker as Phoenix), Fill the Sky, Hacker News, Stumble and the camera browser.
+- Tools and toys: the build map at [/stack](/stack), the Mirror, the Markdown editor, the Typewriter, Temper Art, the Ziggy account, Blinks, the receipt printer on my desk, and the collage maker. The collage maker's resizing moved from ImageMagick on the server to a canvas in your browser.
+
+Porting a page means reading every line of it, so the second half found bugs too. Stumble picked a random link with `ORDER BY random()` over 2.3 million rows, 800 ms a click; it samples by primary key now ([#105](https://github.com/notactuallytreyanastasio/blog/pull/105)). Bus Time's v2 URL answers 404 when asked for `version=2`. And the Finder admin never checked its password ([#123](https://github.com/notactuallytreyanastasio/blog/pull/123)).
+
+### What did not move, by name
+
+- **/gif-maker** stays on Phoenix, and it does not work there either: YouTube blocks the downloader it runs.
+- **Creating a blink and writing a comment** stay on Phoenix, because they send the push to my iPhone, and Apple's push service needs HTTP/2, which Blimp does not speak. Reading Blinks, saves, reactions and chat are all Blimp.
+- **Python in Elixir and Smart Steps** were left where they are, by choice.
+- **Four background jobs are ported and switched off**: the Craigslist camera sweep, the Bluesky link ingester behind Stumble, the dead-link check and the work log's GitHub poller. Phoenix's copies are still running, and two writers would double every row. Each Blimp copy writes exactly the rows Phoenix's does. Switching each one over is a config change on each side: Phoenix's copy off, Blimp's copy on.
+
+### The homepage
+
+The homepage was a classic Mac desktop, a port of the LiveView it replaced. It is now a page about me and the things I made, with the running server drawn live further down: 33 actors when I checked, one of them the `Site` actor that answered your request, on Blimp commit `0cffc08`. It went through three versions in one afternoon. The first led with the pages Blimp runs ([#130](https://github.com/notactuallytreyanastasio/blog/pull/130)), the second put the server's canvas at the top ([#132](https://github.com/notactuallytreyanastasio/blog/pull/132)), and the third put me first and the machine after the work ([#134](https://github.com/notactuallytreyanastasio/blog/pull/134)).
+
+One trap from that afternoon: the redesign shipped, and visitors got the new markup with the old stylesheet. Cloudflare keeps `/assets/*` for four hours, and the file name had not changed. Stylesheets are now linked with a hash of their contents in the URL ([#131](https://github.com/notactuallytreyanastasio/blog/pull/131)), so a changed file has a new URL.
+
+### What is left
+
+On the Temper side, the next useful thing is still the first item in the list above: letting a value-like class compile to a value instead of an actor. Most of what stayed in Blimp stayed because of it.
+
+On the site, Phoenix still does three things nothing else does: it sends pushes to my iPhone, which needs HTTP/2 in Blimp; it runs the four background jobs until they are switched over; and it hosts /gif-maker, Python in Elixir and Smart Steps. When those are settled, old.bobbby.online can go.
