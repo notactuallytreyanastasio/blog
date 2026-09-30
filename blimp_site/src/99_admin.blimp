@@ -1,0 +1,747 @@
+# /admin/museum and /admin/finder: the homepage's museum (museum_projects)
+# and Finder (finder_sections, finder_items), edited. They were two
+# LiveViews, BlogWeb.MuseumAdminLive and BlogWeb.FinderAdminLive, over
+# Blog.Museum.Projects and Blog.Finder; each page here is a Blimp program in
+# the browser (static/admin/*.blimp) and these JSON routes, which write the
+# rows those contexts wrote.
+#
+#   GET    /admin/museum                      the page (and the session's CSRF token)
+#   GET    /admin/museum/projects.json        list_projects/0
+#   POST   /admin/museum/projects             save_new_project
+#   PATCH  /admin/museum/projects/:id         update_project
+#   DELETE /admin/museum/projects/:id         delete_project
+#   POST   /admin/museum/projects/:id/move    move_project (dir: up | down)
+#   POST   /admin/museum/projects/:id/toggle  toggle_visibility
+#   POST   /admin/museum/reorder              reorder_projects (ids, dragged)
+#   GET    /admin/finder                      the page
+#   GET    /admin/finder/sections.json        list_sections/0, items in each
+#   POST   /admin/finder/sections             save_new_section
+#   PATCH  /admin/finder/sections/:id         update_section
+#   DELETE /admin/finder/sections/:id         delete_section (its items go with it: ON DELETE CASCADE)
+#   POST   /admin/finder/sections/:id/move    move_section
+#   POST   /admin/finder/sections/:id/toggle  toggle_section_visibility
+#   POST   /admin/finder/items                save_new_item
+#   PATCH  /admin/finder/items/:id            update_item
+#   DELETE /admin/finder/items/:id            delete_item
+#   POST   /admin/finder/items/:id/move       move_item
+#   POST   /admin/finder/items/:id/toggle     toggle_item_visibility
+#   POST   /admin/login, /admin/logout        check_password, and its undoing
+#
+# Every write answers what the LiveView re-rendered after it: the whole
+# list again, and a flash with the LiveView's own words when it failed
+# ({"error": "Failed to create project", "projects": [...]}, 422).
+#
+# The password is FINDER_ADMIN_PASSWORD, as for Phoenix. A LiveView
+# remembered it for as long as its socket lived; here a login is kept in
+# the signed session, as a MAC of the password, so it lasts until the
+# browser closes, ADM_LOGIN_S passes, or the password changes. Phoenix fell
+# back to "letmein" when the variable was unset; that password is in the
+# repository, so here an unset one means nobody can log in.
+#
+# The homepage reads these tables every DESK_REFRESH_S (60s): a change made
+# here reaches "/" within a minute, not at once as it did on Phoenix, whose
+# homepage read them on every mount.
+
+ADM_PASSWORD = case getenv("FINDER_ADMIN_PASSWORD") do
+  nil -> ""
+  p -> p
+end
+ADM_LOGIN_S = 43200
+ADM_CATEGORIES = ["tools", "ml", "music", "social", "maps", "writing", "hardware"]
+
+# ---------------------------------------------------------------- text
+
+# What String.trim/1 takes off both ends, and Ecto's cast treats as empty
+# when it is all a string is (Ecto.Type.empty_trimmed_string?/1): Unicode's
+# White_Space, measured with `for c <- 0..0x3000, String.trim("a" <> <<c::utf8>>) == "a"`.
+ADM_SPACES = ["\t", "\n", "\u000b", "\u000c", "\r", " ", "\u0085", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", "　"]
+
+def adm_space_prefix(s: String, spaces: List) -> Int do
+  case spaces do
+    [] -> 0
+    [sp | rest] ->
+      case starts_with(s, sp) do
+        true -> length(sp)
+        false -> adm_space_prefix(s, rest)
+      end
+  end
+end
+
+def adm_space_suffix(s: String, spaces: List) -> Int do
+  case spaces do
+    [] -> 0
+    [sp | rest] ->
+      case ends_with(s, sp) do
+        true -> length(sp)
+        false -> adm_space_suffix(s, rest)
+      end
+  end
+end
+
+def adm_trim_left(s: String) -> String do
+  n = adm_space_prefix(s, ADM_SPACES)
+  case n do
+    0 -> s
+    _ -> adm_trim_left(drop(s, n))
+  end
+end
+
+def adm_trim_right(s: String) -> String do
+  n = adm_space_suffix(s, ADM_SPACES)
+  case n do
+    0 -> s
+    _ -> adm_trim_right(take(s, length(s) - n))
+  end
+end
+
+# String.trim/1
+def adm_trim(s: String) -> String do
+  adm_trim_right(adm_trim_left(s))
+end
+
+# What cast/3 makes of a form value for a :string field: nil when it is
+# nil or only whitespace, the value untouched otherwise. The LiveView's
+# nilify/1 ("" -> nil) runs first and changes nothing this does not.
+def adm_str(v: Any) -> Any do
+  case v do
+    nil -> nil
+    _ ->
+      case type_of(v) do
+        :string ->
+          case adm_trim(v) do
+            "" -> nil
+            _ -> v
+          end
+        _ -> nil
+      end
+  end
+end
+
+# parse_comma_list/1: "Elixir, Rust,," -> ["Elixir", "Rust"]
+def adm_comma_list(v: Any) -> List do
+  case adm_is_text(v) do
+    false -> []
+    true ->
+      filter(map(split(v, ","), fn(p: String) -> String do adm_trim(p) end), fn(p: String) -> Bool do p != "" end)
+  end
+end
+
+# parse_repos/1: one "name:owner/repo" a line; a line with no ":" is dropped.
+def adm_repos(v: Any) -> List do
+  case adm_is_text(v) do
+    false -> []
+    true ->
+      lines = filter(map(split(v, "\n"), fn(l: String) -> String do adm_trim(l) end), fn(l: String) -> Bool do l != "" end)
+      reduce(reverse(lines), [], fn(acc: List, line: String) -> List do
+        at = index_of(line, ":")
+        case at < 0 do
+          true -> acc
+          false -> [%{name: adm_trim(take(line, at)), full_name: adm_trim(drop(line, at + 1))} | acc]
+        end
+      end)
+  end
+end
+
+def adm_is_text(v: Any) -> Bool do
+  case v do
+    nil -> false
+    "" -> false
+    _ -> type_of(v) == :string
+  end
+end
+
+# The LiveView's `params["visible"] == "true"`
+def adm_visible(v: Any) -> Bool do
+  v == "true"
+end
+
+# A path's :id, as String.to_integer/1 would take it (nil where it raises).
+def adm_id(conn: Map) -> Any do
+  s = web_or(lookup(conn.path_params, "id"), "")
+  case length(s) > 0 and length(s) <= 18 and web_all_digits(s, 0) do
+    true -> to_int(s)
+    false -> nil
+  end
+end
+
+# A body field as the LiveView's params map had it: a string or nil.
+def adm_param(conn: Map, name: String) -> Any do
+  v = lookup(conn.body_params, name)
+  case type_of(v) do
+    :string -> v
+    _ -> nil
+  end
+end
+
+# ---------------------------------------------------------------- login
+
+def adm_login_mac(secret: String, password: String, at: Int) -> String do
+  hmac_sha256(secret, concat("blimp-admin.", to_string(at), ".", password))
+end
+
+def adm_authed(conn: Map) -> Bool do
+  adm_session_ok(conn, ADM_PASSWORD, now())
+end
+
+# The session holds a login made with `password` less than ADM_LOGIN_S ago.
+def adm_session_ok(conn: Map, password: String, t: Int) -> Bool do
+  at = web_get_session(conn, "admin_at")
+  mac = web_get_session(conn, "admin")
+  case password == "" or type_of(at) != :integer or type_of(mac) != :string do
+    true -> false
+    false -> t - at < ADM_LOGIN_S and web_secure_eq(mac, adm_login_mac(conn.secret, password, at), conn.secret)
+  end
+end
+
+# Plug: nothing past it without a login. MuseumAdminLive ignored every
+# event from a socket that had not given the password; FinderAdminLive had
+# no such clause, and would take any of its writes from anyone who sent the
+# event over the socket.
+def adm_require_login(conn: Map) -> Map do
+  case adm_authed(conn) do
+    true -> conn
+    false -> web_halt(web_json(conn, 401, %{error: "Log in first"}))
+  end
+end
+
+def adm_login(conn: Map) -> Map do
+  sent = adm_param(conn, "password")
+  ok = ADM_PASSWORD != "" and sent != nil and web_secure_eq(sent, ADM_PASSWORD, conn.secret)
+  case ok do
+    false ->
+      puts(concat("admin: a wrong password from ", web_header(conn, "x-real-ip")))
+      web_json(conn, 403, %{error: "Wrong password"})
+    true ->
+      at = now()
+      c = web_put_session(web_put_session(conn, "admin_at", at), "admin", adm_login_mac(conn.secret, ADM_PASSWORD, at))
+      web_json(c, 200, %{ok: true})
+  end
+end
+
+def adm_logout(conn: Map) -> Map do
+  c = web_put_session(web_put_session(conn, "admin_at", 0), "admin", "")
+  web_json(c, 200, %{ok: true})
+end
+
+# ---------------------------------------------------------------- SQL
+
+# Ecto's timestamps(): NaiveDateTime.utc_now() cut to the second, once per
+# insert or update, the same value in inserted_at and updated_at. Postgres
+# rounds a timestamp(0) cast; date_trunc cuts, as NaiveDateTime.truncate does.
+ADM_NOW = "date_trunc('second', timezone('utc', clock_timestamp()))"
+
+ADM_PROJECT_COLS = "id, slug, title, tagline, description, category, array_to_json(tech_stack) as tech_stack, array_to_json(github_repos) as github_repos, internal_path, external_url, pixel_art_path, emoji, color, sort_order, visible, inserted_at::text as inserted_at, updated_at::text as updated_at"
+# list_projects/0; ties in sort_order come out as Postgres has them, as there
+ADM_PROJECTS_SQL = concat("select ", ADM_PROJECT_COLS, " from museum_projects order by sort_order")
+
+ADM_SECTION_COLS = "id, name, label, sort_order, joyride_target, visible, inserted_at::text as inserted_at, updated_at::text as updated_at"
+ADM_ITEM_COLS = "id, name, icon, path, sort_order, joyride_target, action, description, visible, section_id, inserted_at::text as inserted_at, updated_at::text as updated_at"
+ADM_SECTIONS_SQL = concat("select ", ADM_SECTION_COLS, " from finder_sections order by sort_order")
+ADM_ITEMS_SQL = concat("select ", ADM_ITEM_COLS, " from finder_items order by sort_order")
+
+# A JSON array of strings -> varchar[], and of objects -> jsonb[], in order;
+# [] is '{}', as Ecto writes an empty list.
+ADM_TEXT_ARRAY = "array(select e from jsonb_array_elements_text(ARG::jsonb) with ordinality as a(e, n) order by n)::varchar[]"
+ADM_JSONB_ARRAY = "array(select e from jsonb_array_elements(ARG::jsonb) with ordinality as a(e, n) order by n)"
+
+def adm_text_array(arg: String) -> String do
+  replace(ADM_TEXT_ARRAY, "ARG", arg)
+end
+
+def adm_jsonb_array(arg: String) -> String do
+  replace(ADM_JSONB_ARRAY, "ARG", arg)
+end
+
+def adm_query(sql: String, params: List) -> Tuple do
+  DB <- :query(sql, params)
+end
+
+def adm_rows(sql: String, params: List) -> List do
+  got = adm_query(sql, params)
+  case got do
+    {:ok, rows} -> rows
+    {:error, reason} -> bubble concat("admin: ", reason)
+  end
+end
+
+def adm_projects() -> List do
+  adm_rows(ADM_PROJECTS_SQL, [])
+end
+
+def adm_sections() -> List do
+  items = adm_rows(ADM_ITEMS_SQL, [])
+  map(adm_rows(ADM_SECTIONS_SQL, []), fn(s: Map) -> Map do
+    put(s, :items, filter(items, fn(i: Map) -> Bool do i.section_id == s.id end))
+  end)
+end
+
+# ---------------------------------------------------------------- answers
+
+def adm_museum_ok(conn: Map) -> Map do
+  web_json(conn, 200, %{projects: adm_projects()})
+end
+
+def adm_museum_err(conn: Map, status: Int, message: String) -> Map do
+  web_json(conn, status, %{error: message, projects: adm_projects()})
+end
+
+def adm_finder_ok(conn: Map) -> Map do
+  web_json(conn, 200, %{sections: adm_sections()})
+end
+
+def adm_finder_err(conn: Map, status: Int, message: String) -> Map do
+  web_json(conn, status, %{error: message, sections: adm_sections()})
+end
+
+# A write: ok, or the flash the LiveView would have shown. A required field
+# that cast/3 left nil is validate_required's error; Postgres refusing the
+# row (a slug or name taken, a value past varchar(255)) is the other. The
+# first was {:error, changeset} there too; the second raised, and the
+# LiveView crashed and remounted, flash and all.
+def adm_write(sql: String, params: List) -> Any do
+  got = adm_query(sql, params)
+  case got do
+    {:ok, rows} -> {:ok, rows}
+    {:error, reason} ->
+      puts(concat("admin: a write failed: ", reason))
+      {:error, reason}
+  end
+end
+
+def adm_missing(values: List) -> Bool do
+  filter(values, fn(v: Any) -> Bool do v == nil end) != []
+end
+
+# ---------------------------------------------------------------- museum
+
+def adm_museum_list(conn: Map) -> Map do
+  adm_museum_ok(conn)
+end
+
+def adm_project_fields(conn: Map) -> Map do
+  %{
+    slug: adm_str(adm_param(conn, "slug")),
+    title: adm_str(adm_param(conn, "title")),
+    tagline: adm_str(adm_param(conn, "tagline")),
+    description: adm_str(adm_param(conn, "description")),
+    category: adm_str(adm_param(conn, "category")),
+    tech_stack: adm_comma_list(adm_param(conn, "tech_stack")),
+    github_repos: adm_repos(adm_param(conn, "github_repos")),
+    internal_path: adm_str(adm_param(conn, "internal_path")),
+    external_url: adm_str(adm_param(conn, "external_url"))
+  }
+end
+
+# save_new_project: sort_order one past the highest (1 for the first), visible.
+ADM_PROJECT_INSERT = concat("with t as (select ", ADM_NOW, " as ts) insert into museum_projects (slug, title, tagline, description, category, tech_stack, github_repos, internal_path, external_url, sort_order, visible, inserted_at, updated_at) select $1, $2, $3, $4, $5, ", adm_text_array("$6"), ", ", adm_jsonb_array("$7"), ", $8, $9, (select coalesce(max(sort_order), 0) + 1 from museum_projects), true, t.ts, t.ts from t returning id")
+
+def adm_project_create(conn: Map) -> Map do
+  f0 = adm_project_fields(conn)
+  # params["category"] || "tools": only a missing field; "" is cast to nil
+  f = case adm_param(conn, "category") do
+    nil -> put(f0, :category, "tools")
+    _ -> f0
+  end
+  case adm_missing([f.slug, f.title, f.category]) do
+    true -> adm_museum_err(conn, 422, "Failed to create project")
+    false ->
+      got = adm_write(ADM_PROJECT_INSERT, [f.slug, f.title, f.tagline, f.description, f.category, f.tech_stack, f.github_repos, f.internal_path, f.external_url])
+      case got do
+        {:ok, _} -> adm_museum_ok(conn)
+        _ -> adm_museum_err(conn, 422, "Failed to create project")
+      end
+  end
+end
+
+# update_project: every field the form has, and updated_at only when one of
+# them differs, because Ecto writes the changes and there are none when
+# every value is what the row holds. In an UPDATE the columns on the right
+# are the row as it was.
+ADM_PROJECT_UPDATE = concat("with n as (select $2::varchar as slug, $3::varchar as title, $4::varchar as tagline, $5::text as description, $6::varchar as category, ", adm_text_array("$7"), " as tech_stack, ", adm_jsonb_array("$8"), " as github_repos, $9::varchar as internal_path, $10::varchar as external_url, $11::boolean as visible, ", ADM_NOW, " as ts) ",
+  "update museum_projects p set slug = n.slug, title = n.title, tagline = n.tagline, description = n.description, category = n.category, tech_stack = n.tech_stack, github_repos = n.github_repos, internal_path = n.internal_path, external_url = n.external_url, visible = n.visible, ",
+  "updated_at = case when (p.slug, p.title, p.tagline, p.description, p.category, p.tech_stack, p.github_repos, p.internal_path, p.external_url, p.visible) is distinct from (n.slug, n.title, n.tagline, n.description, n.category, n.tech_stack, n.github_repos, n.internal_path, n.external_url, n.visible) then n.ts else p.updated_at end ",
+  "from n where p.id = $1 returning p.id")
+
+def adm_project_update(conn: Map) -> Map do
+  id = adm_id(conn)
+  f = adm_project_fields(conn)
+  case id do
+    nil -> adm_museum_err(conn, 404, "No such project")
+    _ ->
+      case adm_missing([f.slug, f.title, f.category]) do
+        true -> adm_museum_err(conn, 422, "Failed to update project")
+        false ->
+          got = adm_write(ADM_PROJECT_UPDATE, [id, f.slug, f.title, f.tagline, f.description, f.category, f.tech_stack, f.github_repos, f.internal_path, f.external_url, adm_visible(adm_param(conn, "visible"))])
+          case got do
+            {:ok, []} -> adm_museum_err(conn, 404, "No such project")
+            {:ok, _} -> adm_museum_ok(conn)
+            _ -> adm_museum_err(conn, 422, "Failed to update project")
+          end
+      end
+  end
+end
+
+def adm_project_delete(conn: Map) -> Map do
+  adm_delete(conn, "museum_projects", "No such project", true)
+end
+
+def adm_project_toggle(conn: Map) -> Map do
+  adm_toggle(conn, "museum_projects", "No such project", true)
+end
+
+def adm_project_move(conn: Map) -> Map do
+  adm_move(conn, "museum_projects", "No such project", true)
+end
+
+# reorder_projects -> bulk_reorder/1: the dragged order, sort_order 0, 1,
+# 2, ... by update_all, which leaves updated_at alone; one transaction.
+# An id that is not a number made String.to_integer raise inside it, so
+# nothing was written, and neither is it here.
+ADM_BULK_REORDER = "update museum_projects p set sort_order = a.n - 1 from jsonb_array_elements_text($1::jsonb) with ordinality as a(id, n) where p.id = a.id::bigint"
+
+def adm_project_reorder(conn: Map) -> Map do
+  ids = lookup(conn.body_params, "ids")
+  ok = type_of(ids) == :list and filter(ids, fn(i: Any) -> Bool do not(type_of(i) == :string and length(i) > 0 and length(i) <= 18 and web_all_digits(i, 0)) end) == []
+  case ok do
+    false -> adm_museum_err(conn, 400, "ids must be a list of project ids")
+    true ->
+      adm_write(ADM_BULK_REORDER, [ids])
+      adm_museum_ok(conn)
+  end
+end
+
+# ---------------------------------------------------------------- shared
+
+def adm_ok(conn: Map, museum: Bool) -> Map do
+  case museum do
+    true -> adm_museum_ok(conn)
+    false -> adm_finder_ok(conn)
+  end
+end
+
+def adm_err(conn: Map, museum: Bool, status: Int, message: String) -> Map do
+  case museum do
+    true -> adm_museum_err(conn, status, message)
+    false -> adm_finder_err(conn, status, message)
+  end
+end
+
+# get_x!/1 then Repo.delete/1. A row already gone raised there.
+def adm_delete(conn: Map, table: String, missing: String, museum: Bool) -> Map do
+  id = adm_id(conn)
+  case id do
+    nil -> adm_err(conn, museum, 404, missing)
+    _ ->
+      got = adm_write(concat("delete from ", table, " where id = $1 returning id"), [id])
+      case got do
+        {:ok, []} -> adm_err(conn, museum, 404, missing)
+        _ -> adm_ok(conn, museum)
+      end
+  end
+end
+
+# update_x(row, %{visible: !row.visible}): always a change, so updated_at moves.
+def adm_toggle(conn: Map, table: String, missing: String, museum: Bool) -> Map do
+  id = adm_id(conn)
+  case id do
+    nil -> adm_err(conn, museum, 404, missing)
+    _ ->
+      got = adm_write(concat("update ", table, " set visible = not visible, updated_at = ", ADM_NOW, " where id = $1 returning id"), [id])
+      case got do
+        {:ok, []} -> adm_err(conn, museum, 404, missing)
+        _ -> adm_ok(conn, museum)
+      end
+  end
+end
+
+# reorder_in_list/3 (Blog.Museum.Projects and Blog.Finder have the same
+# one): the rows in sort_order, as the same query reads them; the row and
+# its neighbour above or below trade sort_order through update_x/2, one
+# after the other, each moving updated_at only if its value changes (two
+# rows with the same sort_order trade nothing). The first or last row
+# moved past its end is left alone.
+def adm_move(conn: Map, table: String, missing: String, museum: Bool) -> Map do
+  id = adm_id(conn)
+  dir = adm_param(conn, "dir")
+  case id == nil or not(dir == "up" or dir == "down") do
+    true -> adm_err(conn, museum, 404, missing)
+    false ->
+      list = adm_move_list(table, id)
+      index = adm_index_of(list, id, 0)
+      case index < 0 do
+        true -> adm_err(conn, museum, 404, missing)
+        false ->
+          swap_index = case dir do
+            "up" -> max(index - 1, 0)
+            _ -> min(index + 1, length(list) - 1)
+          end
+          case swap_index == index do
+            true -> adm_ok(conn, museum)
+            false ->
+              target = elem_at(list, index)
+              swap = elem_at(list, swap_index)
+              adm_set_order(table, target.id, swap.sort_order)
+              adm_set_order(table, swap.id, target.sort_order)
+              adm_ok(conn, museum)
+          end
+      end
+  end
+end
+
+# Finder.reorder_item/2 reads only the item's own section.
+def adm_move_list(table: String, id: Int) -> List do
+  case table do
+    "finder_items" -> adm_rows("select i.id, i.sort_order from finder_items i where i.section_id = (select section_id from finder_items where id = $1) order by i.sort_order", [id])
+    _ -> adm_rows(concat("select id, sort_order from ", table, " order by sort_order"), [])
+  end
+end
+
+def adm_set_order(table: String, id: Int, order: Int) -> Any do
+  adm_write(concat("update ", table, " set sort_order = $2, updated_at = ", ADM_NOW, " where id = $1 and sort_order is distinct from $2::int"), [id, order])
+end
+
+def adm_index_of(list: List, id: Int, i: Int) -> Int do
+  case list do
+    [] -> -1
+    [r | rest] ->
+      case r.id == id do
+        true -> i
+        false -> adm_index_of(rest, id, i + 1)
+      end
+  end
+end
+
+# ---------------------------------------------------------------- finder
+
+def adm_finder_list(conn: Map) -> Map do
+  adm_finder_ok(conn)
+end
+
+# save_new_section: sort_order one past the highest (0 for the first).
+ADM_SECTION_INSERT = concat("with t as (select ", ADM_NOW, " as ts) insert into finder_sections (name, label, sort_order, visible, inserted_at, updated_at) select $1, $2, (select coalesce(max(sort_order), -1) + 1 from finder_sections), true, t.ts, t.ts from t returning id")
+
+def adm_section_create(conn: Map) -> Map do
+  name = adm_str(adm_param(conn, "name"))
+  label = adm_str(adm_param(conn, "label"))
+  case name do
+    nil -> adm_finder_err(conn, 422, "Failed to create section")
+    _ ->
+      case adm_write(ADM_SECTION_INSERT, [name, label]) do
+        {:ok, _} -> adm_finder_ok(conn)
+        _ -> adm_finder_err(conn, 422, "Failed to create section")
+      end
+  end
+end
+
+ADM_SECTION_UPDATE = concat("with n as (select $2::varchar as name, $3::varchar as label, $4::varchar as joyride_target, $5::boolean as visible, ", ADM_NOW, " as ts) ",
+  "update finder_sections p set name = n.name, label = n.label, joyride_target = n.joyride_target, visible = n.visible, ",
+  "updated_at = case when (p.name, p.label, p.joyride_target, p.visible) is distinct from (n.name, n.label, n.joyride_target, n.visible) then n.ts else p.updated_at end ",
+  "from n where p.id = $1 returning p.id")
+
+def adm_section_update(conn: Map) -> Map do
+  id = adm_id(conn)
+  name = adm_str(adm_param(conn, "name"))
+  case id do
+    nil -> adm_finder_err(conn, 404, "No such section")
+    _ ->
+      case name do
+        nil -> adm_finder_err(conn, 422, "Failed to update section")
+        _ ->
+          got = adm_write(ADM_SECTION_UPDATE, [id, name, adm_str(adm_param(conn, "label")), adm_str(adm_param(conn, "joyride_target")), adm_visible(adm_param(conn, "visible"))])
+          case got do
+            {:ok, []} -> adm_finder_err(conn, 404, "No such section")
+            {:ok, _} -> adm_finder_ok(conn)
+            _ -> adm_finder_err(conn, 422, "Failed to update section")
+          end
+      end
+  end
+end
+
+def adm_section_delete(conn: Map) -> Map do
+  adm_delete(conn, "finder_sections", "No such section", false)
+end
+
+def adm_section_toggle(conn: Map) -> Map do
+  adm_toggle(conn, "finder_sections", "No such section", false)
+end
+
+def adm_section_move(conn: Map) -> Map do
+  adm_move(conn, "finder_sections", "No such section", false)
+end
+
+# save_new_item: get_section!/1 first (a section that is gone raised), then
+# sort_order one past the section's highest (0 for its first), visible by
+# the schema's default, no joyride_target.
+ADM_ITEM_INSERT = concat("with t as (select ", ADM_NOW, " as ts) insert into finder_items (name, icon, path, action, description, sort_order, section_id, visible, inserted_at, updated_at) select $1, $2, $3, $4, $5, (select coalesce(max(sort_order), -1) + 1 from finder_items where section_id = $6), $6, true, t.ts, t.ts from t returning id")
+
+def adm_item_create(conn: Map) -> Map do
+  sid_text = web_or(adm_param(conn, "section_id"), "")
+  sid = case length(sid_text) > 0 and length(sid_text) <= 18 and web_all_digits(sid_text, 0) do
+    true -> to_int(sid_text)
+    false -> nil
+  end
+  exists = case sid do
+    nil -> []
+    _ -> adm_rows("select id from finder_sections where id = $1", [sid])
+  end
+  case exists do
+    [] -> adm_finder_err(conn, 404, "No such section")
+    _ ->
+      name = adm_str(adm_param(conn, "name"))
+      icon = adm_str(adm_param(conn, "icon"))
+      case adm_missing([name, icon]) do
+        true -> adm_finder_err(conn, 422, "Failed to create item")
+        false ->
+          got = adm_write(ADM_ITEM_INSERT, [name, icon, adm_str(adm_param(conn, "path")), adm_str(adm_param(conn, "action")), adm_str(adm_param(conn, "description")), sid])
+          case got do
+            {:ok, _} -> adm_finder_ok(conn)
+            _ -> adm_finder_err(conn, 422, "Failed to create item")
+          end
+      end
+  end
+end
+
+ADM_ITEM_UPDATE = concat("with n as (select $2::varchar as name, $3::varchar as icon, $4::varchar as path, $5::varchar as action, $6::varchar as description, $7::varchar as joyride_target, $8::boolean as visible, ", ADM_NOW, " as ts) ",
+  "update finder_items p set name = n.name, icon = n.icon, path = n.path, action = n.action, description = n.description, joyride_target = n.joyride_target, visible = n.visible, ",
+  "updated_at = case when (p.name, p.icon, p.path, p.action, p.description, p.joyride_target, p.visible) is distinct from (n.name, n.icon, n.path, n.action, n.description, n.joyride_target, n.visible) then n.ts else p.updated_at end ",
+  "from n where p.id = $1 returning p.id")
+
+def adm_item_update(conn: Map) -> Map do
+  id = adm_id(conn)
+  name = adm_str(adm_param(conn, "name"))
+  icon = adm_str(adm_param(conn, "icon"))
+  case id do
+    nil -> adm_finder_err(conn, 404, "No such item")
+    _ ->
+      case adm_missing([name, icon]) do
+        true -> adm_finder_err(conn, 422, "Failed to update item")
+        false ->
+          got = adm_write(ADM_ITEM_UPDATE, [id, name, icon, adm_str(adm_param(conn, "path")), adm_str(adm_param(conn, "action")), adm_str(adm_param(conn, "description")), adm_str(adm_param(conn, "joyride_target")), adm_visible(adm_param(conn, "visible"))])
+          case got do
+            {:ok, []} -> adm_finder_err(conn, 404, "No such item")
+            {:ok, _} -> adm_finder_ok(conn)
+            _ -> adm_finder_err(conn, 422, "Failed to update item")
+          end
+      end
+  end
+end
+
+def adm_item_delete(conn: Map) -> Map do
+  adm_delete(conn, "finder_items", "No such item", false)
+end
+
+def adm_item_toggle(conn: Map) -> Map do
+  adm_toggle(conn, "finder_items", "No such item", false)
+end
+
+def adm_item_move(conn: Map) -> Map do
+  adm_move(conn, "finder_items", "No such item", false)
+end
+
+# ---------------------------------------------------------------- pages
+
+ADM_SCRIPTS = list_append(APP_SCRIPTS, ["/admin/admin.js"])
+
+# The page: the program, and the session's CSRF token for admin.js to send
+# with every write. Whether the visitor is logged in is the program's to
+# find out (its first fetch answers 401 or the rows).
+def adm_page(conn: Map, title: String, program: String, actor_var: String, css: String) -> Map do
+  c = web_ensure_csrf(conn)
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", program, "\" data-actor=\"", actor_var, "\" data-csrf=\"", escape_html(c.csrf_token), "\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; that needs JavaScript to start.</p></noscript>\n",
+    script_tags(ADM_SCRIPTS)
+  ], "")
+  html = page_layout_html(title, title, "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", css], body, "")
+  web_send(put(c, :cache, "no-store"), 200, "text/html; charset=utf-8", html)
+end
+
+def adm_museum_page(conn: Map) -> Map do
+  adm_page(conn, "Museum Admin", "/admin/museum.blimp", "admin", "/assets/admin-museum.css")
+end
+
+def adm_finder_page(conn: Map) -> Map do
+  adm_page(conn, "Finder Admin", "/admin/finder.blimp", "admin", "/assets/admin-finder.css")
+end
+
+def adm_asset(file: String) -> Any do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> body
+  end
+end
+
+ADM_MUSEUM_PROGRAM = adm_asset("_build/admin-museum.blimp")
+ADM_FINDER_PROGRAM = adm_asset("_build/admin-finder.blimp")
+ADM_JS = adm_asset("static/admin/admin.js")
+ADM_MUSEUM_CSS = adm_asset("assets/admin-museum.css")
+ADM_FINDER_CSS = adm_asset("assets/admin-finder.css")
+
+def adm_file(conn: Map, content_type: String, body: String) -> Map do
+  web_send(put(conn, :cache, "public, max-age=300"), 200, content_type, body)
+end
+
+def adm_museum_program(conn: Map) -> Map do
+  adm_file(conn, "text/plain; charset=utf-8", ADM_MUSEUM_PROGRAM)
+end
+
+def adm_finder_program(conn: Map) -> Map do
+  adm_file(conn, "text/plain; charset=utf-8", ADM_FINDER_PROGRAM)
+end
+
+def adm_js(conn: Map) -> Map do
+  adm_file(conn, "text/javascript; charset=utf-8", ADM_JS)
+end
+
+def adm_museum_css(conn: Map) -> Map do
+  adm_file(conn, "text/css; charset=utf-8", ADM_MUSEUM_CSS)
+end
+
+def adm_finder_css(conn: Map) -> Map do
+  adm_file(conn, "text/css; charset=utf-8", ADM_FINDER_CSS)
+end
+
+# ---------------------------------------------------------------- routes
+
+ADM_PIPE = [web_fetch_session, web_protect_from_forgery, adm_require_login]
+
+def admin_routes() -> List do
+  [
+    web_route("GET", "/admin/museum", WEB_BROWSER, adm_museum_page),
+    web_route("GET", "/admin/finder", WEB_BROWSER, adm_finder_page),
+    web_route("GET", "/admin/museum.blimp", [], adm_museum_program),
+    web_route("GET", "/admin/finder.blimp", [], adm_finder_program),
+    web_route("GET", "/admin/admin.js", [], adm_js),
+    web_route("GET", "/assets/admin-museum.css", [], adm_museum_css),
+    web_route("GET", "/assets/admin-finder.css", [], adm_finder_css),
+    web_route("POST", "/admin/login", WEB_BROWSER, adm_login),
+    web_route("POST", "/admin/logout", WEB_BROWSER, adm_logout),
+    web_route("GET", "/admin/museum/projects.json", ADM_PIPE, adm_museum_list),
+    web_route("POST", "/admin/museum/projects", ADM_PIPE, adm_project_create),
+    web_route("PATCH", "/admin/museum/projects/:id", ADM_PIPE, adm_project_update),
+    web_route("DELETE", "/admin/museum/projects/:id", ADM_PIPE, adm_project_delete),
+    web_route("POST", "/admin/museum/projects/:id/move", ADM_PIPE, adm_project_move),
+    web_route("POST", "/admin/museum/projects/:id/toggle", ADM_PIPE, adm_project_toggle),
+    web_route("POST", "/admin/museum/reorder", ADM_PIPE, adm_project_reorder),
+    web_route("GET", "/admin/finder/sections.json", ADM_PIPE, adm_finder_list),
+    web_route("POST", "/admin/finder/sections", ADM_PIPE, adm_section_create),
+    web_route("PATCH", "/admin/finder/sections/:id", ADM_PIPE, adm_section_update),
+    web_route("DELETE", "/admin/finder/sections/:id", ADM_PIPE, adm_section_delete),
+    web_route("POST", "/admin/finder/sections/:id/move", ADM_PIPE, adm_section_move),
+    web_route("POST", "/admin/finder/sections/:id/toggle", ADM_PIPE, adm_section_toggle),
+    web_route("POST", "/admin/finder/items", ADM_PIPE, adm_item_create),
+    web_route("PATCH", "/admin/finder/items/:id", ADM_PIPE, adm_item_update),
+    web_route("DELETE", "/admin/finder/items/:id", ADM_PIPE, adm_item_delete),
+    web_route("POST", "/admin/finder/items/:id/move", ADM_PIPE, adm_item_move),
+    web_route("POST", "/admin/finder/items/:id/toggle", ADM_PIPE, adm_item_toggle)
+  ]
+end
+
+case ADM_PASSWORD do
+  "" -> puts("admin: FINDER_ADMIN_PASSWORD is not set, so nobody can log in to /admin/museum or /admin/finder")
+  _ -> :ok
+end

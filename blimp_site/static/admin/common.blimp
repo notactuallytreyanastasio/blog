@@ -1,0 +1,152 @@
+# What /admin/museum and /admin/finder share: the outbox, the answers the
+# server gives, the login form, and the chrome. Each page's program is this
+# file followed by its own (build.sh: _build/admin-museum.blimp,
+# _build/admin-finder.blimp).
+#
+# The outbox. A Blimp program in the browser can GET and nothing else; the
+# writes are drawn as hidden <i data-op> nodes in #adm-outbox, one per
+# request, numbered, and static/admin/admin.js does each once and answers
+# `:done(n, status, body)`.
+#
+#   op        data-a      data-b     data-c   answers
+#   http      method      url        JSON     status, body (x-csrf-token added)
+#   confirm   question                        1 | 0
+#
+# An entry's kind says what its answer means to the page ("login",
+# "write", "delete?"); arg is what it is about (the url a confirmed delete
+# goes to).
+
+def adp_concat(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def adp_op(n: Int, op: String, a: String, b: String, c: String) -> Map do
+  %{"data-op": op, "data-n": to_string(n), "data-a": a, "data-b": b, "data-c": c}
+end
+
+def adp_entry(n: Int, kind: String, attrs: Map, arg: String) -> Map do
+  %{n: n, kind: kind, attrs: attrs, arg: arg}
+end
+
+def adp_http(n: Int, kind: String, method: String, url: String, body: Any) -> Map do
+  adp_entry(n, kind, adp_op(n, "http", method, url, json_encode(body)), "")
+end
+
+# move_x: the row and its neighbour trade places
+def adp_move(n: Int, base: String, id: Int, dir: String) -> Map do
+  adp_http(n, "write", "POST", concat(base, "/", to_string(id), "/move"), %{dir: dir})
+end
+
+def adp_confirm(n: Int, question: String, url: String) -> Map do
+  adp_entry(n, "delete?", adp_op(n, "confirm", question, "", ""), url)
+end
+
+def adp_outbox_view(outbox: List) -> Any do
+  el("div", %{id: "adm-outbox", hidden: true}, map(outbox, fn(e: Map) -> Any do el("i", e.attrs) end))
+end
+
+def adp_without(outbox: List, n: Int) -> List do
+  filter(outbox, fn(e: Map) -> Bool do e.n != n end)
+end
+
+def adp_find(outbox: List, n: Int) -> Any do
+  got = filter(outbox, fn(e: Map) -> Bool do e.n == n end)
+  case got do
+    [] -> nil
+    [e | _] -> e
+  end
+end
+
+def adp_json(body: String) -> Any do
+  got = json_decode(body)
+  case elem(got, 0) do
+    :ok -> elem(got, 1)
+    _ -> nil
+  end
+end
+
+# A field of a decoded JSON object, or dflt.
+def adp_get(m: Any, k: String, dflt: Any) -> Any do
+  case type_of(m) do
+    :map ->
+      v = lookup(m, k)
+      case v do
+        nil -> dflt
+        _ -> v
+      end
+    _ -> dflt
+  end
+end
+
+# A form's fields, as the host sends them on submit: a JSON object.
+def adp_fields(json: String) -> Map do
+  got = adp_json(json)
+  case type_of(got) do
+    :map -> got
+    _ -> %{}
+  end
+end
+
+def adp_text(v: Any) -> String do
+  case v do
+    nil -> ""
+    _ -> to_string(v)
+  end
+end
+
+# What a write's answer does to the page: {rows or nil, flash, ok, status}.
+# 401: the login ran out, back to the password.
+def adp_answer(status: Int, body: String, rows_key: String) -> Map do
+  data = adp_json(body)
+  rows = adp_get(data, rows_key, nil)
+  flash = case status >= 200 and status < 300 do
+    true -> ""
+    false ->
+      case status do
+        0 -> "The server could not be reached"
+        _ -> adp_get(data, "error", concat("The server said ", to_string(status)))
+      end
+  end
+  %{rows: rows, flash: flash, ok: flash == "", status: status}
+end
+
+def adp_login_view(title: String) -> Any do
+  el("div", %{class: "password-form"},
+    el("h2", %{}, title),
+    el("form", %{submit: :login},
+      el("input", %{type: "password", name: "password", placeholder: "Password", autofocus: true}),
+      el("button", %{type: "submit"}, "Enter")))
+end
+
+def adp_flash_view(flash: String) -> List do
+  case flash do
+    "" -> []
+    _ -> [el("div", %{class: "adm-flash", role: "alert", click: :clear_flash}, flash)]
+  end
+end
+
+def adp_loading_view(flash: String) -> Any do
+  el("div", %{class: "admin-container"}, adp_flash_view(flash), el("p", %{}, "Loading..."))
+end
+
+# <select> options, the one matching `current` selected.
+def adp_options(pairs: List, current: String) -> List do
+  map(pairs, fn(p: List) -> Any do
+    el("option", %{value: head(p), selected: head(p) == current}, last(p))
+  end)
+end
+
+def adp_visible_select(visible: Bool) -> Any do
+  v = case visible do
+    true -> "true"
+    false -> "false"
+  end
+  el("select", %{name: "visible", value: v}, adp_options([["true", "Yes"], ["false", "No"]], v))
+end
+
+def adp_hidden_class(base: String, visible: Bool) -> String do
+  case visible do
+    true -> base
+    false -> concat(base, " hidden-indicator")
+  end
+end

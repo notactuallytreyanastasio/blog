@@ -64,6 +64,7 @@ stage() {
   cp _build/blinks-reader.blimp "$DIST/blimp_site/_build/blinks-reader.blimp"
   cp _build/stumble.blimp "$DIST/blimp_site/_build/stumble.blimp"
   cp _build/cameras.blimp "$DIST/blimp_site/_build/cameras.blimp"
+  cp _build/admin-museum.blimp _build/admin-finder.blimp "$DIST/blimp_site/_build/"
   mkdir -p "$DIST/priv/static/data"
   cp ../priv/static/data/phish_lab.json ../priv/static/data/phish_lab_perfs.json "$DIST/priv/static/data/"
   cp -R assets data static content "$DIST/blimp_site/"
