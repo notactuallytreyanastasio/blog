@@ -1,0 +1,566 @@
+# Blinks enrichment: Blog.Blinks.Enricher, as an actor stepped by the
+# Site's tick. Phoenix starts `Task.start(fn -> enrich(blink) end)` at the
+# end of every save_blink/1 (a new link or a merge); here blkw_saved (src/
+# 99_blinkswrite.blimp) calls bke_saved(row), which queues the link, and
+# BKE <- :step moves every queued link on a little each tick.
+#
+# For each link, as enrich/1 does it:
+#   1. a bsky.app post url: resolve the handle (unless it is a did:) and
+#      fetch the thread from public.api.bsky.app; when the post's author
+#      owns the thread's root, keep their whole self-thread, else the post
+#      alone. Stored as thread = {"posts": [...]}.
+#   2. a url that starts with "http": fetch the page (10s, 4 redirects),
+#      and from a 200 read og:image (else twitter:image), og:site_name, the
+#      icon link (else /favicon.ico) and, for a link with no description,
+#      og:description (else the description meta). Stored with enriched_at.
+# Every write is followed by blkw_broadcast(:blink_updated, row), as Phoenix
+# broadcasts :blink_updated.
+#
+# What the page says is found by temper/src/blinks_enrich, which reads HTML
+# the way Floki's tokenizer does (fuzzed against Floki 0.37.0) and makes
+# urls absolute the way URI.merge/2 does. It reads a piece of the page per
+# tick (BKE_SCAN_MS), because an 800KB page takes about a second to read in
+# the interpreter and the site answers nothing else meanwhile.
+#
+# The HTTP is http_start/http_result with timeout_ms and max_redirects
+# (Blimp #74). At most BKE_IN_FLIGHT requests at once, of the 32 the site
+# shares with the Hacker News, MTA and gallery pollers; the rest wait in
+# the queue.
+#
+# Where this differs from Req, because http_result gives a status and a
+# body and nothing else:
+#   - No content-type. Req decodes a body by its content-type, and the
+#     enricher only reads a body that is still a binary: JSON, zip, tar and
+#     (with nimble_csv, which the blog has) CSV come back as data and the
+#     link is not enriched. Here a body that parses as a JSON object or
+#     array is refused the same way; zip, tar and CSV are read as HTML and
+#     get the favicon fallback and enriched_at. Req also does not
+#     transcode, so neither does this.
+#   - No Retry-After. Req retries a GET that got 408/429/500/502/503/504
+#     three times, after 1s, 2s and 4s, or after Retry-After when a 429 or
+#     503 sends one. This waits 1s, 2s, 4s always. Req's docs say it also
+#     retries a timeout, a refused and a closed connection, but with the
+#     blog's Finch those arrive as %Finch.TransportError{}, not the
+#     %Req.TransportError{} its transient?/1 matches, so it does not: a page
+#     that takes 12s fails once, at 10s (the parity run shows it). Nor
+#     does this.
+#   - No final url. It does not matter: absolutize/2 resolves against the
+#     saved url, not where the redirects ended, in Phoenix too.
+#   - The timeout is for the whole request. Req's receive_timeout is per
+#     read, so a server that trickles a page for 30s is read by Phoenix and
+#     timed out here.
+#   - An http:// url is fetched without following redirects, because a
+#     redirect from http:// to https:// panics the interpreter; see
+#     bke_redirects. 2 of the 163 links in production are http://.
+#   - The User-Agent. std.http sends its own ("zig/0.16.0 (std.http)") and
+#     a user-agent in http_start's headers is sent as a second header, so a
+#     server sees both; Phoenix sends only "blinks/1.0 (+https://bobbby.
+#     online/blinks)" for the page and Req's own for Bluesky.
+#
+# BLINKS_ENRICH=off turns it off (Phoenix: config :blog, :blinks_enrich).
+# BLINKS_ENRICH_BACKFILL=1 at boot queues every link with no enriched_at:
+# Enricher.backfill/0, which Phoenix only runs by hand from a console.
+
+BKE_UA = "blinks/1.0 (+https://bobbby.online/blinks)"
+BKE_APPVIEW = "https://public.api.bsky.app/xrpc"
+BKE_IN_FLIGHT = 2
+BKE_SCAN_MS = 20
+BKE_NOW = "date_trunc('second', now() at time zone 'UTC')"
+
+# ---------------------------------------------------------------- the writes
+
+# The thread, when it changed (Repo.update/1 sends nothing for no change).
+BKE_THREAD_SQL = concat(join([
+  "with o as (select b.id, $2::jsonb as thread from blinks b where b.id = $1::bigint),",
+  " w as (update blinks b set thread = o.thread,",
+  " updated_at = case when b.thread is not distinct from o.thread then b.updated_at else ", BKE_NOW, " end",
+  " from o where b.id = o.id returning b.*) "
+], ""), blk_one_sql("w"))
+
+# What enrich/1 casts: $2 image_url, $3 site_name, $5 favicon_url, a null
+# meaning "not in the attrs" (Enum.reject(nil)); $4 = '1' when og:site_name
+# was only whitespace, which Ecto casts to nil and so clears; $6 the
+# description, offered only to a link that has none (`blink.description ||
+# ...`), so coalesce keeps a description that is there. enriched_at is
+# always new, so updated_at moves whenever the second has changed.
+BKE_PAGE_SQL = concat(join([
+  "with o as (select b.id, coalesce($2::text, b.image_url) as image_url,",
+  " case when $4::text = '1' then null else coalesce($3::text, b.site_name) end as site_name,",
+  " coalesce($5::text, b.favicon_url) as favicon_url, coalesce(b.description, $6::text) as description,",
+  " ", BKE_NOW, " as enriched_at from blinks b where b.id = $1::bigint),",
+  " w as (update blinks b set image_url = o.image_url, site_name = o.site_name, favicon_url = o.favicon_url,",
+  " description = o.description, enriched_at = o.enriched_at,",
+  " updated_at = case when (b.image_url, b.site_name, b.favicon_url, b.description, b.enriched_at)",
+  " is not distinct from (o.image_url, o.site_name, o.favicon_url, o.description, o.enriched_at)",
+  " then b.updated_at else ", BKE_NOW, " end",
+  " from o where b.id = o.id returning b.*) "
+], ""), blk_one_sql("w"))
+
+BKE_BACKFILL_SQL = "select id, url from blinks where enriched_at is null order by id"
+
+def bke_nil_if_empty(s: String) -> Any do
+  case s == "" do
+    true -> nil
+    false -> s
+  end
+end
+
+# ---------------------------------------------------------------- bluesky
+
+# get_in/2 over decoded JSON: nil as soon as a step is not a map.
+def bke_get(v: Any, path: List) -> Any do
+  case path do
+    [] -> v
+    [k | rest] ->
+      case type_of(v) == :map do
+        true -> bke_get(lookup(v, k), rest)
+        false -> nil
+      end
+  end
+end
+
+def bke_is(v: Any, t: String) -> Bool do
+  type_of(v) == :map and lookup(v, "$type") == t
+end
+
+# Enricher.unroll_posts/1: the posts to show for a saved bsky url, oldest
+# first. When the saved post's author owns the thread's root, their whole
+# self-thread: from the root, each time the earliest reply by the same
+# author. Otherwise the post alone.
+def bke_unroll(thread: Any) -> List do
+  author = bke_get(thread, ["post", "author", "did"])
+  root = bke_root(thread)
+  nodes = case bke_get(root, ["post", "author", "did"]) == author do
+    true -> bke_chain(root, author)
+    false -> [thread]
+  end
+  posts = map(nodes, fn(node: Any) -> Any do bke_post(node) end)
+  filter(posts, fn(p: Map) -> Bool do lookup(p, "text") != nil end)
+end
+
+def bke_root(node: Any) -> Any do
+  parent = bke_get(node, ["parent"])
+  case type_of(parent) == :map and lookup(parent, "post") != nil do
+    true -> bke_root(parent)
+    false -> node
+  end
+end
+
+def bke_chain(node: Any, author: Any) -> List do
+  replies = case bke_get(node, ["replies"]) do
+    nil -> []
+    r -> r
+  end
+  mine = filter(replies, fn(r: Any) -> Bool do bke_get(r, ["post", "author", "did"]) == author end)
+  case mine do
+    [] -> [node]
+    _ ->
+      first = head(sort_by_keys(mine, map(mine, fn(r: Any) -> String do bke_order_key(bke_get(r, ["post", "record", "createdAt"])) end)))
+      [node | bke_chain(first, author)]
+  end
+end
+
+# Enum.sort_by/2 on createdAt compares Erlang terms: a number before nil
+# before any string, strings byte by byte. As one sortable string:
+def bke_order_key(v: Any) -> String do
+  case type_of(v) do
+    :string -> concat("2", v)
+    :nil -> "1"
+    :integer -> "0"
+    :float -> "0"
+    _ -> "3"
+  end
+end
+
+def bke_post(node: Any) -> Map do
+  post = case bke_get(node, ["post"]) do
+    nil -> %{}
+    p -> p
+  end
+  base = put(put(put(put(put(%{}, "name", bke_get(post, ["author", "displayName"])), "handle", bke_get(post, ["author", "handle"])), "text", bke_get(post, ["record", "text"])), "at", bke_get(post, ["record", "createdAt"])), "quote", bke_quote(post))
+  merge(base, bke_media(bke_get(post, ["embed"])))
+end
+
+# media_from_embed/1
+def bke_media(e: Any) -> Map do
+  case bke_is(e, "app.bsky.embed.images#view") and bke_has(e, "images") do
+    true ->
+      imgs = map(lookup(e, "images"), fn(i: Any) -> Map do
+        put(put(put(%{}, "thumb", bke_get(i, ["thumb"])), "full", bke_get(i, ["fullsize"])), "alt", bke_get(i, ["alt"]))
+      end)
+      put(%{}, "images", imgs)
+    false ->
+      case bke_is(e, "app.bsky.embed.video#view") do
+        true -> put(%{}, "video", put(%{}, "thumb", lookup(e, "thumbnail")))
+        false ->
+          case bke_is(e, "app.bsky.embed.recordWithMedia#view") and bke_has(e, "media") do
+            true -> bke_media(lookup(e, "media"))
+            false -> %{}
+          end
+      end
+  end
+end
+
+# quoted_embed/1: the quoted post's author, text and first media, or nil.
+def bke_quote(post: Any) -> Any do
+  e = bke_get(post, ["embed"])
+  record = case bke_is(e, "app.bsky.embed.record#view") and bke_has(e, "record") do
+    true -> lookup(e, "record")
+    false ->
+      rwm = bke_is(e, "app.bsky.embed.recordWithMedia#view")
+      inner = case rwm do
+        true -> lookup(e, "record")
+        false -> nil
+      end
+      case bke_has(inner, "record") do
+        true -> lookup(inner, "record")
+        false -> nil
+      end
+  end
+  text = bke_get(record, ["value", "text"])
+  case bke_is(record, "app.bsky.embed.record#viewRecord") and type_of(text) == :string do
+    false -> nil
+    true ->
+      embeds = case lookup(record, "embeds") do
+        nil -> []
+        es -> es
+      end
+      found = filter(map(embeds, fn(x: Any) -> Map do bke_media(x) end), fn(m: Map) -> Bool do length(keys(m)) > 0 end)
+      media = case found do
+        [] -> %{}
+        [m | _] -> m
+      end
+      merge(put(put(put(%{}, "name", bke_get(record, ["author", "displayName"])), "handle", bke_get(record, ["author", "handle"])), "text", text), media)
+  end
+end
+
+# ---------------------------------------------------------------- one link
+
+# Req's default retry (:safe_transient), for a GET, as it behaves with the
+# blog's Finch: these statuses, three times. (Transport errors are not
+# retried; see the top of this file.)
+def bke_retryable(r: Any) -> Bool do
+  case r do
+    {:ok, status, _} -> bke_member([408, 429, 500, 502, 503, 504], status)
+    _ -> false
+  end
+end
+
+# A body Req would have decoded into data by its JSON content-type, as
+# near as the body alone can tell.
+def bke_is_json(body: String) -> Bool do
+  t = trim(body)
+  case starts_with(t, "{") or starts_with(t, "[") do
+    false -> false
+    true ->
+      case json_decode(t) do
+        {:ok, v} -> type_of(v) == :map or type_of(v) == :list
+        _ -> false
+      end
+  end
+end
+
+# A new job: the thread first when the url names a Bluesky post.
+def bke_job(id: Any, url: String) -> Map do
+  post = bke_bsky(url)
+  stage = case post do
+    [] -> :page
+    [h, _] ->
+      case starts_with(h, "did:") do
+        true -> :thread
+        false -> :did
+      end
+  end
+  did = case post do
+    [h, _] -> h
+    _ -> ""
+  end
+  rkey = case post do
+    [_, r] -> r
+    _ -> ""
+  end
+  %{id: id, url: url, stage: stage, handle: -1, attempt: 0, wake: 0, did: did, handle_name: did, rkey: rkey, scan: nil}
+end
+
+# The request a stage makes: {url, headers, options}.
+def bke_request(job: Map) -> Tuple do
+  case job.stage do
+    :did -> {concat(BKE_APPVIEW, "/com.atproto.identity.resolveHandle?handle=", bke_form(job.handle_name)), %{}, %{timeout_ms: 10000, max_redirects: 10}}
+    :thread -> {concat(BKE_APPVIEW, "/app.bsky.feed.getPostThread?uri=", bke_form(concat("at://", job.did, "/app.bsky.feed.post/", job.rkey)), "&depth=50&parentHeight=50"), %{}, %{timeout_ms: 15000, max_redirects: 10}}
+    _ -> {job.url, %{"user-agent": BKE_UA}, %{timeout_ms: 10000, max_redirects: bke_redirects(job.url, 4)}}
+  end
+end
+
+# An http:// url that redirects to https:// panics the interpreter
+# (std.http.Client, `tls.connection.stream_reader.err.?` in create, on the
+# redirect's TLS connect; blimp-for-blog 55fcbfa and #74 both), and the
+# site is one process. So such a url is fetched without following
+# redirects, and a redirect is reported, not followed.
+# TODO(blimp): follow them once the interpreter survives the hop.
+def bke_redirects(url: String, n: Int) -> Int do
+  case starts_with(url, "http://") do
+    true -> 0
+    false -> n
+  end
+end
+
+def bke_log(s: String) -> Any do
+  puts(concat("blinks enrich: ", s))
+end
+
+# The page, once the thread is done or was never wanted. enrich/1 skips a
+# url that does not start with "http"; one that does but is not http(s)://
+# is an error in Req, and http_start would refuse it outright.
+def bke_to_page(job: Map) -> Any do
+  u = job.url
+  case starts_with(u, "http") do
+    false -> nil
+    true ->
+      case starts_with(u, "http://") or starts_with(u, "https://") do
+        true -> put(put(put(job, :stage, :page), :attempt, 0), :handle, -1)
+        false ->
+          bke_log(concat("failed for ", u, ": not an http(s) url"))
+          nil
+      end
+  end
+end
+
+def bke_write(sql: String, params: List) -> Any do
+  case DB <- :query(sql, params) do
+    {:ok, rows} ->
+      case rows do
+        [row | _] -> blkw_broadcast(:blink_updated, row)
+        [] -> :ok
+      end
+    {:error, reason} ->
+      bke_log(concat("write failed: ", reason))
+  end
+end
+
+# A request answered: the job as it goes on, or nil when it is finished.
+def bke_answered(job: Map, r: Any, t: Int) -> Any do
+  case bke_retryable(r) and job.attempt < 3 do
+    true -> put(put(put(job, :handle, -1), :attempt, job.attempt + 1), :wake, t + bke_nth([1000, 2000, 4000], job.attempt))
+    false ->
+      case job.stage do
+        :did ->
+          did = case r do
+            {:ok, 200, body} ->
+              case json_decode(body) do
+                {:ok, m} -> bke_get(m, ["did"])
+                _ -> nil
+              end
+            _ -> nil
+          end
+          case type_of(did) == :string do
+            true -> put(put(put(put(job, :stage, :thread), :did, did), :attempt, 0), :handle, -1)
+            false ->
+              bke_log(concat("thread unroll failed for ", job.url, ": ", bke_why(r)))
+              bke_to_page(job)
+          end
+        :thread ->
+          posts = case r do
+            {:ok, 200, body} ->
+              case json_decode(body) do
+                {:ok, m} ->
+                  case bke_has(m, "thread") do
+                    true -> bke_unroll(lookup(m, "thread"))
+                    false -> []
+                  end
+                _ -> []
+              end
+            _ -> []
+          end
+          case posts do
+            [] -> bke_log(concat("thread unroll failed for ", job.url, ": ", bke_why(r)))
+            _ -> bke_write(BKE_THREAD_SQL, [job.id, json_encode(put(%{}, "posts", posts))])
+          end
+          bke_to_page(job)
+        _ ->
+          case r do
+            {:ok, 200, body} ->
+              case bke_is_json(body) do
+                true ->
+                  bke_log(concat("failed for ", job.url, ": the body is JSON"))
+                  nil
+                false -> put(put(job, :stage, :scan), :scan, bke_scan_start(body))
+              end
+            {:ok, status, _} ->
+              case status >= 300 and status < 400 and bke_redirects(job.url, 1) == 0 do
+                true -> bke_log(concat("not enriched: ", job.url, " redirects (", to_string(status), "), and an http:// redirect is not followed (see bke_redirects)"))
+                false -> bke_log(concat("failed for ", job.url, ": ", bke_why(r)))
+              end
+              nil
+            _ ->
+              bke_log(concat("failed for ", job.url, ": ", bke_why(r)))
+              nil
+          end
+      end
+  end
+end
+
+def bke_why(r: Any) -> String do
+  case r do
+    {:ok, status, _} -> concat("status ", to_string(status))
+    {:error, reason} -> reason
+    _ -> "no answer"
+  end
+end
+
+# Reading the page, BKE_SCAN_MS at a time; then the write.
+def bke_scanning(job: Map, until: Int) -> Any do
+  st = bke_scan_run(job.scan, 2)
+  case bke_scan_done(st) do
+    true ->
+      f = bke_page_fields(bke_scan_values(st), job.url)
+      clear = case bke_nth(f, 2) == "1" do
+        true -> "1"
+        false -> ""
+      end
+      bke_write(BKE_PAGE_SQL, [job.id, bke_nil_if_empty(bke_nth(f, 0)), bke_nil_if_empty(bke_nth(f, 1)), clear, bke_nil_if_empty(bke_nth(f, 3)), bke_nil_if_empty(bke_nth(f, 4))])
+      nil
+    false ->
+      case now_ms() >= until do
+        true -> put(job, :scan, st)
+        false -> bke_scanning(put(job, :scan, st), until)
+      end
+  end
+end
+
+def bke_nth(l: List, i: Int) -> Any do
+  head(drop_list(l, i))
+end
+
+# Whether `x` is one of `xs`.
+def bke_member(xs: List, x: Any) -> Bool do
+  length(filter(xs, fn(y: Any) -> Bool do y == x end)) > 0
+end
+
+# A map that has key `k`, even with null as its value: Elixir's
+# %{"k" => _} pattern.
+def bke_has(m: Any, k: String) -> Bool do
+  type_of(m) == :map and bke_member(keys(m), k)
+end
+
+# One job, one tick: start its request, see whether it was answered, or
+# read some of its page. `start` and `result` are http_start and
+# http_result, or a test's stand-ins.
+def bke_advance(job: Map, t: Int, until: Int, start: Any, result: Any) -> Any do
+  case job.stage do
+    :scan -> bke_scanning(job, until)
+    _ ->
+      case job.handle >= 0 do
+        true ->
+          r = result(job.handle)
+          case r do
+            nil -> job
+            _ -> bke_answered(put(job, :handle, -1), r, t)
+          end
+        false ->
+          case t >= job.wake do
+            false -> job
+            true ->
+              req = bke_request(job)
+              h = start("GET", elem(req, 0), elem(req, 1), "", elem(req, 2))
+              # -1: all 32 slots are taken; try again next tick
+              put(job, :handle, h)
+          end
+      end
+  end
+end
+
+def bke_safe_advance(job: Map, t: Int, until: Int, start: Any, result: Any) -> Any do
+  try do
+    bke_advance(job, t, until, start, result)
+  catch e do
+    bke_log(concat("crashed on ", to_string(job.id), " (", job.url, "): ", to_string(e)))
+    nil
+  end
+end
+
+def bke_take(list: List, n: Int, acc: List) -> List do
+  case n <= 0 or list == [] do
+    true -> reverse(acc)
+    false -> bke_take(tail(list), n - 1, [head(list) | acc])
+  end
+end
+
+actor BlinksEnricher do
+  state enabled: Bool :: true
+  state queue: List :: []
+  state jobs: List :: []
+  state backfill: Bool :: false
+  state start: Any :: nil
+  state result: Any :: nil
+  state enriched: Int :: 0
+  state finished: Int :: 0
+
+  on :config(want: Bool, want_backfill: Bool) do
+    become enabled: want, backfill: want_backfill
+    reply :ok
+  end
+
+  # A test's stand-ins for http_start and http_result.
+  on :http(s: Any, r: Any) do
+    become start: s, result: r
+    reply :ok
+  end
+
+  on :enqueue(id: Any, url: Any) do
+    case enabled and type_of(url) == :string do
+      true ->
+        become queue: list_append(queue, [bke_job(id, url)])
+        reply :queued
+      false -> reply :off
+    end
+  end
+
+  on :step do
+    t = now_ms()
+    q0 = case backfill do
+      false -> queue
+      true ->
+        case DB <- :query(BKE_BACKFILL_SQL, []) do
+          {:ok, rows} ->
+            bke_log(concat("backfill: ", to_string(length(rows)), " links"))
+            list_append(queue, map(rows, fn(row: Map) -> Map do bke_job(row.id, row.url) end))
+          {:error, reason} ->
+            bke_log(concat("backfill failed: ", reason))
+            queue
+        end
+    end
+    s = case start do
+      nil -> fn(m: String, u: String, h: Map, b: String, o: Map) -> Int do http_start(m, u, h, b, o) end
+      f -> f
+    end
+    r = case result do
+      nil -> fn(h: Int) -> Any do http_result(h) end
+      f -> f
+    end
+    room = BKE_IN_FLIGHT - length(jobs)
+    starting = bke_take(q0, room, [])
+    rest = drop_list(q0, length(starting))
+    until = t + BKE_SCAN_MS
+    moved = map(list_append(jobs, starting), fn(j: Map) -> Any do bke_safe_advance(j, t, until, s, r) end)
+    still = filter(moved, fn(j: Any) -> Bool do j != nil end)
+    done = length(moved) - length(still)
+    become queue: rest, jobs: still, backfill: false, finished: finished + done
+    reply length(still)
+  end
+
+  on :stats do
+    reply %{enabled: enabled, queued: length(queue), working: length(jobs), finished: finished, stages: map(jobs, fn(j: Map) -> Any do j.stage end)}
+  end
+end
+
+BKE = spawn BlinksEnricher
+BKE <- :config(getenv("BLINKS_ENRICH") != "off", getenv("BLINKS_ENRICH_BACKFILL") == "1")
+
+# save_blink/1's Enricher.enrich_async/1: the saved row (blk_one_sql's
+# pre/thread/post) queued by id and url.
+def bke_saved(row: Map) -> Any do
+  case json_decode(row.pre) do
+    {:ok, m} -> BKE <- :enqueue(lookup(m, "id"), lookup(m, "url"))
+    _ -> :off
+  end
+end
