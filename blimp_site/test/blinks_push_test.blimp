@@ -280,7 +280,9 @@ actor BlinksPushTests do
     assert_eq(bpt_status(bpt_send("DELETE", "/api/push/web?endpoint=https%3A%2F%2Fa.b%2Fc", [], "")), 503)
     assert_eq(bpt_body(bpt_post("/api/push/web/test", "{}")), "{\"error\":\"endpoint required\"}")
     assert_eq(bpt_status(bpt_post("/api/push/web/test", "{\"endpoint\":\"https://a.b/c\"}")), 503)
-    assert_eq(bpt_status(bpt_send("OPTIONS", "/api/push/web", [], "")), 204)
+    # CORSPlug answers a preflight; a bare OPTIONS reaches the router (404)
+    assert_eq(bpt_status(bpt_send("OPTIONS", "/api/push/web", ["Access-Control-Request-Method: POST"], "")), 204)
+    assert_eq(bpt_status(bpt_send("OPTIONS", "/api/push/web", [], "")), 404)
   end
 
   test "/blinks-sw.js is Phoenix's file, never cached, allowed the /blinks scope" do

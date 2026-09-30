@@ -691,14 +691,18 @@ end
 # static_dir: main.blimp's STATIC_DIR.
 def blinks_push_routes(static_dir: String) -> List do
   c = [blkw_cors]
+  # the router's :api pipeline (src/99_push_devices.blimp): 406 for a
+  # client that will not take JSON, and a form's tags[] as a list
+  api = [blkw_cors, blkw_form_lists, psd_accepts]
   sw = [web_route("GET", "/blinks-sw.js", c, bkp_service_worker(bkp_read_sw(static_dir)))]
-  list_append(sw, flat(map(["/api/push/web"], fn(base: String) -> List do
+  web = flat(map(["/api/push/web"], fn(base: String) -> List do
     [
-      web_route("POST", base, c, bkp_subscribe),
-      web_route("DELETE", base, c, bkp_unsubscribe),
-      web_route("OPTIONS", base, c, blkw_preflight),
-      web_route("POST", concat(base, "/test"), c, bkp_test),
-      web_route("OPTIONS", concat(base, "/test"), c, blkw_preflight)
+      web_route("POST", base, api, bkp_subscribe),
+      web_route("DELETE", base, api, bkp_unsubscribe),
+      web_route("OPTIONS", base, [], psd_options),
+      web_route("POST", concat(base, "/test"), api, bkp_test),
+      web_route("OPTIONS", concat(base, "/test"), [], psd_options)
     ]
-  end)))
+  end))
+  list_append(list_append(sw, web), push_device_routes())
 end

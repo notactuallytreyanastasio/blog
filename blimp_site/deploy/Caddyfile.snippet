@@ -183,6 +183,10 @@
 	@blimp_write {
 		method POST
 		path /api/receipt_messages/*/printed /api/receipt_messages/*/failed /api/receipt_messages/*/retry
+		# iOS device registration (82): an upsert into apns_devices, which
+		# Phoenix's Notifier still reads to send APNs. Its preflight stays on
+		# Phoenix, whose answer is the same. Caddy ORs repeated path lines.
+		path /api/push/devices
 	}
 	handle @blimp_write {
 		reverse_proxy blimp-blog:4100 {

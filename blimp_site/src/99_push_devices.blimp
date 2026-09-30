@@ -1,0 +1,111 @@
+# iOS device registration: Api.PushController.register/2, and the api
+# pipeline's `plug :accepts, ["json"]` for every /api/push route.
+#
+#   POST    /api/push/devices   {device_token, env?, tags?}
+#   OPTIONS /api/push/devices   CORSPlug's preflight
+#
+# Registering is an upsert into apns_devices, the table Phoenix's
+# Blog.Push.Notifier reads (Push.list_devices/0) when a new blink is saved.
+# Sending to these devices stays in Phoenix: APNs is HTTP/2 only, and
+# Blimp has no HTTP/2 client. So a device registered here is pushed by
+# Phoenix, exactly as one registered there; nothing here sends anything.
+#
+# The decisions about values (a token, an env, an Accept header) are
+# Temper: temper/src/push/push.temper.md. Tags are normalized in Postgres
+# as src/99_blinkspush.blimp does for web subscriptions.
+#
+# Where this is not Phoenix, on purpose:
+#   - A database that cannot be reached is 503 (blkw_no_db), as on every
+#     Blimp write; Phoenix raises, which is a 500.
+#   - Phoenix reads only the first Accept header; Blimp joins repeated
+#     headers with ", ", so a second Accept header can admit JSON here
+#     that Phoenix would 406.
+
+PSD_REQUIRED = "{\"error\":\"device_token required\"}"
+
+# Push.register_device/3 as Repo.insert/2 writes it: env, followed_tags and
+# updated_at replaced on a token already there, inserted_at kept.
+# followed_tags as Device.changeset/2's update_change: trimmed,
+# lower-cased, blanks and repeats dropped, the first 100.
+def psd_upsert_sql() -> String do
+  join([
+  "insert into apns_devices (token, env, followed_tags, inserted_at, updated_at)",
+  " select $1::text, $2::text,",
+  " array(select q.n from unnest(", blkw_norm_tags(blkw_text_array("$3")), ") with ordinality q(n, o) order by q.o limit 100),",
+  " ", BLKW_NOW, ", ", BLKW_NOW,
+  " on conflict (token) do update set env = excluded.env,",
+  " followed_tags = excluded.followed_tags, updated_at = excluded.updated_at"
+  ], "")
+end
+
+# Plug: Phoenix.Controller.accepts(conn, ["json"]). A _format param (query,
+# body or path, even null) must be "json"; otherwise the first Accept
+# header must admit JSON, a missing one does. A refusal is Phoenix's
+# NotAcceptableError as render_errors draws it: 406 text/html, with the
+# CORS headers CORSPlug put on before the router ran.
+def psd_accepts(conn: Map) -> Map do
+  ok = case has_string(keys(conn.params), "_format") do
+    true -> lookup(conn.params, "_format") == "json"
+    false ->
+      h = lookup(conn.headers, "accept")
+      case h do
+        nil -> true
+        _ -> ps_accepts_json(h)
+      end
+  end
+  case ok do
+    true -> conn
+    false -> web_halt(put(web_send(conn, 406, "text/html; charset=utf-8", "Not Acceptable"), :cache, WEB_PLUG_CACHE))
+  end
+end
+
+# CORSPlug answers OPTIONS only as a preflight, one that names
+# Access-Control-Request-Method; any other OPTIONS goes on to the router,
+# which has no OPTIONS route: 404, and without the CORS headers (they are
+# put on in the preflight branch only).
+def psd_options(conn: Map) -> Map do
+  case lookup(conn.headers, "access-control-request-method") do
+    nil -> put(web_send(conn, 404, "text/html; charset=utf-8", "Not Found"), :cache, WEB_PLUG_CACHE)
+    _ -> blkw_preflight(blkw_cors(conn))
+  end
+end
+
+# register/2. Without a device_token key at all (a JSON array body, a
+# text/plain one) it is the 400; with one, Device.changeset/2 decides, and
+# every way it can fail is the same 422.
+def psd_register(conn: Map) -> Map do
+  case has_string(keys(conn.params), "device_token") do
+    false -> bkp_json(conn, 400, PSD_REQUIRED)
+    true ->
+      token = blkw_cast_string(web_param(conn, "device_token"))
+      token_ok = case token do
+        {:ok, t} ->
+          case t do
+            nil -> false
+            _ -> ps_valid_token(t)
+          end
+        _ -> false
+      end
+      # params["env"] || "prod": nil and false are "prod" before the cast
+      env = case blkw_cast_string(blkw_or(web_param(conn, "env"), "prod")) do
+        {:ok, e} -> ps_env(web_or(e, ""))
+        _ -> ""
+      end
+      tags = filter(blkw_wrap(web_param(conn, "tags")), fn(t: Any) -> Bool do type_of(t) == :string end)
+      case token_ok and env != "" do
+        false -> bkp_json(conn, 422, BKP_UNPROCESSABLE)
+        true ->
+          case DB <- :query(psd_upsert_sql(), [elem(token, 1), env, tags]) do
+            {:error, reason} -> blkw_no_db(conn, reason)
+            {:ok, _} -> bkp_json(conn, 200, BKP_OK)
+          end
+      end
+  end
+end
+
+def push_device_routes() -> List do
+  [
+    web_route("POST", "/api/push/devices", [blkw_cors, blkw_form_lists, psd_accepts], psd_register),
+    web_route("OPTIONS", "/api/push/devices", [], psd_options)
+  ]
+end
