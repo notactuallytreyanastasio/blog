@@ -1,0 +1,258 @@
+# /map, "Tag a Wook": pins on a map, each a song someone left there.
+#
+# MapLive read every row of tag_ins at mount, put them in the page as JSON
+# for its Leaflet hook, saved a new one when the form was sent, and
+# broadcast it over PubSub to every open /map. Here the page is a Blimp
+# program (static/map/map.blimp) with Leaflet beside it (static/map/map.js),
+# and the room is one actor, MAP_ROOM. A page opens /live/map; the Site
+# actor hands MAP_ROOM the socket (:join), every frame on it (:recv) and
+# its end (:leave).
+#
+# What crosses, as JSON text frames:
+#   up    {"t":"tag","name":..,"link":..,"note":..,"lat":..,"lng":..}
+#   down  {"t":"hello","tags":[tag..]}          once, every row
+#         {"t":"tag","tag":tag}                  a new one, to everyone
+#         {"t":"refused","message":..}           to the sender, not saved
+#         {"t":"error","message":..}             Postgres failed
+#   tag = {"id","name","link","note","lat","lng","embed_url"}, as the
+#         LiveView's data-markers had it ("" for no embed, not null)
+#
+# Every page is sent the rows when it connects, read from Postgres then, as
+# the LiveView read them at mount: a tag written through Phoenix while both
+# run shows up on the next load. Which link embeds as what, and whether a
+# tag may be saved, is Temper (temper/src/map).
+#
+# Without a database (a laptop, the tests) the room holds the tags itself,
+# starting from MAP_SNAPSHOT (production's 60 rows on 2026-09-29, taken
+# from its page); main.blimp says so with :offline, and the room says so
+# when asked (:stats).
+
+MAP_SNAPSHOT = "data/tag_ins.json"
+
+# One tag as Postgres makes it, so a float comes back as the shortest text
+# that reads as it (what Jason wrote), not as Blimp would print a numeric.
+MAP_TAG_SQL = "json_build_object('id', id::text, 'name', user_name, 'link', spotify_link, 'note', note, 'lat', latitude, 'lng', longitude)"
+
+def map_send(fd: Int, frame: String) -> Any do
+  case fd < 0 do
+    true -> :test
+    false -> tcp_write(fd, frame)
+  end
+end
+
+def map_send_all(people: Map, frame: String) -> Int do
+  each(values(people), fn(fd: Int) do map_send(fd, frame) end)
+  length(keys(people))
+end
+
+def map_text(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+def map_number(v: Any) -> Bool do
+  type_of(v) == :float or type_of(v) == :integer
+end
+
+# A row as the pages are sent it.
+def map_wire(t: Map) -> Map do
+  link = map_text(lookup(t, :link))
+  %{id: map_text(lookup(t, :id)), name: map_text(lookup(t, :name)), link: link, note: map_text(lookup(t, :note)),
+    lat: t.lat, lng: t.lng, embed_url: geo_embed_url(link)}
+end
+
+def map_rows(rows: List) -> List do
+  map(rows, fn(r: Map) -> Map do map_wire(r.tag) end)
+end
+
+# A version 4 UUID, as Ecto's binary_id made them.
+def map_uuid() -> String do
+  h = hex_encode(random_bytes(16))
+  variant = slice("89ab", rem(char_code(char_at(h, 16)), 4), 1)
+  join([slice(h, 0, 8), "-", slice(h, 8, 4), "-4", slice(h, 13, 3), "-", variant, slice(h, 17, 3), "-", slice(h, 20, 12)], "")
+end
+
+def map_snapshot() -> List do
+  body = read_file(MAP_SNAPSHOT)
+  case body do
+    nil -> []
+    _ ->
+      case json_decode(body) do
+        {:ok, ts} -> map(ts, fn(t: Map) -> Map do map_wire(t) end)
+        _ -> []
+      end
+  end
+end
+
+def map_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+actor MapRoom do
+  # socket (as a string) -> fd
+  state people: Map :: %{}
+  state offline: Bool :: false
+  # only when offline: the tags, oldest first
+  state tags: List :: []
+  state saved: Int :: 0
+  state refused: Int :: 0
+
+  on :offline(ts: List) do
+    become offline: true, tags: ts
+    reply length(ts)
+  end
+
+  # A new socket: every tag there is.
+  on :join(fd: Int) do
+    loaded = case offline do
+      true -> {:ok, tags}
+      false ->
+        case DB <- :query(concat("select ", MAP_TAG_SQL, " as tag from tag_ins"), []) do
+          {:ok, rows} -> {:ok, map_rows(rows)}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+    case loaded do
+      {:ok, ts} ->
+        map_send(fd, ws_frame(1, json_encode(%{t: "hello", tags: ts})))
+        become people: put(people, to_string(fd), fd)
+        reply length(ts)
+      {:error, reason} ->
+        puts(concat("map: cannot read tag_ins: ", reason))
+        map_send(fd, ws_frame(1, json_encode(%{t: "error", message: reason})))
+        become people: put(people, to_string(fd), fd)
+        reply :error
+    end
+  end
+
+  on :leave(fd: Int) do
+    k = to_string(fd)
+    become people: reduce(keys(people), %{}, fn(acc: Map, p: Any) -> Map do
+      case p == k do
+        true -> acc
+        false -> put(acc, p, lookup(people, p))
+      end
+    end)
+    reply :ok
+  end
+
+  # A tag from a page. MapLive named an unnamed tagger, and TagIn's
+  # changeset refused a blank name or link and a place off the globe; then
+  # every open page, the sender's too, got the new pin.
+  on :recv(fd: Int, text: String) do
+    msg = map_decode(text)
+    lat = lookup(msg, :lat)
+    lng = lookup(msg, :lng)
+    name = geo_user_name(map_text(lookup(msg, :name)))
+    link = map_text(lookup(msg, :link))
+    note = geo_note(map_text(lookup(msg, :note)))
+    problem = case lookup(msg, :t) == "tag" and map_number(lat) and map_number(lng) do
+      false -> "not a tag"
+      true -> geo_tag_problem(name, link, lat * 1.0, lng * 1.0)
+    end
+    case problem do
+      "" ->
+        made = case offline do
+          true -> {:ok, map_wire(%{id: map_uuid(), name: name, link: link, note: note, lat: lat, lng: lng})}
+          false ->
+            stored_note = case note do
+              "" -> nil
+              _ -> note
+            end
+            sql = concat("insert into tag_ins (id, user_name, spotify_link, note, latitude, longitude, inserted_at, updated_at) ",
+              "values ($1::uuid, $2, $3, $4, $5, $6, date_trunc('second', now() at time zone 'utc'), date_trunc('second', now() at time zone 'utc')) ",
+              "returning ", MAP_TAG_SQL, " as tag")
+            case DB <- :query(sql, [map_uuid(), name, link, stored_note, lat, lng]) do
+              {:ok, rows} -> {:ok, head(map_rows(rows))}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+        case made do
+          {:ok, tag} ->
+            map_send_all(people, ws_frame(1, json_encode(%{t: "tag", tag: tag})))
+            kept = case offline do
+              true -> list_append(tags, [tag])
+              false -> tags
+            end
+            become saved: saved + 1, tags: kept
+            reply tag
+          {:error, reason} ->
+            puts(concat("map: cannot save a tag: ", reason))
+            map_send(fd, ws_frame(1, json_encode(%{t: "refused", message: reason})))
+            become refused: refused + 1
+            reply :error
+        end
+      _ ->
+        map_send(fd, ws_frame(1, json_encode(%{t: "refused", message: problem})))
+        become refused: refused + 1
+        reply problem
+    end
+  end
+
+  # From the prompt, or a test.
+  on :stats do
+    reply %{pages: length(keys(people)), offline: offline, tags: length(tags), saved: saved, refused: refused}
+  end
+end
+
+MAP_ROOM = spawn MapRoom
+
+# ── the page ────────────────────────────────────────────────────────────
+
+# Leaflet 1.9.4 (the copy Phoenix bundles, assets/vendor/leaflet) and
+# Leaflet.markercluster 1.5.3 (what the layout loaded from unpkg until
+# 2026-05-30), vendored in static/map/leaflet. The page gets one script and
+# one stylesheet: Leaflet, the clusterer and map.js, then Leaflet's css, the
+# clusterer's and the page's. leaflet.css finds its icons at images/, next
+# to itself, which is /map/images/.
+MAP_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/map/map.js"]
+MAP_STYLES = ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/map/map.css", "/assets/blimp-window.css"]
+
+# The LiveView sat in the app layout's <main class="flex-1 overflow-y-auto
+# px-4">, which is why its map starts 16px from the left; the layout's
+# sidebar button was under the map, so it is left out.
+def map_page() -> String do
+  program = "/map/map.blimp"
+  body = join([
+    "<div class=\"flex h-full\"><main class=\"flex-1 overflow-y-auto px-4\"><div class=\"min-h-screen\">\n",
+    "<div id=\"mapid\"></div>\n",
+    "<div id=\"blimp-app\" data-program=\"", program, "\" data-actor=\"wook\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter, beside the Leaflet map; ",
+    "both need JavaScript. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
+    "</div></main></div>\n",
+    script_tags(MAP_SCRIPTS)
+  ], "")
+  page_layout_html("Tag A Wook", "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome.", "website", MAP_STYLES, body, "h-full bg-gray-100")
+end
+
+def map_read(file: String) -> String do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> body
+  end
+end
+
+def map_asset(files: List, content_type: String) -> Map do
+  response(200, content_type, "public, max-age=300", join(map(files, fn(f: String) -> String do map_read(f) end), "\n"))
+end
+
+MAP_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", map_page())
+MAP_PROGRAM = map_asset(["_build/map.blimp"], "text/plain; charset=utf-8")
+MAP_JS = map_asset(["static/map/leaflet/leaflet.js", "static/map/leaflet/leaflet.markercluster.js", "static/map/map.js"], "text/javascript; charset=utf-8")
+MAP_CSS = map_asset(["static/map/leaflet/leaflet.css", "static/map/leaflet/MarkerCluster.css", "static/map/leaflet/MarkerCluster.Default.css", "static/map/map.css"], "text/css; charset=utf-8")
+MAP_ICON = map_asset(["static/map/leaflet/images/marker-icon.png"], "image/png")
+MAP_ICON_2X = map_asset(["static/map/leaflet/images/marker-icon-2x.png"], "image/png")
+MAP_SHADOW = map_asset(["static/map/leaflet/images/marker-shadow.png"], "image/png")
