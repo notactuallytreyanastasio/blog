@@ -1,0 +1,576 @@
+# /stumble: StumbleLive, as a program the browser runs.
+#
+# The LiveView's assigns are this actor's state, its handle_event/3 clauses
+# are its handlers, and render/1 is :view, element for element and class
+# for class (the stylesheet is its <style>, /assets/stumble.css). What it
+# decides rather than looks up is Temper (temper/src/stumble): the menus,
+# the presets and rules, what a rule keeps, the sort key, how a post is cut
+# to its row, the title and status words.
+#
+# Where the LiveView called Blog.PokeAround, the view names a fetch() of
+# the server's endpoint for it (src/99_stumble.blimp), which the page makes
+# while the fetch is in the view and hands back as a message.
+#
+# Three things are done another way:
+#
+#  - A row was a div with phx-click="open", which counted the stumble on
+#    the server and redirected. Here it is a link to /stumble/go?id=, which
+#    does both; so it can also be opened in a new tab.
+#  - The tags are fetched once, and again on "← Tags" (back_to_tags, which
+#    refreshed them), and the rules and sort run here, on all of them, as
+#    you type. The LiveView asked Postgres again on every change.
+#  - A rule's selects and inputs sent the rule's id in a hidden input of
+#    their form. An el() event carries only the value, so
+#    static/stumble/stumble.js sends those as :rule_field(id, value) and so
+#    on, 300ms after typing stops for the inputs, as phx-debounce did.
+
+def st_decode(status: Int, body: String) -> Any do
+  case status == 200 do
+    true ->
+      case json_decode(body) do
+        {:ok, v} -> v
+        _ -> nil
+      end
+    false -> nil
+  end
+end
+
+def st_list_of(status: Int, body: String) -> List do
+  v = st_decode(status, body)
+  case type_of(v) == :list do
+    true -> v
+    false -> []
+  end
+end
+
+# el() children that come and go are "" when gone, so their parent keeps
+# its number of children and is patched rather than rebuilt.
+def st_when(cond: Bool, node: Any) -> Any do
+  case cond do
+    true -> node
+    false -> ""
+  end
+end
+
+def st_check(yes: Bool) -> String do
+  case yes do
+    true -> "✓"
+    false -> " "
+  end
+end
+
+# ── rules ───────────────────────────────────────────────────────────────
+
+# A rule: its id, field and operator, two numbers (a count, a count range,
+# a number of days) and a text (a name). created/after and created/before
+# carry no value: see st_rule_keeps.
+def st_rule(id: Int, field: String, op: String) -> Map do
+  %{id: id, field: field, op: op, v: st_default_value(field, op), v2: st_default_value2(field, op), text: ""}
+end
+
+def st_rules_of_preset(preset: String, first_id: Int) -> List do
+  st_number_rules(st_preset_rules(preset), first_id)
+end
+
+def st_number_rules(specs: List, id: Int) -> List do
+  case specs do
+    [] -> []
+    [s | rest] ->
+      r = %{id: id, field: head(s), op: head(tail(s)), v: to_int(head(tail(tail(s)))), v2: to_int(head(tail(tail(tail(s))))), text: ""}
+      [r | st_number_rules(rest, id + 1)]
+  end
+end
+
+def st_update_rule(rules: List, id: Int, f: Any) -> List do
+  map(rules, fn(r: Map) -> Map do
+    case r.id == id do
+      true -> f(r)
+      false -> r
+    end
+  end)
+end
+
+def st_keeps(r: Map, t: Map) -> Bool do
+  st_rule_keeps(r.field, r.op, r.v, r.v2, downcase(r.text), t.lower, t.usage, t.age + 0.0)
+end
+
+# apply_filter_rules/3: every rule, or any of those that mean something
+# (none of those is every tag).
+def st_tag_passes(rules: List, mode: String, t: Map) -> Bool do
+  case mode == "any" do
+    true ->
+      counted = filter(rules, fn(r: Map) -> Bool do st_rule_counts(r.field, r.op) end)
+      case counted do
+        [] -> true
+        _ -> length(filter(counted, fn(r: Map) -> Bool do st_keeps(r, t) end)) > 0
+      end
+    false -> length(filter(rules, fn(r: Map) -> Bool do not(st_keeps(r, t)) end)) == 0
+  end
+end
+
+# list_tags/1: the filter, then the order, name second.
+def st_shown_tags(tags: List, rules: List, mode: String, field: String, dir: String) -> List do
+  kept = filter(tags, fn(t: Map) -> Bool do st_tag_passes(rules, mode, t) end)
+  by_name = case field == "name" do
+    true -> kept
+    false -> sort_by_keys(kept, map(kept, fn(t: Map) -> Int do t.name_rank end))
+  end
+  sort_by_keys(by_name, map(by_name, fn(t: Map) -> Int do st_sort_key(field, dir, t.usage, t.name_rank, t.created_rank) end))
+end
+
+def st_find_tag(tags: List, slug: String) -> Any do
+  found = filter(tags, fn(t: Map) -> Bool do t.slug == slug end)
+  case found do
+    [] -> nil
+    [t | _] -> t
+  end
+end
+
+# ── the view's pieces ───────────────────────────────────────────────────
+
+SCROLLBAR_TRACK = el("div", %{class: "mac-scrollbar-track"},
+  el("div", %{class: "mac-scroll-btn"}, "▲"),
+  el("div", %{class: "mac-scroll-track"}, el("div", %{class: "mac-scroll-thumb"})),
+  el("div", %{class: "mac-scroll-btn"}, "▼"))
+
+def st_link_rows(links: List) -> List do
+  map(links, fn(l: Map) -> Any do
+    el("a", %{class: "link-row ", href: st_go_url(l.id)},
+      el("div", %{class: "link-text"}, st_truncate(l.post_text, 100)),
+      el("div", %{class: "link-domain"}, l.domain))
+  end)
+end
+
+def st_empty(show: Bool, text: String) -> Any do
+  st_when(show, el("div", %{style: "padding: 20px; text-align: center; color: #666;"}, text))
+end
+
+def st_link_list(links: List, empty_text: String) -> Any do
+  el("div", %{class: "mac-scrollbar"},
+    el("div", %{class: "mac-text-area"}, st_link_rows(links), st_empty(links == [], empty_text)),
+    SCROLLBAR_TRACK)
+end
+
+def st_bag(links: List) -> List do
+  [
+    el("div", %{class: "header-row"},
+      el("div", %{class: "header-text"}, "Post"),
+      el("div", %{class: "header-domain"}, "Domain")),
+    st_link_list(links, "No links found. Check back later!"),
+    el("div", %{class: "shuffle-row"}, el("button", %{class: "mac-btn", click: :shuffle}, "↻ Shuffle"))
+  ]
+end
+
+def st_tag_view(tag: Map, links: List) -> List do
+  [
+    el("div", %{class: "header-row"},
+      el("div", %{class: "header-text", style: "display: flex; align-items: center; gap: 8px;"},
+        el("span", %{click: :back_to_tags, style: "cursor: pointer;"}, "← Tags"),
+        el("span", %{style: "color: #666;"}, "/"),
+        el("span", %{}, tag.name)),
+      el("div", %{class: "header-domain"}, "Domain")),
+    st_link_list(links, "No links with this tag yet.")
+  ]
+end
+
+SELECT_STYLE = "padding: 2px 4px; border: 1px solid #000; font-family: Geneva, monospace; font-size: 11px;"
+SMALL_BUTTON = "padding: 4px 10px; border: 1px solid #000; background: #fff; cursor: pointer; font-family: Geneva, monospace; font-size: 11px;"
+
+def st_options(ids: List, current: String, label: Any) -> List do
+  map(ids, fn(id: String) -> Any do
+    el("option", %{value: id, selected: id == current}, label(id))
+  end)
+end
+
+# One rule's selects and inputs. data-send and data-rule are for
+# stumble.js; `form` keeps the markup's shape.
+def st_rule_select(r: Map, sends: String, name: String, ids: List, current: String, label: Any) -> Any do
+  el("form", %{style: "display: inline;"},
+    el("select", %{name: name, style: SELECT_STYLE, value: current, "data-send": sends, "data-rule": r.id},
+      st_options(ids, current, label)))
+end
+
+def st_rule_input(r: Map, sends: String, type: String, value: String, least: Any, style: String, placeholder: Any) -> Any do
+  el("form", %{style: "display: inline;", submit: :noop},
+    el("input", %{type: type, name: "value", value: value, min: least, placeholder: placeholder, style: style, "data-send": sends, "data-rule": r.id}))
+end
+
+NUMBER_STYLE = "padding: 2px 4px; border: 1px solid #000; font-family: Monaco, monospace; font-size: 11px;"
+
+def st_rule_value(r: Map) -> List do
+  case r.field == "usage_count" and r.op == "between" do
+    true -> [
+      st_rule_input(r, "rule_value", "number", to_string(r.v), "0", concat("width: 50px; ", NUMBER_STYLE), nil),
+      el("span", %{style: "font-size: 11px;"}, "and"),
+      st_rule_input(r, "rule_value2", "number", to_string(r.v2), "0", concat("width: 50px; ", NUMBER_STYLE), nil)
+    ]
+    false ->
+      case r.field do
+        "usage_count" -> [st_rule_input(r, "rule_value", "number", to_string(r.v), "0", concat("width: 60px; ", NUMBER_STYLE), nil)]
+        "name" -> [st_rule_input(r, "rule_value", "text", r.text, nil, concat("flex: 1; max-width: 150px; ", NUMBER_STYLE), "text...")]
+        _ ->
+          case r.op == "last_n_days" do
+            true -> [
+              st_rule_input(r, "rule_value", "number", to_string(r.v), "1", concat("width: 50px; ", NUMBER_STYLE), nil),
+              el("span", %{style: "font-size: 11px;"}, "days")
+            ]
+            false -> [el("span", %{style: "font-size: 11px; color: #666;"}, "(date picker)")]
+          end
+      end
+  end
+end
+
+def st_rule_row(r: Map) -> Any do
+  el("div", %{style: "display: flex; align-items: center; gap: 6px; padding: 4px; background: #f5f5f5; border: 1px solid #ccc;"},
+    st_rule_select(r, "rule_field", "field", st_field_ids, r.field, fn(f: String) -> String do st_field_label(f) end),
+    st_rule_select(r, "rule_op", "op", st_ops(r.field), r.op, fn(o: String) -> String do st_op_label(o) end),
+    st_rule_value(r),
+    el("button", %{click: :remove_rule, with: r.id, style: "padding: 2px 6px; border: 1px solid #000; background: #fff; cursor: pointer; font-size: 11px;"}, "×"))
+end
+
+def st_preset_button(id: String, active: String) -> Any do
+  colors = case id == active do
+    true -> "background: #000; color: #fff;"
+    false -> "background: #fff;"
+  end
+  el("button", %{click: :apply_preset, with: id, style: concat("padding: 4px 10px; border: 1px solid #000; font-family: Geneva, monospace; font-size: 11px; cursor: pointer; ", colors)},
+    concat(st_preset_icon(id), " ", st_preset_name(id)))
+end
+
+def st_tag_browser(shown: List, rules: List, mode: String, field: String, dir: String, active: String) -> List do
+  rule_list = case rules do
+    [] -> el("div", %{style: "color: #666; font-size: 11px; padding: 8px; text-align: center;"}, "No filters applied. Showing all tags.")
+    _ -> el("div", %{style: "display: flex; flex-direction: column; gap: 6px;"}, map(rules, fn(r: Map) -> Any do st_rule_row(r) end))
+  end
+  [
+    el("div", %{style: "background: #eeeeee; border-bottom: 2px solid #000; padding: 8px; flex-shrink: 0;"},
+      el("div", %{style: "display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;"},
+        map(st_preset_ids, fn(id: String) -> Any do st_preset_button(id, active) end)),
+      el("div", %{style: "background: #fff; border: 1px solid #000; padding: 8px; margin-bottom: 8px;"},
+        el("div", %{style: "display: flex; align-items: center; gap: 8px; margin-bottom: 8px;"},
+          el("span", %{style: "font-size: 11px; font-weight: bold;"}, "Match"),
+          el("form", %{style: "display: inline;"},
+            el("select", %{name: "mode", style: SELECT_STYLE, value: mode, change: :set_match_mode},
+              st_options(["all", "any"], mode, fn(m: String) -> String do m end))),
+          el("span", %{style: "font-size: 11px;"}, "of the following:")),
+        rule_list,
+        el("div", %{style: "margin-top: 8px;"},
+          el("button", %{click: :add_rule, style: SMALL_BUTTON}, "+ Add Rule"),
+          # the template's line break between the buttons, a space wide
+          " ",
+          st_when(rules != [], el("button", %{click: :clear_filters, style: concat(SMALL_BUTTON, " margin-left: 6px;")}, "Clear All")))),
+      el("div", %{style: "display: flex; align-items: center; gap: 8px;"},
+        el("span", %{style: "font-size: 11px; font-weight: bold;"}, "Sort by:"),
+        el("form", %{style: "display: inline;"},
+          el("select", %{name: "field", style: SELECT_STYLE, value: field, change: :set_sort_field},
+            st_options(st_sort_field_ids, field, fn(f: String) -> String do st_sort_field_label(f) end))),
+        el("form", %{style: "display: inline;"},
+          el("select", %{name: "dir", style: SELECT_STYLE, value: dir, change: :set_sort_dir},
+            st_options(["desc", "asc"], dir, fn(d: String) -> String do
+              case d do
+                "desc" -> "↓ Descending"
+                _ -> "↑ Ascending"
+              end
+            end))),
+        el("span", %{style: "font-size: 10px; color: #666; margin-left: auto;"}, concat(to_string(length(shown)), " tags")))),
+    el("div", %{class: "mac-scrollbar"},
+      el("div", %{class: "mac-text-area"},
+        el("div", %{style: "padding: 12px;"},
+          el("div", %{style: "display: flex; flex-wrap: wrap; gap: 8px;"},
+            map(shown, fn(t: Map) -> Any do
+              el("div", %{class: "tag-chip", click: :select_tag, with: t.slug, style: "background: #dddddd; border: 1px solid #000000; padding: 4px 12px; cursor: pointer; font-size: 12px;"},
+                concat(t.name, " "), el("span", %{style: "color: #666;"}, concat("(", to_string(t.usage), ")")))
+            end),
+            st_when(shown == [], el("div", %{style: "color: #666; text-align: center; width: 100%; padding: 20px;"}, "No tags match your filters. Try adjusting your criteria."))))),
+      SCROLLBAR_TRACK)
+  ]
+end
+
+YOUR_LINKS = [
+  el("div", %{class: "header-row"}, el("div", %{class: "header-text"}, "Your Submitted Links")),
+  el("div", %{class: "mac-scrollbar"},
+    el("div", %{class: "mac-text-area"},
+      el("div", %{style: "padding: 20px; text-align: center; color: #666;"},
+        el("p", %{style: "margin-bottom: 16px;"}, "Your submitted links will appear here."),
+        el("p", %{style: "font-size: 10px;"}, "Coming soon: bookmarklet to save links from any page."))),
+    SCROLLBAR_TRACK)
+]
+
+# A menu item's name follows its check mark after the template's line
+# break, which is a space on the page.
+def st_lang_menu(langs: String) -> Any do
+  el("div", %{class: "mac-dropdown"},
+    el("div", %{class: "mac-dropdown-item", click: :clear_langs},
+      el("span", %{class: "mac-check"}, st_check(langs == "")), " All Languages"),
+    el("div", %{class: "mac-divider"}),
+    map(st_lang_codes, fn(code: String) -> Any do
+      el("div", %{class: "mac-dropdown-item", click: :toggle_lang, with: code},
+        el("span", %{class: "mac-check"}, st_check(st_lang_on(langs, code))), concat(" ", st_lang_name(code)))
+    end))
+end
+
+def st_page_menu(page: String) -> Any do
+  el("div", %{class: "mac-dropdown"},
+    map(st_page_ids, fn(id: String) -> Any do
+      el("div", %{class: "mac-dropdown-item", click: :change_page, with: id},
+        el("span", %{class: "mac-check"}, st_check(page == id)), concat(" ", st_page_name(id)))
+    end))
+end
+
+# ── the program ─────────────────────────────────────────────────────────
+
+actor Stumble do
+  state links: List :: []
+  state links_url: String :: ""
+  state langs: String :: "en"
+  state lang_menu: Bool :: false
+  state page_menu: Bool :: false
+  state page: String :: "bag"
+  state tags: List :: []
+  state tags_url: String :: ""
+  state rules: List :: []
+  state match_mode: String :: "all"
+  state sort_field: String :: "usage_count"
+  state sort_dir: String :: "desc"
+  state active_preset: String :: "all"
+  state tag: Any :: nil
+  state tag_links: List :: []
+  state tag_url: String :: ""
+  state count: Int :: -1
+  state serial: Int :: 1
+  state next_id: Int :: 1
+
+  # mount/3: 50 links in English, every tag, the count
+  on :start do
+    become links_url: st_links_url("en", 1), tags_url: "/stumble/tags.json?n=1"
+    reply :ok
+  end
+
+  # -- answers from the server --
+
+  on :linked(status: Int, body: String) do
+    become links: st_list_of(status, body), links_url: ""
+    reply :ok
+  end
+
+  on :tagged(status: Int, body: String) do
+    become tags: st_list_of(status, body), tags_url: ""
+    reply :ok
+  end
+
+  on :tag_linked(status: Int, body: String) do
+    become tag_links: st_list_of(status, body), tag_url: ""
+    reply :ok
+  end
+
+  on :counted(status: Int, body: String) do
+    v = st_decode(status, body)
+    c = case v != nil and type_of(v) == :map do
+      true -> v.count
+      false -> 0
+    end
+    become count: c
+    reply :ok
+  end
+
+  # -- handle_event/3 --
+
+  on :shuffle do
+    n = serial + 1
+    become serial: n, links_url: st_links_url(langs, n)
+    reply :ok
+  end
+
+  on :toggle_lang_menu do
+    become lang_menu: not(lang_menu)
+    reply :ok
+  end
+
+  # toggle_lang and clear_langs fetch the links again, and a tag's links
+  # when a tag is open
+  on :toggle_lang(code: String) do
+    l = st_toggle_lang(langs, code)
+    n = serial + 1
+    turl = case tag != nil do
+      true -> st_tag_url(tag.slug, l, n)
+      false -> ""
+    end
+    become langs: l, serial: n, links_url: st_links_url(l, n), tag_url: turl
+    reply :ok
+  end
+
+  on :clear_langs do
+    n = serial + 1
+    turl = case tag != nil do
+      true -> st_tag_url(tag.slug, "", n)
+      false -> ""
+    end
+    become langs: "", serial: n, links_url: st_links_url("", n), tag_url: turl
+    reply :ok
+  end
+
+  on :toggle_page_menu do
+    become page_menu: not(page_menu)
+    reply :ok
+  end
+
+  on :change_page(p: String) do
+    become page: p, page_menu: false, tag: nil, tag_links: [], tag_url: ""
+    reply :ok
+  end
+
+  on :select_tag(slug: String) do
+    n = serial + 1
+    become tag: st_find_tag(tags, slug), serial: n, tag_links: [], tag_url: st_tag_url(slug, langs, n)
+    reply :ok
+  end
+
+  on :back_to_tags do
+    n = serial + 1
+    become tag: nil, tag_links: [], tag_url: "", serial: n, tags_url: concat("/stumble/tags.json?n=", to_string(n))
+    reply :ok
+  end
+
+  on :apply_preset(id: String) do
+    rs = st_rules_of_preset(id, next_id)
+    become rules: rs, next_id: next_id + length(rs), sort_field: st_preset_sort_field(id), sort_dir: st_preset_sort_dir(id), active_preset: id
+    reply :ok
+  end
+
+  on :add_rule do
+    become rules: append(rules, st_rule(next_id, "usage_count", "gte")), next_id: next_id + 1, active_preset: ""
+    reply :ok
+  end
+
+  on :remove_rule(id: Int) do
+    become rules: filter(rules, fn(r: Map) -> Bool do r.id != id end), active_preset: ""
+    reply :ok
+  end
+
+  # From stumble.js: the rule's id, and what its select or input says.
+  on :rule_field(id: Int, f: String) do
+    op = st_first_op(f)
+    become rules: st_update_rule(rules, id, fn(r: Map) -> Map do st_rule(r.id, f, op) end), active_preset: ""
+    reply :ok
+  end
+
+  on :rule_op(id: Int, op: String) do
+    become rules: st_update_rule(rules, id, fn(r: Map) -> Map do st_rule(r.id, r.field, op) end), active_preset: ""
+    reply :ok
+  end
+
+  # parse_value/3. A between rule's first box kept the second number: the
+  # LiveView set it back to 10 on every change of the first, a slip this
+  # port does not repeat.
+  on :rule_value(id: Int, s: String) do
+    become rules: st_update_rule(rules, id, fn(r: Map) -> Map do
+      case r.field do
+        "name" -> put(r, "text", s)
+        "created" -> put(r, "v", st_parse_int(s, 7))
+        _ -> put(r, "v", st_parse_int(s, 1))
+      end
+    end), active_preset: ""
+    reply :ok
+  end
+
+  on :rule_value2(id: Int, s: String) do
+    become rules: st_update_rule(rules, id, fn(r: Map) -> Map do put(r, "v2", st_parse_int(s, 100)) end), active_preset: ""
+    reply :ok
+  end
+
+  on :set_match_mode(m: String) do
+    become match_mode: m, active_preset: ""
+    reply :ok
+  end
+
+  on :set_sort_field(f: String) do
+    become sort_field: f, active_preset: ""
+    reply :ok
+  end
+
+  on :set_sort_dir(d: String) do
+    become sort_dir: d, active_preset: ""
+    reply :ok
+  end
+
+  on :clear_filters do
+    become rules: [], sort_field: "usage_count", sort_dir: "desc", active_preset: "all"
+    reply :ok
+  end
+
+  on :noop(fields: String) do
+    reply :ok
+  end
+
+  # what the view asks of the server, for the tests
+  on :wants do
+    reply filter([links_url, tags_url, tag_url, st_count_url(count)], fn(u: String) -> Bool do u != "" end)
+  end
+
+  on :shown_tags do
+    reply map(st_shown_tags(tags, rules, match_mode, sort_field, sort_dir), fn(t: Map) -> String do t.name end)
+  end
+
+  on :rules do
+    reply rules
+  end
+
+  on :view do
+    shown = st_shown_tags(tags, rules, match_mode, sort_field, sort_dir)
+    wants = filter([{links_url, :linked}, {tags_url, :tagged}, {tag_url, :tag_linked}, {st_count_url(count), :counted}],
+      fn(w: Tuple) -> Bool do elem(w, 0) != "" end)
+    tag_name = case tag != nil do
+      true -> tag.name
+      false -> ""
+    end
+    content = case page do
+      "bag" -> st_bag(links)
+      "tags" ->
+        case tag != nil do
+          true -> st_tag_view(tag, tag_links)
+          false -> st_tag_browser(shown, rules, match_mode, sort_field, sort_dir, active_preset)
+        end
+      _ -> YOUR_LINKS
+    end
+    filter_text = case langs != "" do
+      true -> concat("Filter: ", st_langs_label(langs), " | ")
+      false -> ""
+    end
+    count_text = case count < 0 do
+      true -> "…"
+      false -> to_string(count)
+    end
+    el("div", %{class: "mac-desktop"},
+      el("div", %{class: "mac-menubar"},
+        el("div", %{class: "mac-menu-item"}, el("a", %{href: "/", style: "text-decoration: none; color: inherit;"}, "🍎")),
+        el("div", %{class: "mac-menu-item"}, "File"),
+        el("div", %{class: "mac-menu-item"}, "Edit"),
+        el("div", %{class: "mac-menu-item"}, "View"),
+        el("div", %{class: "mac-menu-item", click: :toggle_lang_menu}, "Language", st_when(lang_menu, st_lang_menu(langs))),
+        el("div", %{class: "mac-menu-item", click: :toggle_page_menu}, "Page", st_when(page_menu, st_page_menu(page)))),
+      el("div", %{class: "mac-window"},
+        el("div", %{class: "mac-titlebar"},
+          el("div", %{class: "mac-close-btn"}),
+          el("div", %{class: "mac-titlebar-lines"}),
+          el("div", %{class: "mac-title"}, concat("stumble - ", st_page_title(page, tag_name))),
+          el("div", %{class: "mac-titlebar-lines"})),
+        el("div", %{class: "mac-content", "data-page": page}, content),
+        el("div", %{class: "mac-statusbar"},
+          el("span", %{}, st_status_left(page, tag != nil, length(links), length(shown), length(tag_links))),
+          el("span", %{}, concat(filter_text, count_text, " links in database")))),
+      el("div", %{style: "text-align: center; margin-top: 16px; flex-shrink: 0;"},
+        el("a", %{href: "/", style: "color: #ffffff; font-size: 11px; font-family: Geneva, monospace;"}, "← Back to robg.dev")),
+      el("div", %{id: "st-effects", hidden: true}, map(wants, fn(w: Tuple) -> Any do fetch(elem(w, 0), elem(w, 1)) end)))
+  end
+end
+
+def st_count_url(count: Int) -> String do
+  case count < 0 do
+    true -> "/stumble/count.json"
+    false -> ""
+  end
+end
+
+st = spawn Stumble
+st <- :start
+st <- :view

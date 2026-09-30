@@ -1,0 +1,758 @@
+# /ziggy: The Ziggy Account, a novel's decision graph, to browse and to ask.
+#
+# ZiggyLive was two things in one LiveView. The explorer (overview, plot,
+# characters, themes, search, the inspector) was a d3 hook, ziggy_app.js,
+# handed the whole graph in a data attribute; the server only said which tab
+# was showing. The chat, "Ask the Graph", was the server's: a visitor who
+# knew ZIGGY_CHAT_PASSWORD could ask OpenAI about the book, and the model
+# answered through seven function-calling tools that query the graph
+# (Blog.Ziggy.OpenAI), up to five rounds of tool calls per question. The
+# conversation lived in the LiveView's assigns: no table, gone on reload,
+# forty messages at most. Typing asked a cheaper model for ghost text.
+#
+# Here the page is a Blimp program (static/ziggy/ziggy.blimp: the header,
+# the tabs and the chat) beside the same d3 explorer (static/ziggy/ziggy.js),
+# which fetches the graph from /ziggy/graph.json instead of carrying it in
+# the page. The chat is ZG below, one actor for every open page, stepped by
+# the Site's tick like MTA: a request to OpenAI is http_start, and its
+# answer is polled from the tick, so a model that takes twenty seconds to
+# think holds up nothing else.
+#
+# The page opens /live/ziggy; the Site actor hands ZG the socket (:join),
+# every frame on it (:recv) and its end (:leave).
+#
+#   up    {"t":"unlock","password":..}   the lock form
+#         {"t":"ask","text":..}          a question, or a preset
+#         {"t":"suggest","text":..}      what is typed so far, for ghost text
+#   down  {"t":"hello","enabled":bool}   whether this deploy has a password
+#         {"t":"unlock","ok":bool,"error":..}
+#         {"t":"chat","loading":bool,"messages":[{"role","content","html"}..]}
+#         {"t":"suggestion","for":..,"suggestion":..}
+#
+# Not streamed, as it was not before: Req.post waited for the whole answer,
+# and so does http_start. What the model wrote is rendered by the site's
+# Markdown renderer (src/10_markdown.blimp) and then made safe
+# (zg_safe_html, temper/src/ziggy), because the renderer is the posts' and
+# lets raw HTML through, where the LiveView's MDEx call did not.
+#
+# Secrets come from the environment, as they did: OPENAI_API_KEY and
+# ZIGGY_CHAT_PASSWORD; OPENAI_MODEL (gpt-5.1) and OPENAI_AUTOCOMPLETE_MODEL
+# (gpt-5.4-nano) are optional. OPENAI_BASE_URL (https://api.openai.com/v1)
+# lets a laptop point the chat at a stub. Without a password the chat says
+# it is not configured; without a key every question is answered with the
+# LiveView's "OPENAI_API_KEY is not configured".
+
+# ../priv/ziggy/graph-data.json, copied by build.sh (the image has only priv/static)
+ZG_GRAPH_FILE = "_build/ziggy-graph.json"
+ZG_MAX_TOOL_ITERATIONS = 5
+# Req's receive_timeout for a question and for a suggestion; http_start has
+# none of its own
+ZG_ASK_TIMEOUT_S = 30
+ZG_SUGGEST_TIMEOUT_S = 8
+
+def zg_env(name: String, dflt: String) -> String do
+  v = getenv(name)
+  case v do
+    nil -> dflt
+    _ ->
+      t = trim(v)
+      case t do
+        "" -> dflt
+        _ -> t
+      end
+  end
+end
+
+# ── the graph ──────────────────────────────────────────────────────────
+
+def zg_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+def zg_list(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> v
+    false -> []
+  end
+end
+
+# graph-data.json as Blog.Ziggy read it, each node with what search needs
+# beside it: its chapter and its lower-cased title and description.
+def zg_graph(text: Any) -> Map do
+  doc = case text do
+    nil -> %{}
+    _ ->
+      case json_decode(text) do
+        {:ok, d} ->
+          case type_of(d) == :map do
+            true -> d
+            false -> %{}
+          end
+        _ -> %{}
+      end
+  end
+  nodes = zg_list(lookup(doc, :nodes))
+  index = map(nodes, fn(n: Any) -> Map do
+    %{node: n, chapter: zg_chapter(n), low: downcase(concat(zg_str(lookup(n, :title)), " ", zg_str(lookup(n, :description))))}
+  end)
+  %{nodes: nodes, edges: zg_list(lookup(doc, :edges)), themes: zg_list(lookup(doc, :themes)),
+    node_themes: zg_list(lookup(doc, :node_themes)), index: index}
+end
+
+# Blog.Ziggy.chapter/1: the branch deciduous logged the node on.
+def zg_chapter(n: Any) -> Any do
+  meta = lookup(n, :metadata_json)
+  src = case type_of(meta) == :string do
+    true -> meta
+    false -> "{}"
+  end
+  case json_decode(src) do
+    {:ok, m} ->
+      case type_of(m) == :map and lookup(m, :branch) != nil do
+        true -> lookup(m, :branch)
+        false -> "unfiled"
+      end
+    _ -> "unfiled"
+  end
+end
+
+def zg_int(v: Any) -> Any do
+  case type_of(v) do
+    :integer -> v
+    :float -> floor(v)
+    :string -> to_int(trim(v))
+    _ -> nil
+  end
+end
+
+def zg_get_node(g: Map, id: Any) -> Any do
+  want = zg_int(id)
+  found = filter(g.nodes, fn(n: Any) -> Bool do lookup(n, :id) == want end)
+  case found do
+    [] -> nil
+    [n | _] -> n
+  end
+end
+
+def zg_summary(i: Map) -> Map do
+  n = i.node
+  %{id: lookup(n, :id), type: lookup(n, :node_type), title: lookup(n, :title), chapter: i.chapter, status: lookup(n, :status)}
+end
+
+def zg_no_filter(v: Any) -> Bool do
+  v == nil or v == ""
+end
+
+def zg_take(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case list do
+        [] -> []
+        [h | rest] -> [h | zg_take(rest, n - 1)]
+      end
+  end
+end
+
+# Blog.Ziggy.search_nodes/2: filter by type and chapter, score by how many
+# words of the query each node contains, drop the zeros (unless there were
+# no words), best first -- ties in graph order, as Enum.sort_by is stable
+# -- and the first twenty.
+def zg_search(g: Map, query: Any, node_type: Any, chapter: Any) -> List do
+  terms = zg_terms(downcase(zg_str(query)))
+  kept = filter(g.index, fn(i: Map) -> Bool do
+    (zg_no_filter(node_type) or lookup(i.node, :node_type) == node_type) and (zg_no_filter(chapter) or i.chapter == chapter)
+  end)
+  scored = map(kept, fn(i: Map) -> Any do {i, zg_score(terms, i.low)} end)
+  hits = filter(scored, fn(p: Any) -> Bool do terms == [] or elem(p, 1) > 0 end)
+  top = reduce(hits, 0, fn(m: Int, p: Any) -> Int do max(m, elem(p, 1)) end)
+  ordered = flat(map(reverse(range(0, top + 1)), fn(s: Int) -> List do
+    map(filter(hits, fn(p: Any) -> Bool do elem(p, 1) == s end), fn(p: Any) -> Any do elem(p, 0) end)
+  end))
+  zg_take(ordered, 20)
+end
+
+def zg_characters(g: Map) -> List do
+  chars = filter(g.nodes, fn(n: Any) -> Bool do zg_is_character(zg_str(lookup(n, :title))) end)
+  map(chars, fn(n: Any) -> Map do
+    t = zg_str(lookup(n, :title))
+    %{name: zg_character_name(t), trait: zg_character_trait(t), node_id: lookup(n, :id)}
+  end)
+end
+
+def zg_aliases(name: String) -> List do
+  case name do
+    "Grandmother" -> ["Grandma"]
+    "Garrett's mother" -> ["his mother", "mother", "mom"]
+    _ -> []
+  end
+end
+
+# Blog.Ziggy.character_mentions/1: every node whose text contains the name
+# or one of its aliases.
+def zg_mentions(g: Map, name: String) -> List do
+  names = map([name | zg_aliases(name)], fn(s: String) -> String do downcase(s) end)
+  filter(g.index, fn(i: Map) -> Bool do
+    length(filter(names, fn(s: String) -> Bool do contains(i.low, s) end)) > 0
+  end)
+end
+
+def zg_theme_named(g: Map, name: Any) -> Any do
+  want = downcase(zg_str(name))
+  found = filter(g.themes, fn(t: Any) -> Bool do downcase(zg_str(lookup(t, :name))) == want end)
+  case found do
+    [] -> nil
+    [t | _] -> t
+  end
+end
+
+def zg_nodes_for_theme(g: Map, name: Any) -> List do
+  theme = zg_theme_named(g, name)
+  case theme do
+    nil -> []
+    _ ->
+      tid = lookup(theme, :id)
+      ids = map(filter(g.node_themes, fn(nt: Any) -> Bool do lookup(nt, :theme_id) == tid end), fn(nt: Any) -> Any do lookup(nt, :node_id) end)
+      filter(g.index, fn(i: Map) -> Bool do length(filter(ids, fn(x: Any) -> Bool do x == lookup(i.node, :id) end)) > 0 end)
+  end
+end
+
+def zg_edge_summary(g: Map, e: Any, other_key: Atom) -> Map do
+  other = zg_get_node(g, lookup(e, other_key))
+  title = case other do
+    nil -> nil
+    _ -> lookup(other, :title)
+  end
+  %{edge_type: lookup(e, :edge_type), rationale: lookup(e, :rationale), node_title: title}
+end
+
+def zg_neighbors(g: Map, id: Any) -> Map do
+  want = zg_int(id)
+  out = filter(g.edges, fn(e: Any) -> Bool do lookup(e, :from_node_id) == want end)
+  inc = filter(g.edges, fn(e: Any) -> Bool do lookup(e, :to_node_id) == want end)
+  %{outgoing: map(out, fn(e: Any) -> Map do zg_edge_summary(g, e, :to_node_id) end),
+    incoming: map(inc, fn(e: Any) -> Map do zg_edge_summary(g, e, :from_node_id) end)}
+end
+
+# What the explorer is handed: Blog.Ziggy.graph_export/0.
+def zg_export(g: Map) -> Map do
+  chars = map(zg_characters(g), fn(c: Map) -> Map do
+    put(c, :mention_ids, map(zg_mentions(g, c.name), fn(i: Map) -> Any do lookup(i.node, :id) end))
+  end)
+  %{nodes: g.nodes, edges: g.edges, themes: g.themes, node_themes: g.node_themes, characters: chars}
+end
+
+def zg_stats(g: Map) -> Map do
+  %{nodes: length(g.nodes), edges: length(g.edges), themes: length(g.themes)}
+end
+
+# ── the tools ──────────────────────────────────────────────────────────
+
+def zg_fn_tool(name: String, description: String, properties: Map, required: List) -> Map do
+  params = case required do
+    [] -> %{"type": "object", "properties": properties}
+    _ -> %{"type": "object", "properties": properties, "required": required}
+  end
+  %{"type": "function", "function": %{"name": name, "description": description, "parameters": params}}
+end
+
+ZG_TOOLS = [
+  zg_fn_tool("search_story", "Full-text search over story-beat nodes (title + description).",
+    %{"query": %{"type": "string", "description": "Text to search for."},
+      "node_type": %{"type": "string", "enum": ["goal", "option", "decision", "action", "outcome", "observation"], "description": "Optional filter by node type."},
+      "chapter": %{"type": "string", "description": "Optional filter, e.g. 'chapter-3'."}},
+    ["query"]),
+  zg_fn_tool("get_story_node", "Fetch the full title/description/status of one node by id.",
+    %{"id": %{"type": "integer"}}, ["id"]),
+  zg_fn_tool("node_neighbors", "List the edges/connections in and out of a node, with the connected node titles.",
+    %{"id": %{"type": "integer"}}, ["id"]),
+  zg_fn_tool("list_characters", "List every character with a logged motivation/trait profile.", %{}, []),
+  zg_fn_tool("character_appearances", "Find every story-beat node that mentions a given character by name.",
+    %{"name": %{"type": "string"}}, ["name"]),
+  zg_fn_tool("list_themes", "List all tracked literary themes with their descriptions.", %{}, []),
+  zg_fn_tool("nodes_for_theme", "List the story-beat nodes tagged with a given theme name.",
+    %{"theme_name": %{"type": "string"}}, ["theme_name"])
+]
+
+def zg_summaries(list: List) -> List do
+  map(list, fn(i: Map) -> Map do zg_summary(i) end)
+end
+
+# Blog.Ziggy.OpenAI.run_tool/2. A call without the argument a tool needs
+# crashed the LiveView's task ("Sorry — something crashed"); here it is
+# the tool's own error, and the model can try again.
+def zg_run_tool(g: Map, name: String, args: Map) -> Any do
+  case name do
+    "search_story" -> zg_summaries(zg_search(g, lookup(args, :query), lookup(args, :node_type), lookup(args, :chapter)))
+    "get_story_node" ->
+      n = zg_get_node(g, lookup(args, :id))
+      case n do
+        nil -> %{error: "no node with that id"}
+        _ -> %{id: lookup(n, :id), node_type: lookup(n, :node_type), title: lookup(n, :title), description: lookup(n, :description), status: lookup(n, :status)}
+      end
+    "node_neighbors" -> zg_neighbors(g, lookup(args, :id))
+    "list_characters" -> zg_characters(g)
+    "character_appearances" -> zg_summaries(zg_mentions(g, zg_str(lookup(args, :name))))
+    "list_themes" -> map(g.themes, fn(t: Any) -> Map do %{name: lookup(t, :name), description: lookup(t, :description)} end)
+    "nodes_for_theme" -> zg_summaries(zg_nodes_for_theme(g, lookup(args, :theme_name)))
+    _ -> %{error: "unknown tool"}
+  end
+end
+
+def zg_decode_map(text: Any) -> Map do
+  case type_of(text) == :string do
+    false -> %{}
+    true ->
+      case json_decode(text) do
+        {:ok, m} ->
+          case type_of(m) == :map do
+            true -> m
+            false -> %{}
+          end
+        _ -> %{}
+      end
+  end
+end
+
+# One tool call answered, as the message that goes back to the model.
+def zg_tool_message(g: Map, call: Any) -> Map do
+  f = lookup(call, :function)
+  name = zg_str(lookup(f, :name))
+  args = zg_decode_map(lookup(f, :arguments))
+  %{role: "tool", tool_call_id: lookup(call, :id), content: json_encode(zg_run_tool(g, name, args))}
+end
+
+# ── talking to OpenAI ──────────────────────────────────────────────────
+
+def zg_request_body(model: String, messages: List) -> String do
+  json_encode(%{model: model, messages: messages, tools: ZG_TOOLS, tool_choice: "auto", temperature: 0.5})
+end
+
+def zg_suggest_body(model: String, partial: String) -> String do
+  json_encode(%{model: model,
+    messages: [%{role: "system", content: zg_autocomplete_prompt}, %{role: "user", content: partial}],
+    max_completion_tokens: 30})
+end
+
+def zg_headers(key: String) -> Map do
+  %{"authorization": concat("Bearer ", key), "content-type": "application/json"}
+end
+
+# The first choice's message of a 200 answer, or nil.
+def zg_message(body: String) -> Any do
+  doc = zg_decode_map(body)
+  choices = zg_list(lookup(doc, :choices))
+  case choices do
+    [] -> nil
+    [c | _] ->
+      m = lookup(c, :message)
+      case type_of(m) == :map do
+        true -> m
+        false -> nil
+      end
+  end
+end
+
+# What one answer means for a question in flight:
+#   {:final, text}         the model answered
+#   {:tools, message}      it asked for tools, in `message`
+#   {:error, reason}       the LiveView's reasons, word for word where it could
+def zg_classify(result: Any) -> Tuple do
+  case result do
+    {:ok, 200, body} ->
+      msg = zg_message(body)
+      case msg do
+        nil -> {:error, concat("unexpected OpenAI response: ", slice(body, 0, 300))}
+        _ ->
+          calls = zg_list(lookup(msg, :tool_calls))
+          case calls do
+            [] ->
+              content = lookup(msg, :content)
+              case type_of(content) == :string do
+                true -> {:final, content}
+                false -> {:final, "(no response)"}
+              end
+            _ -> {:tools, msg}
+          end
+      end
+    {:ok, status, body} -> {:error, concat("OpenAI API error ", to_string(status), ": ", slice(body, 0, 300))}
+    {:error, why} -> {:error, concat("OpenAI request failed: ", to_string(why))}
+    _ -> {:error, "OpenAI request failed"}
+  end
+end
+
+# The ghost text a suggestion answer carries, or "".
+def zg_suggestion(result: Any) -> String do
+  case result do
+    {:ok, 200, body} ->
+      msg = zg_message(body)
+      case msg do
+        nil -> ""
+        _ -> trim_right(zg_str(lookup(msg, :content)))
+      end
+    _ -> ""
+  end
+end
+
+# ── the chat ───────────────────────────────────────────────────────────
+
+# A reply's HTML: the site's renderer without render_markdown's front-matter
+# filter (a line of the answer that starts "tags:" is not a post's tags),
+# then zg_safe_html.
+def zg_render(text: String) -> String do
+  zg_safe_html(md_chop_newlines(md_render_blocks(elem(md_parse(split(text, "\n")), 0))))
+end
+
+def zg_entry(role: String, content: String) -> Map do
+  case role do
+    "assistant" -> %{role: role, content: content, html: zg_render(content)}
+    _ -> %{role: role, content: content, html: ""}
+  end
+end
+
+# The conversation as the model is sent it: the system prompt, then every
+# turn's role and words.
+def zg_messages(history: List) -> List do
+  [%{role: "system", content: zg_system_prompt} | map(history, fn(e: Map) -> Map do %{role: e.role, content: e.content} end)]
+end
+
+def zg_send(fd: Int, frame: String) -> Any do
+  case fd < 0 do
+    true -> :test
+    false -> tcp_write(fd, ws_frame(1, frame))
+  end
+end
+
+def zg_chat_frame(p: Map) -> String do
+  json_encode(%{t: "chat", loading: p.loading, messages: p.history})
+end
+
+def zg_without(m: Map, gone: String) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+actor ZiggyChat do
+  state graph: Map :: %{nodes: [], edges: [], themes: [], node_themes: [], index: []}
+  state key: String :: ""
+  state password: String :: ""
+  state model: String :: "gpt-5.1"
+  state suggest_model: String :: "gpt-5.4-nano"
+  state base: String :: "https://api.openai.com/v1"
+  # socket (as a string) -> %{fd, unlocked, history, count, loading, job}
+  # job: nil | %{h, iteration, messages, at}
+  state people: Map :: %{}
+  # [%{fd, h, text, at}]
+  state suggesting: List :: []
+  # handles given up on, read and dropped when they finish so the slot frees
+  state abandoned: List :: []
+  state asked: Int :: 0
+  state requests: Int :: 0
+  state failures: Int :: 0
+  state last_error: String :: ""
+
+  on :graph(g: Map) do
+    become graph: g
+    reply length(g.nodes)
+  end
+
+  on :config(k: String, pw: String, m: String, sm: String, b: String) do
+    become key: k, password: pw, model: m, suggest_model: sm, base: b
+    reply %{keyed: k != "", enabled: pw != ""}
+  end
+
+  on :join(fd: Int) do
+    zg_send(fd, json_encode(%{t: "hello", enabled: password != ""}))
+    become people: put(people, to_string(fd), %{fd: fd, unlocked: false, history: [], count: 0, loading: false, job: nil, last: ""})
+    reply :ok
+  end
+
+  on :leave(fd: Int) do
+    p = lookup(people, to_string(fd))
+    gone = case p == nil do
+      true -> []
+      false ->
+        case p.job do
+          nil -> []
+          j -> [j.h]
+        end
+    end
+    mine = map(filter(suggesting, fn(s: Map) -> Bool do s.fd == fd end), fn(s: Map) -> Any do s.h end)
+    become people: zg_without(people, to_string(fd)),
+      suggesting: filter(suggesting, fn(s: Map) -> Bool do s.fd != fd end),
+      abandoned: list_append(abandoned, list_append(gone, mine))
+    reply :ok
+  end
+
+  # Send a person a frame, and remember it (a test reads it back).
+  on :tell(fd: Int, frame: String) do
+    zg_send(fd, frame)
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        become people: put(people, k, put(p, :last, frame))
+        reply :ok
+    end
+  end
+
+  on :recv(fd: Int, text: String) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    msg = zg_decode_map(text)
+    case p == nil do
+      true -> reply :unknown
+      false ->
+        case lookup(msg, :t) do
+          "unlock" ->
+            said = zg_str(lookup(msg, :password))
+            case password do
+              "" ->
+                self <- :tell(fd, json_encode(%{t: "unlock", ok: false, error: "Chat is disabled on this deploy."}))
+                reply :disabled
+              _ ->
+                case said == password do
+                  true ->
+                    become people: put(people, k, put(p, :unlocked, true))
+                    self <- :tell(fd, json_encode(%{t: "unlock", ok: true}))
+                    reply :unlocked
+                  false ->
+                    self <- :tell(fd, json_encode(%{t: "unlock", ok: false, error: "Wrong password."}))
+                    reply :wrong
+                end
+            end
+          "ask" -> reply (self <- :ask(fd, trim(zg_str(lookup(msg, :text))), now()))
+          "suggest" ->
+            said = zg_str(lookup(msg, :text))
+            case p.unlocked and trim(said) != "" and key != "" do
+              false -> reply :ignored
+              true ->
+                h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), zg_suggest_body(suggest_model, said))
+                case h < 0 do
+                  true -> reply :busy
+                  false ->
+                    become suggesting: [%{fd: fd, h: h, text: said, at: now()} | suggesting], requests: requests + 1
+                    reply :suggesting
+                end
+            end
+          _ -> reply :ignored
+        end
+    end
+  end
+
+  # ZiggyLive's "send": nothing while locked, empty or waiting; the limit's
+  # message once forty questions have been asked; otherwise the question
+  # joins the conversation and goes to the model.
+  on :ask(fd: Int, text: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or not(p.unlocked) or text == "" or p.loading do
+      true -> reply :ignored
+      false ->
+        case p.count >= zg_max_chat_messages do
+          true ->
+            q = put(p, :history, list_append(p.history, [zg_entry("assistant", zg_limit_reply(zg_max_chat_messages))]))
+            become people: put(people, k, q)
+            self <- :tell(fd, zg_chat_frame(q))
+            reply :limit
+          false ->
+            history = list_append(p.history, [zg_entry("user", text)])
+            q = %{fd: fd, unlocked: true, history: history, count: p.count + 1, loading: true, job: nil, last: p.last}
+            become people: put(people, k, q), asked: asked + 1
+            self <- :tell(fd, zg_chat_frame(q))
+            reply (self <- :request(fd, zg_messages(history), 0, t))
+        end
+    end
+  end
+
+  # One request to the model for a person's question, round `iteration`.
+  on :request(fd: Int, messages: List, iteration: Int, t: Int) do
+    case key do
+      "" -> reply (self <- :finish(fd, {:error, "OPENAI_API_KEY is not configured"}))
+      _ ->
+        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), zg_request_body(model, messages))
+        case h < 0 do
+          true -> reply (self <- :finish(fd, {:error, "OpenAI request failed: every HTTP slot is busy"}))
+          false ->
+            k = to_string(fd)
+            p = lookup(people, k)
+            case p == nil do
+              true ->
+                become abandoned: [h | abandoned]
+                reply :gone
+              false ->
+                become people: put(people, k, put(p, :job, %{h: h, iteration: iteration, messages: messages, at: t})), requests: requests + 1
+                reply :asking
+            end
+        end
+    end
+  end
+
+  # An answer to a person's request (http_result's value; a test passes a
+  # recorded one): the reply, or tools and the next round, or an error.
+  on :answered(fd: Int, result: Any, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or p.job == nil do
+      true -> reply :gone
+      false ->
+        job = p.job
+        become people: put(people, k, put(p, :job, nil))
+        what = zg_classify(result)
+        case elem(what, 0) do
+          :final -> reply (self <- :finish(fd, what))
+          :error -> reply (self <- :finish(fd, what))
+          :tools ->
+            msg = elem(what, 1)
+            results = map(zg_list(lookup(msg, :tool_calls)), fn(c: Any) -> Map do zg_tool_message(graph, c) end)
+            next = job.iteration + 1
+            case next >= ZG_MAX_TOOL_ITERATIONS do
+              true -> reply (self <- :finish(fd, {:error, "gave up after too many tool calls"}))
+              false -> reply (self <- :request(fd, list_append(job.messages, [msg | results]), next, t))
+            end
+        end
+    end
+  end
+
+  on :finish(fd: Int, what: Tuple) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        text = case elem(what, 0) do
+          :final -> elem(what, 1)
+          _ -> zg_error_reply(elem(what, 1))
+        end
+        failed = case elem(what, 0) do
+          :error -> 1
+          _ -> 0
+        end
+        err = case elem(what, 0) do
+          :error -> elem(what, 1)
+          _ -> last_error
+        end
+        q = put(put(put(p, :history, list_append(p.history, [zg_entry("assistant", text)])), :loading, false), :job, nil)
+        become people: put(people, k, q), failures: failures + failed, last_error: err
+        self <- :tell(fd, zg_chat_frame(q))
+        reply elem(what, 0)
+    end
+  end
+
+  on :suggested(fd: Int, text: String, result: Any) do
+    s = zg_suggestion(result)
+    case s == "" or lookup(people, to_string(fd)) == nil do
+      true -> reply :none
+      false ->
+        self <- :tell(fd, json_encode(%{t: "suggestion", "for": text, suggestion: s}))
+        reply :sent
+    end
+  end
+
+  on :step do
+    reply (self <- :step_at(now()))
+  end
+
+  # From the Site's tick: every answer that has come, and every request
+  # that has waited longer than Req would have.
+  on :step_at(t: Int) do
+    self <- :drain
+    asking = filter(values(people), fn(p: Map) -> Bool do p.job != nil end)
+    each(asking, fn(p: Map) do
+      r = http_result(p.job.h)
+      case r do
+        nil ->
+          case t - p.job.at > ZG_ASK_TIMEOUT_S do
+            true ->
+              self <- :drop_handle(p.job.h)
+              self <- :answered(p.fd, {:error, "timeout"}, t)
+            false -> :waiting
+          end
+        _ -> self <- :answered(p.fd, r, t)
+      end
+    end)
+    each(suggesting, fn(s: Map) do
+      r = http_result(s.h)
+      case r do
+        nil ->
+          case t - s.at > ZG_SUGGEST_TIMEOUT_S do
+            true -> self <- :drop_suggestion(s.h, true)
+            false -> :waiting
+          end
+        _ ->
+          self <- :drop_suggestion(s.h, false)
+          self <- :suggested(s.fd, s.text, r)
+      end
+    end)
+    reply length(asking) + length(suggesting)
+  end
+
+  # read what the given-up requests have answered, which frees their slots
+  on :drain do
+    become abandoned: filter(abandoned, fn(h: Int) -> Bool do http_result(h) == nil end)
+    reply :ok
+  end
+
+  on :drop_handle(h: Int) do
+    become abandoned: [h | abandoned]
+    reply :ok
+  end
+
+  on :drop_suggestion(h: Int, pending: Bool) do
+    left = filter(suggesting, fn(s: Map) -> Bool do s.h != h end)
+    case pending do
+      true -> become suggesting: left, abandoned: [h | abandoned]
+      false -> become suggesting: left
+    end
+    reply :ok
+  end
+
+  # For a test: one person as the actor holds them.
+  on :person(fd: Int) do
+    reply lookup(people, to_string(fd))
+  end
+
+  # From the prompt, or a test.
+  on :stats do
+    reply %{pages: length(keys(people)), keyed: key != "", enabled: password != "", model: model,
+      asking: length(filter(values(people), fn(p: Map) -> Bool do p.job != nil end)),
+      suggesting: length(suggesting), abandoned: length(abandoned),
+      asked: asked, requests: requests, failures: failures, last_error: last_error}
+  end
+end
+
+ZG = spawn ZiggyChat
+ZG_GRAPH = zg_graph(read_file(ZG_GRAPH_FILE))
+
+# ── the page ────────────────────────────────────────────────────────────
+
+ZG_PROGRAM_PATH = "/ziggy/ziggy.blimp"
+ZG_SCRIPTS = list_append(["/static/d3.v7.min.js"], list_append(APP_SCRIPTS, ["/ziggy/ziggy.js"]))
+
+# ZiggyLive's page, less the layout's sidebar (as /map and /mta-bus-map
+# left it out): .zg-page is position:fixed over everything anyway. The
+# program draws .zg-page, header to chat; the explorer is d3's, inside it.
+def zg_page() -> String do
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", ZG_PROGRAM_PATH, "\" data-actor=\"zg\" data-location=\"1\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter, beside a d3 graph explorer; ",
+    "both need JavaScript. The program is <a href=\"", ZG_PROGRAM_PATH, "\">", ZG_PROGRAM_PATH, "</a>; the graph is <a href=\"/ziggy/graph.json\">/ziggy/graph.json</a>.</p></noscript>\n",
+    script_tags(ZG_SCRIPTS)
+  ], "")
+  page_layout_html("The Ziggy Account", "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome.", "website", [APP_CSS, "/assets/blimp-window.css", "/ziggy/ziggy.css"], body, "h-full bg-gray-100")
+end
+
+ZG_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", zg_page())
+ZG_PROGRAM = map_asset(["_build/ziggy.blimp"], "text/plain; charset=utf-8")
+ZG_JS = map_asset(["static/ziggy/ziggy.js"], "text/javascript; charset=utf-8")
+ZG_CSS = map_asset(["static/ziggy/ziggy.css"], "text/css; charset=utf-8")
+ZG_GRAPH_JSON = response(200, "application/json; charset=utf-8", "public, max-age=300", json_encode(zg_export(ZG_GRAPH)))

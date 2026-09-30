@@ -62,24 +62,44 @@ def fh_get(m: Any, k: Atom) -> Any do
 end
 
 # The time_us of a Jetstream frame, read without decoding it, or 0.
+# Turbostream writes `"time_us": 179...` with a space, which to_int
+# refuses by raising, so the digits are picked out first.
 def fh_time_us(frame: String) -> Int do
   at = index_of(frame, "\"time_us\":")
   case at < 0 do
     true -> 0
     false ->
-      digits = head(split(head(split(slice(frame, at + 10, 20), ",")), "}"))
-      n = to_int(digits)
-      case n do
-        nil -> 0
-        _ -> n
+      digits = fh_digits(slice(frame, at + 10, 24), 0, "")
+      case digits do
+        "" -> 0
+        _ -> to_int(digits)
+      end
+  end
+end
+
+# The digits at the front of s, after any spaces.
+def fh_digits(s: String, i: Int, acc: String) -> String do
+  case i >= length(s) do
+    true -> acc
+    false ->
+      c = char_code(char_at(s, i))
+      case c >= 48 and c <= 57 do
+        true -> fh_digits(s, i + 1, concat(acc, char_at(s, i)))
+        false ->
+          case c == 32 and acc == "" do
+            true -> fh_digits(s, i + 1, acc)
+            false -> acc
+          end
       end
   end
 end
 
 # Where to connect: the relay, from the cursor when there is one recent
-# enough to replay.
+# enough to replay. A url with no query takes no cursor: Graze's
+# turbostream (src/99_stumble_ingest.blimp) has none, and "&cursor=" on its
+# path would be another path.
 def fh_resume_url(url: String, cursor: Int, cursor_at: Int, t: Int) -> String do
-  case cursor > 0 and t - cursor_at <= FH_REPLAY_MAX_MS do
+  case cursor > 0 and t - cursor_at <= FH_REPLAY_MAX_MS and contains(url, "?") do
     true -> concat(url, "&cursor=", to_string(cursor))
     false -> url
   end

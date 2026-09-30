@@ -1,0 +1,239 @@
+# needs: static/ziggy/ziggy.blimp
+#
+# /ziggy: the chat actor and graph tools (src/99_ziggy.blimp), the page's
+# program (static/ziggy/ziggy.blimp) and the Temper they share
+# (temper/src/ziggy). Sockets here are negative, which ZG does not write
+# to; it keeps the last frame it would have sent each one.
+#
+# fixtures/ziggy/ are OpenAI chat.completions answers in the documented
+# shape, written by hand, not recorded: no key was at hand to record them
+# with. tool_call.json asks for two tools, final.json answers (with raw
+# HTML and a javascript: link a prompt could have talked the model into),
+# error_401.json is a refused key, suggest.json an autocomplete. The
+# expected search results are Blog.Ziggy.search_nodes/2's, computed from
+# priv/ziggy/graph-data.json by a separate script.
+#
+# ZG is configured against a closed local port: a request it starts fails
+# on its own and is never read; the answers are handed to :answered.
+
+ZGT_BASE = "http://127.0.0.1:9"
+
+def zgt_fixture(name: String) -> String do
+  read_file(concat("test/fixtures/ziggy/", name))
+end
+
+def zgt_last(fd: Int) -> Map do
+  p = ZG <- :person(fd)
+  zg_decode_map(p.last)
+end
+
+def zgt_ids(list: List) -> List do
+  map(list, fn(i: Map) -> Any do lookup(i.node, :id) end)
+end
+
+def zgt_open(fd: Int) -> Any do
+  ZG <- :join(fd)
+  ZG <- :recv(fd, "{\"t\":\"unlock\",\"password\":\"pw\"}")
+end
+
+actor ZiggyTests do
+  test "search words, scores and character titles are Blog.Ziggy's" do
+    assert_eq(zg_terms("what's the deal with the willis/wallace mixup?"), ["what", "the", "deal", "with", "the", "willis", "wallace", "mixup"])
+    assert_eq(zg_terms("a b"), [])
+    assert_eq(zg_terms(""), [])
+    assert_eq(zg_score(["the", "the", "suit"], "the suit and the tie"), 3)
+    assert_eq(zg_score(["garrett"], "garrett's suit"), 1)
+    t = "CHARACTER -- Garrett: a scarcity mindset: takes the first offer"
+    assert(zg_is_character(t))
+    assert_eq(zg_character_name(t), "Garrett")
+    assert_eq(zg_character_trait(t), "a scarcity mindset: takes the first offer")
+    assert_eq(zg_character_name("CHARACTER -- Jazz"), "Jazz")
+    assert_eq(zg_character_trait("CHARACTER -- Jazz"), "")
+    assert_eq(zg_is_character("TWIST -- Garrett"), false)
+    assert_eq(zg_limit_reply(40), "This session has hit its 40-message limit (keeps a runaway conversation from burning API credits). Refresh the page to start a new one.")
+  end
+
+  test "a reply keeps the renderer's HTML and loses anything else" do
+    assert_eq(zg_safe_html("<p>a <strong>b</strong> <em>c</em> <code>d</code></p>\n"), "<p>a <strong>b</strong> <em>c</em> <code>d</code></p>\n")
+    assert_eq(zg_safe_html("<ol start=\"3\">\n<li>x</li>\n</ol>\n<hr />\n"), "<ol start=\"3\">\n<li>x</li>\n</ol>\n<hr />\n")
+    code = "<pre class=\"athl\"><code class=\"language-plaintext\" translate=\"no\" tabindex=\"0\"><span class=\"line\" data-line=\"1\">x &lt; y\n</span></code></pre>"
+    assert_eq(zg_safe_html(code), code)
+    assert_eq(zg_safe_html("<p><a href=\"https://example.com/a?b=1&amp;c=2\" title=\"t\">x</a></p>"), "<p><a href=\"https://example.com/a?b=1&amp;c=2\" title=\"t\">x</a></p>")
+    assert_eq(zg_safe_html("<a href=\"/ziggy?view=search\">x</a>"), "<a href=\"/ziggy?view=search\">x</a>")
+    assert_eq(zg_safe_html("<img src=x onerror=alert(1)>"), "<!-- raw HTML omitted -->")
+    assert_eq(zg_safe_html("<a href=\"javascript:alert(1)\">x</a>"), "<!-- raw HTML omitted -->x</a>")
+    assert_eq(zg_safe_html("<a href=\"java&#115;cript:alert(1)\">x</a>"), "<!-- raw HTML omitted -->x</a>")
+    assert_eq(zg_safe_html("<p onclick=\"x\">y</p>"), "<!-- raw HTML omitted -->y</p>")
+    assert_eq(zg_safe_html("<IMG SRC=\"https://e.com/x.png\">"), "<!-- raw HTML omitted -->")
+    assert_eq(zg_safe_html("<script>alert(1)</script>"), "<!-- raw HTML omitted -->alert(1)<!-- raw HTML omitted -->")
+    assert_eq(zg_safe_html("<img alt=\"a>b\" onerror=x>"), "<!-- raw HTML omitted -->b\" onerror=x>")
+    assert_eq(zg_safe_html("a < b"), "a &lt; b")
+  end
+
+  test "the graph is priv/ziggy's, as Blog.Ziggy.stats/0 counts it" do
+    assert_eq(zg_stats(ZG_GRAPH), %{nodes: 123, edges: 178, themes: 15})
+    chars = zg_characters(ZG_GRAPH)
+    assert_eq(length(chars), 13)
+    assert_eq(elem_at(chars, 0).name, "Garrett")
+    assert_eq(elem_at(chars, 0).trait, "a scarcity mindset that takes the first real offer instead of evaluating it")
+    assert_eq(zg_chapter(zg_get_node(ZG_GRAPH, 24)), "chapter-2")
+    assert_eq(lookup(zg_get_node(ZG_GRAPH, "24"), :id), 24)
+    assert_eq(zg_get_node(ZG_GRAPH, 9999), nil)
+    ex = zg_export(ZG_GRAPH)
+    assert_eq(length(ex.characters), 13)
+    assert_eq(length(elem_at(ex.characters, 0).mention_ids) > 0, true)
+  end
+
+  test "the tools answer as Blog.Ziggy.OpenAI's did" do
+    top = zgt_ids(zg_search(ZG_GRAPH, "What's the deal with the Willis/Wallace mixup?", nil, nil))
+    assert_eq(zg_take(top, 6), [24, 29, 55, 61, 70, 82])
+    assert_eq(length(top), 20)
+    assert_eq(zg_take(zgt_ids(zg_search(ZG_GRAPH, "garrett suit", "observation", "chapter-1")), 5), [11, 88, 101, 3, 9])
+    assert_eq(length(zg_search(ZG_GRAPH, "", nil, "")), 20)
+    grandma = zgt_ids(zg_mentions(ZG_GRAPH, "Grandmother"))
+    assert_eq([length(grandma), zg_take(grandma, 5)], [6, [11, 34, 37, 42, 88]])
+    assert_eq(length(zg_mentions(ZG_GRAPH, "Garrett")), 102)
+    assert_eq(length(zg_nodes_for_theme(ZG_GRAPH, "GOLDEN-handcuffs")), 6)
+    assert_eq(zg_nodes_for_theme(ZG_GRAPH, "no such theme"), [])
+    nb = zg_neighbors(ZG_GRAPH, 2)
+    assert_eq([length(nb.incoming), lookup(elem_at(nb.outgoing, 0), :edge_type)], [0, "leads_to"])
+    assert_eq(zg_run_tool(ZG_GRAPH, "get_story_node", %{}), %{error: "no node with that id"})
+    assert_eq(zg_run_tool(ZG_GRAPH, "make_coffee", %{}), %{error: "unknown tool"})
+    s = zg_summary(elem_at(zg_search(ZG_GRAPH, "wallace", nil, nil), 0))
+    assert_eq([s.id, s.type, s.chapter], [24, "observation", "chapter-2"])
+    assert_eq(length(ZG_TOOLS), 7)
+  end
+
+  test "a question goes to the model, through two tools, and comes back rendered and safe" do
+    # main.blimp hands ZG the graph at boot; a test does it itself
+    assert_eq(ZG <- :graph(ZG_GRAPH), 123)
+    ZG <- :config("sk-test", "pw", "gpt-5.1", "gpt-5.4-nano", ZGT_BASE)
+    ZG <- :join(-1)
+    assert_eq(zgt_last(-1), %{})
+    ZG <- :recv(-1, "{\"t\":\"ask\",\"text\":\"locked?\"}")
+    assert_eq((ZG <- :person(-1)).history, [])
+    ZG <- :recv(-1, "{\"t\":\"unlock\",\"password\":\"nope\"}")
+    assert_eq(zgt_last(-1), %{t: "unlock", ok: false, error: "Wrong password."})
+    ZG <- :recv(-1, "{\"t\":\"unlock\",\"password\":\"pw\"}")
+    assert_eq(zgt_last(-1), %{t: "unlock", ok: true})
+    ZG <- :recv(-1, "{\"t\":\"ask\",\"text\":\"  What's the deal with the Willis/Wallace mixup?  \"}")
+    p = ZG <- :person(-1)
+    assert_eq([p.loading, p.count, length(p.history), p.job.iteration], [true, 1, 1, 0])
+    assert_eq(elem_at(p.history, 0).content, "What's the deal with the Willis/Wallace mixup?")
+    assert_eq(lookup(elem_at(p.job.messages, 0), :role), "system")
+    # waiting: a second question is not taken
+    assert_eq(ZG <- :ask(-1, "another", now()), :ignored)
+    assert_eq(ZG <- :answered(-1, {:ok, 200, zgt_fixture("tool_call.json")}, now()), :asking)
+    q = ZG <- :person(-1)
+    assert_eq(q.job.iteration, 1)
+    ms = q.job.messages
+    # system, the question, the model's tool calls, then one answer per call
+    assert_eq(length(ms), 5)
+    assert_eq(lookup(elem_at(ms, 3), :tool_call_id), "call_search_1")
+    found = elem(json_decode(lookup(elem_at(ms, 3), :content)), 1)
+    assert_eq(lookup(elem_at(found, 0), :id), 24)
+    node = elem(json_decode(lookup(elem_at(ms, 4), :content)), 1)
+    assert_eq(lookup(node, :node_type), "observation")
+    assert_eq(ZG <- :answered(-1, {:ok, 200, zgt_fixture("final.json")}, now()), :final)
+    r = ZG <- :person(-1)
+    assert_eq([r.loading, length(r.history), r.job], [false, 2, nil])
+    got = elem_at(r.history, 1)
+    assert(starts_with(got.content, "It's a **map mixup**"))
+    assert_eq(got.html, "<p>It's a <strong>map mixup</strong> in chapter-2:</p>\n<ul>\n<li>Garrett's last booth is <em>Willis Mutual Holdings Corp</em> (WMHC), not Wallace.</li>\n<li>Beth warns him off it.</li>\n</ul>\n<p>See <a href=\"/ziggy?view=search&amp;node=24\">the node</a> or <!-- raw HTML omitted -->this</a>.</p>\n<!-- raw HTML omitted -->\n<p>tags: not a post</p>")
+    last = zgt_last(-1)
+    assert_eq([lookup(last, :t), lookup(last, :loading), length(lookup(last, :messages))], ["chat", false, 2])
+  end
+
+  test "errors are the LiveView's reply, and five rounds of tools is the end" do
+    ZG <- :config("sk-test", "pw", "gpt-5.1", "gpt-5.4-nano", ZGT_BASE)
+    zgt_open(-2)
+    ZG <- :recv(-2, "{\"t\":\"ask\",\"text\":\"hello\"}")
+    ZG <- :answered(-2, {:ok, 401, zgt_fixture("error_401.json")}, now())
+    e = elem_at((ZG <- :person(-2)).history, 1).content
+    assert(starts_with(e, "Sorry — I hit an error: OpenAI API error 401: {"))
+    assert(contains(e, "invalid_api_key"))
+    ZG <- :recv(-2, "{\"t\":\"ask\",\"text\":\"again\"}")
+    ZG <- :answered(-2, {:error, "ConnectionRefused"}, now())
+    assert_eq(elem_at((ZG <- :person(-2)).history, 3).content, "Sorry — I hit an error: OpenAI request failed: ConnectionRefused")
+    ZG <- :recv(-2, "{\"t\":\"ask\",\"text\":\"loop\"}")
+    calls = zgt_fixture("tool_call.json")
+    assert_eq(ZG <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(ZG <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(ZG <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(ZG <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(ZG <- :answered(-2, {:ok, 200, calls}, now()), :error)
+    assert_eq(elem_at((ZG <- :person(-2)).history, 5).content, "Sorry — I hit an error: gave up after too many tool calls")
+    ZG <- :recv(-2, "{\"t\":\"ask\",\"text\":\"nothing\"}")
+    assert_eq(ZG <- :answered(-2, {:ok, 200, "{\"choices\":[]}"}, now()), :error)
+    assert(starts_with(elem_at((ZG <- :person(-2)).history, 7).content, "Sorry — I hit an error: unexpected OpenAI response"))
+  end
+
+  test "a request that never answers gives up after Req's 30s" do
+    ZG <- :config("sk-test", "pw", "gpt-5.1", "gpt-5.4-nano", ZGT_BASE)
+    zgt_open(-3)
+    ZG <- :recv(-3, "{\"t\":\"ask\",\"text\":\"slow\"}")
+    t0 = (ZG <- :person(-3)).job.at
+    ZG <- :step_at(t0 + 31)
+    r = ZG <- :person(-3)
+    last = elem_at(r.history, 1).content
+    # either the closed port answered first, or the clock ran out
+    assert(last == "Sorry — I hit an error: OpenAI request failed: timeout" or starts_with(last, "Sorry — I hit an error: OpenAI request failed: "))
+    assert_eq(r.loading, false)
+  end
+
+  test "no key, no password, and the forty-message limit" do
+    ZG <- :config("", "", "gpt-5.1", "gpt-5.4-nano", ZGT_BASE)
+    ZG <- :join(-4)
+    ZG <- :recv(-4, "{\"t\":\"unlock\",\"password\":\"\"}")
+    assert_eq(zgt_last(-4), %{t: "unlock", ok: false, error: "Chat is disabled on this deploy."})
+    ZG <- :config("", "pw", "gpt-5.1", "gpt-5.4-nano", ZGT_BASE)
+    zgt_open(-5)
+    ZG <- :recv(-5, "{\"t\":\"ask\",\"text\":\"q\"}")
+    assert_eq(elem_at((ZG <- :person(-5)).history, 1).content, "Sorry — I hit an error: OPENAI_API_KEY is not configured")
+    each(range(2, 40), fn(i: Int) do ZG <- :ask(-5, "q", now()) end)
+    p = ZG <- :person(-5)
+    assert_eq([p.count, length(p.history)], [40, 80])
+    assert_eq(ZG <- :ask(-5, "one more", now()), :limit)
+    assert_eq(elem_at((ZG <- :person(-5)).history, 80).content, zg_limit_reply(40))
+    assert_eq(ZG <- :recv(-5, "{\"t\":\"suggest\",\"text\":\"why does\"}"), :ignored)
+  end
+
+  test "a suggestion comes back for the text it was asked about" do
+    ZG <- :config("sk-test", "pw", "gpt-5.1", "gpt-5.4-nano", ZGT_BASE)
+    zgt_open(-6)
+    assert_eq(ZG <- :suggested(-6, "Why does Garrett", {:ok, 200, zgt_fixture("suggest.json")}), :sent)
+    assert_eq(zgt_last(-6), %{t: "suggestion", "for": "Why does Garrett", suggestion: " end up at the wrong booth?"})
+    assert_eq(ZG <- :suggested(-6, "x", {:ok, 500, "{}"}), :none)
+    ZG <- :leave(-6)
+    assert_eq(ZG <- :person(-6), nil)
+  end
+
+  test "the page's program: tabs from the URL, frames in, questions out" do
+    zg <- :location("view=characters&chat=1&node=24")
+    assert_eq(zg <- :where, %{view: "characters", chat: true})
+    zg <- :location("view=nope")
+    assert_eq(zg <- :where, %{view: "overview", chat: false})
+    zg <- :set_view("themes")
+    zg <- :toggle_chat
+    assert_eq(zg <- :where, %{view: "themes", chat: true})
+    zg <- :view
+    zg <- :connected
+    zg <- :frame("{\"t\":\"hello\",\"enabled\":true}")
+    zg <- :view
+    zg <- :unlock("{\"password\":\"pw\"}")
+    assert_eq(zg <- :outbox, ["{\"t\":\"unlock\",\"password\":\"pw\"}"])
+    assert_eq(zg <- :send("{\"message\":\"too soon\"}"), :ignored)
+    zg <- :frame("{\"t\":\"unlock\",\"ok\":true}")
+    assert_eq(zg <- :send("{\"message\":\"   \"}"), :ignored)
+    zg <- :ask_preset("Where does the draft actually end?")
+    assert_eq(zg <- :outbox, ["{\"t\":\"ask\",\"text\":\"Where does the draft actually end?\"}"])
+    zg <- :frame("{\"t\":\"chat\",\"loading\":true,\"messages\":[{\"role\":\"user\",\"content\":\"q\",\"html\":\"\"}]}")
+    assert_eq(zg <- :send("{\"message\":\"while waiting\"}"), :ignored)
+    zg <- :frame("{\"t\":\"chat\",\"loading\":false,\"messages\":[{\"role\":\"user\",\"content\":\"q\",\"html\":\"\"},{\"role\":\"assistant\",\"content\":\"**a**\",\"html\":\"<p><strong>a</strong></p>\"}]}")
+    zg <- :stats(123, 178, 15)
+    zg <- :view
+    assert_eq(zg <- :send("{\"message\":\"next\"}"), :sent)
+    zg <- :close_chat
+    assert_eq((zg <- :where).chat, false)
+  end
+end
