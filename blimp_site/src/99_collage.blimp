@@ -1,0 +1,704 @@
+# /collage-maker, /collage/:token and /api/collage-maker/:id/download:
+# what BlogWeb.CollageMakerLive, CollageViewerLive and
+# Api.CollageMakerController did, with the pixels moved to the browser.
+#
+# Phoenix took the photos up through a LiveView upload, put every original
+# in the bucket, then ran ImageMagick on the server: `identify` for the
+# sizes, `convert -gravity center -crop SxS -resize NxN! -quality 92` for
+# each square, and one `convert -size WxH xc:#c0c0c0 ... -composite` for the
+# grid, the last row centred. Blimp cannot run a program (the runtime has
+# fork and waitpid, no exec), and the image has no ImageMagick. A canvas
+# can do every one of those steps, so the page's own script
+# (static/collage/collage.js) decodes, crops, resizes and composes the
+# collage and encodes it as a JPEG at 0.92, and this file only checks what
+# arrives and keeps it: the bytes in the bucket, the row in Postgres.
+#
+# What is different from Phoenix, on purpose:
+#   - the originals and the cropped squares are not uploaded; only the
+#     collage is. Nothing read them but the viewer, which now shows the
+#     collage itself (same pixels: a cell of the collage is the square).
+#     So collage_maker_images gets no rows from here.
+#   - the cell is also capped so the collage fits a 16,777,216-pixel canvas
+#     (Safari's limit), where Phoenix capped it at 2048 only. Nine 12 MP
+#     photos in three columns come out 4095 wide, not 6144.
+#   - photos are turned the way their EXIF says (createImageBitmap does);
+#     `convert` without -auto-orient cropped a sideways phone photo as it
+#     was stored.
+#   - the rate limit is per visitor. Phoenix hashed the LiveView socket's
+#     peer_data, which behind Caddy is Caddy's address, so its 5 an hour
+#     were 5 an hour for everyone together.
+#
+# Storage is Blog.Storage's bucket (S3_BUCKET, default bobbby-media) on
+# Hetzner, signed with the camera sweep's cs_sigv4. S3_ENDPOINT and
+# S3_PUBLIC_URL move it elsewhere (a local MinIO); without S3_ACCESS_KEY and
+# S3_SECRET_KEY a collage is refused with a 503 that says so, before
+# anything is written.
+
+CLG_MAX_IMAGES = 36
+CLG_MAX_COLUMNS = 8
+CLG_MAX_CELL = 2048
+CLG_MAX_AREA = 16777216
+CLG_HOURLY = 5
+CLG_DAILY = 20
+CLG_CAPTCHA_S = 300
+CLG_JSON = "application/json; charset=utf-8"
+CLG_PUT_TIMEOUT_MS = 60000
+CLG_QUEUE_MAX = 4
+CLG_CLEANUP_EVERY_S = 1800
+
+def clg_env(name: String, dflt: String) -> String do
+  v = getenv(name)
+  case v do
+    nil -> dflt
+    "" -> dflt
+    _ -> v
+  end
+end
+
+def clg_s3_config() -> Map do
+  bucket = clg_env("S3_BUCKET", "bobbby-media")
+  endpoint = clg_env("S3_ENDPOINT", "https://fsn1.your-objectstorage.com")
+  %{
+    access: clg_env("S3_ACCESS_KEY", ""),
+    secret: clg_env("S3_SECRET_KEY", ""),
+    bucket: bucket,
+    endpoint: endpoint,
+    host: clg_host_of(endpoint),
+    public: clg_env("S3_PUBLIC_URL", concat("https://", bucket, ".fsn1.your-objectstorage.com"))
+  }
+end
+
+# "https://a.b:9000/x" -> "a.b:9000": what goes in the Host header, and so
+# what is signed.
+def clg_host_of(url: String) -> String do
+  rest = case index_of(url, "://") >= 0 do
+    true -> drop(url, index_of(url, "://") + 3)
+    false -> url
+  end
+  head(split(rest, "/"))
+end
+
+CLG_S3 = clg_s3_config()
+
+def clg_s3_ready(s3: Map) -> Bool do
+  s3.access != "" and s3.secret != ""
+end
+
+# Blog.Storage.url/1
+def clg_public_url(key: String) -> String do
+  concat(CLG_S3.public, "/", key)
+end
+
+# {url, headers} for a path-style request to the bucket, signed at t.
+def clg_s3_request(s3: Map, method: String, key: String, payload_hash: String, size: Int, content_type: String, t: Int) -> Tuple do
+  amz_date = format_time(t, "%Y%m%dT%H%M%SZ")
+  path = concat("/", s3.bucket, "/", key)
+  base = %{"x-amz-content-sha256": payload_hash, "x-amz-date": amz_date}
+  sent = case method do
+    "PUT" -> merge(base, %{"content-type": content_type, "x-amz-acl": "public-read"})
+    _ -> base
+  end
+  signed = case method do
+    "PUT" -> merge(sent, %{"content-length": to_string(size), "host": s3.host})
+    _ -> put(sent, "host", s3.host)
+  end
+  auth = cs_sigv4(method, path, "", signed, payload_hash, amz_date, "fsn1", "s3", s3.access, s3.secret)
+  {concat(s3.endpoint, path), put(sent, "authorization", auth)}
+end
+
+# ---------------------------------------------------------------- checks
+
+# The width and height a JPEG says it is, from its first SOFn marker, or
+# nil when the bytes are not a JPEG this could read. Markers are walked by
+# their lengths, so this is a few steps, not one per byte.
+def clg_jpeg_size(b: String) -> Any do
+  case length(b) > 4 and char_code(b, 0) == 255 and char_code(b, 1) == 216 do
+    false -> nil
+    true -> clg_jpeg_walk(b, 2)
+  end
+end
+
+def clg_jpeg_walk(b: String, i: Int) -> Any do
+  case i + 9 < length(b) and char_code(b, i) == 255 do
+    false -> nil
+    true ->
+      m = char_code(b, i + 1)
+      case m == 255 do
+        # fill bytes before a marker
+        true -> clg_jpeg_walk(b, i + 1)
+        false ->
+          sof = m >= 192 and m <= 207 and m != 196 and m != 200 and m != 204
+          case sof do
+            true -> {char_code(b, i + 7) * 256 + char_code(b, i + 8), char_code(b, i + 5) * 256 + char_code(b, i + 6)}
+            false ->
+              seg = char_code(b, i + 2) * 256 + char_code(b, i + 3)
+              case seg < 2 do
+                true -> nil
+                false -> clg_jpeg_walk(b, i + 2 + seg)
+              end
+          end
+      end
+  end
+end
+
+def clg_int(v: Any) -> Int do
+  case type_of(v) do
+    :integer -> v
+    :string ->
+      t = trim(v)
+      case t != "" and web_all_digits(t, 0) and length(t) < 16 do
+        true -> to_int(t)
+        false -> -1
+      end
+    _ -> -1
+  end
+end
+
+def clg_ceil_div(a: Int, b: Int) -> Int do
+  (a + b - 1) / b
+end
+
+# The grid a collage of `count` squares in `columns` makes: {w, h}.
+def clg_grid(count: Int, columns: Int, cell: Int) -> Tuple do
+  {columns * cell, clg_ceil_div(count, columns) * cell}
+end
+
+# What the form says, checked against what the JPEG is: %{...} or an
+# error string.
+def clg_check_upload(params: Map, up: Any) -> Any do
+  count = clg_int(lookup(params, "image_count"))
+  columns = clg_int(lookup(params, "columns"))
+  cell = clg_int(lookup(params, "cell_size"))
+  case up == nil do
+    true -> "no collage was sent"
+    false ->
+      case count < 2 or count > CLG_MAX_IMAGES do
+        true -> concat("image_count must be 2 to ", to_string(CLG_MAX_IMAGES))
+        false ->
+          case columns < 1 or columns > CLG_MAX_COLUMNS do
+            true -> concat("columns must be 1 to ", to_string(CLG_MAX_COLUMNS))
+            false ->
+              case cell < 1 or cell > CLG_MAX_CELL do
+                true -> concat("cell_size must be 1 to ", to_string(CLG_MAX_CELL))
+                false -> clg_check_jpeg(count, columns, cell, up.data)
+              end
+          end
+      end
+  end
+end
+
+def clg_check_jpeg(count: Int, columns: Int, cell: Int, data: String) -> Any do
+  grid = clg_grid(count, columns, cell)
+  size = clg_jpeg_size(data)
+  case size == nil do
+    true -> "the collage is not a JPEG"
+    false ->
+      case elem(grid, 0) * elem(grid, 1) > CLG_MAX_AREA do
+        true -> "the grid is larger than a canvas may be"
+        false ->
+          case size == grid do
+            false -> concat("the JPEG is ", to_string(elem(size, 0)), "x", to_string(elem(size, 1)),
+                            " but ", to_string(count), " squares of ", to_string(cell), " in ", to_string(columns),
+                            " columns make ", to_string(elem(grid, 0)), "x", to_string(elem(grid, 1)))
+            true -> %{count: count, columns: columns, cell: cell, width: elem(grid, 0), height: elem(grid, 1), data: data}
+          end
+      end
+  end
+end
+
+# ---------------------------------------------------------------- captcha
+
+# Blog.GifMaker.Captcha, which the collage page borrowed: a sum, a
+# difference or a product of two numbers from 2 to 15, good for five
+# minutes. The token is the expiry and an HMAC of the answer with it, so
+# it does not carry the answer. Numbers come from random_bytes: the
+# server's `random` starts from the same seed every boot.
+def clg_small(b: String, i: Int) -> Int do
+  2 + rem(char_code(b, i), 14)
+end
+
+def clg_captcha_mac(secret: String, answer: Int, exp: Int) -> String do
+  hmac_sha256(secret, concat("collage-captcha.", to_string(answer), ".", to_string(exp)))
+end
+
+def clg_captcha_new(secret: String, now_s: Int) -> Map do
+  b = random_bytes(3)
+  x = clg_small(b, 0)
+  y = clg_small(b, 1)
+  op = rem(char_code(b, 2), 3)
+  qa = case op do
+    0 -> {concat(to_string(x), " + ", to_string(y)), x + y}
+    1 -> {concat(to_string(max(x, y)), " - ", to_string(min(x, y))), abs(x - y)}
+    _ -> {concat(to_string(x), " x ", to_string(y)), x * y}
+  end
+  exp = now_s + CLG_CAPTCHA_S
+  %{question: elem(qa, 0), token: concat(to_string(exp), ".", clg_captcha_mac(secret, elem(qa, 1), exp))}
+end
+
+def clg_captcha_ok(secret: String, answer: Any, token: Any, now_s: Int) -> Bool do
+  a = clg_int(answer)
+  case type_of(token) == :string and a >= 0 do
+    false -> false
+    true ->
+      parts = split(token, ".")
+      case length(parts) == 2 do
+        false -> false
+        true ->
+          exp = clg_int(head(parts))
+          exp >= now_s and web_secure_eq(clg_captcha_mac(secret, a, exp), elem_at(parts, 1), secret)
+      end
+  end
+end
+
+# ---------------------------------------------------------------- limits
+
+# RateLimiter: 5 an hour and 20 a day for one visitor, counted when a
+# collage is accepted. Kept in memory, as the ETS table was.
+actor CollageLimits do
+  state seen: Map :: %{}
+
+  on :check(who: String, now_s: Int) do
+    ts = filter(web_or(lookup(seen, who), []), fn(t: Int) -> Bool do now_s - t < 86400 end)
+    hourly = length(filter(ts, fn(t: Int) -> Bool do now_s - t < 3600 end))
+    become seen: put(seen, who, ts)
+    why = case hourly >= CLG_HOURLY do
+      true -> "Rate limit reached. Try again in an hour."
+      false ->
+        case length(ts) >= CLG_DAILY do
+          true -> "Daily limit reached. Try again tomorrow."
+          false -> nil
+        end
+    end
+    reply why
+  end
+
+  on :record(who: String, now_s: Int) do
+    become seen: put(seen, who, [now_s | web_or(lookup(seen, who), [])])
+    reply :ok
+  end
+end
+
+CLG_LIMITS = spawn CollageLimits
+
+def clg_visitor(conn: Map) -> String do
+  take(sha256(blka_client_ip(conn)), 16)
+end
+
+# ---------------------------------------------------------------- the bucket
+
+# Puts collages in the bucket, one request at a time, from the Site's
+# tick: a handler never waits on the network. When a put answers 2xx the
+# row becomes ready; anything else, or a minute with no answer, and it
+# becomes failed with the reason, as Processor's fail/3 did. With
+# COLLAGE_CLEANUP=1 it also does what Blog.CollageMaker.Cleanup did every
+# 30 minutes: expired collages out of the bucket and the table. Phoenix's
+# Cleanup runs until Phoenix is off, and two of them would only delete the
+# same things twice, but that is still off here until then.
+actor CollageStore do
+  state queue: List :: []
+  state job: Any :: nil
+  state abandoned: List :: []
+  state cleanup: Bool :: false
+  state next_cleanup: Int :: 0
+  state deletes: List :: []
+  state stored: Int :: 0
+  state failed: Int :: 0
+
+  on :config(on_: Bool) do
+    become cleanup: on_, next_cleanup: now() + 60
+    said = case on_ do
+      true -> "collage: cleanup on (COLLAGE_CLEANUP=1)"
+      false -> "collage: cleanup off (COLLAGE_CLEANUP unset; Phoenix's Cleanup does it)"
+    end
+    reply said
+  end
+
+  on :put(id: Int, key: String, data: String) do
+    case length(queue) >= CLG_QUEUE_MAX do
+      true -> reply false
+      false ->
+        become queue: list_append(queue, [%{id: id, key: key, data: data}])
+        reply true
+    end
+  end
+
+  on :stats do
+    reply %{queued: length(queue), busy: job != nil, stored: stored, failed: failed, cleanup: cleanup}
+  end
+
+  on :step do
+    t = now_ms()
+    left = filter(abandoned, fn(h: Int) -> Bool do http_result(h) == nil end)
+    case job do
+      nil ->
+        case queue do
+          [next | rest] ->
+            req = clg_s3_request(CLG_S3, "PUT", next.key, sha256(next.data), length(next.data), "image/jpeg", now())
+            h = http_start("PUT", elem(req, 0), elem(req, 1), next.data)
+            case h < 0 do
+              true ->
+                clg_mark_failed(next.id, "no free HTTP slot for the upload")
+                become queue: rest, abandoned: left, failed: failed + 1
+              false ->
+                become queue: rest, abandoned: left, job: %{h: h, at: t, id: next.id, key: next.key, size: length(next.data), kind: :put}
+            end
+          [] ->
+            case deletes do
+              [key | more] ->
+                req = clg_s3_request(CLG_S3, "DELETE", key, sha256(""), 0, "", now())
+                h = http_start("DELETE", elem(req, 0), elem(req, 1), "")
+                case h < 0 do
+                  true -> become abandoned: left
+                  false -> become deletes: more, abandoned: left, job: %{h: h, at: t, id: 0, key: key, size: 0, kind: :delete}
+                end
+              [] ->
+                case cleanup and now() >= next_cleanup do
+                  true -> become deletes: clg_expire(), next_cleanup: now() + CLG_CLEANUP_EVERY_S, abandoned: left
+                  false -> become abandoned: left
+                end
+            end
+        end
+      _ ->
+        r0 = http_result(job.h)
+        r = case r0 == nil and t - job.at > CLG_PUT_TIMEOUT_MS do
+          true -> {:error, "no answer from the bucket in 60 s"}
+          false -> r0
+        end
+        case r do
+          nil -> become abandoned: left
+          _ ->
+            gone = case r0 == nil do
+              true -> [job.h | left]
+              false -> left
+            end
+            ok = case r do
+              {:ok, status, _} -> status >= 200 and status < 300
+              _ -> false
+            end
+            case job.kind do
+              :delete ->
+                case ok do
+                  true -> :ok
+                  false -> puts(concat("collage: deleting ", job.key, " failed: ", clg_why(r)))
+                end
+                become job: nil, abandoned: gone
+              _ ->
+                case ok do
+                  true ->
+                    clg_mark_ready(job.id, job.key, job.size)
+                    become job: nil, abandoned: gone, stored: stored + 1
+                  false ->
+                    clg_mark_failed(job.id, concat("S3 upload failed: ", clg_why(r)))
+                    become job: nil, abandoned: gone, failed: failed + 1
+                end
+            end
+        end
+    end
+    reply :ok
+  end
+end
+
+def clg_why(r: Any) -> String do
+  case r do
+    {:ok, status, body} -> concat("HTTP ", to_string(status), " ", take(to_string(body), 300))
+    {:error, reason} -> to_string(reason)
+    _ -> "no answer"
+  end
+end
+
+COLLAGE_STORE = spawn CollageStore
+
+CLG_NOW = "date_trunc('second', timezone('UTC', now()))"
+
+def clg_mark_ready(id: Int, key: String, size: Int) -> Any do
+  got = DB <- :query(concat("UPDATE collage_maker_collages SET status = 'ready', collage_s3_key = $2, collage_file_size = $3::integer, updated_at = ", CLG_NOW, " WHERE id = $1::bigint"), [id, key, size])
+  case got do
+    {:ok, _} -> puts(concat("collage ", to_string(id), ": ready (", to_string(size), " bytes)"))
+    {:error, reason} -> puts(concat("collage ", to_string(id), ": stored but the row did not update: ", to_string(reason)))
+  end
+end
+
+def clg_mark_failed(id: Int, reason: String) -> Any do
+  puts(concat("collage ", to_string(id), " failed: ", reason))
+  DB <- :query(concat("UPDATE collage_maker_collages SET status = 'failed', error_message = $2, updated_at = ", CLG_NOW, " WHERE id = $1::bigint"), [id, reason])
+end
+
+# cleanup_expired/0: every expired collage's objects (its own, and the
+# originals and squares Phoenix's rows name), then its row, whose images
+# go with it (on_delete: :delete_all). The rows go now and the objects a
+# tick at a time after; an object whose delete fails is logged and left.
+def clg_expire() -> List do
+  got = DB <- :query(join([
+    "WITH gone AS (DELETE FROM collage_maker_collages WHERE expires_at < ", CLG_NOW, " RETURNING id, collage_s3_key) ",
+    "SELECT collage_s3_key AS key FROM gone WHERE collage_s3_key IS NOT NULL ",
+    "UNION ALL SELECT i.original_s3_key FROM collage_maker_images i JOIN gone g ON i.collage_id = g.id WHERE i.original_s3_key IS NOT NULL ",
+    "UNION ALL SELECT i.cropped_s3_key FROM collage_maker_images i JOIN gone g ON i.collage_id = g.id WHERE i.cropped_s3_key IS NOT NULL"
+  ], ""), [])
+  case got do
+    {:ok, rows} ->
+      case rows do
+        [] -> :ok
+        _ -> puts(concat("collage: cleanup removed expired collages, ", to_string(length(rows)), " objects to delete"))
+      end
+      map(rows, fn(r: Map) -> String do r.key end)
+    {:error, reason} ->
+      puts(concat("collage: cleanup query failed: ", to_string(reason)))
+      []
+  end
+end
+
+# ---------------------------------------------------------------- handlers
+
+def clg_json(conn: Map, status: Int, value: Any) -> Map do
+  web_send(put(conn, :cache, "no-store"), status, CLG_JSON, json_encode(value))
+end
+
+def clg_error(conn: Map, status: Int, kind: String, message: String) -> Map do
+  clg_json(conn, status, %{error: kind, message: message})
+end
+
+def clg_captcha(conn: Map) -> Map do
+  clg_json(conn, 200, clg_captcha_new(conn.secret, now()))
+end
+
+# https://bobbby.online/collage/TOKEN as Phoenix's url/1 made it, from the
+# Host the request came to (http for a laptop).
+def clg_share_url(conn: Map, token: String) -> String do
+  host = web_header(conn, "host")
+  scheme = case starts_with(host, "localhost") or starts_with(host, "127.0.0.1") or host == "" do
+    true -> "http://"
+    false -> "https://"
+  end
+  concat(scheme, host, "/collage/", token)
+end
+
+# POST /collage-maker/collages: the captcha, the limit, the collage, and
+# storage configured, in that order; then the row, and the bytes go to
+# the bucket from the tick.
+def clg_create(conn: Map) -> Map do
+  now_s = now()
+  who = clg_visitor(conn)
+  case clg_captcha_ok(conn.secret, web_param(conn, "answer"), web_param(conn, "token"), now_s) do
+    false -> clg_error(conn, 422, "captcha", "Wrong answer. Try again.")
+    true ->
+      limited = CLG_LIMITS <- :check(who, now_s)
+      case limited == nil do
+        false -> clg_error(conn, 429, "rate", limited)
+        true ->
+          checked = clg_check_upload(conn.body_params, web_upload(conn, "collage"))
+          case type_of(checked) == :string do
+            true -> clg_error(conn, 422, "collage", checked)
+            false ->
+              case clg_s3_ready(CLG_S3) do
+                false -> clg_error(conn, 503, "storage", "Collage storage is not configured on this server (S3_ACCESS_KEY, S3_SECRET_KEY).")
+                true -> clg_insert(conn, checked, who, now_s)
+              end
+          end
+      end
+  end
+end
+
+def clg_insert(conn: Map, c: Map, who: String, now_s: Int) -> Map do
+  token = hex_encode(random_bytes(4))
+  got = DB <- :query(join([
+    "INSERT INTO collage_maker_collages (status, columns, cell_size, image_count, collage_width, collage_height, ",
+    "ip_hash, share_token, expires_at, inserted_at, updated_at) VALUES ('processing', $1::integer, $2::integer, $3::integer, ",
+    "$4::integer, $5::integer, $6, $7, ", CLG_NOW, " + interval '24 hours', ", CLG_NOW, ", ", CLG_NOW, ") RETURNING id"
+  ], ""), [c.columns, c.cell, c.count, c.width, c.height, who, token])
+  case got do
+    {:error, reason} ->
+      puts(concat("collage: insert failed: ", to_string(reason)))
+      clg_error(conn, 503, "database", "The collage could not be saved.")
+    {:ok, rows} ->
+      id = head(rows).id
+      key = concat("collage-maker/", to_string(id), "/collage.jpg")
+      case COLLAGE_STORE <- :put(id, key, c.data) do
+        false ->
+          clg_mark_failed(id, "too many collages are being stored at once")
+          clg_error(conn, 503, "busy", "Too many collages are being stored right now. Try again in a minute.")
+        true ->
+          CLG_LIMITS <- :record(who, now_s)
+          clg_json(conn, 200, %{id: id, share_token: token, share_url: clg_share_url(conn, token)})
+      end
+  end
+end
+
+def clg_row(token: String) -> Any do
+  got = DB <- :query("SELECT id, status, columns, cell_size, image_count, collage_s3_key, collage_width, collage_height, collage_file_size, error_message, share_token FROM collage_maker_collages WHERE share_token = $1", [token])
+  case got do
+    {:ok, rows} ->
+      case rows do
+        [] -> :none
+        [r | _] -> r
+      end
+    {:error, _} -> nil
+  end
+end
+
+# GET /collage-maker/status/:token: where a collage is, for the page to
+# poll while the bucket takes it.
+def clg_status(conn: Map) -> Map do
+  r = clg_row(web_param(conn, "token"))
+  case r do
+    nil -> clg_error(conn, 503, "database", "The database did not answer.")
+    :none -> clg_error(conn, 404, "missing", "Collage not found or expired.")
+    _ ->
+      url = case r.collage_s3_key do
+        nil -> nil
+        k -> clg_public_url(k)
+      end
+      clg_json(conn, 200, %{status: r.status, url: url, width: r.collage_width, height: r.collage_height,
+                            file_size: r.collage_file_size, error: r.error_message, share_token: r.share_token,
+                            share_url: clg_share_url(conn, r.share_token)})
+  end
+end
+
+# Api.CollageMakerController.download/2: a ready collage is a 302 to its
+# object, anything else the controller's JSON 404.
+def clg_download(conn: Map) -> Map do
+  id = clg_int(web_param(conn, "collage_id"))
+  got = case id < 0 do
+    true -> {:ok, []}
+    false -> DB <- :query("SELECT status, collage_s3_key FROM collage_maker_collages WHERE id = $1::bigint", [id])
+  end
+  case got do
+    {:error, _} -> clg_error(conn, 503, "database", "The database did not answer.")
+    {:ok, rows} ->
+      case rows do
+        [] -> clg_json(conn, 404, %{error: "Collage not found"})
+        [r | _] ->
+          case r.status == "ready" and r.collage_s3_key != nil do
+            true -> put(web_text(conn, 302, ""), :location, clg_public_url(r.collage_s3_key))
+            false -> clg_json(conn, 404, %{error: "Collage not ready"})
+          end
+      end
+  end
+end
+
+# ---------------------------------------------------------------- pages
+
+def clg_asset(file: String) -> String do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> body
+  end
+end
+
+CLG_PROGRAM = clg_asset("_build/collage.blimp")
+CLG_JS = clg_asset("static/collage/collage.js")
+CLG_VIEWER_JS = clg_asset("static/collage/viewer.js")
+CLG_CSS = clg_asset("static/collage/collage.css")
+CLG_SCRIPTS = list_append(APP_SCRIPTS, ["/collage-maker/collage.js"])
+CLG_STYLES = [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/collage-maker/collage.css"]
+
+def clg_file(conn: Map, content_type: String, body: String) -> Map do
+  web_send(put(conn, :cache, "public, max-age=300"), 200, content_type, body)
+end
+
+def clg_program(conn: Map) -> Map do
+  clg_file(conn, "text/plain; charset=utf-8", CLG_PROGRAM)
+end
+
+def clg_js(conn: Map) -> Map do
+  clg_file(conn, "text/javascript; charset=utf-8", CLG_JS)
+end
+
+def clg_viewer_js(conn: Map) -> Map do
+  clg_file(conn, "text/javascript; charset=utf-8", CLG_VIEWER_JS)
+end
+
+def clg_css(conn: Map) -> Map do
+  clg_file(conn, "text/css; charset=utf-8", CLG_CSS)
+end
+
+CLG_DESCRIPTION = "Upload photos, arrange them in a grid, and create a full-res collage. Interactive zoom viewer included."
+
+# collage_maker_root.html.heex around the program. The file input is the
+# page's, outside the program's view, so a redraw never drops the files a
+# visitor picked; the program's drop zone is a <label for> it.
+def clg_page(conn: Map) -> Map do
+  c = web_ensure_csrf(conn)
+  body = join([
+    "<input type=\"file\" id=\"cm-files\" multiple accept=\".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp\" style=\"display:none\">\n",
+    "<div id=\"blimp-app\" data-program=\"/collage-maker/collage.blimp\" data-actor=\"collage\" data-csrf=\"", escape_html(c.csrf_token), "\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; that needs JavaScript to start. ",
+    "The collage itself is drawn by your browser's canvas.</p></noscript>\n",
+    script_tags(CLG_SCRIPTS)
+  ], "")
+  html = page_layout_html("Collage Maker", CLG_DESCRIPTION, "website", CLG_STYLES, body, "h-full")
+  web_send(put(c, :cache, "no-store"), 200, "text/html; charset=utf-8", html)
+end
+
+def clg_viewer_window(inner: String, status: String) -> String do
+  join([
+    "<div class=\"flex items-start justify-center min-h-screen p-4 pt-8\">",
+    "<div class=\"os-window-mac\" style=\"width: 90vw; max-width: 1200px;\">",
+    "<div class=\"os-titlebar\"><a href=\"/collage-maker\" class=\"os-btn-close\" title=\"Back to Collage Maker\"></a>",
+    "<div class=\"os-titlebar-title\">Collage Viewer</div></div>",
+    "<div class=\"os-content\" style=\"padding: 0;\">", inner, "</div>",
+    "<div class=\"os-statusbar\" style=\"display: flex; justify-content: space-between; align-items: center;\">", status, "</div>",
+    "</div></div>"
+  ], "")
+end
+
+CLG_HINT = "<span style=\"font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 10px; color: #666;\">Scroll to zoom &middot; Drag to pan &middot; Double-click to reset</span>"
+
+# CollageViewerLive: a ready collage in the pan-and-zoom well, else the
+# LiveView's two sentences.
+def clg_viewer(conn: Map) -> Map do
+  r = clg_row(web_param(conn, "token"))
+  case r do
+    nil -> web_text(conn, 503, "The database did not answer.")
+    _ ->
+      ready = case r == :none do
+        true -> false
+        false -> r.status == "ready" and r.collage_s3_key != nil
+      end
+      title = case r == :none do
+        true -> "Not Found"
+        false -> "Collage Viewer"
+      end
+      inner = case ready do
+        true ->
+          url = clg_public_url(r.collage_s3_key)
+          join([
+            "<div id=\"collage-viewer\" class=\"cm-viewer-container\" style=\"width: 100%; height: 70vh; cursor: grab;\"",
+            " data-src=\"", escape_html(url), "\" data-width=\"", to_string(r.collage_width), "\" data-height=\"", to_string(r.collage_height), "\"></div>"
+          ], "")
+        false ->
+          msg = case r == :none do
+            true -> "Collage not found or has expired."
+            false -> "Collage is still processing. Refresh in a moment."
+          end
+          concat("<div style=\"padding: 24px; text-align: center; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px;\">", msg, "</div>")
+      end
+      link = case ready do
+        true -> concat("<a href=\"", escape_html(clg_public_url(r.collage_s3_key)), "\" download=\"collage.jpg\" target=\"_blank\" style=\"font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 10px; text-decoration: underline;\">Download Full Res</a>")
+        false -> ""
+      end
+      body = concat(clg_viewer_window(inner, concat(CLG_HINT, link)), "\n<script src=\"/collage-maker/viewer.js\"></script>\n")
+      html = page_layout_html(title, CLG_DESCRIPTION, "website", [APP_CSS, "/collage-maker/collage.css"], body, "h-full")
+      web_send(put(conn, :cache, "no-store"), 200, "text/html; charset=utf-8", html)
+  end
+end
+
+# ---------------------------------------------------------------- routes
+
+def collage_routes() -> List do
+  [
+    web_route("GET", "/collage-maker", WEB_BROWSER, clg_page),
+    web_route("GET", "/collage-maker/collage.blimp", [], clg_program),
+    web_route("GET", "/collage-maker/collage.js", [], clg_js),
+    web_route("GET", "/collage-maker/viewer.js", [], clg_viewer_js),
+    web_route("GET", "/collage-maker/collage.css", [], clg_css),
+    web_route("GET", "/collage-maker/captcha.json", [], clg_captcha),
+    web_route("GET", "/collage-maker/status/:token", [], clg_status),
+    web_max_body(web_route("POST", "/collage-maker/collages", WEB_BROWSER, clg_create), WEB_MAX_UPLOAD),
+    web_route("GET", "/collage/:token", [], clg_viewer),
+    web_route("GET", "/api/collage-maker/:collage_id/download", [], clg_download)
+  ]
+end

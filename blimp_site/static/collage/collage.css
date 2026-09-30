@@ -1,0 +1,11 @@
+/* collage_maker_root.html.heex's <body class="h-full font-mono" style=...>:
+   the System 7 desktop's grey dither behind the window. The window, the
+   buttons and the cm-* pieces are the app css's. */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: #a8a8a8;
+  background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%);
+  background-size: 2px 2px;
+}
