@@ -1,0 +1,72 @@
+# The receipt printer's POSTs (src/99_receipts.blimp) without a database:
+# the token, from each place Phoenix takes it, the id, and the routing. The
+# rows themselves are checked against Postgres and Phoenix by hand (the PR
+# says how); here the database is unset, so a request that gets past the
+# token and the id is the 503 of a query that could not run.
+
+RT_TOKEN = "printer-token-0123456789"
+RT_SECRET = "test-secret-test-secret-test-secret-0123"
+
+def rt_send(method: String, target: String, headers: List, body: String) -> Tuple do
+  raw = concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, [concat("Content-Length: ", to_string(length(body)))])), "\r\n"), "\r\n\r\n", body)
+  web_dispatch(raw, parse_request(raw), receipt_routes_with(RT_TOKEN), RT_SECRET)
+end
+
+def rt_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+actor ReceiptTests do
+  test "no token, a wrong one, or none configured: 401 with Phoenix's body" do
+    got = rt_send("POST", "/api/receipt_messages/1/printed", [], "")
+    assert_eq(elem(got, 1), 401)
+    assert_eq(rt_body(got), "{\"error\":\"Invalid or missing auth token\"}")
+    assert(contains(elem(got, 0), "Content-Type: application/json; charset=utf-8\r\n"))
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/printed", ["X-Auth-Token: nope"], ""), 1), 401)
+    raw = "POST /api/receipt_messages/1/printed HTTP/1.1\r\nX-Auth-Token: \r\nContent-Length: 0\r\n\r\n"
+    assert_eq(elem(web_dispatch(raw, parse_request(raw), receipt_routes_with(""), RT_SECRET), 1), 401)
+  end
+
+  test "the token from the header, the query, a form or JSON; the parameter wins over the header" do
+    hdr = concat("X-Auth-Token: ", RT_TOKEN)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/printed", [hdr], ""), 1), 503)
+    assert_eq(elem(rt_send("POST", concat("/api/receipt_messages/1/failed?auth_token=", RT_TOKEN), [], ""), 1), 503)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/retry", ["Content-Type: application/x-www-form-urlencoded"], concat("auth_token=", RT_TOKEN)), 1), 503)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/retry", ["Content-Type: application/json"], concat("{\"auth_token\": \"", RT_TOKEN, "\"}")), 1), 503)
+    # Phoenix: params["auth_token"] || header, so a wrong parameter is not rescued by a right header
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/printed?auth_token=nope", [hdr], ""), 1), 401)
+    # a token that is not a string is not the token
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/printed", ["Content-Type: application/json"], "{\"auth_token\": 5}"), 1), 401)
+  end
+
+  test "an id Ecto cannot cast is 400; a negative one is 404; both after the token" do
+    hdr = concat("X-Auth-Token: ", RT_TOKEN)
+    bad = rt_send("POST", "/api/receipt_messages/12x/printed", [hdr], "")
+    assert_eq(elem(bad, 1), 400)
+    assert_eq(rt_body(bad), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/-3/printed", [hdr], ""), 1), 404)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/12x/printed", [], ""), 1), 401)
+    # the largest bigint is asked for; one past it, or 20 digits, has no row
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/9223372036854775807/printed", [hdr], ""), 1), 503)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/9223372036854775808/printed", [hdr], ""), 1), 404)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/99999999999999999999/printed", [hdr], ""), 1), 404)
+  end
+
+  test "routing: PUT is 405 Allow POST; GET is not claimed; other paths are not these routes" do
+    put_got = rt_send("PUT", "/api/receipt_messages/1/printed", [], "")
+    assert_eq(elem(put_got, 1), 405)
+    assert(contains(elem(put_got, 0), "Allow: POST\r\n"))
+    raw = "GET /api/receipt_messages/1/printed HTTP/1.1\r\n\r\n"
+    assert_eq(web_dispatch(raw, parse_request(raw), receipt_routes_with(RT_TOKEN), RT_SECRET), nil)
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/1/image", [], ""), 1), 405)
+  end
+
+  test "format_message: Phoenix's key order, an upload's URL over a stored one, none when neither" do
+    row = %{id: 7, content: "hi", sender_name: "b", sender_ip: nil, status: "printed", image_url: "http://x/y.png",
+            created_at: "2026-09-30T01:02:03", printed_at: "2026-09-30T01:02:04Z", has_upload: true}
+    assert_eq(json_encode(receipt_message(row)), "{\"id\":7,\"status\":\"printed\",\"created_at\":\"2026-09-30T01:02:03\",\"image_url\":\"/api/receipt_messages/7/image\",\"content\":\"hi\",\"sender_name\":\"b\",\"sender_ip\":null,\"printed_at\":\"2026-09-30T01:02:04Z\"}")
+    assert_eq(receipt_message(put(row, :has_upload, false)).image_url, "http://x/y.png")
+    assert(not(contains(json_encode(receipt_message(put(put(row, :has_upload, false), :image_url, nil))), "image_url")))
+  end
+end

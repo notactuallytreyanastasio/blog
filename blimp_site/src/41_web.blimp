@@ -19,6 +19,8 @@
 #   query_params             the query string, decoded, name -> value
 #   body_params              a form, or a JSON object, name -> value
 #   json                     the decoded JSON body (any value), nil if none
+#   uploads                  a multipart body's files, in order: %{name,
+#                            filename, content_type, size, data} (web_upload)
 #   path_params              :params of the route that matched ("id" -> "7")
 #   params                   all three merged: query, then body, then path
 #   session                  string keys -> JSON values; %{} until fetched
@@ -31,6 +33,8 @@
 #   assigns                  for plugs to hand things to handlers
 
 WEB_MAX_BODY = 1048576
+# What an upload route may ask for with web_max_body: 10 MiB.
+WEB_MAX_UPLOAD = 10485760
 # 431 over this, whether the headers are still arriving or came whole. It
 # holds for every request a route here matches; a 405, and a GET that goes
 # on to the fixed table or dynamic(), are not held to it (a GET is read
@@ -51,62 +55,103 @@ WEB_DEV_SECRET = "blimp-dev-session-secret-not-for-production-use-000"
 # in part or not at all. For anything but GET and HEAD, read until the
 # headers and Content-Length bytes of body are in, or the body is known to
 # be refused, or WEB_READ_MS pass. A GET is returned as it was read.
-def web_read_rest(c: Int, raw: Any) -> Any do
+#
+# The cap is the route's (web_max_body): 1 MiB unless the route that will
+# take the body says more, so a 10 MB upload route does not let every other
+# path be sent 10 MB. The body is gathered as a list of reads and joined
+# once. Joining as it arrives copied everything read so far on every read:
+# 160 reads for 10 MB is about 800 MB copied, none of it reclaimed until
+# the tick returns.
+def web_read_rest(c: Int, raw: Any, routes: List) -> Any do
   case raw do
     nil -> nil
     _ ->
       case starts_with(raw, "GET ") or starts_with(raw, "HEAD ") do
         true -> raw
-        false -> web_read_more(c, raw, now_ms() + WEB_READ_MS, false)
+        false -> web_read_more(c, raw, now_ms() + WEB_READ_MS, web_cap_for(routes, raw))
       end
   end
 end
 
-def web_read_more(c: Int, got: String, deadline: Int, continued: Bool) -> String do
+# The body cap for the route this request line names, WEB_MAX_BODY when
+# none does (it is answered 405 or 404 without its body being looked at).
+def web_cap_for(routes: List, raw: String) -> Int do
+  req = parse_request(raw)
+  found = web_find(routes, req.method, req.path)
+  case found do
+    {:ok, route, _} -> route.max_body
+    _ -> WEB_MAX_BODY
+  end
+end
+
+def web_read_more(c: Int, got: String, deadline: Int, cap: Int) -> String do
   hend = index_of(got, "\r\n\r\n")
   case hend < 0 do
     true ->
       case length(got) > WEB_MAX_HEAD do
         true -> got
-        false -> web_read_wait(c, got, deadline, continued)
+        false -> web_read_wait(c, got, deadline, cap)
       end
     false ->
       headers = web_headers(take(got, hend))
       cl = web_content_length(headers)
       # refused whatever the body is: web_frame_error says so, unread
-      case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > WEB_MAX_BODY do
+      case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > cap do
         true -> got
         false ->
-          case length(got) >= hend + 4 + max(cl, 0) do
+          need = hend + 4 + max(cl, 0)
+          case length(got) >= need do
             true -> got
             false ->
               expect = downcase(web_or(lookup(headers, "expect"), ""))
-              case expect == "100-continue" and not(continued) do
-                true ->
-                  tcp_write(c, "HTTP/1.1 100 Continue\r\n\r\n")
-                  web_read_wait(c, got, deadline, true)
-                false -> web_read_wait(c, got, deadline, continued)
+              case expect == "100-continue" do
+                true -> tcp_write(c, "HTTP/1.1 100 Continue\r\n\r\n")
+                false -> :ok
               end
+              web_read_body(c, [got], length(got), need, deadline)
           end
       end
   end
 end
 
-def web_read_wait(c: Int, got: String, deadline: Int, continued: Bool) -> String do
+# Headers not all in yet: one more read, then look again.
+def web_read_wait(c: Int, got: String, deadline: Int, cap: Int) -> String do
+  more = web_read_once(c, deadline)
+  case more do
+    nil -> web_read_more(c, got, deadline, cap)
+    "" -> got
+    _ -> web_read_more(c, concat(got, more), deadline, cap)
+  end
+end
+
+# The body: reads kept newest first and joined once there are `need`
+# bytes, or the deadline passes, or the client closes. What is short is
+# web_frame_error's 408.
+def web_read_body(c: Int, parts: List, have: Int, need: Int, deadline: Int) -> String do
+  case have >= need do
+    true -> join(reverse(parts), "")
+    false ->
+      more = web_read_once(c, deadline)
+      case more do
+        nil -> web_read_body(c, parts, have, need, deadline)
+        "" -> join(reverse(parts), "")
+        _ -> web_read_body(c, [more | parts], have + length(more), need, deadline)
+      end
+  end
+end
+
+# One read, waiting at most until the deadline: the bytes, nil when the
+# socket was ready but had nothing (read again), or "" when the time is up
+# or the client has closed its side.
+def web_read_once(c: Int, deadline: Int) -> Any do
   left = deadline - now_ms()
   case left <= 0 do
-    true -> got
+    true -> ""
     false ->
       ready = tcp_poll([c], left)
       case length(ready) > 0 do
-        false -> got
-        true ->
-          more = tcp_read(c)
-          case more do
-            nil -> web_read_more(c, got, deadline, continued)
-            "" -> got
-            _ -> web_read_more(c, concat(got, more), deadline, continued)
-          end
+        false -> ""
+        true -> tcp_read(c)
       end
   end
 end
@@ -268,7 +313,14 @@ end
 # A route as data. pattern: "/api/blinks/:id/save"; pipeline: a list of
 # plugs (fn(conn) -> conn); handler: fn(conn) -> conn.
 def web_route(method: String, pattern: String, pipeline: List, handler: Any) -> Map do
-  %{method: method, pattern: pattern, segs: drop_list(split(pattern, "/"), 1), pipeline: pipeline, handler: handler}
+  %{method: method, pattern: pattern, segs: drop_list(split(pattern, "/"), 1), pipeline: pipeline, handler: handler, max_body: WEB_MAX_BODY}
+end
+
+# A route that takes more than WEB_MAX_BODY, an upload:
+#   web_max_body(web_route("POST", "/gif-maker/upload", WEB_BROWSER, gif_upload), WEB_MAX_UPLOAD)
+# The cap is judged from Content-Length before any of the body is read.
+def web_max_body(route: Map, bytes: Int) -> Map do
+  put(route, :max_body, bytes)
 end
 
 # The path's :params when the segments match, nil when they do not.
@@ -367,7 +419,7 @@ def web_conn(raw: String, req: Map, secret: String) -> Map do
   qp = web_decode_form(req.query)
   %{method: req.method, path: req.path, query: req.query, headers: headers, body: body,
     cookies: web_parse_cookies(web_or(lookup(headers, "cookie"), "")),
-    query_params: qp, body_params: %{}, json: nil, path_params: %{}, params: qp,
+    query_params: qp, body_params: %{}, json: nil, uploads: [], path_params: %{}, params: qp,
     session: %{}, session_dirty: false, session_status: :none, csrf_token: "", secret: secret,
     status: 200, content_type: "text/plain; charset=utf-8", cache: "no-store", resp_body: "",
     resp_headers: [], location: "", halted: false, assigns: %{}}
@@ -556,8 +608,9 @@ end
 
 # The body into body_params (and json), then params. Runs on every request
 # a route matched, before its pipeline. A form or a JSON object becomes
-# body_params; any other JSON value is conn.json alone. Multipart is
-# refused by name (no uploads yet); an unknown type leaves the raw body.
+# body_params; any other JSON value is conn.json alone. A
+# multipart/form-data body's fields are body_params and its files uploads;
+# other multipart types are 415. An unknown type leaves the raw body.
 #
 # First, what Plug.Parsers refuses in the endpoint, before Phoenix's router
 # and so before any plug: a query string or a form whose decoded names or
@@ -599,15 +652,235 @@ def web_parse_body(conn: Map) -> Map do
                     {:error, reason} -> web_bad_request(conn, true)
                   end
                 false ->
-                  case starts_with(ct, "multipart/") do
-                    true -> web_refuse(conn, 415, "multipart bodies are not supported")
-                    false -> conn
+                  case starts_with(ct, "multipart/form-data") do
+                    true -> web_multipart_conn(conn)
+                    false ->
+                      case starts_with(ct, "multipart/") do
+                        true -> web_refuse(conn, 415, "multipart bodies other than multipart/form-data are not supported")
+                        false -> conn
+                      end
                   end
               end
           end
       end
   end
   put(parsed, :params, merge(merge(parsed.query_params, parsed.body_params), parsed.path_params))
+end
+
+# A multipart/form-data body into body_params and uploads. A body that
+# cannot be read is 400 (web_refuse). A field whose name or value is not
+# UTF-8 is web_bad_request's 400, as Plug.Parsers.MULTIPART refuses it
+# (validate_utf8 is on by default); a file's bytes are not checked.
+def web_multipart_conn(conn: Map) -> Map do
+  got = web_parse_multipart(conn.body, web_multipart_boundary(web_header(conn, "content-type")))
+  case got do
+    {:error, reason} -> web_refuse(conn, 400, concat("the multipart body cannot be read: ", reason))
+    {:ok, parts} ->
+      fields = web_part_fields(parts, %{})
+      ok = reduce(keys(fields), true, fn(acc: Bool, k: String) -> Bool do acc and web_utf8_valid(k) and web_utf8_valid(lookup(fields, k)) end)
+      case ok do
+        false -> web_bad_request(conn, true)
+        true -> put(put(conn, :body_params, fields), :uploads, web_part_files(parts))
+      end
+  end
+end
+
+# The upload sent in the field `name`, or nil. A field sent twice (a
+# <input type=file multiple>) is every entry of conn.uploads with that name.
+def web_upload(conn: Map, name: String) -> Any do
+  web_upload_in(conn.uploads, name)
+end
+
+def web_upload_in(ups: List, name: String) -> Any do
+  case ups do
+    [] -> nil
+    [u | rest] ->
+      case u.name == name do
+        true -> u
+        false -> web_upload_in(rest, name)
+      end
+  end
+end
+
+# ---------------------------------------------------------------- multipart
+#
+# multipart/form-data (RFC 7578), what a browser sends for a form with a
+# file input and what fetch() sends for a FormData. The body is
+#
+#   preamble\r\n--B\r\n<part headers>\r\n\r\n<data>\r\n--B\r\n...\r\n--B--epilogue
+#
+# so "\r\n--B" in front of every part is the one sequence to cut at: a
+# part's data cannot contain it (that is what the boundary is chosen for).
+# The cutting is native split on the whole body, which is binary-safe and
+# one pass: no step per byte of a 10 MB file. The data of a part is its
+# bytes exactly, NULs and all; nothing is decoded or trimmed.
+
+WEB_MAX_PARTS = 1000
+
+# The boundary parameter of a Content-Type, unquoted and case kept, or ""
+# (RFC 2046: 1 to 70 characters).
+def web_multipart_boundary(content_type: String) -> String do
+  b = web_or(lookup(web_header_params(content_type), "boundary"), "")
+  case length(b) >= 1 and length(b) <= 70 do
+    true -> b
+    false -> ""
+  end
+end
+
+# {:ok, parts} | {:error, reason}. parts in body order, each
+# %{name, filename, content_type, headers, data}; filename is nil for a
+# plain field, and content_type is "text/plain" when the part names none.
+def web_parse_multipart(body: String, boundary: String) -> Any do
+  case boundary do
+    "" -> {:error, "no boundary in the Content-Type"}
+    _ ->
+      # the first delimiter may be the very start of the body, with no CRLF before it
+      pieces = split(concat("\r\n", body), concat("\r\n--", boundary))
+      case length(pieces) < 2 do
+        true -> {:error, "the boundary does not occur in the body"}
+        false ->
+          case length(pieces) > WEB_MAX_PARTS + 2 do
+            true -> {:error, concat("more than ", to_string(WEB_MAX_PARTS), " parts")}
+            false -> web_multipart_parts(tail(pieces), [])
+          end
+      end
+  end
+end
+
+def web_multipart_parts(pieces: List, acc: List) -> Any do
+  case pieces do
+    [] -> {:error, "the body ends before its closing boundary"}
+    [p | rest] ->
+      case starts_with(p, "--") do
+        # the close delimiter; what follows it is the epilogue
+        true -> {:ok, reverse(acc)}
+        false ->
+          part = web_multipart_part(p)
+          case part do
+            {:error, reason} -> part
+            _ -> web_multipart_parts(rest, [part | acc])
+          end
+      end
+  end
+end
+
+# One piece after its delimiter: optional spaces, CRLF, headers, a blank
+# line, the data.
+def web_multipart_part(p: String) -> Any do
+  eol = index_of(p, "\r\n")
+  case eol < 0 or trim(take(p, eol)) != "" do
+    true -> {:error, "a boundary is not followed by a line break"}
+    false ->
+      rest = drop(p, eol + 2)
+      # a part with no headers at all starts with the blank line itself
+      hend = case starts_with(rest, "\r\n") do
+        true -> -2
+        false -> index_of(rest, "\r\n\r\n")
+      end
+      case hend == -1 do
+        true -> {:error, "a part's headers do not end"}
+        false ->
+          head_text = case hend < 0 do
+            true -> ""
+            false -> take(rest, hend)
+          end
+          headers = web_headers_in(split(head_text, "\r\n"), %{})
+          disp = web_header_params(web_or(lookup(headers, "content-disposition"), ""))
+          name = lookup(disp, "name")
+          case name do
+            nil -> {:error, "a part has no Content-Disposition name"}
+            _ ->
+              %{name: name, filename: web_part_filename(disp),
+                content_type: web_or(lookup(headers, "content-type"), "text/plain"),
+                headers: headers, data: drop(rest, hend + 4)}
+          end
+      end
+  end
+end
+
+# filename, or filename* (RFC 5987: UTF-8''percent-encoded) when that is
+# what was sent; nil for a field that is not a file.
+def web_part_filename(disp: Map) -> Any do
+  star = lookup(disp, "filename*")
+  case star do
+    nil -> lookup(disp, "filename")
+    _ ->
+      q = index_of(star, "''")
+      case q < 0 do
+        true -> lookup(disp, "filename")
+        false -> web_path_decode(drop(star, q + 2))
+      end
+  end
+end
+
+# Fields (parts without a filename) as name -> text; a name sent twice keeps the last.
+def web_part_fields(parts: List, acc: Map) -> Map do
+  case parts do
+    [] -> acc
+    [p | rest] ->
+      case p.filename do
+        nil -> web_part_fields(rest, put(acc, p.name, p.data))
+        _ -> web_part_fields(rest, acc)
+      end
+  end
+end
+
+def web_part_files(parts: List) -> List do
+  map(filter(parts, fn(p: Map) -> Bool do p.filename != nil end), fn(p: Map) -> Map do
+    %{name: p.name, filename: p.filename, content_type: p.content_type, size: length(p.data), data: p.data}
+  end)
+end
+
+# The parameters of a header value, `form-data; name="a;b"; filename=x`
+# -> %{"name" => "a;b", "filename" => "x"}, names lower-cased. A quoted
+# value may hold ";" and \-escapes. The first segment (the value itself,
+# "form-data") is not a parameter and is left out.
+def web_header_params(value: String) -> Map do
+  segs = web_split_params(value, 0, 0, false, [])
+  web_params_in(drop_list(segs, 1), %{})
+end
+
+# Cut at every ";" outside quotes. One step per byte: header values are short.
+def web_split_params(s: String, i: Int, start: Int, quoted: Bool, acc: List) -> List do
+  case i >= length(s) do
+    true -> reverse([slice(s, start, i - start) | acc])
+    false ->
+      c = char_at(s, i)
+      case quoted do
+        true ->
+          case c do
+            "\\" -> web_split_params(s, i + 2, start, true, acc)
+            "\"" -> web_split_params(s, i + 1, start, false, acc)
+            _ -> web_split_params(s, i + 1, start, true, acc)
+          end
+        false ->
+          case c do
+            "\"" -> web_split_params(s, i + 1, start, true, acc)
+            ";" -> web_split_params(s, i + 1, i + 1, false, [slice(s, start, i - start) | acc])
+            _ -> web_split_params(s, i + 1, start, false, acc)
+          end
+      end
+  end
+end
+
+def web_params_in(segs: List, acc: Map) -> Map do
+  case segs do
+    [] -> acc
+    [seg | rest] ->
+      eq = index_of(seg, "=")
+      case eq <= 0 do
+        true -> web_params_in(rest, acc)
+        false -> web_params_in(rest, put(acc, downcase(trim(take(seg, eq))), web_unquote(trim(drop(seg, eq + 1)))))
+      end
+  end
+end
+
+# "\"a \\\"b\\\"\"" -> a "b"; an unquoted value as it is.
+def web_unquote(v: String) -> String do
+  case length(v) >= 2 and starts_with(v, "\"") and ends_with(v, "\"") do
+    false -> v
+    true -> replace(replace(slice(v, 1, length(v) - 2), "\\\"", "\""), "\\\\", "\\")
+  end
 end
 
 # ---------------------------------------------------------------- bad bytes
@@ -833,14 +1106,15 @@ end
 
 # A request routed to a handler here that must be refused before the
 # handler sees it, or nil. web_dispatch asks only once a route has matched.
-# Framing is Content-Length and nothing else: chunked is 411. A request
+# Framing is Content-Length and nothing else: chunked is 411, another
+# Transfer-Encoding 501. A request
 # with neither Content-Length nor Transfer-Encoding has a body of length
 # zero, whatever its method (RFC 9112 6.3); 919656d made a POST, PUT or
 # PATCH without one 411, and that refused the iOS app's report, which is a
 # POST with no body. Bytes after the body (Content-Length bytes, or none)
 # would be the next request. Every response closes its connection, so
 # there is no pipelining for them to be, and they are dropped unread.
-def web_frame_error(raw: String) -> Any do
+def web_frame_error(raw: String, cap: Int) -> Any do
   hend = index_of(raw, "\r\n\r\n")
   case hend < 0 do
     true ->
@@ -852,21 +1126,26 @@ def web_frame_error(raw: String) -> Any do
       # the same limit on a header block that arrived whole
       case hend > WEB_MAX_HEAD do
         true -> {431, "the request headers are too large"}
-        false -> web_body_error(raw, hend, web_headers(take(raw, hend)))
+        false -> web_body_error(raw, hend, web_headers(take(raw, hend)), cap)
       end
   end
 end
 
-def web_body_error(raw: String, hend: Int, headers: Map) -> Any do
+def web_body_error(raw: String, hend: Int, headers: Map, cap: Int) -> Any do
   cl = web_content_length(headers)
-  case lookup(headers, "transfer-encoding") != nil do
-    true -> {411, "chunked bodies are not accepted; send Content-Length"}
+  te = lookup(headers, "transfer-encoding")
+  case te != nil do
+    true ->
+      case contains(downcase(te), "chunked") do
+        true -> {411, "chunked bodies are not accepted; send Content-Length"}
+        false -> {501, concat("Transfer-Encoding ", te, " is not implemented")}
+      end
     false ->
       case cl == -2 do
         true -> {400, "Content-Length is not a number"}
         false ->
-          case cl > WEB_MAX_BODY do
-            true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
+          case cl > cap do
+            true -> {413, concat("the body is over ", to_string(cap), " bytes")}
             false ->
               case length(raw) - hend - 4 < max(cl, 0) do
                 true -> {408, "the body did not all arrive"}
@@ -911,7 +1190,7 @@ def web_dispatch(raw: String, req: Map, routes: List, secret: String) -> Any do
             true -> {431, "the request headers are too large"}
             false -> nil
           end
-        false -> web_frame_error(raw)
+        false -> web_frame_error(raw, route.max_body)
       end
       case framing do
         nil -> web_run(raw, req, route, pp, secret)
@@ -1073,7 +1352,9 @@ def web_demo_routes() -> List do
     web_route("POST", "/web/echo", WEB_BROWSER, web_echo_post),
     web_route("PATCH", "/web/echo/:id", WEB_BROWSER, web_echo_item),
     web_route("DELETE", "/web/echo/:id", WEB_BROWSER, web_echo_item),
-    web_route("POST", "/web/api/echo", WEB_API, web_echo_api)
+    web_route("POST", "/web/api/echo", WEB_API, web_echo_api),
+    # up to WEB_MAX_UPLOAD; changes nothing, so no token
+    web_max_body(web_route("POST", "/web/api/upload", [], web_echo_upload), WEB_MAX_UPLOAD)
   ]
 end
 
@@ -1104,6 +1385,15 @@ end
 
 def web_echo_item(conn: Map) -> Map do
   web_json(conn, 200, %{method: conn.method, id: web_param(conn, "id"), params: conn.params})
+end
+
+# What a multipart (or any) body arrived as: its fields, and for each file
+# its name, type, size and sha256, so a client can check every byte came.
+def web_echo_upload(conn: Map) -> Map do
+  files = map(conn.uploads, fn(u: Map) -> Map do
+    %{name: u.name, filename: u.filename, content_type: u.content_type, size: u.size, sha256: sha256(u.data)}
+  end)
+  web_json(conn, 200, %{bytes: length(conn.body), fields: conn.body_params, files: files})
 end
 
 def web_echo_api(conn: Map) -> Map do

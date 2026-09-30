@@ -159,6 +159,46 @@
 		}
 	}
 
+	# Requests with bodies. Caddy's handle_response re-send below cannot
+	# carry one: Blimp's reverse_proxy has already read the body, and the
+	# re-send to Phoenix goes out with Content-Length and no bytes, which is
+	# a 502 ("http: invalid Read on closed Body"; request_buffers does not
+	# change it; checked on caddy 2.11.4). So a POST, PATCH, PUT or DELETE
+	# never relies on the 404 fallback. Blimp gets exactly the method+path
+	# pairs it has routes for (src/41_web.blimp's WEB_ROUTES; every new one
+	# needs a line here, unless a block above already owns its path for
+	# every method: @blimp_admin, @blimp_post_comment, @blinks), and every
+	# other non-GET goes straight to Phoenix, body and all, even on a path
+	# @blimp takes for GET. These two sit below every owned-path block and
+	# above @blimp, because Caddy tries handle blocks in file order.
+	#
+	# request_buffers: Caddy reads the whole body (up to 10MB) from the
+	# client before sending it on, so Blimp's one thread reads it at
+	# loopback speed. Without it a client uploading slowly holds that
+	# thread, and every other request, for up to ~4 s (src/41_web.blimp,
+	# WEB_READ_MS). Measured with a 3 s trickle: 0.00 s upstream with the
+	# buffer, 3.03 s without. Chunked bodies are passed through chunked
+	# even so; Blimp answers them 411. No handle_response: a 404 here is
+	# Blimp's answer (no such receipt), not "not ported".
+	@blimp_write {
+		method POST
+		path /api/receipt_messages/*/printed /api/receipt_messages/*/failed /api/receipt_messages/*/retry
+	}
+	handle @blimp_write {
+		reverse_proxy blimp-blog:4100 {
+			request_buffers 10MB
+			lb_try_duration 20s
+			lb_try_interval 250ms
+		}
+	}
+	@phoenix_write not method GET HEAD
+	handle @phoenix_write {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+
 	# The blog, served by Blimp (blimp_site/ in the blog repo, the blimp-blog
 	# service). Only what it renders goes there: the desktop, the index, the
 	# posts and their stylesheets. A 404 from it -- a guest post, which lives in
