@@ -1,0 +1,219 @@
+# /blackjack: the page's program. It draws what the server sends and sends
+# back what was clicked.
+#
+# The game is not here. The tables are the server's Blackjack actor
+# (src/93_blackjack.blimp), because they are shared; the rules are Temper
+# (temper/src/blackjack). This is BlackjackLive's template, element for
+# element and class for class: play.js hands it every message from
+# /live/blackjack as `bj <- :state(json)`, and after each render takes
+# `bj <- :outbox`, the actions clicked since, and sends them up the socket.
+# Other players' cards arrive face down; there is nothing here to peek at.
+
+def bjv_btn(label: String, cls: String, msg: Atom) -> Any do
+  el("button", %{class: cls, click: msg}, label)
+end
+
+def bjv_card(text: String) -> Any do
+  el("div", %{class: "text-4xl bg-white text-black p-2 rounded shadow-md card card-emoji"}, text)
+end
+
+def bjv_lobby(s: Map) -> Any do
+  games = s.games
+  active = case length(games) > 0 do
+    false -> ""
+    true ->
+      el("div", %{class: "mb-6"},
+        el("h3", %{class: "text-xl font-bold mb-2"}, "Active Games:"),
+        el("div", %{class: "grid grid-cols-1 gap-4"}, map(games, fn(g: Map) -> Any do
+          el("div", %{class: "bg-green-800 p-4 rounded-lg"},
+            el("p", %{class: "mb-2"},
+              el("strong", %{}, "Host:"), concat(" ", g.host, " "),
+              el("span", %{class: "ml-4"}, el("strong", %{}, "Players:"), concat(" ", to_string(g.players)))),
+            el("div", %{class: "flex justify-end"},
+              el("button", %{class: "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded action-button", click: :join, with: g.id}, "Join Game")))
+        end)))
+  end
+  el("div", %{class: "bg-green-900 rounded-lg p-6 mb-8"},
+    el("h2", %{class: "text-2xl font-bold mb-4"}, "Game Lobby"),
+    el("div", %{class: "mb-6"},
+      el("label", %{class: "block mb-2"}, "Your Name:"),
+      el("form", %{class: "flex gap-2", submit: :set_name},
+        el("input", %{type: "text", name: "name", value: s.name, class: "px-3 py-2 rounded text-black flex-grow"}),
+        el("button", %{type: "submit", class: "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"}, "Update"))),
+    el("div", %{class: "mb-6"},
+      el("h3", %{class: "text-xl font-bold mb-2"}, "Players in Lobby:"),
+      el("ul", %{class: "list-disc pl-6"}, map(s.lobby, fn(p: Map) -> Any do
+        case p.you do
+          true -> el("li", %{class: "font-bold"}, concat(p.name, " (You)"))
+          false -> el("li", %{class: ""}, p.name)
+        end
+      end))),
+    active,
+    el("div", %{class: "flex justify-center"},
+      bjv_btn("Start New Game", "bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg text-lg font-bold action-button", :create)))
+end
+
+def bjv_player(p: Map) -> Any do
+  you = case p.you do
+    true -> " (You)"
+    false -> ""
+  end
+  buttons = case p.turn do
+    false -> ""
+    true ->
+      el("div", %{class: "mt-4 flex gap-3"},
+        bjv_btn("Hit", "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded action-button", :hit),
+        bjv_btn("Stand", "bg-red-600 hover:bg-red-700 px-4 py-2 rounded action-button", :stand))
+  end
+  el("div", %{class: concat("bg-green-800 p-4 rounded-lg border-2 ", p.border)},
+    el("h3", %{class: "text-lg font-bold mb-2 player-name"},
+      concat(p.name, you, " - Balance: "),
+      el("span", %{class: concat("chip chip-", to_string(p.chip))}, to_string(p.balance))),
+    el("div", %{class: "flex flex-wrap gap-2 mb-2 card-container"}, map(p.cards, fn(c: String) -> Any do bjv_card(c) end)),
+    el("div", %{}, p.note),
+    buttons)
+end
+
+def bjv_table(s: Map) -> Any do
+  t = s.table
+  message = case s.message do
+    "" -> ""
+    m -> el("div", %{class: "bg-yellow-600 text-white p-3 rounded mb-4 text-center font-bold result-message"}, m)
+  end
+  body = case t do
+    nil -> [el("div", %{class: "text-center py-8"}, "Waiting for the host to deal you in...")]
+    _ ->
+      over = case t.over do
+        false -> ""
+        true ->
+          el("div", %{class: "flex justify-center gap-4"},
+            bjv_btn("Play Again", "bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg text-lg font-bold action-button", :new_round),
+            bjv_btn("Return to Lobby", "bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded-lg text-lg font-bold action-button", :lobby))
+      end
+      [
+        el("div", %{class: "mb-8 dealer-area p-4"},
+          el("h2", %{class: "text-xl font-bold mb-4 player-name"}, "Dealer's Hand"),
+          el("div", %{class: "flex flex-wrap gap-2 mb-2"}, map(t.dealer.cards, fn(c: String) -> Any do bjv_card(c) end)),
+          el("div", %{}, t.dealer.note)),
+        el("div", %{class: "grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"}, map(t.players, fn(p: Map) -> Any do bjv_player(p) end)),
+        over
+      ]
+  end
+  el("div", %{class: "bg-green-900 rounded-lg p-6 mb-4 blackjack-table"}, [message | body])
+end
+
+def bjv_window(s: Any, connected: Bool) -> Any do
+  inner = case s do
+    nil -> el("div", %{class: "text-center py-8"}, "Connecting to the table...")
+    _ ->
+      case s.view do
+        "lobby" -> bjv_lobby(s)
+        _ -> bjv_table(s)
+      end
+  end
+  players = case s do
+    nil -> 0
+    _ -> s.count
+  end
+  status = case connected do
+    true -> "Ready"
+    false -> "Connecting..."
+  end
+  el("div", %{class: "os-desktop-win95"},
+    el("div", %{class: "os-window os-window-win95", style: "max-width: 900px;"},
+      el("div", %{class: "os-titlebar"},
+        el("span", %{class: "os-titlebar-title"}, "Blackjack - Microsoft Casino"),
+        el("div", %{class: "os-titlebar-buttons"},
+          el("span", %{class: "os-btn"}, "_"),
+          el("span", %{class: "os-btn"}, "□"),
+          el("a", %{href: "/", class: "os-btn"}, "×"))),
+      el("div", %{class: "os-menubar"},
+        el("span", %{}, "Game"), el("span", %{}, "Bet"), el("span", %{}, "Options"), el("span", %{}, "Help")),
+      el("div", %{class: "os-content", style: "background: #008000;"},
+        el("div", %{id: "blackjack-game", class: "min-h-[500px] bg-green-800 p-4 text-white"},
+          el("div", %{class: "max-w-4xl mx-auto"},
+            el("h1", %{class: "text-4xl font-bold mb-6 text-center"}, "Blackjack"),
+            inner))),
+      el("div", %{class: "os-statusbar"},
+        el("div", %{class: "os-statusbar-section"}, status),
+        el("div", %{class: "os-statusbar-section", style: "flex: 1;"}, concat("Players: ", to_string(players))))))
+end
+
+actor Table do
+  state s: Any :: nil
+  state connected: Bool :: false
+  state outbox: List :: []
+
+  on :state(json: String) do
+    case json_decode(json) do
+      {:ok, m} ->
+        become s: m, connected: true
+        reply :ok
+      _ ->
+        become connected: connected
+        reply :bad
+    end
+  end
+
+  on :offline do
+    become connected: false
+    reply :ok
+  end
+
+  # What was clicked, oldest first, for play.js to send; taking it empties it.
+  on :outbox do
+    out = reverse(outbox)
+    become outbox: []
+    reply out
+  end
+
+  on :create do
+    become outbox: [json_encode(%{t: "create"}) | outbox]
+    reply :ok
+  end
+
+  on :join(id: String) do
+    become outbox: [json_encode(%{t: "join", game: id}) | outbox]
+    reply :ok
+  end
+
+  on :hit do
+    become outbox: [json_encode(%{t: "hit"}) | outbox]
+    reply :ok
+  end
+
+  on :stand do
+    become outbox: [json_encode(%{t: "stand"}) | outbox]
+    reply :ok
+  end
+
+  on :new_round do
+    become outbox: [json_encode(%{t: "new_round"}) | outbox]
+    reply :ok
+  end
+
+  on :lobby do
+    become outbox: [json_encode(%{t: "lobby"}) | outbox]
+    reply :ok
+  end
+
+  # The name form: {"name": "..."} from the page.
+  on :set_name(fields: String) do
+    name = case json_decode(fields) do
+      {:ok, f} -> lookup(f, :name)
+      _ -> nil
+    end
+    case type_of(name) == :string do
+      true -> become outbox: [json_encode(%{t: "name", name: name}) | outbox]
+      false -> become outbox: outbox
+    end
+    reply :ok
+  end
+
+  on :view do
+    reply bjv_window(s, connected)
+  end
+end
+
+bj = spawn Table
+bj <- :view
