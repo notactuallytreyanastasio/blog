@@ -3,11 +3,13 @@
 # CSRF. What /blinks needs before it can leave Phoenix.
 #
 # A request reaches this file two ways (main.blimp's handle()):
-#   - any method but GET and HEAD, always;
+#   - any method but GET and HEAD, always, and first: the fixed table and
+#     dynamic() answer only GET and HEAD, so nothing else is asked;
 #   - a GET or HEAD that is not a fixed route, before dynamic().
 # web_handle() answers {wire, status, req} or nil, and nil only for a GET or
-# HEAD no route here claims, which then goes on to dynamic() exactly as
-# before. Every fixed route is answered before this file is asked anything.
+# HEAD no GET route here claims, which then goes on to dynamic() exactly as
+# before. A GET or HEAD to a fixed route is answered before this file is
+# asked anything; a POST to the same path is this file's alone.
 #
 # The conn is a map, as in Plug:
 #   method, path, query      from the request line ("POST", "/web/echo", "")
@@ -786,7 +788,7 @@ def web_session_secret() -> String do
     "" ->
       case prod do
         true ->
-          print("SESSION_SECRET is not set, and DATABASE_URL is: refusing to start with a guessable session key")
+          puts("SESSION_SECRET is not set, and DATABASE_URL is: refusing to start with a guessable session key")
           exit(1)
         false ->
           puts("SESSION_SECRET is not set: sessions are signed with the dev secret (DATABASE_URL is unset, so this is not production)")
@@ -795,7 +797,7 @@ def web_session_secret() -> String do
     _ ->
       case length(s) < 32 do
         true ->
-          print("SESSION_SECRET is under 32 bytes: refusing to start")
+          puts("SESSION_SECRET is under 32 bytes: refusing to start")
           exit(1)
         false -> s
       end
