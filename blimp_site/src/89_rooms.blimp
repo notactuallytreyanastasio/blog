@@ -21,7 +21,8 @@
 #   :patch(topic, fd, fields)     the same, merging fields into meta
 #   :leave(topic, fd) / :drop(fd) -> :ok / the topics it left
 #   :member(topic, fd) / :list(topic)
-#   :broadcast(topic, text) / :broadcast_from(fd, topic, text) / :send(fd, text)
+#   :broadcast(topic, text) / :broadcast_from(fd, topic, text)
+#   :send(fd, text)               to fd, joined to a topic or not
 #   :inbound(fd)                  -> :ok | :limited, for every frame received
 #   :flush                        -> %{sockets, frames, bytes, kicked}
 #
@@ -193,6 +194,19 @@ def rooms_cached(cache: Map, plain: List, names: List) -> Tuple do
       data = rooms_data(mine)
       {put(cache, k, {mine, data}), mine, data}
   end
+end
+
+# The sockets a :send names that are in no topic, as sockets in no topic,
+# so the flush delivers to them like any other: one write, the same bound.
+# They are not added to the socket table; a :send is not a join.
+def rooms_loose(entries: List, sockets: Map) -> List do
+  fds = reduce(entries, [], fn(acc: List, e: Map) -> List do
+    case e.to == nil or lookup(sockets, rooms_key(e.to)) != nil or rooms_has(acc, e.to) do
+      true -> acc
+      false -> list_append(acc, [e.to])
+    end
+  end)
+  map(fds, fn(fd: Int) -> Map do rooms_socket(fd, 0) end)
 end
 
 def rooms_data(entries: List) -> String do
@@ -416,6 +430,11 @@ actor Rooms do
     reply :ok
   end
 
+  # To fd alone, whether or not it has joined a topic: a page can be told
+  # something (who it is, why it was refused) before it joins anything.
+  # Before this, a :send to a socket in no topic was dropped without a word.
+  # The fd must still be open when the tick flushes, as for everything else
+  # here; after :drop, the caller must not :send to it.
   on :send(fd: Int, text: String) do
     become outbox: [rooms_entry(fd, "", nil, text) | outbox]
     reply :ok
@@ -458,7 +477,7 @@ actor Rooms do
         end)
         plain = filter(entries, fn(e: Map) -> Bool do e.to == nil and e.except == nil end)
         # {cache, kicked, sockets, frames, bytes, test frames: [{fd, texts}]}
-        r = reduce(values(sockets), {%{}, [], 0, 0, 0, []}, fn(acc: Tuple, s: Map) -> Tuple do
+        r = reduce(list_append(values(sockets), rooms_loose(entries, sockets)), {%{}, [], 0, 0, 0, []}, fn(acc: Tuple, s: Map) -> Tuple do
           one = case s.fd < 0 or lookup(named, rooms_key(s.fd)) != nil do
             true ->
               picked = filter(entries, fn(e: Map) -> Bool do rooms_for(e, s) end)

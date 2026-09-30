@@ -13,6 +13,14 @@ def rt_whos(members: List) -> List do
   map(members, fn(m: Map) -> String do m.who end)
 end
 
+# a string of 2^n copies of s
+def rt_rep(s: String, n: Int) -> String do
+  case n <= 0 do
+    true -> s
+    false -> rt_rep(concat(s, s), n - 1)
+  end
+end
+
 actor RoomsTests do
   test "a join is a member: who, since when, what they said, and a ref" do
     hub = spawn Rooms
@@ -184,6 +192,20 @@ actor RoomsTests do
     assert_eq(hub <- :sent(-2), ["{}"])
     assert_eq(rt_whos(hub <- :list("big")), ["bob"])
     assert_eq((hub <- :stats).kicked, 1)
+  end
+
+  test "a :send to a socket that has joined no topic is delivered, and it stays in no topic" do
+    hub = spawn Rooms
+    hub <- :send(-9, "{\"t\":\"hello\"}")
+    got = hub <- :flush
+    assert_eq(got.frames, 1)
+    assert_eq(got.sockets, 1)
+    assert_eq(rt_sent(hub, -9), [%{t: "hello"}])
+    assert_eq((hub <- :stats).sockets, [])
+    # over the per-socket bound it is kicked, as a member would be
+    hub <- :send(-9, rt_rep("x", 18))
+    assert_eq((hub <- :flush).kicked, [-9])
+    assert_eq(hub <- :sent(-9), [])
   end
 
   test "opening a topic again keeps its format and diffs unless new ones are given" do
