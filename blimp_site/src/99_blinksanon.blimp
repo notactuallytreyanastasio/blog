@@ -128,6 +128,10 @@ def blka_hash(id: String, secret: String) -> String do
 end
 
 # A string param with invalid UTF-8 replaced; anything else as it came.
+# 41_web.blimp's web_parse_body refuses a query, form or JSON body with
+# invalid UTF-8 before any plug runs, as Plug.Parsers does, so nothing this
+# is asked for can arrive unscrubbed today; a path param could, and none
+# is read through here.
 def blka_param(conn: Map, name: String) -> Any do
   v = web_param(conn, name)
   case type_of(v) == :string do

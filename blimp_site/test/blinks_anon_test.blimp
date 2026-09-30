@@ -279,6 +279,45 @@ actor BlinksAnonTests do
     assert_eq(bat_status(bat_send(routes, "OPTIONS", "/blinks-next/api/blinks/9/save", [], "")), 204)
   end
 
+  test "invalid UTF-8 in a form body or a query is Plug.Parsers' 400 from 41_web.blimp: \"Bad Request\", no CORS" do
+    routes = bat_routes()
+    form = fn(target: String, body: String) -> Tuple do
+      bat_send(routes, "POST", target, ["Content-Type: application/x-www-form-urlencoded", "X-Forwarded-For: 192.0.2.9"], body)
+    end
+    each([
+      form("/api/blinks/106/comments", "author_name=bytes&content=A%FFB&website=&post_token=x"),
+      form("/api/blinks/106/comments", concat("content=A", hex_decode("ff"), "B")),
+      form("/api/blinks/comments/1/report", "a%FF=1"),
+      form("/blinks-next/api/blinks/5/save", "device_id=device-abc-%C0%AF"),
+      bat_send(routes, "POST", "/api/blinks/comments/1/report?x=%FF", [], ""),
+      bat_send(routes, "GET", "/api/blinks/5/comments?x=%E2%82", [], "")
+    ], fn(got: Tuple) do
+      assert_eq(bat_status(got), 400)
+      assert_eq(bat_body(got), "Bad Request")
+      assert(contains(bat_head(got), "text/html; charset=utf-8"))
+      assert(contains(bat_head(got), "max-age=0, private, must-revalidate"))
+      assert(not(contains(downcase(bat_head(got)), "access-control-")))
+    end)
+    # valid UTF-8, encoded or raw, and a U+FFFD the client sent itself, go on
+    # to the handler (503 here: no database behind it)
+    ok = form("/api/blinks/comments/1/report", concat("n=%E2%9C%93&m=", hex_decode("e29c93"), "&r=%EF%BF%BD"))
+    assert_eq(bat_status(ok), 503)
+    # a bad JSON body is the same 400 (Plug.Parsers answers any JSON it
+    # cannot parse so)
+    bad_json = bat_json(routes, "POST", "/api/blinks/comments/1/report", "192.0.2.9", concat("{\"a\":\"", hex_decode("ff"), "\"}"))
+    assert_eq(bat_status(bad_json), 400)
+    assert_eq(bat_body(bad_json), "Bad Request")
+    # and with Accept: application/json Phoenix's render_errors answers in
+    # JSON (blka_bad_encoding, 30e5ad2, said html here, which was wrong)
+    j = form("/api/blinks/106/comments?_format=json", "content=A%FFB")
+    assert_eq(bat_status(j), 400)
+    assert_eq(bat_body(j), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    ja = bat_send(routes, "POST", "/api/blinks/comments/1/report", ["Accept: application/json", "Content-Type: application/x-www-form-urlencoded"], "a%FF=1")
+    assert_eq(bat_body(ja), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    assert(contains(bat_head(ja), "application/json; charset=utf-8"))
+    assert(not(contains(downcase(bat_head(ja)), "access-control-")))
+  end
+
   test "invalid UTF-8 arrives as U+FFFD" do
     c = put(web_conn(bat_raw("GET", "/", [], ""), parse_request(bat_raw("GET", "/", [], "")), "s"), :params, put(%{}, "content", hex_decode("41ff42")))
     assert_eq(blka_param(c, "content"), concat("A", hex_decode("efbfbd"), "B"))

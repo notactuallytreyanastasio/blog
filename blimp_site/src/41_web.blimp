@@ -558,35 +558,264 @@ end
 # a route matched, before its pipeline. A form or a JSON object becomes
 # body_params; any other JSON value is conn.json alone. Multipart is
 # refused by name (no uploads yet); an unknown type leaves the raw body.
+#
+# First, what Plug.Parsers refuses in the endpoint, before Phoenix's router
+# and so before any plug: a query string or a form whose decoded names or
+# values are not UTF-8, and a JSON body that does not parse. Each is
+# web_bad_request's 400, halted, so the route's pipeline never runs; a
+# plug that would have added CORS headers or checked a CSRF token does not
+# get to. A path segment is not checked: Phoenix's router decodes it with
+# URI.decode and hands the bytes to the controller as they are
+# (DELETE /api/blinks/1/tags/%FF is a 200 there that removes nothing).
 def web_parse_body(conn: Map) -> Map do
+  query_ok = web_form_utf8(conn.query)
   ct = downcase(web_header(conn, "content-type"))
-  parsed = case conn.body == "" do
-    true -> conn
-    false ->
-      case starts_with(ct, "application/x-www-form-urlencoded") do
-        true -> put(conn, :body_params, web_decode_form(conn.body))
+  parsed = case query_ok do
+    false -> web_bad_request(conn, false)
+    true ->
+      case conn.body == "" do
+        true -> conn
         false ->
-          case starts_with(ct, "application/json") do
+          case starts_with(ct, "application/x-www-form-urlencoded") do
             true ->
-              decoded = json_decode(conn.body)
-              case decoded do
-                {:ok, v} ->
-                  with_json = put(conn, :json, v)
-                  case type_of(v) do
-                    :map -> put(with_json, :body_params, v)
-                    _ -> with_json
-                  end
-                {:error, reason} -> web_refuse(conn, 400, concat("the body is not JSON: ", reason))
+              case web_form_utf8(conn.body) do
+                true -> put(conn, :body_params, web_decode_form(conn.body))
+                false -> web_bad_request(conn, true)
               end
             false ->
-              case starts_with(ct, "multipart/") do
-                true -> web_refuse(conn, 415, "multipart bodies are not supported")
-                false -> conn
+              case starts_with(ct, "application/json") do
+                # json_decode refuses invalid UTF-8 in a string or a key,
+                # and a \ud800 with no pair, as Jason does; Plug answers
+                # every JSON that does not parse the same way, UTF-8 or not
+                true ->
+                  decoded = json_decode(conn.body)
+                  case decoded do
+                    {:ok, v} ->
+                      with_json = put(conn, :json, v)
+                      case type_of(v) do
+                        :map -> put(with_json, :body_params, v)
+                        _ -> with_json
+                      end
+                    {:error, reason} -> web_bad_request(conn, true)
+                  end
+                false ->
+                  case starts_with(ct, "multipart/") do
+                    true -> web_refuse(conn, 415, "multipart bodies are not supported")
+                    false -> conn
+                  end
               end
           end
       end
   end
   put(parsed, :params, merge(merge(parsed.query_params, parsed.body_params), parsed.path_params))
+end
+
+# ---------------------------------------------------------------- bad bytes
+
+# Every name and value of a=b&c=d text, decoded, is UTF-8. One check of the
+# whole text decoded is the same answer: & and = are ASCII, a valid
+# multi-byte sequence has no ASCII byte in it, so cutting at them never
+# splits one, and a sequence broken on either side of a cut is still
+# broken with the cut put back. So %C3&b=%A9 is refused, as Plug refuses
+# its two halves; and x=%FF&x=ok is refused, although web_decode_form
+# keeps only the last x. A stray % is kept as written, as Plug keeps it
+# (a=%ZZ is a 200 from Phoenix). Text with no % decodes to itself with +
+# made a space, and + is ASCII, so its bytes are checked as they are: the
+# decode is the dear part. On 896614f, 852 KB of "ab%E2%9C%93cd": 585 ms to
+# check, then 630 ms for web_decode_form, so a body of nearly all %XX costs
+# twice what it did; 1.3 MB of raw UTF-8 and +: 5 ms, then 11 ms.
+def web_form_utf8(text: String) -> Bool do
+  case contains(text, "%") do
+    true -> web_utf8_valid(web_url_decode(text))
+    false -> web_utf8_valid(text)
+  end
+end
+
+# utf8_valid is Blimp #72. The interpreter in production (896614f) does not
+# have it, and there json_encode is the check: it runs
+# std.unicode.utf8ValidateSlice on every string it writes and raises
+# TypeError when that fails, which builtins.zig lists as part of what it
+# does. Both are native and one pass. A byte loop here would be one
+# interpreted step per byte of a body that may be 1 MiB, with this sitting
+# next to it. Both reject what String.valid? does: overlongs, surrogates
+# (ED A0 80), past U+10FFFF, a sequence cut short.
+def web_utf8_valid(s: String) -> Bool do
+  case WEB_UTF8_NATIVE do
+    true -> utf8_valid(s)
+    false -> web_utf8_valid_json(s)
+  end
+end
+
+def web_utf8_valid_json(s: String) -> Bool do
+  try do
+    json_encode(s)
+    true
+  catch e do
+    false
+  end
+end
+
+# An unknown function is an error at the call, not at load, and it can be
+# caught; so ask once.
+def web_has_utf8_valid() -> Bool do
+  try do
+    utf8_valid("")
+  catch e do
+    false
+  end
+end
+
+WEB_UTF8_NATIVE = web_has_utf8_valid()
+
+# What Plug puts on a response it answers itself.
+WEB_PLUG_CACHE = "max-age=0, private, must-revalidate"
+
+# Plug.Parsers' 400 as production draws it: the endpoint's render_errors
+# with debug_errors off (dev draws a 73 KB Plug.Debugger page instead).
+# Measured against Phoenix on :4185, from a copy of the site with
+# debug_errors: false:
+#     Accept: application/json -> 400 application/json; charset=utf-8
+#         {"errors":{"detail":"Bad Request"}}
+#     no Accept, */*, text/html -> 400 text/html; charset=utf-8
+#         Bad Request
+# both with cache-control: max-age=0, private, must-revalidate and nothing
+# else of the route's: no CORS headers, no session cookie.
+def web_bad_request(conn: Map, query_ok: Bool) -> Map do
+  sent = case web_error_format(conn, query_ok) do
+    "json" -> web_send(conn, 400, "application/json; charset=utf-8", "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    _ -> web_send(conn, 400, "text/html; charset=utf-8", "Bad Request")
+  end
+  web_halt(put(sent, :cache, WEB_PLUG_CACHE))
+end
+
+# "html" or "json", as Phoenix 1.7.19's Controller.accepts/2 picks between
+# render_errors' [html, json]. A _format in the query wins, when the query
+# could be read (a bad query leaves render_errors no params); one that is
+# neither is NotAcceptableError, and render_errors falls back to html.
+def web_error_format(conn: Map, query_ok: Bool) -> String do
+  f = case query_ok do
+    true -> lookup(conn.query_params, "_format")
+    false -> nil
+  end
+  case f do
+    nil -> web_accept_format(web_header(conn, "accept"))
+    "json" -> "json"
+    _ -> "html"
+  end
+end
+
+# Any */* in the header means a browser, and html. Otherwise the first
+# entry at q=1 that names html or json decides; failing that, the highest
+# q that does, ties going to the entry whose text sorts first (Elixir sorts
+# {-q, entry, exts}), and failing that html. text/* is html,
+# application/* json.
+def web_accept_format(h: String) -> String do
+  case h == "" or contains(h, "*/*") do
+    true -> "html"
+    false -> web_accept_pick(split(h, ","), [])
+  end
+end
+
+def web_accept_pick(entries: List, acc: List) -> String do
+  case entries do
+    [] -> web_accept_best(acc, nil)
+    [e | rest] ->
+      m = web_media_format(e)
+      case m do
+        nil -> web_accept_pick(rest, acc)
+        _ ->
+          case elem(m, 1) >= 1 and elem(m, 1) <= 1 and elem(m, 0) != "" do
+            true -> elem(m, 0)
+            false -> web_accept_pick(rest, [{elem(m, 1), e, elem(m, 0)} | acc])
+          end
+      end
+  end
+end
+
+def web_accept_best(acc: List, best: Any) -> String do
+  case acc do
+    [] ->
+      case best do
+        nil -> "html"
+        _ -> elem(best, 2)
+      end
+    [c | rest] ->
+      better = elem(c, 2) != "" and (best == nil or elem(c, 0) > elem(best, 0) or (elem(c, 0) >= elem(best, 0) and head(sort([elem(c, 1), elem(best, 1)])) == elem(c, 1)))
+      case better do
+        true -> web_accept_best(rest, c)
+        false -> web_accept_best(rest, best)
+      end
+  end
+end
+
+# One Accept entry: {"html" | "json" | "", q}, or nil when it is not a
+# type/subtype at all (Plug.Conn.Utils.media_type's :error, skipped).
+def web_media_format(entry: String) -> Any do
+  parts = split(entry, ";")
+  ts = split(downcase(trim(head(parts))), "/")
+  case length(ts) == 2 and head(ts) != "" and last(ts) != "" do
+    false -> nil
+    true ->
+      t = head(ts)
+      sub = last(ts)
+      fmt = case sub == "*" do
+        true ->
+          case t do
+            "text" -> "html"
+            "application" -> "json"
+            _ -> ""
+          end
+        false ->
+          case concat(t, "/", sub) do
+            "text/html" -> "html"
+            "application/json" -> "json"
+            _ -> ""
+          end
+      end
+      {fmt, reduce(tail(parts), 1, fn(q: Any, p: String) -> Any do web_q_param(q, p) end)}
+  end
+end
+
+# q=N; the last one wins, as Plug's params map keeps it. Float.parse reads
+# the longest number off the front and ignores the rest; one it cannot read
+# at all is 1.0. Here the front is the longest prefix json_decode reads as a
+# number, after a leading + (JSON has none; Float.parse takes one): "0.5x",
+# "0.5e" and "+0.5" are 0.5, "x" and ".5" are 1, as there.
+def web_q_param(q: Any, p: String) -> Any do
+  eq = index_of(p, "=")
+  case eq > 0 and downcase(trim(take(p, eq))) == "q" do
+    false -> q
+    true ->
+      v = trim(drop(p, eq + 1))
+      unsigned = case starts_with(v, "+") do
+        true -> drop(v, 1)
+        false -> v
+      end
+      web_q_number(web_number_prefix(unsigned, 0))
+  end
+end
+
+def web_q_number(v: String) -> Any do
+  case v do
+    "" -> 1
+    _ ->
+      got = json_decode(v)
+      case got do
+        {:ok, n} ->
+          case type_of(n) == :integer or type_of(n) == :float do
+            true -> n
+            false -> web_q_number(take(v, length(v) - 1))
+          end
+        _ -> web_q_number(take(v, length(v) - 1))
+      end
+  end
+end
+
+def web_number_prefix(v: String, i: Int) -> String do
+  case i < length(v) and contains("0123456789.eE-", char_at(v, i)) do
+    true -> web_number_prefix(v, i + 1)
+    false -> take(v, i)
+  end
 end
 
 # ---------------------------------------------------------------- running
