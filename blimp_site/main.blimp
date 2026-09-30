@@ -166,6 +166,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     # the title names the seed in the URL; the files are src/94_art.blimp's
     "/art" -> response(200, "text/html; charset=utf-8", "public, max-age=300", art_page(req.query))
     "/art/art.blimp" -> ART_PROGRAM
+    # Chess-9 (src/96_chess_lv.blimp): the page, its program and its css
+    "/chess-lv" -> CHESS_LV_PAGE
+    "/chess-lv/chess_lv.blimp" -> CHESS_LV_PROGRAM
+    "/chess-lv/chess_lv.css" -> CHESS_LV_CSS
     "/work-log" ->
       page = work_log_page()
       case page do

@@ -1,0 +1,203 @@
+# needs: static/chess_lv/chess_lv.blimp
+#
+# Chess-9's rules (temper/src/chess_lv) against Blog.Chess itself: the
+# positions in test/fixtures/chess_lv/positions.txt were written by the
+# Elixir on origin/main (test/fixtures/chess_lv/positions.exs), and each one's
+# legal moves, in order, its evaluation and the position after the move
+# played must come out the same here.
+
+CHLT_DIGITS = "0123456789abcdefghijklmnopqrstuv"
+
+def chlt_ints(s: String) -> List do
+  map(split(s, ","), fn(x: String) -> Int do to_int(x) end)
+end
+
+def chlt_king(rows: List, c: Int, b: Int) -> List do
+  ox = rem(b, 3) * 8
+  oy = (b / 3) * 8
+  hits = filter(range(0, 63), fn(i: Int) -> Bool do
+    p = elem(elem(rows, oy + i / 8), ox + rem(i, 8))
+    p != 0 and rem(p, 16) == 6 + 8 * c
+  end)
+  case hits do
+    [] -> [-1, -1]
+    [i | _] -> [ox + rem(i, 8), oy + i / 8]
+  end
+end
+
+# A fixture position as the Temper's game value (the kings found by
+# looking, the material counted).
+def chlt_decode(line: String) -> List do
+  parts = split(line, " ")
+  plane = elem(parts, 0)
+  rows = map(range(0, 23), fn(y: Int) -> List do
+    map(range(0, 23), fn(x: Int) -> Int do index_of(CHLT_DIGITS, slice(plane, y * 24 + x, 1)) end)
+  end)
+  kings = flat(flat(map(range(0, 1), fn(c: Int) -> List do
+    map(range(0, 8), fn(b: Int) -> List do chlt_king(rows, c, b) end)
+  end)))
+  meta = flat([chlt_ints(elem(parts, 1)), [ch_material(rows)]])
+  flat([rows, [meta, chlt_ints(elem(parts, 2)), chlt_ints(elem(parts, 3)), chlt_ints(elem(parts, 4)), kings]])
+end
+
+def chlt_join(xs: List) -> String do
+  join(map(xs, fn(x: Int) -> String do to_string(x) end), ",")
+end
+
+def chlt_encode(st: List) -> String do
+  plane = join(map(range(0, 23), fn(y: Int) -> String do
+    join(map(elem(st, y), fn(p: Int) -> String do slice(CHLT_DIGITS, p, 1) end), "")
+  end), "")
+  m = elem(st, 24)
+  join([plane, chlt_join([elem(m, 0), elem(m, 1), elem(m, 2), elem(m, 3)]), chlt_join(elem(st, 25)), chlt_join(elem(st, 26)), chlt_join(elem(st, 27))], " ")
+end
+
+def chlt_move(m: List) -> String do
+  chlt_join([elem(m, 0), elem(m, 1), elem(m, 2), elem(m, 3), elem(m, 4), elem(m, 6), elem(m, 7), elem(m, 8)])
+end
+
+def chlt_lines() -> List do
+  filter(split(read_file("test/fixtures/chess_lv/positions.txt"), "\n"), fn(l: String) -> Bool do
+    length(l) > 0 and slice(l, 0, 1) != "#"
+  end)
+end
+
+def chlt_field(line: String) -> String do
+  slice(line, 2, length(line))
+end
+
+# The fixture's blocks: [S, E, L, M, N] each.
+def chlt_blocks() -> List do
+  ls = filter(chlt_lines(), fn(l: String) -> Bool do slice(l, 0, 1) != "B" and slice(l, 0, 1) != "R" end)
+  map(range(0, length(ls) / 5 - 1), fn(i: Int) -> List do
+    map(range(0, 4), fn(k: Int) -> String do chlt_field(elem(ls, i * 5 + k)) end)
+  end)
+end
+
+def chlt_find(ms: List, text: String) -> List do
+  hit = filter(ms, fn(m: List) -> Bool do chlt_move(m) == text end)
+  case hit do
+    [] -> []
+    [m | _] -> m
+  end
+end
+
+actor ChessLvTests do
+  test "the start: nine armies, white to move, 20 moves on each board" do
+    st = ch_initial()
+    assert_eq(length(st), 29)
+    assert_eq(elem(st, 24), [0, -1, -1, 0, 0])
+    assert_eq(length(ch_legal_moves(st)), 180)
+    assert_eq(join(map(range(0, 3), fn(x: Int) -> String do ch_glyph(elem(elem(st, 7), x)) end), ""), "♖♘♗♕")
+    assert_eq(chlt_move(ch_find(st, 4, 6, 4, 4)), "1,4,6,4,4,0,0,0")
+    assert_eq(ch_find(st, 4, 6, 4, 3), [])
+    assert_eq(elem(ch_apply(st, ch_find(st, 4, 6, 4, 4)), 24), [1, 4, 5, 1, 0])
+  end
+
+  test "every fixture position: the Elixir's legal moves in its order, its evaluation, and the position after" do
+    each(chlt_blocks(), fn(b: List) -> Any do
+      st = chlt_decode(elem(b, 0))
+      assert_eq(chlt_encode(st), elem(b, 0))
+      tm = elem(elem(st, 24), 0)
+      assert_eq("#{ch_evaluate(st, tm)} #{ch_evaluate(st, 1 - tm)} #{ch_leaf(st, tm)}", elem(b, 1))
+      legal = ch_legal_moves(st)
+      text = join(map(legal, fn(m: List) -> String do chlt_move(m) end), " ")
+      assert_eq("#{length(legal)} #{sha256(text)}", elem(b, 2))
+      m = chlt_find(legal, elem(b, 3))
+      refute(m == [])
+      assert_eq(chlt_encode(ch_apply(st, m)), elem(b, 4))
+    end)
+  end
+
+  test "the quick legality test says what building the position says, for every pseudo-legal move" do
+    each(chlt_blocks(), fn(b: List) -> Any do
+      st = chlt_decode(elem(b, 0))
+      c = elem(elem(st, 24), 0)
+      chk = ch_checks(st, c)
+      # a frozen board keeps its king in check (mate), but no move reaches it
+      live = map(range(0, 8), fn(b: Int) -> Int do
+        case ch_frozen(elem(elem(st, 25), b)) do
+          true -> 0
+          false -> elem(chk, b)
+        end
+      end)
+      assert_eq(live, map(range(0, 8), fn(b: Int) -> Int do
+        case ch_frozen(elem(elem(st, 25), b)) do
+          true -> 0
+          false -> elem(ch_status_checks(st, c), b)
+        end
+      end))
+      each(ch_pseudo(st, c), fn(m: List) -> Any do
+        assert_eq(ch_illegal(st, m, chk), ch_leaves_check(st, m))
+      end)
+    end)
+  end
+
+  test "the crossing bonus found by walking only crossings is the sum over every pseudo-legal move" do
+    each(chlt_blocks(), fn(b: List) -> Any do
+      st = chlt_decode(elem(b, 0))
+      each([0, 1], fn(c: Int) -> Any do
+        credits = sum(map(range(0, 8), fn(bd: Int) -> Int do
+          sum(map(range(0, 4), fn(t: Int) -> Int do elem(elem(st, 27), bd * 10 + c * 5 + t) end))
+        end))
+        slow = case credits do
+          0 -> 0
+          _ -> credits * 256 + sum(map(ch_pseudo(st, c), fn(m: List) -> Int do ch_cross_bonus(st, m, c) end))
+        end
+        assert_eq(ch_threat(st, c), slow)
+      end)
+    end)
+  end
+
+  test "a click on a promotion square promotes to a knight, as find_legal_move did" do
+    b = elem(chlt_blocks(), 3)
+    st = chlt_decode(elem(b, 0))
+    played = chlt_ints(elem(b, 3))
+    m = ch_find(st, elem(played, 1), elem(played, 2), elem(played, 3), elem(played, 4))
+    assert_eq(elem(m, 0), 3)
+    assert_eq(elem(m, 8), 2)
+    assert_eq(ch_type(elem(m, 13)), 2)
+  end
+
+  test "the bot's one-ply root is Blog.Chess.Bot's, move for move and score for score" do
+    ls = chlt_lines()
+    st = chlt_decode(chlt_field(head(filter(ls, fn(l: String) -> Bool do slice(l, 0, 1) == "B" end))))
+    want = chlt_field(head(filter(ls, fn(l: String) -> Bool do slice(l, 0, 1) == "R" end)))
+    moves = ch_legal_moves(st)
+    scores = map(moves, fn(m: List) -> Int do ch_shallow(st, m) end)
+    got = join(map(ch_by_score(scores), fn(i: Int) -> String do "#{i}:#{elem(scores, i)}" end), " ")
+    assert_eq(concat("1 ", got), want)
+  end
+
+  test "clicks: select a pawn, its two squares, move it; then the bot answers" do
+    g = spawn ChessLv
+    g <- :new_game
+    g <- :close_rules
+    assert_eq(g <- :click(6 * 24 + 4), :selected)
+    assert_eq(g <- :click(6 * 24 + 4), :deselected)
+    assert_eq(g <- :click(0), :deselected)
+    assert_eq(g <- :click(6 * 24 + 4), :selected)
+    assert_eq(g <- :click(4 * 24 + 4), :moved)
+    assert_eq(g <- :click(6 * 24 + 3), :ignored)
+    assert_eq(elem(elem(g <- :game, 24), 0), 1)
+    steps = reduce(range(1, 40), [], fn(acc: List, i: Int) -> List do
+      [g <- :bot_step | acc]
+    end)
+    assert_eq(length(filter(steps, fn(r: Any) -> Bool do r == :played end)), 1)
+    assert_eq(elem(elem(g <- :game, 24), 0), 0)
+    assert_eq(elem(elem(g <- :game, 24), 3), 2)
+  end
+
+  test "the page: rules first, then all 576 squares" do
+    g = spawn ChessLv
+    g <- :new_game
+    first = to_html(g <- :view)
+    assert(contains(first, "CROSSING RULE"))
+    g <- :drawn
+    g <- :close_rules
+    page = to_html(g <- :view)
+    assert_eq(length(split(page, "class=\"sq\"")) - 1, 576)
+    assert(contains(page, "your turn (white)"))
+    assert(contains(page, "white 0"))
+  end
+end

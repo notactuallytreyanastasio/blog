@@ -1,0 +1,306 @@
+/* /chess-lv: ChessLive's inline <style>, as it was, so the Blimp page
+   (static/chess_lv/chess_lv.blimp) draws with the same rules. */
+.chess-page {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  color: #e0e0e0;
+}
+
+.mac-window {
+  background: #2a2a3e;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
+  overflow: hidden;
+  width: 100%;
+  max-width: 920px;
+}
+
+.mac-titlebar {
+  background: linear-gradient(180deg, #3a3a4e 0%, #2a2a3e 100%);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mac-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.mac-dot-red   { background: #ff5f57; }
+.mac-dot-yellow{ background: #febc2e; }
+.mac-dot-green { background: #28c840; }
+
+.mac-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: #aaa;
+  letter-spacing: 0.05em;
+}
+
+.mac-body {
+  padding: 20px;
+}
+
+.chess-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.game-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #c8c8e8;
+  letter-spacing: 0.1em;
+}
+
+.new-game-btn {
+  background: linear-gradient(135deg, #3a7bd5, #00d2ff);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: opacity 0.15s;
+}
+.new-game-btn:hover { opacity: 0.85; }
+
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.score-label { color: #888; }
+
+.score-white {
+  background: #f0f0f0;
+  color: #111;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-weight: bold;
+}
+
+.score-black {
+  background: #222;
+  color: #f0f0f0;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-weight: bold;
+}
+
+.score-pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 3px;
+}
+
+.status-line {
+  font-size: 12px;
+  color: #aac;
+  margin-bottom: 14px;
+  min-height: 18px;
+}
+
+/* 3x3 super-grid */
+.super-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.board-cell {
+  position: relative;
+}
+
+.board-cell-bot-moved {
+  animation: bot-board-pulse 1.2s ease-out;
+}
+
+@keyframes bot-board-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.8); border-radius: 4px; }
+  50%  { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0.3); border-radius: 4px; }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); border-radius: 4px; }
+}
+
+/* Each individual 8x8 board */
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+/* Individual squares */
+.sq {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  aspect-ratio: 1;
+}
+
+.sq:hover { filter: brightness(1.15); }
+
+.sq-piece {
+  font-size: clamp(10px, 2.2vw, 22px);
+  line-height: 1;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.piece-white {
+  color: #fff;
+  text-shadow:
+    0 0 2px #000,
+    0 0 2px #000,
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
+}
+
+.piece-black {
+  color: #1a1a1a;
+  text-shadow:
+    0 0 2px rgba(255,255,255,0.6),
+    1px 1px 0 rgba(255,255,255,0.4);
+}
+
+/* Overlays */
+.sq-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.overlay-selected {
+  background: rgba(245, 158, 11, 0.55);
+}
+
+/* Client-side selection/target highlights set via data attributes by JS hook */
+.sq[data-selected="1"] { background: rgba(245, 158, 11, 0.55) !important; }
+.sq[data-legal="1"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0,200,100,0.55) 28%, transparent 30%);
+  z-index: 3;
+}
+
+.overlay-last-move {
+  background: rgba(59, 130, 246, 0.4);
+}
+
+.overlay-legal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.legal-dot {
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.7);
+  z-index: 1;
+}
+
+/* Frozen board overlay */
+.board-frozen-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.frozen-label {
+  background: rgba(20,20,30,0.9);
+  color: #e0e0f0;
+  font-size: clamp(8px, 1.2vw, 12px);
+  padding: 3px 7px;
+  border-radius: 4px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.bot-indicator {
+  font-size: 12px;
+  color: #febc2e;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.game-over-banner {
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+
+.game-over-white {
+  background: linear-gradient(135deg, rgba(240,240,200,0.15), rgba(240,240,200,0.05));
+  color: #f0f0c8;
+  border: 1px solid rgba(240,240,200,0.3);
+}
+
+.game-over-black {
+  background: linear-gradient(135deg, rgba(100,100,200,0.15), rgba(100,100,200,0.05));
+  color: #c8c8f0;
+  border: 1px solid rgba(100,100,200,0.3);
+}
+
+.game-over-draw {
+  background: linear-gradient(135deg, rgba(150,150,150,0.15), rgba(150,150,150,0.05));
+  color: #d0d0d0;
+  border: 1px solid rgba(150,150,150,0.3);
+}
+
+@media (max-width: 600px) {
+  .super-grid { gap: 6px; }
+  .mac-body { padding: 12px; }
+}

@@ -1,0 +1,25 @@
+# /chess-lv: Chess-9 against a bot, the page ChessLive served. The game
+# runs in the browser (static/chess_lv/chess_lv.blimp, with its rules in
+# temper/src/chess_lv); the server sends the page, the program and the
+# stylesheet, all read once at boot. One game per visitor, as it was: the
+# LiveView kept each socket's game to itself and broadcast nothing.
+
+def chess_lv_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+def chess_lv_page() -> String do
+  app_page("Chess-9",
+    "Nine chess boards in a 3x3 grid. Pieces may cross board boundaries when credits have been earned. Win by checkmating the opponent on more boards.",
+    [APP_CSS, "/chess-lv/chess_lv.css"], "", "/chess-lv/chess_lv.blimp", "chess")
+end
+
+CHESS_LV_PAGE = response(200, "text/html; charset=utf-8", "no-cache", chess_lv_page())
+CHESS_LV_PROGRAM = chess_lv_asset("_build/chess_lv.blimp", "text/plain; charset=utf-8")
+CHESS_LV_CSS = chess_lv_asset("assets/chess_lv.css", "text/css; charset=utf-8")
