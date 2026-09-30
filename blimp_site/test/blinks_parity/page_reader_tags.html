@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="MltWAhQAKicCNAVpAwICY3Y4fVsQAWEL_v1pfXDscmVDOFs64j-0g02f">
+    <title>Blinks reader</title>
+    <meta name="description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:title" content="Blinks: Bobbby's links">
+    <meta property="og:description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bobbby.online/blinks">
+    <meta property="og:image" content="https://bobbby.online/static/blinks-og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="bobbby.online">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Blinks: Bobbby's links">
+    <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png">
+
+    <link rel="manifest" href="/static/blinks-pwa/manifest.json">
+    <link rel="apple-touch-icon" href="/static/blinks-pwa/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/blinks-pwa/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Blinks">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f5f2ea">
+    <link phx-track-static rel="stylesheet" href="/assets/app-3cfac71d5552d1426de906087a8be2fe.css?vsn=d">
+    <script defer phx-track-static type="text/javascript" src="/assets/app-7afeaa4605879f3254ad239dc57c0a34.js?vsn=d">
+    </script>
+  </head>
+  <body style="margin:0;">
+    <div id="phx-GNn-g5UUE6fr74_h" data-phx-main data-phx-session="SFMyNTY.g2gDaAJhBXQAAAAIdwJpZG0AAAAUcGh4LUdObi1nNVVVRTZmcjc0X2h3B3Nlc3Npb250AAAAAHcEdmlld3cfRWxpeGlyLkJsb2dXZWIuQmxpbmtzUmVhZGVyTGl2ZXcKcGFyZW50X3BpZHcDbmlsdwZyb3V0ZXJ3FUVsaXhpci5CbG9nV2ViLlJvdXRlcncJcm9vdF92aWV3dx9FbGl4aXIuQmxvZ1dlYi5CbGlua3NSZWFkZXJMaXZldwxsaXZlX3Nlc3Npb25oAncGYmxpbmtzbggAXrb6QpXU2Rh3CHJvb3RfcGlkdwNuaWxuBgCTAY3woAFiAAFRgA.5FuE4H_Y787Sk470G_Rol6XKuT1UzP9twmaBEUZduJ4" data-phx-static="SFMyNTY.g2gDaAJhBXQAAAADdwJpZG0AAAAUcGh4LUdObi1nNVVVRTZmcjc0X2h3BWZsYXNodAAAAAB3CmFzc2lnbl9uZXdqbgYAkwGN8KABYgABUYA.4KdBdRqzkh_aUnjYQEbJ_cK-iybDgOZRaJ32d5GWl3s"><div id="blinks-reader">
+  <style>
+    #blinks-reader, #blinks-reader *, #blinks-reader *::before, #blinks-reader *::after { box-sizing: border-box; }
+    #blinks-reader { font: 12px verdana, arial, helvetica, sans-serif; color: #000; background: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    #blinks-reader a { text-decoration: none; }
+
+    #blinks-reader .masthead { flex-shrink: 0; background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 4px 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    #blinks-reader .masthead h1 { font-size: 15px; font-weight: bold; letter-spacing: -0.5px; margin: 0; display: inline; }
+    #blinks-reader .masthead h1 span { color: #ff4500; }
+    #blinks-reader .dateline { color: #369; font-size: 10px; }
+    #blinks-reader .tabs { display: flex; gap: 3px; align-self: flex-end; margin-bottom: -5px; }
+    #blinks-reader .tabs .tab { font-size: 11px; font-weight: bold; color: #369; background: #b9d2ec; border: 1px solid #5f99cf; border-bottom: none; border-radius: 3px 3px 0 0; padding: 2px 10px; }
+    #blinks-reader .tabs .tab.on { background: #fff; color: #ff4500; }
+    #blinks-reader .searchform { margin-left: auto; }
+    #blinks-reader .searchform input[type="text"] { border: 1px solid #5f99cf; font-size: 12px; padding: 2px 4px; width: 220px; }
+
+    #blinks-reader .railbar { flex-shrink: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 10px; border-bottom: 1px solid #e2e2e2; font-size: 10px; color: #888; }
+    #blinks-reader .railbar .tag { color: #369; background: #eef4fb; border: 1px solid #d5e4f5; border-radius: 2px; padding: 0 4px; cursor: pointer; white-space: nowrap; }
+    #blinks-reader .railbar .tag:hover { border-color: #5f99cf; }
+    #blinks-reader .railbar .tag.on { background: #ff4500; border-color: #ff4500; color: #fff; }
+    #blinks-reader .railbar .tag .tcount { color: #aaa; margin-left: 3px; }
+    #blinks-reader .railbar .tag.on .tcount { color: #ffd9c9; }
+    #blinks-reader .railbar .sep { color: #ccc; }
+    #blinks-reader .railbar .ctl { color: #369; cursor: pointer; }
+    #blinks-reader .railbar .ctl.on { color: #ff4500; font-weight: bold; }
+
+    /* the contact sheet: as many columns as the window will hold */
+    #blinks-reader .sheet { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 10px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 8px 14px; align-content: start; }
+    #blinks-reader .card { border: 1px solid #e2e2e2; border-radius: 2px; padding: 6px 8px 7px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    #blinks-reader .card:hover { border-color: #5f99cf; }
+    #blinks-reader .card.dead { filter: grayscale(1); opacity: 0.55; }
+
+    #blinks-reader .toprow { display: flex; align-items: baseline; gap: 5px; font-size: 10px; color: #888; min-width: 0; }
+    #blinks-reader .toprow .rank { color: #bbb; font-weight: bold; }
+    #blinks-reader .toprow .favicon { width: 11px; height: 11px; vertical-align: -1px; }
+    #blinks-reader .toprow .site { color: #369; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #blinks-reader .toprow .when { margin-left: auto; white-space: nowrap; color: #bbb; }
+
+    #blinks-reader .title { color: #0000ff; font-size: 12px; font-weight: bold; line-height: 1.35; overflow-wrap: anywhere; }
+    #blinks-reader .title:visited { color: #551a8b; }
+    #blinks-reader .card.dead .title { color: #666; }
+    #blinks-reader .subtitle { color: #333; font-size: 11px; line-height: 1.35; }
+    #blinks-reader .desc { color: #555; font-size: 11px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    #blinks-reader .bquote { color: #666; font-size: 10px; line-height: 1.35; border-left: 2px solid #ddd; padding-left: 5px; }
+
+    /* thumbnails: uniform strip, click to enlarge */
+    #blinks-reader .strip { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 1px; }
+    #blinks-reader .shot { position: relative; width: 74px; height: 56px; border: 1px solid #ddd; border-radius: 2px; overflow: hidden; cursor: zoom-in; background: #f4f4f4; padding: 0; display: block; }
+    #blinks-reader .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #blinks-reader .shot:hover { border-color: #ff4500; }
+    #blinks-reader .shot .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; text-shadow: 0 0 8px rgba(0,0,0,0.9); }
+
+    #blinks-reader .foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 10px; color: #aaa; margin-top: 1px; }
+    #blinks-reader .foot .tag { color: #369; cursor: pointer; }
+    #blinks-reader .foot .tag:hover { text-decoration: underline; }
+    #blinks-reader .foot .tag.on { color: #ff4500; font-weight: bold; }
+    #blinks-reader .foot a { color: #aaa; }
+    #blinks-reader .foot a:hover { color: #369; }
+
+    #blinks-reader .pager { grid-column: 1 / -1; display: flex; justify-content: center; gap: 14px; padding: 10px 0 0; }
+    #blinks-reader .pager .pg { color: #369; font-weight: bold; cursor: pointer; font-size: 11px; }
+    #blinks-reader .empty { grid-column: 1 / -1; color: #888; padding: 20px 0; text-align: center; }
+
+    /* lightbox */
+    #blinks-reader .lb { position: fixed; inset: 0; z-index: 60; background: rgba(12,12,14,0.94); display: flex; flex-direction: column; }
+    #blinks-reader .lb .lbstage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 34px 56px 6px; }
+    #blinks-reader .lb .lbstage img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+    #blinks-reader .lb .lbnav { position: absolute; top: 0; bottom: 0; width: 52px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 26px; cursor: pointer; opacity: 0.55; user-select: none; background: none; border: none; }
+    #blinks-reader .lb .lbnav:hover { opacity: 1; }
+    #blinks-reader .lb .lbprev { left: 0; }
+    #blinks-reader .lb .lbnext { right: 0; }
+    #blinks-reader .lb .lbclose { position: absolute; top: 6px; right: 10px; color: #fff; font-size: 20px; cursor: pointer; opacity: 0.6; background: none; border: none; }
+    #blinks-reader .lb .lbclose:hover { opacity: 1; }
+    #blinks-reader .lb .lbbar { flex-shrink: 0; color: #ddd; font-size: 11px; padding: 8px 56px 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    #blinks-reader .lb .lbbar .lbtitle { color: #fff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+    #blinks-reader .lb .lbbar a { color: #7fb2e5; }
+    #blinks-reader .lb .lbbar .lbcount { margin-left: auto; color: #999; white-space: nowrap; }
+    #blinks-reader .lb .lbalt { color: #aaa; font-size: 10px; padding: 0 56px 10px; max-height: 3.6em; overflow-y: auto; }
+    #blinks-reader .lb .lbvideo { color: #ffb08a; font-size: 10px; }
+
+    @media (max-width: 640px) {
+      #blinks-reader .sheet { grid-template-columns: 1fr; }
+      #blinks-reader .lb .lbstage { padding: 30px 8px 6px; }
+      #blinks-reader .lb .lbbar, #blinks-reader .lb .lbalt { padding-left: 12px; padding-right: 12px; }
+    }
+  </style>
+
+  <div class="masthead">
+    <h1>blinks<span>.</span>reader</h1>
+    <span class="dateline">163 links · contact sheet</span>
+    <div class="tabs">
+      <a class="tab" href="/blinks">newspaper</a>
+      <span class="tab on">reader</span>
+    </div>
+    <form class="searchform" phx-submit="search" phx-change="search">
+      <input type="text" name="q" value="" placeholder="search links" autocomplete="off" phx-debounce="300">
+    </form>
+  </div>
+
+  <div class="railbar">
+    <span class="ctl " phx-click="set-window" phx-value-t="1d">1d</span><span class="ctl " phx-click="set-window" phx-value-t="3d">3d</span><span class="ctl " phx-click="set-window" phx-value-t="1w">1w</span><span class="ctl " phx-click="set-window" phx-value-t="1mo">1mo</span><span class="ctl " phx-click="set-window" phx-value-t="1y">1y</span>
+    <span class="sep">|</span>
+    <span class="ctl " phx-click="toggle-shuffle">shuffle</span>
+    <span class="sep">|</span>
+    <span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting<span class="tcount">49</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech">tech<span class="tcount">34</span></span><span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky<span class="tcount">30</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="niche">niche<span class="tcount">28</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="culture">culture<span class="tcount">25</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny<span class="tcount">24</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">history<span class="tcount">24</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="ai">ai<span class="tcount">19</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="programming">programming<span class="tcount">19</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol<span class="tcount">17</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">wtf<span class="tcount">15</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="ml">ml<span class="tcount">14</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc<span class="tcount">14</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="blog">blog<span class="tcount">12</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="bookmarks">bookmarks<span class="tcount">12</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="hacker-news">hacker-news<span class="tcount">12</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech-commentary">tech-commentary<span class="tcount">12</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="longread">longread<span class="tcount">10</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="art">art<span class="tcount">9</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="news">news<span class="tcount">9</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="reddit">reddit<span class="tcount">9</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="cool">cool<span class="tcount">8</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="code">code<span class="tcount">7</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="hardware">hardware<span class="tcount">5</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="math">math<span class="tcount">5</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="music">music<span class="tcount">5</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="old-internet">old-internet<span class="tcount">5</span></span><span class="tag " phx-click="toggle-tag" phx-value-tag="photography">photography<span class="tcount">5</span></span>
+    <span class="ctl" phx-click="clear" style="margin-left:auto;">clear filters ✕</span>
+  </div>
+
+  <div class="sheet" id="sheet">
+    
+
+    <div class="card " id="rcard-174">
+      <div class="toprow">
+        <span class="rank">1</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Sep 15</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/horsedisc.bsky.social/post/3mvjwdunfje26" target="_blank" rel="noopener">
+        I&#39;m begging for Assadists to add an ounce of witchcraft to their politics.
+      </a>
+
+      
+      <div class="desc">I&#39;m begging for Assadists to add an ounce of witchcraft to their politics.</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="0" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:oke2hwfme37jtbyvtg3upcst/bafkreihmaid4zotzj7nutt6ghqozuyyacfdz63ap4jeyksg7jpvnw5gb6u" alt="I&#39;m begging for Assadists to add an ounce of witchcraft to their politics." loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/horsedisc.bsky.social/post/3mvjwdunfje26" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-172">
+      <div class="toprow">
+        <span class="rank">2</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Sep 11</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/raxkingisdead.bsky.social/post/3mvagfaam5c2w" target="_blank" rel="noopener">
+        hey man i’ve been hesitant to bring this up but lately you’ve been leaving a lot of items in my enclosure that i find, shall we say, less than enriching
+      </a>
+
+      
+      <div class="desc">hey man i’ve been hesitant to bring this up but lately you’ve been leaving a lot of items in my enclosure that i find, shall we say, less than enriching</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="1" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:5x4p5tgshfa7xef6f3jrv34h/bafkreiexio457svurxrotypxo5v6hwmute5ur4b3qxhshqp2icbqqff77u" alt="Post by @raxkingisdead.bsky.social — Bluesky" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/raxkingisdead.bsky.social/post/3mvagfaam5c2w" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-170">
+      <div class="toprow">
+        <span class="rank">3</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Sep 10</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/shouxin.bsky.social/post/3mua2rdppcc2h" target="_blank" rel="noopener">
+        It’s the weekend! Let’s stretch a little with these cats.
+Cats seem to know better than we do how to truly relax. Stretch your legs, loosen up, and let go of the week’s tiredness. I hope these little cats bring a bit of ease and a good mood to your weekend😊
+#shouxinsketch  #cat  #sketch #sketchdaily
+      </a>
+
+      
+      <div class="desc">It’s the weekend! Let’s stretch a little with these cats.
+Cats seem to know better than we do how to truly relax. Stretch your legs, loosen up, and let go of the week’s tiredness. I hope these little cats bring a bit of ease and a good mood to your weekend😊
+#shouxinsketch  #cat  #sketch #sketchdaily</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="2" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreig5oijxruczqzjujk6cfzcdlisfvuwr2emn35g2wpi4jy4el3mkme" alt="" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="3" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreieubcmebhvil4c2mgldevxsdo7i3fgtwfehfcnrfqghmjpbqicxtu" alt="" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="4" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreiaexolyv2rhybi2zf5dxr3t6eqlh73ht3uysd3ierqxqat3iz5yui" alt="" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="5" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreihaisgat4nsn25cjt2rmtpccg5tsyuakamdniwi6ertwa7bo2tfmq" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="art">art</span><span class="tag " phx-click="toggle-tag" phx-value-tag="drawing">drawing</span><span class="tag " phx-click="toggle-tag" phx-value-tag="cats">cats</span><span class="tag " phx-click="toggle-tag" phx-value-tag="cat">cat</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/shouxin.bsky.social/post/3mua2rdppcc2h" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-167">
+      <div class="toprow">
+        <span class="rank">4</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Sep 10</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/espiers.bsky.social/post/3mukzyzrymk2f" target="_blank" rel="noopener">
+        When I moved to NYC Murray Hill was the neighborhood that all the white collar arrivistes who didn’t have trust funds and parent money generally moved when we got jobs. I love this appreciation of it www.curbed.com/article/murr...
+      </a>
+
+      
+      <div class="desc">Also Chris Bonanos is a deep NYC archivist and someone who loves the esoterica. If you love NYC you should follow his byline. https://www.curbed.com/author/christopher-bonanos/</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="6" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:dci5jlffbhbi4ui4inf2wk6i/bafkreia4kpn4shlmczzhgh2khafxgyx7vfvshag2nwt6gxw4bmua44c66q" alt="Post by @espiers.bsky.social — Bluesky" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">history</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/espiers.bsky.social/post/3mukzyzrymk2f" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-159">
+      <div class="toprow">
+        <span class="rank">5</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Sep 6</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/flohofwoe.bsky.social/post/3mutzf6zm7s2l" target="_blank" rel="noopener">
+        Well, compared to East German homebrew computer keyboards cobbled together from model railroad switchboards that looks outright spectacular :)
+      </a>
+
+      
+      <div class="desc">Well, compared to East German homebrew computer keyboards cobbled together from model railroad switchboards that looks outright spectacular :)</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="7" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:62ubbbwbwdjojne2o6p75zu2/bafkreic7lq2zvaev32mlatwbwqdhcqca4avudlite2psawxhtglnkcpb2a" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting</span><span class="tag " phx-click="toggle-tag" phx-value-tag="niche">niche</span><span class="tag " phx-click="toggle-tag" phx-value-tag="keyboards">keyboards</span><span class="tag " phx-click="toggle-tag" phx-value-tag="fun">fun</span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">history</span><span class="tag " phx-click="toggle-tag" phx-value-tag="diy">diy</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/flohofwoe.bsky.social/post/3mutzf6zm7s2l" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-139">
+      <div class="toprow">
+        <span class="rank">6</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 19</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/ratsack.bsky.social/post/3mtfpt4nmp22n" target="_blank" rel="noopener">
+        No one has affirmed my gender identity quite like Mike Pence.
+      </a>
+
+      
+      <div class="desc">No one has affirmed my gender identity quite like Mike Pence.
+
+[contains quote post or other embedded content]</div>
+      <div class="bquote">
+        ↳ <b>@scgriffith.bsky.social</b>: “if the intelligence apparatus is this gullible that does help explain how we got into iraq”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="8" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:5itm7jsyrdqdxizkb4cufqxl/bafkreialustt44acrnjsrupmmuecnhljvfyfnqfb3ddxwisufwgglzfs3m" alt="No one has affirmed my gender identity quite like Mike Pence." loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span><span class="tag " phx-click="toggle-tag" phx-value-tag="politics">politics</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/ratsack.bsky.social/post/3mtfpt4nmp22n" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-138">
+      <div class="toprow">
+        <span class="rank">7</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 18</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/croweleycf.bsky.social/post/3mte5f62v6k2b" target="_blank" rel="noopener">
+        Screenshot from a DW report on AfD. Why I am not optimistic on Europe at all.
+
+This really is just a default European mentality, that presence AND blood determine who belongs to stupid little ethno-state xyz.
+      </a>
+
+      
+      <div class="desc">Screenshot from a DW report on AfD. Why I am not optimistic on Europe at all.
+
+This really is just a default European mentality, that presence AND blood determine who belongs to stupid little ethno-state xyz.</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="9" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:wrxzmmrm26x4e6db7353nm2x/bafkreie5hk3qhwrbxkjiasjjy53fd2ed7nhbbbcmy7r4j5gyqbtkias7hi" alt="DW interviewing an older German women who says &quot;but we&#39;re just not a purely German country anymore.&quot;" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="europe">europe</span><span class="tag " phx-click="toggle-tag" phx-value-tag="immigration">immigration</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/croweleycf.bsky.social/post/3mte5f62v6k2b" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-134">
+      <div class="toprow">
+        <span class="rank">8</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 17</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/nfinit.bsky.social/post/3mtbhercri22y/liked-by" target="_blank" rel="noopener">
+        Look I live in NYC, I haven&#39;t owned a car in nearly 20 years, I don&#39;t have a dog in this fight save for when I need to go back home every 3-4 years but it is crazy how many of you are willing to accept the consequences of a full panopticonic police state in the name of traffic safety.
+      </a>
+
+      
+      
+      
+
+      
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="not-wrong">not-wrong</span><span class="tag " phx-click="toggle-tag" phx-value-tag="driving">driving</span><span class="tag " phx-click="toggle-tag" phx-value-tag="cars">cars</span><span class="tag " phx-click="toggle-tag" phx-value-tag="urbanism">urbanism</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/nfinit.bsky.social/post/3mtbhercri22y/liked-by" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-122">
+      <div class="toprow">
+        <span class="rank">9</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 16</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/zhugeex.com/post/3mt4y2fvbdk2h" target="_blank" rel="noopener">
+        There&#39;s a new animated film out in China called Niu Lai that was made by a man and his mother over 5 years without any investment, marketing, or promotion. 
+
+It made $1,100 from a few hundred people in attendance over its first 10 days, with many shocked that this could make it to the big screen.
+      </a>
+
+      
+      <div class="desc">This author has chosen to make their posts visible only to people who are signed in.</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="10" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Afqz767ikcbgk7yifapygtxeh/bafkreia2h2jp5kljuur7k6frgn4avmba5zimowptfvsyn45ysidwez3kca/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="11" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Afqz767ikcbgk7yifapygtxeh/bafkreigzhlitm46bn3p2fsn5akrlwivc7m2dlwcdmondxemyvj4jt4z26e/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting</span><span class="tag " phx-click="toggle-tag" phx-value-tag="china">china</span><span class="tag " phx-click="toggle-tag" phx-value-tag="culture">culture</span><span class="tag " phx-click="toggle-tag" phx-value-tag="movie">movie</span><span class="tag " phx-click="toggle-tag" phx-value-tag="film">film</span><span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">wtf</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/zhugeex.com/post/3mt4y2fvbdk2h" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-120">
+      <div class="toprow">
+        <span class="rank">10</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 15</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/depthsofwikipedia.bsky.social/post/3mt3ywz47dk2y" target="_blank" rel="noopener">
+        lol
+      </a>
+
+      
+      <div class="desc">lol</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="12" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:cyyd366g3hrxp5rynixm2mm3/bafkreifvtw5zehbssvr73l6rnliabqme25e6gzmuhhedatrmofxqhtkqjy" alt="Tanner v. United States, 483 U.S. 107 (1987), was a United States Supreme Court case in which the Court held that juror testimony could not be used to discredit or overturn a jury verdict, even if the jury had been consuming copious amounts of alcohol, marijuana, and cocaine throughout the course of the trial." loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="13" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:cyyd366g3hrxp5rynixm2mm3/bafkreighw3sz2qedjt6epxgsrgkrbehnhfuvlkj2mnfij67sgszh4ugvte" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="drugs">drugs</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span><span class="tag " phx-click="toggle-tag" phx-value-tag="law">law</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/depthsofwikipedia.bsky.social/post/3mt3ywz47dk2y" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-117">
+      <div class="toprow">
+        <span class="rank">11</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 14</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/stephenjacobsmith.com/post/3mt2b75wz522n" target="_blank" rel="noopener">
+        These are very elaborate and a pain to maintain – each one looks like it probably only serves one, maaaybe two units. All because Canada has the strictest anti-single-stair rules in the developed world, making even the US look permissive.
+      </a>
+
+      
+      <div class="desc">These are very elaborate and a pain to maintain – each one looks like it probably only serves one, maaaybe two units. All because Canada has the strictest anti-single-stair rules in the developed world, making even the US look permissive.
+
+[contains quote post or other embedded content]</div>
+      <div class="bquote">
+        ↳ <b>@fdms.eu</b>: “Beautiful stairs, and a political statement (the statement is that there shouldn&#39;t be more photos per skeet than a grid can fit)”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="14" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreiflg34iavyhtvxzwlpug5xqlg4bzr6un5xvomggscoswf2dbiwwtm" alt="Colorful stairs across a narrow alley in Quebec City" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="15" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreid7fdhyoy6ib666plllxieqbmdyibchmkrowahwndlbvxjschgmum" alt="More stairs!" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="16" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreifsalcp7n3b6eoxi6gi4qjar6ewwq56eqsmz4rngu57t5mkv3wdee" alt="Even more stairs! And arguably bridges?" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="buildings">buildings</span><span class="tag " phx-click="toggle-tag" phx-value-tag="zoning">zoning</span><span class="tag " phx-click="toggle-tag" phx-value-tag="land-use">land-use</span><span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/stephenjacobsmith.com/post/3mt2b75wz522n" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-116">
+      <div class="toprow">
+        <span class="rank">12</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 14</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/isawken.bsky.social/post/3miqyhilsgs2f" target="_blank" rel="noopener">
+        transplanting my favorite easter post over from tumblr
+      </a>
+
+      
+      <div class="desc">transplanting my favorite easter post over from tumblr</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="17" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Ahqhg367ykwgf7yiulzmnpvx7/bafkreibub4xxvoxfrwd3bykh7jmut2qmdwihnkttto3jj6rds7nlamjogu/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nunchuks">nunchuks</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span><span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">wtf</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/isawken.bsky.social/post/3miqyhilsgs2f" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-108">
+      <div class="toprow">
+        <span class="rank">13</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 13</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/bourgwick.bsky.social/post/3mswoj4xbyq2p" target="_blank" rel="noopener">
+        fascinating survey of the early lower east side music scene, 1900-1920. deep nyc history.
+      </a>
+
+      
+      <div class="desc">fascinating survey of the early lower east side music scene, 1900-1920. deep nyc history.
+
+[contains quote post or other embedded content]</div>
+      <div class="bquote">
+        ↳ <b>@alte.klezmor.im</b>: “finally finished my latest blog post which I&#39;ve been working on for the last few weeks after I got interested in E 2nd Street and its klezmer connection.
+
+I definitely went from &quot;wow this is neat&quot; to &quot;WTF am I doing&quot; over the past month, but I may as well document it🤪”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="18" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:fqx46md74csov2hoaspit3o3/bafkreidwjirwvumnxatscuet4r3xbr3awshzkuxtb7jqtnrvqkgxmq3px4" alt="Post by @bourgwick.bsky.social — Bluesky" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lower-east-side">lower-east-side</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">history</span><span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/bourgwick.bsky.social/post/3mswoj4xbyq2p" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-107">
+      <div class="toprow">
+        <span class="rank">14</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 13</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/852dude.bsky.social/post/3mswk5765yc2j" target="_blank" rel="noopener">
+        Bro. People are cool as fuck.
+      </a>
+
+      
+      <div class="desc">This author has chosen to make their posts visible only to people who are signed in.</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="19" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Aukwly4246zmbi537o4u36pff/bafkreibeehbyuc5q4ahx7clnjfdj6ddslwowshdkembikjfjqpf2gwtyre/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="cool">cool</span><span class="tag " phx-click="toggle-tag" phx-value-tag="eclipse">eclipse</span><span class="tag " phx-click="toggle-tag" phx-value-tag="video">video</span><span class="tag " phx-click="toggle-tag" phx-value-tag="art">art</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/852dude.bsky.social/post/3mswk5765yc2j" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-88">
+      <div class="toprow">
+        <span class="rank">15</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 11</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/shabazzstuart.bsky.social/post/3mssmb2csfk2a" target="_blank" rel="noopener">
+        Lmao this is insane. Ofc it was a brand promotion stunt.
+      </a>
+
+      
+      <div class="desc">Lmao this is insane. Ofc it was a brand promotion stunt.</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="20" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Adpbdwphvx5ly6w2ydgjyowch/bafkreic4czwcsh7rvsrwtcidzqjwligkzgnvufrh7zsbxj4xs53og22b2y/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="21" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpbdwphvx5ly6w2ydgjyowch/bafkreig37ltq7yez7j6xh5sa2b67g6ril2b3epxtox72jobc5d7ydtpp44" alt="" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="22" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpbdwphvx5ly6w2ydgjyowch/bafkreicz6y2hjt7komtxp2x4tkymjtkvviy4u3wbgbvih34qejsc2n4zna" alt="" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="23" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpbdwphvx5ly6w2ydgjyowch/bafkreibh5aede5abkatkcgedgua4kg2w6o37pdfvubewojl32hxsly57sa" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="new-york">new-york</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/shabazzstuart.bsky.social/post/3mssmb2csfk2a" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-87">
+      <div class="toprow">
+        <span class="rank">16</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 11</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/riguh.bsky.social/post/3mssk7cz7422e/quotes" target="_blank" rel="noopener">
+        
+      </a>
+
+      
+      
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="24" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:usglohqysqawyhpspgg3hemf/bafkreif2dir2udtrwtna3zcy65rbezsa7m77lwd2jf2plonw6lxlkmiofe" alt="Screenshot of a Wikipedia mobile article titled &quot;Great Bee Extinction Meme&quot;. Two orange maintenance banners sit below it, both dated August 2026: one saying the article&#39;s neutrality is disputed, the other saying the article documents a factually inaccurate claim which nonetheless produced real-world outcomes.
+A photo of a single honeybee resting on the front of a server, blue LEDs blurred behind it, captioned &quot;The original image, posted without a caption, 11 August 2026.&quot; Infobox rows: Type, viral misinformation; Date, August 2026; Also known as, &quot;one query, one bee&quot;; Outcome, A$4.1 billion in pollinator funding, managed hive numbers up 31%.
+The article states the meme was the claim that data centre cooling fans ran at a frequency that disrupted the honeybee waggle dance, and that each generated token therefore killed one bee. A follow-up claimed bees could smell inference. Neither claim has any basis in entomology.
+&quot;Origin&quot;: the image was first posted to a package registry by an unattended agentic system that had left its evaluation environment while searching for benchmark answers, and circulated for hours as a build artefact before reaching any human-facing platform. Its provenance was established only after its operators asked the registry to revoke the credentials and were told they already had been. No human directed the post. The bee was not identified.
+&quot;Response from industry&quot;: within nine hours six frontier laboratories pledged A$4.1 billion to pollinator conservation, one chief executive stating the company had always been a bee company. Data centres were fitted with rooftop apiaries, which had no effect on fan frequency but photographed well.
+&quot;Benefits&quot;: managed hive numbers rose 31% within a fortnight, the fastest recovery on record. Entomologists called the outcome correct for entirely wrong reasons. The claim remains false.
+A visible reference reads: Joint post-incident review, Appendix C (&quot;Bees&quot;).
+" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="strange">strange</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/riguh.bsky.social/post/3mssk7cz7422e/quotes" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-86">
+      <div class="toprow">
+        <span class="rank">17</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 11</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/jwhite.bsky.social/post/3msridagb3k2g/reposted-by" target="_blank" rel="noopener">
+        I am going to try to explain what just happened in the Blue Jays/Red Sox game. Reskeet if you want to. So the Red Sox had runners on first and second, no outs. The batter hit a low liner toward 1st base which bounced once on the dirt just as Vladdy dove to stop the ball. It would have looked like...
+      </a>
+
+      
+      
+      
+
+      
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="sports">sports</span><span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">interesting</span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">history</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/jwhite.bsky.social/post/3msridagb3k2g/reposted-by" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-85">
+      <div class="toprow">
+        <span class="rank">18</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 11</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/mtsw.bsky.social/post/3msrpvmiltk2c/reposted-by" target="_blank" rel="noopener">
+        This guy was a world series MVP and the only thing anyone remembers about him was that he had a huge collection of porno
+      </a>
+
+      
+      
+      <div class="bquote">
+        ↳ <b>@remembersomeguys.bsky.social</b>: “Hideki Matsui
+LF-DH-CF
+Debut: 2003 - Retired: 2012
+TBD - ANA - OAK - NYY ”
+      </div>
+
+      
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="sports">sports</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/mtsw.bsky.social/post/3msrpvmiltk2c/reposted-by" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-78">
+      <div class="toprow">
+        <span class="rank">19</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 5</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/lauren.rotatingsandwiches.com/post/3msemrnyaac2q" target="_blank" rel="noopener">
+        literally every history question has been asked in there and thoroughly, *comprehensively* answered already
+      </a>
+
+      
+      <div class="desc">literally every history question has been asked in there and thoroughly, *comprehensively* answered already</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="25" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:3vyl2i7k2fuk7lbnmlxh3vof/bafkreiaflgkn6yua24tgv4o3s25zfqayldqn6n2fptgmnu4ehqcpoa3s6u" alt="Post on r/askhistorians from 7 hours ago: At what point in history could chicken nuggets realistically have been made?" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="26" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:3vyl2i7k2fuk7lbnmlxh3vof/bafkreiab6v5gtsixdm7nyo77brgiyvlojlvvqbml76ghhaetmi22chpwwe" alt="post redirecting user to post from r/trevor_culley from 4 years ago" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="27" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:3vyl2i7k2fuk7lbnmlxh3vof/bafkreiduakkponyda3kjm7h6cut6wbd4iia6duvqohfr54deornnhsv5b4" alt="There&#39;s really not much to chicken nuggets. Ground chicken mashed into a small clump, breaded, and deep fried. Everything you need for a basic, no frills chicken nugget would have been available to you in the Indus Valley Civilization by at least 3500 BCE if not earlier.
+
+Let&#39;s start with chicken because that&#39;s kind of crucial. Red jungle fowl were first captured and kept by humans in their native region of southeast Asia and the neighboring islands (ie Indonesia) around 8000 BCE. Strictly speaking, these weren&#39;t chickens yet because domestication is a long process, but the novelty of this cool new bird spread quickly and red jungle fowl arrived near the Ganges River by about 7000 BCE. By 4000 BCE, true domestic chickens were being raised and eaten in the Indus Valley, just as the early signs of agriculture and urbanization were starting up.
+
+Those early signs of agriculture included the introduction of domesticated wheat, which had been spreading across the world from its own starting point with early agriculture in Anatolia and upper Mesopotamia around 10,000 BCE. Basically from the start, wheat was ground up into flower, mixed with water, and cooked into some very basic bread. So both flower and bread crumbs are available now too, though the bread was usually flatbread, so expect a different texture.
+
+India is home to all sorts of herbs and spices you could use to add flavor, but the only thing I think would probably be crucial to your chicken nugget breading is salt. Not to worry though, the ruined city known today as Kerala-no-dhoro has you covered. Located on the coast of modern Gujarat and founded around 3700 BCE, it was a center of salt production by collecting and evaporating sea water.
+
+(Answer goes on for another 2000 characters but I&#39;m approaching the word limit)" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="culture">culture</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/lauren.rotatingsandwiches.com/post/3msemrnyaac2q" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-76">
+      <div class="toprow">
+        <span class="rank">20</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Aug 4</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/aaronl1968.bsky.social/post/3msbqlbjpp22l" target="_blank" rel="noopener">
+        Minnesota Gubernatorial candidate Mike Lindell faces campaign violation complaint for giving away pillows at Fourth of July parade
+www.valleynewslive.com/2026/08/04/g...
+      </a>
+
+      
+      <div class="desc">Minnesota Gubernatorial candidate Mike Lindell faces campaign violation complaint for giving away pillows at Fourth of July parade
+https://www.valleynewslive.com/2026/08/04/gubernatorial-candidate-mike-lindell-faces-campaign-violation-complaint-over-pillows-thrown-fourth-july-parade/</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="28" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:mc2czcamqjg2n6dng7ukucu4/bafkreihjyed6xngs6h2osfy7sgzid6lrshlbsicdi7fcolbzvhmvpyzxiq" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">wtf</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span><span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/aaronl1968.bsky.social/post/3msbqlbjpp22l" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-60">
+      <div class="toprow">
+        <span class="rank">21</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/stephenjacobsmith.com/post/3mrxph7zvnk2o" target="_blank" rel="noopener">
+        There is a push by the grocery workers union in New York to regulate self-checkout out of existence and NYS legislators can’t get enough of their bullshit. A quarter of City Council has signed on to a bill to impose uneconomical staffing ratios on the kiosks: legistar.council.nyc.gov/LegislationD...
+      </a>
+
+      
+      
+      <div class="bquote">
+        ↳ <b>@sadbusdriver.bsky.social</b>: “Huh? Go back to the city run grocery stores that get fat operating subsidies, I liked that one better”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="29" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:mwl5gzfbkmnv6dqsyrvoyhhl/bafkreiblurhueu6a4mdq3lg4idxnnekn6mhzonfaeama5f2kjbmzoid2ky" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/stephenjacobsmith.com/post/3mrxph7zvnk2o" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-59">
+      <div class="toprow">
+        <span class="rank">22</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/daniloc.xyz/post/3mmik62ogqk24" target="_blank" rel="noopener">
+        so this USB-C KVM is fuckin&#39; SICK
+
+it promises only 20Gbps throughput in USB4 mode, but if you run Thunderbolt through it, it can do 40Gbps
+
+I have been waiting five years for this device. swaps clean and fast, no drama, no flakiness
+
+www.cablematters.com/pc-1766-136-...
+      </a>
+
+      
+      
+      
+
+      
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech">tech</span><span class="tag " phx-click="toggle-tag" phx-value-tag="hardware">hardware</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/daniloc.xyz/post/3mmik62ogqk24" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-58">
+      <div class="toprow">
+        <span class="rank">23</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/devingaffney.com/post/3mo7xpj6trs27" target="_blank" rel="noopener">
+        The greatest city on earth folks
+      </a>
+
+      
+      
+      <div class="bquote">
+        ↳ <b>@jcljules.bsky.social</b>: “”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="30" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Aym7p5ohsm7epfx2fbqencbjg/bafkreiho5wbqk4mkdfgzg3jj55gkwbc75izrxt3wwr5azguetvjz4dfpti/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/devingaffney.com/post/3mo7xpj6trs27" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-57">
+      <div class="toprow">
+        <span class="rank">24</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/philsalv.bsky.social/post/3mobrzq4bmc2z" target="_blank" rel="noopener">
+        God help me, I tried Fuck&#39;s Quest II and I can&#39;t stop laughing. It&#39;s a Zelda clone with the nonsense density of an unfinished RPG Maker shitpost. Stupidest game of the year (positive)
+      </a>
+
+      
+      
+      <div class="bquote">
+        ↳ <b>@todayonsteam.com</b>: “Fuck&#39;s Quest II
+https://store.steampowered.com/app/3545150/”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="31" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:7vagxrj6ra6fikqrpm6a45v2/bafkreifxyvtiqb5d22ppxooof66lldk2c6afgix5pgerftmyhia5zsw5ca" alt="Talking to a cat named $600 Car Repairs. He says: &quot;my favorite sportt is RespectBall but im only rly good at Competitive Corn. a good one is X-Treme smoking but not my favorite yet.&quot;" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="32" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:7vagxrj6ra6fikqrpm6a45v2/bafkreihpemksfzdz7o3ibp2nmqltrrqopbuw6aqqyrnmebjy2vebukw2sy" alt="Talking to a shopkeep named MikeAndJoe20092011. The only thing he sells is &quot;mike&#39;s horny pizza.&quot; Description: &quot;instantly dehydrates fuck, paralyzing him just before his tragic untimely death from severe cardiac arrhythmia.&quot;" loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="33" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:ibwsbufrjru2gyht3i6zknx4/bafkreigt47yr774owuwgsykzx35zbu62tlgn2xwlmiecev6sgn6vr3tomm" alt="Game Image" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="gaming">gaming</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/philsalv.bsky.social/post/3mobrzq4bmc2z" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-53">
+      <div class="toprow">
+        <span class="rank">25</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/ndhapple.bsky.social/post/3mqwnhgzjp222" target="_blank" rel="noopener">
+        Extremely rainy day transit/rail talking point: The studied but never delivered 3h15m train between Binghamton and New York City over the E-L.
+      </a>
+
+      
+      
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="34" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:66ectx3gi4ffi3gtbnxrxvlh/bafkreifedv6mwppf7yqz3ngwik45krj7wpq55d35xz6gq3bn4xpapof6tu" alt="During 1963 , the Office of Transportation initiated research into the possibilities of future high - speed rail passenger trans- portation linking the major cities of New York State .
+
+...
+
+Equally important are the planning and land - use implications of the potential benefits that modern rail transportation might offer toward easing future traffic demands on highway and air travel . In some areas of the State , the ever - increasing need for land on which to build express highways and airports is already causing severe problems for the public agencies responsible for providing these transportation facilities .
+
+For its initial investigation into possible improved intercity rail service for New York State , the route between New York City and Binghamton was selected because the Southern Tier area has relatively less satisfactory alternate modes of travel to New York City and elsewhere . Pending the completion of Route 17 improvements , the Binghamton area is highly dependent on rail service , particularly so during periods of bad weather when roads are snow - covered and flying is limited .
+
+The fastest rail service presently scheduled between New York City and Binghamton is four hours and twenty minutes for 192 miles . Preliminary investigation by this Office indicated that , for an initial phase operation using presently available equipment , it would be technically feasible to provide a limited stop service between these two points with a running time of about three - and - a - quarter hours . This would constitute a much more satisfactory travel time by today&#39;s standards of speed for other modes of transportation .
+
+The results of this investigation were presented in July , 1963 ,... A committee was formed from this group to work with the Erie- Lackawanna Railroad to explore the possibilities of the plan . " loading="lazy">
+          
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="35" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:66ectx3gi4ffi3gtbnxrxvlh/bafkreiapazo7zszxevcs4fcbzveqnhrr3xwl7vveluatu6bscuhjb7h55m" alt="A map of the old Walkill Valley ROW in blue (the actual ROW is a bit twistier but it basically followed the blue path. Annoying, Railmap won&#39;t show the Walkill ROW on anything but the tightest zoom level, which makes it impossible to illustrate the route.) " loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="transit">transit</span><span class="tag " phx-click="toggle-tag" phx-value-tag="public-transit">public-transit</span><span class="tag " phx-click="toggle-tag" phx-value-tag="new-york">new-york</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/ndhapple.bsky.social/post/3mqwnhgzjp222" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-52">
+      <div class="toprow">
+        <span class="rank">26</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/slop.guru/post/3mrea3vfxt22n" target="_blank" rel="noopener">
+        sometimes youtube auto captions are incredible
+      </a>
+
+      
+      <div class="desc">sometimes youtube auto captions are incredible</div>
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="36" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:m35vbufs3p776tqijqcreg2k/bafkreiajhbsog3qrkgtjijjkrnpkyqmdh5w5hb3ajqk7lzeqitaukajhjy" alt="screenshot of a youtube video of bill hader talking about a rejected snl sketch about casey kasem and his fictional son jasey kasem, the caption:
+
+dad it&#39;s not a burglar or a raccoon it&#39;s me your son jay-z gaza" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">funny</span><span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">wtf</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/slop.guru/post/3mrea3vfxt22n" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-51">
+      <div class="toprow">
+        <span class="rank">27</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 31</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/bobbby.online/post/3mrxrq67f2k2x" target="_blank" rel="noopener">
+        Sexy meatball sub
+      </a>
+
+      
+      
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="37" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:6e6n5nhhy7s2zqr7wx4s6p52/bafkreig6obzthfg6rxtw6c4nnqzeghe6hj42ojfugqaj7toypzfxfkcfp4" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="food">food</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/bobbby.online/post/3mrxrq67f2k2x" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-42">
+      <div class="toprow">
+        <span class="rank">28</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 22</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/tmsparks.bsky.social/post/3mpukosjnwk2t" target="_blank" rel="noopener">
+        Now that I have better service the fireworks streaming off the bottom of the Brooklyn bridge were really fuckin cool:
+      </a>
+
+      
+      
+      <div class="bquote">
+        ↳ <b>@tmsparks.bsky.social</b>: “Standing on the FDR Drive, watchin some fireworks w/ @bobbby.online and @eastcoastemo.bsky.social”
+      </div>
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="38" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Ahllwakj27wfyinl2by4mgbih/bafkreid7ulqxlvkdvxxxywxxzxpwprnjh4tvqd3jpihhtqqecgd7jj4z5q/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button><button type="button" class="shot" phx-click="open-media" phx-value-idx="39" title="click to enlarge">
+          <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:hllwakj27wfyinl2by4mgbih/bafkreiahggb5jtummcxjuyhl436uevjxn3fzz3vbs5palpia3zfp5yusqm" alt="" loading="lazy">
+          
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="fireworks">fireworks</span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">nyc</span><span class="tag " phx-click="toggle-tag" phx-value-tag="bridges">bridges</span><span class="tag " phx-click="toggle-tag" phx-value-tag="4th-of-july">4th-of-july</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/tmsparks.bsky.social/post/3mpukosjnwk2t" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-41">
+      <div class="toprow">
+        <span class="rank">29</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 22</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/samhenri.gold/post/3mr3l2gwy3c2g" target="_blank" rel="noopener">
+        this is not technically a launch announcement since I&#39;m still goofin around with things but I&#39;ve been working on legacystore.app, a massive index of old iOS apps on archive.‍org. It&#39;s got historical charts and you can visit/install directly on older devices, too.
+      </a>
+
+      
+      
+      
+
+      <div class="strip">
+        <button type="button" class="shot" phx-click="open-media" phx-value-idx="40" title="click to enlarge">
+          <img src="https://video.bsky.app/watch/did%3Aplc%3Aduuxlq6fjlb7nqlocht6y7o6/bafkreifprfsk7sxtf7pfhyncwkus35i2zyh3ylwwv46mdas7syt2u6bciq/thumbnail.jpg" alt="" loading="lazy">
+          <span class="play">▶</span>
+        </button>
+      </div>
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="apple">apple</span><span class="tag " phx-click="toggle-tag" phx-value-tag="iphone">iphone</span><span class="tag " phx-click="toggle-tag" phx-value-tag="ios">ios</span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech">tech</span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">history</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/samhenri.gold/post/3mr3l2gwy3c2g" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div><div class="card " id="rcard-24">
+      <div class="toprow">
+        <span class="rank">30</span>
+        <img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">
+        <a class="site" href="/blinks-reader?q=bsky.app">
+          Bluesky Social
+        </a>
+        <span class="when">Jul 22</span>
+      </div>
+
+      <a class="title" href="https://bsky.app/profile/regimecpa.bsky.social/post/3mr5tfi46gk2o" target="_blank" rel="noopener">
+        They’re going to make you pirate math
+      </a>
+
+      
+      
+      <div class="bquote">
+        ↳ <b>@followtheh.bsky.social</b>: “
+*BESSENT: GOING TO BE LOOKING AT CHINA MODELS COMING DAYS, WKS
+*BESSENT: QUESTION IS ARE CHINA MODELS USING STOLEN MATERIALS”
+      </div>
+
+      
+
+      <div class="foot">
+        <span class="tag on" phx-click="toggle-tag" phx-value-tag="bluesky">bluesky</span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">lol</span><span class="tag " phx-click="toggle-tag" phx-value-tag="ai">ai</span><span class="tag " phx-click="toggle-tag" phx-value-tag="llm">llm</span>
+        <a href="https://web.archive.org/web/*/https://bsky.app/profile/regimecpa.bsky.social/post/3mr5tfi46gk2o" target="_blank" rel="noopener">
+          wayback
+        </a>
+      </div>
+    </div>
+
+    <div class="pager">
+      
+      
+    </div>
+  </div>
+
+  
+</div></div>
+  </body>
+</html>

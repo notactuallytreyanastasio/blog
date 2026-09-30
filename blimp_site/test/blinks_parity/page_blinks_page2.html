@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="IBMqV1lgDB19WywcLABeN1UNRzo0KR0IJRo26TjrDjZUtv2P6U3H_qTz">
+    <title>Blinks: Bobbby&#39;s links</title>
+    <meta name="description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:title" content="Blinks: Bobbby's links">
+    <meta property="og:description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bobbby.online/blinks">
+    <meta property="og:image" content="https://bobbby.online/static/blinks-og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="bobbby.online">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Blinks: Bobbby's links">
+    <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png">
+
+    <link rel="manifest" href="/static/blinks-pwa/manifest.json">
+    <link rel="apple-touch-icon" href="/static/blinks-pwa/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/blinks-pwa/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Blinks">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f5f2ea">
+    <link phx-track-static rel="stylesheet" href="/assets/app-3cfac71d5552d1426de906087a8be2fe.css?vsn=d">
+    <script defer phx-track-static type="text/javascript" src="/assets/app-7afeaa4605879f3254ad239dc57c0a34.js?vsn=d">
+    </script>
+  </head>
+  <body style="margin:0;">
+    <div id="phx-GNn-g3auvtnr745h" data-phx-main data-phx-session="SFMyNTY.g2gDaAJhBXQAAAAIdwJpZG0AAAAUcGh4LUdObi1nM2F1dnRucjc0NWh3B3Nlc3Npb250AAAAAHcEdmlld3cZRWxpeGlyLkJsb2dXZWIuQmxpbmtzTGl2ZXcKcGFyZW50X3BpZHcDbmlsdwZyb3V0ZXJ3FUVsaXhpci5CbG9nV2ViLlJvdXRlcncJcm9vdF92aWV3dxlFbGl4aXIuQmxvZ1dlYi5CbGlua3NMaXZldwxsaXZlX3Nlc3Npb25oAncGYmxpbmtzbggAXrb6QpXU2Rh3CHJvb3RfcGlkdwNuaWxuBgCV_4zwoAFiAAFRgA.8N0-MokMcgvxSu3yXBukJ1LfWOpubLtFPOW5eBFP9rk" data-phx-static="SFMyNTY.g2gDaAJhBXQAAAADdwJpZG0AAAAUcGh4LUdObi1nM2F1dnRucjc0NWh3BWZsYXNodAAAAAB3CmFzc2lnbl9uZXdqbgYAlf-M8KABYgABUYA.eWfHCTrUKtR29IkwjY6aWUt8mbDS9WgJr9uJnoeUuLc"><div id="blinks-page" phx-hook="BlinksPrefs">
+  <style>
+    #blinks-page, #blinks-page *, #blinks-page *::before, #blinks-page *::after { box-sizing: border-box; }
+    /* the outer shell never scrolls; inner regions (paper, sidebar, chat) do */
+    #blinks-page { font: 12px verdana, arial, helvetica, sans-serif; color: #000; background: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    #blinks-page .masthead { flex-shrink: 0; }
+    #blinks-page a { text-decoration: none; }
+    #blinks-page .masthead { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 4px 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    #blinks-page .masthead h1 { font-size: 15px; font-weight: bold; letter-spacing: -0.5px; margin: 0; display: inline; }
+    #blinks-page .masthead h1 span { color: #ff4500; }
+    #blinks-page .dateline { color: #369; font-size: 10px; }
+    #blinks-page .tabs { display: flex; gap: 3px; align-self: flex-end; margin-bottom: -5px; }
+    #blinks-page .tabs .tab { font-size: 11px; font-weight: bold; color: #369; background: #b9d2ec; border: 1px solid #5f99cf; border-bottom: none; border-radius: 3px 3px 0 0; padding: 2px 10px; }
+    #blinks-page .tabs .tab.on { background: #fff; color: #ff4500; }
+    #blinks-page .bundles { overflow-y: auto; min-height: 0; }
+    #blinks-page .bundle { display: block; border: 1px solid #ddd; border-radius: 2px; padding: 7px 10px; margin-bottom: 6px; }
+    #blinks-page .bundle:hover { border-color: #5f99cf; background: #f5f9fd; }
+    #blinks-page .bundle b { color: #0000ff; font-size: 13px; }
+    #blinks-page .bundle .bcount { color: #888; font-size: 10px; margin-left: 8px; }
+    #blinks-page .bundle .bpreview { color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #blinks-page .tour-link { color: #369; font-size: 10px; font-weight: bold; cursor: pointer; }
+    #blinks-page .pushwrap { position: relative; display: inline-flex; gap: 6px; align-items: center; }
+    #blinks-page .push-on { color: #2a7; cursor: default; }
+    #blinks-page .push-err { color: #c00; font-size: 10px; font-weight: bold; cursor: help; }
+    #blinks-page .push-modal-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+    #blinks-page .push-modal { width: min(360px, 100%); background: #fff; border: 1px solid #5f99cf; border-radius: 4px; box-shadow: 4px 4px 0 #cee3f8; font: 12px verdana, arial, helvetica, sans-serif; color: #000; }
+    #blinks-page .push-modal-title { display: flex; justify-content: space-between; align-items: center; background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 5px 10px; font-weight: bold; font-size: 12px; color: #369; }
+    #blinks-page .push-modal-title a { color: #369; cursor: pointer; font-weight: bold; }
+    #blinks-page .push-modal-body { padding: 12px 14px 14px; }
+    #blinks-page .push-copy { margin: 0 0 10px; line-height: 1.5; font-size: 13px; }
+    #blinks-page .push-pin { margin: 0 0 10px; line-height: 1.5; font-size: 11px; color: #333; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 6px 8px; }
+    #blinks-page .push-pin .ico { font-size: 12px; }
+    #blinks-page .push-btns { display: flex; gap: 8px; }
+    #blinks-page .push-btns .aim-send { font-size: 12px; padding: 5px 16px; }
+    #blinks-page .push-btns .push-later { background: #fff; color: #369; }
+    #blinks-page .push-hint { position: absolute; top: 18px; right: 0; z-index: 20; width: 240px; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 6px 8px; font-size: 10px; line-height: 1.4; color: #333; box-shadow: 2px 2px 0 #cee3f8; }
+    #blinks-page .push-hint a { color: #369; font-weight: bold; cursor: pointer; margin-left: 4px; }
+    #blinks-page .windowform { display: inline; }
+    #blinks-page .windowform select { font-size: 10px; border: 1px solid #5f99cf; background: #fff; color: #369; }
+    #blinks-page .alwayslbl { color: #369; font-size: 10px; cursor: pointer; }
+    #blinks-page .searchform { margin-left: auto; }
+    #blinks-page .searchform input[type="text"] { border: 1px solid #5f99cf; font-size: 12px; padding: 2px 4px; width: 220px; }
+
+    #blinks-page .layout { display: flex; gap: 16px; padding: 8px 10px; align-items: stretch; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+    #blinks-page .links { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
+    #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
+
+    /* two real columns (server-split); pages hold two screenfuls, so you
+       can scroll exactly one screen down before MORE takes over */
+    #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; }
+    #blinks-page .paper .col { flex: 1; min-width: 0; }
+    #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
+
+    #blinks-page .thing { display: block; padding: 7px 0 8px; margin-bottom: 2px; border-bottom: 1px solid #e2e2e2; break-inside: avoid; -webkit-column-break-inside: avoid; }
+    #blinks-page .col .thing:last-child { border-bottom: none; }
+    /* dead links: the whole row fades to a readable grey */
+    #blinks-page .thing.dead { filter: grayscale(1); opacity: 0.55; }
+    #blinks-page .thing.dead .title { color: #666; }
+    /* new arrivals tune in from static, like a channel coming in */
+    #blinks-page .thing.fresh { position: relative; animation: blinks-detune 2.2s ease-out both; }
+    #blinks-page .thing.fresh::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: hard-light; background-image: repeating-radial-gradient(circle at 17% 32%, #000 0 1px, transparent 1px 2px), repeating-radial-gradient(circle at 73% 61%, #fff 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); background-size: 7px 7px, 11px 11px, 100% 4px; animation: blinks-staticfuzz 2.2s steps(10) both; }
+    @keyframes blinks-detune {
+      0% { filter: blur(3px) saturate(0) contrast(2.6) brightness(1.4); opacity: 0.15; }
+      35% { filter: blur(2px) saturate(0.1) contrast(2.1) brightness(1.2); opacity: 0.5; }
+      70% { filter: blur(0.8px) saturate(0.5) contrast(1.4); opacity: 0.85; }
+      100% { filter: none; opacity: 1; }
+    }
+    @keyframes blinks-staticfuzz {
+      0% { opacity: 0.9; background-position: 0 0, 0 0, 0 0; }
+      15% { background-position: 3px 2px, -4px 3px, 0 2px; }
+      30% { background-position: -2px 4px, 5px -2px, 0 -1px; opacity: 0.75; }
+      45% { background-position: 4px -3px, -3px -4px, 0 3px; }
+      60% { background-position: -4px 1px, 2px 4px, 0 -2px; opacity: 0.5; }
+      75% { background-position: 2px -4px, -5px 2px, 0 1px; opacity: 0.3; }
+      90% { background-position: -3px 3px, 4px -1px, 0 -3px; opacity: 0.12; }
+      100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #blinks-page .thing.fresh, #blinks-page .thing.fresh::after { animation: none; }
+    }
+    #blinks-page .rank { color: #c6c6c6; font-size: 11px; margin-right: 3px; }
+    #blinks-page .thumb { width: 48px; height: 36px; object-fit: cover; border: 1px solid #ddd; float: left; margin-right: 6px; }
+    #blinks-page .favicon { width: 11px; height: 11px; vertical-align: -2px; margin-right: 2px; }
+    #blinks-page .entry { display: inline; }
+    #blinks-page .title { font-size: 13px; color: #0000ff; }
+    #blinks-page .title:visited { color: #551a8b; }
+    #blinks-page .domain { color: #888; font-size: 10px; white-space: nowrap; display: inline-block; }
+    #blinks-page .domain a { color: #888; }
+    #blinks-page .desc { color: #333; font-size: 11px; margin: 1px 0; max-width: 72ch; }
+    #blinks-page .notes { margin: 0; display: inline; }
+    #blinks-page .notes summary { display: inline-block; cursor: pointer; color: #fff; background: #369; border: 1px outset #5f99cf; border-radius: 2px; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; padding: 1px 5px; list-style: none; user-select: none; }
+    #blinks-page .notes summary::-webkit-details-marker { display: none; }
+    #blinks-page .notes summary::before { content: "TAP FOR WORDS"; }
+    #blinks-page .notes[open] summary { border-style: inset; background: #1d4568; }
+    #blinks-page .notes[open] summary::before { content: "OK ENOUGH WORDS"; }
+    #blinks-page .title.quoted { font-style: italic; }
+    #blinks-page .subtitle { color: #888; font-size: 10px; }
+    #blinks-page .pillbtn { display: inline-block; cursor: pointer; color: #fff; background: #369; border: 1px outset #5f99cf; border-radius: 2px; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; padding: 1px 5px; list-style: none; user-select: none; }
+    #blinks-page .pillbtn::-webkit-details-marker { display: none; }
+    #blinks-page .xd { display: inline; margin: 0; }
+    #blinks-page .tags-pill { margin: 0 4px 0 5px; vertical-align: 1px; }
+    #blinks-page .tagsbox { margin: 2px 0; }
+    #blinks-page .xd[open] .pillbtn { border-style: inset; background: #1d4568; }
+    #blinks-page .threadmark { display: inline; cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
+    #blinks-page .threadmark::-webkit-details-marker { display: none; }
+    #blinks-page .quote-item { font-style: italic; color: #333; font-size: 11px; border-left: 3px solid #ddd; padding-left: 6px; margin: 3px 0; max-width: 72ch; }
+    #blinks-page .thread-view { margin: 4px 0; max-width: 72ch; }
+    #blinks-page .tpost { border-left: 2px solid #cee3f8; margin: 0 0 6px 4px; padding: 2px 0 2px 8px; }
+    #blinks-page .tpost .thandle { color: #888; font-size: 9px; margin-left: 4px; }
+    #blinks-page .tpost .ttext { white-space: pre-wrap; font-size: 11px; color: #222; margin-top: 1px; }
+    #blinks-page .tquote { border-left: 2px solid #ddd; margin: 3px 0 0 6px; padding-left: 6px; color: #555; font-size: 10px; white-space: pre-wrap; }
+    #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
+    #blinks-page .mediafold { display: block; margin: 1px 0; }
+    #blinks-page .foldarrow { cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
+    #blinks-page .foldarrow::-webkit-details-marker { display: none; }
+    #blinks-page .foldarrow::before { content: "▸ "; }
+    #blinks-page .mediafold[open] .foldarrow::before { content: "▾ "; }
+    #blinks-page .bmedia { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
+    #blinks-page .bmedia img { max-height: 110px; max-width: 170px; object-fit: cover; border: 1px solid #ddd; border-radius: 3px; display: block; }
+    #blinks-page .bmedia .vid { position: relative; display: inline-block; }
+    #blinks-page .bmedia .vid .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; text-shadow: 0 0 8px rgba(0,0,0,0.85); }
+
+    /* lightbox */
+    #blinks-page .lb { position: fixed; inset: 0; z-index: 90; background: rgba(12,12,14,0.94); display: flex; flex-direction: column; }
+    #blinks-page .lb .lbstage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 34px 56px 6px; }
+    #blinks-page .lb .lbstage img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+    #blinks-page .lb .lbnav { position: absolute; top: 0; bottom: 0; width: 52px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 26px; cursor: pointer; opacity: 0.55; user-select: none; background: none; border: none; }
+    #blinks-page .lb .lbnav:hover { opacity: 1; }
+    #blinks-page .lb .lbprev { left: 0; }
+    #blinks-page .lb .lbnext { right: 0; }
+    #blinks-page .lb .lbclose { position: absolute; top: 6px; right: 10px; color: #fff; font-size: 20px; cursor: pointer; opacity: 0.6; background: none; border: none; }
+    #blinks-page .lb .lbclose:hover { opacity: 1; }
+    #blinks-page .lb .lbalt { color: #aaa; font-size: 10px; padding: 0 56px 10px; max-height: 3.6em; overflow-y: auto; }
+    #blinks-page .lb .lbbar { flex-shrink: 0; color: #ddd; font-size: 11px; padding: 8px 56px 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    #blinks-page .lb .lbbar .lbtitle { color: #fff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+    #blinks-page .lb .lbbar a { color: #7fb2e5; }
+    #blinks-page .lb .lbbar .lbcount { margin-left: auto; color: #999; white-space: nowrap; }
+    #blinks-page .lb .lbvideo { color: #ffb08a; font-size: 10px; }
+
+    @media (max-width: 640px) {
+      #blinks-page .lb .lbstage { padding: 30px 8px 6px; }
+      #blinks-page .lb .lbbar, #blinks-page .lb .lbalt { padding-left: 12px; padding-right: 12px; }
+    }
+    #blinks-page .meta { font-size: 9px; margin-top: 1px; }
+    #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
+    #blinks-page .meta a.del { color: #c00; }
+    #blinks-page .editform { margin: 3px 0; max-width: 420px; }
+    #blinks-page .editform input[type="text"], #blinks-page .editform textarea { width: 100%; border: 1px solid #5f99cf; font: 11px verdana; padding: 3px 5px; margin-bottom: 3px; }
+    #blinks-page .tag .tagx { color: #c00; margin-left: 3px; cursor: pointer; font-size: 8px; }
+    #blinks-page .tag.on .tagx { color: #fbb; }
+    #blinks-page .tagadd-link { color: #4a8000 !important; }
+    #blinks-page .tagadd { display: inline-flex; gap: 3px; margin-left: 4px; }
+    #blinks-page .tagadd input[type="text"] { border: 1px solid #5f99cf; font-size: 10px; padding: 1px 4px; width: 140px; }
+    #blinks-page .tagadd .aim-send { font-size: 9px; padding: 1px 6px; }
+    #blinks-page .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #7fbf00; margin-right: 3px; vertical-align: 0; animation: blinks-pulse 2s ease-in-out infinite; }
+    #blinks-page .live-n { color: #4a8000; }
+    @keyframes blinks-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    #blinks-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 0 2px 1px 0; cursor: pointer; }
+    #blinks-page .tag.on { background: #cee3f8; border-color: #5f99cf; font-weight: bold; }
+    #blinks-page .empty { color: #888; padding: 20px 0; }
+    #blinks-page .pager { flex-shrink: 0; padding: 6px 0 2px; display: flex; align-items: center; gap: 10px; }
+    #blinks-page .pager button { font: bold 12px verdana; color: #888; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; padding: 4px 14px; cursor: pointer; letter-spacing: 1px; }
+    #blinks-page .pager button:hover { color: #369; border-color: #5f99cf; }
+    #blinks-page .pager .pageno { color: #888; font-size: 10px; }
+
+    #blinks-page .sidebar { width: 280px; flex-shrink: 0; overflow-y: auto; min-height: 0; }
+    #blinks-page .sidebox { border: 1px solid #5f99cf; margin-bottom: 12px; }
+    #blinks-page .sidebox h2 { background: #cee3f8; color: #369; font-size: 11px; font-weight: bold; margin: 0; padding: 3px 6px; }
+    #blinks-page .sidebox .body { padding: 6px; }
+    #blinks-page .tag-cloud { display: flex; flex-wrap: wrap; gap: 3px; }
+    #blinks-page .tag-cloud .tag { font-size: 10px; padding: 0 4px; }
+    #blinks-page .tag .tcount { color: #888; font-size: 9px; margin-left: 3px; }
+    #blinks-page .tag.on .tcount { color: #eee; }
+    #blinks-page .singles-link { color: #369; font-size: 10px; cursor: pointer; font-weight: bold; }
+    #blinks-page .singles-pop { position: absolute; left: 4px; right: 4px; z-index: 500; margin-top: 4px; background: #fff; border: 1px solid #5f99cf; box-shadow: 2px 2px 6px rgba(0,0,0,0.25); padding: 6px; max-height: 200px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 3px; }
+
+    #blinks-page .stumble-promo { display: flex; align-items: center; gap: 10px; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 7px 10px; margin-bottom: 6px; flex-shrink: 0; }
+    #blinks-page .sp-dice { font-size: 20px; }
+    #blinks-page .stumble-drag { display: inline-block; background: #ff4500; color: #fff !important; font: bold 12px verdana; letter-spacing: 0.5px; padding: 6px 14px; border: 2px outset #ff8c61; border-radius: 4px; cursor: grab; white-space: nowrap; }
+    #blinks-page .stumble-drag:active { cursor: grabbing; border-style: inset; }
+    #blinks-page .sp-text { color: #6b5d1f; font-size: 11px; }
+    #blinks-page .sp-dismiss { margin-left: auto; color: #999; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+    @media (max-width: 800px) { #blinks-page .stumble-promo { display: none; } }
+    #blinks-page .dork-btn { display: block; width: 100%; font: bold 14px verdana; padding: 9px 0; margin-bottom: 6px; cursor: pointer; border: 3px outset #ff4500; background: #ff4500; color: #fff; letter-spacing: 1px; }
+    #blinks-page .dork-btn.on { border-style: inset; background: #b33000; }
+    #blinks-page .dork-edit { color: #888; font-size: 10px; cursor: pointer; }
+    #blinks-page .dork-form input { width: 100%; border: 1px solid #5f99cf; font-size: 11px; padding: 3px; margin: 4px 0; }
+
+    /* Win95 chat window: big but never oversized on desktop */
+    #blinks-page .win95 { position: fixed; top: 90px; right: 16px; width: min(56vw, 920px); max-width: calc(100vw - 32px); min-width: 340px; z-index: 1000; background: #c0c0c0; border: 2px solid; border-color: #dfdfdf #404040 #404040 #dfdfdf; box-shadow: 1px 1px 0 #000, 4px 4px 8px rgba(0,0,0,0.4); font-family: "Tahoma", "MS Sans Serif", verdana, sans-serif; }
+    @media (max-width: 1250px) { #blinks-page .win95 { width: min(440px, calc(100vw - 40px)); } }
+    #blinks-page .win95.sized { display: flex; flex-direction: column; height: calc(100vh - 110px); max-height: calc(100vh - 100px); min-height: 320px; resize: both; overflow: hidden; }
+    @media (max-width: 1250px) { #blinks-page .win95.sized { height: min(72vh, 640px); } }
+    #blinks-page .win95-titlebar { display: flex; align-items: center; gap: 6px; background: linear-gradient(90deg, #000080, #1084d0); color: #fff; font-weight: bold; font-size: 11px; padding: 3px 4px; cursor: move; user-select: none; }
+    #blinks-page .win95-titlebar .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #blinks-page .win95-btn { width: 16px; height: 14px; font-size: 9px; line-height: 1; background: #c0c0c0; border: 1px solid; border-color: #fff #404040 #404040 #fff; color: #000; cursor: pointer; font-weight: bold; padding: 0; }
+    #blinks-page .win95-menubar { font-size: 11px; padding: 2px 6px; color: #000; border-bottom: 1px solid #808080; }
+    #blinks-page .win95-menubar span { margin-right: 10px; }
+    #blinks-page .aim-messages { background: #fff; border: 2px inset #808080; margin: 6px; height: min(55vh, 480px); overflow-y: auto; padding: 4px 6px; font-size: 12px; }
+    #blinks-page .win95.sized .aim-messages { flex: 1; height: auto; min-height: 100px; }
+    #blinks-page .aim-msg { margin-bottom: 3px; word-wrap: break-word; }
+    #blinks-page .aim-msg .sn { font-weight: bold; }
+    #blinks-page .aim-msg .ts { color: #888; font-size: 9px; margin-left: 4px; }
+    #blinks-page .reply-link { color: #888; font-size: 9px; font-weight: bold; margin-left: 6px; cursor: pointer; }
+    /* slack-style reactions: hidden until hover, existing ones show as pills */
+    #blinks-page .votes { display: block; margin: 1px 0 2px; font-size: 9px; }
+    #blinks-page .votes a { visibility: hidden; cursor: pointer; color: #888; margin-right: 4px; }
+    #blinks-page .msg-main:hover .votes a, #blinks-page .aim-reply:hover .votes a { visibility: visible; }
+    #blinks-page .votes a.haz { visibility: visible; background: #f8f8f8; border: 1px solid #ddd; border-radius: 10px; padding: 0 5px; }
+    #blinks-page .votes a.on { visibility: visible; background: #e8f2fc; border: 1px solid #1264a3; color: #1264a3; font-weight: bold; border-radius: 10px; padding: 0 5px; }
+    #blinks-page .aim-reply { margin: 3px 0 3px 16px; border-left: 3px solid #cee3f8; padding-left: 6px; }
+    #blinks-page .mention { color: #000080; font-weight: bold; }
+    #blinks-page .mention.me { background: #ffff99; }
+    /* markdown in messages */
+    #blinks-page .md p { margin: 0 0 2px; }
+    #blinks-page .md a { color: #0000c0; text-decoration: underline; }
+    #blinks-page .md h3 { font-size: 13px; margin: 3px 0 1px; }
+    #blinks-page .md code { background: #f4f4f4; border: 1px solid #e0e0e0; font-size: 11px; padding: 0 2px; }
+    #blinks-page .md pre { background: #f4f4f4; border: 1px solid #ddd; padding: 4px 6px; margin: 2px 0; overflow-x: auto; }
+    #blinks-page .md pre code { border: none; }
+    #blinks-page .md ul, #blinks-page .md ol { margin: 2px 0 2px 20px; }
+    #blinks-page .md blockquote { margin: 2px 0 2px 4px; border-left: 3px solid #ccc; padding-left: 6px; color: #555; }
+    #blinks-page .replying-bar { margin: 0 6px 4px; padding: 3px 6px; background: #ffffcc; border: 1px solid #808080; font-size: 11px; }
+    #blinks-page .aim-compose { margin: 0 6px 6px; }
+    #blinks-page .aim-compose textarea.aim-box { width: 100%; height: 72px; border: 2px inset #808080; font: 12px Tahoma, verdana, sans-serif; padding: 5px; resize: vertical; background: #fff; }
+    #blinks-page .aim-compose-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+    #blinks-page .aim-send { font: bold 11px Tahoma, verdana; padding: 4px 14px; background: #c0c0c0; border: 2px outset #dfdfdf; cursor: pointer; }
+    #blinks-page .aim-send:active { border-style: inset; }
+    #blinks-page .mention-suggest { margin: 0 6px 4px; font-size: 10px; color: #888; }
+    #blinks-page .mention-suggest .tag { cursor: pointer; font-family: inherit; font-size: 10px; padding: 0 4px; }
+    #blinks-page .aim-signon { margin: 10px; padding: 14px; background: #ffffcc; border: 1px solid #808080; text-align: center; font-size: 12px; }
+    #blinks-page .aim-signon .man { font-size: 34px; }
+    #blinks-page .aim-signon input { border: 2px inset #808080; font-size: 16px; padding: 4px; width: 100%; max-width: 320px; margin: 8px 0; }
+    #blinks-page .aim-link { font-size: 10px; color: #888; margin: 0 8px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #blinks-page .buddy-panel { background: #fff; border: 2px inset #808080; margin: 6px; max-height: 240px; overflow-y: auto; padding: 4px 6px; font-size: 12px; }
+    #blinks-page .buddy-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7fbf00; margin-right: 5px; }
+    #blinks-page .win95.buddies { left: auto; right: 40px; top: 120px; width: 220px; min-width: 0; z-index: 1001; }
+
+    /* tour skin — self-contained, since the component's default skin
+       relies on tailwind arbitrary classes that never get compiled */
+    .bt-overlay { position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,0.45); }
+    .bt-spot { position: fixed; z-index: 9999; pointer-events: none; border: 2px solid #ff4500; border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
+    .bt-tip { position: fixed; z-index: 10000; max-width: 320px; background: #fff; border: 1px solid #5f99cf; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-family: verdana, arial, sans-serif; }
+    .bt-title { font-size: 13px; font-weight: bold; color: #ff4500; margin-bottom: 4px; }
+    .bt-content { font-size: 12px; color: #333; line-height: 1.5; }
+    .bt-footer { border-top: 1px solid #eee; padding-top: 8px; margin-top: 10px; }
+    .bt-progress { font-size: 10px; color: #888; }
+    .bt-btn { font: bold 11px verdana; padding: 4px 12px; border: 1px solid #5f99cf; border-radius: 3px; background: #f5f9fd; color: #369; cursor: pointer; }
+    .bt-btn-primary { background: #ff4500; border-color: #ff4500; color: #fff; }
+    .bt-close { width: 12px; height: 12px; background: #fff; border: 1px solid #888; cursor: pointer; }
+
+    @media (max-width: 800px) {
+      /* phones keep normal document scrolling — a locked shell is misery there */
+      #blinks-page { height: auto; display: block; overflow: visible; }
+      #blinks-page .layout { flex-direction: column; overflow: visible; }
+      #blinks-page .paper { flex-direction: column; height: auto; overflow: visible; }
+      #blinks-page .paper .col { width: 100%; }
+      #blinks-page .paper .col + .col { border-left: none; padding-left: 0; margin-left: 0; }
+      #blinks-page .sidebar { width: 100%; overflow-y: visible; }
+      #blinks-page .masthead .searchform { margin-left: 0; width: 100%; }
+      #blinks-page .searchform input[type="text"] { width: 100%; }
+      /* bigger tap targets */
+      #blinks-page .title { font-size: 15px; }
+      #blinks-page .meta { font-size: 11px; }
+      #blinks-page .meta a { margin-right: 10px; }
+      #blinks-page .tag { font-size: 11px; padding: 1px 5px; }
+      /* chat goes fullscreen on phones (beats any dragged inline style) */
+      #blinks-page .win95 { top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100dvh !important; max-width: none; min-width: 0; border-width: 0; transform: none !important; }
+      #blinks-page .win95.sized { height: 100dvh !important; max-height: none; resize: none; }
+      #blinks-page .win95 .aim-messages { flex: 1; height: auto; }
+      #blinks-page .win95.buddies { top: 15% !important; left: 8% !important; right: 8% !important; bottom: auto !important; width: auto !important; height: auto !important; border-width: 2px; }
+      /* 16px+ inputs stop iOS from auto-zooming (which shoves the layout sideways) */
+      #blinks-page input[type="text"], #blinks-page textarea { font-size: 16px; }
+    }
+  </style>
+
+  <div id="blinks-tour" phx-hook="Joyride" phx-target="1">
+  
+</div>
+
+  <header class="masthead">
+    <h1>bobbby's <span>links</span></h1>
+    <nav class="tabs">
+      <a href="/blinks" data-phx-link="patch" data-phx-link-state="push" class="tab on">live</a>
+      <a href="/blinks?view=archives" data-phx-link="patch" data-phx-link-state="push" class="tab">
+        archives
+      </a>
+    </nav>
+    <span class="dateline">163 saved</span>
+    <a class="tour-link" phx-click="start-tour">tour</a>
+    <a class="tour-link" href="/blinks/surf" title="stumbleupon mode: one random link at a time">
+      stumble 🎲
+    </a>
+    <a class="tour-link" href="/blinks/walk" title="wiki-walk: hop between similar links">
+      walk 🥾
+    </a>
+    <a class="tour-link" href="/blinks/tv" title="lean-back channel surfing">
+      tv 📺
+    </a>
+    <form class="windowform" phx-change="set-window">
+      <select name="t">
+        <option value="" selected>all time</option>
+        <option value="1d">past day</option>
+        <option value="3d">past 3 days</option>
+        <option value="1w">past week</option>
+        <option value="1mo">past month</option>
+        <option value="1y">past year</option>
+      </select>
+    </form>
+    <a class="tour-link" phx-click="toggle-shuffle">
+      shuffle me
+    </a>
+    
+    <form class="searchform" phx-submit="search" data-joyride="search">
+      <input type="text" name="q" value="" placeholder="search title, tags, notes…">
+    </form>
+    <span id="blinks-push" phx-hook="BlinksPush" data-vapid="BHTBldDPx-GkAFUM1MNuJJep43mkY41dZRcDUfVbJAomUcAGX_ayeRbhUD64271kS3RVUuq01hGf4Pu47v9AmKs" class="pushwrap">
+      
+      
+      
+
+      
+    </span>
+  </header>
+
+  <div class="layout">
+    <div class="links">
+      <div class="stumble-promo">
+        <span class="sp-dice">🎲</span>
+        <a class="stumble-drag" href="/blinks/stumble" title="Drag me to your bookmarks bar!">
+          STUMBLE into a Bobbby link
+        </a>
+        <span class="sp-text">
+          ← drag this button onto your bookmarks bar. click it whenever
+          you're bored and it takes you somewhere from the collection.
+        </span>
+        <a class="sp-dismiss" phx-click="dismiss-stumble-promo" title="hide this forever">
+          ✕ got it
+        </a>
+      </div>
+
+      <button class="dork-btn " phx-click="toggle-dork">
+        CLICK TO HIDE THE ULTRA NERDY STUFF
+      </button>
+      <div style="margin: -2px 0 6px;">
+        <span class="dork-edit" phx-click="edit-dork">
+          edit dork list (code, programming, ai, ml, programming-languages, tech-commentary)
+        </span>
+        
+      </div>
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <div class="paper" id="paper" phx-hook="PaperFit">
+        <div class="col">
+        <div class="thing " id="blink-145">
+          <span class="rank">31</span>
+          <img class="thumb" src="https://pyxis.nymag.com/v1/imgs/e6d/163/e3757a55ca2d4f95aa414b24dcd44d1064-0222FEA-Limo-nymag-limostory-mh.1x.rsocial.w1200.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://nymag.com/intelligencer/article/limo-crash-ny-fbi-informant.html" target="_blank" rel="noopener">
+              The Schoharie Limo Crash and the FBI Informant Behind It
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="145">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://assets.nymag.com/media/sites/intelligencer/icon.196x196.png" loading="lazy">(<a href="/blinks?q=nymag.com">Intelligencer</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="145" style="" data-joyride="chat-link">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://nymag.com/intelligencer/article/limo-crash-ny-fbi-informant.html" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://nymag.com/intelligencer/article/limo-crash-ny-fbi-informant.html" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="145" title="hide this link on this device" data-joyride="hide-link">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">It was the deadliest U.S. transportation disaster in a decade. The man behind it was one of the most notorious confidential informants in FBI history.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-144">
+          <span class="rank">32</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.nytimes.com/interactive/2026/07/01/us/america-ancestry-census-data-map.html" target="_blank" rel="noopener">
+              An American Mosaic - The New York Times
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="144">
+              TAGS (4)
+            </span>
+            <span class="domain">(<a href="/blinks?q=nytimes.com">nytimes.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="144" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.nytimes.com/interactive/2026/07/01/us/america-ancestry-census-data-map.html" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.nytimes.com/interactive/2026/07/01/us/america-ancestry-census-data-map.html" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="144" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-143">
+          <span class="rank">33</span>
+          <img class="thumb" src="https://simedw.com/2026/08/20/midi-autocomplete/images/rolltab_phone.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://simedw.com/2026/08/20/midi-autocomplete/" target="_blank" rel="noopener">
+              Training a 125M-parameter Model to Autocomplete Piano - SimEdw&#39;s Blog
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="143">
+              TAGS (8)
+            </span>
+            <span class="domain"><img class="favicon" src="https://simedw.com/favicon.ico" loading="lazy">(<a href="/blinks?q=simedw.com">SimEdw&#39;s Blog</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="143" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://simedw.com/2026/08/20/midi-autocomplete/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://simedw.com/2026/08/20/midi-autocomplete/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="143" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">This is pretty cool. The autocomplete aspect of it could be really cool for generally messing around and learning to play what &quot;sounds good&quot; together and stuff doing improvisation. I dont know, I love projects like this.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-142">
+          <span class="rank">34</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:5uahexd6wlinp35ly2m4zgnn/bafkreid7azitt3ywgunlsuvhv3nwanlt4rixg4ntf5oxdth5uzg5htnz3q" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/stephenjacobsmith.com/post/3mth27otqtc24" target="_blank" rel="noopener">
+              Lake Como&#39;s bollards. They&#39;re placed around 8 ft. on center, vs. 5 ft. in the US, shorter, *and* without a high curb (curb makes a ramming a
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="142">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="142" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:5uahexd6wlinp35ly2m4zgnn/bafkreid7azitt3ywgunlsuvhv3nwanlt4rixg4ntf5oxdth5uzg5htnz3q" alt="" loading="lazy">
+  </a>
+  
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="142" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/stephenjacobsmith.com/post/3mth27otqtc24" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/stephenjacobsmith.com/post/3mth27otqtc24" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="142" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Lake Como&#39;s bollards. They&#39;re placed around 8 ft. on center, vs. 5 ft. in the US, shorter, *and* without a high curb (curb makes a ramming attack between bollards much harder, since it requires a perfectly perpendicular approach). This would be a huge cost saving in NYC where bollards run $35k+/ea.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-141">
+          <span class="rank">35</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:5uahexd6wlinp35ly2m4zgnn/bafkreidshm7ouskmpiu4x7cskm46rsnvzltl6kl254ghjti3wrimcapqbe" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/stephenjacobsmith.com/post/3mtgw2nskrk2i" target="_blank" rel="noopener">
+              This is such an impressive report, every paragraph is just a wealth of information. Here&#39;s a random one:
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="141">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            <div class="bsky-quote">
+              ↳ quoting <b>@etany.org</b>: “A 125 St subway should be a slam dunk. But at $7.7B for 1.25 miles, and with stations deep underground, current plans would not only build the most expensive subway in the the world, but would cost riders valuable minutes every single trip.
+
+It&#39;s not too late, however:
+www.etany.org/reports/digg...”
+            </div>
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="141" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:5uahexd6wlinp35ly2m4zgnn/bafkreidshm7ouskmpiu4x7cskm46rsnvzltl6kl254ghjti3wrimcapqbe" alt="" loading="lazy">
+  </a>
+  
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="141" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/stephenjacobsmith.com/post/3mtgw2nskrk2i" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/stephenjacobsmith.com/post/3mtgw2nskrk2i" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="141" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">This is such an impressive report, every paragraph is just a wealth of information. Here&#39;s a random one:
+
+[contains quote post or other embedded content]</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-140">
+          <span class="rank">36</span>
+          <img class="thumb" src="https://ordinaryabundance.com/assets/abundance-room-v8.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://ordinaryabundance.com/" target="_blank" rel="noopener">
+              Ordinary Abundance
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="140">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://ordinaryabundance.com/assets/favicon.svg" loading="lazy">(<a href="/blinks?q=ordinaryabundance.com">Ordinary Abundance</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="140" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://ordinaryabundance.com/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://ordinaryabundance.com/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="140" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">A walk through a modern apartment, through the eyes of the people for whom everything in it was new.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-139">
+          <span class="rank">37</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:avtuzpkh6ed5fnet3iivdov7/bafkreift5yzgypp2wrg7ehaivfd4pfupqblbujvnvabswhuvg2mycnxptu" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/ratsack.bsky.social/post/3mtfpt4nmp22n" target="_blank" rel="noopener">
+              No one has affirmed my gender identity quite like Mike Pence.
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="139">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            <div class="bsky-quote">
+              ↳ quoting <b>@scgriffith.bsky.social</b>: “if the intelligence apparatus is this gullible that does help explain how we got into iraq”
+            </div>
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="139" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:5itm7jsyrdqdxizkb4cufqxl/bafkreialustt44acrnjsrupmmuecnhljvfyfnqfb3ddxwisufwgglzfs3m" alt="No one has affirmed my gender identity quite like Mike Pence." loading="lazy">
+  </a>
+  
+</div>
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="139" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/ratsack.bsky.social/post/3mtfpt4nmp22n" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/ratsack.bsky.social/post/3mtfpt4nmp22n" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="139" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">No one has affirmed my gender identity quite like Mike Pence.
+
+[contains quote post or other embedded content]</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-138">
+          <span class="rank">38</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:wrxzmmrm26x4e6db7353nm2x/bafkreie5hk3qhwrbxkjiasjjy53fd2ed7nhbbbcmy7r4j5gyqbtkias7hi" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/croweleycf.bsky.social/post/3mte5f62v6k2b" target="_blank" rel="noopener">
+              Screenshot from a DW report on AfD. Why I am not optimistic on Europe at all.
+
+This really is just a default European mentality, that presen
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="138">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="138" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:wrxzmmrm26x4e6db7353nm2x/bafkreie5hk3qhwrbxkjiasjjy53fd2ed7nhbbbcmy7r4j5gyqbtkias7hi" alt="DW interviewing an older German women who says &quot;but we&#39;re just not a purely German country anymore.&quot;" loading="lazy">
+  </a>
+  
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="138" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/croweleycf.bsky.social/post/3mte5f62v6k2b" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/croweleycf.bsky.social/post/3mte5f62v6k2b" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="138" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Screenshot from a DW report on AfD. Why I am not optimistic on Europe at all.
+
+This really is just a default European mentality, that presence AND blood determine who belongs to stupid little ethno-state xyz.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-137">
+          <span class="rank">39</span>
+          <img class="thumb" src="https://media.newyorker.com/photos/6a7f7fc939cfd25116c026de/16:9/w_1280,c_limit/Zatarain-Coiron_17.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.newyorker.com/culture/photo-booth/the-lonely-men-at-the-end-of-the-world" target="_blank" rel="noopener">
+              The Lonely Men at the End of the World | The New Yorker
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="137">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.newyorker.com/verso/static/thenewyorker-us/assets/favicon.ico" loading="lazy">(<a href="/blinks?q=newyorker.com">The New Yorker</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="137" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.newyorker.com/culture/photo-booth/the-lonely-men-at-the-end-of-the-world" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.newyorker.com/culture/photo-booth/the-lonely-men-at-the-end-of-the-world" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="137" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">In Patagonia, los puesteros look after other people’s livestock for not very much money, and sometimes go months without seeing anyone else.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-136">
+          <span class="rank">40</span>
+          
+          <div class="entry">
+            <a class="title " href="https://en.wikipedia.org/wiki/Pok%C3%A9mon_doujinshi_incident" target="_blank" rel="noopener">
+              Pokémon doujinshi incident - Wikipedia
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="136">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://en.wikipedia.org/static/favicon/wikipedia.ico" loading="lazy">(<a href="/blinks?q=en.wikipedia.org">en.wikipedia.org</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="136" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://en.wikipedia.org/wiki/Pok%C3%A9mon_doujinshi_incident" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://en.wikipedia.org/wiki/Pok%C3%A9mon_doujinshi_incident" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="136" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Getting nabbed by the copyright law and not the weird porn. Classic mistake. Pay your taxes, too.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-135">
+          <span class="rank">41</span>
+          <img class="thumb" src="https://storage.ghost.io/c/0f/76/0f76b548-bc58-4f25-abc3-3f5ebca07da4/content/images/2026/08/image3-2-1.png" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.404media.co/we-tracked-a-shipment-of-rare-books-it-ended-at-an-amazon-ai-training-facility/" target="_blank" rel="noopener">
+              We Tracked a Shipment of Rare Books. It Ended at an Amazon AI Training Facility
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="135">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://storage.ghost.io/c/0f/76/0f76b548-bc58-4f25-abc3-3f5ebca07da4/content/images/size/w256h256/format/png/2023/08/favicon-3.svg" loading="lazy">(<a href="/blinks?q=404media.co">404 Media</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="135" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.404media.co/we-tracked-a-shipment-of-rare-books-it-ended-at-an-amazon-ai-training-facility/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.404media.co/we-tracked-a-shipment-of-rare-books-it-ended-at-an-amazon-ai-training-facility/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="135" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">404 hides an AirTag in a rare book. It ends at an Amazon warehouse in Vegas, logo a T. rex eating a book, where staff cut the spines off and scan the corpse. Hackernews explains destroying the book is legally required, so grief is a category error. Top comment is about the dinosaur.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-134">
+          <span class="rank">42</span>
+          
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/nfinit.bsky.social/post/3mtbhercri22y/liked-by" target="_blank" rel="noopener">
+              Look I live in NYC, I haven&#39;t owned a car in nearly 20 years, I don&#39;t have a dog in this fight save for when I need to go back home every 3-
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="134">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="134" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/nfinit.bsky.social/post/3mtbhercri22y/liked-by" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/nfinit.bsky.social/post/3mtbhercri22y/liked-by" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="134" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              <details class="xd">
+                <summary class="threadmark" title="unroll the whole thread">
+                  🧵 2
+                </summary>
+                <div class="thread-view">
+                  <div class="tpost">
+                    <b>Nfinit</b>
+                    <span class="thandle">@nfinit.bsky.social</span>
+                    <div class="ttext">Look I live in NYC, I haven&#39;t owned a car in nearly 20 years, I don&#39;t have a dog in this fight save for when I need to go back home every 3-4 years but it is crazy how many of you are willing to accept the consequences of a full panopticonic police state in the name of traffic safety.</div>
+                    
+                    
+                  </div><div class="tpost">
+                    <b>Nfinit</b>
+                    <span class="thandle">@nfinit.bsky.social</span>
+                    <div class="ttext">Would I trust the local PD with access to a fully monitored highway system in the name of saving a few bucks off my car insurance bill?  I fucking wouldn&#39;t!  And neither should you!  What the actual fuck is wrong with you?</div>
+                    
+                    
+                  </div>
+                </div>
+              </details>
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-133">
+          <span class="rank">43</span>
+          <img class="thumb" src="https://cdn.outsideonline.com/wp-content/uploads/2015/06/01/overtraining-syndrome-intro_h.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.outsideonline.com/health/training-performance/running-empty/" target="_blank" rel="noopener">
+              Overtraining Syndrome Is Destroying Endurance Athletes
+            </a>
+            
+            <span class="domain"><img class="favicon" src="https://www.outsideonline.com/icon?98d2be2aff78b92e" loading="lazy">(<a href="/blinks?q=outsideonline.com">Outside</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="133" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.outsideonline.com/health/training-performance/running-empty/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.outsideonline.com/health/training-performance/running-empty/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="133" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">sports,anatomy,disease,interesting</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-132">
+          <span class="rank">44</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.wsj.com/tech/ai/ai-data-center-rural-america-backlash-c0af4e16" target="_blank" rel="noopener">
+              The ‘Country Hicks’ Who Refused $26 Million from an AI Data Center - WSJ
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="132">
+              TAGS (5)
+            </span>
+            <span class="domain">(<a href="/blinks?q=wsj.com">wsj.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="132" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.wsj.com/tech/ai/ai-data-center-rural-america-backlash-c0af4e16" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.wsj.com/tech/ai/ai-data-center-rural-america-backlash-c0af4e16" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="132" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-131">
+          <span class="rank">45</span>
+          <img class="thumb" src="https://npr.brightspotcdn.com/dims4/default/b1fb5cd/2147483647/strip/true/crop/3024x1588+0+625/resize/1200x630!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2F67%2F4f%2F19944a36427cb7b2cecfc49b2f01%2Froad-to-nowhere-3-tunnel.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.wunc.org/environment/2026-08-10/road-to-nowhere-great-smoky-mountains" target="_blank" rel="noopener">
+              The deep history behind the Road to Nowhere inside the Great Smoky Mountains | WUNC News
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="131">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.wunc.org/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=wunc.org">WUNC News</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="131" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.wunc.org/environment/2026-08-10/road-to-nowhere-great-smoky-mountains" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.wunc.org/environment/2026-08-10/road-to-nowhere-great-smoky-mountains" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="131" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Just a few miles from the tallest concrete dam east of the Mississippi River, there&#39;s a paved road that ends at a mysterious tunnel. This unfinished roadway, deep inside the Great Smoky Mountains National Park, is known as the Road to Nowhere.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-130">
+          <span class="rank">46</span>
+          
+          <div class="entry">
+            <a class="title " href="https://old.reddit.com/r/AskReddit/comments/1vp0v17/hr_of_reddit_what_was_the_worst_case_for_firing_a/" target="_blank" rel="noopener">
+              HR of reddit, what was the worst case for firing a worker? : AskReddit
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="130">
+              TAGS (5)
+            </span>
+            <span class="domain">(<a href="/blinks?q=old.reddit.com">old.reddit.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="130" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://old.reddit.com/r/AskReddit/comments/1vp0v17/hr_of_reddit_what_was_the_worst_case_for_firing_a/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://old.reddit.com/r/AskReddit/comments/1vp0v17/hr_of_reddit_what_was_the_worst_case_for_firing_a/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="130" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">these are always a good read</div>
+              </details>
+            </div>
+          </div>
+        </div>
+        </div><div class="col">
+        <div class="thing " id="blink-129">
+          <span class="rank">47</span>
+          <img class="thumb" src="https://media.newyorker.com/photos/6a738d140ec867995d3634da/16:9/w_1280,c_limit/gps-final-new-new2.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.newyorker.com/news/annals-of-inquiry/gps-and-the-lost-art-of-getting-lost" target="_blank" rel="noopener">
+              G.P.S. and the Lost Art of Getting Lost | The New Yorker
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="129">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.newyorker.com/verso/static/thenewyorker-us/assets/favicon.ico" loading="lazy">(<a href="/blinks?q=newyorker.com">The New Yorker</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="129" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.newyorker.com/news/annals-of-inquiry/gps-and-the-lost-art-of-getting-lost" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.newyorker.com/news/annals-of-inquiry/gps-and-the-lost-art-of-getting-lost" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="129" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">A new book, “Little Blue Dot,” by Katherine Dunn, raises questions about the unintended consequences of knowing where we are.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-128">
+          <span class="rank">48</span>
+          <img class="thumb" src="https://ewscripps.brightspotcdn.com/dims4/default/36c335b/2147483647/strip/true/crop/1280x672+0+24/resize/1200x630!/quality/90/?url=http%3A%2F%2Fewscripps-brightspot.s3.amazonaws.com%2F01%2F44%2Ff13fd08c4b2fa4e87daa750b46c7%2Ffpl.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.wptv.com/news/treasure-coast/region-st-lucie-county/saint-lucie-nuclear-power-plant-unit-1-manually-shut-down-after-3-control-rods-drop-into-reactor-core" target="_blank" rel="noopener">
+              St. Lucie Nuclear Plant Unit 1 back online after shut down
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="128">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.wptv.com/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=wptv.com">WPTV News Channel 5 West Palm</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="128" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.wptv.com/news/treasure-coast/region-st-lucie-county/saint-lucie-nuclear-power-plant-unit-1-manually-shut-down-after-3-control-rods-drop-into-reactor-core" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.wptv.com/news/treasure-coast/region-st-lucie-county/saint-lucie-nuclear-power-plant-unit-1-manually-shut-down-after-3-control-rods-drop-into-reactor-core" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="128" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Well, I have heard this isn&#39;t ideal. But it seems all systems responded normally? I don&#39;t know I&#39;m reading it still but it was notable news as I was browsing</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-127">
+          <span class="rank">49</span>
+          
+          <div class="entry">
+            <a class="title " href="https://news.ycombinator.com/item?id=49319349" target="_blank" rel="noopener">
+              A True Telnet BBS on a Casio Calculator | Hacker News
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="127">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://news.ycombinator.com/y18.svg" loading="lazy">(<a href="/blinks?q=news.ycombinator.com">news.ycombinator.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="127" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://news.ycombinator.com/item?id=49319349" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://news.ycombinator.com/item?id=49319349" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="127" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Hacker News comments don&#39;t suck here</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-126">
+          <span class="rank">50</span>
+          <img class="thumb" src="https://tinkerings.org/wp-content/uploads/2018/03/cut-pieces-v01.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://tinkerings.org/2018/03/28/guiding-ships-with-moire-patterns/" target="_blank" rel="noopener">
+              Guiding ships with Moire patterns | Tinkerings
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="126">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://s1.wp.com/i/favicon.ico?m=1713425267i" loading="lazy">(<a href="/blinks?q=tinkerings.org">Tinkerings</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="126" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://tinkerings.org/2018/03/28/guiding-ships-with-moire-patterns/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://tinkerings.org/2018/03/28/guiding-ships-with-moire-patterns/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="126" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">I love a dorky deep dive into the old so this one had me like a sucker</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-125">
+          <span class="rank">51</span>
+          
+          <div class="entry">
+            <a class="title " href="https://ei3lh.eu/2026/08/16/a-true-telnet-bbs-on-a-casio-calculator/" target="_blank" rel="noopener">
+              A True Telnet BBS On A Casio Calculator. – EI3LH
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="125">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://ei3lh.eu/wp-content/uploads/2025/10/radio-150x150.png" loading="lazy">(<a href="/blinks?q=ei3lh.eu">ei3lh.eu</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="125" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://ei3lh.eu/2026/08/16/a-true-telnet-bbs-on-a-casio-calculator/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://ei3lh.eu/2026/08/16/a-true-telnet-bbs-on-a-casio-calculator/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="125" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">I mean, can you vs should you is a classic, but this is some tier 1a dork shit</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-124">
+          <span class="rank">52</span>
+          
+          <div class="entry">
+            <a class="title " href="https://xcancel.com/DarioAmodei/status/2088758819304443967#" target="_blank" rel="noopener">
+              Dario Amodei (@DarioAmodei): &quot;2/2 Second, on the messaging around AI.  I do not agree that my messaging has been disproportionately negative.  In fact it has been about equally balanced between risks and benefits: I’ve written one major essay about each, and even in interviews where I discuss the risks, I make sure to frequently mention the incredible benefits as well as proposing possible solutions to the risks (short clips from my interviews that end up on social media tend to be disproportionately negative, as that gets clicks).  In fact, I wrote Machines of Loving Grace because I didn’t feel the AI industry was painting an inspiring enough picture of how the technology could radically transform the world for the better.  The bulk of the essay is devoted to refuting skepticism of AI’s potential in health and biology, and showing why I think it will actually be possible to cure most human disease in ~5-10 years, as crazy as it may sound to ordinary people and frankly to biologists as
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="124">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://xcancel.com/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=xcancel.com">Nitter</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="124" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://xcancel.com/DarioAmodei/status/2088758819304443967#" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://xcancel.com/DarioAmodei/status/2088758819304443967#" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="124" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Dario has a pretty interesting take/post here. Its worth a read. And its less &quot;wild&quot; than a lot of his writings.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-123">
+          <span class="rank">53</span>
+          
+          <div class="entry">
+            <a class="title " href="https://news.ycombinator.com/item?id=49313367" target="_blank" rel="noopener">
+              AI in drug discovery – what it is, where we stand and the path forward | Hacker News
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="123">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://news.ycombinator.com/y18.svg" loading="lazy">(<a href="/blinks?q=news.ycombinator.com">news.ycombinator.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="123" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://news.ycombinator.com/item?id=49313367" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://news.ycombinator.com/item?id=49313367" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="123" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">I mean, this is just interesting to see how they think things are panning out. I also am going to post a tweet from Dario today that fits alongside this.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-122">
+          <span class="rank">54</span>
+          <img class="thumb" src="https://video.bsky.app/watch/did%3Aplc%3Afqz767ikcbgk7yifapygtxeh/bafkreia2h2jp5kljuur7k6frgn4avmba5zimowptfvsyn45ysidwez3kca/thumbnail.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/zhugeex.com/post/3mt4y2fvbdk2h" target="_blank" rel="noopener">
+              There&#39;s a new animated film out in China called Niu Lai that was made by a man and his mother over 5 years without any investment, marketing
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="122">
+              TAGS (8)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  
+  <a class="vid" href="#" phx-click="open-media" phx-value-id="122" phx-value-i="0">
+    <img src="https://video.bsky.app/watch/did%3Aplc%3Afqz767ikcbgk7yifapygtxeh/bafkreia2h2jp5kljuur7k6frgn4avmba5zimowptfvsyn45ysidwez3kca/thumbnail.jpg" loading="lazy">
+    <span class="play">▶</span>
+  </a>
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="122" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/zhugeex.com/post/3mt4y2fvbdk2h" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/zhugeex.com/post/3mt4y2fvbdk2h" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="122" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              <details class="xd">
+                <summary class="threadmark" title="unroll the whole thread">
+                  🧵 3
+                </summary>
+                <div class="thread-view">
+                  <div class="tpost">
+                    <b>Daniel Ahmad</b>
+                    <span class="thandle">@zhugeex.com</span>
+                    <div class="ttext">There&#39;s a new animated film out in China called Niu Lai that was made by a man and his mother over 5 years without any investment, marketing, or promotion. 
+
+It made $1,100 from a few hundred people in attendance over its first 10 days, with many shocked that this could make it to the big screen.</div>
+                    <div class="bmedia">
+  
+  <a class="vid" href="#" phx-click="open-media" phx-value-id="122" phx-value-i="0">
+    <img src="https://video.bsky.app/watch/did%3Aplc%3Afqz767ikcbgk7yifapygtxeh/bafkreia2h2jp5kljuur7k6frgn4avmba5zimowptfvsyn45ysidwez3kca/thumbnail.jpg" loading="lazy">
+    <span class="play">▶</span>
+  </a>
+</div>
+                    
+                  </div><div class="tpost">
+                    <b>Daniel Ahmad</b>
+                    <span class="thandle">@zhugeex.com</span>
+                    <div class="ttext">Turns out, all the criticism has turned it into a somewhat viral movie among the youth, some of which see it as a meme / performance art and others that view it as genuine effort on behalf of the creators. 
+
+It&#39;s now earned over $200,000 and could go on to reach over $1 million easily.</div>
+                    
+                    
+                  </div><div class="tpost">
+                    <b>Daniel Ahmad</b>
+                    <span class="thandle">@zhugeex.com</span>
+                    <div class="ttext">Absolute Cinema</div>
+                    <div class="bmedia">
+  
+  <a class="vid" href="#" phx-click="open-media" phx-value-id="122" phx-value-i="1">
+    <img src="https://video.bsky.app/watch/did%3Aplc%3Afqz767ikcbgk7yifapygtxeh/bafkreigzhlitm46bn3p2fsn5akrlwivc7m2dlwcdmondxemyvj4jt4z26e/thumbnail.jpg" loading="lazy">
+    <span class="play">▶</span>
+  </a>
+</div>
+                    
+                  </div>
+                </div>
+              </details>
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">This author has chosen to make their posts visible only to people who are signed in.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-121">
+          <span class="rank">55</span>
+          
+          <div class="entry">
+            <a class="title " href="https://earthquake.usgs.gov/earthquakes/eventpage/us6000tkt2/executive" target="_blank" rel="noopener">
+              M 7.7 - 68 km NNW of Ende, Indonesia
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="121">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://earthquake.usgs.gov/earthquakes/eventpage/us6000tkt2/favicon.ico" loading="lazy">(<a href="/blinks?q=earthquake.usgs.gov">earthquake.usgs.gov</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="121" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://earthquake.usgs.gov/earthquakes/eventpage/us6000tkt2/executive" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://earthquake.usgs.gov/earthquakes/eventpage/us6000tkt2/executive" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="121" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-120">
+          <span class="rank">56</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:cyyd366g3hrxp5rynixm2mm3/bafkreifvtw5zehbssvr73l6rnliabqme25e6gzmuhhedatrmofxqhtkqjy" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/depthsofwikipedia.bsky.social/post/3mt3ywz47dk2y" target="_blank" rel="noopener">
+              lol
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="120">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="120" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:cyyd366g3hrxp5rynixm2mm3/bafkreifvtw5zehbssvr73l6rnliabqme25e6gzmuhhedatrmofxqhtkqjy" alt="Tanner v. United States, 483 U.S. 107 (1987), was a United States Supreme Court case in which the Court held that juror testimony could not be used to discredit or overturn a jury verdict, even if the jury had been consuming copious amounts of alcohol, marijuana, and cocaine throughout the course of the trial." loading="lazy">
+  </a>
+  
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="120" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/depthsofwikipedia.bsky.social/post/3mt3ywz47dk2y" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/depthsofwikipedia.bsky.social/post/3mt3ywz47dk2y" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="120" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              <details class="xd">
+                <summary class="threadmark" title="unroll the whole thread">
+                  🧵 2
+                </summary>
+                <div class="thread-view">
+                  <div class="tpost">
+                    <b>depths of wikipedia</b>
+                    <span class="thandle">@depthsofwikipedia.bsky.social</span>
+                    <div class="ttext">lol</div>
+                    <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="120" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:cyyd366g3hrxp5rynixm2mm3/bafkreifvtw5zehbssvr73l6rnliabqme25e6gzmuhhedatrmofxqhtkqjy" alt="Tanner v. United States, 483 U.S. 107 (1987), was a United States Supreme Court case in which the Court held that juror testimony could not be used to discredit or overturn a jury verdict, even if the jury had been consuming copious amounts of alcohol, marijuana, and cocaine throughout the course of the trial." loading="lazy">
+  </a>
+  
+</div>
+                    
+                  </div><div class="tpost">
+                    <b>depths of wikipedia</b>
+                    <span class="thandle">@depthsofwikipedia.bsky.social</span>
+                    <div class="ttext">you need to read this entire section it&#39;s crazy!!!!!! en.wikipedia.org/wiki/Tanner_...</div>
+                    <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="120" phx-value-i="1">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:cyyd366g3hrxp5rynixm2mm3/bafkreighw3sz2qedjt6epxgsrgkrbehnhfuvlkj2mnfij67sgszh4ugvte" alt="" loading="lazy">
+  </a>
+  
+</div>
+                    
+                  </div>
+                </div>
+              </details>
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">lol</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-119">
+          <span class="rank">57</span>
+          <img class="thumb" src="https://substackcdn.com/image/fetch/$s_!bUEn!,w_1200,h_675,c_fill,f_jpg,q_auto:good,fl_progressive:steep,g_auto/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F7a9ffbf1-4b2e-4d94-963c-86ee6e4d8c43_1090x694.png" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.honest-broker.com/p/reese-witherspoon-and-me" target="_blank" rel="noopener">
+              Reese Witherspoon and Me - by Ted Gioia - The Honest Broker
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="119">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://substackcdn.com/image/fetch/$s_!yJC1!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fbucketeer-e05bbc84-baa3-437e-9518-adb32be77984.s3.amazonaws.com%2Fpublic%2Fimages%2Fa1fa1445-60df-4be2-981a-d798d4819ff0%2Ffavicon.ico" loading="lazy">(<a href="/blinks?q=honest-broker.com">honest-broker.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="119" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.honest-broker.com/p/reese-witherspoon-and-me" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.honest-broker.com/p/reese-witherspoon-and-me" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="119" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Will I join her on the red carpet some day?</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-118">
+          <span class="rank">58</span>
+          
+          <div class="entry">
+            <a class="title " href="https://uvbirds.com/" target="_blank" rel="noopener">
+              Ultraviolet Bird Photography - Images
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="118">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://uvbirds.com/favicon.ico" loading="lazy">(<a href="/blinks?q=uvbirds.com">uvbirds.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="118" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://uvbirds.com/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://uvbirds.com/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="118" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Interesting deep dive. Weird angle. Fun stuff.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-117">
+          <span class="rank">59</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:5uahexd6wlinp35ly2m4zgnn/bafkreie6sxnqshgzzffhxek5q3w6qgz74komwrwoz2w6hmgdjjrehn5zo4" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/stephenjacobsmith.com/post/3mt2b75wz522n" target="_blank" rel="noopener">
+              These are very elaborate and a pain to maintain – each one looks like it probably only serves one, maaaybe two units. All because Canada has
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="117">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            <div class="bsky-quote">
+              ↳ quoting <b>@fdms.eu</b>: “Beautiful stairs, and a political statement (the statement is that there shouldn&#39;t be more photos per skeet than a grid can fit)”
+            </div>
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (3)</summary>
+              <div>
+                
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="117" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreiflg34iavyhtvxzwlpug5xqlg4bzr6un5xvomggscoswf2dbiwwtm" alt="Colorful stairs across a narrow alley in Quebec City" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="117" phx-value-i="1">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreid7fdhyoy6ib666plllxieqbmdyibchmkrowahwndlbvxjschgmum" alt="More stairs!" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="117" phx-value-i="2">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreifsalcp7n3b6eoxi6gi4qjar6ewwq56eqsmz4rngu57t5mkv3wdee" alt="Even more stairs! And arguably bridges?" loading="lazy">
+  </a>
+  
+</div>
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="117" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/stephenjacobsmith.com/post/3mt2b75wz522n" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/stephenjacobsmith.com/post/3mt2b75wz522n" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="117" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              <details class="xd">
+                <summary class="threadmark" title="unroll the whole thread">
+                  🧵 3
+                </summary>
+                <div class="thread-view">
+                  <div class="tpost">
+                    <b>Stephen Jacob Smith</b>
+                    <span class="thandle">@stephenjacobsmith.com</span>
+                    <div class="ttext">These are very elaborate and a pain to maintain – each one looks like it probably only serves one, maaaybe two units. All because Canada has the strictest anti-single-stair rules in the developed world, making even the US look permissive.</div>
+                    
+                    <div class="tquote">
+                      ↳ <b>@fdms.eu</b>: “Beautiful stairs, and a political statement (the statement is that there shouldn&#39;t be more photos per skeet than a grid can fit)”
+                      <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="117" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreiflg34iavyhtvxzwlpug5xqlg4bzr6un5xvomggscoswf2dbiwwtm" alt="Colorful stairs across a narrow alley in Quebec City" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="117" phx-value-i="1">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreid7fdhyoy6ib666plllxieqbmdyibchmkrowahwndlbvxjschgmum" alt="More stairs!" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="117" phx-value-i="2">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:oqefyfnonijpiov7jv4vjnsk/bafkreifsalcp7n3b6eoxi6gi4qjar6ewwq56eqsmz4rngu57t5mkv3wdee" alt="Even more stairs! And arguably bridges?" loading="lazy">
+  </a>
+  
+</div>
+                    </div>
+                  </div><div class="tpost">
+                    <b>Stephen Jacob Smith</b>
+                    <span class="thandle">@stephenjacobsmith.com</span>
+                    <div class="ttext">They are also robbing the rear windows of a lot of natural light and free heating, in a place that is very dark and cold for most of the year! Fun new way that building codes can cook the planet.</div>
+                    
+                    
+                  </div><div class="tpost">
+                    <b>Stephen Jacob Smith</b>
+                    <span class="thandle">@stephenjacobsmith.com</span>
+                    <div class="ttext">Common misconception is that the two-stair rule is new in the US (and I assume Canada as well). It’s very old! That’s why it’s so stuck in code and fire officials’ minds. You don’t see fire escapes and rear stairs on 19th century buildings in Europe like you do in NYC and Chicago.</div>
+                    
+                    
+                  </div>
+                </div>
+              </details>
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">These are very elaborate and a pain to maintain – each one looks like it probably only serves one, maaaybe two units. All because Canada has the strictest anti-single-stair rules in the developed world, making even the US look permissive.
+
+[contains quote post or other embedded content]</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-116">
+          <span class="rank">60</span>
+          <img class="thumb" src="https://video.bsky.app/watch/did%3Aplc%3Ahqhg367ykwgf7yiulzmnpvx7/bafkreibub4xxvoxfrwd3bykh7jmut2qmdwihnkttto3jj6rds7nlamjogu/thumbnail.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/isawken.bsky.social/post/3miqyhilsgs2f" target="_blank" rel="noopener">
+              transplanting my favorite easter post over from tumblr
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="116">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  
+  <a class="vid" href="#" phx-click="open-media" phx-value-id="116" phx-value-i="0">
+    <img src="https://video.bsky.app/watch/did%3Aplc%3Ahqhg367ykwgf7yiulzmnpvx7/bafkreibub4xxvoxfrwd3bykh7jmut2qmdwihnkttto3jj6rds7nlamjogu/thumbnail.jpg" loading="lazy">
+    <span class="play">▶</span>
+  </a>
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="116" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/isawken.bsky.social/post/3miqyhilsgs2f" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/isawken.bsky.social/post/3miqyhilsgs2f" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="116" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              <details class="xd">
+                <summary class="threadmark" title="unroll the whole thread">
+                  🧵 2
+                </summary>
+                <div class="thread-view">
+                  <div class="tpost">
+                    <b>relax guys, it’s still ken</b>
+                    <span class="thandle">@isawken.bsky.social</span>
+                    <div class="ttext">transplanting my favorite easter post over from tumblr</div>
+                    <div class="bmedia">
+  
+  <a class="vid" href="#" phx-click="open-media" phx-value-id="116" phx-value-i="0">
+    <img src="https://video.bsky.app/watch/did%3Aplc%3Ahqhg367ykwgf7yiulzmnpvx7/bafkreibub4xxvoxfrwd3bykh7jmut2qmdwihnkttto3jj6rds7nlamjogu/thumbnail.jpg" loading="lazy">
+    <span class="play">▶</span>
+  </a>
+</div>
+                    
+                  </div><div class="tpost">
+                    <b>relax guys, it’s still ken</b>
+                    <span class="thandle">@isawken.bsky.social</span>
+                    <div class="ttext">it’s cloudy; overcast</div>
+                    
+                    
+                  </div>
+                </div>
+              </details>
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">transplanting my favorite easter post over from tumblr</div>
+              </details>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="pager">
+        <button phx-click="prev-page">‹ BACK</button>
+        <span class="pageno">page 2</span>
+        <button phx-click="more">MORE ›</button>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebox" data-joyride="tags-box">
+        <h2>tags</h2>
+        <div class="body" style="position:relative;">
+          
+          <div class="tag-cloud">
+            <span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">
+              interesting<span class="tcount">49</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech">
+              tech<span class="tcount">34</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="bluesky">
+              bluesky<span class="tcount">30</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="niche">
+              niche<span class="tcount">28</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="culture">
+              culture<span class="tcount">25</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">
+              funny<span class="tcount">24</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">
+              history<span class="tcount">24</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="ai">
+              ai<span class="tcount">19</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="programming">
+              programming<span class="tcount">19</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">
+              lol<span class="tcount">17</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">
+              wtf<span class="tcount">15</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="ml">
+              ml<span class="tcount">14</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">
+              nyc<span class="tcount">14</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="blog">
+              blog<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="bookmarks">
+              bookmarks<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="hacker-news">
+              hacker-news<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech-commentary">
+              tech-commentary<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="longread">
+              longread<span class="tcount">10</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="art">
+              art<span class="tcount">9</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="news">
+              news<span class="tcount">9</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="reddit">
+              reddit<span class="tcount">9</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="cool">
+              cool<span class="tcount">8</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="code">
+              code<span class="tcount">7</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="hardware">
+              hardware<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="math">
+              math<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="music">
+              music<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="old-internet">
+              old-internet<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="photography">
+              photography<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="europe">
+              europe<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="new-york">
+              new-york<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="public-transit">
+              public-transit<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="video">
+              video<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="youtube">
+              youtube<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="boats">
+              boats<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="china">
+              china<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="commentary">
+              commentary<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="hobby">
+              hobby<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="law">
+              law<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="life">
+              life<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="phish">
+              phish<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="wikipedia">
+              wikipedia<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="writing">
+              writing<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="apple">
+              apple<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="birds">
+              birds<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="camera">
+              camera<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="career">
+              career<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="cars">
+              cars<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="chatgpt">
+              chatgpt<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="cybersecurity">
+              cybersecurity<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="design">
+              design<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="drugs">
+              drugs<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="film">
+              film<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="food">
+              food<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="fun">
+              fun<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="github">
+              github<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="grateful-dead">
+              grateful-dead<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="health">
+              health<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="japan">
+              japan<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="llm">
+              llm<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="media">
+              media<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="mental-health">
+              mental-health<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="new-york-times">
+              new-york-times<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="phishing">
+              phishing<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="politics">
+              politics<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="programming-languages">
+              programming-languages<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="software">
+              software<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="sports">
+              sports<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="strange">
+              strange<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="subway">
+              subway<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech-history">
+              tech-history<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="transit">
+              transit<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="travel">
+              travel<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tv">
+              tv<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="weird">
+              weird<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="work">
+              work<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="wsj">
+              wsj<span class="tcount">2</span>
+            </span>
+          </div>
+          <div style="margin-top:6px;">
+            <span class="singles-link" phx-click="toggle-singles">
+              ▾ show 142 one-offs
+            </span>
+            
+          </div>
+        </div>
+      </div>
+      <div class="sidebox">
+        <h2>feeds</h2>
+        <div class="body">
+          <a href="/blinks.rss" style="color:#369;">rss</a>
+          
+        </div>
+      </div>
+      <div class="sidebox">
+        <h2>admin</h2>
+        <div class="body">
+          
+            <form phx-submit="unlock-admin">
+              <input type="password" name="key" placeholder="paste API key…" style="width:100%; border:1px solid #5f99cf; font-size:11px; padding:3px; margin-bottom:4px;">
+              <button class="aim-send" type="submit">unlock</button>
+              
+            </form>
+          
+        </div>
+      </div>
+      <div class="sidebox">
+        <h2>about</h2>
+        <div class="body" style="color:#555;">
+          bobby's links. click tags to combine them — you'll see everything
+          carrying any of them. every link is also a chat room.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+
+  
+
+  
+</div></div>
+  </body>
+</html>

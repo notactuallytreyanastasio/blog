@@ -1,0 +1,256 @@
+# /stumble, a bag of links from Bluesky: StumbleLive's page, as a program
+# the browser runs (static/stumble/stumble.blimp, what it decides in
+# temper/src/stumble), a script for the rule inputs
+# (static/stumble/stumble.js), and here Blog.PokeAround's queries, one
+# endpoint each, answering JSON that Postgres writes itself.
+#
+#   /stumble/links.json?langs=&n=   random_links(50, min_score: 20, langs: langs)
+#   /stumble/tags.json              list_tags/0: every tag, with what the
+#                                   program filters and sorts them by
+#   /stumble/tag.json?slug=&langs=  links_by_tag(slug, order: :newest, langs: langs)
+#   /stumble/count.json             count_links/0
+#   /stumble/go?id=                 increment_stumble_count/1, then the link
+#
+# The links are not this program's. Phoenix's Blog.PokeAround reads Graze's
+# turbostream, scores each post with a link in it by its author's
+# followers, and inserts it into pa_links, about two million rows and
+# counting; it goes on doing that while this serves the page. Nothing here
+# writes but the stumble count.
+#
+# Two of Phoenix's queries could not be copied. The server is one process
+# and a query holds it until Postgres answers, so a slow query stalls every
+# page on the site, not just this one.
+#
+# random_links is `WHERE score >= 20 AND langs && $1 ORDER BY RANDOM()
+# LIMIT 50`: Postgres reads all 2.3 million rows and sorts them, 800ms in
+# production, on every load and every Shuffle. Here it draws 1000 ids
+# between 1 and max(id) and looks them up by primary key (under 1ms), then
+# picks 50 of those that pass the filter, at random. Each row is as likely
+# as any other, as before: the ids are drawn uniformly and a row either has
+# one or does not. The ids have gaps (an insert that hit the unique url
+# index still used one up) -- about 82% of them are rows -- so 1000 draws
+# find some 800 rows, nearly all English with score >= 20. When fewer
+# than 50 pass -- any language but English: over 99% of the rows are
+# English, French is next at 0.1% -- it asks Phoenix's own query, which
+# the GIN index on langs makes quick for so few rows (797 Japanese: 7ms
+# in production, 16 Korean: 3ms), and which then is exactly the old answer.
+#
+# count_links is `SELECT count(*)`, 150ms; the status bar's number is kept
+# for a minute (STUMBLE_COUNT_TTL_S) by the StumbleCount actor. The LiveView
+# counted once per visit too; a visitor sees a number up to a minute old.
+#
+# top_domains(5) was counted at mount and never shown, and is left out.
+
+STUMBLE_LINKS = 50
+STUMBLE_MIN_SCORE = 20
+STUMBLE_SAMPLE = 1000
+STUMBLE_COUNT_TTL_S = 60
+
+ST_LINK_JSON = "json_build_object('id', q.id, 'url', q.url, 'post_text', coalesce(q.post_text, ''), 'domain', coalesce(q.domain, ''))"
+
+def st_links_sql(sample: Bool, with_langs: Bool) -> String do
+  pick = case sample do
+    true -> concat("id = any(array(select (1 + floor(random() * (select max(id) from pa_links)))::bigint from generate_series(1, ", to_string(STUMBLE_SAMPLE), "))) and ")
+    false -> ""
+  end
+  langs = case with_langs do
+    true -> " and langs && string_to_array($1, ',')::varchar[]"
+    false -> " and $1 = $1"
+  end
+  concat("select count(*) as n, coalesce(json_agg(", ST_LINK_JSON, "), '[]')::text as body from (select id, url, post_text, domain from pa_links where ",
+    pick, "score >= ", to_string(STUMBLE_MIN_SCORE), langs, " order by random() limit ", to_string(STUMBLE_LINKS), ") q")
+end
+
+# links_by_tag/2: the newest 50 with the tag
+def st_tag_sql(with_langs: Bool) -> String do
+  langs = case with_langs do
+    true -> " and l.langs && string_to_array($2, ',')::varchar[]"
+    false -> " and $2 = $2"
+  end
+  concat("select coalesce(json_agg(", ST_LINK_JSON, "), '[]')::text as body from (select l.id, l.url, l.post_text, l.domain from pa_links l ",
+    "join pa_link_tags lt on lt.link_id = l.id join pa_tags t on t.id = lt.tag_id where t.slug = $1", langs,
+    " order by l.inserted_at desc limit 50) q")
+end
+
+# Every tag, in list_tags/0's order (usage_count desc, name), with its
+# name as lower() has it, its age in seconds (inserted_at is UTC), and its
+# place among the names and among the creation times in Postgres's order:
+# the program sorts by those, so names sort by the database's collation as
+# they did.
+ST_TAGS_SQL = "select coalesce(json_agg(json_build_object('name', t.name, 'lower', lower(t.name), 'slug', t.slug, 'usage', t.usage_count, 'age', extract(epoch from (now() at time zone 'utc') - t.inserted_at)::float8, 'name_rank', t.name_rank, 'created_rank', t.created_rank) order by t.usage_count desc, t.name_rank), '[]')::text as body from (select *, (row_number() over (order by name))::int as name_rank, (dense_rank() over (order by inserted_at))::int as created_rank from pa_tags) t"
+
+ST_COUNT_SQL = "select count(*) as n from pa_links"
+
+ST_GO_SQL = "update pa_links set stumble_count = stumble_count + 1 where id = $1::bigint returning url"
+ST_URL_SQL = "select url from pa_links where id = $1::bigint"
+
+ST_DB_DOWN = "{\"error\": \"the database did not answer\"}"
+
+def st_json(status: Int, cache: String, body: String) -> Map do
+  response(status, "application/json; charset=utf-8", cache, body)
+end
+
+def st_rows(sql: String, params: List) -> Any do
+  case DB <- :query(sql, params) do
+    {:error, reason} ->
+      puts(concat("stumble: ", reason))
+      nil
+    {:ok, rows} -> rows
+  end
+end
+
+def st_answer(rows: Any, cache: String) -> Map do
+  case rows do
+    nil -> st_json(503, "no-cache", ST_DB_DOWN)
+    [] -> st_json(200, cache, "[]")
+    _ -> st_json(200, cache, head(rows).body)
+  end
+end
+
+# Only what a comma-joined list of language codes can be: lower-case
+# letters and commas. Anything else is no filter; the menu only offers
+# eight codes.
+def st_clean_langs(langs: String) -> String do
+  case length(langs) <= 64 and st_all_in(langs, 0, "a", "z", true) do
+    true -> langs
+    false -> ""
+  end
+end
+
+# Every byte of s from i is between lo and hi (or a comma, when commas is
+# true), and there is at least one.
+def st_all_in(s: String, i: Int, lo: String, hi: String, commas: Bool) -> Bool do
+  case i >= length(s) do
+    true -> i > 0
+    false ->
+      c = char_code(slice(s, i, 1))
+      ok = (c >= char_code(lo) and c <= char_code(hi)) or (commas and c == 44)
+      case ok do
+        true -> st_all_in(s, i + 1, lo, hi, commas)
+        false -> false
+      end
+  end
+end
+
+def st_links_body(langs: String) -> Any do
+  with_langs = langs != ""
+  sampled = st_rows(st_links_sql(true, with_langs), [langs])
+  case sampled do
+    nil -> nil
+    _ ->
+      case head(sampled).n >= STUMBLE_LINKS do
+        true -> sampled
+        false -> st_rows(st_links_sql(false, with_langs), [langs])
+      end
+  end
+end
+
+def st_digits_only(s: String) -> Bool do
+  length(s) <= 18 and st_all_in(s, 0, "0", "9", false)
+end
+
+# A link as a Location header: http(s) only, one line.
+def st_redirectable(url: String) -> Bool do
+  (starts_with(url, "https://") or starts_with(url, "http://")) and not(contains(url, "\r")) and not(contains(url, "\n"))
+end
+
+# `open`: increment_stumble_count/1 and redirect(external: url). A HEAD
+# only looks, so a link checker does not count as a stumble.
+def st_go(id: String, method: String) -> Map do
+  case st_digits_only(id) do
+    false -> html_response(404, not_found_page("/stumble/go"))
+    true ->
+      sql = case method == "GET" do
+        true -> ST_GO_SQL
+        false -> ST_URL_SQL
+      end
+      rows = st_rows(sql, [id])
+      case rows do
+        nil -> response(503, "text/plain; charset=utf-8", "no-cache", "The database did not answer just now.\n")
+        [] -> html_response(404, not_found_page("/stumble/go"))
+        _ ->
+          url = head(rows).url
+          case st_redirectable(url) do
+            true -> %{status: 302, content_type: "text/plain; charset=utf-8", cache: "no-store", body: "", location: url}
+            false -> html_response(404, not_found_page("/stumble/go"))
+          end
+      end
+  end
+end
+
+# The status bar's count, a minute at a time.
+actor StumbleCount do
+  state count: Int :: -1
+  state counted_at: Int :: 0
+
+  on :count(at: Int) do
+    case count >= 0 and at - counted_at < STUMBLE_COUNT_TTL_S do
+      true -> reply count
+      false ->
+        rows = st_rows(ST_COUNT_SQL, [])
+        case rows do
+          nil -> reply count
+          _ ->
+            n = head(rows).n
+            become count: n, counted_at: at
+            reply n
+        end
+    end
+  end
+end
+
+STUMBLE = spawn StumbleCount
+
+def stumble_api(path: String, req: Map) -> Any do
+  case path do
+    "/stumble/links.json" -> st_answer(st_links_body(st_clean_langs(query_param(req.query, "langs"))), "no-store")
+    "/stumble/tags.json" -> st_answer(st_rows(ST_TAGS_SQL, []), "no-store")
+    "/stumble/tag.json" ->
+      langs = st_clean_langs(query_param(req.query, "langs"))
+      st_answer(st_rows(st_tag_sql(langs != ""), [query_param(req.query, "slug"), langs]), "no-store")
+    "/stumble/count.json" ->
+      n = STUMBLE <- :count(now())
+      case n < 0 do
+        true -> st_json(503, "no-cache", ST_DB_DOWN)
+        false -> st_json(200, "no-cache", concat("{\"count\": ", to_string(n), "}"))
+      end
+    "/stumble/go" -> st_go(query_param(req.query, "id"), req.method)
+    _ -> nil
+  end
+end
+
+# ── the page ────────────────────────────────────────────────────────────
+
+ST_PROGRAM_PATH = "/stumble/stumble.blimp"
+ST_SCRIPTS = list_append(APP_SCRIPTS, ["/stumble/stumble.js"])
+
+# The app layout's <main class="flex-1 overflow-y-auto px-4"> around the
+# LiveView, less the layout's sidebar, which the other ports left out too.
+# StumbleLive's <style> is /assets/stumble.css.
+def stumble_page() -> String do
+  body = join([
+    "<div class=\"flex h-full font-mono\"><main class=\"flex-1 overflow-y-auto px-4\"><div class=\"min-h-screen\">\n",
+    "<div id=\"blimp-app\" data-program=\"", ST_PROGRAM_PATH, "\" data-actor=\"st\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", ST_PROGRAM_PATH, "\">", ST_PROGRAM_PATH, "</a>.</p></noscript>\n",
+    "</div></main></div>\n",
+    script_tags(ST_SCRIPTS)
+  ], "")
+  page_layout_html("Thoughts and Tidbits", "A bag of links people posted to Bluesky, fifty at a time, at random.", "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/stumble.css"], body, "h-full bg-gray-100")
+end
+
+def stumble_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+ST_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", stumble_page())
+ST_PROGRAM = stumble_asset("_build/stumble.blimp", "text/plain; charset=utf-8")
+ST_JS = stumble_asset("static/stumble/stumble.js", "text/javascript; charset=utf-8")
+ST_CSS = stumble_asset("assets/stumble.css", "text/css; charset=utf-8")

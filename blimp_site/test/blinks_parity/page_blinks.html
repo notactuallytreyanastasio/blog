@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="dS0MbhMYMGUfSSk_ZjgjDiMOFTQBYiYR4eoYWvDHP1xUTiOxoiCbI7Dk">
+    <title>Blinks: Bobbby&#39;s links</title>
+    <meta name="description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:title" content="Blinks: Bobbby's links">
+    <meta property="og:description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bobbby.online/blinks">
+    <meta property="og:image" content="https://bobbby.online/static/blinks-og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="bobbby.online">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Blinks: Bobbby's links">
+    <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png">
+
+    <link rel="manifest" href="/static/blinks-pwa/manifest.json">
+    <link rel="apple-touch-icon" href="/static/blinks-pwa/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/blinks-pwa/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Blinks">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f5f2ea">
+    <link phx-track-static rel="stylesheet" href="/assets/app-3cfac71d5552d1426de906087a8be2fe.css?vsn=d">
+    <script defer phx-track-static type="text/javascript" src="/assets/app-7afeaa4605879f3254ad239dc57c0a34.js?vsn=d">
+    </script>
+  </head>
+  <body style="margin:0;">
+    <div id="phx-GNn-g2emPELr742h" data-phx-main data-phx-session="SFMyNTY.g2gDaAJhBXQAAAAIdwJpZG0AAAAUcGh4LUdObi1nMmVtUEVMcjc0Mmh3B3Nlc3Npb250AAAAAHcEdmlld3cZRWxpeGlyLkJsb2dXZWIuQmxpbmtzTGl2ZXcKcGFyZW50X3BpZHcDbmlsdwZyb3V0ZXJ3FUVsaXhpci5CbG9nV2ViLlJvdXRlcncJcm9vdF92aWV3dxlFbGl4aXIuQmxvZ1dlYi5CbGlua3NMaXZldwxsaXZlX3Nlc3Npb25oAncGYmxpbmtzbggAXrb6QpXU2Rh3CHJvb3RfcGlkdwNuaWxuBgCZ_ozwoAFiAAFRgA.HBcaWJBnwLpv8Qyl-3YWbQmzcRN0vMQQnc-jg5Euz0U" data-phx-static="SFMyNTY.g2gDaAJhBXQAAAADdwJpZG0AAAAUcGh4LUdObi1nMmVtUEVMcjc0Mmh3BWZsYXNodAAAAAB3CmFzc2lnbl9uZXdqbgYAmf6M8KABYgABUYA.8mUowTQl4e3t_Wf656rTdvZcIuYPXDroNGbx6Jk7sGs"><div id="blinks-page" phx-hook="BlinksPrefs">
+  <style>
+    #blinks-page, #blinks-page *, #blinks-page *::before, #blinks-page *::after { box-sizing: border-box; }
+    /* the outer shell never scrolls; inner regions (paper, sidebar, chat) do */
+    #blinks-page { font: 12px verdana, arial, helvetica, sans-serif; color: #000; background: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    #blinks-page .masthead { flex-shrink: 0; }
+    #blinks-page a { text-decoration: none; }
+    #blinks-page .masthead { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 4px 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    #blinks-page .masthead h1 { font-size: 15px; font-weight: bold; letter-spacing: -0.5px; margin: 0; display: inline; }
+    #blinks-page .masthead h1 span { color: #ff4500; }
+    #blinks-page .dateline { color: #369; font-size: 10px; }
+    #blinks-page .tabs { display: flex; gap: 3px; align-self: flex-end; margin-bottom: -5px; }
+    #blinks-page .tabs .tab { font-size: 11px; font-weight: bold; color: #369; background: #b9d2ec; border: 1px solid #5f99cf; border-bottom: none; border-radius: 3px 3px 0 0; padding: 2px 10px; }
+    #blinks-page .tabs .tab.on { background: #fff; color: #ff4500; }
+    #blinks-page .bundles { overflow-y: auto; min-height: 0; }
+    #blinks-page .bundle { display: block; border: 1px solid #ddd; border-radius: 2px; padding: 7px 10px; margin-bottom: 6px; }
+    #blinks-page .bundle:hover { border-color: #5f99cf; background: #f5f9fd; }
+    #blinks-page .bundle b { color: #0000ff; font-size: 13px; }
+    #blinks-page .bundle .bcount { color: #888; font-size: 10px; margin-left: 8px; }
+    #blinks-page .bundle .bpreview { color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #blinks-page .tour-link { color: #369; font-size: 10px; font-weight: bold; cursor: pointer; }
+    #blinks-page .pushwrap { position: relative; display: inline-flex; gap: 6px; align-items: center; }
+    #blinks-page .push-on { color: #2a7; cursor: default; }
+    #blinks-page .push-err { color: #c00; font-size: 10px; font-weight: bold; cursor: help; }
+    #blinks-page .push-modal-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+    #blinks-page .push-modal { width: min(360px, 100%); background: #fff; border: 1px solid #5f99cf; border-radius: 4px; box-shadow: 4px 4px 0 #cee3f8; font: 12px verdana, arial, helvetica, sans-serif; color: #000; }
+    #blinks-page .push-modal-title { display: flex; justify-content: space-between; align-items: center; background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 5px 10px; font-weight: bold; font-size: 12px; color: #369; }
+    #blinks-page .push-modal-title a { color: #369; cursor: pointer; font-weight: bold; }
+    #blinks-page .push-modal-body { padding: 12px 14px 14px; }
+    #blinks-page .push-copy { margin: 0 0 10px; line-height: 1.5; font-size: 13px; }
+    #blinks-page .push-pin { margin: 0 0 10px; line-height: 1.5; font-size: 11px; color: #333; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 6px 8px; }
+    #blinks-page .push-pin .ico { font-size: 12px; }
+    #blinks-page .push-btns { display: flex; gap: 8px; }
+    #blinks-page .push-btns .aim-send { font-size: 12px; padding: 5px 16px; }
+    #blinks-page .push-btns .push-later { background: #fff; color: #369; }
+    #blinks-page .push-hint { position: absolute; top: 18px; right: 0; z-index: 20; width: 240px; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 6px 8px; font-size: 10px; line-height: 1.4; color: #333; box-shadow: 2px 2px 0 #cee3f8; }
+    #blinks-page .push-hint a { color: #369; font-weight: bold; cursor: pointer; margin-left: 4px; }
+    #blinks-page .windowform { display: inline; }
+    #blinks-page .windowform select { font-size: 10px; border: 1px solid #5f99cf; background: #fff; color: #369; }
+    #blinks-page .alwayslbl { color: #369; font-size: 10px; cursor: pointer; }
+    #blinks-page .searchform { margin-left: auto; }
+    #blinks-page .searchform input[type="text"] { border: 1px solid #5f99cf; font-size: 12px; padding: 2px 4px; width: 220px; }
+
+    #blinks-page .layout { display: flex; gap: 16px; padding: 8px 10px; align-items: stretch; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+    #blinks-page .links { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    #blinks-page .filterbar { margin: 0 0 6px; color: #888; font-size: 11px; }
+    #blinks-page .filterbar .clear { color: #369; cursor: pointer; }
+
+    /* two real columns (server-split); pages hold two screenfuls, so you
+       can scroll exactly one screen down before MORE takes over */
+    #blinks-page .paper { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; }
+    #blinks-page .paper .col { flex: 1; min-width: 0; }
+    #blinks-page .paper .col + .col { border-left: 1px solid #ddd; padding-left: 22px; margin-left: 22px; }
+
+    #blinks-page .thing { display: block; padding: 7px 0 8px; margin-bottom: 2px; border-bottom: 1px solid #e2e2e2; break-inside: avoid; -webkit-column-break-inside: avoid; }
+    #blinks-page .col .thing:last-child { border-bottom: none; }
+    /* dead links: the whole row fades to a readable grey */
+    #blinks-page .thing.dead { filter: grayscale(1); opacity: 0.55; }
+    #blinks-page .thing.dead .title { color: #666; }
+    /* new arrivals tune in from static, like a channel coming in */
+    #blinks-page .thing.fresh { position: relative; animation: blinks-detune 2.2s ease-out both; }
+    #blinks-page .thing.fresh::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: hard-light; background-image: repeating-radial-gradient(circle at 17% 32%, #000 0 1px, transparent 1px 2px), repeating-radial-gradient(circle at 73% 61%, #fff 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); background-size: 7px 7px, 11px 11px, 100% 4px; animation: blinks-staticfuzz 2.2s steps(10) both; }
+    @keyframes blinks-detune {
+      0% { filter: blur(3px) saturate(0) contrast(2.6) brightness(1.4); opacity: 0.15; }
+      35% { filter: blur(2px) saturate(0.1) contrast(2.1) brightness(1.2); opacity: 0.5; }
+      70% { filter: blur(0.8px) saturate(0.5) contrast(1.4); opacity: 0.85; }
+      100% { filter: none; opacity: 1; }
+    }
+    @keyframes blinks-staticfuzz {
+      0% { opacity: 0.9; background-position: 0 0, 0 0, 0 0; }
+      15% { background-position: 3px 2px, -4px 3px, 0 2px; }
+      30% { background-position: -2px 4px, 5px -2px, 0 -1px; opacity: 0.75; }
+      45% { background-position: 4px -3px, -3px -4px, 0 3px; }
+      60% { background-position: -4px 1px, 2px 4px, 0 -2px; opacity: 0.5; }
+      75% { background-position: 2px -4px, -5px 2px, 0 1px; opacity: 0.3; }
+      90% { background-position: -3px 3px, 4px -1px, 0 -3px; opacity: 0.12; }
+      100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #blinks-page .thing.fresh, #blinks-page .thing.fresh::after { animation: none; }
+    }
+    #blinks-page .rank { color: #c6c6c6; font-size: 11px; margin-right: 3px; }
+    #blinks-page .thumb { width: 48px; height: 36px; object-fit: cover; border: 1px solid #ddd; float: left; margin-right: 6px; }
+    #blinks-page .favicon { width: 11px; height: 11px; vertical-align: -2px; margin-right: 2px; }
+    #blinks-page .entry { display: inline; }
+    #blinks-page .title { font-size: 13px; color: #0000ff; }
+    #blinks-page .title:visited { color: #551a8b; }
+    #blinks-page .domain { color: #888; font-size: 10px; white-space: nowrap; display: inline-block; }
+    #blinks-page .domain a { color: #888; }
+    #blinks-page .desc { color: #333; font-size: 11px; margin: 1px 0; max-width: 72ch; }
+    #blinks-page .notes { margin: 0; display: inline; }
+    #blinks-page .notes summary { display: inline-block; cursor: pointer; color: #fff; background: #369; border: 1px outset #5f99cf; border-radius: 2px; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; padding: 1px 5px; list-style: none; user-select: none; }
+    #blinks-page .notes summary::-webkit-details-marker { display: none; }
+    #blinks-page .notes summary::before { content: "TAP FOR WORDS"; }
+    #blinks-page .notes[open] summary { border-style: inset; background: #1d4568; }
+    #blinks-page .notes[open] summary::before { content: "OK ENOUGH WORDS"; }
+    #blinks-page .title.quoted { font-style: italic; }
+    #blinks-page .subtitle { color: #888; font-size: 10px; }
+    #blinks-page .pillbtn { display: inline-block; cursor: pointer; color: #fff; background: #369; border: 1px outset #5f99cf; border-radius: 2px; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; padding: 1px 5px; list-style: none; user-select: none; }
+    #blinks-page .pillbtn::-webkit-details-marker { display: none; }
+    #blinks-page .xd { display: inline; margin: 0; }
+    #blinks-page .tags-pill { margin: 0 4px 0 5px; vertical-align: 1px; }
+    #blinks-page .tagsbox { margin: 2px 0; }
+    #blinks-page .xd[open] .pillbtn { border-style: inset; background: #1d4568; }
+    #blinks-page .threadmark { display: inline; cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
+    #blinks-page .threadmark::-webkit-details-marker { display: none; }
+    #blinks-page .quote-item { font-style: italic; color: #333; font-size: 11px; border-left: 3px solid #ddd; padding-left: 6px; margin: 3px 0; max-width: 72ch; }
+    #blinks-page .thread-view { margin: 4px 0; max-width: 72ch; }
+    #blinks-page .tpost { border-left: 2px solid #cee3f8; margin: 0 0 6px 4px; padding: 2px 0 2px 8px; }
+    #blinks-page .tpost .thandle { color: #888; font-size: 9px; margin-left: 4px; }
+    #blinks-page .tpost .ttext { white-space: pre-wrap; font-size: 11px; color: #222; margin-top: 1px; }
+    #blinks-page .tquote { border-left: 2px solid #ddd; margin: 3px 0 0 6px; padding-left: 6px; color: #555; font-size: 10px; white-space: pre-wrap; }
+    #blinks-page .bsky-quote { color: #555; font-size: 11px; font-style: italic; border-left: 3px solid #cee3f8; padding-left: 6px; margin: 1px 0; max-width: 72ch; white-space: pre-wrap; }
+    #blinks-page .mediafold { display: block; margin: 1px 0; }
+    #blinks-page .foldarrow { cursor: pointer; color: #369; font-size: 10px; font-weight: bold; list-style: none; user-select: none; }
+    #blinks-page .foldarrow::-webkit-details-marker { display: none; }
+    #blinks-page .foldarrow::before { content: "▸ "; }
+    #blinks-page .mediafold[open] .foldarrow::before { content: "▾ "; }
+    #blinks-page .bmedia { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
+    #blinks-page .bmedia img { max-height: 110px; max-width: 170px; object-fit: cover; border: 1px solid #ddd; border-radius: 3px; display: block; }
+    #blinks-page .bmedia .vid { position: relative; display: inline-block; }
+    #blinks-page .bmedia .vid .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; text-shadow: 0 0 8px rgba(0,0,0,0.85); }
+
+    /* lightbox */
+    #blinks-page .lb { position: fixed; inset: 0; z-index: 90; background: rgba(12,12,14,0.94); display: flex; flex-direction: column; }
+    #blinks-page .lb .lbstage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 34px 56px 6px; }
+    #blinks-page .lb .lbstage img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+    #blinks-page .lb .lbnav { position: absolute; top: 0; bottom: 0; width: 52px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 26px; cursor: pointer; opacity: 0.55; user-select: none; background: none; border: none; }
+    #blinks-page .lb .lbnav:hover { opacity: 1; }
+    #blinks-page .lb .lbprev { left: 0; }
+    #blinks-page .lb .lbnext { right: 0; }
+    #blinks-page .lb .lbclose { position: absolute; top: 6px; right: 10px; color: #fff; font-size: 20px; cursor: pointer; opacity: 0.6; background: none; border: none; }
+    #blinks-page .lb .lbclose:hover { opacity: 1; }
+    #blinks-page .lb .lbalt { color: #aaa; font-size: 10px; padding: 0 56px 10px; max-height: 3.6em; overflow-y: auto; }
+    #blinks-page .lb .lbbar { flex-shrink: 0; color: #ddd; font-size: 11px; padding: 8px 56px 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    #blinks-page .lb .lbbar .lbtitle { color: #fff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+    #blinks-page .lb .lbbar a { color: #7fb2e5; }
+    #blinks-page .lb .lbbar .lbcount { margin-left: auto; color: #999; white-space: nowrap; }
+    #blinks-page .lb .lbvideo { color: #ffb08a; font-size: 10px; }
+
+    @media (max-width: 640px) {
+      #blinks-page .lb .lbstage { padding: 30px 8px 6px; }
+      #blinks-page .lb .lbbar, #blinks-page .lb .lbalt { padding-left: 12px; padding-right: 12px; }
+    }
+    #blinks-page .meta { font-size: 9px; margin-top: 1px; }
+    #blinks-page .meta a { color: #888; font-weight: bold; margin-right: 6px; cursor: pointer; }
+    #blinks-page .meta a.del { color: #c00; }
+    #blinks-page .editform { margin: 3px 0; max-width: 420px; }
+    #blinks-page .editform input[type="text"], #blinks-page .editform textarea { width: 100%; border: 1px solid #5f99cf; font: 11px verdana; padding: 3px 5px; margin-bottom: 3px; }
+    #blinks-page .tag .tagx { color: #c00; margin-left: 3px; cursor: pointer; font-size: 8px; }
+    #blinks-page .tag.on .tagx { color: #fbb; }
+    #blinks-page .tagadd-link { color: #4a8000 !important; }
+    #blinks-page .tagadd { display: inline-flex; gap: 3px; margin-left: 4px; }
+    #blinks-page .tagadd input[type="text"] { border: 1px solid #5f99cf; font-size: 10px; padding: 1px 4px; width: 140px; }
+    #blinks-page .tagadd .aim-send { font-size: 9px; padding: 1px 6px; }
+    #blinks-page .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #7fbf00; margin-right: 3px; vertical-align: 0; animation: blinks-pulse 2s ease-in-out infinite; }
+    #blinks-page .live-n { color: #4a8000; }
+    @keyframes blinks-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    #blinks-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 0 2px 1px 0; cursor: pointer; }
+    #blinks-page .tag.on { background: #cee3f8; border-color: #5f99cf; font-weight: bold; }
+    #blinks-page .empty { color: #888; padding: 20px 0; }
+    #blinks-page .pager { flex-shrink: 0; padding: 6px 0 2px; display: flex; align-items: center; gap: 10px; }
+    #blinks-page .pager button { font: bold 12px verdana; color: #888; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; padding: 4px 14px; cursor: pointer; letter-spacing: 1px; }
+    #blinks-page .pager button:hover { color: #369; border-color: #5f99cf; }
+    #blinks-page .pager .pageno { color: #888; font-size: 10px; }
+
+    #blinks-page .sidebar { width: 280px; flex-shrink: 0; overflow-y: auto; min-height: 0; }
+    #blinks-page .sidebox { border: 1px solid #5f99cf; margin-bottom: 12px; }
+    #blinks-page .sidebox h2 { background: #cee3f8; color: #369; font-size: 11px; font-weight: bold; margin: 0; padding: 3px 6px; }
+    #blinks-page .sidebox .body { padding: 6px; }
+    #blinks-page .tag-cloud { display: flex; flex-wrap: wrap; gap: 3px; }
+    #blinks-page .tag-cloud .tag { font-size: 10px; padding: 0 4px; }
+    #blinks-page .tag .tcount { color: #888; font-size: 9px; margin-left: 3px; }
+    #blinks-page .tag.on .tcount { color: #eee; }
+    #blinks-page .singles-link { color: #369; font-size: 10px; cursor: pointer; font-weight: bold; }
+    #blinks-page .singles-pop { position: absolute; left: 4px; right: 4px; z-index: 500; margin-top: 4px; background: #fff; border: 1px solid #5f99cf; box-shadow: 2px 2px 6px rgba(0,0,0,0.25); padding: 6px; max-height: 200px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 3px; }
+
+    #blinks-page .stumble-promo { display: flex; align-items: center; gap: 10px; background: #fffbe6; border: 1px solid #e8d76f; border-radius: 3px; padding: 7px 10px; margin-bottom: 6px; flex-shrink: 0; }
+    #blinks-page .sp-dice { font-size: 20px; }
+    #blinks-page .stumble-drag { display: inline-block; background: #ff4500; color: #fff !important; font: bold 12px verdana; letter-spacing: 0.5px; padding: 6px 14px; border: 2px outset #ff8c61; border-radius: 4px; cursor: grab; white-space: nowrap; }
+    #blinks-page .stumble-drag:active { cursor: grabbing; border-style: inset; }
+    #blinks-page .sp-text { color: #6b5d1f; font-size: 11px; }
+    #blinks-page .sp-dismiss { margin-left: auto; color: #999; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+    @media (max-width: 800px) { #blinks-page .stumble-promo { display: none; } }
+    #blinks-page .dork-btn { display: block; width: 100%; font: bold 14px verdana; padding: 9px 0; margin-bottom: 6px; cursor: pointer; border: 3px outset #ff4500; background: #ff4500; color: #fff; letter-spacing: 1px; }
+    #blinks-page .dork-btn.on { border-style: inset; background: #b33000; }
+    #blinks-page .dork-edit { color: #888; font-size: 10px; cursor: pointer; }
+    #blinks-page .dork-form input { width: 100%; border: 1px solid #5f99cf; font-size: 11px; padding: 3px; margin: 4px 0; }
+
+    /* Win95 chat window: big but never oversized on desktop */
+    #blinks-page .win95 { position: fixed; top: 90px; right: 16px; width: min(56vw, 920px); max-width: calc(100vw - 32px); min-width: 340px; z-index: 1000; background: #c0c0c0; border: 2px solid; border-color: #dfdfdf #404040 #404040 #dfdfdf; box-shadow: 1px 1px 0 #000, 4px 4px 8px rgba(0,0,0,0.4); font-family: "Tahoma", "MS Sans Serif", verdana, sans-serif; }
+    @media (max-width: 1250px) { #blinks-page .win95 { width: min(440px, calc(100vw - 40px)); } }
+    #blinks-page .win95.sized { display: flex; flex-direction: column; height: calc(100vh - 110px); max-height: calc(100vh - 100px); min-height: 320px; resize: both; overflow: hidden; }
+    @media (max-width: 1250px) { #blinks-page .win95.sized { height: min(72vh, 640px); } }
+    #blinks-page .win95-titlebar { display: flex; align-items: center; gap: 6px; background: linear-gradient(90deg, #000080, #1084d0); color: #fff; font-weight: bold; font-size: 11px; padding: 3px 4px; cursor: move; user-select: none; }
+    #blinks-page .win95-titlebar .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #blinks-page .win95-btn { width: 16px; height: 14px; font-size: 9px; line-height: 1; background: #c0c0c0; border: 1px solid; border-color: #fff #404040 #404040 #fff; color: #000; cursor: pointer; font-weight: bold; padding: 0; }
+    #blinks-page .win95-menubar { font-size: 11px; padding: 2px 6px; color: #000; border-bottom: 1px solid #808080; }
+    #blinks-page .win95-menubar span { margin-right: 10px; }
+    #blinks-page .aim-messages { background: #fff; border: 2px inset #808080; margin: 6px; height: min(55vh, 480px); overflow-y: auto; padding: 4px 6px; font-size: 12px; }
+    #blinks-page .win95.sized .aim-messages { flex: 1; height: auto; min-height: 100px; }
+    #blinks-page .aim-msg { margin-bottom: 3px; word-wrap: break-word; }
+    #blinks-page .aim-msg .sn { font-weight: bold; }
+    #blinks-page .aim-msg .ts { color: #888; font-size: 9px; margin-left: 4px; }
+    #blinks-page .reply-link { color: #888; font-size: 9px; font-weight: bold; margin-left: 6px; cursor: pointer; }
+    /* slack-style reactions: hidden until hover, existing ones show as pills */
+    #blinks-page .votes { display: block; margin: 1px 0 2px; font-size: 9px; }
+    #blinks-page .votes a { visibility: hidden; cursor: pointer; color: #888; margin-right: 4px; }
+    #blinks-page .msg-main:hover .votes a, #blinks-page .aim-reply:hover .votes a { visibility: visible; }
+    #blinks-page .votes a.haz { visibility: visible; background: #f8f8f8; border: 1px solid #ddd; border-radius: 10px; padding: 0 5px; }
+    #blinks-page .votes a.on { visibility: visible; background: #e8f2fc; border: 1px solid #1264a3; color: #1264a3; font-weight: bold; border-radius: 10px; padding: 0 5px; }
+    #blinks-page .aim-reply { margin: 3px 0 3px 16px; border-left: 3px solid #cee3f8; padding-left: 6px; }
+    #blinks-page .mention { color: #000080; font-weight: bold; }
+    #blinks-page .mention.me { background: #ffff99; }
+    /* markdown in messages */
+    #blinks-page .md p { margin: 0 0 2px; }
+    #blinks-page .md a { color: #0000c0; text-decoration: underline; }
+    #blinks-page .md h3 { font-size: 13px; margin: 3px 0 1px; }
+    #blinks-page .md code { background: #f4f4f4; border: 1px solid #e0e0e0; font-size: 11px; padding: 0 2px; }
+    #blinks-page .md pre { background: #f4f4f4; border: 1px solid #ddd; padding: 4px 6px; margin: 2px 0; overflow-x: auto; }
+    #blinks-page .md pre code { border: none; }
+    #blinks-page .md ul, #blinks-page .md ol { margin: 2px 0 2px 20px; }
+    #blinks-page .md blockquote { margin: 2px 0 2px 4px; border-left: 3px solid #ccc; padding-left: 6px; color: #555; }
+    #blinks-page .replying-bar { margin: 0 6px 4px; padding: 3px 6px; background: #ffffcc; border: 1px solid #808080; font-size: 11px; }
+    #blinks-page .aim-compose { margin: 0 6px 6px; }
+    #blinks-page .aim-compose textarea.aim-box { width: 100%; height: 72px; border: 2px inset #808080; font: 12px Tahoma, verdana, sans-serif; padding: 5px; resize: vertical; background: #fff; }
+    #blinks-page .aim-compose-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+    #blinks-page .aim-send { font: bold 11px Tahoma, verdana; padding: 4px 14px; background: #c0c0c0; border: 2px outset #dfdfdf; cursor: pointer; }
+    #blinks-page .aim-send:active { border-style: inset; }
+    #blinks-page .mention-suggest { margin: 0 6px 4px; font-size: 10px; color: #888; }
+    #blinks-page .mention-suggest .tag { cursor: pointer; font-family: inherit; font-size: 10px; padding: 0 4px; }
+    #blinks-page .aim-signon { margin: 10px; padding: 14px; background: #ffffcc; border: 1px solid #808080; text-align: center; font-size: 12px; }
+    #blinks-page .aim-signon .man { font-size: 34px; }
+    #blinks-page .aim-signon input { border: 2px inset #808080; font-size: 16px; padding: 4px; width: 100%; max-width: 320px; margin: 8px 0; }
+    #blinks-page .aim-link { font-size: 10px; color: #888; margin: 0 8px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #blinks-page .buddy-panel { background: #fff; border: 2px inset #808080; margin: 6px; max-height: 240px; overflow-y: auto; padding: 4px 6px; font-size: 12px; }
+    #blinks-page .buddy-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7fbf00; margin-right: 5px; }
+    #blinks-page .win95.buddies { left: auto; right: 40px; top: 120px; width: 220px; min-width: 0; z-index: 1001; }
+
+    /* tour skin — self-contained, since the component's default skin
+       relies on tailwind arbitrary classes that never get compiled */
+    .bt-overlay { position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,0.45); }
+    .bt-spot { position: fixed; z-index: 9999; pointer-events: none; border: 2px solid #ff4500; border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
+    .bt-tip { position: fixed; z-index: 10000; max-width: 320px; background: #fff; border: 1px solid #5f99cf; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-family: verdana, arial, sans-serif; }
+    .bt-title { font-size: 13px; font-weight: bold; color: #ff4500; margin-bottom: 4px; }
+    .bt-content { font-size: 12px; color: #333; line-height: 1.5; }
+    .bt-footer { border-top: 1px solid #eee; padding-top: 8px; margin-top: 10px; }
+    .bt-progress { font-size: 10px; color: #888; }
+    .bt-btn { font: bold 11px verdana; padding: 4px 12px; border: 1px solid #5f99cf; border-radius: 3px; background: #f5f9fd; color: #369; cursor: pointer; }
+    .bt-btn-primary { background: #ff4500; border-color: #ff4500; color: #fff; }
+    .bt-close { width: 12px; height: 12px; background: #fff; border: 1px solid #888; cursor: pointer; }
+
+    @media (max-width: 800px) {
+      /* phones keep normal document scrolling — a locked shell is misery there */
+      #blinks-page { height: auto; display: block; overflow: visible; }
+      #blinks-page .layout { flex-direction: column; overflow: visible; }
+      #blinks-page .paper { flex-direction: column; height: auto; overflow: visible; }
+      #blinks-page .paper .col { width: 100%; }
+      #blinks-page .paper .col + .col { border-left: none; padding-left: 0; margin-left: 0; }
+      #blinks-page .sidebar { width: 100%; overflow-y: visible; }
+      #blinks-page .masthead .searchform { margin-left: 0; width: 100%; }
+      #blinks-page .searchform input[type="text"] { width: 100%; }
+      /* bigger tap targets */
+      #blinks-page .title { font-size: 15px; }
+      #blinks-page .meta { font-size: 11px; }
+      #blinks-page .meta a { margin-right: 10px; }
+      #blinks-page .tag { font-size: 11px; padding: 1px 5px; }
+      /* chat goes fullscreen on phones (beats any dragged inline style) */
+      #blinks-page .win95 { top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100dvh !important; max-width: none; min-width: 0; border-width: 0; transform: none !important; }
+      #blinks-page .win95.sized { height: 100dvh !important; max-height: none; resize: none; }
+      #blinks-page .win95 .aim-messages { flex: 1; height: auto; }
+      #blinks-page .win95.buddies { top: 15% !important; left: 8% !important; right: 8% !important; bottom: auto !important; width: auto !important; height: auto !important; border-width: 2px; }
+      /* 16px+ inputs stop iOS from auto-zooming (which shoves the layout sideways) */
+      #blinks-page input[type="text"], #blinks-page textarea { font-size: 16px; }
+    }
+  </style>
+
+  <div id="blinks-tour" phx-hook="Joyride" phx-target="1">
+  
+</div>
+
+  <header class="masthead">
+    <h1>bobbby's <span>links</span></h1>
+    <nav class="tabs">
+      <a href="/blinks" data-phx-link="patch" data-phx-link-state="push" class="tab on">live</a>
+      <a href="/blinks?view=archives" data-phx-link="patch" data-phx-link-state="push" class="tab">
+        archives
+      </a>
+    </nav>
+    <span class="dateline">163 saved</span>
+    <a class="tour-link" phx-click="start-tour">tour</a>
+    <a class="tour-link" href="/blinks/surf" title="stumbleupon mode: one random link at a time">
+      stumble 🎲
+    </a>
+    <a class="tour-link" href="/blinks/walk" title="wiki-walk: hop between similar links">
+      walk 🥾
+    </a>
+    <a class="tour-link" href="/blinks/tv" title="lean-back channel surfing">
+      tv 📺
+    </a>
+    <form class="windowform" phx-change="set-window">
+      <select name="t">
+        <option value="" selected>all time</option>
+        <option value="1d">past day</option>
+        <option value="3d">past 3 days</option>
+        <option value="1w">past week</option>
+        <option value="1mo">past month</option>
+        <option value="1y">past year</option>
+      </select>
+    </form>
+    <a class="tour-link" phx-click="toggle-shuffle">
+      shuffle me
+    </a>
+    
+    <form class="searchform" phx-submit="search" data-joyride="search">
+      <input type="text" name="q" value="" placeholder="search title, tags, notes…">
+    </form>
+    <span id="blinks-push" phx-hook="BlinksPush" data-vapid="BHTBldDPx-GkAFUM1MNuJJep43mkY41dZRcDUfVbJAomUcAGX_ayeRbhUD64271kS3RVUuq01hGf4Pu47v9AmKs" class="pushwrap">
+      
+      
+      
+
+      
+    </span>
+  </header>
+
+  <div class="layout">
+    <div class="links">
+      <div class="stumble-promo">
+        <span class="sp-dice">🎲</span>
+        <a class="stumble-drag" href="/blinks/stumble" title="Drag me to your bookmarks bar!">
+          STUMBLE into a Bobbby link
+        </a>
+        <span class="sp-text">
+          ← drag this button onto your bookmarks bar. click it whenever
+          you're bored and it takes you somewhere from the collection.
+        </span>
+        <a class="sp-dismiss" phx-click="dismiss-stumble-promo" title="hide this forever">
+          ✕ got it
+        </a>
+      </div>
+
+      <button class="dork-btn " phx-click="toggle-dork">
+        CLICK TO HIDE THE ULTRA NERDY STUFF
+      </button>
+      <div style="margin: -2px 0 6px;">
+        <span class="dork-edit" phx-click="edit-dork">
+          edit dork list (code, programming, ai, ml, programming-languages, tech-commentary)
+        </span>
+        
+      </div>
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <div class="paper" id="paper" phx-hook="PaperFit">
+        <div class="col">
+        <div class="thing " id="blink-176">
+          <span class="rank">1</span>
+          
+          <div class="entry">
+            <a class="title " href="https://old.reddit.com/r/AskReddit/comments/1wj23zr/whats_the_worst_military_blunder_in_history/" target="_blank" rel="noopener">
+              What&#39;s the worst military blunder in history? : AskReddit
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="176">
+              TAGS (3)
+            </span>
+            <span class="domain">(<a href="/blinks?q=old.reddit.com">old.reddit.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="176" style="" data-joyride="chat-link">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://old.reddit.com/r/AskReddit/comments/1wj23zr/whats_the_worst_military_blunder_in_history/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://old.reddit.com/r/AskReddit/comments/1wj23zr/whats_the_worst_military_blunder_in_history/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="176" title="hide this link on this device" data-joyride="hide-link">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-175">
+          <span class="rank">2</span>
+          <img class="thumb" src="https://repository-images.githubusercontent.com/1294088656/7d2dbd8d-ec72-4781-8363-f4f5b9afc352" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://github.com/arnegiacomo/fugleramme" target="_blank" rel="noopener">
+              arnegiacomo/fugleramme: E-ink bird frame for Raspberry Pi - real-time bird detection by audio, fully local AI, rendered as real, hand-cut 1800s bird illustrations.
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="175">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://github.githubassets.com/favicons/favicon.png" loading="lazy">(<a href="/blinks?q=github.com">GitHub</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="175" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://github.com/arnegiacomo/fugleramme" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://github.com/arnegiacomo/fugleramme" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="175" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">E-ink bird frame for Raspberry Pi - real-time bird detection by audio, fully local AI, rendered as real, hand-cut 1800s bird illustrations. - arnegiacomo/fugleramme</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-174">
+          <span class="rank">3</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:oke2hwfme37jtbyvtg3upcst/bafkreihmaid4zotzj7nutt6ghqozuyyacfdz63ap4jeyksg7jpvnw5gb6u" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/horsedisc.bsky.social/post/3mvjwdunfje26" target="_blank" rel="noopener">
+              I&#39;m begging for Assadists to add an ounce of witchcraft to their politics.
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="174">
+              TAGS (3)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="174" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/horsedisc.bsky.social/post/3mvjwdunfje26" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/horsedisc.bsky.social/post/3mvjwdunfje26" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="174" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">I&#39;m begging for Assadists to add an ounce of witchcraft to their politics.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-173">
+          <span class="rank">4</span>
+          <img class="thumb" src="https://substackcdn.com/image/fetch/$s_!dhhV!,w_1200,h_675,c_fill,f_jpg,q_auto:good,fl_progressive:steep,g_auto/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F92a8a72c-88ba-4530-8d18-fed4f135da84_1985x1200.png" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://www.contrabandcamp.com/p/a-stable-genius-a-black-historian?utm_source=dlvr.it&amp;utm_medium=bluesky" target="_blank" rel="noopener">
+              A Stable Genius, a Black Historian and a White Supremacist Theory of Everything
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="173">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://substackcdn.com/image/fetch/$s_!hzdo!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F41920acc-1bc3-4793-b3f8-323995f7964b%2Ffavicon.ico" loading="lazy">(<a href="/blinks?q=contrabandcamp.com">contrabandcamp.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="173" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.contrabandcamp.com/p/a-stable-genius-a-black-historian?utm_source=dlvr.it&amp;utm_medium=bluesky" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.contrabandcamp.com/p/a-stable-genius-a-black-historian?utm_source=dlvr.it&amp;utm_medium=bluesky" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="173" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">With the exit of Smithsonian chief Lonnie Bunch, Donald Trump proved a theory that has eluded America’s most brilliant minds.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-172">
+          <span class="rank">5</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:5x4p5tgshfa7xef6f3jrv34h/bafkreiexio457svurxrotypxo5v6hwmute5ur4b3qxhshqp2icbqqff77u" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/raxkingisdead.bsky.social/post/3mvagfaam5c2w" target="_blank" rel="noopener">
+              hey man i’ve been hesitant to bring this up but lately you’ve been leaving a lot of items in my enclosure that i find, shall we say, less th
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="172">
+              TAGS (2)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="172" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/raxkingisdead.bsky.social/post/3mvagfaam5c2w" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/raxkingisdead.bsky.social/post/3mvagfaam5c2w" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="172" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">hey man i’ve been hesitant to bring this up but lately you’ve been leaving a lot of items in my enclosure that i find, shall we say, less than enriching</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-171">
+          <span class="rank">6</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.youtube.com/watch?v=n8m7lFQ3njk" target="_blank" rel="noopener">
+              Analogy as the Core of Cognition - YouTube
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="171">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.youtube.com/s/desktop/adccb25c/img/favicon.ico" loading="lazy">(<a href="/blinks?q=youtube.com">youtube.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="171" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.youtube.com/watch?v=n8m7lFQ3njk" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.youtube.com/watch?v=n8m7lFQ3njk" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="171" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Enjoy the videos and music you love, upload original content, and share it all with friends, family, and the world on YouTube.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-170">
+          <span class="rank">7</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreig5oijxruczqzjujk6cfzcdlisfvuwr2emn35g2wpi4jy4el3mkme" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/shouxin.bsky.social/post/3mua2rdppcc2h" target="_blank" rel="noopener">
+              It’s the weekend! Let’s stretch a little with these cats.
+Cats seem to know better than we do how to truly relax. Stretch your legs, loosen 
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="170">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (4)</summary>
+              <div>
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="170" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreig5oijxruczqzjujk6cfzcdlisfvuwr2emn35g2wpi4jy4el3mkme" alt="" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="170" phx-value-i="1">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreieubcmebhvil4c2mgldevxsdo7i3fgtwfehfcnrfqghmjpbqicxtu" alt="" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="170" phx-value-i="2">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreiaexolyv2rhybi2zf5dxr3t6eqlh73ht3uysd3ierqxqat3iz5yui" alt="" loading="lazy">
+  </a><a href="#" phx-click="open-media" phx-value-id="170" phx-value-i="3">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:dpxxcuspq3crpp6kmxwnrlhi/bafkreihaisgat4nsn25cjt2rmtpccg5tsyuakamdniwi6ertwa7bo2tfmq" alt="" loading="lazy">
+  </a>
+  
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="170" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/shouxin.bsky.social/post/3mua2rdppcc2h" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/shouxin.bsky.social/post/3mua2rdppcc2h" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="170" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">It’s the weekend! Let’s stretch a little with these cats.
+Cats seem to know better than we do how to truly relax. Stretch your legs, loosen up, and let go of the week’s tiredness. I hope these little cats bring a bit of ease and a good mood to your weekend😊
+#shouxinsketch  #cat  #sketch #sketchdaily</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-169">
+          <span class="rank">8</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.nytimes.com/2026/09/08/us/politics/roger-marshall-obgyn-doctor-debts.html?unlocked_article_code=1._lA.Wm1M.qHwQbLGvHNoq&amp;smid=re-share" target="_blank" rel="noopener">
+              Roger Marshall Sued 700 Patients for Debts; 81 Were Arrested. Now He’s a Senator. - The New York Times
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="169">
+              TAGS (5)
+            </span>
+            <span class="domain">(<a href="/blinks?q=nytimes.com">nytimes.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="169" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.nytimes.com/2026/09/08/us/politics/roger-marshall-obgyn-doctor-debts.html?unlocked_article_code=1._lA.Wm1M.qHwQbLGvHNoq&amp;smid=re-share" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.nytimes.com/2026/09/08/us/politics/roger-marshall-obgyn-doctor-debts.html?unlocked_article_code=1._lA.Wm1M.qHwQbLGvHNoq&amp;smid=re-share" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="169" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-167">
+          <span class="rank">9</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:dci5jlffbhbi4ui4inf2wk6i/bafkreia4kpn4shlmczzhgh2khafxgyx7vfvshag2nwt6gxw4bmua44c66q" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/espiers.bsky.social/post/3mukzyzrymk2f" target="_blank" rel="noopener">
+              When I moved to NYC Murray Hill was the neighborhood that all the white collar arrivistes who didn’t have trust funds and parent money gener
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="167">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="167" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/espiers.bsky.social/post/3mukzyzrymk2f" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/espiers.bsky.social/post/3mukzyzrymk2f" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="167" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Also Chris Bonanos is a deep NYC archivist and someone who loves the esoterica. If you love NYC you should follow his byline. https://www.curbed.com/author/christopher-bonanos/</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-166">
+          <span class="rank">10</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.reddit.com/r/streetphotography/comments/1wc4r9r/new_york_new_england_1959/" target="_blank" rel="noopener">
+              New York + New England 1959 : r/streetphotography
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="166">
+              TAGS (4)
+            </span>
+            <span class="domain">(<a href="/blinks?q=reddit.com">reddit.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="166" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.reddit.com/r/streetphotography/comments/1wc4r9r/new_york_new_england_1959/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.reddit.com/r/streetphotography/comments/1wc4r9r/new_york_new_england_1959/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="166" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-165">
+          <span class="rank">11</span>
+          
+          <div class="entry">
+            <a class="title " href="https://old.reddit.com/r/BestofRedditorUpdates/comments/1vqhooe/friend_is_hiding_a_wedding_reception_inside_4/" target="_blank" rel="noopener">
+              Friend is hiding a wedding reception inside 4 dinner reservations. Will this go badly? : BestofRedditorUpdates
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="165">
+              TAGS (3)
+            </span>
+            <span class="domain">(<a href="/blinks?q=old.reddit.com">old.reddit.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="165" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://old.reddit.com/r/BestofRedditorUpdates/comments/1vqhooe/friend_is_hiding_a_wedding_reception_inside_4/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://old.reddit.com/r/BestofRedditorUpdates/comments/1vqhooe/friend_is_hiding_a_wedding_reception_inside_4/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="165" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-164">
+          <span class="rank">12</span>
+          
+          <div class="entry">
+            <a class="title " href="https://bobbby.online/cameras?open=135" target="_blank" rel="noopener">
+              Craigslist Film Cameras For Safe (NYC/SF)
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="164">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://bobbby.online/favicon.ico" loading="lazy">(<a href="/blinks?q=bobbby.online">bobbby.online</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="164" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bobbby.online/cameras?open=135" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bobbby.online/cameras?open=135" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="164" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">the best film cameras live on craigslist in SF, the East Bay and NYC, refreshed hourly</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-163">
+          <span class="rank">13</span>
+          
+          <div class="entry">
+            <a class="title " href="https://tech.marksblogg.com/planet-labs-open-satellite-feed.html" target="_blank" rel="noopener">
+              Planet Labs&#39; Open Satellite Feed
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="163">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://tech.marksblogg.com/theme/images/mark.jpg" loading="lazy">(<a href="/blinks?q=tech.marksblogg.com">tech.marksblogg.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="163" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://tech.marksblogg.com/planet-labs-open-satellite-feed.html" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://tech.marksblogg.com/planet-labs-open-satellite-feed.html" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="163" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Benchmarks &amp; Tips for Big Data, Hadoop, AWS, Google Cloud, PostgreSQL, Spark, Python &amp; More...</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-162">
+          <span class="rank">14</span>
+          
+          <div class="entry">
+            <a class="title " href="https://xlii.space/eng/malicious-software-on-google-ads/" target="_blank" rel="noopener">
+              How I advertise malicious software on Google Ads
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="162">
+              TAGS (8)
+            </span>
+            <span class="domain"><img class="favicon" src="https://xlii.space/" loading="lazy">(<a href="/blinks?q=xlii.space">xlii.space</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="162" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://xlii.space/eng/malicious-software-on-google-ads/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://xlii.space/eng/malicious-software-on-google-ads/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="162" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">
+A caller phones Radio Erywan.
+“Is it true that in Moscow, on Red Square, they give out cars?”
+“True. Not in Moscow, however, but in St. Petersburg. Not on Red Square, but on Revolution Square. Not cars, but bikes. And they don’t give them out, but steal them”.
+
+Edit: Through the apparent magic of Hacker News, my Google Ads account has been reinstated. ✨.
+Still no explanation of what triggered the suspension, but thank you to everyone who helped make it visible (and/or fixed).</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-161">
+          <span class="rank">15</span>
+          <img class="thumb" src="https://devblogs.microsoft.com/oldnewthing/wp-content/uploads/sites/38/2019/02/ShowCover.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://devblogs.microsoft.com/oldnewthing/20260909-00/?p=112683" target="_blank" rel="noopener">
+              What algorithm did Windows XP use to choose your initial user picture? - The Old New Thing
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="161">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://devblogs.microsoft.com/oldnewthing/wp-content/uploads/sites/38/2021/03/Microsoft-Favicon.png" loading="lazy">(<a href="/blinks?q=devblogs.microsoft.com">The Old New Thing</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="161" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://devblogs.microsoft.com/oldnewthing/20260909-00/?p=112683" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://devblogs.microsoft.com/oldnewthing/20260909-00/?p=112683" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="161" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">It&#39;s random, really.</div>
+              </details>
+            </div>
+          </div>
+        </div>
+        </div><div class="col">
+        <div class="thing " id="blink-160">
+          <span class="rank">16</span>
+          <img class="thumb" src="https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/Larger_Pacific_Striped_Octopus.jpg/1280px-Larger_Pacific_Striped_Octopus.jpg?utm_source=en.wikipedia.org&amp;utm_campaign=index&amp;utm_content=thumbnail" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://en.wikipedia.org/wiki/Larger_Pacific_striped_octopus" target="_blank" rel="noopener">
+              Larger Pacific striped octopus - Wikipedia
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="160">
+              TAGS (2)
+            </span>
+            <span class="domain"><img class="favicon" src="https://en.wikipedia.org/static/favicon/wikipedia.ico" loading="lazy">(<a href="/blinks?q=en.wikipedia.org">en.wikipedia.org</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="160" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://en.wikipedia.org/wiki/Larger_Pacific_striped_octopus" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://en.wikipedia.org/wiki/Larger_Pacific_striped_octopus" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="160" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-159">
+          <span class="rank">17</span>
+          <img class="thumb" src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:62ubbbwbwdjojne2o6p75zu2/bafkreic7lq2zvaev32mlatwbwqdhcqca4avudlite2psawxhtglnkcpb2a" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://bsky.app/profile/flohofwoe.bsky.social/post/3mutzf6zm7s2l" target="_blank" rel="noopener">
+              Well, compared to East German homebrew computer keyboards cobbled together from model railroad switchboards that looks outright spectacular 
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="159">
+              TAGS (7)
+            </span>
+            <span class="domain"><img class="favicon" src="https://web-cdn.bsky.app/static/favicon-32x32.png" loading="lazy">(<a href="/blinks?q=bsky.app">Bluesky Social</a>)</span>
+            
+            
+            <details class="xd mediafold">
+              <summary class="foldarrow">media (1)</summary>
+              <div>
+                <div class="bmedia">
+  <a href="#" phx-click="open-media" phx-value-id="159" phx-value-i="0">
+    <img src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:62ubbbwbwdjojne2o6p75zu2/bafkreic7lq2zvaev32mlatwbwqdhcqca4avudlite2psawxhtglnkcpb2a" alt="" loading="lazy">
+  </a>
+  
+</div>
+                
+              </div>
+            </details>
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="159" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://bsky.app/profile/flohofwoe.bsky.social/post/3mutzf6zm7s2l" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://bsky.app/profile/flohofwoe.bsky.social/post/3mutzf6zm7s2l" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="159" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Well, compared to East German homebrew computer keyboards cobbled together from model railroad switchboards that looks outright spectacular :)</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-158">
+          <span class="rank">18</span>
+          <img class="thumb" src="https://d181q449nqu6en.cloudfront.net/content/craft/articles/Ogden-Web-Preview.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://yalereview.org/article/emily-ogden-edgar-allan-poe" target="_blank" rel="noopener">
+              The Yale Review | Emily Ogden on the True Horror of Edgar Allan Poe&#39;s…
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="158">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://yalereview.org/dist/images/favicon/favicon.ico" loading="lazy">(<a href="/blinks?q=yalereview.org">The Yale Review</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="158" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://yalereview.org/article/emily-ogden-edgar-allan-poe" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://yalereview.org/article/emily-ogden-edgar-allan-poe" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="158" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Edgar Allan Poe’s stories are full of ghastly crimes, but the true horror lies in their confessions, Emily Ogden writes.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-157">
+          <span class="rank">19</span>
+          
+          <div class="entry">
+            <a class="title " href="https://tiktok-api.seeksocial.io/" target="_blank" rel="noopener">
+              Scraping TikTok&#39;s Mobile API
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="157">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://tiktok-api.seeksocial.io/favicon.ico" loading="lazy">(<a href="/blinks?q=tiktok-api.seeksocial.io">tiktok-api.seeksocial.io</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="157" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://tiktok-api.seeksocial.io/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://tiktok-api.seeksocial.io/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="157" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">I mean worth having around.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-156">
+          <span class="rank">20</span>
+          <img class="thumb" src="https://signalundefied.bearblog.dev/static/og-image.png" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://signalundefied.bearblog.dev/i-wanna-live-an-npc-life/" target="_blank" rel="noopener">
+              i wanna live an npc life – signalundefied
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="156">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="data:image/svg+xml,%3Csvg%20xmlns=&#39;http://www.w3.org/2000/svg&#39;%20viewBox=&#39;0%200%20100%20100&#39;%3E%3Ctext%20y=&#39;.9em&#39;%20font-size=&#39;90&#39;%3E∞%3C/text%3E%3C/svg%3E" loading="lazy">(<a href="/blinks?q=signalundefied.bearblog.dev">signalundefied</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="156" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://signalundefied.bearblog.dev/i-wanna-live-an-npc-life/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://signalundefied.bearblog.dev/i-wanna-live-an-npc-life/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="156" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">they aint wrong</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-155">
+          <span class="rank">21</span>
+          <img class="thumb" src="https://s0.wp.com/i/blank.jpg?m=1383295312i" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://therealfullhousereviewed.wordpress.com/" target="_blank" rel="noopener">
+              Full House episode reviews, every episode https://therealfullhousereviewed.wordpress.com
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="155">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://s1.wp.com/i/favicon.ico?m=1713425267i" loading="lazy">(<a href="/blinks?q=therealfullhousereviewed.wordpress.com">therealfullhousereviewed.wordpress.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="155" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://therealfullhousereviewed.wordpress.com/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://therealfullhousereviewed.wordpress.com/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="155" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-154">
+          <span class="rank">22</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.youtube.com/watch?v=o5qXzPUnP0Q" target="_blank" rel="noopener">
+              Applied Analog Electronics: Turning The Oscilloscope Into A Video Monitor - YouTube
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="154">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.youtube.com/s/desktop/295c97e3/img/favicon.ico" loading="lazy">(<a href="/blinks?q=youtube.com">youtube.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="154" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.youtube.com/watch?v=o5qXzPUnP0Q" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.youtube.com/watch?v=o5qXzPUnP0Q" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="154" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Enjoy the videos and music you love, upload original content, and share it all with friends, family, and the world on YouTube.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-153">
+          <span class="rank">23</span>
+          <img class="thumb" src="https://restroomarchive.com/api/r2/thumbs/2023-04-23-minute-mart.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://restroomarchive.com/r/2023-04-23-minute-mart" target="_blank" rel="noopener">
+              The Restroom Archive - 3d bathroom scans from the globe
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="153">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://restroomarchive.com/favicon/favicon-96x96.png" loading="lazy">(<a href="/blinks?q=restroomarchive.com">The Restroom Archive</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="153" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://restroomarchive.com/r/2023-04-23-minute-mart" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://restroomarchive.com/r/2023-04-23-minute-mart" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="153" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Well this is pretty entertaining. I guess I should scan some shitters myself.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-152">
+          <span class="rank">24</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.youtube.com/watch?v=OOMx2BHHWtE" target="_blank" rel="noopener">
+              One of the world&#39;s greatest mathematicians explains 6 essential concepts of math | Terence Tao - YouTube
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="152">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://www.youtube.com/s/desktop/50af1447/img/favicon.ico" loading="lazy">(<a href="/blinks?q=youtube.com">youtube.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="152" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.youtube.com/watch?v=OOMx2BHHWtE" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.youtube.com/watch?v=OOMx2BHHWtE" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="152" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">Pretty approachable for anyone. He is such a good speaker. Anyways, math is fun kids don&#39;t just let the thinking sand do it.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-151">
+          <span class="rank">25</span>
+          <img class="thumb" src="https://sandyuraz.com/blogs/tiny-cafe/preview.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://sandyuraz.com/blogs/tiny-cafe/" target="_blank" rel="noopener">
+              Interesting miniatures - Damn fine tiny cafe ☕️
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="151">
+              TAGS (7)
+            </span>
+            <span class="domain"><img class="favicon" src="https://sandyuraz.com/assets/favicon.ico" loading="lazy">(<a href="/blinks?q=sandyuraz.com">Sandy’s Website ⛩️</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="151" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://sandyuraz.com/blogs/tiny-cafe/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://sandyuraz.com/blogs/tiny-cafe/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="151" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">I love them miniatures. It started off with Rolife series, where the first hit had come from a [[https://sandyuraz.com/blogs/mini-libra...</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-150">
+          <span class="rank">26</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.reddit.com/r/interestingasfuck/comments/1w35wix/comment/p6xoyk0/?utm_source=share&amp;utm_medium=web3x&amp;utm_name=web3xcss&amp;utm_term=1&amp;utm_content=share_button" target="_blank" rel="noopener">
+              In 2011, an anonymous 4chan user solved a decades-old math problem while arguing about the optimal way to binge-watch an anime. Mathematicians noticed it 7 years later, and the proof now stands in academic literature with the first author credited as &quot;Anonymous 4chan Poster&quot; : r/interestingasfuck
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="150">
+              TAGS (5)
+            </span>
+            <span class="domain">(<a href="/blinks?q=reddit.com">reddit.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="150" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.reddit.com/r/interestingasfuck/comments/1w35wix/comment/p6xoyk0/?utm_source=share&amp;utm_medium=web3x&amp;utm_name=web3xcss&amp;utm_term=1&amp;utm_content=share_button" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.reddit.com/r/interestingasfuck/comments/1w35wix/comment/p6xoyk0/?utm_source=share&amp;utm_medium=web3x&amp;utm_name=web3xcss&amp;utm_term=1&amp;utm_content=share_button" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="150" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">math, funny,interesting,reddit,history,cool</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-149">
+          <span class="rank">27</span>
+          <img class="thumb" src="https://san.com/wp-content/uploads/2026/08/GettyImages-2291172825_Getty_Images_clean.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://san.com/cc/grand-jury-declines-to-indict-ohio-man-charged-with-destroying-flock-camera/" target="_blank" rel="noopener">
+              Grand jury declines to indict Ohio man charged with destroying Flock camera
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="149">
+              TAGS (6)
+            </span>
+            <span class="domain"><img class="favicon" src="https://san.com/wp-content/uploads/2024/02/cropped-SAN-Logo.png?w=32" loading="lazy">(<a href="/blinks?q=san.com">Straight Arrow</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="149" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://san.com/cc/grand-jury-declines-to-indict-ohio-man-charged-with-destroying-flock-camera/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://san.com/cc/grand-jury-declines-to-indict-ohio-man-charged-with-destroying-flock-camera/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="149" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">The grand jury&#39;s decision not to charge Cody Morelock comes amid a growing backlash against Flock and its cameras.</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-148">
+          <span class="rank">28</span>
+          
+          <div class="entry">
+            <a class="title " href="https://www.wsj.com/tech/steve-jobs-apple-next-cia-161b65f9?st=NWWds1&amp;reflink=desktopwebshare_permalink" target="_blank" rel="noopener">
+              The Hidden Debt That Apple Owes to the CIA - WSJ
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="148">
+              TAGS (6)
+            </span>
+            <span class="domain">(<a href="/blinks?q=wsj.com">wsj.com</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="148" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://www.wsj.com/tech/steve-jobs-apple-next-cia-161b65f9?st=NWWds1&amp;reflink=desktopwebshare_permalink" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://www.wsj.com/tech/steve-jobs-apple-next-cia-161b65f9?st=NWWds1&amp;reflink=desktopwebshare_permalink" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="148" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              
+            </div>
+          </div>
+        </div><div class="thing " id="blink-147">
+          <span class="rank">29</span>
+          <img class="thumb" src="https://tomarigi.me/og.png" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://tomarigi.me/" target="_blank" rel="noopener">
+              nearly 1400 live webcams in japan
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="147">
+              TAGS (4)
+            </span>
+            <span class="domain"><img class="favicon" src="https://tomarigi.me/icon.png?icon.1r9jsd4prbmp7.png?dpl=dpl_44mgQVBsfitUF1WopAFiVNSB1E8z" loading="lazy">(<a href="/blinks?q=tomarigi.me">とまり木</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="147" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://tomarigi.me/" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://tomarigi.me/" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="147" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">日本各地のYouTubeライブカメラを地図から探して、その場で視聴できるサービス。</div>
+              </details>
+            </div>
+          </div>
+        </div><div class="thing " id="blink-146">
+          <span class="rank">30</span>
+          <img class="thumb" src="https://magazine.atavist.com/wp-content/uploads/2016/03/export20161-1478028781-12-7-scaled.jpg" loading="lazy">
+          <div class="entry">
+            <a class="title " href="https://magazine.atavist.com/2016/he-always-had-a-dark-side" target="_blank" rel="noopener">
+              The Mastermind Episode 3: He Always Had a Dark Side - The Atavist Magazine
+            </a>
+            <span class="pillbtn tags-pill" phx-click="toggle-tags-fold" phx-value-id="146">
+              TAGS (5)
+            </span>
+            <span class="domain"><img class="favicon" src="https://magazine.atavist.com/wp-content/uploads/2021/03/cropped-atavist_Logo_A-2-32x32.png" loading="lazy">(<a href="/blinks?q=magazine.atavist.com">The Atavist Magazine</a>)</span>
+            
+            
+            
+            
+            
+            <div class="meta">
+              <a phx-click="open-chat" phx-value-id="146" style="">
+                chat
+              </a>
+              <a href="https://web.archive.org/web/*/https://magazine.atavist.com/2016/he-always-had-a-dark-side" target="_blank" rel="noopener">wayback</a>
+              <a href="https://archive.ph/newest/https://magazine.atavist.com/2016/he-always-had-a-dark-side" target="_blank" rel="noopener">archive.ph</a>
+              <a phx-click="hide" phx-value-id="146" title="hide this link on this device">
+                hide
+              </a>
+              
+              
+              
+              
+              <details class="notes" open>
+                <summary></summary>
+                <div class="desc">How did a Usenet troll and encryption genius become a criminal mastermind?</div>
+              </details>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="pager">
+        
+        
+        <button phx-click="more">MORE ›</button>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebox" data-joyride="tags-box">
+        <h2>tags</h2>
+        <div class="body" style="position:relative;">
+          
+          <div class="tag-cloud">
+            <span class="tag " phx-click="toggle-tag" phx-value-tag="interesting">
+              interesting<span class="tcount">49</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech">
+              tech<span class="tcount">34</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="bluesky">
+              bluesky<span class="tcount">30</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="niche">
+              niche<span class="tcount">28</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="culture">
+              culture<span class="tcount">25</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="funny">
+              funny<span class="tcount">24</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="history">
+              history<span class="tcount">24</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="ai">
+              ai<span class="tcount">19</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="programming">
+              programming<span class="tcount">19</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="lol">
+              lol<span class="tcount">17</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="wtf">
+              wtf<span class="tcount">15</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="ml">
+              ml<span class="tcount">14</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="nyc">
+              nyc<span class="tcount">14</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="blog">
+              blog<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="bookmarks">
+              bookmarks<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="hacker-news">
+              hacker-news<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech-commentary">
+              tech-commentary<span class="tcount">12</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="longread">
+              longread<span class="tcount">10</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="art">
+              art<span class="tcount">9</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="news">
+              news<span class="tcount">9</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="reddit">
+              reddit<span class="tcount">9</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="cool">
+              cool<span class="tcount">8</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="code">
+              code<span class="tcount">7</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="hardware">
+              hardware<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="math">
+              math<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="music">
+              music<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="old-internet">
+              old-internet<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="photography">
+              photography<span class="tcount">5</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="europe">
+              europe<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="new-york">
+              new-york<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="public-transit">
+              public-transit<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="video">
+              video<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="youtube">
+              youtube<span class="tcount">4</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="boats">
+              boats<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="china">
+              china<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="commentary">
+              commentary<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="hobby">
+              hobby<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="law">
+              law<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="life">
+              life<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="phish">
+              phish<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="wikipedia">
+              wikipedia<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="writing">
+              writing<span class="tcount">3</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="apple">
+              apple<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="birds">
+              birds<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="camera">
+              camera<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="career">
+              career<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="cars">
+              cars<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="chatgpt">
+              chatgpt<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="cybersecurity">
+              cybersecurity<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="design">
+              design<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="drugs">
+              drugs<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="film">
+              film<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="food">
+              food<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="fun">
+              fun<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="github">
+              github<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="grateful-dead">
+              grateful-dead<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="health">
+              health<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="japan">
+              japan<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="llm">
+              llm<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="media">
+              media<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="mental-health">
+              mental-health<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="new-york-times">
+              new-york-times<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="phishing">
+              phishing<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="politics">
+              politics<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="programming-languages">
+              programming-languages<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="software">
+              software<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="sports">
+              sports<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="strange">
+              strange<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="subway">
+              subway<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tech-history">
+              tech-history<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="transit">
+              transit<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="travel">
+              travel<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="tv">
+              tv<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="weird">
+              weird<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="work">
+              work<span class="tcount">2</span>
+            </span><span class="tag " phx-click="toggle-tag" phx-value-tag="wsj">
+              wsj<span class="tcount">2</span>
+            </span>
+          </div>
+          <div style="margin-top:6px;">
+            <span class="singles-link" phx-click="toggle-singles">
+              ▾ show 142 one-offs
+            </span>
+            
+          </div>
+        </div>
+      </div>
+      <div class="sidebox">
+        <h2>feeds</h2>
+        <div class="body">
+          <a href="/blinks.rss" style="color:#369;">rss</a>
+          
+        </div>
+      </div>
+      <div class="sidebox">
+        <h2>admin</h2>
+        <div class="body">
+          
+            <form phx-submit="unlock-admin">
+              <input type="password" name="key" placeholder="paste API key…" style="width:100%; border:1px solid #5f99cf; font-size:11px; padding:3px; margin-bottom:4px;">
+              <button class="aim-send" type="submit">unlock</button>
+              
+            </form>
+          
+        </div>
+      </div>
+      <div class="sidebox">
+        <h2>about</h2>
+        <div class="body" style="color:#555;">
+          bobby's links. click tags to combine them — you'll see everything
+          carrying any of them. every link is also a chat room.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+
+  
+
+  
+</div></div>
+  </body>
+</html>

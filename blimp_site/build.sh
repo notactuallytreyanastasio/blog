@@ -46,10 +46,15 @@ temper_build
 # of temper-core in front of the site made rendering the posts 4.6s -> 7.6s
 # with not one of its functions called. temper/prune.pl follows names from
 # the program's own files to a fixed point.
+# Before the files are joined, temper/dupes.pl refuses a program that makes
+# a top-level name twice, because Blimp keeps the later one without a word
+# (two bkp_body defs came out of a merge that way). The Temper part is
+# checked with the rest; on a refusal $out.temper stays, for its line numbers.
 #   with_temper OUT FILE...   OUT = the Temper FILE... uses, then FILE...
 with_temper() {
   local out="$1"; shift
   perl temper/prune.pl _build/temper.blimp "$@" > "$out.temper"
+  perl temper/dupes.pl "$out.temper" "$@" || { echo "not building $out" >&2; exit 1; }
   cat "$out.temper" "$@" > "$out"
   rm -f "$out.temper"
 }
@@ -129,6 +134,13 @@ with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.
 # (temper/src/blinks); walking the rows, the actors and the views Blimp.
 with_temper _build/blinks.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/paper.blimp
 with_temper _build/blinks-reader.blimp src/40_http.blimp static/blinks/common.blimp static/blinks/reader.blimp
+# Stumble: the menus, rules, sort key and cutting are Temper
+# (temper/src/stumble), the actor and view Blimp.
+with_temper _build/stumble.blimp static/stumble/stumble.blimp
+# The Camera Browser: the facets, the URL, the printing and the dupe key
+# are Temper (temper/src/cameras), the rows, the counting and the view
+# Blimp; query_param is the server's.
+with_temper _build/cameras.blimp src/40_http.blimp static/cameras/cameras.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
