@@ -1,0 +1,123 @@
+# /reddit-links: YouTube videos posted to Bluesky, as a grid of embeds.
+#
+# The grid is the server's (FIREHOSE in src/98_firehose.blimp): fifty cells,
+# a new video in the next one and, once all are full, over the oldest, so a
+# video that is playing never moves. This program draws what it is sent:
+# the whole grid when the socket opens, then each new cell. It is
+# RedditLinksLive's template, class for class.
+#
+# Every cell is drawn, empty ones as a hidden div, so that the grid always
+# has fifty children: BlimpView patches an element in place only when the
+# number of its children is unchanged, and a grid rebuilt would reload
+# every video in it. The LiveView's <style> for the new card's animation is
+# in the page (src/98_firehose.blimp): a view cannot make a <style>, nor an
+# <iframe>, so the embed is HTML (fh_embed_html, which checks the id).
+
+
+def fhy_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+# Cells from the server, into the grid (a map from position to cell).
+def fhy_put(cells: Map, got: Any) -> Map do
+  case type_of(got) == :list do
+    false -> cells
+    true -> reduce(got, cells, fn(acc: Map, c: Any) -> Map do
+      case type_of(c) == :map and type_of(lookup(c, :pos)) == :integer and type_of(lookup(c, :id)) == :string do
+        true -> put(acc, to_string(c.pos), c)
+        false -> acc
+      end
+    end)
+  end
+end
+
+def fhy_newest(got: Any, dflt: Int) -> Int do
+  case type_of(got) == :list and length(got) > 0 do
+    true -> last(got).pos
+    false -> dflt
+  end
+end
+
+def fhy_cell(cells: Map, pos: Int, newest: Int) -> Any do
+  c = lookup(cells, to_string(pos))
+  case c do
+    nil -> el("div", %{class: "hidden"}, "")
+    _ ->
+      cls = case pos == newest do
+        true -> "bg-white rounded-lg shadow-md overflow-hidden transition-shadow hover:shadow-xl video-card-new"
+        false -> "bg-white rounded-lg shadow-md overflow-hidden transition-shadow hover:shadow-xl"
+      end
+      el("div", %{id: concat("video-slot-", to_string(pos), "-", to_string(c.key)), class: cls},
+        el("div", %{class: "relative pb-[56.25%]", inner_html: fh_embed_html(c.id)}, ""))
+  end
+end
+
+def fhy_body(s: Map) -> Any do
+  n = length(keys(s.cells))
+  case n == 0 do
+    true ->
+      el("div", %{class: "p-8 text-center bg-white rounded-lg shadow-md"},
+        el("p", %{class: "text-gray-500"}, "Waiting for posts with YouTube links to appear..."),
+        el("p", %{class: "text-sm text-gray-400 mt-2"}, "This could take some time depending on Bluesky activity."))
+    false ->
+      el("div", %{class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"},
+        map(range(0, fh_max_videos - 1), fn(pos: Int) -> Any do fhy_cell(s.cells, pos, s.newest) end))
+  end
+end
+
+def fhy_window(s: Map) -> Any do
+  el("div", %{class: "os-desktop-osx"},
+    el("div", %{class: "os-window os-window-osx", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+      el("div", %{class: "os-titlebar"},
+        el("div", %{class: "os-titlebar-buttons"},
+          el("a", %{href: "/", class: "os-btn-close"}, ""),
+          el("span", %{class: "os-btn-min"}, ""),
+          el("span", %{class: "os-btn-max"}, "")),
+        el("span", %{class: "os-titlebar-title"}, "YouTube Links from Bluesky"),
+        el("div", %{class: "os-titlebar-spacer"}, "")),
+      el("div", %{class: "os-content", style: "height: calc(100% - 60px); overflow-y: auto; background: linear-gradient(180deg, #f5f5f5 0%, #e5e5e5 100%);"},
+        el("div", %{class: "p-6"},
+          el("div", %{class: "mb-6 p-4 bg-blue-100 rounded-lg border border-blue-300 shadow-sm"},
+            el("p", %{class: "text-blue-900"}, "This page shows Bluesky posts that contain YouTube links. New posts will appear automatically.")),
+          fhy_body(s))),
+      el("div", %{class: "os-statusbar"},
+        el("span", %{}, concat("Videos: ", to_string(length(keys(s.cells))))), " ",
+        el("span", %{}, concat("Max: ", to_string(fh_max_videos))), " ",
+        el("span", %{}, s.status))))
+end
+
+actor YouTubeGrid do
+  state cells: Map :: %{}
+  state newest: Int :: -1
+  state status: String :: "connecting..."
+
+  on :frame(json: String) do
+    m = fhy_decode(json)
+    case lookup(m, :t) do
+      # the whole grid, on (re)connecting: what the server has replaces what was here
+      "grid" -> become cells: fhy_put(%{}, m.slots), newest: -1, status: ""
+      "slots" -> become cells: fhy_put(cells, m.slots), newest: fhy_newest(m.slots, newest), status: ""
+      _ -> become status: status
+    end
+    reply :ok
+  end
+
+  on :offline do
+    become status: "reconnecting..."
+    reply :ok
+  end
+
+  on :view do
+    reply fhy_window(%{cells: cells, newest: newest, status: status})
+  end
+end
+
+fh = spawn YouTubeGrid
+fh <- :view

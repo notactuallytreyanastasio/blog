@@ -185,6 +185,14 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/nyc_census_and_pluto/map.js" -> NYC_CENSUS_JS
     "/nyc_census_and_pluto/tracts.json" -> nyc_tracts_response()
     "/nyc_census_and_pluto/lots.json" -> nyc_lots_response(req.query)
+    # the firehose pages (src/98_firehose.blimp): /reddit-links, /emoji-skeets, /jetstream_comparison
+    "/reddit-links" -> FH_YOUTUBE_PAGE
+    "/emoji-skeets" -> FH_SKEETS_PAGE
+    "/jetstream_comparison" -> FH_COMPARE_PAGE
+    "/firehose/youtube.blimp" -> FH_YOUTUBE_PROGRAM
+    "/firehose/skeets.blimp" -> FH_SKEETS_PROGRAM
+    "/firehose/compare.blimp" -> FH_COMPARE_PROGRAM
+    "/firehose/firehose.js" -> FH_JS
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -326,6 +334,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/blackjack" -> :blackjack
     "/live/cursors" -> :cursors
     "/live/map" -> :map
+    "/live/firehose" -> :firehose
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -354,6 +363,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a /map page is sent every tag
       case kind == :map do
         true -> MAP_ROOM <- :join(c)
+        false -> :ok
+      end
+      # a firehose page is sent what it watches (the YouTube grid at once)
+      case kind == :firehose do
+        true -> FIREHOSE <- :join(c, query_param(req.query, "page"))
         false -> :ok
       end
       %{fd: c, kind: kind, game: game, buf: ""}
@@ -405,6 +419,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
       {map_without(socks, to_string(sock.fd)), games, false}
     :map ->
       MAP_ROOM <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
+    :firehose ->
+      FIREHOSE <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
@@ -591,6 +608,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
   WORDLE <- :push(elem(read, 0))
   CURSORS <- :push(now_ms(), now())
+  # the Bluesky relays: drain what arrived, push to the firehose pages
+  FIREHOSE <- :tick(now_ms())
   t = now_ms()
   case elem(read, 2) and t - pushed_at >= 50 do
     true ->
@@ -725,6 +744,12 @@ end
 case DB_OPTS do
   nil -> :ok
   _ -> MOON <- :json
+end
+# The Bluesky relay is held from boot, so /reddit-links has videos to show
+# its first visitor; FIREHOSE=off (a laptop without network) leaves it shut.
+case getenv("FIREHOSE") do
+  "off" -> :ok
+  _ -> RELAY_HOSE <- :want(true)
 end
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)

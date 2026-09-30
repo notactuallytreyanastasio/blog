@@ -1,0 +1,203 @@
+# /emoji-skeets: "Skeet Search", every Bluesky post as it is made, filtered
+# by what is typed. (The URL is older than the page: nothing here is about
+# emoji, and nothing in EmojiSkeetsLive was either.)
+#
+# The server (FIREHOSE, src/98_firehose.blimp) sends every new post,
+# [text, did], in batches four times a second. This program keeps the
+# newest FHS_KEEP of them, as the LiveView kept the newest 100,000 in its
+# process, and filters them here, in the browser, as the LiveView filtered
+# them on the server on every keystroke. The template is EmojiSkeetsLive's,
+# class for class.
+#
+# Not ported: the LiveView sent every match to a receipt printer with
+# python3 and CUPS, on the server. The server has no printer.
+
+FHS_KEEP = 20000
+FHS_SHOWN = 500
+
+def fhs_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+# A post as the server sent it, or nil.
+def fhs_post(p: Any) -> Any do
+  case type_of(p) == :list and length(p) == 2 do
+    false -> nil
+    true ->
+      case type_of(head(p)) == :string and type_of(last(p)) == :string do
+        true -> %{text: head(p), did: last(p)}
+        false -> nil
+      end
+  end
+end
+
+def fhs_posts(got: Any) -> List do
+  case type_of(got) == :list do
+    false -> []
+    true -> filter(map(got, fn(p: Any) -> Any do fhs_post(p) end), fn(p: Any) -> Bool do p != nil end)
+  end
+end
+
+def fhs_first(list: List, n: Int) -> List do
+  reverse(fhs_first_into(list, n, []))
+end
+
+def fhs_first_into(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> acc
+    false ->
+      case list do
+        [] -> acc
+        [h | rest] -> fhs_first_into(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+# The term as it is searched for: trimmed and lower-cased.
+def fhs_norm(term: String) -> String do
+  downcase(trim(term))
+end
+
+def fhs_filter(posts: List, norm: String) -> List do
+  case norm do
+    "" -> []
+    _ -> filter(posts, fn(p: Map) -> Bool do fh_matches(downcase(p.text), norm) end)
+  end
+end
+
+# New posts (oldest first) onto a newest-first list.
+def fhs_onto(list: List, posts: List) -> List do
+  reduce(posts, list, fn(acc: List, p: Map) -> List do [p | acc] end)
+end
+
+# The posts are kept as the batches they came in, newest first, each
+# %{n, posts}: letting the oldest go is dropping whole batches off the end,
+# a walk of a hundred-odd batches, where one flat list would be copied, all
+# FHS_KEEP of it, four times a second.
+def fhs_keep(batches: List, n: Int, acc: List) -> List do
+  case batches do
+    [] -> reverse(acc)
+    [b | rest] ->
+      case n >= FHS_KEEP do
+        true -> reverse(acc)
+        false -> fhs_keep(rest, n + b.n, [b | acc])
+      end
+  end
+end
+
+def fhs_count(batches: List) -> Int do
+  reduce(batches, 0, fn(acc: Int, b: Map) -> Int do acc + b.n end)
+end
+
+def fhs_all(batches: List) -> List do
+  flat(map(batches, fn(b: Map) -> List do b.posts end))
+end
+
+# ── the template ────────────────────────────────────────────────────────
+
+def fhs_skeet(p: Map) -> Any do
+  el("div", %{class: "bg-white border-2 outset p-3 hover:bg-blue-50"},
+    el("p", %{class: "text-xs text-gray-500 mb-1"}, concat("DID: ", p.did)),
+    el("p", %{class: "text-gray-800 whitespace-pre-wrap break-words"}, p.text))
+end
+
+def fhs_results(s: Map) -> Any do
+  case s.filtered do
+    [] ->
+      said = case s.total == 0 do
+        true -> "Waiting for skeets to appear..."
+        false ->
+          case trim(s.term) == "" do
+            true -> "Enter a search term above to see skeets."
+            false -> fh_no_match(s.term)
+          end
+      end
+      el("div", %{class: "space-y-2"}, el("div", %{class: "bg-white border-2 inset p-4 text-center"}, el("p", %{class: "text-gray-600"}, said)))
+    _ -> el("div", %{class: "space-y-2"}, map(fhs_first(s.filtered, FHS_SHOWN), fn(p: Map) -> Any do fhs_skeet(p) end))
+  end
+end
+
+def fhs_window(s: Map) -> Any do
+  searching = trim(s.term) != ""
+  said = case searching do
+    false -> el("p", %{}, "Enter a search term to see skeets.")
+    true -> el("p", %{}, fh_filtering(s.term))
+  end
+  showing = case searching do
+    true -> el("p", %{}, fh_showing(length(s.filtered), s.total))
+    false -> el("span", %{class: "hidden"}, "")
+  end
+  el("div", %{class: "os-desktop-win98"},
+    el("div", %{class: "os-window os-window-win98", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+      el("div", %{class: "os-titlebar"},
+        el("span", %{class: "os-titlebar-title"}, "🦋 Skeet Search - Bluesky Monitor"),
+        el("div", %{class: "os-titlebar-buttons"},
+          el("span", %{class: "os-btn"}, "_"),
+          el("span", %{class: "os-btn"}, "□"),
+          el("a", %{href: "/", class: "os-btn"}, "×"))),
+      el("div", %{class: "os-menubar"},
+        el("span", %{}, "File"), el("span", %{}, "Search"), el("span", %{}, "View"), el("span", %{}, "Help")),
+      el("div", %{class: "os-content", style: "height: calc(100% - 80px); overflow-y: auto; background: #c0c0c0;"},
+        el("div", %{class: "p-4"},
+          el("div", %{class: "bg-white border-2 inset p-4 mb-4"},
+            el("h2", %{class: "text-lg font-bold mb-3"}, "Search Skeets"),
+            el("div", %{},
+              el("input", %{type: "text", name: "search_term", value: s.term, input: :search, debounce: 300,
+                placeholder: "Enter search term (e.g., elixir, phoenix, ❤️)...", class: "w-full px-3 py-2 border-2 inset bg-white"})),
+            el("div", %{class: "mt-3 text-sm"},
+              said,
+              el("div", %{class: "mt-2 flex justify-between text-gray-600"},
+                el("p", %{}, concat("Total skeets collected: ", to_string(s.total))),
+                showing))),
+          fhs_results(s))),
+      el("div", %{class: "os-statusbar"},
+        el("div", %{class: "os-statusbar-section"}, concat("Skeets: ", to_string(s.total))),
+        el("div", %{class: "os-statusbar-section", style: "flex: 1;"}, concat("Matches: ", to_string(length(s.filtered)))),
+        el("div", %{class: "os-statusbar-section"}, s.status))))
+end
+
+actor SkeetSearch do
+  state batches: List :: []
+  state total: Int :: 0
+  state term: String :: ""
+  state filtered: List :: []
+  state status: String :: "connecting..."
+
+  on :frame(json: String) do
+    m = fhs_decode(json)
+    case lookup(m, :t) do
+      "posts" ->
+        got = fhs_posts(m.posts)
+        kept = fhs_keep([%{n: length(got), posts: reverse(got)} | batches], 0, [])
+        # new matches go on the front, and as many are kept as posts are
+        matched = fhs_first(fhs_onto(filtered, fhs_filter(got, fhs_norm(term))), FHS_KEEP)
+        become batches: kept, total: fhs_count(kept), filtered: matched, status: "live"
+      _ -> become status: status
+    end
+    reply :ok
+  end
+
+  on :search(value: String) do
+    become term: value, filtered: fhs_filter(fhs_all(batches), fhs_norm(value))
+    reply :ok
+  end
+
+  on :offline do
+    become status: "reconnecting..."
+    reply :ok
+  end
+
+  on :view do
+    reply fhs_window(%{term: term, total: total, filtered: filtered, status: status})
+  end
+end
+
+fh = spawn SkeetSearch
+fh <- :view

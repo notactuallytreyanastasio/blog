@@ -1,0 +1,188 @@
+# needs: static/firehose/youtube.blimp static/firehose/skeets.blimp static/firehose/compare.blimp
+#
+# The firehose (src/98_firehose.blimp), its pages' programs
+# (static/firehose/*.blimp) and the Temper they share (temper/src/firehose),
+# fed frames recorded from the two relays on 2026-09-30, not the network:
+# test/fixtures/firehose/relay.ndjson is 150 frames from
+# bsky-relay.c.theo.io in the order they came plus every later one that
+# mentions "youtu", jet.ndjson 100 from jetstream2.us-east.bsky.network.
+# youtube_ids.ndjson is [url, id] for every YouTube link in the whole
+# recording and some made up, where the id is what RedditLinksLive's
+# extract_youtube_id/1 answered, run in Elixir ("" for nil).
+# Sockets here are negative, which the room does not write to.
+
+def fht_lines(file: String) -> List do
+  filter(split(read_file(file), "\n"), fn(l: String) -> Bool do l != "" end)
+end
+
+FHT_RELAY = fht_lines("test/fixtures/firehose/relay.ndjson")
+FHT_JET = fht_lines("test/fixtures/firehose/jet.ndjson")
+FHT_IDS = map(fht_lines("test/fixtures/firehose/youtube_ids.ndjson"), fn(l: String) -> Any do elem(json_decode(l), 1) end)
+
+def fht_decoded(json: String) -> Map do
+  elem(json_decode(json), 1)
+end
+
+# A frame with only a link card, for filling the grid.
+def fht_card(uri: String) -> String do
+  json_encode(%{did: "did:plc:x", time_us: 1, kind: "commit", commit: %{operation: "create", record: %{text: "look", embed: %{external: %{uri: uri}}}}})
+end
+
+actor FirehoseTests do
+  test "YouTube ids are what the LiveView's four regexes found" do
+    assert(length(FHT_IDS) >= 30)
+    each(FHT_IDS, fn(pair: List) do
+      assert_eq([head(pair), fh_youtube_id(head(pair))], pair)
+    end)
+  end
+
+  test "an embed is made only for an id of id characters" do
+    assert(contains(fh_embed_html("CTwL-1o23gE"), "src=\"https://www.youtube.com/embed/CTwL-1o23gE\""))
+    assert_eq(fh_embed_html("x\"><script>"), "")
+    assert_eq(fh_embed_html(""), "")
+    assert_eq(fh_embed_html("a b"), "")
+  end
+
+  test "a link card is a YouTube link when its URI says youtube.com or youtu.be" do
+    assert(fh_is_youtube("https://youtu.be/x"))
+    assert(fh_is_youtube("https://m.youtube.com/watch?v=x"))
+    assert(not(fh_is_youtube("https://www.reddit.com/r/videos")))
+    assert(not(fh_is_youtube("https://youtube.co/x")))
+  end
+
+  test "a post is a create with text; the DID is the event's" do
+    ev = fht_decoded(head(FHT_RELAY))
+    assert_eq(fh_post(ev), ["Gege!", "did:plc:hzbcsvk5wtwuxp7c3cqripdf"])
+    assert_eq(fh_post(%{kind: "commit", did: "d", commit: %{operation: "delete"}}), nil)
+    assert_eq(fh_post(%{kind: "commit", did: "d", commit: %{operation: "update", record: %{text: "t"}}}), nil)
+    assert_eq(fh_post(%{kind: "identity", did: "d"}), nil)
+    assert_eq(fh_post(%{kind: "commit", commit: %{operation: "create", record: %{text: "t"}}}), ["t", "unknown"])
+    assert_eq(fh_post(nil), nil)
+  end
+
+  test "the cursor is the time_us of the last frame, read without decoding it" do
+    assert_eq(fh_time_us(head(FHT_RELAY)), 1790735282395722)
+    assert_eq(fh_time_us(last(FHT_JET)), elem(json_decode(last(FHT_JET)), 1).time_us)
+    assert_eq(fh_time_us("{\"kind\":\"x\"}"), 0)
+    assert_eq(fh_time_us("{\"time_us\":12}"), 12)
+    # a reconnect within five minutes replays from the cursor; later it does not
+    assert_eq(fh_resume_url("wss://r/s?a=b", 17, 1000, 1000 + FH_REPLAY_MAX_MS), "wss://r/s?a=b&cursor=17")
+    assert_eq(fh_resume_url("wss://r/s?a=b", 17, 1000, 1001 + FH_REPLAY_MAX_MS), "wss://r/s?a=b")
+    assert_eq(fh_resume_url("wss://r/s?a=b", 0, 1000, 1000), "wss://r/s?a=b")
+  end
+
+  test "recorded frames fill the grid with the videos that embed, in order" do
+    room = spawn FirehoseRoom
+    room <- :join(-1, "youtube")
+    sent = room <- :replay(FHT_RELAY, [], 1000)
+    grid = room <- :grid
+    # 19 YouTube cards in the recording; six are /shorts/ or /live/, which no regex matched
+    assert_eq(length(grid), 13)
+    assert_eq(head(grid), %{pos: 0, id: "CTwL-1o23gE", key: 1})
+    assert_eq(map(grid, fn(c: Map) -> Int do c.pos end), range(0, 12))
+    assert_eq(elem(json_decode(sent.youtube), 1).slots, map(grid, fn(c: Map) -> Map do c end))
+    # nobody is searching, so no post was decoded or sent
+    assert_eq(sent.skeets, "")
+    assert_eq(sent.compare, "")
+  end
+
+  test "the fifty-first video replaces the oldest, in place" do
+    room = spawn FirehoseRoom
+    frames = map(range(0, 52), fn(i: Int) -> String do fht_card(concat("https://youtu.be/v", to_string(i))) end)
+    room <- :replay(frames, [], 1000)
+    grid = room <- :grid
+    assert_eq(length(grid), 50)
+    assert_eq(head(grid), %{pos: 0, id: "v50", key: 51})
+    assert_eq(lookup(list_at(grid, 3), :id), "v3")
+    assert_eq(fh_slot(50), 0)
+    assert_eq(fh_slot(123), 23)
+  end
+
+  test "search pages are sent every new post; Jetstream only while a comparison is open" do
+    room = spawn FirehoseRoom
+    room <- :join(-2, "skeets")
+    sent = room <- :replay(FHT_RELAY, FHT_JET, 1000)
+    posts = fht_decoded(sent.skeets).posts
+    assert_eq(length(posts), 161)
+    assert_eq(head(posts), ["Gege!", "did:plc:hzbcsvk5wtwuxp7c3cqripdf"])
+    assert_eq(sent.compare, "")
+    room <- :join(-3, "compare")
+    # not before FH_PUSH_MS has passed
+    assert_eq(room <- :replay(FHT_RELAY, FHT_JET, 1100), %{})
+    both = fht_decoded((room <- :replay([], [], 1300)).compare)
+    assert_eq(length(both.relay), 161)
+    assert_eq(length(both.jet), 93)
+    room <- :leave(-2)
+    room <- :leave(-3)
+    after = room <- :replay(FHT_RELAY, FHT_JET, 2000)
+    assert_eq(after.skeets, "")
+    assert_eq(after.compare, "")
+  end
+
+  test "a page that is not one of the three is sent nothing" do
+    room = spawn FirehoseRoom
+    assert_eq(room <- :join(-4, "../etc"), "")
+    sent = room <- :replay(FHT_RELAY, FHT_JET, 1000)
+    assert_eq(sent.skeets, "")
+  end
+
+  test "matching and cutting, as the search pages did" do
+    assert(fh_matches("hello bobby", "bobby"))
+    assert(not(fh_matches("hello bobby", "")))
+    assert(fh_matches("i ❤️ this", "❤️"))
+    assert_eq(fh_cut("did:plc:hzbcsvk5wtwuxp7c3cqripdf", 30), "did:plc:hzbcsvk5wtwuxp7c3cqrip...")
+    assert_eq(fh_cut("short", 30), "short")
+    # characters, not bytes: thirty of them, each three bytes
+    assert_eq(fh_cut(repeat("é", 31), 30), concat(repeat("é", 30), "..."))
+    assert_eq(fh_cut(repeat("é", 30), 30), repeat("é", 30))
+    assert_eq(fh_showing(2, 10), "Showing 2 of 10 skeets")
+    assert_eq(fh_feed_empty("Relay", ""), "Enter a search term to see Relay skeets")
+    assert_eq(fh_feed_empty("Relay", "x"), "No Relay skeets match \"x\"")
+  end
+
+  test "the YouTube page draws fifty cells, and only the new one is new" do
+    g = spawn YouTubeGrid
+    g <- :frame(json_encode(%{t: "grid", slots: [%{pos: 0, id: "a", key: 1}, %{pos: 1, id: "b", key: 2}]}))
+    g <- :frame(json_encode(%{t: "slots", slots: [%{pos: 2, id: "c", key: 3}]}))
+    html = to_html(g <- :view)
+    assert(contains(html, "https://www.youtube.com/embed/c"))
+    assert(contains(html, "video-slot-2-3"))
+    assert(contains(html, "Videos: 3"))
+    assert_eq(length(split(html, "video-card-new")), 2)
+    assert_eq(length(split(html, "\"hidden\"")), 48)
+  end
+
+  test "the search page filters what it was sent, as it is typed" do
+    s = spawn SkeetSearch
+    s <- :frame(json_encode(%{t: "posts", posts: [["Hello Bobby", "did:a"], ["nothing", "did:b"]]}))
+    before = to_html(s <- :view)
+    assert(contains(before, "Total skeets collected: 2"))
+    assert(contains(before, "Enter a search term above to see skeets."))
+    s <- :search("  BOBBY ")
+    s <- :frame(json_encode(%{t: "posts", posts: [["bobby again", "did:c"]]}))
+    after = to_html(s <- :view)
+    assert(contains(after, "Showing 2 of 3 skeets"))
+    assert(contains(after, "DID: did:c"))
+    assert(contains(after, "Matches: 2"))
+    s <- :search("zzz")
+    assert(contains(to_html(s <- :view), "No skeets match your search term: &quot;zzz&quot;."))
+  end
+
+  test "the comparison page counts both feeds and cuts what it shows" do
+    c = spawn Comparison
+    c <- :search("gege")
+    c <- :frame(json_encode(%{t: "compare", relay: [["Gege!", "did:plc:hzbcsvk5wtwuxp7c3cqripdf"], ["x", "did:y"]], jet: [["y", "did:z"]]}))
+    v = to_html(c <- :view)
+    assert(contains(v, "Total received: 1"))
+    assert(contains(v, "Total received: 2"))
+    assert(contains(v, "did:plc:hzbcsvk5wtwuxp7c3cqrip..."))
+    assert(contains(v, "No Jetstream skeets match &quot;gege&quot;"))
+  end
+end
+
+def list_at(list: List, i: Int) -> Any do
+  case i == 0 do
+    true -> head(list)
+    false -> list_at(tail(list), i - 1)
+  end
+end
