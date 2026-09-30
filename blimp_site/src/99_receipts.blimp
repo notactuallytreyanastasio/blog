@@ -1,8 +1,9 @@
 # The receipt printer's writes: POST /api/receipt_messages/:id/printed,
 # /failed and /retry, which BlogWeb.Api.ReceiptMessageController answered.
 # The printer (priv/scripts/receipt_printer_service.py) polls
-# GET /api/receipt_messages/pending, prints, and reports back here. The two
-# GETs (pending, and a message's image) stay in Phoenix for now.
+# GET /api/receipt_messages/pending, prints, and reports back here. The
+# two GETs (pending, and a message's image) and the page that writes the
+# messages, /very_direct_message, are further down.
 #
 # Phoenix's order is kept: the token first, then the id, then the row. The
 # token is the auth_token parameter (query, form or JSON body) or else the
@@ -30,7 +31,12 @@ def receipt_routes_with(token: String) -> List do
   [
     web_route("POST", "/api/receipt_messages/:id/printed", pipeline, receipt_printed),
     web_route("POST", "/api/receipt_messages/:id/failed", pipeline, receipt_failed),
-    web_route("POST", "/api/receipt_messages/:id/retry", pipeline, receipt_retry)
+    web_route("POST", "/api/receipt_messages/:id/retry", pipeline, receipt_retry),
+    web_route("GET", "/api/receipt_messages/pending", pipeline, receipt_pending),
+    web_route("GET", "/api/receipt_messages/:id/image", pipeline, receipt_image),
+    web_route("GET", "/very_direct_message", WEB_BROWSER, rx_page),
+    web_max_body(web_route("POST", "/very_direct_message", WEB_BROWSER, rx_send), WEB_MAX_UPLOAD),
+    web_route("GET", "/very_direct_message/queue", [], rx_queue)
   ]
 end
 
@@ -154,4 +160,240 @@ def receipt_message(row: Map) -> Map do
       end
   end
   put(put(put(put(with_image, :content, row.content), :sender_name, row.sender_name), :sender_ip, row.sender_ip), :printed_at, row.printed_at)
+end
+
+# ---------------------------------------------------------------- the printer's GETs
+
+# ReceiptMessages.list_pending_messages/0: pending, oldest first. Ecto
+# orders by inserted_at alone, and two messages in the same second come
+# back in whatever order Postgres finds them; id breaks the tie here, which
+# is the order they were written.
+RECEIPT_PENDING_SQL = join([
+  "SELECT id, content, sender_name, sender_ip, status, image_url, ",
+  "to_char(inserted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS') AS created_at, ",
+  "to_char(printed_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS printed_at, ",
+  "coalesce(octet_length(image_data), 0) > 0 AS has_upload ",
+  "FROM receipt_messages WHERE status = 'pending' ORDER BY inserted_at, id"
+], "")
+
+# The bytes as hex: the text protocol would send bytea as \x-prefixed hex
+# anyway, and encode() says so in the query rather than in the decoder.
+RECEIPT_IMAGE_SQL = "SELECT image_content_type, encode(image_data, 'hex') AS hex, coalesce(octet_length(image_data), 0) AS n FROM receipt_messages WHERE id = $1::bigint"
+
+def receipt_pending(conn: Map) -> Map do
+  case DB <- :query(RECEIPT_PENDING_SQL, []) do
+    {:error, reason} ->
+      puts(concat("receipts: ", reason))
+      receipt_error(conn, 503, "Service Unavailable")
+    {:ok, rows} ->
+      receipt_json(conn, 200, json_encode(%{messages: map(rows, receipt_message), status: "ok"}))
+  end
+end
+
+# The image the page stored, as stored: nothing renders or resizes it here
+# or in Phoenix (the printer dithers it). put_resp_content_type/2 adds
+# "; charset=utf-8" to whatever the row says, image/png included, and a row
+# with no type is image/jpeg. A row with no bytes, or none at all, is 404,
+# the second as Repo.get!/2's.
+def receipt_image(conn: Map) -> Map do
+  id = web_param(conn, "id")
+  case receipt_id_kind(id) do
+    :bad -> receipt_error(conn, 400, "Bad Request")
+    :none -> receipt_error(conn, 404, "Not Found")
+    :ok ->
+      case DB <- :query(RECEIPT_IMAGE_SQL, [id]) do
+        {:error, reason} ->
+          puts(concat("receipts: ", reason))
+          receipt_error(conn, 503, "Service Unavailable")
+        {:ok, []} -> receipt_error(conn, 404, "Not Found")
+        {:ok, rows} ->
+          row = head(rows)
+          case row.n > 0 do
+            false -> receipt_json(conn, 404, json_encode(%{error: "No image for this message"}))
+            true ->
+              ctype = concat(web_or(row.image_content_type, "image/jpeg"), "; charset=utf-8")
+              put(web_send(conn, 200, ctype, hex_decode(row.hex)), :cache, RECEIPT_CACHE)
+          end
+      end
+  end
+end
+
+# ---------------------------------------------------------------- /very_direct_message
+
+# BlogWeb.ReceiptMessageLive. Anyone may send; there is no rate limit and
+# no sign-in, in Phoenix or here. A message is text, required, and at most
+# one image; it goes into receipt_messages as pending, and the printer on
+# the desk polls for it (above).
+#
+# The page is the one Phoenix sent (content/pages/very_direct_message.html,
+# from content/snapshot.sh, the root layout and all), with the LiveView
+# taken out and a form put in: a multipart POST carrying the session's CSRF
+# token, answered 303 back to the page. What the socket did that needs no
+# server (the character count, Send enabled only with text in the box, the
+# file's name with a Cancel button, dragging the window) is
+# static/receipts/page.js, inlined; the queue it fetched on "View Queue" is
+# GET /very_direct_message/queue.
+#
+# Phoenix put a flash after a send ("Message sent successfully! It will
+# print on my desk soon."), but neither of its layouts renders the flash,
+# so no visitor ever saw it: the box emptying was the only answer. Here the
+# page comes back with the box empty, and nothing else, which is the same.
+
+RX_MAX_IMAGE = 8000000
+
+def rx_die(why: String) -> Any do
+  puts(concat("/very_direct_message: ", why))
+  exit(1)
+end
+
+# find, in t, exactly once, made with. More or fewer means the snapshot is
+# not the page these cuts were written against: a boot failure, not a page
+# with a LiveView attribute left in it.
+def rx_swap(t: String, find: String, with: String) -> String do
+  n = length(split(t, find)) - 1
+  case n == 1 do
+    true -> replace(t, find, with)
+    false -> rx_die(concat("content/pages/very_direct_message.html has ", to_string(n), " of ", find, ", not 1"))
+  end
+end
+
+# not in the snapshot (rx_page_parts checks it is there once when it is cut)
+RX_CSRF_MARK = "@@rx-csrf-token@@"
+
+# The page as two strings, the session's token to go between them.
+def rx_page_parts(t: String, script: String) -> List do
+  t1 = rx_swap(t, " phx-hook=\"Draggable\"", "")
+  t2 = rx_swap(t1, "<form class=\"message-form\" phx-submit=\"send_message\" phx-change=\"validate\">",
+    concat("<form class=\"message-form\" method=\"post\" action=\"/very_direct_message\" enctype=\"multipart/form-data\">\n    <input type=\"hidden\" name=\"_csrf_token\" value=\"", RX_CSRF_MARK, "\">"))
+  t3 = rx_swap(t2, " phx-debounce=\"100\"", "")
+  t4 = rx_swap(t3, " phx-click=\"toggle_queue\"", "")
+  # live_file_input: an id, LiveView's hook and five data-phx attributes
+  cut = split(t4, "<input id=\"phx-")
+  t5 = case length(cut) == 2 do
+    false -> rx_die("content/pages/very_direct_message.html has no single live_file_input")
+    true ->
+      rest = last(cut)
+      concat(head(cut), "<input type=\"file\" name=\"image\" accept=\".jpg,.jpeg,.png,.gif\" style=\"display: none;\">", drop(rest, index_of(rest, ">") + 1))
+  end
+  t6 = rx_swap(t5, "</body>", concat("<script>\n", script, "</script>\n</body>"))
+  whole = page_with_runtime(t6)
+  parts = split(whole, RX_CSRF_MARK)
+  case contains(whole, " phx-") or length(parts) != 2 do
+    true -> rx_die("a phx- attribute is left in the page, or the token's place is not there once")
+    false -> parts
+  end
+end
+
+def rx_read(file: String) -> String do
+  body = read_file(file)
+  case body do
+    nil -> rx_die(concat("cannot read ", file))
+    _ -> body
+  end
+end
+
+RX_PAGE = rx_page_parts(rx_read("content/pages/very_direct_message.html"), rx_read("static/receipts/page.js"))
+
+def rx_page(conn: Map) -> Map do
+  c = web_ensure_csrf(conn)
+  put(web_html(c, 200, join(RX_PAGE, escape_html(c.csrf_token))), :cache, RECEIPT_CACHE)
+end
+
+# Ecto's timestamps(): NaiveDateTime.utc_now/0 truncated to the second,
+# the same in both columns. sender_name is never set by the page.
+RX_INSERT_SQL = join([
+  "INSERT INTO receipt_messages (content, sender_ip, status, image_data, image_content_type, inserted_at, updated_at) ",
+  "VALUES ($1, $2, 'pending', decode($3, 'hex'), $4, ", RECEIPT_NOW, ", ", RECEIPT_NOW, ") RETURNING id"
+], "")
+
+# handle_event("send_message"). The image first, as consume_uploaded_image
+# ran before the insert: a file LiveView would not have taken (a type it
+# does not accept, over 8 MB, a second one) never reached the server there,
+# and submitting with it crashed the LiveView ("cannot consume uploaded
+# files when entries are still in progress"), storing nothing. Here that is
+# a 422 that says why, and nothing is stored either.
+#
+# Then the text. Ecto's cast makes a string that is empty once trimmed nil,
+# and validate_required refuses nil: the message is not stored, the box is
+# emptied, and the flash that said so was never shown (see above). A body
+# with no message field at all did not match handle_event's pattern and
+# crashed the LiveView; the same nothing happens here.
+def rx_send(conn: Map) -> Map do
+  message = gp_form_value(web_param(conn, "message"))
+  case rx_image(conn) do
+    {:refused, why} -> web_text(conn, 422, concat(why, " Nothing was sent.\n"))
+    image ->
+      case message != nil and gp_present(message) do
+        false -> web_redirect(conn, "/very_direct_message")
+        true ->
+          params = case image do
+            :none -> [message, rx_sender_ip(conn), nil, nil]
+            {:ok, data, ctype} -> [message, rx_sender_ip(conn), hex_encode(data), ctype]
+          end
+          case DB <- :query(RX_INSERT_SQL, params) do
+            {:error, reason} ->
+              puts(concat("/very_direct_message: not stored: ", reason))
+              web_text(conn, 503, "The message could not be stored just now. Nothing was sent.\n")
+            {:ok, rows} ->
+              puts(concat("/very_direct_message: message ", to_string(head(rows).id), " is pending"))
+              web_redirect(conn, "/very_direct_message")
+          end
+      end
+  end
+end
+
+# :none | {:ok, bytes, content_type} | {:refused, why}. A form whose file
+# input was left empty still sends the part, with no name and no bytes.
+# web_upload answers the first of several, so they are counted here: the
+# input is not `multiple`, and max_entries: 1 made a second an error.
+def rx_image(conn: Map) -> Any do
+  ups = filter(conn.uploads, fn(x: Map) -> Bool do x.name == "image" end)
+  case ups do
+    [] -> :none
+    [u | more] ->
+      case length(more) > 0 do
+        true -> {:refused, "One image at a time."}
+        false ->
+          case u.filename == "" and u.size == 0 do
+            true -> :none
+            false ->
+              ext = downcase(rx_extname(u.filename))
+              case rx_accepted(u.content_type, ext) do
+                false -> {:refused, "The image must be a .jpg, .jpeg, .png or .gif."}
+                true ->
+                  case u.size > RX_MAX_IMAGE do
+                    true -> {:refused, "The image is over 8 MB."}
+                    false -> {:ok, u.data, rx_content_type(ext)}
+                  end
+              end
+          end
+      end
+  end
+end
+
+# Phoenix took the socket's peer address first, which behind Caddy is
+# Caddy's container, and only without one the session's remote_ip (the
+# RemoteIp plug's: the first X-Forwarded-For entry). This is the second,
+# the visitor's address, which is what the code meant to keep.
+def rx_sender_ip(conn: Map) -> String do
+  xff = lookup(conn.headers, "x-forwarded-for")
+  case xff do
+    nil -> "unknown"
+    _ -> rx_client_ip(xff)
+  end
+end
+
+# handle_event("toggle_queue"): list_recent_messages(10), newest first
+# (id breaks a tie in the second, as above).
+RX_QUEUE_SQL = "SELECT content, coalesce(status, '') AS status, to_char(inserted_at, 'Mon DD, HH12:MI AM') AS at FROM receipt_messages ORDER BY inserted_at DESC, id DESC LIMIT 10"
+
+def rx_queue(conn: Map) -> Map do
+  case DB <- :query(RX_QUEUE_SQL, []) do
+    {:error, reason} ->
+      puts(concat("/very_direct_message: queue: ", reason))
+      web_text(conn, 503, "The queue could not be read just now.\n")
+    {:ok, rows} ->
+      items = map(rows, fn(r: Map) -> String do rx_queue_item(r.content, r.status, r.at) end)
+      web_html(conn, 200, rx_queue_panel(items))
+  end
 end

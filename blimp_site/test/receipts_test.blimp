@@ -70,3 +70,101 @@ actor ReceiptTests do
     assert(not(contains(json_encode(receipt_message(put(put(row, :has_upload, false), :image_url, nil))), "image_url")))
   end
 end
+
+# The printer's GETs and /very_direct_message. The database is unset here
+# too, so what gets past the token, the CSRF check and the image is a 503
+# from the query; the rows were compared with Phoenix by hand (the PR).
+
+RT_CSRF = "rt-csrf-token-0123456789"
+
+def rt_multipart(parts: List) -> String do
+  pieces = map(parts, fn(p: List) -> String do
+    disp = case elem_at(p, 1) do
+      nil -> concat("Content-Disposition: form-data; name=\"", elem_at(p, 0), "\"")
+      f -> concat("Content-Disposition: form-data; name=\"", elem_at(p, 0), "\"; filename=\"", f, "\"")
+    end
+    ct = case elem_at(p, 2) do
+      nil -> ""
+      t -> concat("\r\nContent-Type: ", t)
+    end
+    concat("--XyZ\r\n", disp, ct, "\r\n\r\n", elem_at(p, 3), "\r\n")
+  end)
+  concat(join(pieces, ""), "--XyZ--\r\n")
+end
+
+def rt_post_form(parts: List) -> Tuple do
+  cookie = concat("Cookie: _blimp_session=", web_sign_session(put(%{}, "_csrf_token", RT_CSRF), RT_SECRET))
+  rt_send("POST", "/very_direct_message", [cookie, "Content-Type: multipart/form-data; boundary=XyZ"], rt_multipart(parts))
+end
+
+actor ReceiptPageTests do
+  test "pending and image: the token first, then the id" do
+    hdr = concat("X-Auth-Token: ", RT_TOKEN)
+    assert_eq(elem(rt_send("GET", "/api/receipt_messages/pending", [], ""), 1), 401)
+    assert_eq(rt_body(rt_send("GET", "/api/receipt_messages/pending", [], "")), "{\"error\":\"Invalid or missing auth token\"}")
+    assert_eq(elem(rt_send("GET", "/api/receipt_messages/pending", [hdr], ""), 1), 503)
+    assert_eq(elem(rt_send("GET", concat("/api/receipt_messages/pending?auth_token=", RT_TOKEN), [], ""), 1), 503)
+    assert_eq(elem(rt_send("GET", "/api/receipt_messages/x1/image", [], ""), 1), 401)
+    assert_eq(elem(rt_send("GET", "/api/receipt_messages/x1/image", [hdr], ""), 1), 400)
+    assert_eq(elem(rt_send("GET", "/api/receipt_messages/-1/image", [hdr], ""), 1), 404)
+    assert_eq(elem(rt_send("GET", "/api/receipt_messages/1/image", [hdr], ""), 1), 503)
+    # POST is still only printed/failed/retry
+    assert_eq(elem(rt_send("POST", "/api/receipt_messages/pending", [hdr], ""), 1), 405)
+  end
+
+  test "the page: Phoenix's markup with a form in place of the LiveView, and a token" do
+    got = rt_send("GET", "/very_direct_message", [], "")
+    assert_eq(elem(got, 1), 200)
+    wire = elem(got, 0)
+    assert(contains(wire, "Set-Cookie: _blimp_session="))
+    html = rt_body(got)
+    assert(contains(html, "<title>Send me a very direct message. To my desk..</title>"))
+    assert(contains(html, "<form class=\"message-form\" method=\"post\" action=\"/very_direct_message\" enctype=\"multipart/form-data\">\n    <input type=\"hidden\" name=\"_csrf_token\" value=\""))
+    assert(contains(html, "<input type=\"file\" name=\"image\" accept=\".jpg,.jpeg,.png,.gif\" style=\"display: none;\">"))
+    assert(contains(html, "<button class=\"send-button\" type=\"submit\" disabled>"))
+    assert(contains(html, "Characters: 0"))
+    assert(contains(html, "Hooks.Draggable (assets/js/app.js), for this one window."))
+    refute(contains(html, " phx-"))
+    refute(contains(html, "@@rx-csrf-token@@"))
+    refute(contains(html, "/assets/app-7afeaa4605879f3254ad239dc57c0a34.js"))
+  end
+
+  test "sending: the CSRF token, then the image, then the text" do
+    assert_eq(elem(rt_send("POST", "/very_direct_message", ["Content-Type: multipart/form-data; boundary=XyZ"], rt_multipart([["message", nil, nil, "hi"]])), 1), 403)
+    # past the token, a message goes to the database (unset here: 503)
+    assert_eq(elem(rt_post_form([["_csrf_token", nil, nil, RT_CSRF], ["message", nil, nil, "hi"]]), 1), 503)
+    png = rt_post_form([["_csrf_token", nil, nil, RT_CSRF], ["message", nil, nil, "hi"], ["image", "a.PNG", "application/octet-stream", "PNGDATA"]])
+    assert_eq(elem(png, 1), 503)
+    # an empty file input sends a part with no name and no bytes: no image
+    assert_eq(elem(rt_post_form([["_csrf_token", nil, nil, RT_CSRF], ["message", nil, nil, "hi"], ["image", "", "application/octet-stream", ""]]), 1), 503)
+    # blank, or no message at all: nothing stored, back to the page
+    blank = rt_post_form([["_csrf_token", nil, nil, RT_CSRF], ["message", nil, nil, " \r\n\t "]])
+    assert_eq(elem(blank, 1), 303)
+    assert(contains(elem(blank, 0), "Location: /very_direct_message\r\n"))
+    assert_eq(elem(rt_post_form([["_csrf_token", nil, nil, RT_CSRF]]), 1), 303)
+    # an image LiveView would not have taken: 422, whatever the text
+    txt = rt_post_form([["_csrf_token", nil, nil, RT_CSRF], ["message", nil, nil, "hi"], ["image", "notes.txt", "text/plain", "hello"]])
+    assert_eq(elem(txt, 1), 422)
+    assert_eq(rt_body(txt), "The image must be a .jpg, .jpeg, .png or .gif. Nothing was sent.\n")
+    two = rt_post_form([["_csrf_token", nil, nil, RT_CSRF], ["message", nil, nil, "hi"], ["image", "a.png", "image/png", "1"], ["image", "b.png", "image/png", "2"]])
+    assert_eq(elem(two, 1), 422)
+  end
+
+  test "rx_: extensions as Path.extname, what LiveView accepts, the stored type" do
+    assert_eq(map(["a.JPG", "..jpg", ".a.jpg", "a.", "..", ".jpg", ".", "x/.jpg", "noext", "a.tar.gz"], rx_extname), [".JPG", ".jpg", ".jpg", ".", ".", "", "", "", "", ".gz"])
+    assert(rx_accepted("image/png", ".heic"))
+    assert(rx_accepted("application/octet-stream", ".jpeg"))
+    refute(rx_accepted("image/webp", ".webp"))
+    refute(rx_accepted("", ""))
+    assert_eq(map([".png", ".gif", ".jpg", ".jpeg", ".heic", ""], rx_content_type), ["image/png", "image/gif", "image/jpeg", "image/jpeg", "image/jpeg", "image/jpeg"])
+  end
+
+  test "rx_: the sender's address, and the queue panel" do
+    assert_eq(rx_client_ip(" 203.0.113.9 , 10.0.0.1"), "203.0.113.9")
+    assert_eq(rx_client_ip("2001:db8::1"), "2001:db8::1")
+    assert_eq(rx_queue_panel([]), "<div class=\"queue-panel\">\n<div class=\"queue-header\">Recent Messages</div>\n<div class=\"queue-empty\">No messages yet</div>\n</div>")
+    item = rx_queue_item("<b>hi</b> & 'you'\nline", "pending", "Sep 01, 10:00 AM")
+    assert(contains(item, "<div class=\"queue-item-content\">&lt;b&gt;hi&lt;/b&gt; &amp; &#39;you&#39;\nline</div>"))
+    assert(contains(rx_queue_panel([item, item]), "</div>\n<div class=\"queue-item\">"))
+  end
+end
