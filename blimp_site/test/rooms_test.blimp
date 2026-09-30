@@ -21,6 +21,15 @@ def rt_rep(s: String, n: Int) -> String do
   end
 end
 
+# "event:topic" for a frame, "event:" for one with no topic
+def rt_label(f: Map) -> String do
+  t = lookup(f, :topic)
+  case t == nil do
+    true -> concat(f.t, ":")
+    false -> concat(f.t, ":", t)
+  end
+end
+
 actor RoomsTests do
   test "a join is a member: who, since when, what they said, and a ref" do
     hub = spawn Rooms
@@ -206,6 +215,38 @@ actor RoomsTests do
     hub <- :send(-9, rt_rep("x", 18))
     assert_eq((hub <- :flush).kicked, [-9])
     assert_eq(hub <- :sent(-9), [])
+  end
+
+  test "a socket dropped in the tick it joined is written nothing; a leave takes back only that topic's state" do
+    hub = spawn Rooms
+    hub <- :join("room", -1, "ada", %{})
+    hub <- :send(-1, "{\"t\":\"hello\"}")
+    assert_eq(hub <- :drop(-1), ["room"])
+    got = hub <- :flush
+    assert_eq(got.sockets, 0)
+    assert_eq(got.frames, 0)
+    assert_eq(hub <- :sent(-1), [])
+    # a :send to a socket in no topic, then its :drop: nothing either
+    hub <- :send(-2, "{\"t\":\"hello\"}")
+    assert_eq(hub <- :drop(-2), [])
+    assert_eq((hub <- :flush).sockets, 0)
+    assert_eq(hub <- :sent(-2), [])
+    # leaving one topic takes back that topic's presence_state, not the
+    # other topic's and not a direct :send; b's diff is cy's own join, and
+    # a has none, since cy came and went in the tick
+    hub <- :join("a", -3, "cy", %{})
+    hub <- :join("b", -3, "cy", %{})
+    hub <- :send(-3, "{\"t\":\"hello\"}")
+    hub <- :leave("a", -3)
+    hub <- :flush
+    assert_eq(map(rt_sent(hub, -3), rt_label), ["presence_state:b", "hello:", "presence_diff:b"])
+    # leaving the last topic is not a close: a :send still arrives
+    hub <- :join("c", -4, "dee", %{})
+    hub <- :send(-4, "{\"t\":\"bye\"}")
+    hub <- :leave("c", -4)
+    got2 = hub <- :flush
+    assert_eq(got2.sockets, 1)
+    assert_eq(rt_sent(hub, -4), [%{t: "bye"}])
   end
 
   test "opening a topic again keeps its format and diffs unless new ones are given" do

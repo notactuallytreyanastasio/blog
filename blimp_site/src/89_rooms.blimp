@@ -386,20 +386,31 @@ actor Rooms do
     reply elem(r, 1)
   end
 
+  # fd out of topic. What was queued for fd as a member of it (the room it
+  # was sent on joining) goes too; what was queued for its other topics,
+  # and a :send, still go out. Leaving the last topic is not a close.
   on :leave(name: String, fd: Int) do
     r = rooms_leave(topics, sockets, name, fd)
-    become topics: r.topics, sockets: r.sockets
+    box = filter(outbox, fn(e: Map) -> Bool do e.to != fd or e.topic != name end)
+    become topics: r.topics, sockets: r.sockets, outbox: box
     reply :ok
   end
 
   # The socket is gone: out of every topic it was in. The topics it left.
+  # Everything queued for fd alone goes too, whether or not it had joined
+  # anything: the connection is closed, and the next flush writing to fd
+  # would write to a closed descriptor or to a new connection the kernel
+  # gave the same number.
   on :drop(fd: Int) do
+    box = filter(outbox, fn(e: Map) -> Bool do e.to != fd end)
     s = lookup(sockets, rooms_key(fd))
     case s == nil do
-      true -> reply []
+      true ->
+        become outbox: box
+        reply []
       false ->
         r = rooms_drop_all(topics, sockets, fd)
-        become topics: r.topics, sockets: r.sockets
+        become topics: r.topics, sockets: r.sockets, outbox: box
         reply s.topics
     end
   end
@@ -433,8 +444,8 @@ actor Rooms do
   # To fd alone, whether or not it has joined a topic: a page can be told
   # something (who it is, why it was refused) before it joins anything.
   # Before this, a :send to a socket in no topic was dropped without a word.
-  # The fd must still be open when the tick flushes, as for everything else
-  # here; after :drop, the caller must not :send to it.
+  # A :drop in the same tick takes it back; after :drop, the caller must
+  # not :send to fd again, since the number may be a new connection's.
   on :send(fd: Int, text: String) do
     become outbox: [rooms_entry(fd, "", nil, text) | outbox]
     reply :ok
