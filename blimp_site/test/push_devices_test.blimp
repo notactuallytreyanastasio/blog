@@ -1,0 +1,134 @@
+# iOS device registration (src/99_push_devices.blimp) and the api
+# pipeline's Accept check, without a database: past validation is a 503.
+# The rows it writes, and every answer next to Phoenix's, were compared
+# against Phoenix on a local Postgres (the PR has the case list).
+
+PDT_ROUTES = push_device_routes()
+PDT_SECRET = "test-secret-test-secret-test-secret-0123"
+
+def pdt_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD" or method == "OPTIONS" or method == "DELETE") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def pdt_status(got: Tuple) -> Int do
+  elem(got, 1)
+end
+
+def pdt_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def pdt_head(got: Tuple) -> String do
+  w = elem(got, 0)
+  take(w, index_of(w, "\r\n\r\n"))
+end
+
+def pdt_send(method: String, target: String, headers: List, body: String) -> Tuple do
+  raw = pdt_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), PDT_ROUTES, PDT_SECRET)
+end
+
+def pdt_post(body: String) -> Tuple do
+  pdt_send("POST", "/api/push/devices", ["Content-Type: application/json"], body)
+end
+
+def pdt_accept(accept: String) -> Int do
+  pdt_status(pdt_send("POST", "/api/push/devices", ["Content-Type: application/json", concat("Accept: ", accept)], "{\"device_token\":\"abcdef0123456789\"}"))
+end
+
+actor PushDevicesTests do
+  test "a token is 16 to 200 hex digits, and one trailing newline passes as PCRE's $ lets it" do
+    assert(ps_valid_token("abcdef0123456789"))
+    assert(ps_valid_token("ABCDEF0123456789"))
+    assert(ps_valid_token(join(map(range(1, 200), fn(i: Int) -> String do "a" end), "")))
+    assert(not(ps_valid_token(join(map(range(1, 201), fn(i: Int) -> String do "a" end), ""))))
+    assert(not(ps_valid_token("abcdef012345678")))
+    assert(not(ps_valid_token("zzzzzzzzzzzzzzzz")))
+    assert(ps_valid_token("7777777777777777\n"))
+    assert(not(ps_valid_token("7777777777777777\n\n")))
+    assert(not(ps_valid_token(" 7777777777777777")))
+    assert(not(ps_valid_token("")))
+  end
+
+  test "env: blank is the default prod, dev and prod as they are, anything else refused" do
+    assert_eq(ps_env(""), "prod")
+    assert_eq(ps_env("dev"), "dev")
+    assert_eq(ps_env("prod"), "prod")
+    assert_eq(ps_env("DEV"), "")
+    assert_eq(ps_env("staging"), "")
+  end
+
+  test "Accept admits JSON through */*, application/* or application/json, at any q" do
+    assert(ps_accepts_json("*/*"))
+    assert(ps_accepts_json("application/json"))
+    assert(ps_accepts_json("APPLICATION/JSON"))
+    assert(ps_accepts_json("application/*"))
+    assert(ps_accepts_json("application/json;q=0"))
+    assert(ps_accepts_json("text/html, */*;q=0.1"))
+    assert(ps_accepts_json("  application/json  ;  q=0.5 , text/html"))
+    assert(not(ps_accepts_json("")))
+    assert(not(ps_accepts_json("text/html")))
+    assert(not(ps_accepts_json("application/xml")))
+    assert(not(ps_accepts_json("application/vnd.api+json")))
+    assert(not(ps_accepts_json("application/json x")))
+    assert(not(ps_accepts_json("*/json")))
+  end
+
+  test "406 is text/html with the CORS headers; a missing Accept or _format=json passes" do
+    got = pdt_send("POST", "/api/push/devices", ["Content-Type: application/json", "Accept: text/html"], "{\"device_token\":\"abcdef0123456789\"}")
+    assert_eq(pdt_status(got), 406)
+    assert_eq(pdt_body(got), "Not Acceptable")
+    assert(contains(pdt_head(got), "HTTP/1.1 406 Not Acceptable"))
+    assert(contains(pdt_head(got), "Content-Type: text/html; charset=utf-8"))
+    assert(contains(pdt_head(got), "access-control-allow-origin: *"))
+    assert_eq(pdt_accept("text/plain"), 406)
+    assert_eq(pdt_accept("application/json"), 503)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\"}")), 503)
+    assert_eq(pdt_status(pdt_send("POST", "/api/push/devices?_format=json", ["Content-Type: application/json", "Accept: text/html"], "{\"device_token\":\"abcdef0123456789\"}")), 503)
+    assert_eq(pdt_status(pdt_send("POST", "/api/push/devices?_format=html", ["Content-Type: application/json"], "{\"device_token\":\"abcdef0123456789\"}")), 406)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\",\"_format\":null}")), 406)
+  end
+
+  test "400 without a device_token key, 422 for whatever the changeset refuses" do
+    required = "{\"error\":\"device_token required\"}"
+    assert_eq(pdt_body(pdt_post("{\"token\":\"abc\"}")), required)
+    assert_eq(pdt_status(pdt_post("[\"abcdef0123456789\"]")), 400)
+    assert_eq(pdt_status(pdt_send("POST", "/api/push/devices", [], "")), 400)
+    refused = "{\"status\":\"error\"}"
+    assert_eq(pdt_body(pdt_post("{\"device_token\":null}")), refused)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":1234567890123456}")), 422)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":[\"abcdef0123456789\"]}")), 422)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"   \"}")), 422)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\",\"env\":\"staging\"}")), 422)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\",\"env\":5}")), 422)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\",\"env\":\"DEV\"}")), 422)
+    # past validation, at the (unopened) database
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\",\"env\":false,\"tags\":{\"a\":1}}")), 503)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"abcdef0123456789\",\"env\":\"  \"}")), 503)
+    assert_eq(pdt_status(pdt_post("{\"device_token\":\"7777777777777777\\n\"}")), 503)
+    assert_eq(pdt_status(pdt_send("POST", "/api/push/devices", ["Content-Type: application/x-www-form-urlencoded"], "device_token=9999999999999999&env=dev&tags[]=A")), 503)
+    assert_eq(pdt_status(pdt_send("POST", "/api/push/devices?device_token=aaaaaaaaaaaaaaaa1&env=dev", [], "")), 503)
+  end
+
+  test "OPTIONS: a preflight is CORSPlug's 204, a bare one the router's 404" do
+    pre = pdt_send("OPTIONS", "/api/push/devices", ["Access-Control-Request-Method: POST"], "")
+    assert_eq(pdt_status(pre), 204)
+    assert(contains(pdt_head(pre), "access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS"))
+    bare = pdt_send("OPTIONS", "/api/push/devices", [], "")
+    assert_eq(pdt_status(bare), 404)
+    assert(not(contains(pdt_head(bare), "access-control-allow-origin")))
+  end
+
+  test "the upsert keeps Phoenix's order: tags trimmed, lower-cased, unique, the first 100" do
+    sql = psd_upsert_sql()
+    assert(contains(sql, "on conflict (token) do update set env = excluded.env"))
+    assert(contains(sql, "limit 100"))
+    assert(contains(sql, "lower(btrim("))
+    assert(not(contains(sql, "inserted_at = excluded")))
+  end
+end
