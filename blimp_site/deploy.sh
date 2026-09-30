@@ -78,6 +78,14 @@ stage() {
   cp -R ../priv/static/static/temper-snake "$DIST/priv/static/static/"
   # /blinks-sw.js is read from here at boot (src/99_blinkspush.blimp)
   cp -R ../priv/static/static/blinks-pwa "$DIST/priv/static/static/"
+  # /static/* (src/96_static.blimp): the listed files and no others, and
+  # only ones git tracks; priv/static/static here holds more than that.
+  grep -v '^#' data/static_files.txt | while read -r f; do
+    [ -n "$f" ] || continue
+    git ls-files --error-unmatch "../priv/static/static/$f" >/dev/null 2>&1 || { echo "data/static_files.txt lists $f, which git does not track" >&2; exit 1; }
+    mkdir -p "$DIST/priv/static/static/$(dirname "$f")"
+    cp "../priv/static/static/$f" "$DIST/priv/static/static/$f"
+  done
   cp ../priv/static/favicon.ico ../priv/static/robots.txt "$DIST/priv/static/"
   du -sh "$DIST"
 }

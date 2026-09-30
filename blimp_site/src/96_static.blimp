@@ -1,0 +1,99 @@
+# /static/*: the files under priv/static/static that pages still link, as
+# Phoenix's Plug.Static served them, read once at boot.
+#
+# The list is data/static_files.txt, one path a line, not the directory:
+# priv/static/static on a laptop (and on the server, which is rsynced from
+# one) also holds files that are nobody's to publish from here -- /seth,
+# which runs in its own container, and whatever else was dropped there. A
+# name that is not in the list is a 404, which Caddy sends on to Phoenix,
+# so nothing that works today stops working. deploy.sh copies exactly the
+# listed files, and refuses one git does not track.
+#
+# Already served elsewhere, and not in the list: /static/d3.v7.min.js
+# (content/assets, main.blimp) and /static/temper-snake/* (95_apps).
+
+STATIC_FILES_TXT = "data/static_files.txt"
+# Never served from here, whatever the list says.
+STATIC_REFUSED = ["seth", "lolly", "rooted", "rooted_in_good"]
+
+# The listed paths, relative to priv/static/static. A path that is not
+# plain (static_path_ok) stops the boot: a list is not a place for "..".
+def static_files(text: String) -> List do
+  lines = filter(map(split(text, "\n"), fn(l: String) -> String do trim(l) end), fn(l: String) -> Bool do
+    l != "" and not(starts_with(l, "#"))
+  end)
+  each(lines, fn(l: String) do
+    case static_path_ok(l) do
+      true -> :ok
+      false -> desk_die(concat(STATIC_FILES_TXT, " lists ", l, ", which is not a plain path this server may publish"))
+    end
+  end)
+  lines
+end
+
+def static_path_ok(rel: String) -> Bool do
+  first = head(split(rel, "/"))
+  safe_static_path(concat("/", rel)) and not(has_string(STATIC_REFUSED, first))
+end
+
+# Every listed file as a prebuilt 200 at /static/<path>. A listed file
+# that cannot be read stops the boot, as a missing stylesheet does.
+def static_file_routes(routes: Map, static_dir: String) -> Map do
+  text = read_file(STATIC_FILES_TXT)
+  case text do
+    nil -> desk_die(concat("cannot read ", STATIC_FILES_TXT))
+    _ ->
+      reduce(static_files(text), routes, fn(acc: Map, rel: String) -> Map do
+        file = concat(static_dir, "/static/", rel)
+        body = read_file(file)
+        case body do
+          nil -> desk_die(concat("cannot read ", file, " (", STATIC_FILES_TXT, " lists it)"))
+          _ -> put(acc, concat("/static/", rel), serialize(response(200, content_type_for(rel), "public, max-age=300", body), "GET"))
+        end
+      end)
+  end
+end
+
+# ---------------------------------------------------------------- tags
+
+# The "Posts by Tag" chips in the sidebar Phoenix's root layout drew (kept in
+# content/pages' snapshots, /directory among them) linked /post/<tag>. That
+# was never a page: PostLive found no post by that slug and sent the reader
+# to /, from the day the sidebar was written (b4e934e) to now. They link
+# /blog/tag/<tag> instead, the blog's index cut to the posts with that tag,
+# built here at boot for every tag a post has.
+
+def blog_tag_path(tag: String) -> String do
+  concat("/blog/tag/", web_url_encode(tag))
+end
+
+# Every tag some post carries, once, in the order first met. Phoenix keeps
+# an empty tag ("tags: a,,b"); it has no page.
+def blog_tags(posts: List) -> List do
+  uniq(filter(flat(map(posts, fn(p: Map) -> List do p.tags end)), fn(t: String) -> Bool do t != "" end))
+end
+
+def blog_tag_routes(routes: Map, posts: List) -> Map do
+  reduce(blog_tags(posts), routes, fn(acc: Map, tag: String) -> Map do
+    tagged = filter(posts, fn(p: Map) -> Bool do has_string(p.tags, tag) end)
+    put(acc, blog_tag_path(tag), serialize(html_response(200, blog_tag_page(tag, tagged)), "GET"))
+  end)
+end
+
+def blog_tag_page(tag: String, posts: List) -> String do
+  body = join([
+    "<div class=\"mac-blog\">",
+    menu_bar("<a href=\"/blog\" class=\"menu-item\" style=\"text-decoration: none; color: inherit;\">Blog</a>", "served by Blimp"),
+    "<div class=\"mac-desktop\"><div class=\"mac-window\">",
+    "<div class=\"mac-title-bar\"><a href=\"/blog\" class=\"mac-close-box\"></a>",
+    "<div class=\"mac-title\">Thoughts &amp; Tidbits - ", escape_html(tag), "</div>",
+    "<div class=\"mac-resize-box\"></div></div>",
+    "<div class=\"mac-window-content\"><div class=\"blog-posts-list\">",
+    join(map(posts, fn(p: Map) -> String do blog_post_row(p) end), ""),
+    "</div></div>",
+    "<div class=\"mac-status-bar\"><span>", plural(length(posts), "post", "posts"), " tagged ", escape_html(tag), "</span>",
+    "<span>0 scripts</span></div>",
+    "</div></div></div>"
+  ], "")
+  page_layout(concat("Posts tagged ", tag, " - Thoughts and Tidbits"), site_description(), "website", ["/assets/base.css", "/assets/blog.css"], body)
+end
