@@ -1,1670 +1,455 @@
-/* The homepage desktop: TerminalLive's <style> block, extracted with
- *   sed -n 1261,2614p lib/blog_web/live/terminal_live.ex \
- *     | awk '/<style>/{f=1;next} /<\/style>/{f=0} f'
- * Rules for windows the script-free page does not render (photos, Leica
- * viewer, work log, Phish, tooltips) are left in place, unused. The edits
- * are marked "blimp:"; everything else is byte-for-byte the LiveView's. */
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      html, body {
-        height: 100%;
-        overflow: hidden;
-      }
-
-      .mac {
-        height: 100vh;
-        background: #a8a8a8;
-        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
-        font-size: 14px;
-        cursor: default;
-        -webkit-font-smoothing: none;
-      }
-
-      /* Menu Bar */
-      .menu-bar {
-        height: 24px;
-        background: #fff;
-        border-bottom: 1px solid #000;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0 8px;
-      }
-
-      .menu-left {
-        display: flex;
-        gap: 16px;
-      }
-
-      .apple-menu {
-        font-family: system-ui;
-        font-size: 16px;
-      }
-
-      .menu-item {
-        cursor: default;
-      }
-
-      .menu-item:hover {
-        background: #000;
-        color: #fff;
-      }
-
-      .menu-right {
-        font-size: 13px;
-      }
-
-      /* Desktop */
-      .desktop {
-        height: calc(100vh - 24px);
-        padding: 20px;
-        background: repeating-linear-gradient(
-          0deg,
-          #a8a8a8,
-          #a8a8a8 1px,
-          #b8b8b8 1px,
-          #b8b8b8 2px
-        );
-        display: flex;
-        gap: 20px;
-        align-items: flex-start;
-      }
-
-      /* Window (Icons/Finder) */
-      .window {
-        width: 780px;
-        min-width: 720px;
-        background: #fff;
-        border: 1px solid #000;
-        box-shadow: 1px 1px 0 #000;
-        flex-shrink: 0;
-      }
-
-      /* Blog Window */
-      .blog-window {
-        width: 100%;
-        background: #fff;
-        border: 1px solid #000;
-        box-shadow: 1px 1px 0 #000;
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-      }
-
-      /* Hide chat on smaller screens to prioritize main windows */
-      @media (max-width: 1200px) {
-        .aim-chat-container,
-        .aim-name-dialog,
-        .aim-toggle-btn {
-          display: none !important;
-        }
-      }
-
-      .blog-window .title-bar {
-        height: 24px;
-        background: #fff;
-        border-bottom: 1px solid #000;
-        display: flex;
-        align-items: center;
-        padding: 0 4px;
-        background: repeating-linear-gradient(
-          90deg,
-          #fff 0px,
-          #fff 1px,
-          #000 1px,
-          #000 2px,
-          #fff 2px,
-          #fff 3px
-        );
-      }
-
-      .blog-window .close-box {
-        width: 12px;
-        height: 12px;
-        border: 1px solid #000;
-        background: #fff;
-        margin-right: 8px;
-      }
-
-      .blog-window .title {
-        flex: 1;
-        text-align: center;
-        background: #fff;
-        padding: 0 8px;
-        font-weight: bold;
-      }
-
-      .blog-window-content {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        background: #fff;
-      }
-
-      .blog-posts-list {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .blog-post-row {
-        display: flex;
-        align-items: center;
-        padding: 8px 12px;
-        border-bottom: 1px solid #ccc;
-        text-decoration: none;
-        color: inherit;
-        cursor: default;
-      }
-
-      .blog-post-row:hover {
-        background: #000;
-        color: #fff;
-      }
-
-      .blog-post-row:hover .blog-tag {
-        background: #333;
-        color: #fff;
-      }
-
-      .blog-post-row:hover .blog-post-meta {
-        color: #ccc;
-      }
-
-      .blog-post-icon {
-        font-size: 22px;
-        margin-right: 10px;
-        width: 26px;
-        text-align: center;
-      }
-
-      .blog-post-info {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .blog-post-title {
-        font-weight: bold;
-        font-size: 14px;
-        margin-bottom: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .blog-post-meta {
-        font-size: 12px;
-        color: #666;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-
-      .blog-post-tags {
-        display: flex;
-        gap: 3px;
-        flex-wrap: wrap;
-      }
-
-      .blog-tag {
-        background: #e0e0e0;
-        padding: 1px 5px;
-        border-radius: 2px;
-        font-size: 11px;
-      }
-
-      .blog-window .status-bar {
-        height: 22px;
-        border-top: 1px solid #000;
-        background: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0 8px;
-        font-size: 12px;
-      }
-
-      .title-bar {
-        height: 24px;
-        background: #fff;
-        border-bottom: 1px solid #000;
-        display: flex;
-        align-items: center;
-        padding: 0 4px;
-        background: repeating-linear-gradient(
-          90deg,
-          #fff 0px,
-          #fff 1px,
-          #000 1px,
-          #000 2px,
-          #fff 2px,
-          #fff 3px
-        );
-      }
-
-      .close-box {
-        width: 12px;
-        height: 12px;
-        border: 1px solid #000;
-        background: #fff;
-        margin-right: 8px;
-      }
-
-      .close-box:hover {
-        background: #000;
-      }
-
-      .title {
-        flex: 1;
-        text-align: center;
-        background: #fff;
-        padding: 0 8px;
-        font-weight: bold;
-      }
-
-      .resize-box {
-        width: 12px;
-        height: 12px;
-      }
-
-      .window-content {
-        padding: 10px;
-        min-height: 300px;
-        max-height: 70vh;
-        overflow-y: auto;
-        background: #fff;
-      }
-
-      .icon-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .icon-section {
-        padding: 6px;
-        border-radius: 4px;
-      }
-
-      .icon-section:hover {
-        background: rgba(0, 0, 0, 0.03);
-      }
-
-      /* Tippy.js base styles */
-      .tippy-box {
-        position: relative;
-        background-color: #000;
-        color: #fff;
-        border-radius: 2px;
-        font-size: 11px;
-        font-family: "Geneva", "Chicago", "Helvetica Neue", sans-serif;
-        line-height: 1.4;
-        outline: 0;
-        padding: 4px 8px;
-      }
-      .tippy-box[data-placement^='top'] > .tippy-arrow { bottom: 0; }
-      .tippy-box[data-placement^='top'] > .tippy-arrow::before {
-        bottom: -7px; left: 0;
-        border-width: 8px 8px 0;
-        border-top-color: #000;
-      }
-      .tippy-box[data-placement^='bottom'] > .tippy-arrow { top: 0; }
-      .tippy-box[data-placement^='bottom'] > .tippy-arrow::before {
-        top: -7px; left: 0;
-        border-width: 0 8px 8px;
-        border-bottom-color: #000;
-      }
-      .tippy-arrow {
-        width: 16px; height: 16px;
-        color: #000;
-      }
-      .tippy-arrow::before {
-        content: '';
-        position: absolute;
-        border-color: transparent;
-        border-style: solid;
-      }
-      .tippy-content {
-        position: relative;
-        z-index: 1;
-      }
-
-      .section-label {
-        font-size: 10px;
-        font-weight: bold;
-        text-transform: uppercase;
-        color: #666;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
-        padding-left: 2px;
-      }
-
-      .section-items {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-
-      .icon {
-        width: 56px;
-        text-align: center;
-        padding: 2px;
-        cursor: default;
-      }
-
-      /* blimp: phx-click="select" marked the clicked icon; focus does it now */
-      .icon.selected .icon-label,
-      .icon:focus .icon-label {
-        background: #000;
-        color: #fff;
-      }
-
-      .icon-image {
-        font-size: 28px;
-        height: 34px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .icon-label {
-        font-size: 11px;
-        margin-top: 1px;
-        padding: 1px 2px;
-        word-wrap: break-word;
-      }
-
-      .status-bar {
-        height: 22px;
-        border-top: 1px solid #000;
-        background: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0 8px;
-        font-size: 12px;
-      }
-
-      /* Double click to open */
-      .icon-image {
-        cursor: pointer;
-      }
-
-      /* Phish embed window */
-      .phish-embed-window {
-        width: 100%;
-        max-width: 420px;
-        background: #fff;
-        border: 1px solid #000;
-        box-shadow: 1px 1px 0 #000;
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .phish-embed-content {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        background: #fff;
-      }
-
-      .phish-embed-window .status-bar {
-        height: 20px;
-        border-top: 1px solid #000;
-        background: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0 8px;
-        font-size: 10px;
-      }
-
-      .selected-label {
-        background: #000;
-        color: #fff;
-      }
-
-      /* Mobile taskbar - hidden on desktop */
-      .mobile-taskbar {
-        display: none;
-      }
-
-      /* ============================================
-         MOBILE STYLES (max-width: 768px)
-         ============================================ */
-      @media (max-width: 768px) {
-        /* Hide menu bar items except time on mobile */
-        .menu-left .menu-item {
-          display: none;
-        }
-
-        /* Desktop padding adjustments for mobile */
-        .desktop {
-          padding: 10px;
-          padding-bottom: 70px; /* Room for taskbar */
-        }
-
-        /* Finder window - full screen on mobile */
-        .window.mobile-window-finder {
-          position: fixed;
-          top: 20px; /* Below menu bar */
-          left: 0;
-          right: 0;
-          bottom: 60px; /* Above taskbar */
-          width: 100% !important;
-          max-width: 100% !important;
-          z-index: 100;
-          display: none; /* Hidden by default */
-        }
-
-        .window.mobile-window-finder.mobile-active {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .window.mobile-window-finder .window-content {
-          flex: 1;
-          max-height: none;
-          min-height: auto;
-          overflow-y: auto;
-        }
-
-        /* Blog window - full screen on mobile */
-        .blog-window.mobile-window-blog {
-          position: fixed;
-          top: 20px;
-          left: 0;
-          right: 0;
-          bottom: 60px;
-          width: 100% !important;
-          max-width: 100% !important;
-          z-index: 100;
-          display: none;
-        }
-
-        .blog-window.mobile-window-blog.mobile-active {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .blog-window.mobile-window-blog .blog-window-content {
-          flex: 1;
-          max-height: none;
-          overflow-y: auto;
-        }
-
-        /* Name dialog - full screen on mobile */
-        .aim-name-dialog.mobile-window-name_dialog {
-          position: fixed !important;
-          top: 20px !important;
-          left: 0 !important;
-          right: 0 !important;
-          bottom: 60px !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          z-index: 200;
-          display: none; /* Hidden by default */
-          box-sizing: border-box;
-        }
-
-        .aim-name-dialog.mobile-window-name_dialog.mobile-active {
-          display: block;
-        }
-
-        .aim-name-dialog.mobile-window-name_dialog .aim-name-dialog-content {
-          padding: 20px;
-        }
-
-        .aim-name-dialog.mobile-window-name_dialog .aim-name-input {
-          width: 100%;
-          font-size: 16px; /* Prevent zoom on iOS */
-          padding: 12px;
-        }
-
-        .aim-name-dialog.mobile-window-name_dialog .aim-name-buttons {
-          flex-direction: column;
-          gap: 10px;
-        }
-
-        .aim-name-dialog.mobile-window-name_dialog .aim-name-btn {
-          width: 100%;
-          padding: 12px;
-          font-size: 16px;
-        }
-
-        /* Chat container - full screen on mobile */
-        .aim-chat-container.mobile-window-chat {
-          position: fixed !important;
-          top: 20px !important;
-          left: 0 !important;
-          right: 0 !important;
-          bottom: 60px !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          z-index: 150;
-          display: none; /* Hidden by default */
-          box-sizing: border-box;
-        }
-
-        .aim-chat-container.mobile-window-chat.mobile-active {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .aim-chat-container.mobile-window-chat .aim-chat-content {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .aim-chat-container.mobile-window-chat .aim-messages-area {
-          flex: 1;
-          overflow-y: auto;
-        }
-
-        .aim-chat-container.mobile-window-chat .aim-input-box {
-          font-size: 16px; /* Prevent zoom on iOS */
-        }
-
-        /* Hide the floating chat toggle on mobile */
-        .aim-toggle-btn {
-          display: none !important;
-        }
-
-        /* Mobile taskbar - fixed at bottom */
-        .mobile-taskbar {
-          display: flex;
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 50px;
-          background: linear-gradient(to bottom, #dfdfdf, #c0c0c0);
-          border-top: 2px solid #fff;
-          box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2);
-          z-index: 1000;
-          padding: 5px;
-          gap: 5px;
-        }
-
-        .mobile-taskbar-btn {
-          flex: 1;
-          background: linear-gradient(to bottom, #ececec, #d4d4d4);
-          border: 1px solid #888;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          box-shadow: 1px 1px 0 #fff inset, -1px -1px 0 #888 inset;
-        }
-
-        .mobile-taskbar-btn:active,
-        .mobile-taskbar-btn.active {
-          background: linear-gradient(to bottom, #c0c0c0, #a8a8a8);
-          box-shadow: -1px -1px 0 #fff inset, 1px 1px 0 #888 inset;
-        }
-
-        /* Icon grid adjustments for mobile */
-        .icon-grid {
-          gap: 4px;
-        }
-
-        .icon-section {
-          gap: 8px;
-          padding: 4px;
-        }
-
-        .icon {
-          width: 60px;
-        }
-
-        .icon-image {
-          font-size: 28px;
-          height: 36px;
-        }
-
-        .icon-label {
-          font-size: 9px;
-        }
-
-        /* Phish window - full screen on mobile */
-        .phish-embed-window.mobile-window-phish {
-          position: fixed !important;
-          top: 20px !important;
-          left: 0 !important;
-          right: 0 !important;
-          bottom: 60px !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          min-width: 0 !important;
-          transform: none !important;
-          z-index: 200;
-          display: none;
-        }
-
-        .phish-embed-window.mobile-window-phish.mobile-active {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .phish-embed-window.mobile-window-phish .phish-embed-content {
-          flex: 1;
-          max-height: none;
-          overflow-y: auto;
-        }
-
-        /* Hide joyride tour on mobile - too complex for small screens */
-        #site-tour {
-          display: none !important;
-        }
-      }
-
-      /* ========================================
-         BOOT SPLASH SCREEN
-         ======================================== */
-
-      .mac-boot {
-        width: 100vw;
-        height: 100vh;
-        background: #a8a8a8;
-        background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%);
-        background-size: 2px 2px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        cursor: pointer;
-        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
-        -webkit-font-smoothing: none;
-      }
-
-      .boot-screen {
-        text-align: center;
-        max-width: 600px;
-        padding: 40px;
-      }
-
-      .boot-logo {
-        margin-bottom: 40px;
-      }
-
-      .boot-logo svg {
-        display: inline-block;
-      }
-
-      .boot-text {
-        font-size: 32px;
-        font-weight: bold;
-        margin-bottom: 20px;
-        color: #000;
-      }
-
-      .boot-subtext {
-        font-size: 18px;
-        line-height: 1.7;
-        color: #333;
-        margin-bottom: 40px;
-      }
-
-      .boot-progress {
-        width: 340px;
-        height: 20px;
-        border: 2px solid #000;
-        margin: 0 auto 24px;
-        background: #fff;
-        padding: 3px;
-      }
-
-      .boot-progress-bar {
-        height: 100%;
-        background: #000;
-        animation: boot-fill 8s ease-in-out forwards;
-      }
-
-      @keyframes boot-fill {
-        0% { width: 0%; }
-        30% { width: 30%; }
-        60% { width: 65%; }
-        80% { width: 85%; }
-        100% { width: 100%; }
-      }
-
-      .boot-hint {
-        font-size: 13px;
-        color: #888;
-      }
-
-      /* ========================================
-         MUSEUM WINDOWS
-         ======================================== */
-
-      .museum-list-window {
-        width: 720px;
-        min-width: 600px;
-        background: #fff;
-        border: 1px solid #000;
-        box-shadow: 1px 1px 0 #000;
-        flex-shrink: 0;
-      }
-
-      .museum-filter-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        padding: 6px 10px;
-        border-bottom: 1px solid #000;
-        background: #e8e8e8;
-        font-size: 14px;
-      }
-
-      .museum-filter-tag {
-        padding: 3px 10px;
-        cursor: pointer;
-        border: 1px solid transparent;
-      }
-
-      .museum-filter-tag:hover {
-        background: #d0d0d0;
-      }
-
-      .museum-filter-tag.active {
-        background: #000;
-        color: #fff;
-      }
-
-      .museum-list-content {
-        max-height: calc(100vh - 160px);
-        overflow-y: auto;
-        background: #fff;
-      }
-
-      .museum-list-item {
-        display: flex;
-        gap: 12px;
-        padding: 10px 14px;
-        cursor: pointer;
-        border-bottom: 1px solid #e0e0e0;
-        align-items: flex-start;
-      }
-
-      .museum-list-item:hover {
-        background: #e8e8e8;
-      }
-
-      .museum-list-item.selected {
-        background: #000;
-        color: #fff;
-      }
-
-      .museum-list-item.selected .museum-list-tagline {
-        color: #ccc;
-      }
-
-      .museum-list-item.selected .museum-list-tech {
-        border-color: #666;
-        background: #333;
-        color: #fff;
-      }
-
-      .museum-list-icon {
-        width: 48px;
-        height: 48px;
-        flex-shrink: 0;
-        margin-top: 2px;
-      }
-
-      .museum-list-item.selected .museum-list-icon svg {
-        filter: invert(1);
-      }
-
-      .museum-list-icon svg {
-        width: 48px;
-        height: 48px;
-      }
-
-      .museum-list-info {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .museum-list-name {
-        font-size: 18px;
-        font-weight: bold;
-        margin-bottom: 4px;
-      }
-
-      .museum-list-tagline {
-        font-size: 14px;
-        color: #666;
-        line-height: 1.4;
-        margin-bottom: 5px;
-      }
-
-      .museum-list-tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-      }
-
-      .museum-list-tech {
-        font-size: 12px;
-        padding: 1px 6px;
-        border: 1px solid #ccc;
-        background: #f0f0f0;
-      }
-
-      /* Right column: museum detail stacked */
-      .right-column {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        flex-shrink: 0;
-        align-self: flex-start;
-      }
-
-      /* Far right column: blog + phish stacked to fill viewport height */
-      .far-right-column {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        width: 420px;
-        min-width: 320px;
-        max-width: 420px;
-        align-self: flex-start;
-        height: calc(100vh - 64px);
-        flex-shrink: 0;
-      }
-
-      /* Museum Detail Window */
-
-      .museum-detail-window {
-        width: 480px;
-        min-width: 380px;
-        background: #fff;
-        border: 1px solid #000;
-        box-shadow: 1px 1px 0 #000;
-      }
-
-      .museum-detail-content {
-        padding: 20px;
-        max-height: calc(100vh - 140px);
-        overflow-y: auto;
-        background: #fff;
-      }
-
-      .museum-detail-icon {
-        width: 80px;
-        height: 80px;
-        margin: 0 auto 16px;
-      }
-
-      .museum-detail-icon svg {
-        width: 80px;
-        height: 80px;
-      }
-
-      .museum-detail-title {
-        font-size: 22px;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 6px;
-      }
-
-      .museum-detail-tagline {
-        font-size: 15px;
-        color: #666;
-        text-align: center;
-        font-style: italic;
-        margin-bottom: 16px;
-      }
-
-      .museum-detail-description {
-        font-size: 15px;
-        line-height: 1.7;
-        margin-bottom: 16px;
-        white-space: pre-line;
-      }
-
-      .museum-detail-tech {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        margin-bottom: 16px;
-      }
-
-      .museum-detail-repos {
-        font-size: 14px;
-        margin-bottom: 16px;
-      }
-
-      .museum-repo-link {
-        color: #000;
-        text-decoration: underline;
-        margin-left: 6px;
-      }
-
-      .museum-repo-link:hover {
-        background: #000;
-        color: #fff;
-      }
-
-      .museum-launch-btn {
-        display: block;
-        text-align: center;
-        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
-        font-size: 13px;
-        padding: 8px 16px;
-        border: 2px solid #000;
-        background: #fff;
-        color: #000;
-        text-decoration: none;
-        box-shadow: 2px 2px 0 #000;
-        cursor: pointer;
-        margin-top: 16px;
-      }
-
-      .museum-launch-btn:hover {
-        background: #000;
-        color: #fff;
-      }
-
-      .museum-launch-btn:active {
-        box-shadow: 0 0 0 #000;
-        transform: translate(2px, 2px);
-      }
-
-      @media (max-width: 768px) {
-        .museum-list-window {
-          width: 100%;
-        }
-
-        .museum-detail-window {
-          position: fixed;
-          top: 24px;
-          left: 0;
-          right: 0;
-          width: 100%;
-          height: calc(100vh - 24px);
-          z-index: 200;
-        }
-      }
-
-      /* ========================================
-         LEICA COLLAGE VIEWER
-         ======================================== */
-
-      /* Work Log window */
-      .work-log-window {
-        width: 340px;
-        min-width: 280px;
-        background: #fff;
-        border: 1px solid #000;
-        box-shadow: 1px 1px 0 #000;
-        display: flex;
-        flex-direction: column;
-        align-self: flex-start;
-        flex-shrink: 0;
-        height: calc(100vh - 64px);
-        margin-left: auto;
-      }
-
-      .work-log-term {
-        flex: 1;
-        overflow-y: auto;
-        padding: 8px 12px;
-        font-family: "Monaco", "Menlo", "Courier New", monospace;
-        font-size: 12px;
-        color: #000;
-        background: #fff;
-        min-height: 200px;
-      }
-
-      .wl-push {
-        margin-bottom: 8px;
-        border-bottom: 1px solid #ccc;
-        padding-bottom: 6px;
-      }
-
-      .wl-push:last-child {
-        border-bottom: none;
-      }
-
-      .wl-push-header {
-        white-space: nowrap;
-        margin-bottom: 2px;
-      }
-
-      .wl-plus { color: #1a7f1a; margin-right: 4px; }
-      .wl-minus { color: #cc0000; margin-right: 8px; }
-      .wl-ref { color: #666; }
-      .wl-date { color: #999; margin-left: 8px; }
-
-      .wl-commit {
-        padding-left: 16px;
-      }
-
-      .wl-sha {
-        color: #0066cc;
-        text-decoration: none;
-        font-size: 11px;
-      }
-
-      .wl-sha:hover {
-        text-decoration: underline;
-        color: #0044aa;
-      }
-
-      .wl-msg {
-        display: inline;
-        white-space: pre-wrap;
-        font-family: inherit;
-        font-size: 12px;
-        color: #333;
-        margin: 0;
-        padding: 0;
-      }
-
-      /* Desktop icon - Leica */
-      .desktop-icon-leica {
-        position: absolute;
-        bottom: 50%;
-        left: 760px;
-        transform: translateY(50%);
-        text-align: center;
-        cursor: pointer;
-        z-index: 10;
-        padding: 8px;
-        border-radius: 4px;
-      }
-
-      .desktop-icon-leica:hover {
-        background: rgba(0, 0, 0, 0.1);
-      }
-
-      .desktop-icon-leica:hover .desktop-icon-label {
-        background: #000;
-        color: #fff;
-      }
-
-      .desktop-icon-img {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 4px;
-      }
-
-      .desktop-icon-label {
-        font-size: 12px;
-        font-weight: bold;
-        line-height: 1.3;
-        padding: 2px 4px;
-        white-space: nowrap;
-      }
-
-      /* Warning overlay */
-      .leica-warning-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.4);
-        z-index: 500;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .leica-warning-dialog {
-        width: 420px;
-        background: #fff;
-        border: 2px solid #000;
-        box-shadow: 4px 4px 0 #000;
-      }
-
-      .leica-warning-content {
-        padding: 20px;
-        text-align: center;
-      }
-
-      .leica-warning-icon {
-        font-size: 48px;
-        margin-bottom: 12px;
-        color: #cc0000;
-      }
-
-      .leica-warning-text {
-        font-size: 13px;
-        line-height: 1.6;
-        margin-bottom: 20px;
-        text-align: left;
-      }
-
-      .leica-warning-text p {
-        margin: 8px 0;
-      }
-
-      .leica-warning-buttons {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-      }
-
-      .leica-btn {
-        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
-        font-size: 13px;
-        padding: 8px 20px;
-        border: 2px solid #000;
-        background: #fff;
-        color: #000;
-        cursor: pointer;
-        box-shadow: 2px 2px 0 #000;
-      }
-
-      .leica-btn:hover {
-        background: #e0e0e0;
-      }
-
-      .leica-btn:active {
-        box-shadow: 0 0 0 #000;
-        transform: translate(2px, 2px);
-      }
-
-      .leica-btn.primary {
-        background: #000;
-        color: #fff;
-      }
-
-      .leica-btn.primary:hover {
-        background: #333;
-      }
-
-      /* Viewer window */
-      /* ---- Ambient photo window (website_pics shared album) ---- */
-      .photo-window {
-        position: fixed; top: 90px; right: 40px; width: 460px;
-        background: #fff; border: 2px solid #000; box-shadow: 4px 4px 0 #000;
-        z-index: 320; display: flex; flex-direction: column;
-      }
-      .photo-window-body { display: flex; flex-direction: column; }
-      .photo-stage {
-        position: relative; height: 300px; background: #000;
-        overflow: hidden; border-bottom: 2px solid #000;
-      }
-      .photo-backdrop {
-        position: absolute; inset: -20px; background-size: cover; background-position: center;
-        filter: blur(20px) saturate(0.7) brightness(0.5);
-        opacity: 0; transition: opacity 550ms ease;
-      }
-      .photo-layer {
-        position: absolute; inset: 0; margin: auto;
-        max-width: 100%; max-height: 100%; width: auto; height: auto;
-        opacity: 0; transition: opacity 850ms ease; will-change: opacity, transform;
-      }
-      .photo-layer.on { opacity: 1; }
-      .photo-layer.drift { animation: gal-drift var(--gal-dur, 13s) linear forwards; }
-      @keyframes gal-drift {
-        from { transform: scale(1) translate(0, 0); }
-        to { transform: scale(1.075) translate(var(--gal-dx, 1%), var(--gal-dy, -1%)); }
-      }
-      .photo-nav {
-        position: absolute; top: 0; bottom: 0; width: 48px; border: 0;
-        background: transparent; color: #fff; font-size: 28px; cursor: pointer;
-        opacity: 0; transition: opacity 180ms; text-shadow: 0 0 6px #000;
-      }
-      .photo-nav.prev { left: 0; }
-      .photo-nav.next { right: 0; }
-      .photo-stage:hover .photo-nav { opacity: 0.8; }
-      .photo-nav:hover { opacity: 1 !important; background: rgba(0, 0, 0, 0.22); }
-      .photo-controls {
-        display: flex; align-items: center; gap: 6px; padding: 5px 7px;
-        background: #fff; font-family: "Geneva", Helvetica, sans-serif; font-size: 11px;
-      }
-      .photo-btn {
-        font-family: "Chicago", "Geneva", Helvetica, sans-serif; font-size: 11px;
-        line-height: 16px; border: 1px solid #000; background: #fff; color: #000;
-        padding: 0 8px; cursor: pointer; box-shadow: 1px 1px 0 #000;
-        text-decoration: none; display: inline-block;
-      }
-      .photo-btn:active { background: #000; color: #fff; transform: translate(1px, 1px); box-shadow: none; }
-      .photo-counter { flex: 1; white-space: nowrap; color: #444; }
-      .desktop-icon-photos {
-        position: absolute; top: 230px; right: 30px; width: 80px;
-        text-align: center; cursor: pointer; z-index: 5;
-      }
-      .desktop-icon-photos:hover .desktop-icon-label { background: #000; color: #fff; }
-      @media (max-width: 768px) {
-        .photo-window { position: static; width: auto; margin: 10px; }
-        .photo-stage { height: 220px; }
-        .desktop-icon-photos { display: none; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .photo-layer { transition: opacity 200ms ease; }
-        .photo-layer.drift { animation: none; }
-      }
-      .leica-viewer-window {
-        position: fixed;
-        top: 30px;
-        left: 30px;
-        right: 30px;
-        bottom: 30px;
-        background: #fff;
-        border: 2px solid #000;
-        box-shadow: 4px 4px 0 #000;
-        z-index: 400;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .leica-viewer-container {
-        flex: 1;
-        overflow: hidden;
-        background: #1a1a1a;
-        position: relative;
-        cursor: grab;
-      }
-
-      .leica-img {
-        transform-origin: 0 0;
-        will-change: transform;
-        max-width: none;
-        display: block;
-      }
-
-      .leica-loading {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: #fff;
-        text-align: center;
-        z-index: 5;
-      }
-
-      .leica-loading-text {
-        font-size: 18px;
-        font-weight: bold;
-        margin-bottom: 8px;
-      }
-
-      .leica-loading-hint {
-        font-size: 12px;
-        color: #999;
-        margin-top: 8px;
-      }
-
-      /* Controls bar */
-      .leica-controls {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 36px;
-        background: rgba(0, 0, 0, 0.8);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0 12px;
-        z-index: 10;
-      }
-
-      .leica-ctrl-btn {
-        font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
-        font-size: 13px;
-        padding: 4px 10px;
-        background: #333;
-        color: #fff;
-        border: 1px solid #666;
-        cursor: pointer;
-        text-decoration: none;
-      }
-
-      .leica-ctrl-btn:hover {
-        background: #555;
-      }
-
-      .leica-zoom-label {
-        color: #fff;
-        font-size: 12px;
-        min-width: 40px;
-        text-align: center;
-      }
-
-      @media (max-width: 768px) {
-        .desktop-icon-leica {
-          position: static;
-          transform: none;
-          margin: 20px auto;
-        }
-
-        .leica-viewer-window {
-          top: 24px;
-          left: 0;
-          right: 0;
-          bottom: 50px;
-        }
-
-        .leica-warning-dialog {
-          width: 90%;
-        }
-      }
-
-/* ========================================
-   blimp: what the script-free page adds
-   ======================================== */
-
-/* blimp: the root layout's Tailwind utilities, which the page no longer
- * gets from the 146KB bundle: <html class="h-full bg-gray-100">,
- * <body class="h-full font-mono bg-gradient-to-br from-cyan-50 to-indigo-50">,
- * <div class="flex h-full">, <main class="flex-1 overflow-y-auto px-4"> and
- * app.html.heex's <div class="min-h-screen">. The 16px gutters are the
- * pale strips either side of the live desktop. */
-html { background-color: #f3f4f6; }
-body {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  background-image: linear-gradient(to bottom right, #ecfeff, #eef2ff);
+/* desktop.css (the name Caddy routes to Blimp; its ?v= hash busts caches).
+ * The homepage: a gondola's instrument panel looking down at the machine.
+ *
+ * Doped-aluminium panels, graphite ink, and one signal colour, aviation's
+ * international orange, used for what is live and what you can press.
+ * Archivo (stretched wide for the nameplates, normal for reading) and IBM
+ * Plex Mono for the gauges. The scope, the canvas of the running server, is
+ * the one dark thing on the light page. */
+
+:root {
+  --paper: #e3e6e3;
+  --sheet: #f2f3f0;
+  --ink: #15191b;
+  --ink-2: #505a5f;
+  --ink-3: #7a8488;
+  --rule: #b4bbbb;
+  --rule-2: #cfd4d3;
+  --signal: #cf3d0c;
+  --signal-fill: #ff5a1f;
+  --scope: #0b1116;
+  --scope-ink: #a8bac4;
+  --shadow: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 1px 2px rgba(20, 25, 27, .12);
+  --wide: "Archivo", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
 }
-.desk-frame { display: flex; height: 100%; }
-.desk-main { flex: 1 1 0%; overflow-y: auto; padding-left: 1rem; padding-right: 1rem; }
-.desk-screen { min-height: 100vh; }
 
-/* blimp: the boot splash replaced the desktop until a timer or a click
- * swapped it out. Here it is an overlay link, after the desktop in the
- * page so a reader without CSS gets the content first. It hides itself
- * when boot-fill finishes; clicking it goes to /?booted=1, which renders
- * no splash. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1214;
+    --sheet: #171b1e;
+    --ink: #e2e5e1;
+    --ink-2: #9aa4a8;
+    --ink-3: #6f797d;
+    --rule: #333b3f;
+    --rule-2: #252b2e;
+    --signal: #ff7a45;
+    --signal-fill: #ff6a2b;
+    --scope: #070a0d;
+    --scope-ink: #8fa2ad;
+    --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1214; --sheet: #171b1e; --ink: #e2e5e1; --ink-2: #9aa4a8; --ink-3: #6f797d;
+  --rule: #333b3f; --rule-2: #252b2e; --signal: #ff7a45; --signal-fill: #ff6a2b;
+  --scope: #070a0d; --scope-ink: #8fa2ad; color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--wide);
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+a { color: inherit; }
+ul, ol { list-style: none; margin: 0; padding: 0; }
+h1, h2, h3, p, figure, dl, dd { margin: 0; }
+code { font-family: var(--mono); font-size: .92em; }
+a:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+.home { max-width: 1840px; margin: 0 auto; padding: 0 clamp(16px, 2.4vw, 44px); }
+
+/* Small caps on a plate: the labels riveted to a panel. */
+.plate-label {
+  font-family: var(--wide);
+  font-stretch: 118%;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.plate-label span { font-family: var(--mono); font-weight: 500; letter-spacing: 0; color: var(--ink-3); }
+
+/* ── The rail ─────────────────────────────────────────────────────────── */
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 12px 28px;
+  flex-wrap: wrap;
+  padding: 14px 0 12px;
+  border-bottom: 3px solid var(--ink);
+}
+.mark { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.blimp-svg { display: block; color: var(--ink); height: auto; }
+.blimp-svg .b-fill { fill: var(--sheet); stroke: currentColor; }
+.blimp-svg .b-line { stroke: currentColor; }
+.blimp-svg .b-car { fill: var(--signal-fill); }
+.mark-name {
+  font-stretch: 125%;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -.01em;
+  text-transform: uppercase;
+}
+.mark-name span { color: var(--ink-3); font-weight: 600; }
+.rail-nav { display: flex; gap: 4px 20px; flex-wrap: wrap; margin-left: auto; }
+.rail-nav a {
+  font-stretch: 112%;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  padding: 2px 0;
+  border-bottom: 2px solid transparent;
+}
+.rail-nav a:hover { border-bottom-color: var(--signal); }
+.rail-clock { font-family: var(--mono); font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.rail-clock span { font-size: 10px; letter-spacing: .1em; color: var(--ink-3); }
+
+/* ── The deck: the grid everything hangs in ───────────────────────────── */
+.deck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "scope" "manifest" "log" "archive" "more";
+  gap: 36px;
+  padding: 24px 0 40px;
+}
+@media (min-width: 1100px) {
+  .deck {
+    grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr);
+    grid-template-areas:
+      "scope manifest"
+      "log manifest"
+      "archive archive"
+      "more more";
+    /* The manifest spans two rows and is the taller; the log's row takes
+     * the slack, so the log sits right under the gauges. */
+    grid-template-rows: auto 1fr auto auto;
+    column-gap: clamp(28px, 2.6vw, 56px);
+    row-gap: 36px;
+  }
+}
+.scope-col { grid-area: scope; min-width: 0; }
+.manifest { grid-area: manifest; min-width: 0; }
+.log { grid-area: log; min-width: 0; align-self: start; }
+.archive { grid-area: archive; min-width: 0; }
+.more { grid-area: more; min-width: 0; }
+
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.sec-head h2 {
+  font-stretch: 125%;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.sec-count { font-family: var(--mono); font-size: 12px; color: var(--ink-2); text-decoration: none; }
+a.sec-count { color: var(--signal); }
+a.sec-count:hover { text-decoration: underline; }
+.sec-note { color: var(--ink-2); font-size: 13.5px; margin-bottom: 10px; max-width: 70ch; }
+
+/* ── The scope ────────────────────────────────────────────────────────── */
+.headline {
+  font-stretch: 120%;
+  font-weight: 800;
+  font-size: clamp(22px, 2.1vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -.015em;
+  margin-bottom: 16px;
+  max-width: 34ch;
+}
+.headline em { font-style: normal; color: var(--signal); }
+
+.scope {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow);
+  padding: 10px;
+}
+.scope-screen {
+  position: relative;
+  height: clamp(300px, 62vh, 780px);
+  background: var(--scope);
+  overflow: hidden;
+  /* A graticule, as on a scope's face; the canvas draws over it. */
+  background-image:
+    linear-gradient(rgba(143, 170, 185, .07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(143, 170, 185, .07) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: -1px -1px;
+}
+#scope-canvas { position: absolute; inset: 0; display: block; }
+.scope-status {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  right: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--scope-ink);
+  pointer-events: none;
+  max-width: 64ch;
+}
+.scope-live .scope-status::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  vertical-align: 1px;
+  background: var(--signal-fill);
+  border-radius: 50%;
+  animation: blink 1.6s steps(2, start) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .scope-live .scope-status::before { animation: none; } }
+
+.scope figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 22px;
+  padding: 10px 2px 2px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.key { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 600; white-space: nowrap; }
+.key svg { fill: none; stroke: var(--signal); stroke-width: 1.8; }
+.key-note { flex: 1 1 100%; max-width: 88ch; }
+
+/* ── The gauges ───────────────────────────────────────────────────────── */
+.gauges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border: 1px solid var(--rule);
+  border-top: 0;
+  background: var(--sheet);
+}
+.gauge { padding: 8px 12px 9px; border-top: 1px solid var(--rule); border-right: 1px solid var(--rule-2); min-width: 0; }
+.gauge dt { font-stretch: 115%; font-weight: 700; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.gauge dd { font-family: var(--mono); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gauge dd a { color: var(--signal); }
+
+/* ── The manifest: every page that runs on Blimp ──────────────────────── */
+.mf-groups { display: grid; gap: 18px; }
+@media (min-width: 1640px) {
+  .mf-groups { display: block; columns: 2; column-gap: 28px; }
+  .mf-group { break-inside: avoid; margin-bottom: 18px; }
+}
+.mf-group h3 { margin-bottom: 2px; }
+.mf-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  padding: 5px 4px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-2);
+}
+.mf-row:hover { background: var(--sheet); }
+.mf-row:hover .mf-name { color: var(--signal); }
+.mf-icon { grid-row: span 2; width: 32px; height: 20px; color: var(--ink); }
+.mf-icon svg { width: 32px; height: 20px; display: block; fill: currentColor; }
+.mf-name { font-weight: 700; font-size: 14px; line-height: 1.25; }
+.mf-pitch { font-size: 12.5px; line-height: 1.3; color: var(--ink-2); }
+
+/* ── The log: newest posts, one line each ─────────────────────────────── */
+.log-list a {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  gap: 12px;
+  padding: 4px 2px;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--rule);
+  font-size: 14px;
+}
+.log-date { font-family: var(--mono); font-size: 12px; color: var(--ink-3); padding-top: 2px; white-space: nowrap; }
+.log-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-list a:hover .log-title { color: var(--signal); }
+
+/* ── The museum ───────────────────────────────────────────────────────── */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tab {
+  font-stretch: 110%;
+  font-weight: 600;
+  font-size: 12.5px;
+  text-decoration: none;
+  padding: 3px 10px;
+  border: 1px solid var(--rule);
+  background: var(--sheet);
+}
+.tab:hover { border-color: var(--ink); }
+.tab.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.ex-list { columns: 14em; column-gap: 24px; }
+.ex {
+  display: block;
+  padding: 3px 0;
+  font-size: 14px;
+  text-decoration: none;
+  break-inside: avoid;
+  border-bottom: 1px dotted var(--rule-2);
+}
+.ex:hover { color: var(--signal); }
+.ex.on { color: var(--signal); font-weight: 700; }
+
+.ex-detail {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  padding: 16px 44px 16px 16px;
+  margin-bottom: 16px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--signal-fill);
+  max-width: 980px;
+}
+.ex-close { position: absolute; top: 8px; right: 12px; text-decoration: none; font-size: 16px; color: var(--ink-2); }
+.ex-close:hover { color: var(--signal); }
+.ex-icon svg { width: 96px; height: auto; color: var(--ink); }
+.ex-icon svg g, .ex-icon svg rect { fill: currentColor; }
+.ex-title { font-stretch: 118%; font-weight: 800; font-size: 20px; line-height: 1.15; }
+.ex-tagline { color: var(--ink-2); margin: 2px 0 8px; }
+.ex-desc { white-space: pre-line; font-size: 14px; max-width: 75ch; margin-bottom: 10px; }
+.ex-techs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.ex-tech { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--rule); color: var(--ink-2); }
+.ex-repos { font-size: 13px; margin-bottom: 8px; }
+.ex-repo { margin-right: 10px; color: var(--signal); }
+.ex-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.ex-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+.btn {
+  display: inline-block;
+  font-stretch: 112%;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid var(--ink);
+  background: var(--sheet);
+}
+.btn.primary { background: var(--signal-fill); border-color: var(--signal-fill); color: #120904; }
+.btn:hover { outline: 2px solid var(--ink); outline-offset: -3px; }
+
+/* ── Everything else, as lines of links ───────────────────────────────── */
+.more { display: grid; gap: 8px 32px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) {
+  .more { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .more .sec-head { grid-column: 1 / -1; }
+}
+@media (min-width: 1500px) { .more { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.more-row h3 { margin-bottom: 2px; }
+.more-row p { font-size: 13.5px; color: var(--ink-2); }
+.more-row a { color: var(--ink); text-decoration-color: var(--rule); text-underline-offset: 2px; }
+.more-row a:hover { color: var(--signal); text-decoration-color: currentColor; }
+.more-row .sep { color: var(--rule); }
+
+/* ── The foot ─────────────────────────────────────────────────────────── */
+.foot {
+  border-top: 3px solid var(--ink);
+  padding: 14px 0 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.foot p { max-width: 70ch; }
+.foot strong { color: var(--ink); }
+.foot a { color: var(--signal); }
+.foot-links { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+
+/* ── The Leica warning: a link-only dialog ────────────────────────────── */
+.leica-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 13, 15, .55);
+}
+.leica-card {
+  max-width: 460px;
+  background: var(--sheet);
+  border: 1px solid var(--ink);
+  border-top: 6px solid var(--signal-fill);
+  padding: 18px 20px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+}
+.leica-card h2 { font-stretch: 118%; font-weight: 800; font-size: 20px; line-height: 1.15; margin: 4px 0 10px; }
+.leica-card p { font-size: 14px; margin-bottom: 8px; color: var(--ink-2); }
+.leica-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .rail { padding-top: 10px; column-gap: 12px; }
+  .rail-nav { margin-left: 0; order: 3; width: 100%; gap: 4px 16px; }
+  .rail-clock { margin-left: auto; font-size: 12px; }
+  .mark { gap: 8px; }
+  .mark .blimp-svg { width: 36px; }
+  .mark-name { font-size: 17px; }
+  .scope { padding: 6px; }
+  .scope-screen { height: min(150vw, 600px); background-size: 32px 32px; }
+  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .log-list a { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .log-title { white-space: normal; }
+  .ex-detail { grid-template-columns: minmax(0, 1fr); padding-right: 36px; }
+  .ex-icon svg { width: 64px; }
+}
+
+/* ── The boot splash, exactly as the old desktop drew it ──────────────── */
 .mac-boot {
   position: fixed;
   top: 0;
-  left: 1rem; /* inside <main>'s px-4, where the LiveView drew it */
+  left: 0;
   z-index: 3000;
+  width: 100vw;
+  height: 100vh;
+  background: #a8a8a8;
+  background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%);
+  background-size: 2px 2px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
   color: inherit;
   text-decoration: none;
+  font-family: "Chicago", "Geneva", "Helvetica", sans-serif;
+  -webkit-font-smoothing: none;
   animation: boot-hide 0s linear 8s forwards;
 }
-@keyframes boot-hide {
-  to { visibility: hidden; pointer-events: none; }
+@keyframes boot-hide { to { visibility: hidden; pointer-events: none; } }
+.boot-screen { text-align: center; max-width: 600px; padding: 40px; }
+.boot-logo { margin-bottom: 40px; }
+.boot-logo svg { display: inline-block; }
+.boot-text { font-size: 32px; font-weight: bold; margin-bottom: 20px; color: #000; line-height: 1.6; }
+.boot-subtext { font-size: 18px; line-height: 1.7; color: #333; margin-bottom: 40px; }
+.boot-progress { width: 340px; max-width: 100%; height: 20px; border: 2px solid #000; margin: 0 auto 24px; background: #fff; padding: 3px; }
+.boot-progress-bar { height: 100%; background: #000; animation: boot-fill 8s ease-in-out forwards; }
+@keyframes boot-fill {
+  0% { width: 0%; }
+  30% { width: 30%; }
+  60% { width: 65%; }
+  80% { width: 85%; }
+  100% { width: 100%; }
 }
-
-/* blimp: desktop icons, close boxes and buttons are links now. */
-a.close-box, a.icon, a.museum-list-item, a.museum-filter-tag,
-a.mobile-taskbar-btn, a.desktop-icon-leica, a.leica-btn {
-  color: inherit;
-  text-decoration: none;
-}
-a.leica-btn.primary { color: #fff; }
-a.close-box { display: block; }
-
-/* ========================================
-   blimp: the Hangar desktop (chapter 85)
-   The Hangar leads, the museum and the blog sit behind it and each other
-   like windows someone left open, desktop icons run down the right edge,
-   and a blimp crosses the sky behind everything.
-   ======================================== */
-
-.mac {
-  --hw: min(600px, 42vw);
-  background: #a8a8a8;
-}
-
-/* The desktop pattern: two dark pixels in eight, the System 6 grey. */
-.desktop {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  background: #b0b0b0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='1' height='1' fill='%23868686'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%23868686'/%3E%3C/svg%3E");
-}
-
-/* Menus that open, without a script: hover, or focus for a tap. */
-.menu-left { gap: 0; align-items: center; height: 100%; }
-.menu { position: relative; height: 100%; display: flex; align-items: center; outline: none; }
-.menu > .menu-item, .menu > .apple-menu { padding: 0 10px; height: 100%; display: flex; align-items: center; }
-.menu:hover > .menu-item, .menu:focus-within > .menu-item,
-.menu:hover > .apple-menu, .menu:focus-within > .apple-menu { background: #000; color: #fff; }
-.menu-drop {
-  display: none;
-  position: absolute;
-  top: 23px;
-  left: 0;
-  min-width: 210px;
-  background: #fff;
-  border: 1px solid #000;
-  box-shadow: 2px 2px 0 #000;
-  z-index: 4000;
-  padding: 2px 0;
-}
-.menu:hover .menu-drop, .menu:focus-within .menu-drop { display: block; }
-.menu-drop a, .menu-drop .menu-off {
-  display: block;
-  padding: 3px 18px;
-  color: #000;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.menu-drop a:hover, .menu-drop a:focus { background: #000; color: #fff; }
-.menu-drop .menu-off { color: #999; }
-.menu-right { display: flex; gap: 14px; align-items: center; }
-.menu-served { color: #555; }
-
-/* The blimp, crossing behind the windows. */
-.blimp-flyer {
-  position: absolute;
-  top: 6px;
-  left: -70px;
-  z-index: 1;
-  animation: blimp-cross 140s linear infinite;
-  line-height: 0;
-}
-@keyframes blimp-cross {
-  from { transform: translateX(0); }
-  to { transform: translateX(calc(100vw + 80px)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .blimp-flyer { animation: none; left: auto; right: 130px; top: auto; bottom: 40px; }
-}
-
-/* The Hangar */
-.hangar-window {
-  position: absolute;
-  left: 20px;
-  top: 16px;
-  bottom: 16px;
-  width: var(--hw);
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border: 1px solid #000;
-  box-shadow: 2px 2px 0 #000;
-}
-.hangar-head {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid #000;
-}
-.hangar-head svg { flex-shrink: 0; }
-.hangar-headline { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
-.hangar-head p { font-size: 12px; line-height: 1.45; color: #333; }
-.hangar-live {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  padding: 6px 12px;
-  background: #000;
-  color: #fff;
-  font-family: ui-monospace, Menlo, Monaco, monospace;
-  font-size: 12px;
-  -webkit-font-smoothing: auto;
-}
-.hangar-live small { font-weight: normal; color: #9a9a9a; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
-.hangar-live a { color: #fff; }
-.odo { white-space: nowrap; }
-.hangar-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 10px 10px; }
-.hangar-group-label {
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  padding: 10px 4px 4px;
-  border-bottom: 1px dotted #000;
-  margin-bottom: 4px;
-}
-.hangar-group-label span { font-weight: normal; color: #777; }
-.hangar-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2px 8px; }
-.hangar-tile {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 6px 6px;
-  color: #000;
-  text-decoration: none;
-}
-.hangar-tile:hover, .hangar-tile:focus { background: #000; color: #fff; outline: none; }
-.hangar-tile:hover svg, .hangar-tile:focus svg { filter: invert(1); }
-.hangar-icon { width: 44px; height: 28px; flex-shrink: 0; margin-top: 2px; }
-.hangar-icon svg { width: 44px; height: 28px; display: block; }
-.hangar-text { display: flex; flex-direction: column; min-width: 0; }
-.hangar-name { font-weight: bold; font-size: 14px; }
-.hangar-pitch { font-size: 12px; line-height: 1.35; color: #444; }
-.hangar-tile:hover .hangar-pitch, .hangar-tile:focus .hangar-pitch { color: #ddd; }
-.hangar-window .status-bar {
-  height: 22px;
-  border-top: 1px solid #000;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 8px;
-  font-size: 12px;
-}
-.hangar-window .status-bar a { color: #000; }
-
-/* The museum and the blog, behind the Hangar and each other. */
-.desktop .museum-list-window {
-  position: absolute;
-  left: calc(20px + var(--hw) + 22px);
-  top: 44px;
-  width: 520px;
-  min-width: 0;
-  height: 60%;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 2px 2px 0 #000;
-}
-.desktop .museum-list-content { flex: 1; min-height: 0; max-height: none; }
-.desktop .museum-list-item { padding: 8px 12px; }
-.desktop .museum-list-name { font-size: 16px; }
-.desktop .museum-list-tagline { font-size: 13px; }
-.desktop .blog-window {
-  position: absolute;
-  left: calc(20px + var(--hw) + 22px + 300px);
-  right: 118px;
-  top: 34%;
-  bottom: 16px;
-  width: auto;
-  z-index: 3;
-  box-shadow: 2px 2px 0 #000;
-}
-.desktop .window.mobile-window-finder { position: absolute; left: 60px; top: 60px; z-index: 6; }
-.desktop .right-column { position: absolute; right: 130px; top: 30px; z-index: 7; }
-
-/* Desktop icons, down the right edge like a Finder's. */
-.side-icons {
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  width: 92px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: center;
-  z-index: 4;
-}
-.side-icon, .side-icons .desktop-icon-leica {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  color: #000;
-  text-decoration: none;
-  text-align: center;
-  font-size: 12px;
-  font-weight: bold;
-  padding: 0;
-}
-.side-icons .desktop-icon-leica { position: static; transform: none; }
-.side-icons .desktop-icon-leica svg { width: 40px; height: 40px; }
-.side-icon-img { width: 48px; height: 40px; display: flex; align-items: center; justify-content: center; }
-.side-icon-img svg { width: 48px; height: 40px; }
-.side-icon-label, .side-icons .desktop-icon-label { background: #fff; padding: 1px 4px; line-height: 1.25; font-size: 12px; }
-.side-icon:hover .side-icon-label, .side-icon:focus .side-icon-label { background: #000; color: #fff; }
-.side-icon:hover svg { filter: invert(1); }
-
-/* A laptop: the museum over the blog, both beside the Hangar, the blog's
- * left half clear of the runtime window in the corner. */
-@media (max-width: 1400px) and (min-width: 1101px) {
-  .desktop .museum-list-window { right: 124px; width: auto; height: auto; bottom: 46%; }
-  .desktop .blog-window { left: calc(20px + var(--hw) + 40px); right: 110px; top: 50%; }
-}
-
-/* Narrow desktops: no room to overlap, so the windows flow. */
-@media (max-width: 1100px) and (min-width: 769px) {
-  .desktop { display: flex; flex-wrap: wrap; gap: 16px; align-content: flex-start; overflow-y: auto; }
-  .hangar-window, .desktop .museum-list-window, .desktop .blog-window {
-    position: relative; left: auto; right: auto; top: auto; bottom: auto;
-  }
-  .hangar-window { width: 100%; max-height: 80vh; }
-  .desktop .museum-list-window { width: calc(58% - 8px); height: 70vh; }
-  .desktop .blog-window { width: calc(42% - 8px); height: 70vh; flex: none; }
-  .side-icons { position: static; flex-direction: row; width: 100%; justify-content: flex-start; order: 5; }
-}
-
-/* A phone: every window full width, one under the next, the Hangar first
- * unless the taskbar brought another forward. */
-@media (max-width: 768px) {
-  .mac { height: auto; min-height: 100vh; }
-  .desktop {
-    height: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 10px 0 76px;
-    overflow: visible;
-  }
-  .hangar-window, .desktop .museum-list-window, .desktop .blog-window,
-  .desktop .window.mobile-window-finder, .desktop .blog-window.mobile-window-blog {
-    position: static;
-    display: flex;
-    flex-direction: column;
-    width: 100% !important;
-    min-width: 0;
-    max-width: 100%;
-    height: auto;
-    order: 1;
-  }
-  .desktop .mobile-active { order: 0; }
-  .hangar-body { overflow: visible; }
-  .hangar-head svg { width: 60px; }
-  .hangar-tiles { grid-template-columns: 1fr; }
-  .desktop .museum-list-content { max-height: 70vh; }
-  .desktop .blog-window .blog-window-content { max-height: 70vh; }
-  .museum-filter-row { font-size: 13px; }
-  .side-icons { position: static; order: 2; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: space-around; }
-  .blimp-flyer { display: none; }
-  .desktop .right-column { position: static; }
-  .menu-left .menu { display: none; }
-  .menu-left .menu:first-child { display: flex; }
-  .menu-served { display: none; }
-}
+.boot-hint { font-size: 13px; color: #888; line-height: 1.6; }

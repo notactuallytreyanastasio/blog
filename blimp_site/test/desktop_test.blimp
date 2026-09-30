@@ -36,10 +36,10 @@ def dt_has_on_attr(html: String) -> Bool do
   length(filter(parts, fn(p: String) -> Bool do dt_letters_then_eq(p, 0) end)) > 0
 end
 
-# Scriptless apart from the runtime window every page has (RUNTIME_TAGS):
-# what matters here is that nothing from the query string becomes one.
+# Scriptless apart from the scope's two scripts (HOME_TAGS): what matters
+# here is that nothing from the query string becomes one.
 def dt_scriptless(page: String) -> Bool do
-  html = replace_all(page, RUNTIME_TAGS, "")
+  html = replace_all(page, HOME_TAGS, "")
   lower = downcase(html)
   not(contains(lower, "<script")) and not(contains(lower, "javascript:")) and not(dt_has_on_attr(html))
 end
@@ -81,7 +81,7 @@ actor DesktopTests do
     assert_eq(length(desk.museum), 33)
     assert_eq(desk.categories, ["creative", "hardware", "maps", "ml", "music", "social", "tools", "writing"])
     assert_eq(desk.item_count, 30)
-    assert_eq(length(split(desk.finder_html, "class=\"section-label\"")), 7)
+    assert_eq(length(split(desk.finder_html, "class=\"more-row\"")), 7)
     assert(starts_with(desk_icon(desk.icons, "no-such-slug"), "<svg"))
     assert_eq(desk_icon(desk.icons, "no-such-slug"), desk_icon(desk.icons, "default"))
   end
@@ -103,82 +103,89 @@ actor DesktopTests do
     assert_eq(desk_clock(86400 * 20000 + 23 * 3600 + 57 * 60), "11:57 PM")
   end
 
-  test "every link keeps the rest of the state" do
-    html = dt_page("cat=ml&finder=1")
-    assert(contains(html, "href=\"/?cat=ml&amp;project=local-llm&amp;finder=1\""))
-    assert(contains(html, "href=\"/?finder=1\">All</a>"))
-    assert(contains(html, "href=\"/?cat=ml&amp;finder=1&amp;museum=0\""))
+  test "the scope is the page's canvas, fed by home.js, and there is no corner window" do
+    html = dt_page("booted=1")
+    assert(contains(html, "<canvas id=\"scope-canvas\""))
+    assert(contains(html, "<script src=\"/blimp/home.js?v="))
+    refute(contains(html, "/blimp/runtime.js"))
+    assert(contains(html, "Scripts are off, so the drawing is too."))
+  end
+
+  test "every museum link keeps the rest of the state and lands on the museum" do
+    html = dt_page("cat=ml&leica=1")
+    assert(contains(html, "href=\"/?cat=ml&amp;project=local-llm&amp;leica=1#museum\""))
+    assert(contains(html, "href=\"/?leica=1#museum\">All</a>"))
+    assert(contains(html, "<a class=\"tab active\" href=\"/?cat=ml&amp;leica=1#museum\">ML &amp; AI</a>"))
+  end
+
+  test "the old desktop's window state is dropped, not echoed" do
+    html = dt_page("cat=ml&finder=1&m=blog&museum=0")
+    refute(contains(html, "finder=1"))
+    refute(contains(html, "m=blog"))
+    refute(contains(html, "museum=0"))
+    assert(contains(html, "<a class=\"tab active\" href=\"/?cat=ml#museum\">"))
   end
 
   test "the filter shows one category" do
-    html = dt_page("cat=hardware")
-    assert(contains(html, "<span>4 exhibits</span>"))
-    assert(contains(dt_page(""), "<span>33 exhibits</span>"))
-    assert(contains(dt_page("cat=creative"), "<span>2 exhibits</span>"))
+    assert(contains(dt_page("cat=hardware"), "<span class=\"sec-count\">4 exhibits</span>"))
+    assert(contains(dt_page(""), "<span class=\"sec-count\">33 exhibits</span>"))
+    assert(contains(dt_page("cat=creative"), "<span class=\"sec-count\">2 exhibits</span>"))
   end
 
-  test "closing the last window does not replay the splash" do
+  test "closing the last exhibit does not replay the splash" do
     html = dt_page("project=deciduous")
-    assert(contains(html, "<a class=\"close-box\" href=\"/?booted=1\""))
+    assert(contains(html, "<a class=\"ex-close\" href=\"/?booted=1#museum\""))
   end
 
-  test "the detail window" do
+  test "the exhibit" do
     html = dt_page("project=deciduous")
-    assert(contains(html, "museum-list-item selected"))
-    assert(contains(html, "<a href=\"https://github.com/notactuallytreyanastasio/deciduous\" target=\"_blank\" class=\"museum-repo-link\">deciduous</a>"))
-    assert(contains(html, "<span>3 technologies</span>"))
+    assert(contains(html, "<a class=\"ex on\" href=\"/?project=deciduous#museum\">Deciduous</a>"))
+    assert(contains(html, "<a href=\"https://github.com/notactuallytreyanastasio/deciduous\" target=\"_blank\" class=\"ex-repo\">deciduous</a>"))
+    assert(contains(html, "3 technologies</p>"))
+    refute(contains(dt_page("booted=1"), "id=\"museum-detail\""))
     launch = dt_page("project=phangraphs")
-    assert(contains(launch, "<a href=\"https://bobbby.online/phish\" class=\"museum-launch-btn\">"))
+    assert(contains(launch, "<a href=\"https://bobbby.online/phish\" class=\"btn primary\">"))
     tetris = dt_page("project=blimp-tetris")
-    assert(contains(tetris, "<a href=\"/tetris\" class=\"museum-launch-btn\">"))
+    assert(contains(tetris, "<a href=\"/tetris\" class=\"btn primary\">"))
     refute(contains(tetris, "https://bobbby.online/tetris"))
-    assert(contains(tetris, "Blimp Tetris"))
     visit = dt_page("project=role-call")
-    assert(contains(visit, "<a href=\"https://notactuallytreyanasasio.github.io/role_call\" target=\"_blank\" class=\"museum-launch-btn\""))
+    assert(contains(visit, "<a href=\"https://notactuallytreyanasasio.github.io/role_call\" target=\"_blank\" class=\"btn\""))
   end
 
-  test "finder items link to the Phoenix site, except what Blimp serves" do
-    html = dt_page("finder=1")
+  test "the Finder's items are all there, as links" do
+    html = dt_page("booted=1")
     assert(contains(html, "href=\"https://bobbby.online/pong\""))
-    assert(contains(html, "<a class=\"icon\" href=\"/\">"))
-    assert(contains(html, "<a class=\"icon\" href=\"https://bobbby.online/phish\" title=\"phish, just the jams, explore by rank"))
-    assert(contains(html, "<span>30 items</span>"))
-    refute(contains(dt_page(""), "id=\"finder-window\""))
-  end
-
-  test "the mobile taskbar switches windows with links" do
-    html = dt_page("m=blog")
-    assert(contains(html, "blog-window mobile-window-blog mobile-active"))
-    assert(contains(html, "mobile-taskbar-btn active\" href=\"/?m=blog\""))
-    assert(contains(html, "museum-list-window mobile-window-museum\""))
-    assert(contains(dt_page(""), "hangar-window mobile-window-hangar mobile-active"))
-    refute(contains(dt_page(""), "museum-list-window mobile-window-museum mobile-active"))
-    assert(contains(dt_page("m=museum"), "museum-list-window mobile-window-museum mobile-active"))
-    assert(contains(html, "<a class=\"mobile-taskbar-btn\" href=\"/?m=hangar\">Hangar</a>"))
-    apps = dt_page("m=finder")
-    assert(contains(apps, "window mobile-window-finder mobile-active"))
+    assert(contains(html, "<a href=\"/\">Deciduous</a>"))
+    assert(contains(html, "<a href=\"https://bobbby.online/phish\" title=\"phish, just the jams, explore by rank"))
+    assert(contains(html, "<span class=\"sec-count\">30 items</span>"))
   end
 
   test "the Leica warning opens the image and cancels with a link" do
-    html = dt_page("leica=1&m=blog")
-    assert(contains(html, "leica-warning-overlay"))
+    html = dt_page("leica=1&cat=ml")
+    assert(contains(html, "leica-veil"))
     assert(contains(html, "href=\"https://bobbby-media.fsn1.your-objectstorage.com/leica/leica_6_by_6_full.jpg\">Load Full Resolution</a>"))
-    assert(contains(html, "<a class=\"leica-btn\" href=\"/?m=blog\">Cancel</a>"))
+    assert(contains(html, "<a class=\"btn\" href=\"/?cat=ml\">Cancel</a>"))
+    refute(contains(dt_page("cat=ml"), "leica-veil"))
   end
 
-  test "the blog window lists posts" do
+  test "the log is one line a post, newest ten, and a link to the rest" do
     html = dt_page("")
-    assert(contains(html, "<a href=\"/post/chess\" class=\"blog-post-row\">"))
-    assert(contains(html, "<span>2 posts</span>"))
+    assert(contains(html, "<li><a href=\"/post/chess\"><span class=\"log-date\">May 30, 2026</span><span class=\"log-title\">Chess</span></a></li>"))
+    assert(contains(html, "href=\"/blog\">all 2 posts"))
+    refute(contains(html, "blog-tag"))
+    many = map(range(1, 15), fn(i: Int) -> Map do %{slug: concat("p", to_string(i)), title: "t", date: "d", tags: ["x"]} end)
+    lines = desk_blog_lines(many)
+    assert_eq(length(split(lines, "<li>")) - 1, 10)
+    refute(contains(lines, "/post/p11\""))
   end
 
-  test "the Hangar lists every page in data/hangar.tsv, each with an icon" do
+  test "the manifest lists every page in data/hangar.tsv, each with an icon" do
     html = dt_page("booted=1")
-    assert_eq(length(split(html, "class=\"hangar-tile\"")) - 1, 30)
-    assert(contains(html, "<a class=\"hangar-tile\" href=\"/chess-lv\">"))
-    assert(contains(html, "<span>30 pages, one process</span>"))
-    assert(contains(html, "Games <span>7</span>"))
-    refute(contains(html, "hangar-icon\"></span>"))
+    assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 30)
+    assert(contains(html, "<a class=\"mf-row\" href=\"/chess-lv\">"))
+    assert(contains(html, "30 pages, one process</span>"))
+    assert(contains(html, "Games <span>07</span>"))
+    refute(contains(html, "mf-icon\"></span>"))
   end
 
   test "the counters are fixed width, so the prebuilt / can be spliced" do
@@ -190,10 +197,10 @@ actor DesktopTests do
     refute(length(desk_live_counts(1000, 0, 0)) == length(DESK_LIVE_MARK))
     bare = dt_page("")
     assert(contains(bare, DESK_LIVE_MARK))
-    assert(contains(bare, "<small>this page</small> prebuilt at boot"))
+    assert(contains(bare, "<dt>this page</dt><dd>prebuilt at boot</dd>"))
     booted = dt_page("booted=1")
     refute(contains(booted, "prebuilt at boot"))
-    assert(contains(booted, " ms</span></div>"))
+    assert(contains(booted, " ms</dd></div></dl>"))
   end
 
   test "the commit is shown only when it is a sha" do
@@ -202,11 +209,10 @@ actor DesktopTests do
     assert_eq(desk_commit_of("<script>"), "")
   end
 
-  test "the menus lead somewhere" do
+  test "the old menus' destinations are all still linked" do
     html = dt_page("cat=ml")
-    assert(contains(html, "<a href=\"/\">Restart</a>"))
-    assert(contains(html, "<a href=\"/mirror\">View Source</a>"))
-    assert(contains(html, "<a href=\"/?cat=ml&amp;museum=0\">Technical Museum</a>"))
-    assert(contains(html, "href=\"https://old.bobbby.online\""))
+    each(["/blog", "/stack", "/mirror", "/directory", "/very_direct_message", "/markdown-editor", "/typewriter", "https://old.bobbby.online", "/"], fn(h: String) do
+      assert(contains(html, concat("href=\"", h, "\"")))
+    end)
   end
 end
