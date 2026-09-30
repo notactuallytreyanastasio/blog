@@ -1,0 +1,358 @@
+# Wordle for bobbby.online/wordle, played in the browser by Blimp's
+# interpreter. A port of BlogWeb.WordleLive and Blog.Wordle.Game.
+#
+# The rules are Temper, temper/src/wordle: wd_check (the two-pass checker,
+# repeated letters and all), wd_refusal (word list, hard mode), wd_after,
+# wd_key_status, wd_key_letter, wd_target, wd_ago. build.sh puts the part of
+# them this program calls in front of it, in _build/wordle.blimp. What stays
+# here is the actor, the view, and the random numbers.
+#
+# The LiveView kept the game on the server and every other open page heard
+# each keystroke over PubSub. Here the game is this actor, and the page
+# (static/wordle/live.js) sends the server what `wordle <- :report`
+# answers whenever it changes. The server checks it with the same Temper and
+# sends every page the most recent games, which arrive as
+# `wordle <- :others(json)` and are drawn behind the board.
+#
+# The allowed guesses are 14,855 words, 89KB as text: not part of the
+# program. The view asks for /wordle/words.txt once (fetch), and until it
+# arrives Enter answers "Word list still loading".
+
+WD_MAX = 6
+WD_ROWS = [["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+           ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+           ["Backspace", "z", "x", "c", "v", "b", "n", "m", "Enter"]]
+WD_TILE = "w-full aspect-square flex items-center justify-center text-lg sm:text-xl font-bold rounded-none"
+WD_MINI = "w-full aspect-square flex items-center justify-center text-base md:text-xl lg:text-2xl font-bold rounded-none"
+
+def wd_color_class(status: String) -> String do
+  case status do
+    "correct" -> "bg-green-600 border-green-600"
+    "present" -> "bg-yellow-500 border-yellow-500"
+    "absent" -> "bg-gray-600 border-gray-600"
+    _ -> "border-2 border-gray-300"
+  end
+end
+
+def wd_keyboard_class(status: String) -> String do
+  case status do
+    "correct" -> "bg-green-600 text-white"
+    "present" -> "bg-yellow-500 text-white"
+    "absent" -> "bg-gray-600 text-white"
+    _ -> "bg-gray-200"
+  end
+end
+
+# The i-th letter of a partial guess, or "".
+def wd_at(s: String, i: Int) -> String do
+  case i < length(s) do
+    true -> char_at(s, i)
+    false -> ""
+  end
+end
+
+def wd_drop_last(s: String) -> String do
+  case length(s) == 0 do
+    true -> ""
+    false -> slice(s, 0, length(s) - 1)
+  end
+end
+
+# ── the board ───────────────────────────────────────────────────────────
+#
+# One board, the player's or a background one: guesses, the row being
+# typed, and the empty rows under it. `tile` and `gap` are the two sizes'
+# classes; `border` the typed row's border width ("border-2" big, "border"
+# small).
+
+def wd_guess_row(word: String, result: List, tile: String, gap: String, extra: String) -> Any do
+  el("div", %{class: concat("grid grid-cols-5 ", gap)},
+    map(zip(wd_letters(word), result), fn(p: Tuple) -> Any do
+      el("div", %{class: concat(tile, " text-white uppercase", extra, " ", wd_color_class(elem(p, 1)))}, elem(p, 0))
+    end))
+end
+
+def wd_board_rows(words: List, results: List, current: String, over: Bool, tile: String, gap: String, border: String, extra: String) -> List do
+  done = map(range(0, length(words) - 1), fn(i: Int) -> Any do
+    wd_guess_row(elem(words, i), elem(results, i), tile, gap, extra)
+  end)
+  n = length(words)
+  case n < WD_MAX and not(over) do
+    false -> done
+    true ->
+      typing = el("div", %{class: concat("grid grid-cols-5 ", gap)},
+        map(range(0, 4), fn(i: Int) -> Any do
+          edge = case i < length(current) do
+            true -> "border-gray-600"
+            false -> "border-gray-300"
+          end
+          el("div", %{class: concat(tile, " uppercase ", border, " ", edge)}, wd_at(current, i))
+        end))
+      empty = map(range(n + 1, WD_MAX - 1), fn(i: Int) -> Any do
+        el("div", %{class: concat("grid grid-cols-5 ", gap)},
+          map(range(1, 5), fn(j: Int) -> Any do el("div", %{class: concat(tile, " ", border, " border-gray-200")}) end))
+      end)
+      list_concat(done, [typing | empty])
+  end
+end
+
+def wd_first(xs: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case xs do
+        [] -> []
+        [x | rest] -> [x | wd_first(rest, n - 1)]
+      end
+  end
+end
+
+def list_concat(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+# ── other players ───────────────────────────────────────────────────────
+#
+# A game as the server sends it: %{id, player, target, current, words,
+# results, over, won, hard, ago}. The server rebuilt it from the words a
+# page reported, so `results` are its own wd_check's, not the page's.
+
+def wd_other_card(g: Map) -> Any do
+  star = case g.hard do
+    true -> "text-yellow-600"
+    false -> "hidden"
+  end
+  status = case g.over do
+    true ->
+      case g.won do
+        true -> el("span", %{class: "text-green-600"}, "Won")
+        false -> el("span", %{class: "text-red-600"}, "Lost")
+      end
+    false -> el("span", %{class: "text-blue-600"}, concat(to_string(length(g.words)), "/", to_string(WD_MAX)))
+  end
+  el("div", %{class: "bg-white rounded-sm shadow-sm opacity-30 text-xs"},
+    el("div", %{class: "flex justify-between items-center px-1 pt-1"},
+      el("div", %{class: "font-bold truncate max-w-[90%] text-xs"}, g.player, " ", el("span", %{class: star}, "★")),
+      el("span", %{class: "text-xs text-gray-500"}, wd_ago(g.ago))),
+    el("div", %{class: "text-xs px-1 flex justify-between"}, el("div", %{}, g.target), status),
+    el("div", %{class: "grid grid-rows-6 gap-[1px] p-1"},
+      wd_board_rows(g.words, g.results, g.current, g.over, WD_MINI, "gap-[1px]", "border", "")))
+end
+
+# The server's games, newest first, less this page's own, at most twelve.
+def wd_others_from(json: String, me: String) -> List do
+  decoded = json_decode(json)
+  case decoded do
+    {:ok, data} ->
+      case type_of(data) == :map and type_of(lookup(data, :games)) == :list do
+        true -> wd_first(filter(data.games, fn(g: Map) -> Bool do g.id != me end), 12)
+        false -> []
+      end
+    _ -> []
+  end
+end
+
+# ── the game ────────────────────────────────────────────────────────────
+
+actor Wordle do
+  state player: String :: ""
+  state session: String :: ""
+  state target: String :: ""
+  state current: String :: ""
+  state words: List :: []
+  state results: List :: []
+  state over: Bool :: false
+  state message: String :: ""
+  state hard: Bool :: true
+  state started: Bool :: false
+  state warning: Bool :: true
+  state dict: String :: ""
+  state asking: Bool :: true
+  state others: List :: []
+
+  on :start do
+    become player: concat("player-", to_string(random(1, 10000))), target: wd_target(random(0, 1000000))
+    reply :ok
+  end
+
+  # The page's id for this game on the server, so its own game is not
+  # drawn behind it.
+  on :joined(id: String) do
+    become session: id
+    reply :ok
+  end
+
+  on :words(status: Int, body: String) do
+    case status == 200 do
+      true -> become dict: concat("\n", body), asking: false
+      false -> become asking: false
+    end
+    reply :ok
+  end
+
+  on :key(k: String) do
+    case over do
+      true -> become started: true
+      false ->
+        case k == "Enter" and length(current) == 5 do
+          true -> self <- :submit
+          false ->
+            case k == "Backspace" do
+              true -> become current: wd_drop_last(current), started: true
+              false ->
+                letter = wd_key_letter(k)
+                case length(current) < 5 and letter != "" do
+                  true -> become current: concat(current, letter), started: true
+                  false -> become started: true
+                end
+            end
+        end
+    end
+    reply :ok
+  end
+
+  on :submit do
+    refusal = wd_refusal(current, hard, dict, words, results)
+    case refusal do
+      "" ->
+        result = wd_check(current, target)
+        n = length(words) + 1
+        said = wd_after(current, target, n)
+        become words: list_concat(words, [current]), results: list_concat(results, [result]), current: "",
+               over: current == target or n >= WD_MAX, message: said, started: true
+      "Guess must use all discovered letters" -> become message: refusal, current: "", started: true
+      _ -> become message: refusal, started: true
+    end
+    reply :ok
+  end
+
+  on :toggle_hard do
+    next = case words do
+      [] -> not(hard)
+      _ -> hard
+    end
+    case words do
+      [] -> become hard: next, started: true
+      _ -> become message: "Can't change difficulty mid-game", started: true
+    end
+    reply next
+  end
+
+  on :new_game do
+    become target: wd_target(random(0, 1000000)), current: "", words: [], results: [], over: false, message: "", started: true
+    reply :ok
+  end
+
+  on :dismiss do
+    become warning: false
+    reply :ok
+  end
+
+  on :others(json: String) do
+    seen = wd_others_from(json, session)
+    become others: seen
+    reply length(seen)
+  end
+
+  # What the server is told, "" until the player has done anything (the
+  # LiveView made no game until then either). Only words and flags: the
+  # server works the colours out again.
+  on :report do
+    case started do
+      false -> reply ""
+      true -> reply json_encode(%{player: player, target: target, current: current, words: words, hard: hard})
+    end
+  end
+
+  on :view do
+    won = over and contains_word(words, target)
+    # grey until the first key, as the LiveView's was before it made a game
+    hard_class = case hard and started do
+      true -> "bg-yellow-500 text-white"
+      false -> "bg-gray-200 text-gray-700"
+    end
+    note = case message do
+      "" -> el("div", %{class: "text-center mb-1 font-medium text-sm text-gray-500"}, "Type to start playing!")
+      _ -> el("div", %{class: "text-center mb-1 font-bold text-sm"}, message)
+    end
+    keyboard = el("div", %{class: "grid grid-rows-3 gap-1 w-full"},
+      map(WD_ROWS, fn(row: List) -> Any do
+        el("div", %{class: "flex justify-center gap-1"},
+          map(row, fn(k: String) -> Any do
+            wide = case k == "Enter" or k == "Backspace" do
+              true -> "px-1 text-xs"
+              false -> "px-0.5"
+            end
+            label = case k do
+              "Backspace" -> "⌫"
+              _ -> upcase(k)
+            end
+            el("button", %{class: concat("flex-1 h-8 sm:h-10 flex items-center justify-center rounded text-xs font-bold ", wide, " ", wd_keyboard_class(wd_key_status(k, words, results))), click: :key, with: k}, label)
+          end))
+      end))
+    ending = case over do
+      false -> []
+      true ->
+        verdict = case won do
+          true -> el("div", %{class: "mb-2"},
+            el("div", %{class: "text-green-600 font-bold text-lg"}, "🎉 Congratulations!"),
+            el("div", %{class: "text-sm text-gray-600"}, "You found the word!"))
+          false -> el("div", %{class: "mb-2"},
+            el("div", %{class: "text-red-600 font-bold text-lg"}, "Game Over"),
+            el("div", %{class: "text-sm text-gray-600"}, "The word was:"),
+            el("div", %{class: "text-xl font-bold text-gray-800 uppercase tracking-wider mt-1 bg-gray-100 px-3 py-1 rounded"}, target))
+        end
+        [el("div", %{class: "text-center mt-2"}, verdict,
+          el("button", %{class: "bg-green-600 text-white px-3 py-1 text-sm rounded hover:bg-green-700", click: :new_game}, "New Game"))]
+    end
+    background = case others do
+      [] -> []
+      _ -> [el("div", %{class: "absolute inset-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5 p-0.5 overflow-hidden"},
+              map(others, fn(g: Map) -> Any do wd_other_card(g) end))]
+    end
+    popup = case warning do
+      false -> []
+      true -> [el("div", %{class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50", click: :dismiss},
+        el("div", %{class: "bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl"},
+          el("div", %{class: "text-center"},
+            el("div", %{class: "text-2xl mb-2"}, "⚠️"),
+            el("h2", %{class: "text-lg font-bold mb-2"}, "Hard Mode Enabled"),
+            el("p", %{class: "text-sm text-gray-600 mb-4"}, "You're playing in Hard Mode! Any revealed hints must be used in subsequent guesses."),
+            el("button", %{class: "bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-medium", click: :dismiss}, "Got it!"))))]
+    end
+    ask = case asking do
+      true -> [fetch("/wordle/words.txt", :words)]
+      false -> []
+    end
+    reply el("div", %{class: "os-desktop-osx"},
+      el("div", %{class: "os-window os-window-osx", style: "max-width: 95vw; width: 100%; height: calc(100vh - 40px); height: calc(100dvh - 40px);"},
+        el("div", %{class: "os-titlebar"},
+          el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close"}), el("div", %{class: "os-btn-min"}), el("div", %{class: "os-btn-max"})),
+          el("span", %{class: "os-titlebar-title"}, "Wordle Clone")),
+        el("div", %{class: "os-content", style: "height: calc(100% - 22px); overflow: hidden;"},
+          el("div", %{class: "fixed inset-0 overflow-hidden bg-gray-50", style: "position: relative; height: 100%;"},
+            background,
+            el("div", %{class: "absolute inset-0 flex items-center justify-center pointer-events-none"},
+              el("div", %{class: "w-full max-w-[min(400px,90vw)] bg-white shadow-xl rounded-lg p-3 pointer-events-auto"},
+                el("div", %{class: "flex justify-between items-center mb-1"},
+                  el("h1", %{class: "text-xl font-bold"}, "Wordle Clone"),
+                  el("button", %{class: concat("px-2 py-0.5 rounded font-bold text-xs ", hard_class), click: :toggle_hard, disabled: words != []}, "HARD MODE")),
+                el("div", %{class: "text-[10px] text-gray-500 mb-1"}, concat("Player ID: ", player)),
+                el("div", %{class: "grid grid-rows-6 gap-[3px] mb-1", id: "game-board"},
+                  wd_board_rows(words, results, current, over, WD_TILE, "gap-[3px]", "border-2", " transition-colors duration-500")),
+                note,
+                keyboard,
+                ending)),
+            popup))),
+      ask,
+      key("*", :key))
+  end
+end
+
+def contains_word(words: List, w: String) -> Bool do
+  length(filter(words, fn(x: String) -> Bool do x == w end)) > 0
+end
+
+wordle = spawn Wordle
+wordle <- :start
+wordle <- :view
