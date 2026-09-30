@@ -1,0 +1,7 @@
+HTTP/2 200 
+content-type: application/json
+cache-control: public
+etag: W/"7D98BF5-gzip"
+strict-transport-security: max-age=31536000
+vary: Accept-Encoding
+

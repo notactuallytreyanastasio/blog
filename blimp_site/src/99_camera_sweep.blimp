@@ -1,0 +1,1420 @@
+# The camera sweep: what fills camera_listings for /cameras.
+#
+# Blog.CameraBrowser.Poller ran Blog.CameraBrowser.poll/1 two minutes after
+# Phoenix booted and then 15 minutes after each sweep ended. One sweep:
+#
+#   1. search  every area x every query (4 x 78) on Craigslist's JSON
+#              search API, one request at a time, 600ms before each; every
+#              hit in the area's sub-areas is upserted (first_seen_at,
+#              last_seen_at = the sweep's start, renewed_at, queries, tags,
+#              score; a post back in the search is reopened)
+#   2. details up to 80 open listings without a post page, best first:
+#              fetch it (600ms before each), store body, attributes, photos,
+#              times, coordinates, reply link and contact hints, copy up to
+#              24 photos to the bucket, score again; Craigslist says it is
+#              gone -> closed
+#   3. analyst up to 200 open listings with a page and no analysis: OpenAI
+#              (CAMERA_ANALYST_MODEL, 4 at a time), stored as `analysis`
+#   4. gone    unless most searches failed, up to 150 open listings this
+#              sweep did not see: fetch each (600ms before each); gone ->
+#              closed, still there -> last_seen_at
+#
+# Here CAM_SWEEP does the same, stepped by the Site's tick: every request
+# is http_start and its answer is picked up from a later tick, so the one
+# process never waits on Craigslist, the bucket or OpenAI. Only one
+# request to Craigslist (or the bucket) is in flight at a time, the next
+# no sooner than 600ms after the last one's answer, as Phoenix slept; the
+# analyst (CAM_ANALYST) keeps at most 4 OpenAI requests in flight, as
+# Task.async_stream did. Writes go through DB with the SQL the Ecto
+# changesets ran: the same columns, "" and white space written as NULL
+# (Ecto's empty values), updated_at moved only when something changed.
+#
+# What each answer means is Temper (temper/src/cameras/sweep.temper.md):
+# the search URL, the location strings, the post page (Floki's reading of
+# it, checked against Floki on recorded pages), the phone and email
+# patterns, classify/5 and the analyst's prompt. Here are the loops, the
+# JSON, the SQL and the actors.
+#
+# OFF unless CAMERAS_SWEEP=1. Phoenix's Poller runs until Phoenix is told
+# not to (config :blog, :start_camera_browser_poller, false), and two
+# sweepers would each insert, fetch and pay OpenAI for the same posts.
+# Switch-over: stop Phoenix's Poller first, then set CAMERAS_SWEEP=1 on
+# blimp-blog. The analyst needs OPENAI_API_KEY (CAMERA_ANALYST_MODEL,
+# default gpt-5.4-mini), the photo copies S3_ACCESS_KEY and S3_SECRET_KEY
+# (S3_BUCKET, default bobbby-media); without them those steps are skipped,
+# as in Phoenix.
+
+CS_SEARCHES = [
+  "film camera", "35mm camera", "rangefinder camera", "medium format camera",
+  "leica m6", "leica m3", "leica m2", "leica m4", "leica mp", "leica m-a", "leica iiif",
+  "hasselblad 500", "hasselblad 503", "hasselblad swc",
+  "mamiya 7", "mamiya 6", "mamiya rz67", "mamiya rb67", "mamiya 645", "mamiya c330",
+  "rolleiflex", "rolleicord",
+  "contax t2", "contax t3", "contax g1", "contax g2", "contax 645",
+  "nikon f2", "nikon f3", "nikon fm2", "nikon fe2", "nikon fm3a", "nikon f100", "nikon f6", "nikon 28ti", "nikon 35ti",
+  "canon ae-1", "canon a-1", "canon f-1", "canonet", "canon p rangefinder",
+  "pentax k1000", "pentax 67", "pentax 645", "pentax spotmatic", "pentax lx", "pentax mx",
+  "olympus om-1", "olympus om-2", "olympus om-4", "olympus xa", "olympus stylus epic", "olympus mju",
+  "minolta x-700", "minolta srt", "minolta cle", "minolta tc-1",
+  "yashica mat", "yashica t4", "yashica electro",
+  "bronica", "fuji gw690", "fuji ga645", "fujifilm klasse", "fuji natura",
+  "konica hexar", "ricoh gr1", "voigtlander bessa", "zeiss ikon",
+  "plaubel makina", "linhof", "graflex speed graphic",
+  "polaroid sx-70", "polaroid 600", "polaroid land camera",
+  "kodak retina", "minox", "holga"
+]
+
+# @cities, in the order Elixir walks a small map: its keys sorted
+CS_CITIES = [
+  {"newyork", ["mnh", "brk", "que", "brx"]},
+  {"portland", ["mlt", "wsc", "clc", "clk"]},
+  {"seattle", ["see", "est"]},
+  {"sfbay", ["sfc", "eby"]}
+]
+
+CS_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+CS_PACE_MS = 600
+CS_DETAIL_CAP = 80
+CS_ANALYZE_CAP = 200
+CS_CLOSE_CAP = 150
+CS_MIRROR_MAX = 24
+CS_FIRST_S = 120
+CS_EVERY_S = 900
+# Req's receive_timeout for Craigslist; http_start has no timeout of its own
+CS_CL_TIMEOUT_MS = 20000
+# images and the bucket: hackney's and Req's defaults were about this
+CS_IMG_TIMEOUT_MS = 30000
+CS_S3_HOST = "fsn1.your-objectstorage.com"
+CS_S3_REGION = "fsn1"
+
+# ── small things ────────────────────────────────────────────────────────
+
+def cs_env(name: String) -> String do
+  v = getenv(name)
+  case v do
+    nil -> ""
+    _ -> trim(v)
+  end
+end
+
+def cs_get(m: Any, k: Any) -> Any do
+  case type_of(m) == :map do
+    true -> lookup(m, k)
+    false -> nil
+  end
+end
+
+def cs_list(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> v
+    false -> []
+  end
+end
+
+def cs_is_str(v: Any) -> Bool do
+  type_of(v) == :string
+end
+
+# a string as Ecto casts it: nil when it is not one, or is only white space
+def cs_text(v: Any) -> Any do
+  case cs_is_str(v) do
+    true ->
+      case cam_blank_text(v) do
+        true -> nil
+        false -> v
+      end
+    false -> nil
+  end
+end
+
+def cs_or(v: Any, dflt: Any) -> Any do
+  case v do
+    nil -> dflt
+    false -> dflt
+    _ -> v
+  end
+end
+
+def cs_take(xs: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case xs do
+        [] -> []
+        [x | rest] -> [x | cs_take(rest, n - 1)]
+      end
+  end
+end
+
+def cs_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+# Enum.at/2, a negative index counting from the end
+def cs_at(xs: List, i: Int) -> Any do
+  n = length(xs)
+  j = case i < 0 do
+    true -> n + i
+    false -> i
+  end
+  case j < 0 or j >= n do
+    true -> nil
+    false -> head(drop_list(xs, j))
+  end
+end
+
+def cs_last(xs: List) -> Any do
+  case xs do
+    [] -> nil
+    _ -> head(reverse(xs))
+  end
+end
+
+def cs_member(xs: List, v: Any) -> Bool do
+  reduce(xs, false, fn(acc: Bool, x: Any) -> Bool do acc or x == v end)
+end
+
+def cs_uniq_append(xs: List, v: Any) -> List do
+  case cs_member(xs, v) do
+    true -> xs
+    false -> cs_append(xs, [v])
+  end
+end
+
+def cs_log(line: String) -> Any do
+  puts(concat("camera sweep: ", line))
+end
+
+# ── searching ───────────────────────────────────────────────────────────
+
+# Craigslist.search/3's request: {url, headers}
+def cs_search_request(area: String, query: String) -> Tuple do
+  {cam_search_url(cam_area_id(area), query), %{"user-agent": CS_UA, "referer": concat("https://", area, ".craigslist.org/")}}
+end
+
+# find_tag/2: what follows `tag` in the first tagged list that starts with it
+def cs_find_tag(tagged: List, tag: Int) -> List do
+  hit = filter(tagged, fn(t: Any) -> Bool do t != [] and head(t) == tag end)
+  case hit do
+    [] -> []
+    [t | _] -> tail(t)
+  end
+end
+
+def cs_first(xs: List) -> Any do
+  case xs do
+    [] -> nil
+    [x | _] -> x
+  end
+end
+
+def cs_price_cents(p: Any) -> Any do
+  case type_of(p) do
+    :integer -> p * 100
+    :float -> round(p * 100.0)
+    _ -> nil
+  end
+end
+
+def cs_title_text(t: Any) -> String do
+  case type_of(t) do
+    :string -> t
+    :integer -> to_string(t)
+    :float -> to_string(t)
+    _ -> ""
+  end
+end
+
+# decode_items/2: one listing per item, as a map. Each item is a
+# positional array (see Craigslist's moduledoc); the tagged sub-arrays are
+# found by their tag, not their place. An item Phoenix could not have read
+# (fewer than five elements, an image id that is not a string) is logged
+# and left out, where Phoenix's sweep would have crashed on it.
+def cs_decode_items(data: Any, area: String) -> List do
+  items = cs_get(data, "items")
+  decode = cs_get(data, "decode")
+  case type_of(decode) == :map and type_of(items) == :list do
+    false -> []
+    true ->
+      ctx = %{
+        min_id: cs_int_or(lookup(decode, "minPostingId"), 0),
+        min_date: cs_int_or(lookup(decode, "minPostedDate"), 0),
+        locations: cs_list(lookup(decode, "locations")),
+        descriptions: cs_list(lookup(decode, "locationDescriptions")),
+        hoods: cs_list(lookup(decode, "neighborhoods")),
+        area: area
+      }
+      reduce(reverse(items), [], fn(acc: List, item: Any) -> List do
+        l = cs_decode_item(item, ctx)
+        case l do
+          nil -> acc
+          _ -> [l | acc]
+        end
+      end)
+  end
+end
+
+def cs_int_or(v: Any, dflt: Int) -> Int do
+  case type_of(v) == :integer do
+    true -> v
+    false -> dflt
+  end
+end
+
+def cs_decode_item(item: Any, ctx: Map) -> Any do
+  case type_of(item) == :list and length(item) >= 5 do
+    false ->
+      cs_log(concat("a search item that is not a list of five: ", json_encode(item)))
+      nil
+    true ->
+      id_off = cs_at(item, 0)
+      date_off = cs_at(item, 1)
+      rest = drop_list(item, 5)
+      tagged = filter(rest, fn(x: Any) -> Bool do type_of(x) == :list end)
+      raw_images = cs_find_tag(tagged, 4)
+      good_images = filter(raw_images, fn(x: Any) -> Bool do cs_is_str(x) end)
+      case type_of(id_off) == :integer and type_of(date_off) == :integer and length(good_images) == length(raw_images) do
+        false ->
+          cs_log(concat("a search item Phoenix could not have read: ", json_encode(item)))
+          nil
+        true -> cs_item_listing(item, ctx, id_off, date_off, map(good_images, fn(x: String) -> String do cam_image_short(x) end), tagged)
+      end
+  end
+end
+
+def cs_item_listing(item: List, ctx: Map, id_off: Int, date_off: Int, images: List, tagged: List) -> Map do
+  loc = cs_at(item, 4)
+  loc_s = case cs_is_str(loc) do
+    true -> loc
+    false -> ""
+  end
+  sub_i = cam_loc_index(loc_s, 0)
+  loc_i = cam_loc_index(loc_s, 1)
+  hood_i = cam_loc_index(loc_s, 2)
+  sub_at = case sub_i < 0 do
+    true -> 0
+    false -> sub_i
+  end
+  sub_entry = cs_at(ctx.locations, sub_at)
+  subarea = case type_of(sub_entry) == :list and length(sub_entry) == 3 do
+    true -> cs_at(sub_entry, 2)
+    false -> nil
+  end
+  # what Enum.at/2 found, as it is: checked when it is written (cs_named)
+  location = case loc_i < 0 do
+    true -> nil
+    false -> cs_at(ctx.descriptions, loc_i)
+  end
+  hood = case hood_i < 0 do
+    true -> nil
+    false -> cs_at(ctx.hoods, hood_i)
+  end
+  lat = cam_loc_coord(loc_s, 1)
+  lng = cam_loc_coord(loc_s, 2)
+  slug = cs_first(cs_find_tag(tagged, 6))
+  token = cs_first(cs_find_tag(tagged, 13))
+  posting_id = ctx.min_id + id_off
+  sub_text = case cs_is_str(subarea) do
+    true -> subarea
+    false -> ""
+  end
+  slug_text = case cs_is_str(slug) do
+    true -> slug
+    false -> ""
+  end
+  token_text = case cs_is_str(token) do
+    true -> token
+    false -> ""
+  end
+  %{
+    posting_id: posting_id,
+    area: ctx.area,
+    subarea: subarea,
+    location: location,
+    neighborhood: hood,
+    title: cs_title_text(cs_last(item)),
+    price_cents: cs_price_cents(cs_at(item, 3)),
+    posted_at: ctx.min_date + date_off,
+    lat: cs_empty_nil(lat),
+    lng: cs_empty_nil(lng),
+    image_ids: images,
+    category_id: cs_at(item, 2),
+    url: cam_post_url(ctx.area, sub_text, slug_text, to_string(posting_id), token_text)
+  }
+end
+
+def cs_empty_nil(s: String) -> Any do
+  case s do
+    "" -> nil
+    _ -> s
+  end
+end
+
+# A location or neighbourhood name out of the decode table, at write
+# time. Index 0 of each table is a 0 (Craigslist's "none": a post in
+# Sacramento has "3:0~..."); such posts are outside the sub-areas swept so
+# far, but one inside would have made Ecto refuse the cast and Phoenix's
+# sweep crash. Here it is logged, and written as NULL.
+def cs_named(v: Any, what: String) -> Any do
+  case v do
+    nil -> nil
+    _ ->
+      case cs_is_str(v) do
+        true -> v
+        false ->
+          cs_log(concat("a ", what, " index points at ", json_encode(v), ", not a name; stored as NULL"))
+          nil
+      end
+  end
+end
+
+# http_result of a search -> {:ok, listings in the sub-areas} | {:error, reason}
+def cs_search_result(r: Any, area: String, subs: List) -> Tuple do
+  case r do
+    {:ok, 200, body} ->
+      case json_decode(body) do
+        {:ok, doc} ->
+          case type_of(doc) == :map and lookup(doc, "data") != nil do
+            false -> {:error, "{:http, 200}"}
+            true ->
+              ls = cs_decode_items(lookup(doc, "data"), area)
+              {:ok, filter(ls, fn(l: Map) -> Bool do cs_member(subs, l.subarea) end)}
+          end
+        _ -> {:error, "{:http, 200}"}
+      end
+    {:ok, status, _} -> {:error, concat("{:http, ", to_string(status), "}")}
+    {:error, why} -> {:error, to_string(why)}
+    _ -> {:error, "no answer"}
+  end
+end
+
+# ── a post page ─────────────────────────────────────────────────────────
+
+# fetch_post/1: {:ok, post} | {:gone, reason} | {:error, reason}. The post
+# is cam_post_json's, read back: attrs a map (the last of a label wins, as
+# Map.new/1), the times split into posted_at and updated_at.
+def cs_post_result(r: Any) -> Tuple do
+  case r do
+    {:ok, 404, _} -> {:gone, "404"}
+    {:ok, 410, _} -> {:gone, "410"}
+    {:ok, 200, html} -> cs_parse_post(html)
+    {:ok, status, _} -> {:error, concat("{:http, ", to_string(status), "}")}
+    {:error, why} -> {:error, to_string(why)}
+    _ -> {:error, "no answer"}
+  end
+end
+
+def cs_parse_post(html: String) -> Tuple do
+  case json_decode(cam_post_json(html)) do
+    {:ok, p} ->
+      case lookup(p, "gone") do
+        "" ->
+          attrs = reduce(cs_list(lookup(p, "attrs")), %{}, fn(m: Map, pair: Any) -> Map do put(m, cs_at(pair, 0), cs_at(pair, 1)) end)
+          times = cs_list(lookup(p, "times"))
+          phones = cs_list(lookup(p, "phones"))
+          emails = cs_list(lookup(p, "emails"))
+          c1 = case phones do
+            [] -> %{}
+            _ -> %{"phones": phones}
+          end
+          contact = case emails do
+            [] -> c1
+            _ -> put(c1, "emails", emails)
+          end
+          {:ok, %{
+            title: cs_empty_nil(lookup(p, "title")),
+            body: cs_empty_nil(lookup(p, "body")),
+            attrs: attrs,
+            image_ids: cs_list(lookup(p, "image_ids")),
+            posted_at: cs_at(times, 0),
+            updated_at: cs_at(times, 1),
+            lat: cs_empty_nil(lookup(p, "lat")),
+            lng: cs_empty_nil(lookup(p, "lng")),
+            reply_url: cs_empty_nil(lookup(p, "reply_url")),
+            contact: contact
+          }}
+        reason -> {:gone, reason}
+      end
+    {:error, why} -> {:error, concat("the post parser wrote JSON json_decode refuses: ", to_string(why))}
+  end
+end
+
+# ── classify/5 ──────────────────────────────────────────────────────────
+
+# attrs_text/1: "label: value" lines, in the order Elixir walks a small
+# map (its keys sorted)
+def cs_attrs_text(attrs: Any) -> String do
+  case type_of(attrs) == :map do
+    false -> ""
+    true -> join(map(sort(keys(attrs)), fn(k: String) -> String do concat(k, ": ", to_string(lookup(attrs, k))) end), "\n")
+  end
+end
+
+# %{tags: [...], score: n}. Lower-casing is Blimp's downcase (ASCII); the
+# signals are ASCII, and a lower-cased non-ASCII letter is no more a
+# letter or digit to the patterns than it was.
+def cs_classify(title: Any, body: Any, attrs: Any, queries: List, image_ids: List) -> Map do
+  t = cs_or(title, "")
+  title_d = downcase(t)
+  text = downcase(join([t, cs_or(body, ""), cs_attrs_text(attrs)], "\n"))
+  cond = cs_get(attrs, "condition")
+  cond_d = case cs_is_str(cond) do
+    true -> downcase(cond)
+    false -> ""
+  end
+  tags_text = cam_tags(title_d, text, queries)
+  tags = case tags_text do
+    "" -> []
+    _ -> split(tags_text, "\n")
+  end
+  %{tags: tags, score: cam_score(title_d, text, queries, cond_d, length(image_ids))}
+end
+
+# ── SQL ─────────────────────────────────────────────────────────────────
+
+# :utc_datetime from Unix seconds, and from ISO 8601 text with an offset
+def cs_ts(p: String) -> String do
+  concat("(to_timestamp(", p, "::float8) at time zone 'utc')")
+end
+
+def cs_iso_ts(p: String) -> String do
+  concat("(", p, "::timestamptz at time zone 'utc')")
+end
+
+def cs_array(p: String) -> String do
+  concat("array(select jsonb_array_elements_text(", p, "::jsonb))::varchar[]")
+end
+
+# [{column, template, value}] -> {[{column, expression}], params}: each
+# template's "?" becomes the next $n, counting from `first`; a template
+# without one takes no parameter.
+def cs_number(cols: List, first: Int) -> Tuple do
+  r = reduce(cols, {[], [], first}, fn(acc: Tuple, c: Tuple) -> Tuple do
+    n = elem(acc, 2)
+    tpl = elem(c, 1)
+    case contains(tpl, "?") do
+      true -> {[{elem(c, 0), replace(tpl, "?", concat("$", to_string(n)))} | elem(acc, 0)], [elem(c, 2) | elem(acc, 1)], n + 1}
+      false -> {[{elem(c, 0), tpl} | elem(acc, 0)], elem(acc, 1), n}
+    end
+  end)
+  {reverse(elem(r, 0)), reverse(elem(r, 1))}
+end
+
+def cs_names(pairs: List) -> List do
+  map(pairs, fn(p: Tuple) -> String do elem(p, 0) end)
+end
+
+# Repo.update! of a changeset: set the columns, and updated_at only when
+# one of them changes (a changeset without changes is not written at all).
+def cs_update_sql(id: Int, cols: List, now_s: Int) -> Tuple do
+  numbered = cs_number(cols, 2)
+  pairs = elem(numbered, 0)
+  params = elem(numbered, 1)
+  names = cs_names(pairs)
+  now_p = concat("$", to_string(length(params) + 2))
+  v_cols = join(map(pairs, fn(p: Tuple) -> String do concat(elem(p, 1), " as ", elem(p, 0)) end), ", ")
+  assign = join(map(names, fn(n: String) -> String do concat(n, " = v.", n) end), ", ")
+  old = join(map(names, fn(n: String) -> String do concat("c.", n) end), ", ")
+  fresh = join(map(names, fn(n: String) -> String do concat("v.", n) end), ", ")
+  sql = concat("with v as (select ", v_cols, ") update camera_listings c set ", assign,
+    ", updated_at = case when row(", old, ") is distinct from row(", fresh, ") then ", cs_ts(now_p), " else c.updated_at end from v where c.id = $1")
+  {sql, cs_append([id | params], [now_s])}
+end
+
+def cs_insert_sql(cols: List, now_s: Int) -> Tuple do
+  numbered = cs_number(cols, 1)
+  pairs = elem(numbered, 0)
+  params = elem(numbered, 1)
+  now_p = concat("$", to_string(length(params) + 1))
+  exprs = map(pairs, fn(p: Tuple) -> String do elem(p, 1) end)
+  sql = concat("insert into camera_listings (", join(cs_names(pairs), ", "), ", inserted_at, updated_at) values (",
+    join(exprs, ", "), ", ", cs_ts(now_p), ", ", cs_ts(now_p), ")")
+  {sql, cs_append(params, [now_s])}
+end
+
+def cs_run(q: Tuple, what: String) -> Any do
+  r = DB <- :query(elem(q, 0), elem(q, 1))
+  case r do
+    {:ok, rows} -> rows
+    {:error, why} ->
+      cs_log(concat(what, " failed: ", to_string(why)))
+      nil
+  end
+end
+
+CS_FIND_SQL = "select id, title, body, attrs, to_jsonb(image_ids) as image_ids, to_jsonb(queries) as queries from camera_listings where posting_id = $1"
+
+# upsert_from_search/3: the listing's posting_id, or nil when the write failed
+def cs_upsert(l: Map, query: String, now_s: Int) -> Any do
+  found = cs_run({CS_FIND_SQL, [l.posting_id]}, concat("reading ", to_string(l.posting_id)))
+  case found do
+    nil -> nil
+    _ ->
+      common = [
+        {"area", "?::varchar", cs_text(l.area)},
+        {"subarea", "?::varchar", cs_text(l.subarea)},
+        {"location", "?::varchar", cs_text(cs_named(l.location, "location"))},
+        {"neighborhood", "?::varchar", cs_text(cs_named(l.neighborhood, "neighborhood"))},
+        {"title", "?::varchar", cs_text(cam_first_chars(l.title, 255))},
+        {"price_cents", "?::integer", l.price_cents},
+        {"url", "?::varchar", cs_text(l.url)},
+        {"lat", "?::float8", l.lat},
+        {"lng", "?::float8", l.lng},
+        {"category_id", "?::integer", l.category_id},
+        {"renewed_at", cs_ts("?"), l.posted_at},
+        {"last_seen_at", cs_ts("?"), now_s},
+        {"closed_at", "null::timestamp", nil},
+        {"closed_reason", "null::varchar", nil}
+      ]
+      q = case found do
+        [] ->
+          c = cs_classify(l.title, nil, %{}, [query], l.image_ids)
+          cs_insert_sql(cs_append(common, [
+            {"posting_id", "?::bigint", l.posting_id},
+            {"first_seen_at", cs_ts("?"), now_s},
+            {"posted_at", cs_ts("?"), l.posted_at},
+            {"image_ids", cs_array("?"), l.image_ids},
+            {"queries", cs_array("?"), [query]},
+            {"tags", cs_array("?"), c.tags},
+            {"score", "?::integer", c.score}
+          ]), now())
+        [e | _] ->
+          queries = cs_uniq_append(cs_list(e.queries), query)
+          old_images = cs_list(e.image_ids)
+          images = case old_images do
+            [] -> l.image_ids
+            _ -> old_images
+          end
+          c = cs_classify(e.title, e.body, e.attrs, queries, old_images)
+          cs_update_sql(e.id, cs_append(common, [
+            {"queries", cs_array("?"), queries},
+            {"image_ids", cs_array("?"), images},
+            {"tags", cs_array("?"), c.tags},
+            {"score", "?::integer", c.score}
+          ]), now())
+      end
+      case cs_run(q, concat("writing ", to_string(l.posting_id))) do
+        nil -> nil
+        _ -> l.posting_id
+      end
+  end
+end
+
+CS_DETAIL_SQL = join([
+  "select id, posting_id, url, title, to_jsonb(image_ids) as image_ids, to_jsonb(queries) as queries,",
+  " to_char(posted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as posted_at, lat::text as lat, lng::text as lng",
+  " from camera_listings where detail_fetched_at is null and closed_at is null",
+  " order by score desc, renewed_at desc limit $1"
+], "")
+
+CS_UNSEEN_SQL = join([
+  "select id, posting_id, url from camera_listings",
+  " where closed_at is null and last_seen_at < ", cs_ts("$1"),
+  " order by last_seen_at asc limit $2"
+], "")
+
+# fetch_detail/1's write for a post that is there
+def cs_detail_write(row: Map, post: Map, mirrored: List, now_s: Int) -> Any do
+  images = case post.image_ids do
+    [] -> cs_list(row.image_ids)
+    _ -> post.image_ids
+  end
+  title = cs_or(post.title, row.title)
+  c = cs_classify(title, post.body, post.attrs, cs_list(row.queries), images)
+  cols = [
+    {"title", "?::varchar", cs_text(cam_first_chars(cs_or(title, ""), 255))},
+    {"body", "?::text", cs_text(post.body)},
+    {"attrs", "?::jsonb", post.attrs},
+    {"image_ids", cs_array("?"), images},
+    {"reply_url", "?::varchar", cs_text(post.reply_url)},
+    {"contact", "?::jsonb", post.contact},
+    {"posted_at", cs_iso_ts("?"), cs_or(post.posted_at, row.posted_at)},
+    {"cl_updated_at", cs_iso_ts("?"), post.updated_at},
+    {"lat", "?::float8", cs_or(post.lat, row.lat)},
+    {"lng", "?::float8", cs_or(post.lng, row.lng)},
+    {"detail_fetched_at", cs_ts("?"), now_s},
+    {"mirrored_images", cs_array("?"), mirrored},
+    {"tags", cs_array("?"), c.tags},
+    {"score", "?::integer", c.score}
+  ]
+  cs_run(cs_update_sql(row.id, cols, now()), concat("writing the post of ", to_string(row.posting_id)))
+end
+
+def cs_close_write(id: Int, reason: String, now_s: Int) -> Any do
+  cs_run(cs_update_sql(id, [{"closed_at", cs_ts("?"), now_s}, {"closed_reason", "?::varchar", cs_text(reason)}], now()), concat("closing ", to_string(id)))
+end
+
+def cs_seen_write(id: Int, now_s: Int) -> Any do
+  cs_run(cs_update_sql(id, [{"last_seen_at", cs_ts("?"), now_s}], now()), concat("marking ", to_string(id), " seen"))
+end
+
+# ── the bucket: AWS Signature Version 4 ─────────────────────────────────
+#
+# Blog.Storage.upload/3 is ExAws.S3.put_object(bucket, key, data,
+# content_type:, acl: :public_read), path-style on Hetzner's
+# fsn1.your-objectstorage.com, region fsn1. SigV4 is HMAC-SHA256 all the
+# way down: hmac_sha256 answers hex, and hex_decode turns each step's key
+# back into bytes for the next.
+
+def cs_hmac_raw(key: String, msg: String) -> String do
+  hex_decode(hmac_sha256(key, msg))
+end
+
+# The Authorization header for a request. `headers` maps lower-case names
+# to values and must hold every header signed (host included, though the
+# HTTP client writes that one itself); `query` is the canonical query
+# string, already sorted and encoded.
+def cs_sigv4(method: String, path: String, query: String, headers: Map, payload_hash: String, amz_date: String, region: String, service: String, access: String, secret: String) -> String do
+  names = sort(keys(headers))
+  canonical_headers = join(map(names, fn(k: String) -> String do concat(k, ":", trim(lookup(headers, k)), "\n") end), "")
+  signed = join(names, ";")
+  canonical = join([method, path, query, canonical_headers, signed, payload_hash], "\n")
+  day = slice(amz_date, 0, 8)
+  scope = concat(day, "/", region, "/", service, "/aws4_request")
+  to_sign = join(["AWS4-HMAC-SHA256", amz_date, scope, sha256(canonical)], "\n")
+  k1 = cs_hmac_raw(concat("AWS4", secret), day)
+  k2 = cs_hmac_raw(k1, region)
+  k3 = cs_hmac_raw(k2, service)
+  k4 = cs_hmac_raw(k3, "aws4_request")
+  concat("AWS4-HMAC-SHA256 Credential=", access, "/", scope, ", SignedHeaders=", signed, ", Signature=", hmac_sha256(k4, to_sign))
+end
+
+# A key the bucket's path needs no escaping for (the sweep's keys are
+# digits, image ids, "/" and ".jpg")
+def cs_plain_key(key: String) -> Bool do
+  replace(cam_enc(key), "%2F", "/") == key
+end
+
+# {url, headers} of put_object for `data`, signed at `t` (Unix seconds),
+# as ExAws signs it: content-length and host are signed too, and left to
+# the HTTP client to send.
+def cs_s3_put(s3: Map, key: String, data: String, content_type: String, t: Int) -> Tuple do
+  cs_s3_put_signed(s3, key, sha256(data), length(data), content_type, t)
+end
+
+def cs_s3_put_signed(s3: Map, key: String, payload: String, size: Int, content_type: String, t: Int) -> Tuple do
+  amz_date = format_time(t, "%Y%m%dT%H%M%SZ")
+  path = concat("/", s3.bucket, "/", key)
+  sent = %{"content-type": content_type, "x-amz-acl": "public-read", "x-amz-content-sha256": payload, "x-amz-date": amz_date}
+  signed = merge(sent, %{"content-length": to_string(size), "host": CS_S3_HOST})
+  auth = cs_sigv4("PUT", path, "", signed, payload, amz_date, CS_S3_REGION, "s3", s3.access, s3.secret)
+  {concat("https://", CS_S3_HOST, path), put(sent, "authorization", auth)}
+end
+
+# ── the analyst ─────────────────────────────────────────────────────────
+
+CS_AI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+CS_AI_CONCURRENCY = 4
+# Req's receive_timeout per attempt, and Task.async_stream's for the whole
+CS_AI_TIMEOUT_MS = 90000
+CS_AI_TASK_MS = 120000
+# Req's retry: :transient, max_retries: 2 (after 1s, then 2s)
+CS_AI_RETRIES = 2
+
+CS_AI_SCHEMA = %{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": %{
+    "quick_take": %{"type": "string", "description": "One sentence: what this is and whether it's worth a look."},
+    "rarity": %{"type": "integer", "description": "1 = common, 5 = genuinely rare or collectible."},
+    "price_take": %{"type": "string", "enum": ["steal", "fair", "high", "unclear"]},
+    "price_note": %{"type": "string", "description": "Typical going rate and why this asking price lands where it does, briefly."},
+    "commentary": %{"type": "string", "description": "2-4 sentences: condition signals, red flags, what to ask the seller."},
+    "fun_features": %{"type": "array", "items": %{"type": "string"}},
+    "facts": %{"type": "array", "items": %{"type": "string"}, "description": "Unique or surprising facts about this model."}
+  },
+  "required": ["quick_take", "rarity", "price_take", "price_note", "commentary", "fun_features", "facts"]
+}
+
+CS_AI_SQL = join([
+  "select id, posting_id, area, subarea, neighborhood, title, price_cents, attrs, cardinality(image_ids) as photos,",
+  " coalesce(extract(epoch from posted_at)::bigint, -1) as posted_at, body",
+  " from camera_listings where analyzed_at is null and detail_fetched_at is not null and closed_at is null",
+  " order by (analysis_error is not null) asc, score desc, id desc limit $1"
+], "")
+
+# Analyst.prompt/1 for a row of CS_AI_SQL
+def cs_ai_prompt(r: Map) -> String do
+  attrs = case type_of(r.attrs) == :map do
+    true -> join(map(sort(keys(r.attrs)), fn(k: String) -> String do concat(k, ": ", to_string(lookup(r.attrs, k))) end), "; ")
+    false -> ""
+  end
+  posted = case r.posted_at < 0 do
+    true -> ""
+    false -> format_time(r.posted_at, "%b %-d, %Y")
+  end
+  price = case r.price_cents do
+    nil -> -1
+    p -> p
+  end
+  cam_analyst_prompt(cam_city(cs_or(r.subarea, ""), r.area), cs_or(r.neighborhood, ""), cs_or(r.title, ""), price, attrs, r.photos, posted, cs_or(r.body, ""))
+end
+
+def cs_ai_body(model: String, prompt: String) -> String do
+  json_encode(%{
+    "model": model,
+    "messages": [%{"role": "system", "content": cam_analyst_system}, %{"role": "user", "content": prompt}],
+    "response_format": %{"type": "json_schema", "json_schema": %{"name": "camera_analysis", "strict": true, "schema": CS_AI_SCHEMA}},
+    "max_completion_tokens": 1200
+  })
+end
+
+def cs_ai_headers(key: String) -> Map do
+  %{"authorization": concat("Bearer ", key), "content-type": "application/json"}
+end
+
+# Req's :transient: 408, 429 and the 5xx it names, and a request that
+# never got an answer
+def cs_ai_retry(r: Any) -> Bool do
+  case r do
+    {:ok, status, _} -> cs_member([408, 429, 500, 502, 503, 504], status)
+    {:error, _} -> true
+    _ -> false
+  end
+end
+
+def cs_ai_str(v: Any) -> String do
+  case cs_is_str(v) do
+    true -> trim(v)
+    false -> ""
+  end
+end
+
+def cs_ai_strs(v: Any) -> List do
+  kept = filter(map(filter(cs_list(v), fn(x: Any) -> Bool do cs_is_str(x) end), fn(x: String) -> String do trim(x) end), fn(x: String) -> Bool do x != "" end)
+  cs_take(kept, 6)
+end
+
+def cs_ai_rarity(v: Any) -> Int do
+  n = case type_of(v) do
+    :integer -> v
+    :float -> round(v)
+    :string ->
+      d = cam_dollars(v)
+      case d < 0 do
+        true -> 3
+        false -> d / 100
+      end
+    _ -> 3
+  end
+  case n < 1 do
+    true -> 1
+    false ->
+      case n > 5 do
+        true -> 5
+        false -> n
+      end
+  end
+end
+
+# normalize/2
+def cs_ai_normalize(parsed: Map, model: String) -> Map do
+  raw_take = lookup(parsed, "price_take")
+  take = case cs_member(["steal", "fair", "high", "unclear"], raw_take) do
+    true -> raw_take
+    false -> "unclear"
+  end
+  %{
+    "quick_take": cs_ai_str(lookup(parsed, "quick_take")),
+    "rarity": cs_ai_rarity(lookup(parsed, "rarity")),
+    "price_take": take,
+    "price_note": cs_ai_str(lookup(parsed, "price_note")),
+    "commentary": cs_ai_str(lookup(parsed, "commentary")),
+    "fun_features": cs_ai_strs(lookup(parsed, "fun_features")),
+    "facts": cs_ai_strs(lookup(parsed, "facts")),
+    "model": model
+  }
+end
+
+# request/1's answer: {:ok, analysis} | {:error, reason}. The reasons read
+# like Elixir's inspect of what Req gave back, but are not byte for byte.
+def cs_ai_answer(r: Any, model: String) -> Tuple do
+  case r do
+    {:ok, 200, body} ->
+      doc = case json_decode(body) do
+        {:ok, d} -> d
+        _ -> nil
+      end
+      msg = cs_get(cs_first(cs_list(cs_get(doc, "choices"))), "message")
+      content = cs_get(msg, "content")
+      case cs_is_str(content) do
+        false -> {:error, concat("{:http, 200, ", json_encode(slice(body, 0, 200)), "}")}
+        true ->
+          case json_decode(content) do
+            {:ok, parsed} ->
+              case type_of(parsed) == :map do
+                true -> {:ok, cs_ai_normalize(parsed, cs_or(cs_text(cs_get(doc, "model")), model))}
+                false -> {:error, "%Jason.DecodeError{}"}
+              end
+            _ -> {:error, "%Jason.DecodeError{}"}
+          end
+      end
+    {:ok, status, body} -> {:error, concat("{:http, ", to_string(status), ", ", json_encode(slice(body, 0, 200)), "}")}
+    {:error, why} -> {:error, concat("%Req.TransportError{reason: ", to_string(why), "}")}
+    _ -> {:error, "no answer"}
+  end
+end
+
+def cs_ai_write(row: Map, answer: Tuple, now_s: Int) -> Any do
+  case answer do
+    {:ok, analysis} ->
+      cs_run(cs_update_sql(row.id, [{"analysis", "?::jsonb", analysis}, {"analyzed_at", cs_ts("?"), now_s}, {"analysis_error", "null::varchar", nil}], now()), concat("storing the analysis of ", to_string(row.posting_id)))
+    {:error, why} ->
+      msg = slice(why, 0, 250)
+      cs_log(concat("analyst: ", to_string(row.posting_id), " failed: ", msg))
+      cs_run(cs_update_sql(row.id, [{"analysis_error", "?::varchar", cs_text(msg)}], now()), concat("storing the analyst's error for ", to_string(row.posting_id)))
+  end
+end
+
+actor CameraAnalyst do
+  state key: String :: ""
+  state model: String :: "gpt-5.4-mini"
+  state queue: List :: []
+  state jobs: List :: []
+  state abandoned: List :: []
+  state done: Int :: 0
+  state ok: Int :: 0
+
+  on :config(k: String, m: String) do
+    become key: k, model: m
+    reply :ok
+  end
+
+  on :configured do
+    reply key != ""
+  end
+
+  on :run(rows: List) do
+    become queue: rows, jobs: [], done: 0, ok: 0
+    reply length(rows)
+  end
+
+  on :busy do
+    reply queue != [] or jobs != []
+  end
+
+  on :ok_count do
+    reply ok
+  end
+
+  on :step do
+    reply (self <- :step_at(now_ms(), now()))
+  end
+
+  # every answer that has come, the retries that are due, and new requests
+  # while fewer than four are out
+  on :step_at(t: Int, now_s: Int) do
+    left = filter(abandoned, fn(h: Int) -> Bool do http_result(h) == nil end)
+    stepped = map(jobs, fn(j: Map) -> Tuple do cs_ai_poll(j, t) end)
+    finished = filter(stepped, fn(x: Tuple) -> Bool do elem(x, 0) == :done end)
+    each(finished, fn(x: Tuple) do cs_ai_write(elem(x, 1).row, elem(x, 2), elem(x, 1).now_s) end)
+    oks = length(filter(finished, fn(x: Tuple) -> Bool do elem(elem(x, 2), 0) == :ok end))
+    killed = filter(stepped, fn(x: Tuple) -> Bool do elem(x, 0) == :killed end)
+    each(killed, fn(x: Tuple) do cs_log(concat("analyst: ", to_string(elem(x, 1).row.posting_id), " took longer than 120s; not written, as Task.async_stream's :kill_task left it")) end)
+    gone = filter(map(stepped, fn(x: Tuple) -> Int do elem(x, 3) end), fn(h: Int) -> Bool do h >= 0 end)
+    running = map(filter(stepped, fn(x: Tuple) -> Bool do elem(x, 0) == :running end), fn(x: Tuple) -> Map do elem(x, 1) end)
+    room = CS_AI_CONCURRENCY - length(running)
+    starting = cs_take(queue, room)
+    launched = map(starting, fn(row: Map) -> Map do cs_ai_start(row, key, model, t, now_s) end)
+    become jobs: cs_append(running, launched), queue: drop_list(queue, length(starting)), abandoned: cs_append(left, gone), done: done + length(finished) + length(killed), ok: ok + oks
+    reply length(running) + length(launched)
+  end
+
+  on :stats do
+    reply %{configured: key != "", model: model, queued: length(queue), in_flight: length(jobs), done: done, ok: ok}
+  end
+end
+
+CAM_ANALYST = spawn CameraAnalyst
+
+# a job: %{row, now_s, started (ms), attempt, h (-1 waiting to retry), at (ms of this attempt), retry_at}
+def cs_ai_start(row: Map, key: String, model: String, t: Int, now_s: Int) -> Map do
+  cs_ai_launch(%{row: row, now_s: now_s, started: t, attempt: 0, h: -1, at: t, retry_at: t, key: key, model: model}, t)
+end
+
+def cs_ai_launch(j: Map, t: Int) -> Map do
+  h = http_start("POST", CS_AI_ENDPOINT, cs_ai_headers(j.key), cs_ai_body(j.model, cs_ai_prompt(j.row)))
+  case h < 0 do
+    # every slot is busy: try again on a later tick, without using a retry
+    true -> merge(j, %{h: -1, retry_at: t + 1000})
+    false -> merge(j, %{h: h, at: t})
+  end
+end
+
+# {what, job, answer, handle to drain or -1}: what is :running (maybe
+# relaunched, or waiting to retry), :done (answer) or :killed
+def cs_ai_poll(j: Map, t: Int) -> Tuple do
+  case t - j.started > CS_AI_TASK_MS do
+    true -> {:killed, j, nil, j.h}
+    false ->
+      case j.h < 0 do
+        true ->
+          case t >= j.retry_at do
+            true -> {:running, cs_ai_launch(j, t), nil, -1}
+            false -> {:running, j, nil, -1}
+          end
+        false ->
+          r = http_result(j.h)
+          case r do
+            nil ->
+              case t - j.at > CS_AI_TIMEOUT_MS do
+                false -> {:running, j, nil, -1}
+                true -> cs_ai_after(j, {:error, "timeout"}, t, j.h)
+              end
+            _ -> cs_ai_after(j, r, t, -1)
+          end
+      end
+  end
+end
+
+# an attempt's answer: tried again when Req would have (after 1s, then
+# 2s), else done
+def cs_ai_after(j: Map, r: Any, t: Int, gone: Int) -> Tuple do
+  case cs_ai_retry(r) and j.attempt < CS_AI_RETRIES do
+    true ->
+      wait = case j.attempt do
+        0 -> 1000
+        _ -> 2000
+      end
+      {:running, merge(j, %{h: -1, attempt: j.attempt + 1, retry_at: t + wait}), nil, gone}
+    false -> {:done, j, cs_ai_answer(r, j.model), gone}
+  end
+end
+
+# ── the sweep ───────────────────────────────────────────────────────────
+
+# What CAMERAS_SWEEP and the keys say, read once at boot
+def cs_env_config() -> Map do
+  %{
+    enabled: cs_env("CAMERAS_SWEEP") == "1",
+    cities: CS_CITIES,
+    searches: CS_SEARCHES,
+    openai_key: cs_env("OPENAI_API_KEY"),
+    model: cs_or(cs_text(cs_env("CAMERA_ANALYST_MODEL")), "gpt-5.4-mini"),
+    s3: %{access: cs_env("S3_ACCESS_KEY"), secret: cs_env("S3_SECRET_KEY"), bucket: cs_or(cs_text(cs_env("S3_BUCKET")), "bobbby-media")},
+    record: "",
+    first_s: CS_FIRST_S
+  }
+end
+
+# Without a database there is nothing to sweep into: then it stays off,
+# and says so.
+def cs_boot_config(cfg: Map, have_db: Bool) -> Map do
+  case cfg.enabled and not(have_db) do
+    true ->
+      cs_log("CAMERAS_SWEEP=1 but DATABASE_URL is not set: staying off")
+      put(cfg, :enabled, false)
+    false -> cfg
+  end
+end
+
+def cs_mirroring(cfg: Map) -> Bool do
+  cfg.s3.access != "" and cfg.s3.secret != ""
+end
+
+def cs_new(cfg: Map, now_s: Int) -> Map do
+  phase = case cfg.enabled do
+    true -> :idle
+    false -> :off
+  end
+  %{cfg: cfg, phase: phase, next_at: now_s + cfg.first_s, job: nil, ready: 0, abandoned: [],
+    queue: [], started: 0, seen: %{}, errors: 0, fetched: 0, analyzed: 0, closed: 0,
+    sweeps: 0, last: nil, current: nil, mirror: nil}
+end
+
+# The line the boot prints
+def cs_describe(cfg: Map) -> String do
+  case cfg.enabled do
+    false -> "camera sweep: off (CAMERAS_SWEEP is not 1); Phoenix's Poller fills camera_listings"
+    true ->
+      ai = case cfg.openai_key do
+        "" -> "no analyst (OPENAI_API_KEY unset)"
+        _ -> concat("analyst ", cfg.model)
+      end
+      photos = case cs_mirroring(cfg) do
+        true -> concat("photos to ", cfg.s3.bucket)
+        false -> "no photo copies (S3_ACCESS_KEY/S3_SECRET_KEY unset)"
+      end
+      concat("camera sweep: ON, ", to_string(length(cfg.cities)), " areas x ", to_string(length(cfg.searches)), " searches every ", to_string(CS_EVERY_S / 60), " minutes, first in ", to_string(cfg.first_s), "s; ", ai, "; ", photos)
+  end
+end
+
+def cs_search_jobs(cfg: Map) -> List do
+  reduce(reverse(cfg.cities), [], fn(acc: List, c: Tuple) -> List do
+    cs_append(map(cfg.searches, fn(q: String) -> Tuple do {elem(c, 0), elem(c, 1), q} end), acc)
+  end)
+end
+
+# Keep a copy of what Craigslist said, for checking this against the
+# Elixir on the same answers (a local run only; cfg.record is "" otherwise)
+def cs_record(cfg: Map, url: String, r: Any) -> Any do
+  case cfg.record do
+    "" -> :ok
+    dir ->
+      name = slice(sha256(url), 0, 16)
+      case r do
+        {:ok, status, body} ->
+          write_file(concat(dir, "/", name, ".body"), body)
+          write_file(concat(dir, "/", name, ".meta"), json_encode(%{url: url, status: status}))
+        {:error, why} -> write_file(concat(dir, "/", name, ".meta"), json_encode(%{url: url, error: to_string(why)}))
+        _ -> :ok
+      end
+  end
+end
+
+# Start a GET; {handle, started} or nil when every slot is busy
+def cs_get_start(url: String, t: Int) -> Any do
+  h = http_start("GET", url, %{"user-agent": CS_UA}, "")
+  case h < 0 do
+    true -> nil
+    false -> %{h: h, at: t, url: url}
+  end
+end
+
+# The answer of the job in flight: nil (not yet), or http_result's value
+# ({:error, "timeout"} after `limit` ms, the handle then drained later)
+def cs_job_result(s: Map, t: Int, limit: Int) -> Any do
+  r = http_result(s.job.h)
+  case r do
+    nil ->
+      case t - s.job.at > limit do
+        true -> {:error, "timeout"}
+        false -> nil
+      end
+    _ -> r
+  end
+end
+
+def cs_job_done(s: Map, r: Any, t: Int) -> Map do
+  gone = case r do
+    {:error, "timeout"} -> [s.job.h | s.abandoned]
+    _ -> s.abandoned
+  end
+  merge(s, %{job: nil, abandoned: gone, ready: t + CS_PACE_MS})
+end
+
+def cs_drain(s: Map) -> Map do
+  put(s, :abandoned, filter(s.abandoned, fn(h: Int) -> Bool do http_result(h) == nil end))
+end
+
+# One tick of the sweep.
+def cs_step(s0: Map, t: Int, now_s: Int) -> Map do
+  case s0.phase do
+    :off -> s0
+    _ ->
+      s = cs_drain(s0)
+      case s.phase do
+        :idle ->
+          case now_s >= s.next_at do
+            false -> s
+            true ->
+              cs_log(concat("sweep starting: ", to_string(length(s.cfg.cities) * length(s.cfg.searches)), " searches"))
+              merge(s, %{phase: :search, started: now_s, queue: cs_search_jobs(s.cfg), ready: t + CS_PACE_MS, seen: %{}, errors: 0, fetched: 0, analyzed: 0, closed: 0})
+          end
+        :search -> cs_step_search(s, t, now_s)
+        :detail -> cs_step_detail(s, t, now_s)
+        :analyze -> cs_step_analyze(s, t, now_s)
+        :close -> cs_step_close(s, t, now_s)
+        _ -> s
+      end
+  end
+end
+
+def cs_step_search(s: Map, t: Int, now_s: Int) -> Map do
+  case s.job do
+    nil ->
+      case s.queue do
+        [] -> cs_enter_detail(s, t)
+        [job | rest] ->
+          case t >= s.ready do
+            false -> s
+            true ->
+              req = cs_search_request(elem(job, 0), elem(job, 2))
+              h = http_start("GET", elem(req, 0), elem(req, 1), "")
+              case h < 0 do
+                true -> s
+                false -> merge(s, %{job: %{h: h, at: t, url: elem(req, 0), search: job}, queue: rest})
+              end
+          end
+      end
+    _ ->
+      r = cs_job_result(s, t, CS_CL_TIMEOUT_MS)
+      case r do
+        nil -> s
+        _ ->
+          cs_record(s.cfg, s.job.url, r)
+          job = s.job.search
+          area = elem(job, 0)
+          query = elem(job, 2)
+          got = cs_search_result(r, area, elem(job, 1))
+          done = cs_job_done(s, r, t)
+          case got do
+            {:ok, listings} ->
+              seen = reduce(listings, done.seen, fn(acc: Map, l: Map) -> Map do
+                id = cs_upsert(l, query, done.started)
+                case id do
+                  nil -> acc
+                  _ -> put(acc, to_string(id), true)
+                end
+              end)
+              # the upserts took time too: the pause starts after them
+              merge(done, %{seen: seen, ready: now_ms() + CS_PACE_MS})
+            {:error, why} ->
+              cs_log(concat("search ", area, " ", json_encode(query), " failed: ", why))
+              merge(done, %{errors: done.errors + 1})
+          end
+      end
+  end
+end
+
+def cs_rows(sql: String, params: List, what: String) -> List do
+  rows = cs_run({sql, params}, what)
+  case rows do
+    nil -> []
+    _ -> rows
+  end
+end
+
+def cs_enter_detail(s: Map, t: Int) -> Map do
+  rows = cs_rows(CS_DETAIL_SQL, [CS_DETAIL_CAP], "listing the posts to fetch")
+  merge(s, %{phase: :detail, queue: rows, current: nil, mirror: nil, ready: t + CS_PACE_MS})
+end
+
+# fetch_missing_details/1: a post at a time; a post that is there has its
+# photos copied (one request at a time, no pause, as mirror_images/2 did)
+# before it is written.
+def cs_step_detail(s: Map, t: Int, now_s: Int) -> Map do
+  case s.mirror do
+    nil ->
+      case s.job do
+        nil ->
+          case s.queue do
+            [] -> cs_enter_analyze(s, t)
+            [row | rest] ->
+              case t >= s.ready do
+                false -> s
+                true ->
+                  job = cs_get_start(row.url, t)
+                  case job do
+                    nil -> s
+                    _ -> merge(s, %{job: job, queue: rest, current: %{row: row, now_s: now_s}})
+                  end
+              end
+          end
+        _ ->
+          r = cs_job_result(s, t, CS_CL_TIMEOUT_MS)
+          case r do
+            nil -> s
+            _ ->
+              cs_record(s.cfg, s.job.url, r)
+              done = cs_job_done(s, r, t)
+              row = s.current.row
+              stamp = s.current.now_s
+              case cs_post_result(r) do
+                {:ok, post} ->
+                  images = case post.image_ids do
+                    [] -> cs_list(row.image_ids)
+                    _ -> post.image_ids
+                  end
+                  case cs_mirroring(s.cfg) do
+                    true -> merge(done, %{mirror: %{post: post, ids: cs_take(images, CS_MIRROR_MAX), keys: [], stage: :get, image: nil}})
+                    false ->
+                      cs_detail_write(row, post, [], stamp)
+                      merge(done, %{fetched: done.fetched + 1, ready: now_ms() + CS_PACE_MS})
+                  end
+                {:gone, reason} ->
+                  cs_close_write(row.id, reason, stamp)
+                  done
+                {:error, why} ->
+                  cs_log(concat("detail ", to_string(row.posting_id), " failed: ", why))
+                  done
+              end
+          end
+      end
+    m -> cs_step_mirror(s, m, t)
+  end
+end
+
+# One photo at a time: download the 1200x900, then put it in the bucket.
+# A photo that fails either way is left out, as mirror_images/2 left it.
+def cs_step_mirror(s: Map, m: Map, t: Int) -> Map do
+  case s.job do
+    nil ->
+      case m.ids do
+        [] ->
+          cs_detail_write(s.current.row, m.post, m.keys, s.current.now_s)
+          merge(s, %{mirror: nil, fetched: s.fetched + 1, ready: now_ms() + CS_PACE_MS})
+        [id | rest] ->
+          key = concat("camera-browser/", to_string(s.current.row.posting_id), "/", id, ".jpg")
+          case cs_plain_key(key) do
+            false ->
+              cs_log(concat("not copying ", json_encode(key), ": its path would need escaping"))
+              put(s, :mirror, put(m, :ids, rest))
+            true ->
+              case m.stage do
+                :get ->
+                  job = cs_get_start(cam_image_url(id, "1200x900"), t)
+                  case job do
+                    nil -> s
+                    _ -> put(s, :job, put(job, :kind, :get))
+                  end
+                _ ->
+                  req = cs_s3_put(s.cfg.s3, key, m.image, "image/jpeg", now())
+                  h = http_start("PUT", elem(req, 0), elem(req, 1), m.image)
+                  case h < 0 do
+                    true -> s
+                    false -> put(s, :job, %{h: h, at: t, url: elem(req, 0), kind: :put})
+                  end
+              end
+          end
+      end
+    _ ->
+      r = cs_job_result(s, t, CS_IMG_TIMEOUT_MS)
+      case r do
+        nil -> s
+        _ ->
+          kind = s.job.kind
+          done = merge(cs_job_done(s, r, t), %{ready: s.ready})
+          id = head(m.ids)
+          case kind do
+            :get ->
+              case r do
+                {:ok, 200, bin} -> put(done, :mirror, merge(m, %{stage: :put, image: bin}))
+                _ -> put(done, :mirror, merge(m, %{ids: tail(m.ids), stage: :get, image: nil}))
+              end
+            _ ->
+              key = concat("camera-browser/", to_string(s.current.row.posting_id), "/", id, ".jpg")
+              ok = case r do
+                {:ok, status, _} -> status >= 200 and status < 300
+                _ -> false
+              end
+              case ok do
+                false -> cs_log(concat("copying ", key, " failed: ", cs_brief(r)))
+                true -> :ok
+              end
+              keys = case ok do
+                true -> cs_append(m.keys, [key])
+                false -> m.keys
+              end
+              put(done, :mirror, merge(m, %{ids: tail(m.ids), keys: keys, stage: :get, image: nil}))
+          end
+      end
+  end
+end
+
+def cs_brief(r: Any) -> String do
+  case r do
+    {:ok, status, body} -> concat("HTTP ", to_string(status), " ", slice(body, 0, 200))
+    {:error, why} -> to_string(why)
+    _ -> "no answer"
+  end
+end
+
+def cs_enter_analyze(s: Map, t: Int) -> Map do
+  configured = s.cfg.openai_key != ""
+  case configured do
+    false -> cs_enter_close(merge(s, %{analyzed: 0}), t)
+    true ->
+      CAM_ANALYST <- :config(s.cfg.openai_key, s.cfg.model)
+      rows = cs_rows(CS_AI_SQL, [CS_ANALYZE_CAP], "listing the posts to analyze")
+      CAM_ANALYST <- :run(rows)
+      merge(s, %{phase: :analyze})
+  end
+end
+
+def cs_step_analyze(s: Map, t: Int, now_s: Int) -> Map do
+  CAM_ANALYST <- :step
+  busy = CAM_ANALYST <- :busy
+  case busy do
+    true -> s
+    false -> cs_enter_close(merge(s, %{analyzed: CAM_ANALYST <- :ok_count}), t)
+  end
+end
+
+# close_unseen/1, unless most searches failed: then this sweep did not
+# look, and "not seen" means nothing.
+def cs_enter_close(s: Map, t: Int) -> Map do
+  total = length(s.cfg.cities) * length(s.cfg.searches)
+  case s.errors * 2 < total do
+    false -> cs_finish(merge(s, %{closed: 0}))
+    true ->
+      rows = cs_rows(CS_UNSEEN_SQL, [s.started, CS_CLOSE_CAP], "listing the posts not seen")
+      merge(s, %{phase: :close, queue: rows, current: nil, ready: t + CS_PACE_MS})
+  end
+end
+
+def cs_step_close(s: Map, t: Int, now_s: Int) -> Map do
+  case s.job do
+    nil ->
+      case s.queue do
+        [] -> cs_finish(s)
+        [row | rest] ->
+          case t >= s.ready do
+            false -> s
+            true ->
+              job = cs_get_start(row.url, t)
+              case job do
+                nil -> s
+                _ -> merge(s, %{job: job, queue: rest, current: %{row: row, now_s: now_s}})
+              end
+          end
+      end
+    _ ->
+      r = cs_job_result(s, t, CS_CL_TIMEOUT_MS)
+      case r do
+        nil -> s
+        _ ->
+          cs_record(s.cfg, s.job.url, r)
+          done = cs_job_done(s, r, t)
+          row = s.current.row
+          case cs_post_result(r) do
+            {:gone, reason} ->
+              cs_close_write(row.id, reason, s.current.now_s)
+              merge(done, %{closed: done.closed + 1})
+            {:ok, _} ->
+              cs_seen_write(row.id, s.current.now_s)
+              done
+            {:error, _} -> done
+          end
+      end
+  end
+end
+
+def cs_finish(s: Map) -> Map do
+  summary = %{seen: length(keys(s.seen)), detail_fetched: s.fetched, analyzed: s.analyzed, closed: s.closed, search_errors: s.errors, started_at: s.started}
+  cs_log(concat("poll: ", json_encode(summary)))
+  merge(s, %{phase: :idle, next_at: now() + CS_EVERY_S, queue: [], current: nil, mirror: nil, sweeps: s.sweeps + 1, last: summary})
+end
+
+actor CameraSweep do
+  state s: Map :: %{}
+
+  on :config(c: Map) do
+    become s: cs_new(c, now())
+    reply cs_describe(c)
+  end
+
+  on :step do
+    next = cs_step(s, now_ms(), now())
+    become s: next
+    reply next.phase
+  end
+
+  # Poller.poll_now/0: the next tick starts a sweep (if the sweep is on and
+  # not already running)
+  on :now do
+    case s.phase do
+      :idle ->
+        become s: put(s, :next_at, 0)
+        reply :starting
+      _ -> reply s.phase
+    end
+  end
+
+  on :stats do
+    reply %{phase: s.phase, next_at: s.next_at, sweeps: s.sweeps, last: s.last, queued: length(s.queue), seen: length(keys(s.seen)), errors: s.errors,
+      fetched: s.fetched, closed: s.closed, analyst: CAM_ANALYST <- :stats}
+  end
+end
+
+CAM_SWEEP = spawn CameraSweep

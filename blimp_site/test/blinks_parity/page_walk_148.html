@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="TgoMAT8PMmo8DiY1TR1nDCcVG3YIFyMq6m8jECt0Pzhv5KVExOsFbGPK">
+    <title>Blinks: walk</title>
+    <meta name="description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:title" content="Blinks: Bobbby's links">
+    <meta property="og:description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bobbby.online/blinks">
+    <meta property="og:image" content="https://bobbby.online/static/blinks-og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="bobbby.online">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Blinks: Bobbby's links">
+    <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png">
+
+    <link rel="manifest" href="/static/blinks-pwa/manifest.json">
+    <link rel="apple-touch-icon" href="/static/blinks-pwa/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/blinks-pwa/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Blinks">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f5f2ea">
+    <link phx-track-static rel="stylesheet" href="/assets/app-3cfac71d5552d1426de906087a8be2fe.css?vsn=d">
+    <script defer phx-track-static type="text/javascript" src="/assets/app-7afeaa4605879f3254ad239dc57c0a34.js?vsn=d">
+    </script>
+  </head>
+  <body style="margin:0;">
+    <div id="phx-GNn-g5n_Zrfr75Ah" data-phx-main data-phx-session="SFMyNTY.g2gDaAJhBXQAAAAIdwJpZG0AAAAUcGh4LUdObi1nNW5fWnJmcjc1QWh3B3Nlc3Npb250AAAAAHcEdmlld3cdRWxpeGlyLkJsb2dXZWIuQmxpbmtzV2Fsa0xpdmV3CnBhcmVudF9waWR3A25pbHcGcm91dGVydxVFbGl4aXIuQmxvZ1dlYi5Sb3V0ZXJ3CXJvb3Rfdmlld3cdRWxpeGlyLkJsb2dXZWIuQmxpbmtzV2Fsa0xpdmV3DGxpdmVfc2Vzc2lvbmgCdwZibGlua3NuCABetvpCldTZGHcIcm9vdF9waWR3A25pbG4GAOYBjfCgAWIAAVGA.KHJngYiS6MTcfbBQgWG0aWRpl2PYz3qVZi93IepsWBk" data-phx-static="SFMyNTY.g2gDaAJhBXQAAAADdwJpZG0AAAAUcGh4LUdObi1nNW5fWnJmcjc1QWh3BWZsYXNodAAAAAB3CmFzc2lnbl9uZXdqbgYA5gGN8KABYgABUYA.fUBOb3nl4Xw_nAU0B3E2IG7e6Z4Y5CcqzzLJlu_sVDA"><div id="walk-page">
+  <style>
+    #walk-page { min-height: 100dvh; background: #fff; font: 12px verdana, arial, helvetica, sans-serif; color: #000; display: flex; flex-direction: column; }
+    #walk-page .bar { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 6px 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #walk-page .bar a { color: #369; text-decoration: none; font-size: 11px; }
+    #walk-page .bar a:hover { text-decoration: underline; }
+    #walk-page .wordmark { font-weight: bold; font-size: 13px; color: #369; }
+    #walk-page .wordmark a { font-size: 13px; }
+    #walk-page .restart { font: bold 11px verdana; color: #369; background: #b9d2ec; border: 2px outset #cee3f8; border-radius: 3px; padding: 3px 10px; cursor: pointer; }
+    #walk-page .bar .others { margin-left: auto; display: flex; gap: 10px; }
+    #walk-page .trail { padding: 8px 14px 0; font-size: 10px; color: #999; line-height: 2; }
+    #walk-page .crumb { color: #369; cursor: pointer; text-decoration: underline; }
+    #walk-page .crumb-here { color: #000; font-weight: bold; }
+    #walk-page .stage { flex: 1; max-width: 720px; width: 100%; margin: 0 auto; padding: 12px 16px 40px; box-sizing: border-box; }
+    #walk-page .here { border: 1px solid #5f99cf; border-radius: 4px; box-shadow: 3px 3px 0 #cee3f8; overflow: hidden; margin-bottom: 18px; }
+    #walk-page .here-img { display: block; width: 100%; max-height: 36vh; object-fit: cover; border-bottom: 1px solid #cee3f8; background: #f5f9fd; }
+    #walk-page .here-body { padding: 12px 16px 14px; }
+    #walk-page .site { color: #666; font-size: 10px; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+    #walk-page .site img { width: 12px; height: 12px; }
+    #walk-page .here h2 { margin: 0 0 6px; font-size: 17px; line-height: 1.3; }
+    #walk-page .here h2 a { color: #00e; text-decoration: none; }
+    #walk-page .here h2 a:hover { text-decoration: underline; }
+    #walk-page .desc { color: #333; font-size: 12px; line-height: 1.5; max-width: 64ch; }
+    #walk-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 6px 3px 0 0; }
+    #walk-page .doors-label { font-weight: bold; color: #369; font-size: 11px; margin: 0 0 6px; }
+    #walk-page .doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+    #walk-page .door { text-align: left; background: #fafcff; border: 1px solid #cee3f8; border-radius: 3px; padding: 9px 10px; cursor: pointer; font: 11px verdana; }
+    #walk-page .door:hover { border-color: #5f99cf; background: #f0f6fc; }
+    #walk-page .door b { color: #00e; font-size: 12px; display: block; margin-bottom: 3px; line-height: 1.3; }
+    #walk-page .door .via { color: #999; font-size: 9px; }
+    #walk-page .door .via .tag { margin-top: 3px; }
+    #walk-page .door.wild { background: #fffbe6; border-color: #e8d76f; }
+    #walk-page .door.wild:hover { border-color: #cbb52e; }
+    #walk-page .door.wild b { color: #b33000; }
+  </style>
+
+  <div class="bar">
+    <span class="wordmark"><a href="/blinks">bobbby's links</a> / walk 🥾</span>
+    <button class="restart" phx-click="restart">start over somewhere random</button>
+    <span class="others">
+      <a href="/blinks/surf">stumble 🎲</a>
+      <a href="/blinks/tv">tv 📺</a>
+    </span>
+  </div>
+
+  
+
+  <div class="stage">
+    <div class="here" id="walk-here-9">
+      
+      <div class="here-body">
+        <div class="site">
+          <img src="https://march-lang.org/assets/logo.png" alt="">
+          <span>march-lang.org</span>
+        </div>
+        <h2>
+          <a href="https://march-lang.org/" target="_blank" rel="noopener">March — Functional Native Language</a>
+        </h2>
+        <p class="desc">A statically-typed functional language. Actors from the BEAM, algebraic data types from ML, compiled to native binaries via LLVM.</p>
+        <span class="tag">programming</span><span class="tag">code</span><span class="tag">programming-languages</span><span class="tag">experiment</span>
+      </div>
+    </div>
+
+    <p class="doors-label">where to next?</p>
+    <div class="doors">
+      <button class="door" phx-click="step" phx-value-id="8">
+        <b>Blimp: A Radical Approach to Programming</b>
+        <span class="via">
+          blimp.bobbby.online
+          <span class="tag">code</span><span class="tag">programming</span><span class="tag">programming-languages</span>
+        </span>
+      </button><button class="door" phx-click="step" phx-value-id="13">
+        <b>Zhang, Yitang’s life at Purdue</b>
+        <span class="via">
+          math.purdue.edu
+          <span class="tag">code</span><span class="tag">programming</span>
+        </span>
+      </button><button class="door" phx-click="step" phx-value-id="157">
+        <b>Scraping TikTok&#39;s Mobile API</b>
+        <span class="via">
+          tiktok-api.seeksocial.io
+          <span class="tag">programming</span><span class="tag">code</span>
+        </span>
+      </button>
+      <button class="door wild" phx-click="wildcard">
+        <b>??? — total wildcard</b>
+        <span class="via">teleport anywhere in the stack</span>
+      </button>
+    </div>
+  </div>
+
+  
+</div></div>
+  </body>
+</html>

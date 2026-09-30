@@ -1,0 +1,147 @@
+/* /blinks-next/surf, /walk, /tv and /review (static/blinks/). Each block is
+   the <style> element of its LiveView, unchanged, with the indentation of
+   the template taken off; the last block is what the Blimp pages add. */
+
+body { margin: 0; }
+
+/* ---- BlinksSurfLive ---- */
+#surf-page { min-height: 100dvh; background: #fff; font: 12px verdana, arial, helvetica, sans-serif; color: #000; display: flex; flex-direction: column; }
+#surf-page .bar { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 6px 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#surf-page .bar a { color: #369; text-decoration: none; font-size: 11px; }
+#surf-page .bar a:hover { text-decoration: underline; }
+#surf-page .wordmark { font-weight: bold; font-size: 13px; color: #369; }
+#surf-page .wordmark a { font-size: 13px; }
+#surf-page .stumble-btn { font: bold 15px verdana; color: #fff; background: #ff4500; border: 3px outset #ff8c61; border-radius: 4px; padding: 8px 22px; cursor: pointer; letter-spacing: 1px; }
+#surf-page .stumble-btn:active { border-style: inset; background: #b33000; }
+#surf-page .back-btn { font: bold 12px verdana; color: #369; background: #b9d2ec; border: 2px outset #cee3f8; border-radius: 4px; padding: 8px 12px; cursor: pointer; }
+#surf-page .back-btn:disabled { color: #99a; cursor: default; }
+#surf-page .bar select { font-size: 11px; border: 1px solid #5f99cf; background: #fff; color: #369; }
+#surf-page .meter { margin-left: auto; color: #666; font-size: 10px; }
+#surf-page .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px 16px 40px; }
+#surf-page .card { max-width: 660px; width: 100%; border: 1px solid #5f99cf; border-radius: 4px; box-shadow: 3px 3px 0 #cee3f8; overflow: hidden; }
+#surf-page .card-img { display: block; width: 100%; max-height: 44vh; object-fit: cover; border-bottom: 1px solid #cee3f8; background: #f5f9fd; }
+#surf-page .card-body { padding: 14px 18px 16px; }
+#surf-page .site { color: #666; font-size: 10px; display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+#surf-page .site img { width: 12px; height: 12px; }
+#surf-page .card h2 { margin: 0 0 8px; font-size: 19px; line-height: 1.25; }
+#surf-page .card h2 a { color: #00e; text-decoration: none; }
+#surf-page .card h2 a:visited { color: #551a8b; }
+#surf-page .card h2 a:hover { text-decoration: underline; }
+#surf-page .desc { color: #333; font-size: 12px; line-height: 1.5; max-width: 62ch; }
+#surf-page .quote { font-style: italic; color: #555; font-size: 11px; border-left: 3px solid #cee3f8; padding-left: 8px; margin: 8px 0; white-space: pre-wrap; }
+#surf-page .tagrow { margin-top: 10px; }
+#surf-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 1px 4px; margin: 0 3px 3px 0; cursor: pointer; }
+#surf-page .tag:hover, #surf-page .tag.on { background: #cee3f8; border-color: #5f99cf; }
+#surf-page .card-actions { display: flex; align-items: center; gap: 8px; border-top: 1px solid #eee; padding: 10px 18px; background: #fafcff; }
+#surf-page .visit { font: bold 12px verdana; color: #fff; background: #369; border: 2px outset #5f99cf; border-radius: 3px; padding: 5px 14px; text-decoration: none; }
+#surf-page .visit:active { border-style: inset; }
+#surf-page .morelike { font-size: 10px; color: #369; background: none; border: none; cursor: pointer; text-decoration: underline; }
+#surf-page .saved-on { margin-left: auto; color: #999; font-size: 10px; }
+#surf-page .hint { text-align: center; color: #999; font-size: 10px; padding-bottom: 14px; }
+#surf-page kbd { border: 1px solid #ccc; border-radius: 2px; background: #f5f5f5; padding: 0 3px; font-size: 9px; }
+#surf-page .exhausted { text-align: center; }
+#surf-page .exhausted h2 { color: #369; }
+@media (max-width: 700px) { #surf-page .meter { display: none; } }
+
+/* ---- BlinksWalkLive ---- */
+#walk-page { min-height: 100dvh; background: #fff; font: 12px verdana, arial, helvetica, sans-serif; color: #000; display: flex; flex-direction: column; }
+#walk-page .bar { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 6px 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#walk-page .bar a { color: #369; text-decoration: none; font-size: 11px; }
+#walk-page .bar a:hover { text-decoration: underline; }
+#walk-page .wordmark { font-weight: bold; font-size: 13px; color: #369; }
+#walk-page .wordmark a { font-size: 13px; }
+#walk-page .restart { font: bold 11px verdana; color: #369; background: #b9d2ec; border: 2px outset #cee3f8; border-radius: 3px; padding: 3px 10px; cursor: pointer; }
+#walk-page .bar .others { margin-left: auto; display: flex; gap: 10px; }
+#walk-page .trail { padding: 8px 14px 0; font-size: 10px; color: #999; line-height: 2; }
+#walk-page .crumb { color: #369; cursor: pointer; text-decoration: underline; }
+#walk-page .crumb-here { color: #000; font-weight: bold; }
+#walk-page .stage { flex: 1; max-width: 720px; width: 100%; margin: 0 auto; padding: 12px 16px 40px; box-sizing: border-box; }
+#walk-page .here { border: 1px solid #5f99cf; border-radius: 4px; box-shadow: 3px 3px 0 #cee3f8; overflow: hidden; margin-bottom: 18px; }
+#walk-page .here-img { display: block; width: 100%; max-height: 36vh; object-fit: cover; border-bottom: 1px solid #cee3f8; background: #f5f9fd; }
+#walk-page .here-body { padding: 12px 16px 14px; }
+#walk-page .site { color: #666; font-size: 10px; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+#walk-page .site img { width: 12px; height: 12px; }
+#walk-page .here h2 { margin: 0 0 6px; font-size: 17px; line-height: 1.3; }
+#walk-page .here h2 a { color: #00e; text-decoration: none; }
+#walk-page .here h2 a:hover { text-decoration: underline; }
+#walk-page .desc { color: #333; font-size: 12px; line-height: 1.5; max-width: 64ch; }
+#walk-page .tag { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 3px; margin: 6px 3px 0 0; }
+#walk-page .doors-label { font-weight: bold; color: #369; font-size: 11px; margin: 0 0 6px; }
+#walk-page .doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+#walk-page .door { text-align: left; background: #fafcff; border: 1px solid #cee3f8; border-radius: 3px; padding: 9px 10px; cursor: pointer; font: 11px verdana; }
+#walk-page .door:hover { border-color: #5f99cf; background: #f0f6fc; }
+#walk-page .door b { color: #00e; font-size: 12px; display: block; margin-bottom: 3px; line-height: 1.3; }
+#walk-page .door .via { color: #999; font-size: 9px; }
+#walk-page .door .via .tag { margin-top: 3px; }
+#walk-page .door.wild { background: #fffbe6; border-color: #e8d76f; }
+#walk-page .door.wild:hover { border-color: #cbb52e; }
+#walk-page .door.wild b { color: #b33000; }
+
+/* ---- BlinksTvLive ---- */
+#tv-page { height: 100dvh; background: #111; color: #fff; font: 12px verdana, arial, helvetica, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+#tv-page .screen { position: relative; flex: 1; overflow: hidden; background: #000; }
+#tv-page .frame { position: absolute; inset: 0; display: block; color: inherit; text-decoration: none; }
+#tv-page .still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.15) contrast(1.05); }
+#tv-page .no-still { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 8vw; background: repeating-linear-gradient(45deg, #16213a 0 40px, #101830 40px 80px); }
+#tv-page .no-still span { font: bold 5vmin georgia, serif; line-height: 1.2; color: #cee3f8; text-shadow: 3px 3px 0 #000; text-align: center; }
+#tv-page .scanlines { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); }
+#tv-page .vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 18vmin rgba(0,0,0,0.85); }
+#tv-page .static { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: hard-light; background-image: repeating-radial-gradient(circle at 17% 32%, #000 0 1px, transparent 1px 2px), repeating-radial-gradient(circle at 73% 61%, #fff 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); background-size: 7px 7px, 11px 11px, 100% 4px; animation: tv-staticfuzz 1.1s steps(8) both; opacity: 0; }
+@keyframes tv-staticfuzz {
+  0% { opacity: 0.95; background-position: 0 0, 0 0, 0 0; }
+  25% { background-position: 3px 2px, -4px 3px, 0 2px; opacity: 0.8; }
+  50% { background-position: -2px 4px, 5px -2px, 0 -1px; opacity: 0.5; }
+  75% { background-position: 4px -3px, -3px -4px, 0 3px; opacity: 0.2; }
+  100% { opacity: 0; }
+}
+#tv-page .osd { position: absolute; font: bold 2.6vmin 'Courier New', monospace; color: #3f3; text-shadow: 0 0 6px rgba(51,255,51,0.7), 2px 2px 0 #000; letter-spacing: 2px; }
+#tv-page .osd-ch { top: 3vmin; right: 3.5vmin; }
+#tv-page .osd-mode { top: 3vmin; left: 3.5vmin; }
+#tv-page .osd-date { top: 6.5vmin; left: 3.5vmin; font-size: 2vmin; }
+#tv-page .caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 10vmin 4vmin 3vmin; background: linear-gradient(transparent, rgba(0,0,0,0.92)); }
+#tv-page .caption .site { color: #9db8d4; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+#tv-page .caption .site img { width: 13px; height: 13px; }
+#tv-page .caption h2 { margin: 0 0 5px; font: bold 3.4vmin georgia, serif; line-height: 1.2; text-shadow: 2px 2px 0 #000; }
+#tv-page .caption .desc { color: #ccc; font-size: 12px; max-width: 75ch; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#tv-page .caption .tag { display: inline-block; background: rgba(206,227,248,0.15); border: 1px solid #5f99cf; border-radius: 2px; color: #cee3f8; font-size: 9px; padding: 0 4px; margin: 6px 4px 0 0; }
+#tv-page .deck { background: #c0c0c0; border-top: 2px solid #dfdfdf; padding: 6px 10px; display: flex; align-items: center; gap: 8px; color: #000; flex-wrap: wrap; }
+#tv-page .deck a { color: #369; font-size: 11px; text-decoration: none; }
+#tv-page .deck a:hover { text-decoration: underline; }
+#tv-page .wordmark { font-weight: bold; font-size: 12px; color: #000; }
+#tv-page .vcr-btn { font: bold 12px verdana; background: #c0c0c0; color: #000; border: 2px solid; border-color: #fff #404040 #404040 #fff; padding: 4px 12px; cursor: pointer; }
+#tv-page .vcr-btn:active { border-color: #404040 #fff #fff #404040; }
+#tv-page .deck .spacer { margin-left: auto; }
+#tv-page .deck .hint { color: #555; font-size: 9px; }
+
+/* ---- BlinksReviewLive ---- */
+#review-page, #review-page * { box-sizing: border-box; }
+#review-page { font: 12px verdana, arial, helvetica, sans-serif; color: #000; background: #fff; min-height: 100vh; }
+#review-page a { text-decoration: none; }
+#review-page .bar { background: #cee3f8; border-bottom: 1px solid #5f99cf; padding: 5px 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+#review-page .bar h1 { font-size: 15px; font-weight: bold; margin: 0; }
+#review-page .bar h1 span { color: #ff4500; }
+#review-page .progress { color: #369; font-size: 11px; }
+#review-page .progress b.added { color: #ff4500; }
+#review-page .backlink { margin-left: auto; color: #369; font-size: 11px; }
+#review-page .list { max-width: 900px; padding: 8px 12px; }
+#review-page .row { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px dotted #eee; align-items: flex-start; }
+#review-page .arrows { display: flex; flex-direction: column; align-items: center; width: 28px; flex-shrink: 0; }
+#review-page .arrow { cursor: pointer; font-size: 16px; line-height: 1.1; color: #c6c6c6; user-select: none; }
+#review-page .arrow.up:hover { color: #ff4500; }
+#review-page .arrow.down:hover { color: #9494ff; }
+#review-page .entry { min-width: 0; }
+#review-page .rtitle { font-size: 13px; color: #0000ff; }
+#review-page .rtitle:visited { color: #551a8b; }
+#review-page .rdomain { color: #888; font-size: 10px; }
+#review-page .flair { display: inline-block; background: #f5f5f5; border: 1px solid #ddd; border-radius: 2px; color: #369; font-size: 9px; padding: 0 4px; margin-left: 4px; }
+#review-page .hint { color: #888; font-size: 10px; margin: 6px 0 10px; }
+#review-page .done-msg { padding: 40px 0; text-align: center; color: #888; font-size: 14px; }
+@media (max-width: 700px) {
+  #review-page .arrow { font-size: 22px; padding: 2px 6px; }
+}
+
+/* ---- what the Blimp pages add ---- */
+/* review: a vote is a write, which is not ported; the arrows say so */
+#review-page .arrow.notyet { cursor: not-allowed; }
+#review-page .bkp-note { background: #fffbe6; border: 1px solid #e8d76f; color: #333; font-size: 11px; padding: 5px 8px; margin: 0 0 8px; }
+#review-page .bkp-ok { color: #369; cursor: pointer; text-decoration: underline; margin-left: 6px; }
