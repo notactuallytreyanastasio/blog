@@ -1404,3 +1404,267 @@ a.mobile-taskbar-btn, a.desktop-icon-leica, a.leica-btn {
 }
 a.leica-btn.primary { color: #fff; }
 a.close-box { display: block; }
+
+/* ========================================
+   blimp: the Hangar desktop (chapter 85)
+   The Hangar leads, the museum and the blog sit behind it and each other
+   like windows someone left open, desktop icons run down the right edge,
+   and a blimp crosses the sky behind everything.
+   ======================================== */
+
+.mac {
+  --hw: min(600px, 42vw);
+  background: #a8a8a8;
+}
+
+/* The desktop pattern: two dark pixels in eight, the System 6 grey. */
+.desktop {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: #b0b0b0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='1' height='1' fill='%23868686'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%23868686'/%3E%3C/svg%3E");
+}
+
+/* Menus that open, without a script: hover, or focus for a tap. */
+.menu-left { gap: 0; align-items: center; height: 100%; }
+.menu { position: relative; height: 100%; display: flex; align-items: center; outline: none; }
+.menu > .menu-item, .menu > .apple-menu { padding: 0 10px; height: 100%; display: flex; align-items: center; }
+.menu:hover > .menu-item, .menu:focus-within > .menu-item,
+.menu:hover > .apple-menu, .menu:focus-within > .apple-menu { background: #000; color: #fff; }
+.menu-drop {
+  display: none;
+  position: absolute;
+  top: 23px;
+  left: 0;
+  min-width: 210px;
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: 2px 2px 0 #000;
+  z-index: 4000;
+  padding: 2px 0;
+}
+.menu:hover .menu-drop, .menu:focus-within .menu-drop { display: block; }
+.menu-drop a, .menu-drop .menu-off {
+  display: block;
+  padding: 3px 18px;
+  color: #000;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.menu-drop a:hover, .menu-drop a:focus { background: #000; color: #fff; }
+.menu-drop .menu-off { color: #999; }
+.menu-right { display: flex; gap: 14px; align-items: center; }
+.menu-served { color: #555; }
+
+/* The blimp, crossing behind the windows. */
+.blimp-flyer {
+  position: absolute;
+  top: 6px;
+  left: -70px;
+  z-index: 1;
+  animation: blimp-cross 140s linear infinite;
+  line-height: 0;
+}
+@keyframes blimp-cross {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(100vw + 80px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blimp-flyer { animation: none; left: auto; right: 130px; top: auto; bottom: 40px; }
+}
+
+/* The Hangar */
+.hangar-window {
+  position: absolute;
+  left: 20px;
+  top: 16px;
+  bottom: 16px;
+  width: var(--hw);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: 2px 2px 0 #000;
+}
+.hangar-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #000;
+}
+.hangar-head svg { flex-shrink: 0; }
+.hangar-headline { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+.hangar-head p { font-size: 12px; line-height: 1.45; color: #333; }
+.hangar-live {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 6px 12px;
+  background: #000;
+  color: #fff;
+  font-family: ui-monospace, Menlo, Monaco, monospace;
+  font-size: 12px;
+  -webkit-font-smoothing: auto;
+}
+.hangar-live small { font-weight: normal; color: #9a9a9a; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+.hangar-live a { color: #fff; }
+.odo { white-space: nowrap; }
+.hangar-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 10px 10px; }
+.hangar-group-label {
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 10px 4px 4px;
+  border-bottom: 1px dotted #000;
+  margin-bottom: 4px;
+}
+.hangar-group-label span { font-weight: normal; color: #777; }
+.hangar-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2px 8px; }
+.hangar-tile {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 6px;
+  color: #000;
+  text-decoration: none;
+}
+.hangar-tile:hover, .hangar-tile:focus { background: #000; color: #fff; outline: none; }
+.hangar-tile:hover svg, .hangar-tile:focus svg { filter: invert(1); }
+.hangar-icon { width: 44px; height: 28px; flex-shrink: 0; margin-top: 2px; }
+.hangar-icon svg { width: 44px; height: 28px; display: block; }
+.hangar-text { display: flex; flex-direction: column; min-width: 0; }
+.hangar-name { font-weight: bold; font-size: 14px; }
+.hangar-pitch { font-size: 12px; line-height: 1.35; color: #444; }
+.hangar-tile:hover .hangar-pitch, .hangar-tile:focus .hangar-pitch { color: #ddd; }
+.hangar-window .status-bar {
+  height: 22px;
+  border-top: 1px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.hangar-window .status-bar a { color: #000; }
+
+/* The museum and the blog, behind the Hangar and each other. */
+.desktop .museum-list-window {
+  position: absolute;
+  left: calc(20px + var(--hw) + 22px);
+  top: 44px;
+  width: 520px;
+  min-width: 0;
+  height: 60%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 2px 2px 0 #000;
+}
+.desktop .museum-list-content { flex: 1; min-height: 0; max-height: none; }
+.desktop .museum-list-item { padding: 8px 12px; }
+.desktop .museum-list-name { font-size: 16px; }
+.desktop .museum-list-tagline { font-size: 13px; }
+.desktop .blog-window {
+  position: absolute;
+  left: calc(20px + var(--hw) + 22px + 300px);
+  right: 118px;
+  top: 34%;
+  bottom: 16px;
+  width: auto;
+  z-index: 3;
+  box-shadow: 2px 2px 0 #000;
+}
+.desktop .window.mobile-window-finder { position: absolute; left: 60px; top: 60px; z-index: 6; }
+.desktop .right-column { position: absolute; right: 130px; top: 30px; z-index: 7; }
+
+/* Desktop icons, down the right edge like a Finder's. */
+.side-icons {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  z-index: 4;
+}
+.side-icon, .side-icons .desktop-icon-leica {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: #000;
+  text-decoration: none;
+  text-align: center;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 0;
+}
+.side-icons .desktop-icon-leica { position: static; transform: none; }
+.side-icons .desktop-icon-leica svg { width: 40px; height: 40px; }
+.side-icon-img { width: 48px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.side-icon-img svg { width: 48px; height: 40px; }
+.side-icon-label, .side-icons .desktop-icon-label { background: #fff; padding: 1px 4px; line-height: 1.25; font-size: 12px; }
+.side-icon:hover .side-icon-label, .side-icon:focus .side-icon-label { background: #000; color: #fff; }
+.side-icon:hover svg { filter: invert(1); }
+
+/* A laptop: the museum over the blog, both beside the Hangar, the blog's
+ * left half clear of the runtime window in the corner. */
+@media (max-width: 1400px) and (min-width: 1101px) {
+  .desktop .museum-list-window { right: 124px; width: auto; height: auto; bottom: 46%; }
+  .desktop .blog-window { left: calc(20px + var(--hw) + 40px); right: 110px; top: 50%; }
+}
+
+/* Narrow desktops: no room to overlap, so the windows flow. */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .desktop { display: flex; flex-wrap: wrap; gap: 16px; align-content: flex-start; overflow-y: auto; }
+  .hangar-window, .desktop .museum-list-window, .desktop .blog-window {
+    position: relative; left: auto; right: auto; top: auto; bottom: auto;
+  }
+  .hangar-window { width: 100%; max-height: 80vh; }
+  .desktop .museum-list-window { width: calc(58% - 8px); height: 70vh; }
+  .desktop .blog-window { width: calc(42% - 8px); height: 70vh; flex: none; }
+  .side-icons { position: static; flex-direction: row; width: 100%; justify-content: flex-start; order: 5; }
+}
+
+/* A phone: every window full width, one under the next, the Hangar first
+ * unless the taskbar brought another forward. */
+@media (max-width: 768px) {
+  .mac { height: auto; min-height: 100vh; }
+  .desktop {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px 0 76px;
+    overflow: visible;
+  }
+  .hangar-window, .desktop .museum-list-window, .desktop .blog-window,
+  .desktop .window.mobile-window-finder, .desktop .blog-window.mobile-window-blog {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    width: 100% !important;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    order: 1;
+  }
+  .desktop .mobile-active { order: 0; }
+  .hangar-body { overflow: visible; }
+  .hangar-head svg { width: 60px; }
+  .hangar-tiles { grid-template-columns: 1fr; }
+  .desktop .museum-list-content { max-height: 70vh; }
+  .desktop .blog-window .blog-window-content { max-height: 70vh; }
+  .museum-filter-row { font-size: 13px; }
+  .side-icons { position: static; order: 2; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: space-around; }
+  .blimp-flyer { display: none; }
+  .desktop .right-column { position: static; }
+  .menu-left .menu { display: none; }
+  .menu-left .menu:first-child { display: flex; }
+  .menu-served { display: none; }
+}

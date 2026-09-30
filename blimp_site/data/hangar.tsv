@@ -1,0 +1,30 @@
+games	/2048	2048 Blitz	hg-2048	2048 with a shot clock: seconds per move, boards up to 12×12.
+games	/tetris	Blimp Tetris	blimp-tetris	Tetris as one Blimp program. The canvas beside it draws its actors.
+games	/chess-lv	Chess-9	hg-chess	Nine boards that make one 24×24 plane, and a bot that thinks less than it used to.
+games	/wordle	Wordle	hg-wordle	Checked against the Elixir original on 3,025 guesses. None differ.
+games	/blackjack	Blackjack	hg-blackjack	The server deals. It no longer counts a second ace as 11.
+games	/pong	Pong.exe	hg-pong	The computer plays until you take the paddle. /pong/god watches every game.
+games	/temper-snake	Snake	hg-snake	Written in Temper. Every point on the board is an actor that is never collected.
+wire	/reddit-links	YouTube from Bluesky	hg-youtube	Fifty videos pulled off the Bluesky relay as people post them.
+wire	/emoji-skeets	Skeet Search	hg-skeets	Type a word, watch the firehose say it.
+wire	/jetstream_comparison	Jetstream vs Relay	hg-jetstream	The same posts from two pipes, counted side by side.
+wire	/cursor-tracker	Cursor Tracker	hg-cursor	Everyone's cursor on one page. The drawing is wiped on the hour.
+wire	/map	Tag a Wook	hg-pin	Drop a pin, attach a song, and every open map gets it.
+wire	/mta-bus-map	MTA Bus Map	mta-bus-tracker	Every bus on the routes you pick, from Bus Time every 30 seconds.
+numbers	/phish	phangraphs	phangraphs	FanGraphs, but for Phish jams since 2009.
+numbers	/phish_lab	Phish Lab	hg-lab	Anomaly detection for a band from Vermont: 20,669 performances, one scatter.
+numbers	/moon_phish	Moon Phish	hg-moon	Every Phish show since 1983, against the instant of every full moon.
+numbers	/sky	Fill The Sky	fill-your-sky	418 Bluesky communities packed onto a golden-angle spiral.
+numbers	/nyc_census_and_pluto	How Many People Live Here?	nyc-census	Draw a shape on New York; the census estimates who lives inside.
+numbers	/hacker-news	Hacker News	hg-hn	The top 50, refetched every three minutes by an actor that never blocks.
+numbers	/stumble	Stumble	hg-dice	A bag of links people shared on Bluesky. Reach in.
+numbers	/cameras	Camera Browser	hg-camera	Film cameras for sale on Craigslist in four cities, on one page.
+toys	/stack	The Stack	hg-stack	Every compiler, file and process between this site's source and your screen.
+toys	/mirror	Mirror	code-mirror	The Blimp source of the page you are reading, cut out of the running server.
+toys	/markdown-editor	Markdown Editor	hg-markdown	The preview is the renderer the posts use, running in your browser.
+toys	/typewriter	Typewriter	hg-typewriter	No copy, no paste. Backspace works. Print it when you're done.
+toys	/art	Temper Art	hg-art	Seeded generative art. Seed 42 draws the same picture forever.
+toys	/ziggy	The Ziggy Account	hg-ziggy	123 story beats and 178 connections, and a chat that has read them.
+toys	/blinks	Blinks	hg-links	My links, saved from my phone. Tour, walk or watch them.
+toys	/very_direct_message	Very Direct Message	receipt-printer	It prints on a receipt printer on my desk. Leave your name.
+toys	/collage-maker	Collage Maker	collage-maker	Up to 36 photos in, one collage out, cut in your browser.

@@ -151,7 +151,10 @@ actor DesktopTests do
     assert(contains(html, "blog-window mobile-window-blog mobile-active"))
     assert(contains(html, "mobile-taskbar-btn active\" href=\"/?m=blog\""))
     assert(contains(html, "museum-list-window mobile-window-museum\""))
-    assert(contains(dt_page(""), "museum-list-window mobile-window-museum mobile-active"))
+    assert(contains(dt_page(""), "hangar-window mobile-window-hangar mobile-active"))
+    refute(contains(dt_page(""), "museum-list-window mobile-window-museum mobile-active"))
+    assert(contains(dt_page("m=museum"), "museum-list-window mobile-window-museum mobile-active"))
+    assert(contains(html, "<a class=\"mobile-taskbar-btn\" href=\"/?m=hangar\">Hangar</a>"))
     apps = dt_page("m=finder")
     assert(contains(apps, "window mobile-window-finder mobile-active"))
   end
@@ -167,5 +170,43 @@ actor DesktopTests do
     html = dt_page("")
     assert(contains(html, "<a href=\"/post/chess\" class=\"blog-post-row\">"))
     assert(contains(html, "<span>2 posts</span>"))
+  end
+
+  test "the Hangar lists every page in data/hangar.tsv, each with an icon" do
+    html = dt_page("booted=1")
+    assert_eq(length(split(html, "class=\"hangar-tile\"")) - 1, 30)
+    assert(contains(html, "<a class=\"hangar-tile\" href=\"/chess-lv\">"))
+    assert(contains(html, "<span>30 pages, one process</span>"))
+    assert(contains(html, "Games <span>7</span>"))
+    refute(contains(html, "hangar-icon\"></span>"))
+  end
+
+  test "the counters are fixed width, so the prebuilt / can be spliced" do
+    assert_eq(desk_pad(7, 3), "007")
+    assert_eq(desk_pad(1234, 3), "1234")
+    assert_eq(desk_uptime(90061), "001d 01h 01m")
+    assert_eq(length(desk_live_counts(33, 217, 90061)), length(DESK_LIVE_MARK))
+    assert_eq(length(desk_live_counts(999, 99999999, 86400 * 999)), length(DESK_LIVE_MARK))
+    refute(length(desk_live_counts(1000, 0, 0)) == length(DESK_LIVE_MARK))
+    bare = dt_page("")
+    assert(contains(bare, DESK_LIVE_MARK))
+    assert(contains(bare, "<small>this page</small> prebuilt at boot"))
+    booted = dt_page("booted=1")
+    refute(contains(booted, "prebuilt at boot"))
+    assert(contains(booted, " ms</span></div>"))
+  end
+
+  test "the commit is shown only when it is a sha" do
+    assert_eq(desk_commit_of(nil), "")
+    assert_eq(desk_commit_of("0cffc08c68a6d2ee8b1932177f5cf01200f4d5c9\n"), "0cffc08c68a6d2ee8b1932177f5cf01200f4d5c9")
+    assert_eq(desk_commit_of("<script>"), "")
+  end
+
+  test "the menus lead somewhere" do
+    html = dt_page("cat=ml")
+    assert(contains(html, "<a href=\"/\">Restart</a>"))
+    assert(contains(html, "<a href=\"/mirror\">View Source</a>"))
+    assert(contains(html, "<a href=\"/?cat=ml&amp;museum=0\">Technical Museum</a>"))
+    assert(contains(html, "href=\"https://old.bobbby.online\""))
   end
 end

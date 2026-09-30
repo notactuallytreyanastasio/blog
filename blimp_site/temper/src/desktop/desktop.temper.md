@@ -151,3 +151,105 @@ zoom-and-pan viewer; now it opens the image itself.
     export let desk_tech_tag(t: String): String {
       "<span class=\"museum-list-tech\">${escape_html(t)}</span>"
     }
+
+## The Hangar: the pages that run on Blimp
+
+One tile: a page, its pixel icon, its name and a one-line pitch. The href
+and the icon come from data/hangar.tsv and data/*icons.txt, which the loader
+checked; the name and pitch are escaped here.
+
+    export let desk_hangar_tile(href: String, icon: String, name: String, pitch: String): String {
+      "<a class=\"hangar-tile\" href=\"${escape_html(href)}\"><span class=\"hangar-icon\">${icon}</span><span class=\"hangar-text\"><span class=\"hangar-name\">${escape_html(name)}</span><span class=\"hangar-pitch\">${escape_html(pitch)}</span></span></a>"
+    }
+
+    export let desk_hangar_group(label: String, count: Int, tiles: String): String {
+      "<div class=\"hangar-group\"><div class=\"hangar-group-label\">${escape_html(label)} <span>${count.toString()}</span></div><div class=\"hangar-tiles\">${tiles}</div></div>"
+    }
+
+    export let desk_hangar_label(group: String): String {
+      if (group == "games") {
+        "Games"
+      } else if (group == "wire") {
+        "Off the wire, live"
+      } else if (group == "numbers") {
+        "Numbers"
+      } else {
+        "Tools & toys"
+      }
+    }
+
+The blimp: an envelope, two fins and a gondola, in 1-bit.
+
+    export let desk_blimp_svg(w: Int): String {
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 24\" width=\"${w.toString()}\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><path d=\"M9 9 L2 1 L13 4 Z M9 13 L2 21 L13 18 Z\" fill=\"#fff\" stroke=\"#000\" stroke-width=\"1.5\"/><ellipse cx=\"27\" cy=\"11\" rx=\"19\" ry=\"8\" fill=\"#fff\" stroke=\"#000\" stroke-width=\"1.5\"/><path d=\"M10 14 Q27 21 44 14\" fill=\"none\" stroke=\"#000\" stroke-width=\"1\" stroke-dasharray=\"1 1\"/><line x1=\"9\" y1=\"11\" x2=\"46\" y2=\"11\" stroke=\"#000\" stroke-width=\"1\"/><rect x=\"23\" y=\"19\" width=\"9\" height=\"4\" fill=\"#000\"/><rect x=\"25\" y=\"20\" width=\"1\" height=\"1\" fill=\"#fff\"/><rect x=\"28\" y=\"20\" width=\"1\" height=\"1\" fill=\"#fff\"/></svg>"
+    }
+
+## The live strip
+
+The counters are fixed width, zero-padded like an odometer, because the bare
+homepage is built once at boot and these are spliced into it per request
+without touching its Content-Length. A number too wide to fit comes out
+wider, and the caller renders the page in full instead.
+
+    export let desk_pad(n: Int, width: Int): String {
+      if (width <= 1) {
+        n.toString()
+      } else if (n < pow10(width - 1)) {
+        "0${desk_pad(n, width - 1)}"
+      } else {
+        n.toString()
+      }
+    }
+
+    let pow10(k: Int): Int {
+      if (k <= 0) { 1 } else { 10 * pow10(k - 1) }
+    }
+
+    export let desk_uptime(s: Int): String {
+      let days = s / 86400;
+      let hours = (s % 86400) / 3600;
+      let minutes = (s % 3600) / 60;
+      "${desk_pad(days, 3)}d ${desk_pad(hours, 2)}h ${desk_pad(minutes, 2)}m"
+    }
+
+    export let desk_live_counts(actors: Int, served: Int, up_s: Int): String {
+      "<span class=\"odo\"><small>actors</small> ${desk_pad(actors, 3)}</span><span class=\"odo\"><small>requests since boot</small> ${desk_pad(served, 8)}</span><span class=\"odo\"><small>up</small> ${desk_uptime(up_s)}</span>"
+    }
+
+The commit is a checked 40-hex sha or empty; the render note is the page's
+own ("1 ms", or "prebuilt at boot").
+
+    export let desk_live_strip(counts: String, commit: String, short: String, render: String): String {
+      let blimp = if (commit.isEmpty) {
+        "<span class=\"odo\"><small>blimp</small> local build</span>"
+      } else {
+        "<span class=\"odo\"><small>blimp</small> <a href=\"https://github.com/notactuallytreyanastasio/blimp/commit/${commit}\">${short}</a></span>"
+      };
+      "<div class=\"hangar-live\" aria-label=\"The server, right now\">${counts}${blimp}<span class=\"odo\"><small>this page</small> ${render}</span></div>"
+    }
+
+## Desktop icons down the right edge
+
+    export let desk_side_icon(href: String, svg: String, label: String): String {
+      "<a class=\"side-icon\" href=\"${href}\"><span class=\"side-icon-img\">${svg}</span><span class=\"side-icon-label\">${label}</span></a>"
+    }
+
+Phoenix, which served this site until September 2026, still runs at
+old.bobbby.online. It is in the Trash, which is not empty.
+
+    export let desk_trash_svg(): String {
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" width=\"40\" height=\"40\" shape-rendering=\"crispEdges\"><rect x=\"6\" y=\"8\" width=\"20\" height=\"3\" fill=\"#000\"/><rect x=\"13\" y=\"5\" width=\"6\" height=\"3\" fill=\"#000\"/><rect x=\"8\" y=\"11\" width=\"16\" height=\"18\" fill=\"#fff\" stroke=\"#000\" stroke-width=\"2\"/><rect x=\"12\" y=\"14\" width=\"2\" height=\"12\" fill=\"#000\"/><rect x=\"18\" y=\"14\" width=\"2\" height=\"12\" fill=\"#000\"/><rect x=\"9\" y=\"2\" width=\"4\" height=\"4\" fill=\"#000\"/><rect x=\"20\" y=\"1\" width=\"3\" height=\"5\" fill=\"#000\"/></svg>"
+    }
+
+## The menu bar, with menus that open
+
+Each menu opens on hover or focus, with CSS alone, and every item is a link.
+"Restart" is the bare homepage, so it plays the boot splash again.
+
+    export let desk_menu_bar_links(epoch_s: Int, museum_href: String, finder_href: String): String {
+      "<div class=\"menu-bar\"><div class=\"menu-left\"><div class=\"menu\" tabindex=\"0\"><span class=\"apple-menu\">&#63743;</span><div class=\"menu-drop\"><a href=\"/stack\">About This Site&#8230;</a><a href=\"/directory\">Directory</a></div></div><div class=\"menu\" tabindex=\"0\"><span class=\"menu-item\">File</span><div class=\"menu-drop\"><a href=\"/blog\">Open Blog</a><a href=\"${museum_href}\">Technical Museum</a><a href=\"${finder_href}\">Apps &amp; Games</a><a href=\"/very_direct_message\">Print on Bobby&#8217;s Desk&#8230;</a></div></div><div class=\"menu\" tabindex=\"0\"><span class=\"menu-item\">Edit</span><div class=\"menu-drop\"><span class=\"menu-off\">Can&#8217;t Undo</span><a href=\"/markdown-editor\">Markdown Editor</a><a href=\"/typewriter\">Typewriter</a></div></div><div class=\"menu\" tabindex=\"0\"><span class=\"menu-item\">View</span><div class=\"menu-drop\"><a href=\"/stack\">By Source</a><a href=\"/mirror\">View Source</a></div></div><div class=\"menu\" tabindex=\"0\"><span class=\"menu-item\">Special</span><div class=\"menu-drop\"><a href=\"/?booted=1\">Clean Up Desktop</a><a href=\"https://old.bobbby.online\">Open Trash</a><a href=\"/\">Restart</a></div></div></div><div class=\"menu-right\"><span class=\"menu-served\">served by Blimp</span><span>${desk_clock(epoch_s)}</span></div></div>"
+    }
+
+    export let desk_taskbar_links(hangar_active: Boolean, museum_active: Boolean, blog_active: Boolean, finder_active: Boolean, hangar_href: String, museum_href: String, blog_href: String, apps_href: String): String {
+      "<div class=\"mobile-taskbar\"><a class=\"${desk_active(hangar_active, "mobile-taskbar-btn")}\" href=\"${hangar_href}\">Hangar</a><a class=\"${desk_active(museum_active, "mobile-taskbar-btn")}\" href=\"${museum_href}\">Museum</a><a class=\"${desk_active(blog_active, "mobile-taskbar-btn")}\" href=\"${blog_href}\">Blog</a><a class=\"${desk_active(finder_active, "mobile-taskbar-btn")}\" href=\"${apps_href}\">Apps</a></div>"
+    }

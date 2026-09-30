@@ -231,6 +231,9 @@ def load_desktop(dir: String, posts: List) -> Map do
 end
 
 def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
+  icon_text = concat(desk_read("data/hangar_icons.txt"), "\n", desk_read("data/icons.txt"))
+  own = desk_path_entries(desk_lines(icon_text), "", [], %{})
+  hangar = desk_load_hangar(desk_read("data/hangar.tsv"), own, %{})
   museum = map(loaded, fn(p: Map) -> Map do
     put(put(p, "item_html", desk_item_inner(p, icons)), "detail_html", desk_detail_inner(p, icons))
   end)
@@ -241,8 +244,173 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
     item_count: reduce(finder, 0, fn(n: Int, s: Map) -> Int do n + length(s.items) end),
     icons: icons,
     blog_rows: join(map(posts, fn(p: Map) -> String do blog_post_row(p) end), ""),
-    post_count: length(posts)
+    post_count: length(posts),
+    hangar_html: desk_hangar_html(hangar),
+    hangar_count: length(hangar),
+    stack_icon: lookup(own, "hg-stack"),
+    mirror_icon: lookup(own, "code-mirror")
   }
+end
+
+# ── The Hangar: the pages that run on Blimp ─────────────────────────────
+#
+# data/hangar.tsv: group, path, name, icon, pitch. The icon is one of
+# data/hangar_icons.txt's (drawn for this window) or of icons.txt's (the
+# museum's). A path that is not a plain site path, or an icon neither file
+# has, stops the boot: a tile with the default icon, or a link that goes
+# nowhere, would look fine and be wrong.
+
+# The Hangar's icons as one path each, a run of pixels to a subpath: the
+# museum's rect-a-pixel SVG (pixels/1's bytes, kept for the museum) made
+# thirty icons 200KB of the page; this makes them about 30KB.
+def desk_runs(row: String, x: Int, y: String, acc: List) -> List do
+  case x >= length(row) do
+    true -> acc
+    false ->
+      case char_at(row, x) == "#" do
+        false -> desk_runs(row, x + 1, y, acc)
+        true ->
+          n = desk_run_len(row, x, 0)
+          w = to_string(n)
+          desk_runs(row, x + n, y, [concat("M", to_string(x), " ", y, "h", w, "v1h-", w, "z") | acc])
+      end
+  end
+end
+
+def desk_run_len(row: String, x: Int, n: Int) -> Int do
+  case x + n < length(row) and char_at(row, x + n) == "#" do
+    true -> desk_run_len(row, x, n + 1)
+    false -> n
+  end
+end
+
+def desk_path_rows(rows: List, y: Int, acc: List) -> List do
+  case rows do
+    [] -> reverse(acc)
+    [row | rest] -> desk_path_rows(rest, y + 1, desk_runs(row, 0, to_string(y), acc))
+  end
+end
+
+def desk_path_icon(rows: List) -> String do
+  concat("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 20\" shape-rendering=\"crispEdges\"><path d=\"", join(desk_path_rows(rows, 0, []), ""), "\"/></svg>")
+end
+
+def desk_path_done(slug: String, rows: List, acc: Map) -> Map do
+  case slug do
+    "" -> acc
+    _ -> put(acc, slug, desk_path_icon(reverse(rows)))
+  end
+end
+
+def desk_path_entries(lines: List, slug: String, rows: List, acc: Map) -> Map do
+  case lines do
+    [] -> desk_path_done(slug, rows, acc)
+    [l | rest] ->
+      case starts_with(l, "== ") do
+        true -> desk_path_entries(rest, drop(l, 3), [], desk_path_done(slug, rows, acc))
+        false -> desk_path_entries(rest, slug, [l | rows], acc)
+      end
+  end
+end
+
+def desk_load_hangar(tsv: String, own: Map, museum_icons: Map) -> List do
+  map(desk_lines(tsv), fn(l: String) -> Map do
+    f = split(l, "\t")
+    case length(f) == 5 and starts_with(desk_field(f, 1), "/") and desk_url_safe(drop(desk_field(f, 1), 1)) do
+      false -> desk_die(concat("data/hangar.tsv: expected 5 fields and a plain /path in ", l))
+      true ->
+        slug = desk_field(f, 3)
+        mine = lookup(own, slug)
+        icon = case mine do
+          nil -> lookup(museum_icons, slug)
+          _ -> mine
+        end
+        case icon do
+          nil -> desk_die(concat("data/hangar.tsv: no icon ", slug, " in data/hangar_icons.txt or data/icons.txt"))
+          _ -> %{group: desk_field(f, 0), path: desk_field(f, 1), name: desk_field(f, 2), icon: icon, pitch: desk_field(f, 4)}
+        end
+    end
+  end)
+end
+
+def desk_hangar_html(pages: List) -> String do
+  groups = desk_uniq(map(pages, fn(p: Map) -> String do p.group end), [])
+  join(map(groups, fn(g: String) -> String do
+    mine = filter(pages, fn(p: Map) -> Bool do p.group == g end)
+    tiles = join(map(mine, fn(p: Map) -> String do desk_hangar_tile(p.path, p.icon, p.name, p.pitch) end), "")
+    desk_hangar_group(desk_hangar_label(g), length(mine), tiles)
+  end), "")
+end
+
+# The Blimp commit the server binary was built from: deploy.sh writes it to
+# bin/BLIMP_COMMIT, which the image puts at /app/BLIMP_COMMIT, one up from
+# the site. A laptop has none, and says "local build".
+def desk_hex(s: String, i: Int) -> Bool do
+  case i >= length(s) do
+    true -> true
+    false ->
+      case contains("0123456789abcdef", char_at(s, i)) do
+        true -> desk_hex(s, i + 1)
+        false -> false
+      end
+  end
+end
+
+def desk_commit_of(text: Any) -> String do
+  case text do
+    nil -> ""
+    _ ->
+      sha = trim(text)
+      case length(sha) == 40 and desk_hex(sha, 0) do
+        true -> sha
+        false -> ""
+      end
+  end
+end
+
+DESK_BLIMP_COMMIT = desk_commit_of(read_file("../BLIMP_COMMIT"))
+
+# What the server is doing now, from the runtime's own snapshot: how many
+# actors, and the Site actor's served count and boot time. A snapshot keeps
+# numbers and summarises everything else, so this reads no page data.
+def desk_site_state(actors: List) -> Map do
+  case actors do
+    [] -> %{}
+    [a | rest] ->
+      case a.type == "Site" do
+        true -> lookup(a, "state")
+        false -> desk_site_state(rest)
+      end
+  end
+end
+
+def desk_int(v: Any) -> Int do
+  case type_of(v) do
+    :integer -> v
+    _ -> 0
+  end
+end
+
+def desk_live_now(epoch_s: Int) -> String do
+  snap = runtime_snapshot()
+  site = desk_site_state(snap.actors)
+  booted = desk_int(lookup(site, "booted_at"))
+  up = case booted > 0 and epoch_s >= booted do
+    true -> epoch_s - booted
+    false -> 0
+  end
+  desk_live_counts(length(snap.actors), desk_int(lookup(site, "served")), up)
+end
+
+# The counters the prebuilt homepage is cut at, like the clock.
+DESK_LIVE_MARK = desk_live_counts(0, 0, 0)
+
+def desk_live_html(counts: String, render: String) -> String do
+  short = case DESK_BLIMP_COMMIT do
+    "" -> ""
+    _ -> take(DESK_BLIMP_COMMIT, 7)
+  end
+  desk_live_strip(counts, DESK_BLIMP_COMMIT, short, render)
 end
 
 # ── Loading the museum and the Finder from Postgres ─────────────────────
@@ -352,7 +520,7 @@ def desk_state(query: String, desk: Map) -> Map do
     nil -> ""
     _ -> slug
   end
-  known_m = case m == "finder" or m == "museum" or m == "blog" do
+  known_m = case m == "finder" or m == "museum" or m == "blog" or m == "hangar" do
     true -> m
     false -> ""
   end
@@ -374,10 +542,11 @@ def desk_show_museum(st: Map) -> Bool do
   st.museum != "0" or st.m == "museum"
 end
 
-# LiveView's mobile_window starts at :museum.
+# On a phone the windows stack, and the one the taskbar chose goes first;
+# with none chosen, the Hangar leads.
 def desk_mobile(st: Map) -> String do
   case st.m do
-    "" -> "museum"
+    "" -> "hangar"
     m -> m
   end
 end
@@ -671,10 +840,55 @@ def desk_taskbar(st: Map) -> String do
   mob = desk_mobile(st)
   apps = put(put(st, "finder", "1"), "m", "finder")
   museum = put(put(st, "museum", ""), "m", "museum")
-  desk_taskbar_html(mob == "finder", mob == "museum", mob == "blog", desk_href(apps), desk_href(museum), desk_href(put(st, "m", "blog")))
+  hangar = case st.m do
+    "" -> st
+    _ -> put(st, "m", "hangar")
+  end
+  desk_taskbar_links(mob == "hangar", mob == "museum", mob == "blog", mob == "finder", desk_href(hangar), desk_href(museum), desk_href(put(st, "m", "blog")), desk_href(apps))
+end
+
+def desk_hangar_window(st: Map, desk: Map, live: String) -> String do
+  mobile = case desk_mobile(st) == "hangar" do
+    true -> " mobile-active"
+    false -> ""
+  end
+  join([
+    "<div class=\"hangar-window mobile-window-hangar", mobile, "\" id=\"hangar-window\">",
+    "<div class=\"title-bar\"><div class=\"close-box\"></div><div class=\"title\">The Hangar</div><div class=\"resize-box\"></div></div>",
+    "<div class=\"hangar-head\">", desk_blimp_svg(88),
+    "<div><div class=\"hangar-headline\">Every page on this site is served by one Blimp process.</div>",
+    "<p>Blimp is the actor language I have been writing. The server is its interpreter, in Zig; the games run that same interpreter in your browser, as WebAssembly. Phoenix, which ran all this until September, is in the Trash.</p></div></div>",
+    live,
+    "<div class=\"hangar-body\">", desk.hangar_html, "</div>",
+    "<div class=\"status-bar\"><span>", to_string(desk.hangar_count), " pages, one process</span><a href=\"/stack\">how it is built &#x2192;</a></div>",
+    "</div>"
+  ], "")
+end
+
+def desk_side_icons(st: Map, desk: Map) -> String do
+  join([
+    "<div class=\"side-icons\">",
+    desk_side_icon("/stack", desk.stack_icon, "The Stack"),
+    desk_side_icon("/mirror", desk.mirror_icon, "View Source"),
+    desk_side_icon("/directory", desk_projects_icon(), "Directory"),
+    desk_leica_icon(st),
+    desk_side_icon("https://old.bobbby.online", desk_trash_svg(), "Trash<br>(Phoenix)"),
+    "</div>"
+  ], "")
 end
 
 def desktop_page(query: String, desk: Map, epoch_s: Int) -> String do
+  counts = case query do
+    "" -> DESK_LIVE_MARK
+    _ -> desk_live_now(epoch_s)
+  end
+  desktop_page_with(query, desk, epoch_s, counts, query == "")
+end
+
+# The page with these counters. prebuilt: it is the bare homepage built at
+# boot, whose counters are put back per request (main.blimp's bare_home).
+def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, prebuilt: Bool) -> String do
+  t0 = now_ms()
   st = desk_state(query, desk)
   finder = case desk_show_finder(st) do
     true -> desk_finder_window(st, desk)
@@ -688,18 +902,30 @@ def desktop_page(query: String, desk: Map, epoch_s: Int) -> String do
     "" -> desk_boot_splash()
     _ -> ""
   end
+  menu = desk_menu_bar_links(epoch_s, desk_href(desk_toggle_museum(st)), desk_href(desk_toggle_finder(st)))
+  blog = desk_blog_window(st, desk)
+  detail = desk_detail_window(st, desk)
+  icons = desk_side_icons(st, desk)
+  warning = desk_leica_warning(st)
+  taskbar = desk_taskbar(st)
+  render = case prebuilt do
+    true -> "prebuilt at boot"
+    false -> concat(to_string(now_ms() - t0), " ms")
+  end
   body = join(flat([
     "<div class=\"desk-frame\"><main class=\"desk-main\"><div class=\"desk-screen\">",
     "<div class=\"mac\">",
-    desk_menu_bar(epoch_s),
+    menu,
     "<div class=\"desktop\">",
-    finder,
+    "<a class=\"blimp-flyer\" href=\"https://github.com/notactuallytreyanastasio/blimp\" title=\"Blimp, the language this site runs on\">", desk_blimp_svg(56), "</a>",
+    desk_hangar_window(st, desk, desk_live_html(counts, render)),
     museum,
-    desk_leica_icon(st),
-    desk_leica_warning(st),
-    "<div class=\"right-column\">", desk_detail_window(st, desk), "</div>",
-    "<div class=\"far-right-column\">", desk_blog_window(st, desk), "</div>",
-    desk_taskbar(st),
+    blog,
+    finder,
+    "<div class=\"right-column\">", detail, "</div>",
+    icons,
+    warning,
+    taskbar,
     "</div></div>",
     splash,
     "</div></main></div>"
