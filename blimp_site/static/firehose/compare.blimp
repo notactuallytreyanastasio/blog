@@ -1,0 +1,189 @@
+# /jetstream_comparison: the same search over two relays, side by side:
+# Jetstream (jetstream2.us-east.bsky.network) and the relay the rest of the
+# site reads (bsky-relay.c.theo.io).
+#
+# The server (FIREHOSE, src/98_firehose.blimp) opens Jetstream while this
+# page is open and sends both feeds' new posts, [text, did], in one frame
+# four times a second. This program counts them, keeps the newest FHC_KEEP
+# of each, and filters them as JetstreamComparisonLive did on the server.
+# The template is the LiveView's, class for class. Its receipt printer
+# (python3 and CUPS on the server) is not ported.
+
+FHC_KEEP = 10000
+FHC_SHOWN = 50
+
+def fhc_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+def fhc_posts(got: Any) -> List do
+  case type_of(got) == :list do
+    false -> []
+    true -> filter(map(got, fn(p: Any) -> Any do
+      case type_of(p) == :list and length(p) == 2 do
+        true ->
+          case type_of(head(p)) == :string and type_of(last(p)) == :string do
+            true -> %{text: head(p), did: last(p)}
+            false -> nil
+          end
+        false -> nil
+      end
+    end), fn(p: Any) -> Bool do p != nil end)
+  end
+end
+
+def fhc_first(list: List, n: Int) -> List do
+  reverse(fhc_first_into(list, n, []))
+end
+
+def fhc_first_into(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> acc
+    false ->
+      case list do
+        [] -> acc
+        [h | rest] -> fhc_first_into(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+def fhc_norm(term: String) -> String do
+  downcase(trim(term))
+end
+
+def fhc_filter(posts: List, norm: String) -> List do
+  case norm do
+    "" -> []
+    _ -> filter(posts, fn(p: Map) -> Bool do fh_matches(downcase(p.text), norm) end)
+  end
+end
+
+def fhc_onto(list: List, posts: List) -> List do
+  reduce(posts, list, fn(acc: List, p: Map) -> List do [p | acc] end)
+end
+
+# Kept as the batches they came in, newest first (see skeets.blimp).
+def fhc_keep(batches: List, n: Int, acc: List) -> List do
+  case batches do
+    [] -> reverse(acc)
+    [b | rest] ->
+      case n >= FHC_KEEP do
+        true -> reverse(acc)
+        false -> fhc_keep(rest, n + b.n, [b | acc])
+      end
+  end
+end
+
+def fhc_all(batches: List) -> List do
+  flat(map(batches, fn(b: Map) -> List do b.posts end))
+end
+
+# The newest FHC_SHOWN matches, cut as the page shows them. Cut once, when
+# the matches change, not on every render.
+def fhc_shown(filtered: List) -> List do
+  map(fhc_first(filtered, FHC_SHOWN), fn(p: Map) -> Map do %{did: p.did, did_cut: fh_cut(p.did, 30), text: fh_cut(p.text, 200)} end)
+end
+
+# One feed: %{count, batches, filtered, shown}, after a batch of posts.
+def fhc_feed_add(f: Map, got: List, norm: String) -> Map do
+  new_matches = fhc_filter(got, norm)
+  filtered = case new_matches do
+    [] -> f.filtered
+    _ -> fhc_first(fhc_onto(f.filtered, new_matches), FHC_KEEP)
+  end
+  shown = case new_matches do
+    [] -> f.shown
+    _ -> fhc_shown(filtered)
+  end
+  %{count: f.count + length(got), batches: fhc_keep([%{n: length(got), posts: reverse(got)} | f.batches], 0, []), filtered: filtered, shown: shown}
+end
+
+def fhc_feed_search(f: Map, norm: String) -> Map do
+  filtered = fhc_filter(fhc_all(f.batches), norm)
+  merge(f, %{filtered: filtered, shown: fhc_shown(filtered)})
+end
+
+# ── the template ────────────────────────────────────────────────────────
+
+def fhc_stats(cls: String, h3: String, head_cls: String, f: Map, host: String) -> Any do
+  el("div", %{class: cls},
+    el("h3", %{class: head_cls}, h3),
+    el("p", %{}, concat("Total received: ", to_string(f.count))),
+    el("p", %{}, concat("Currently showing: ", to_string(length(f.filtered)))),
+    el("p", %{class: "text-xs mt-1"}, host))
+end
+
+def fhc_column(title: String, title_cls: String, card_cls: String, name: String, f: Map, term: String) -> Any do
+  body = case f.shown do
+    [] -> el("div", %{class: "bg-white rounded-lg shadow-md p-4 text-center text-gray-500"}, fh_feed_empty(name, term))
+    _ -> map(f.shown, fn(p: Map) -> Any do
+      el("div", %{class: card_cls},
+        el("p", %{class: "text-xs text-gray-500 mb-1 font-mono truncate", title: p.did}, p.did_cut),
+        el("p", %{class: "text-sm text-gray-800 break-words"}, p.text))
+    end)
+  end
+  el("div", %{},
+    el("h2", %{class: title_cls}, title),
+    el("div", %{class: "space-y-3 max-h-screen overflow-y-auto"}, body))
+end
+
+def fhc_page(s: Map) -> Any do
+  el("div", %{class: "min-h-screen bg-gray-100 py-8"},
+    el("div", %{class: "max-w-7xl mx-auto px-4"},
+      el("h1", %{class: "text-3xl font-bold mb-6"}, "Jetstream vs Relay Comparison"),
+      el("div", %{class: "bg-white rounded-lg shadow-md p-6 mb-8"},
+        el("h2", %{class: "text-xl font-semibold mb-4"}, "Search Filter"),
+        el("input", %{type: "text", value: s.term, input: :search, debounce: 300,
+          placeholder: "Enter search term (e.g., bobby, elixir, ❤️)...",
+          class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"}),
+        el("div", %{class: "mt-4 grid grid-cols-2 gap-4 text-sm"},
+          fhc_stats("bg-blue-50 p-3 rounded", "Jetstream Stats", "font-semibold text-blue-900", s.jet, "jetstream2.us-east.bsky.network"),
+          fhc_stats("bg-green-50 p-3 rounded", "Relay Stats", "font-semibold text-green-900", s.relay, "bsky-relay.c.theo.io")),
+        el("p", %{class: "text-xs mt-2 text-gray-500"}, s.status)),
+      el("div", %{class: "grid grid-cols-2 gap-6"},
+        fhc_column("Jetstream Feed", "text-xl font-semibold mb-4 text-blue-700", "bg-white rounded-lg shadow-md p-3 border-l-4 border-blue-500", "Jetstream", s.jet, s.term),
+        fhc_column("Relay Feed", "text-xl font-semibold mb-4 text-green-700", "bg-white rounded-lg shadow-md p-3 border-l-4 border-green-500", "Relay", s.relay, s.term))))
+end
+
+actor Comparison do
+  state jet: Map :: %{count: 0, batches: [], filtered: [], shown: []}
+  state relay: Map :: %{count: 0, batches: [], filtered: [], shown: []}
+  state term: String :: ""
+  state status: String :: "connecting..."
+
+  on :frame(json: String) do
+    m = fhc_decode(json)
+    case lookup(m, :t) do
+      "compare" ->
+        norm = fhc_norm(term)
+        become jet: fhc_feed_add(jet, fhc_posts(lookup(m, :jet)), norm), relay: fhc_feed_add(relay, fhc_posts(lookup(m, :relay)), norm), status: ""
+      _ -> become status: status
+    end
+    reply :ok
+  end
+
+  on :search(value: String) do
+    norm = fhc_norm(value)
+    become term: value, jet: fhc_feed_search(jet, norm), relay: fhc_feed_search(relay, norm)
+    reply :ok
+  end
+
+  on :offline do
+    become status: "reconnecting..."
+    reply :ok
+  end
+
+  on :view do
+    reply fhc_page(%{term: term, jet: jet, relay: relay, status: status})
+  end
+end
+
+fh = spawn Comparison
+fh <- :view

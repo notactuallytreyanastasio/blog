@@ -1,0 +1,512 @@
+# The Bluesky firehose, and the three pages that watch it: /reddit-links
+# (YouTube links posted to Bluesky, as a grid of embeds), /emoji-skeets (a
+# search over every post as it arrives) and /jetstream_comparison (the same
+# search over two relays side by side).
+#
+# Phoenix held the relays with WebSockex (BlueskyHose, BlueskyJetstream) and
+# fanned every post out over PubSub to each LiveView, which kept up to
+# 100,000 posts per open page and filtered them on the server. Here the one
+# server process holds the relays with Blimp's TLS WebSocket client
+# (ws_open/ws_recv, a worker thread per connection), and:
+#
+#   Hose        one per relay. Owns the ws handle, and each tick hands over
+#               the text frames that arrived since the last one. Reconnects
+#               after {:closed, _} with &cursor=<last time_us> so a short
+#               outage is replayed -- by Jetstream; bsky-relay.c.theo.io
+#               takes the parameter and starts from now anyway (asked for
+#               60s back on 2026-09-30, its first frame was current,
+#               Jetstream's was 59s old) -- and treats a connection that has
+#               received nothing for FH_STALL_MS as dead (the client has no
+#               read timeout). The Jetstream one is only open while someone
+#               has /jetstream_comparison open, and a minute after.
+#   FIREHOSE    the room. Every Site tick it drains both hoses. A frame is
+#               decoded only if it can matter: one that mentions "youtu"
+#               (the grid), or any, while a search page is open. It keeps
+#               the grid, the fifty cells every /reddit-links shows, so a
+#               new visitor sees the last fifty videos at once. Posts are
+#               not kept: a search page is sent every post, [text, did], in
+#               batches at most every FH_PUSH_MS, and filters them itself,
+#               in the browser, as the LiveView filtered the posts it had
+#               seen since it mounted.
+#
+# What crosses /live/firehose?page=youtube|skeets|compare, as JSON text:
+#   youtube   {"t":"grid","slots":[{"pos","id","key"}..]}   on joining
+#             {"t":"slots","slots":[..]}                      new videos
+#   skeets    {"t":"posts","posts":[[text, did]..]}           oldest first
+#   compare   {"t":"compare","relay":[[text, did]..],"jet":[..]}
+#
+# The id extraction, the grid's arithmetic and the pages' text are Temper,
+# temper/src/firehose.
+
+FH_RELAY_URL = "wss://bsky-relay.c.theo.io/subscribe?wantedCollections=app.bsky.feed.post"
+FH_JET_URL = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
+FH_PUSH_MS = 250
+FH_STALL_MS = 30000
+FH_RETRY_MIN_MS = 2000
+FH_RETRY_MAX_MS = 60000
+# a cursor older than this is not replayed: at 40 posts a second, five
+# minutes is 12,000 frames, more than the client's queue holds
+FH_REPLAY_MAX_MS = 300000
+FH_JET_LINGER_MS = 60000
+FH_MAX_PENDING = 400
+FH_STATS_MS = 5000
+
+# ── frames ──────────────────────────────────────────────────────────────
+
+# A map's value, or nil when it is not a map.
+def fh_get(m: Any, k: Atom) -> Any do
+  case type_of(m) == :map do
+    true -> lookup(m, k)
+    false -> nil
+  end
+end
+
+# The time_us of a Jetstream frame, read without decoding it, or 0.
+def fh_time_us(frame: String) -> Int do
+  at = index_of(frame, "\"time_us\":")
+  case at < 0 do
+    true -> 0
+    false ->
+      digits = head(split(head(split(slice(frame, at + 10, 20), ",")), "}"))
+      n = to_int(digits)
+      case n do
+        nil -> 0
+        _ -> n
+      end
+  end
+end
+
+# Where to connect: the relay, from the cursor when there is one recent
+# enough to replay.
+def fh_resume_url(url: String, cursor: Int, cursor_at: Int, t: Int) -> String do
+  case cursor > 0 and t - cursor_at <= FH_REPLAY_MAX_MS do
+    true -> concat(url, "&cursor=", to_string(cursor))
+    false -> url
+  end
+end
+
+# A new post's [text, did], or nil for anything else (a delete, an update,
+# an identity or account event, a post with no text). BlueskyHose read the
+# DID from the top of the event; BlueskyJetstream read it from inside the
+# commit, where Jetstream does not put it, so every Jetstream post said
+# "unknown". Both relays speak Jetstream, and both are read the same here.
+def fh_post(ev: Any) -> Any do
+  commit = fh_get(ev, :commit)
+  record = fh_get(commit, :record)
+  text = fh_get(record, :text)
+  case fh_get(ev, :kind) == "commit" and fh_get(commit, :operation) == "create" and type_of(text) == :string do
+    false -> nil
+    true ->
+      did = fh_get(ev, :did)
+      case type_of(did) == :string do
+        true -> [text, did]
+        false -> [text, "unknown"]
+      end
+  end
+end
+
+# The YouTube id of a post's link card, or "" (derive_youtube_embed_link/2,
+# then extract_youtube_id/1). The LiveView kept links it could not embed,
+# /shorts/ and /live/ ones, and drew an empty cell for each; they are not
+# kept here.
+def fh_card_video(ev: Any) -> String do
+  uri = fh_get(fh_get(fh_get(fh_get(fh_get(ev, :commit), :record), :embed), :external), :uri)
+  case type_of(uri) == :string do
+    false -> ""
+    true ->
+      case fh_is_youtube(uri) do
+        true -> fh_youtube_id(uri)
+        false -> ""
+      end
+  end
+end
+
+def fh_decode(frame: String) -> Any do
+  case json_decode(frame) do
+    {:ok, ev} -> ev
+    _ -> nil
+  end
+end
+
+def fh_texts(got: List) -> List do
+  filter(got, fn(f: Any) -> Bool do type_of(f) == :string end)
+end
+
+# The first n of a list.
+def fh_first(list: List, n: Int) -> List do
+  reverse(fh_first_into(list, n, []))
+end
+
+def fh_first_into(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> acc
+    false ->
+      case list do
+        [] -> acc
+        [h | rest] -> fh_first_into(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+def fh_without(m: Map, gone: String) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+# ── one relay ───────────────────────────────────────────────────────────
+
+actor Hose do
+  state url: String :: ""
+  state ws: Int :: -1
+  state want: Bool :: false
+  state cursor: Int :: 0
+  state cursor_at: Int :: 0
+  state retry_at: Int :: 0
+  state backoff: Int :: 2000
+  state received: Int :: 0
+  state moved_at: Int :: 0
+  state stats_at: Int :: 0
+  state frames: Int :: 0
+  state dropped: Int :: 0
+  state dropped_before: Int :: 0
+  state opens: Int :: 0
+  state last_error: String :: ""
+
+  on :setup(u: String) do
+    become url: u
+    reply :ok
+  end
+
+  # Whether to be connected. Closing is at once; opening waits for :poll.
+  on :want(w: Bool) do
+    case not(w) and ws >= 0 do
+      true ->
+        ws_close(ws)
+        become want: w, ws: -1, dropped_before: dropped
+        reply :closed
+      false ->
+        become want: w
+        reply :ok
+    end
+  end
+
+  # The text frames since the last poll, opening or reopening as needed.
+  on :poll(t: Int) do
+    case ws < 0 do
+      true ->
+        case want and t >= retry_at do
+          false -> reply []
+          true ->
+            h = ws_open(fh_resume_url(url, cursor, cursor_at, t), nil)
+            become ws: h, moved_at: t, received: 0, stats_at: t, opens: opens + 1
+            reply []
+        end
+      false ->
+        got = ws_recv(ws)
+        case type_of(got) == :tuple do
+          true ->
+            puts(concat("firehose ", url, " closed: ", to_string(elem(got, 1)), "; again in ", to_string(backoff), "ms"))
+            become ws: -1, retry_at: t + backoff, backoff: min(backoff * 2, FH_RETRY_MAX_MS), last_error: to_string(elem(got, 1)), dropped_before: dropped
+            reply []
+          false ->
+            texts = fh_texts(got)
+            n = length(texts)
+            at = case n > 0 do
+              true -> fh_time_us(last(texts))
+              false -> 0
+            end
+            cur = case at > 0 do
+              true -> at
+              false -> cursor
+            end
+            cur_at = case at > 0 do
+              true -> t
+              false -> cursor_at
+            end
+            case n > 0 do
+              true ->
+                # a connection that delivers has recovered: the next failure waits the minimum again
+                become frames: frames + n, cursor: cur, cursor_at: cur_at, moved_at: t, backoff: FH_RETRY_MIN_MS
+                reply texts
+              false ->
+                case t - moved_at > FH_STALL_MS do
+                  true ->
+                    puts(concat("firehose ", url, " stalled: nothing for ", to_string(t - moved_at), "ms; reconnecting"))
+                    ws_close(ws)
+                    become ws: -1, retry_at: t, last_error: "stalled", dropped_before: dropped
+                    reply []
+                  false ->
+                    case t - stats_at >= FH_STATS_MS do
+                      false -> reply []
+                      true ->
+                        st = ws_stats(ws)
+                        become stats_at: t, dropped: dropped_before + lookup(st, :dropped)
+                        reply []
+                    end
+                end
+            end
+        end
+    end
+  end
+
+  on :stats do
+    live = case ws >= 0 do
+      true -> ws_stats(ws)
+      false -> %{}
+    end
+    reply %{url: url, open: ws >= 0, want: want, frames: frames, dropped: dropped, opens: opens, cursor: cursor, last_error: last_error, now: live}
+  end
+end
+
+RELAY_HOSE = spawn Hose
+RELAY_HOSE <- :setup(FH_RELAY_URL)
+JET_HOSE = spawn Hose
+JET_HOSE <- :setup(FH_JET_URL)
+
+# ── the room ────────────────────────────────────────────────────────────
+
+# A frame to one page; the tests' sockets are negative and are not written.
+def fh_send(fd: Int, frame: String) -> Any do
+  case fd < 0 do
+    true -> :test
+    false -> tcp_write(fd, frame)
+  end
+end
+
+def fh_send_page(people: Map, page: String, json: String) -> Int do
+  frame = ws_frame(1, json)
+  watching = filter(values(people), fn(p: Map) -> Bool do p.page == page end)
+  each(watching, fn(p: Map) do fh_send(p.fd, frame) end)
+  length(watching)
+end
+
+def fh_count(people: Map, page: String) -> Int do
+  length(filter(values(people), fn(p: Map) -> Bool do p.page == page end))
+end
+
+def fh_grid(slots: Map) -> List do
+  map(sort(map(keys(slots), fn(k: Any) -> Int do to_int(k) end)), fn(pos: Int) -> Map do lookup(slots, to_string(pos)) end)
+end
+
+# One frame from a relay into what is pending: {slots, next_pos, fresh,
+# posts}. `texts` is whether a search page wants every post.
+def fh_take(acc: Tuple, frame: String, texts: Bool, relay: Bool) -> Tuple do
+  video = relay and contains(frame, "youtu")
+  case video or texts do
+    false -> acc
+    true ->
+      ev = fh_decode(frame)
+      id = case video do
+        true -> fh_card_video(ev)
+        false -> ""
+      end
+      a1 = case id do
+        "" -> acc
+        _ ->
+          pos = fh_slot(elem(acc, 1))
+          cell = %{pos: pos, id: id, key: elem(acc, 1) + 1}
+          {put(elem(acc, 0), to_string(pos), cell), elem(acc, 1) + 1, [cell | elem(acc, 2)], elem(acc, 3)}
+      end
+      post = case texts do
+        true -> fh_post(ev)
+        false -> nil
+      end
+      case post do
+        nil -> a1
+        _ -> {elem(a1, 0), elem(a1, 1), elem(a1, 2), [post | elem(a1, 3)]}
+      end
+  end
+end
+
+# The room's state after frames from the relay and from Jetstream: the
+# fields of `st` that change. Pure, so a test can feed it recorded frames.
+def fh_fed(st: Map, relay: List, jet: List) -> Map do
+  skeets = fh_count(st.people, "skeets") > 0
+  compare = fh_count(st.people, "compare") > 0
+  got = reduce(relay, {st.slots, st.next_pos, st.fresh, st.relay_posts}, fn(acc: Tuple, f: String) -> Tuple do
+    fh_take(acc, f, skeets or compare, true)
+  end)
+  jet_posts = case compare do
+    false -> st.jet_posts
+    true -> elem(reduce(jet, {%{}, 0, [], st.jet_posts}, fn(acc: Tuple, f: String) -> Tuple do fh_take(acc, f, true, false) end), 3)
+  end
+  %{slots: elem(got, 0), next_pos: elem(got, 1), fresh: elem(got, 2),
+    relay_posts: fh_first(elem(got, 3), FH_MAX_PENDING), jet_posts: fh_first(jet_posts, FH_MAX_PENDING),
+    relay_frames: st.relay_frames + length(relay), jet_frames: st.jet_frames + length(jet)}
+end
+
+# What is pending, to the pages that want it, if FH_PUSH_MS has passed:
+# {frames written, the JSON sent to each kind of page}, or nil for not yet.
+def fh_pushed(st: Map, t: Int) -> Any do
+  case t - st.pushed_at < FH_PUSH_MS or (st.fresh == [] and st.relay_posts == [] and st.jet_posts == []) do
+    true -> nil
+    false ->
+      yt = case st.fresh do
+        [] -> ""
+        _ -> json_encode(%{t: "slots", slots: reverse(st.fresh)})
+      end
+      sk = case st.relay_posts == [] or fh_count(st.people, "skeets") == 0 do
+        true -> ""
+        false -> json_encode(%{t: "posts", posts: reverse(st.relay_posts)})
+      end
+      cm = case (st.relay_posts == [] and st.jet_posts == []) or fh_count(st.people, "compare") == 0 do
+        true -> ""
+        false -> json_encode(%{t: "compare", relay: reverse(st.relay_posts), jet: reverse(st.jet_posts)})
+      end
+      n1 = case yt do
+        "" -> 0
+        _ -> fh_send_page(st.people, "youtube", yt)
+      end
+      n2 = case sk do
+        "" -> 0
+        _ -> fh_send_page(st.people, "skeets", sk)
+      end
+      n3 = case cm do
+        "" -> 0
+        _ -> fh_send_page(st.people, "compare", cm)
+      end
+      {n1 + n2 + n3, %{youtube: yt, skeets: sk, compare: cm}}
+  end
+end
+
+actor FirehoseRoom do
+  state people: Map :: %{}
+  state slots: Map :: %{}
+  state next_pos: Int :: 0
+  state fresh: List :: []
+  state relay_posts: List :: []
+  state jet_posts: List :: []
+  state pushed_at: Int :: 0
+  state jet_until: Int :: 0
+  state relay_frames: Int :: 0
+  state jet_frames: Int :: 0
+  state work_ms: Int :: 0
+  state ticks: Int :: 0
+  state last_sent: Map :: %{}
+
+  # A page opened /live/firehose?page=... . The grid goes to a YouTube page
+  # at once; a search page starts from nothing, as the LiveView did.
+  on :join(fd: Int, page: String) do
+    kind = case page do
+      "youtube" -> "youtube"
+      "skeets" -> "skeets"
+      "compare" -> "compare"
+      _ -> ""
+    end
+    case kind do
+      "youtube" -> fh_send(fd, ws_frame(1, json_encode(%{t: "grid", slots: fh_grid(slots)})))
+      _ -> :ok
+    end
+    become people: put(people, to_string(fd), %{fd: fd, page: kind})
+    reply kind
+  end
+
+  on :leave(fd: Int) do
+    become people: fh_without(people, to_string(fd))
+    reply :ok
+  end
+
+  # Every Site tick: drain the relays, then push. Jetstream is wanted while
+  # a comparison page is open, and FH_JET_LINGER_MS after the last one
+  # closes, so a reload does not reconnect.
+  on :tick(t: Int) do
+    t0 = now_ms()
+    until = case fh_count(people, "compare") > 0 do
+      true -> t + FH_JET_LINGER_MS
+      false -> jet_until
+    end
+    JET_HOSE <- :want(t < until)
+    relay = RELAY_HOSE <- :poll(t)
+    jet = JET_HOSE <- :poll(t)
+    st = %{people: people, slots: slots, next_pos: next_pos, fresh: fresh, relay_posts: relay_posts, jet_posts: jet_posts, relay_frames: relay_frames, jet_frames: jet_frames, pushed_at: pushed_at}
+    fed = merge(st, fh_fed(st, relay, jet))
+    out = fh_pushed(fed, t)
+    spent = work_ms + (now_ms() - t0)
+    case out do
+      nil ->
+        become slots: fed.slots, next_pos: fed.next_pos, fresh: fed.fresh, relay_posts: fed.relay_posts, jet_posts: fed.jet_posts, relay_frames: fed.relay_frames, jet_frames: fed.jet_frames, jet_until: until, work_ms: spent, ticks: ticks + 1
+        reply 0
+      _ ->
+        become slots: fed.slots, next_pos: fed.next_pos, fresh: [], relay_posts: [], jet_posts: [], relay_frames: fed.relay_frames, jet_frames: fed.jet_frames, jet_until: until, work_ms: spent, ticks: ticks + 1, pushed_at: t, last_sent: elem(out, 1)
+        reply elem(out, 0)
+    end
+  end
+
+  # Recorded frames in, and a push at time t, for the tests: what :tick does
+  # with what the hoses hand it.
+  on :replay(relay: List, jet: List, t: Int) do
+    st = %{people: people, slots: slots, next_pos: next_pos, fresh: fresh, relay_posts: relay_posts, jet_posts: jet_posts, relay_frames: relay_frames, jet_frames: jet_frames, pushed_at: pushed_at}
+    fed = merge(st, fh_fed(st, relay, jet))
+    out = fh_pushed(fed, t)
+    case out do
+      nil ->
+        become slots: fed.slots, next_pos: fed.next_pos, fresh: fed.fresh, relay_posts: fed.relay_posts, jet_posts: fed.jet_posts, relay_frames: fed.relay_frames, jet_frames: fed.jet_frames
+        reply %{}
+      _ ->
+        become slots: fed.slots, next_pos: fed.next_pos, fresh: [], relay_posts: [], jet_posts: [], relay_frames: fed.relay_frames, jet_frames: fed.jet_frames, pushed_at: t, last_sent: elem(out, 1)
+        reply elem(out, 1)
+    end
+  end
+
+  # From the prompt: `FIREHOSE <- :stats`, and the grid.
+  on :stats do
+    reply %{pages: map(values(people), fn(p: Map) -> String do p.page end), relay_frames: relay_frames, jet_frames: jet_frames, videos: next_pos, cells: length(keys(slots)), work_ms: work_ms, ticks: ticks, relay: RELAY_HOSE <- :stats, jet: JET_HOSE <- :stats}
+  end
+
+  on :grid do
+    reply fh_grid(slots)
+  end
+
+  on :last_sent do
+    reply last_sent
+  end
+end
+
+FIREHOSE = spawn FirehoseRoom
+
+# ── the pages ───────────────────────────────────────────────────────────
+
+FH_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/firehose/firehose.js"]
+
+# One page: its program, which firehose.js connects to /live/firehose?page=.
+# Phoenix's layout set font-mono on <body>, which the comparison page shows.
+def fh_page(title: String, description: String, program: String, page: String, style: String) -> String do
+  body = join([
+    style,
+    "<div id=\"blimp-app\" class=\"font-mono\" data-program=\"", program, "\" data-actor=\"fh\" data-firehose=\"", page, "\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
+    script_tags(FH_SCRIPTS)
+  ], "")
+  page_layout(title, description, "website", ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/assets/apps.css", "/assets/blimp-window.css"], body)
+end
+
+def fh_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+def fh_html(html: String) -> Map do
+  response(200, "text/html; charset=utf-8", "public, max-age=300", html)
+end
+
+# RedditLinksLive's own <style>, for the card a new video arrives in
+FH_YOUTUBE_STYLE = "<style>\n@keyframes video-slide-in { 0% { opacity: 0; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1); } }\n.video-card-new { animation: video-slide-in 0.4s ease-out; }\n</style>\n"
+
+FH_YOUTUBE_PAGE = fh_html(fh_page("YouTube Links from Bluesky", "Bluesky posts containing Youtube links", "/firehose/youtube.blimp", "youtube", FH_YOUTUBE_STYLE))
+FH_SKEETS_PAGE = fh_html(fh_page("Skeet Search", "Search Bluesky posts in real-time", "/firehose/skeets.blimp", "skeets", ""))
+FH_COMPARE_PAGE = fh_html(fh_page("Jetstream vs Relay Comparison", "Compare Bluesky Jetstream vs Relay feeds", "/firehose/compare.blimp", "compare", ""))
+FH_YOUTUBE_PROGRAM = fh_asset("_build/fh-youtube.blimp", "text/plain; charset=utf-8")
+FH_SKEETS_PROGRAM = fh_asset("_build/fh-skeets.blimp", "text/plain; charset=utf-8")
+FH_COMPARE_PROGRAM = fh_asset("_build/fh-compare.blimp", "text/plain; charset=utf-8")
+FH_JS = fh_asset("static/firehose/firehose.js", "text/javascript; charset=utf-8")

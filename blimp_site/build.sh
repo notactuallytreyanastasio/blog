@@ -84,6 +84,10 @@ with_temper _build/map.blimp static/map/map.blimp
 # How many people live here: the arithmetic is Temper (temper/src/nyc_census),
 # the loops, the state and the panel Blimp; the map is Leaflet (map.js).
 with_temper _build/nyc_census.blimp static/nyc_census/census.blimp
+# The firehose pages: id extraction, matching and cutting are Temper (temper/src/firehose), the views Blimp.
+with_temper _build/fh-youtube.blimp static/firehose/youtube.blimp
+with_temper _build/fh-skeets.blimp static/firehose/skeets.blimp
+with_temper _build/fh-compare.blimp static/firehose/compare.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
