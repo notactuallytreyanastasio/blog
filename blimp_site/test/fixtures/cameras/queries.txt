@@ -1,0 +1,4 @@
+
+status=all&sort=newest&brand=nikon
+city=brk&sort=price_asc&q=lens&format=35mm,slr
+sort=price_desc&min=200&max=1000&tags=working&price=%24200%E2%80%93500

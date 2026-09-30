@@ -368,9 +368,9 @@ def blk_export_as(format: String) -> Map do
       end
 end
 
-# BlinkCommentController.index/2, without the post_token: that is a
-# Phoenix.Token signed with the app's secret_key_base, and it exists only to
-# be sent back with a POST, which this server does not take.
+# BlinkCommentController.index/2, without the post_token. Only a request
+# that no web_route claims gets here: src/99_blinksanon.blimp answers
+# GET /api/blinks/:id/comments itself, with the post_token.
 def blk_comments(id_s: String) -> Map do
   id = blk_int(id_s)
   case id do

@@ -1,0 +1,107 @@
+# What /blinks-next/surf, /walk, /tv and /review share (after common.blimp):
+# reading a pick or a walk from the server, and the bits of a card the
+# LiveViews draw alike. The id work (doors, history, what to leave out of a
+# pick) is Temper, temper/src/blinks_pages.
+
+# A body the server sent, decoded, or nil.
+def bkp_decode(status: Int, body: String) -> Any do
+  case status == 200 do
+    false -> nil
+    true ->
+      r = json_decode(body)
+      case elem(r, 0) do
+        :ok -> elem(r, 1)
+        _ -> nil
+      end
+  end
+end
+
+# `blink.site_name || domain(blink.url)`: a name the page was given, even
+# an empty one, or the url's host (the url itself when it has none).
+def bkp_site_name(b: Map) -> String do
+  case b.site_name do
+    nil -> blk_domain_or_url(b.url)
+    s -> s
+  end
+end
+
+# `blink.title || blink.url`, and `blink.title || domain(blink.url)`.
+def bkp_title(b: Map) -> String do
+  case b.title do
+    nil -> b.url
+    t -> t
+  end
+end
+
+def bkp_short_title(b: Map) -> String do
+  case b.title do
+    nil -> blk_domain_or_url(b.url)
+    t -> t
+  end
+end
+
+# The favicon and the site's name, as every card starts.
+def bkp_site(b: Map) -> Any do
+  icon = case b.favicon_url do
+    nil -> []
+    f -> [el("img", %{src: f, alt: ""})]
+  end
+  el("div", %{class: "site"}, icon, el("span", %{}, bkp_site_name(b)))
+end
+
+def bkp_ids(rows: List) -> List do
+  map(rows, fn(b: Map) -> Int do b.id end)
+end
+
+def bkp_rows_with(rows: List, ids: List) -> List do
+  map(ids, fn(id: Int) -> Any do bk_find(rows, id) end)
+end
+
+def bkp_take(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case list do
+        [] -> []
+        [h | rest] -> [h | bkp_take(rest, n - 1)]
+      end
+  end
+end
+
+def bkp_drop(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> list
+    false ->
+      case list do
+        [] -> []
+        [_ | rest] -> bkp_drop(rest, n - 1)
+      end
+  end
+end
+
+# HEEx's `:if={@blink.image_url}`: only nil is absent; an empty string is
+# there, as it is to Elixir.
+def bkp_absent(s: Any) -> Bool do
+  s == nil
+end
+
+# /blinks-next/pick.json for these ids left out, this channel ("" for all),
+# and whether a picture is wanted. `n` makes each ask a new URL: a fetch is
+# made once while its URL stays in the view.
+def bkp_pick_url(exclude: List, tag: String, image: Bool, n: Int) -> String do
+  image_s = case image do
+    true -> "1"
+    false -> ""
+  end
+  concat("/blinks-next/pick.json?", blk_query(["exclude", "tag", "image", "n"], [blkp_csv(exclude), tag, image_s, to_string(n)]))
+end
+
+def bkp_walk_url(id: Int, exclude: List, limit: Int, n: Int) -> String do
+  id_s = case id > 0 do
+    true -> to_string(id)
+    false -> ""
+  end
+  concat("/blinks-next/walk.json?", blk_query(["id", "exclude", "limit", "n"], [id_s, blkp_csv(exclude), to_string(limit), to_string(n)]))
+end
+
+BKP_TAGS_URL = "/blinks-next/api/blinks/tags"

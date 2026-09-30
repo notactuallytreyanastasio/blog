@@ -7,6 +7,10 @@
 # is one actor, CURSORS, in the one server process. A browser opens
 # /live/cursors; the Site actor hands CURSORS the socket (:join), every frame
 # on it (:recv) and its end (:leave), and every tick asks it to :push.
+# Who is in the room and writing to them is not CURSORS' own any more: the
+# visitors are members of the site's Rooms hub (src/89_rooms.blimp), which
+# rate-limits their frames and sends each one this tick's frames in one
+# write when main.blimp flushes it. CURSORS keeps the points and the clock.
 #
 # What crosses, as JSON text frames:
 #   up    {"t":"move","rx":12,"ry":40,"inside":true}   at most 20 a second,
@@ -33,17 +37,19 @@ CT_POINT_MS = 100
 CT_MAX_POINTS = 1000
 CT_MAX_COORD = 4000
 
-# A frame to one socket; the tests' sockets are negative and are not written.
-def ct_send(fd: Int, frame: String) -> Any do
-  case fd < 0 do
-    true -> :test
-    false -> tcp_write(fd, frame)
-  end
-end
+# The room's sockets, who is in it and what they are sent are a Rooms
+# hub's (src/89_rooms.blimp): each visitor is a member of CT_TOPIC, their id
+# is who and their colour and cursor are what they say about themselves.
+# The topic sends no presence frames of its own: the page already had the
+# room in its "users" frame, and that stays the wire.
+CT_TOPIC = "cursors"
 
-def ct_send_all(people: Map, frame: String) -> Int do
-  each(values(people), fn(p: Map) do ct_send(p.fd, frame) end)
-  length(keys(people))
+# The hub a room uses: its own when given one (a test), else the site's.
+def ct_hub(h: Any) -> Any do
+  case h == nil do
+    true -> ROOMS
+    false -> h
+  end
 end
 
 # A number a browser sent, as a whole number from 0 to CT_MAX_COORD.
@@ -56,28 +62,14 @@ def ct_coord(v: Any) -> Int do
 end
 
 # The room as it is sent: everyone, in the order they came.
-def ct_users(people: Map, order: List) -> List do
-  map(order, fn(k: String) -> Map do
-    p = lookup(people, k)
-    %{id: p.id, color: p.color, rx: p.rx, ry: p.ry, inside: p.inside}
+def ct_users(members: List) -> List do
+  map(members, fn(m: Map) -> Map do
+    %{id: m.who, color: m.meta.color, rx: m.meta.rx, ry: m.meta.ry, inside: m.meta.inside}
   end)
 end
 
-def ct_users_json(people: Map, order: List) -> String do
-  json_encode(%{t: "users", users: ct_users(people, order)})
-end
-
-def ct_without(list: List, gone: String) -> List do
-  filter(list, fn(k: String) -> Bool do k != gone end)
-end
-
-def ct_drop_key(m: Map, gone: String) -> Map do
-  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
-    case k == gone do
-      true -> acc
-      false -> put(acc, k, lookup(m, k))
-    end
-  end)
+def ct_users_json(members: List) -> String do
+  json_encode(%{t: "users", users: ct_users(members)})
 end
 
 # The first n of a list (newest first, so the newest n points).
@@ -108,63 +100,89 @@ def ct_decode(text: String) -> Map do
 end
 
 actor CursorRoom do
-  state people: Map :: %{}
-  state order: List :: []
+  state hub: Any :: nil
+  # socket (as a string) -> when it last drew a point
+  state point_at: Map :: %{}
   state points: List :: []
   state dirty: Bool :: false
   state pushed_at: Int :: 0
   state hour: Int :: 0
 
+  # A test's room keeps its own hub.
+  on :hub(h: Any) do
+    h <- :open(CT_TOPIC, %{diffs: false})
+    become hub: h
+    reply :ok
+  end
+
   # A new socket: a visitor with a fresh id and the colour it gives them,
   # sent who they are, the points so far and who else is here.
   on :join(fd: Int) do
-    k = to_string(fd)
+    rooms = ct_hub(hub)
     id = hex_encode(random_bytes(8))
-    p = %{fd: fd, id: id, color: ct_color(id), rx: 0, ry: 0, inside: false, point_at: 0}
-    p2 = put(people, k, p)
-    o2 = list_append(ct_without(order, k), [k])
-    ct_send(fd, ws_frame(1, json_encode(%{t: "hello", id: id, color: p.color, points: points, users: ct_users(p2, o2)})))
-    become people: p2, order: o2, dirty: true
+    color = ct_color(id)
+    rooms <- :open(CT_TOPIC, %{diffs: false})
+    rooms <- :join(CT_TOPIC, fd, id, %{color: color, rx: 0, ry: 0, inside: false})
+    members = rooms <- :list(CT_TOPIC)
+    rooms <- :send(fd, json_encode(%{t: "hello", id: id, color: color, points: points, users: ct_users(members)}))
+    become point_at: put(point_at, to_string(fd), 0), dirty: true
     reply id
   end
 
   on :leave(fd: Int) do
-    k = to_string(fd)
-    become people: ct_drop_key(people, k), order: ct_without(order, k), dirty: true
+    rooms = ct_hub(hub)
+    rooms <- :leave(CT_TOPIC, fd)
+    become point_at: rooms_drop_key(point_at, to_string(fd)), dirty: true
     reply :ok
   end
 
   # A frame from a page. Anything that is not one of the three is ignored
-  # and answered :bad; the Site keeps the socket either way.
+  # and answered :bad, and a frame over the hub's rate :limited; the Site
+  # keeps the socket either way.
   on :recv(fd: Int, text: String) do
-    k = to_string(fd)
-    p = lookup(people, k)
+    rooms = ct_hub(hub)
     msg = ct_decode(text)
     what = lookup(msg, :t)
-    case p == nil do
-      true -> reply :bad
-      false ->
+    case rooms <- :inbound(fd) do
+      :limited -> reply :limited
+      :ok ->
         case what do
+          # the commonest frame by far: one call, which is also the check
+          # that fd is in the room
           "move" ->
-            moved = merge(p, %{rx: ct_coord(lookup(msg, :rx)), ry: ct_coord(lookup(msg, :ry)), inside: lookup(msg, :inside) == true})
-            become people: put(people, k, moved), dirty: true
-            reply :move
+            moved = rooms <- :patch(CT_TOPIC, fd, %{rx: ct_coord(lookup(msg, :rx)), ry: ct_coord(lookup(msg, :ry)), inside: lookup(msg, :inside) == true})
+            case moved == nil do
+              true -> reply :bad
+              false ->
+                become dirty: true
+                reply :move
+            end
           # a point goes to everyone at once, the clicker too: the page shows
           # what the room has, not what it hoped to add
           "point" ->
+            me = rooms <- :member(CT_TOPIC, fd)
             t = now_ms()
-            case t - p.point_at < CT_POINT_MS do
-              true -> reply :too_soon
+            case me == nil do
+              true -> reply :bad
               false ->
-                pt = %{id: p.id, color: p.color, x: ct_coord(lookup(msg, :x)), y: ct_coord(lookup(msg, :y))}
-                ct_send_all(people, ws_frame(1, json_encode(%{t: "point", point: pt})))
-                become people: put(people, k, put(p, :point_at, t)), points: ct_first([pt | points], CT_MAX_POINTS)
-                reply :point
+                case t - lookup(point_at, to_string(fd)) < CT_POINT_MS do
+                  true -> reply :too_soon
+                  false ->
+                    pt = %{id: me.who, color: me.meta.color, x: ct_coord(lookup(msg, :x)), y: ct_coord(lookup(msg, :y))}
+                    rooms <- :broadcast(CT_TOPIC, json_encode(%{t: "point", point: pt}))
+                    become point_at: put(point_at, to_string(fd), t), points: ct_first([pt | points], CT_MAX_POINTS)
+                    reply :point
+                end
             end
           "clear" ->
-            ct_send_all(people, ws_frame(1, json_encode(%{t: "clear"})))
-            become points: []
-            reply :clear
+            me = rooms <- :member(CT_TOPIC, fd)
+            case me == nil do
+              true -> reply :bad
+              false ->
+                rooms <- :broadcast(CT_TOPIC, json_encode(%{t: "clear"}))
+                become points: []
+                reply :clear
+            end
           _ -> reply :bad
         end
     end
@@ -173,12 +191,14 @@ actor CursorRoom do
   # Every Site tick: the hourly clear when an hour has turned, and the room
   # to everyone if it changed and CT_PUSH_MS has passed since the last time.
   # t_ms and now_s are the clock, passed in so a test can be the clock.
+  # What is said here goes out at the hub's next flush, in this same tick.
   on :push(t_ms: Int, now_s: Int) do
+    rooms = ct_hub(hub)
     h = ct_hour(now_s)
     turned = hour != 0 and h != hour and points != []
     case turned do
-      true -> ct_send_all(people, ws_frame(1, json_encode(%{t: "clear"})))
-      false -> 0
+      true -> rooms <- :broadcast(CT_TOPIC, json_encode(%{t: "clear"}))
+      false -> :ok
     end
     kept = case turned do
       true -> []
@@ -189,15 +209,18 @@ actor CursorRoom do
         become hour: h, points: kept
         reply 0
       true ->
-        n = ct_send_all(people, ws_frame(1, ct_users_json(people, order)))
+        members = rooms <- :list(CT_TOPIC)
+        rooms <- :broadcast(CT_TOPIC, ct_users_json(members))
         become hour: h, points: kept, dirty: false, pushed_at: t_ms
-        reply n
+        reply length(members)
     end
   end
 
   # From the prompt, or a test.
   on :room do
-    reply %{users: ct_users(people, order), points: points, dirty: dirty}
+    rooms = ct_hub(hub)
+    members = rooms <- :list(CT_TOPIC)
+    reply %{users: ct_users(members), points: points, dirty: dirty}
   end
 end
 

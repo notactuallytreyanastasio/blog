@@ -1,0 +1,458 @@
+# The rooms library (src/89_rooms.blimp). Most sockets here are negative:
+# the hub never writes them, and :sent says what it would have written.
+# The backlog tests use real loopback sockets, a pair per test on its own
+# port, whose client end is read (or not) by the test itself.
+
+def rt_decode(text: String) -> Map do
+  elem(json_decode(text), 1)
+end
+
+def rt_sent(hub: Any, fd: Int) -> List do
+  map(hub <- :sent(fd), fn(s: String) -> Map do rt_decode(s) end)
+end
+
+def rt_whos(members: List) -> List do
+  map(members, fn(m: Map) -> String do m.who end)
+end
+
+# a string of 2^n copies of s
+def rt_rep(s: String, n: Int) -> String do
+  case n <= 0 do
+    true -> s
+    false -> rt_rep(concat(s, s), n - 1)
+  end
+end
+
+# "event:topic" for a frame, "event:" for one with no topic
+def rt_label(f: Map) -> String do
+  t = lookup(f, :topic)
+  case t == nil do
+    true -> concat(f.t, ":")
+    false -> concat(f.t, ":", t)
+  end
+end
+
+# A connected loopback pair: {the server's end, which the hub writes; the
+# client's end, non-blocking, which the test reads or leaves unread}
+def rt_pair(port: Int) -> Tuple do
+  l = tcp_listen(port)
+  tcp_set_nonblocking(l)
+  c = tcp_connect("127.0.0.1", port)
+  tcp_poll([l], 1000)
+  s = tcp_accept(l)
+  tcp_set_nonblocking(c)
+  tcp_close(l)
+  {s, c}
+end
+
+# Everything the client end has been sent so far.
+def rt_drain(c: Int, acc: List) -> String do
+  got = tcp_read(c)
+  case got == nil or got == "" do
+    true -> join(reverse(acc), "")
+    false -> rt_drain(c, [got | acc])
+  end
+end
+
+# 64KB frames broadcast to topic and flushed, one a flush, until the peer
+# owes something (or `tries` run out). Each text is "<i>:" and 64KB, so
+# the order can be checked. {texts said, longest flush ms, last reply}
+def rt_fill(hub: Any, topic: String, i: Int, tries: Int, said: List, longest: Int) -> Tuple do
+  text = concat(to_string(i), ":", rt_rep("0123456789abcdef", 12))
+  hub <- :broadcast(topic, text)
+  t0 = now_ms()
+  r = hub <- :flush_at(now_ms())
+  dt = now_ms() - t0
+  case r.behind > 0 or r.kicked != [] or tries <= 1 do
+    true -> {reverse([text | said]), max(longest, dt), r}
+    false -> rt_fill(hub, topic, i + 1, tries - 1, [text | said], max(longest, dt))
+  end
+end
+
+# Read, flush, read, ... until the hub owes nothing (or `tries` run out).
+# {what the client read, flushes it took}
+def rt_read_until_paid(hub: Any, c: Int, acc: List, tries: Int, n: Int) -> Tuple do
+  got = rt_drain(c, [])
+  r = hub <- :flush
+  case (r.owed == 0 and got == "") or tries <= 0 do
+    true -> {join(reverse([got | acc]), ""), n}
+    false ->
+      tcp_poll([c], 20)
+      rt_read_until_paid(hub, c, [got | acc], tries - 1, n + 1)
+  end
+end
+
+# Flushes at t, t + ROOMS_STALL_MS, t + 2 * ROOMS_STALL_MS, ... with
+# nothing new, until the socket is kicked. How many it took, or 0.
+def rt_stall(hub: Any, t: Int, n: Int, tries: Int) -> Int do
+  r = hub <- :flush_at(t)
+  case r.kicked != [] do
+    true -> n
+    false ->
+      case tries <= 0 do
+        true -> 0
+        false -> rt_stall(hub, t + ROOMS_STALL_MS, n + 1, tries - 1)
+      end
+  end
+end
+
+# 64KB broadcasts to "room", flushed, until something is kicked (or
+# `tries` run out). {flushes, last reply}
+def rt_fill_kick(hub: Any, n: Int, tries: Int) -> Tuple do
+  hub <- :broadcast("room", rt_rep("0123456789abcdef", 12))
+  r = hub <- :flush
+  case r.kicked != [] or tries <= 0 do
+    true -> {n, r}
+    false -> rt_fill_kick(hub, n + 1, tries - 1)
+  end
+end
+
+actor RoomsTests do
+  test "a join is a member: who, since when, what they said, and a ref" do
+    hub = spawn Rooms
+    t0 = now_ms()
+    m = hub <- :join("blink:1", -1, "ada", %{name: "Ada"})
+    assert_eq(m.who, "ada")
+    assert_eq(m.meta, %{name: "Ada"})
+    assert(m.since >= t0)
+    assert(length(m.ref) > 0)
+    assert_eq(hub <- :member("blink:1", -1), m)
+    assert_eq(hub <- :member("blink:1", -2), nil)
+    assert_eq(hub <- :member("nowhere", -1), nil)
+    assert_eq(hub <- :list("nowhere"), [])
+  end
+
+  test "the joiner is sent the room; everyone is sent one diff a flush" do
+    hub = spawn Rooms
+    hub <- :join("lobby", -1, "ada", %{})
+    hub <- :flush
+    a0 = rt_sent(hub, -1)
+    assert_eq(map(a0, fn(f: Map) -> String do f.t end), ["presence_state", "presence_diff"])
+    assert_eq(rt_whos(head(a0).members), ["ada"])
+    hub <- :join("lobby", -2, "bob", %{})
+    hub <- :join("lobby", -3, "cy", %{})
+    hub <- :flush
+    a1 = rt_sent(hub, -1)
+    # two joins, one frame
+    assert_eq(length(a1), 1)
+    assert_eq(head(a1).t, "presence_diff")
+    assert_eq(rt_whos(head(a1).joins), ["bob", "cy"])
+    assert_eq(head(a1).leaves, [])
+    # cy got the room as it was when cy came, then the diff
+    c1 = rt_sent(hub, -3)
+    assert_eq(rt_whos(head(c1).members), ["ada", "bob", "cy"])
+    # nothing changed: nothing sent
+    hub <- :flush
+    assert_eq(hub <- :sent(-1), [])
+  end
+
+  test "an update is a leave of the old self and a join of the new, keyed by ref" do
+    hub = spawn Rooms
+    m = hub <- :join("lobby", -1, "ada", %{status: "here"})
+    hub <- :join("lobby", -2, "bob", %{})
+    hub <- :flush
+    hub <- :sent(-2)
+    m2 = hub <- :update("lobby", -1, %{status: "away"})
+    assert_eq(m2.ref, m.ref)
+    assert_eq(m2.since, m.since)
+    hub <- :flush
+    d = head(rt_sent(hub, -2))
+    assert_eq(map(d.leaves, fn(x: Map) -> String do x.meta.status end), ["here"])
+    assert_eq(map(d.joins, fn(x: Map) -> String do x.meta.status end), ["away"])
+    assert_eq(head(d.leaves).ref, head(d.joins).ref)
+    assert_eq(hub <- :update("lobby", -9, %{}), nil)
+  end
+
+  test "a patch merges into what a member said; an update replaces it" do
+    hub = spawn Rooms
+    hub <- :join("lobby", -1, "ada", %{color: "red", x: 1})
+    assert_eq((hub <- :patch("lobby", -1, %{x: 2})).meta, %{color: "red", x: 2})
+    assert_eq((hub <- :update("lobby", -1, %{x: 3})).meta, %{x: 3})
+    assert_eq(hub <- :patch("lobby", -2, %{x: 2}), nil)
+  end
+
+  test "someone who comes and goes within one tick is in no diff" do
+    hub = spawn Rooms
+    hub <- :join("lobby", -1, "ada", %{})
+    hub <- :flush
+    hub <- :sent(-1)
+    hub <- :join("lobby", -2, "flash", %{})
+    hub <- :leave("lobby", -2)
+    hub <- :flush
+    assert_eq(hub <- :sent(-1), [])
+    # and a leave after a flushed join is a leave
+    hub <- :join("lobby", -3, "cy", %{})
+    hub <- :flush
+    hub <- :sent(-1)
+    hub <- :leave("lobby", -3)
+    hub <- :flush
+    d = head(rt_sent(hub, -1))
+    assert_eq(rt_whos(d.leaves), ["cy"])
+    assert_eq(d.joins, [])
+    assert_eq(rt_whos(hub <- :list("lobby")), ["ada"])
+  end
+
+  test "a topic can send its presence frames in its own shape, and the ref is stable across updates" do
+    hub = spawn Rooms
+    # Phoenix v2, as the iOS blinks app reads it: [join_ref, ref, topic, event, payload]
+    hub <- :open("room:1", %{format: fn(event: String, name: String, body: Map) -> String do json_encode([nil, nil, name, event, body]) end})
+    m = hub <- :join("room:1", -1, "ada", %{})
+    hub <- :update("room:1", -1, %{typing: true})
+    hub <- :flush
+    got = map(hub <- :sent(-1), fn(s: String) -> List do elem(json_decode(s), 1) end)
+    assert_eq(map(got, fn(f: List) -> String do head(tail(tail(tail(f)))) end), ["presence_state", "presence_diff"])
+    assert_eq(head(tail(tail(head(got)))), "room:1")
+    d = last(head(tail(got)))
+    # the join had not gone out, so the update is still a join, of the new self
+    assert_eq(map(d.joins, fn(x: Map) -> String do x.ref end), [m.ref])
+    assert_eq(head(d.joins).meta, %{typing: true})
+    assert_eq(d.leaves, [])
+  end
+
+  test "a dropped socket leaves every topic it was in" do
+    hub = spawn Rooms
+    hub <- :join("a", -1, "ada", %{})
+    hub <- :join("b", -1, "ada", %{})
+    hub <- :join("b", -2, "bob", %{})
+    assert_eq(hub <- :drop(-1), ["a", "b"])
+    assert_eq(hub <- :list("a"), [])
+    assert_eq(rt_whos(hub <- :list("b")), ["bob"])
+    assert_eq(hub <- :drop(-1), [])
+    assert_eq(length((hub <- :stats).sockets), 1)
+  end
+
+  test "broadcast reaches the topic, broadcast_from all but the sender, send one socket, in the order said" do
+    hub = spawn Rooms
+    hub <- :open("chat", %{diffs: false})
+    hub <- :join("chat", -1, "ada", %{})
+    hub <- :join("chat", -2, "bob", %{})
+    hub <- :join("other", -3, "cy", %{})
+    hub <- :sent(-3)
+    hub <- :broadcast("chat", "{\"n\":1}")
+    hub <- :broadcast_from(-1, "chat", "{\"n\":2}")
+    hub <- :send(-1, "{\"n\":3}")
+    hub <- :broadcast("chat", "{\"n\":4}")
+    r = hub <- :flush
+    assert_eq(map(rt_sent(hub, -1), fn(f: Map) -> Int do f.n end), [1, 3, 4])
+    assert_eq(map(rt_sent(hub, -2), fn(f: Map) -> Int do f.n end), [1, 2, 4])
+    # cy is in another topic, with diffs: cy is sent that room and nothing said here
+    assert_eq(map(rt_sent(hub, -3), fn(f: Map) -> String do f.t end), ["presence_state", "presence_diff"])
+    assert_eq(r.sockets, 3)
+    assert_eq(r.frames, 8)
+    assert_eq(r.kicked, [])
+    # a topic opened without diffs sent no presence frames at all
+    hub <- :join("chat", -4, "dee", %{})
+    hub <- :flush
+    assert_eq(hub <- :sent(-4), [])
+  end
+
+  test "inbound frames: a burst of ROOMS_BURST, then ROOMS_RATE a second" do
+    hub = spawn Rooms
+    hub <- :join("x", -1, "ada", %{})
+    t = 1000000
+    oks = map(range(1, ROOMS_BURST), fn(i: Int) -> Atom do hub <- :inbound_at(-1, t) end)
+    assert_eq(filter(oks, fn(v: Atom) -> Bool do v != :ok end), [])
+    assert_eq(hub <- :inbound_at(-1, t), :limited)
+    # 100ms buys ROOMS_RATE / 10 frames
+    later = map(range(1, ROOMS_RATE / 10 + 1), fn(i: Int) -> Atom do hub <- :inbound_at(-1, t + 100) end)
+    assert_eq(length(filter(later, fn(v: Atom) -> Bool do v == :ok end)), ROOMS_RATE / 10)
+    assert_eq(head((hub <- :stats).sockets).limited, 2)
+    # a socket the hub does not know is not its to limit
+    assert_eq(hub <- :inbound_at(-7, t), :ok)
+  end
+
+  test "a socket with more than ROOMS_MAX_BYTES waiting in one tick is kicked, not written" do
+    hub = spawn Rooms
+    hub <- :open("big", %{diffs: false})
+    hub <- :join("big", -1, "ada", %{})
+    hub <- :join("big", -2, "bob", %{})
+    chunk = doubled_to("x", 70000)
+    hub <- :send(-1, chunk)
+    hub <- :send(-1, chunk)
+    hub <- :send(-1, chunk)
+    hub <- :send(-1, chunk)
+    hub <- :broadcast("big", "{}")
+    r = hub <- :flush
+    assert_eq(r.kicked, [-1])
+    assert_eq(hub <- :sent(-1), [])
+    assert_eq(hub <- :sent(-2), ["{}"])
+    assert_eq(rt_whos(hub <- :list("big")), ["bob"])
+    assert_eq((hub <- :stats).kicked, 1)
+  end
+
+  test "a :send to a socket that has joined no topic is delivered, and it stays in no topic" do
+    hub = spawn Rooms
+    hub <- :send(-9, "{\"t\":\"hello\"}")
+    got = hub <- :flush
+    assert_eq(got.frames, 1)
+    assert_eq(got.sockets, 1)
+    assert_eq(rt_sent(hub, -9), [%{t: "hello"}])
+    assert_eq((hub <- :stats).sockets, [])
+    # over the per-socket bound it is kicked, as a member would be
+    hub <- :send(-9, rt_rep("x", 18))
+    assert_eq((hub <- :flush).kicked, [-9])
+    assert_eq(hub <- :sent(-9), [])
+  end
+
+  test "a socket dropped in the tick it joined is written nothing; a leave takes back only that topic's state" do
+    hub = spawn Rooms
+    hub <- :join("room", -1, "ada", %{})
+    hub <- :send(-1, "{\"t\":\"hello\"}")
+    assert_eq(hub <- :drop(-1), ["room"])
+    got = hub <- :flush
+    assert_eq(got.sockets, 0)
+    assert_eq(got.frames, 0)
+    assert_eq(hub <- :sent(-1), [])
+    # a :send to a socket in no topic, then its :drop: nothing either
+    hub <- :send(-2, "{\"t\":\"hello\"}")
+    assert_eq(hub <- :drop(-2), [])
+    assert_eq((hub <- :flush).sockets, 0)
+    assert_eq(hub <- :sent(-2), [])
+    # leaving one topic takes back that topic's presence_state, not the
+    # other topic's and not a direct :send; b's diff is cy's own join, and
+    # a has none, since cy came and went in the tick
+    hub <- :join("a", -3, "cy", %{})
+    hub <- :join("b", -3, "cy", %{})
+    hub <- :send(-3, "{\"t\":\"hello\"}")
+    hub <- :leave("a", -3)
+    hub <- :flush
+    assert_eq(map(rt_sent(hub, -3), rt_label), ["presence_state:b", "hello:", "presence_diff:b"])
+    # leaving the last topic is not a close: a :send still arrives
+    hub <- :join("c", -4, "dee", %{})
+    hub <- :send(-4, "{\"t\":\"bye\"}")
+    hub <- :leave("c", -4)
+    got2 = hub <- :flush
+    assert_eq(got2.sockets, 1)
+    assert_eq(rt_sent(hub, -4), [%{t: "bye"}])
+  end
+
+  test "opening a topic again keeps its format and diffs unless new ones are given" do
+    hub = spawn Rooms
+    v2 = fn(event: String, name: String, body: Map) -> String do json_encode([nil, nil, name, event, body]) end
+    hub <- :open("blink:7", %{format: v2})
+    hub <- :open("blink:7", %{})
+    m = hub <- :join("blink:7", -1, "ada", %{})
+    hub <- :flush
+    joined = head(hub <- :sent(-1))
+    assert_eq(joined, json_encode([nil, nil, "blink:7", "presence_state", %{members: [m]}]))
+    # a new format given is taken
+    hub <- :open("blink:7", %{format: rooms_format})
+    hub <- :join("blink:7", -2, "bob", %{})
+    hub <- :flush
+    assert_eq(rt_decode(head(hub <- :sent(-2))).t, "presence_state")
+    hub <- :open("quiet", %{diffs: false})
+    hub <- :open("quiet", %{})
+    hub <- :join("quiet", -3, "cy", %{})
+    hub <- :flush
+    assert_eq(hub <- :sent(-3), [])
+  end
+
+  test "a peer that never reads: each flush returns at once, the kernel takes what fits, the rest is owed" do
+    p = rt_pair(42911)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "stuck", %{})
+    hub <- :join("room", -1, "ada", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    r = elem(f, 2)
+    assert_eq(r.kicked, [])
+    assert_eq(r.behind, 1)
+    assert(r.owed > 0)
+    # not one flush waited on the peer (tcp_write waited 10s here)
+    assert(elem(f, 1) < 100)
+    # the other member got every frame, the stuck one or not
+    assert_eq(hub <- :sent(-1), elem(f, 0))
+    # and it is still in the room, owing
+    assert_eq(rt_whos(hub <- :list("room")), ["stuck", "ada"])
+    assert_eq(map((hub <- :stats).owed, fn(o: Map) -> Int do o.fd end), [s])
+    tcp_close(elem(p, 1))
+    tcp_close(s)
+  end
+
+  test "what a peer is owed goes out when it reads, before anything newer, byte for byte" do
+    p = rt_pair(42912)
+    s = elem(p, 0)
+    c = elem(p, 1)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "slow", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    assert((elem(f, 2)).owed > 0)
+    # a frame said while it is owed goes after what it is owed
+    hub <- :broadcast("room", "newer")
+    hub <- :send(s, "newest")
+    paid = rt_read_until_paid(hub, c, [], 200, 0)
+    said = list_append(elem(f, 0), ["newer", "newest"])
+    # the WebSocket stream is the frames in the order said, whole, however
+    # the writes cut it
+    assert_eq(elem(paid, 0), join(map(said, fn(t: String) -> String do ws_frame(1, t) end), ""))
+    assert_eq((hub <- :stats).owed, [])
+    assert_eq(rt_whos(hub <- :list("room")), ["slow"])
+    tcp_close(c)
+    tcp_close(s)
+  end
+
+  test "a peer owed more than ROOMS_MAX_BYTES is kicked: out of every topic, owed nothing" do
+    p = rt_pair(42913)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :open("other", %{diffs: false})
+    hub <- :join("room", s, "stuck", %{})
+    hub <- :join("other", s, "stuck", %{})
+    hub <- :join("room", -1, "ada", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    # owing, but under the bound: 64KB more a flush until it is over
+    r = elem(rt_fill_kick(hub, 1, 20), 1)
+    assert_eq(r.kicked, [s])
+    assert_eq(rt_whos(hub <- :list("room")), ["ada"])
+    assert_eq(hub <- :list("other"), [])
+    assert_eq((hub <- :stats).owed, [])
+    assert_eq(r.owed, 0)
+    tcp_close(elem(p, 1))
+    tcp_close(s)
+  end
+
+  test "a peer owed bytes the kernel takes none of for ROOMS_STALL_MS is kicked; a slow one is not" do
+    p = rt_pair(42914)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "asleep", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    r = elem(f, 2)
+    assert(r.owed > 0 and r.owed <= ROOMS_MAX_BYTES)
+    t = now_ms()
+    # a second later it is still owed and still here
+    assert_eq((hub <- :flush_at(t + 1000)).kicked, [])
+    # once a flush takes nothing and ROOMS_STALL_MS has passed since the
+    # kernel last took a byte, it goes. (macOS may take a little more on
+    # the first few: its loopback buffer grows while the reader's has room,
+    # which counts as progress and restarts the clock.)
+    n = rt_stall(hub, t + 1000 + ROOMS_STALL_MS, 1, 20)
+    assert(n > 0)
+    assert_eq(hub <- :list("room"), [])
+    assert_eq((hub <- :stats).owed, [])
+    tcp_close(elem(p, 1))
+    tcp_close(s)
+  end
+
+  test "a dropped socket is owed nothing: a closed fd is never written" do
+    p = rt_pair(42915)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "stuck", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    assert((elem(f, 2)).owed > 0)
+    assert_eq(hub <- :drop(s), ["room"])
+    tcp_close(s)
+    # a flush writing to s now would raise TypeError (a closed fd)
+    r = hub <- :flush
+    assert_eq(r.owed, 0)
+    assert_eq(r.written, 0)
+    assert_eq((hub <- :stats).owed, [])
+    tcp_close(elem(p, 1))
+  end
+end

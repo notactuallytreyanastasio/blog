@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="GzsaMyFPPDQUVy46ERxNfhE2BUVwdHoxBIrlrbVXVdamUyx5Gpt6IBHt">
+    <title>Blinks TV</title>
+    <meta name="description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:title" content="Blinks: Bobbby's links">
+    <meta property="og:description" content="every link I want to keep — tagged, searched, archived">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bobbby.online/blinks">
+    <meta property="og:image" content="https://bobbby.online/static/blinks-og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="bobbby.online">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Blinks: Bobbby's links">
+    <meta name="twitter:image" content="https://bobbby.online/static/blinks-og.png">
+
+    <link rel="manifest" href="/static/blinks-pwa/manifest.json">
+    <link rel="apple-touch-icon" href="/static/blinks-pwa/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/blinks-pwa/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Blinks">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f5f2ea">
+    <link phx-track-static rel="stylesheet" href="/assets/app-3cfac71d5552d1426de906087a8be2fe.css?vsn=d">
+    <script defer phx-track-static type="text/javascript" src="/assets/app-7afeaa4605879f3254ad239dc57c0a34.js?vsn=d">
+    </script>
+  </head>
+  <body style="margin:0;">
+    <div id="phx-GNn-g6K_7P7r75Ch" data-phx-main data-phx-session="SFMyNTY.g2gDaAJhBXQAAAAIdwJpZG0AAAAUcGh4LUdObi1nNktfN1A3cjc1Q2h3B3Nlc3Npb250AAAAAHcEdmlld3cbRWxpeGlyLkJsb2dXZWIuQmxpbmtzVHZMaXZldwpwYXJlbnRfcGlkdwNuaWx3BnJvdXRlcncVRWxpeGlyLkJsb2dXZWIuUm91dGVydwlyb290X3ZpZXd3G0VsaXhpci5CbG9nV2ViLkJsaW5rc1R2TGl2ZXcMbGl2ZV9zZXNzaW9uaAJ3BmJsaW5rc24IAF62-kKV1NkYdwhyb290X3BpZHcDbmlsbgYAdgKN8KABYgABUYA.d2L6ZH2Q4QRLSQrUYsFCd6Js90BD0yR2r96AldzvvB8" data-phx-static="SFMyNTY.g2gDaAJhBXQAAAADdwJpZG0AAAAUcGh4LUdObi1nNktfN1A3cjc1Q2h3BWZsYXNodAAAAAB3CmFzc2lnbl9uZXdqbgYAdgKN8KABYgABUYA.78f_uYAOi0rlyess8g0g9Z0jjJIbEPPVkpx_slQyAMY"><div id="tv-page" phx-window-keydown="keydown">
+  <style>
+    #tv-page { height: 100dvh; background: #111; color: #fff; font: 12px verdana, arial, helvetica, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+    #tv-page .screen { position: relative; flex: 1; overflow: hidden; background: #000; }
+    #tv-page .frame { position: absolute; inset: 0; display: block; color: inherit; text-decoration: none; }
+    #tv-page .still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.15) contrast(1.05); }
+    #tv-page .no-still { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 8vw; background: repeating-linear-gradient(45deg, #16213a 0 40px, #101830 40px 80px); }
+    #tv-page .no-still span { font: bold 5vmin georgia, serif; line-height: 1.2; color: #cee3f8; text-shadow: 3px 3px 0 #000; text-align: center; }
+    #tv-page .scanlines { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); }
+    #tv-page .vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 18vmin rgba(0,0,0,0.85); }
+    #tv-page .static { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: hard-light; background-image: repeating-radial-gradient(circle at 17% 32%, #000 0 1px, transparent 1px 2px), repeating-radial-gradient(circle at 73% 61%, #fff 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); background-size: 7px 7px, 11px 11px, 100% 4px; animation: tv-staticfuzz 1.1s steps(8) both; opacity: 0; }
+    @keyframes tv-staticfuzz {
+      0% { opacity: 0.95; background-position: 0 0, 0 0, 0 0; }
+      25% { background-position: 3px 2px, -4px 3px, 0 2px; opacity: 0.8; }
+      50% { background-position: -2px 4px, 5px -2px, 0 -1px; opacity: 0.5; }
+      75% { background-position: 4px -3px, -3px -4px, 0 3px; opacity: 0.2; }
+      100% { opacity: 0; }
+    }
+    #tv-page .osd { position: absolute; font: bold 2.6vmin 'Courier New', monospace; color: #3f3; text-shadow: 0 0 6px rgba(51,255,51,0.7), 2px 2px 0 #000; letter-spacing: 2px; }
+    #tv-page .osd-ch { top: 3vmin; right: 3.5vmin; }
+    #tv-page .osd-mode { top: 3vmin; left: 3.5vmin; }
+    #tv-page .osd-date { top: 6.5vmin; left: 3.5vmin; font-size: 2vmin; }
+    #tv-page .caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 10vmin 4vmin 3vmin; background: linear-gradient(transparent, rgba(0,0,0,0.92)); }
+    #tv-page .caption .site { color: #9db8d4; font-size: 11px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    #tv-page .caption .site img { width: 13px; height: 13px; }
+    #tv-page .caption h2 { margin: 0 0 5px; font: bold 3.4vmin georgia, serif; line-height: 1.2; text-shadow: 2px 2px 0 #000; }
+    #tv-page .caption .desc { color: #ccc; font-size: 12px; max-width: 75ch; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    #tv-page .caption .tag { display: inline-block; background: rgba(206,227,248,0.15); border: 1px solid #5f99cf; border-radius: 2px; color: #cee3f8; font-size: 9px; padding: 0 4px; margin: 6px 4px 0 0; }
+    #tv-page .deck { background: #c0c0c0; border-top: 2px solid #dfdfdf; padding: 6px 10px; display: flex; align-items: center; gap: 8px; color: #000; flex-wrap: wrap; }
+    #tv-page .deck a { color: #369; font-size: 11px; text-decoration: none; }
+    #tv-page .deck a:hover { text-decoration: underline; }
+    #tv-page .wordmark { font-weight: bold; font-size: 12px; color: #000; }
+    #tv-page .vcr-btn { font: bold 12px verdana; background: #c0c0c0; color: #000; border: 2px solid; border-color: #fff #404040 #404040 #fff; padding: 4px 12px; cursor: pointer; }
+    #tv-page .vcr-btn:active { border-color: #404040 #fff #fff #404040; }
+    #tv-page .deck .spacer { margin-left: auto; }
+    #tv-page .deck .hint { color: #555; font-size: 9px; }
+  </style>
+
+  <div class="screen">
+    <a class="frame" id="tv-frame-156" href="https://signalundefied.bearblog.dev/i-wanna-live-an-npc-life/" target="_blank" rel="noopener" title="click to visit">
+      <img class="still" src="https://signalundefied.bearblog.dev/static/og-image.png" alt="">
+      
+      <div class="scanlines"></div>
+      <div class="vignette"></div>
+      <div class="caption">
+        <div class="site">
+          <img src="data:image/svg+xml,%3Csvg%20xmlns=&#39;http://www.w3.org/2000/svg&#39;%20viewBox=&#39;0%200%20100%20100&#39;%3E%3Ctext%20y=&#39;.9em&#39;%20font-size=&#39;90&#39;%3E∞%3C/text%3E%3C/svg%3E" alt="">
+          <span>signalundefied</span>
+        </div>
+        <h2>i wanna live an npc life – signalundefied</h2>
+        <p class="desc">they aint wrong</p>
+        <span class="tag">blog</span><span class="tag">writing</span><span class="tag">commentary</span><span class="tag">life</span><span class="tag">interesting</span>
+      </div>
+      <div class="static"></div>
+      <span class="osd osd-ch">CH 00 · ALL</span>
+      <span class="osd osd-mode">▶ PLAY</span>
+      <span class="osd osd-date">SAVED Sep 3 2026</span>
+    </a>
+    
+  </div>
+
+  <div class="deck">
+    <span class="wordmark">📺 blinks tv</span>
+    <button class="vcr-btn" phx-click="channel-down">CH ▼</button>
+    <button class="vcr-btn" phx-click="channel-up">CH ▲</button>
+    <button class="vcr-btn" phx-click="next">NEXT ⏭</button>
+    <button class="vcr-btn" phx-click="toggle-play">
+      PAUSE ⏸
+    </button>
+    <span class="spacer"></span>
+    <span class="hint">↑↓ channel · → skip · space pause · click screen to visit</span>
+    <a href="/blinks">all links</a>
+    <a href="/blinks/surf">stumble 🎲</a>
+    <a href="/blinks/walk">walk 🥾</a>
+  </div>
+</div></div>
+  </body>
+</html>
