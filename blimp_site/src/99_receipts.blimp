@@ -43,34 +43,18 @@ end
 # ReceiptMessages.mark_as_printed/1, mark_as_failed/1, and the controller's
 # update to pending with printed_at cleared. updated_at moves only when
 # something changed, as Ecto's Repo.update does for an empty changeset.
-RECEIPT_NOW = "date_trunc('second', timezone('UTC', now()))"
-
-def receipt_update_sql(printed_at: String) -> String do
-  join([
-    "UPDATE receipt_messages SET status = $2::text, printed_at = ", printed_at, ", ",
-    "updated_at = CASE WHEN status IS DISTINCT FROM $2::text OR printed_at IS DISTINCT FROM ", printed_at,
-    " THEN ", RECEIPT_NOW, " ELSE updated_at END ",
-    "WHERE id = $1::bigint RETURNING id, content, sender_name, sender_ip, status, image_url, ",
-    "to_char(inserted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS') AS created_at, ",
-    "to_char(printed_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS printed_at, ",
-    "coalesce(octet_length(image_data), 0) > 0 AS has_upload"
-  ], "")
-end
-
-RECEIPT_PRINTED_SQL = receipt_update_sql(RECEIPT_NOW)
-RECEIPT_FAILED_SQL = receipt_update_sql("printed_at")
-RECEIPT_RETRY_SQL = receipt_update_sql("NULL::timestamp")
-
+# The SQL is temper/src/db/side.temper.md's: each of the three takes the
+# id and answers [sql, params...].
 def receipt_printed(conn: Map) -> Map do
-  receipt_mark(conn, RECEIPT_PRINTED_SQL, "printed")
+  receipt_mark(conn, receipt_printed_q)
 end
 
 def receipt_failed(conn: Map) -> Map do
-  receipt_mark(conn, RECEIPT_FAILED_SQL, "failed")
+  receipt_mark(conn, receipt_failed_q)
 end
 
 def receipt_retry(conn: Map) -> Map do
-  receipt_mark(conn, RECEIPT_RETRY_SQL, "pending")
+  receipt_mark(conn, receipt_retry_q)
 end
 
 def receipt_json(conn: Map, status: Int, body: String) -> Map do
@@ -98,13 +82,14 @@ end
 
 # Repo.get!(ReceiptMessage, id): an id Ecto cannot cast to an integer is
 # Ecto.Query.CastError, 400; one with no row is Ecto.NoResultsError, 404.
-def receipt_mark(conn: Map, sql: String, status: String) -> Map do
+def receipt_mark(conn: Map, query: Any) -> Map do
   id = web_param(conn, "id")
   case receipt_id_kind(id) do
     :bad -> receipt_error(conn, 400, "Bad Request")
     :none -> receipt_error(conn, 404, "Not Found")
     :ok ->
-      got = DB <- :query(sql, [id, status])
+      q = query(id)
+      got = DB <- :query(head(q), tail(q))
       case got do
         {:error, reason} ->
           puts(concat("receipts: ", reason))
@@ -168,20 +153,14 @@ end
 # orders by inserted_at alone, and two messages in the same second come
 # back in whatever order Postgres finds them; id breaks the tie here, which
 # is the order they were written.
-RECEIPT_PENDING_SQL = join([
-  "SELECT id, content, sender_name, sender_ip, status, image_url, ",
-  "to_char(inserted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS') AS created_at, ",
-  "to_char(printed_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS printed_at, ",
-  "coalesce(octet_length(image_data), 0) > 0 AS has_upload ",
-  "FROM receipt_messages WHERE status = 'pending' ORDER BY inserted_at, id"
-], "")
+RECEIPT_PENDING_Q = receipt_pending_q()
 
-# The bytes as hex: the text protocol would send bytea as \x-prefixed hex
-# anyway, and encode() says so in the query rather than in the decoder.
-RECEIPT_IMAGE_SQL = "SELECT image_content_type, encode(image_data, 'hex') AS hex, coalesce(octet_length(image_data), 0) AS n FROM receipt_messages WHERE id = $1::bigint"
+# receipt_image_q: the bytes as hex. The text protocol would send bytea as
+# \x-prefixed hex anyway, and encode() says so in the query rather than in
+# the decoder.
 
 def receipt_pending(conn: Map) -> Map do
-  case DB <- :query(RECEIPT_PENDING_SQL, []) do
+  case DB <- :query(head(RECEIPT_PENDING_Q), tail(RECEIPT_PENDING_Q)) do
     {:error, reason} ->
       puts(concat("receipts: ", reason))
       receipt_error(conn, 503, "Service Unavailable")
@@ -201,7 +180,8 @@ def receipt_image(conn: Map) -> Map do
     :bad -> receipt_error(conn, 400, "Bad Request")
     :none -> receipt_error(conn, 404, "Not Found")
     :ok ->
-      case DB <- :query(RECEIPT_IMAGE_SQL, [id]) do
+      q = receipt_image_q(id)
+      case DB <- :query(head(q), tail(q)) do
         {:error, reason} ->
           puts(concat("receipts: ", reason))
           receipt_error(conn, 503, "Service Unavailable")
@@ -299,12 +279,9 @@ def rx_page(conn: Map) -> Map do
   put(web_html(c, 200, join(RX_PAGE, escape_html(c.csrf_token))), :cache, RECEIPT_CACHE)
 end
 
-# Ecto's timestamps(): NaiveDateTime.utc_now/0 truncated to the second,
-# the same in both columns. sender_name is never set by the page.
-RX_INSERT_SQL = join([
-  "INSERT INTO receipt_messages (content, sender_ip, status, image_data, image_content_type, inserted_at, updated_at) ",
-  "VALUES ($1, $2, 'pending', decode($3, 'hex'), $4, ", RECEIPT_NOW, ", ", RECEIPT_NOW, ") RETURNING id"
-], "")
+# rx_insert_q: Ecto's timestamps(), NaiveDateTime.utc_now/0 truncated to
+# the second, the same in both columns. sender_name is never set by the
+# page.
 
 # handle_event("send_message"). The image first, as consume_uploaded_image
 # ran before the insert: a file LiveView would not have taken (a type it
@@ -326,11 +303,11 @@ def rx_send(conn: Map) -> Map do
       case message != nil and gp_present(message) do
         false -> web_redirect(conn, "/very_direct_message")
         true ->
-          params = case image do
-            :none -> [message, rx_sender_ip(conn), nil, nil]
-            {:ok, data, ctype} -> [message, rx_sender_ip(conn), hex_encode(data), ctype]
+          q = case image do
+            :none -> rx_insert_q(message, rx_sender_ip(conn), nil, nil)
+            {:ok, data, ctype} -> rx_insert_q(message, rx_sender_ip(conn), hex_encode(data), ctype)
           end
-          case DB <- :query(RX_INSERT_SQL, params) do
+          case DB <- :query(head(q), tail(q)) do
             {:error, reason} ->
               puts(concat("/very_direct_message: not stored: ", reason))
               web_text(conn, 503, "The message could not be stored just now. Nothing was sent.\n")
@@ -385,10 +362,10 @@ end
 
 # handle_event("toggle_queue"): list_recent_messages(10), newest first
 # (id breaks a tie in the second, as above).
-RX_QUEUE_SQL = "SELECT content, coalesce(status, '') AS status, to_char(inserted_at, 'Mon DD, HH12:MI AM') AS at FROM receipt_messages ORDER BY inserted_at DESC, id DESC LIMIT 10"
+RX_QUEUE_Q = rx_queue_q()
 
 def rx_queue(conn: Map) -> Map do
-  case DB <- :query(RX_QUEUE_SQL, []) do
+  case DB <- :query(head(RX_QUEUE_Q), tail(RX_QUEUE_Q)) do
     {:error, reason} ->
       puts(concat("/very_direct_message: queue: ", reason))
       web_text(conn, 503, "The queue could not be read just now.\n")

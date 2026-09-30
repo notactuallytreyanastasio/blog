@@ -23,21 +23,6 @@
 
 PSD_REQUIRED = "{\"error\":\"device_token required\"}"
 
-# Push.register_device/3 as Repo.insert/2 writes it: env, followed_tags and
-# updated_at replaced on a token already there, inserted_at kept.
-# followed_tags as Device.changeset/2's update_change: trimmed,
-# lower-cased, blanks and repeats dropped, the first 100.
-def psd_upsert_sql() -> String do
-  join([
-  "insert into apns_devices (token, env, followed_tags, inserted_at, updated_at)",
-  " select $1::text, $2::text,",
-  " array(select q.n from unnest(", blkw_norm_tags(blkw_text_array("$3")), ") with ordinality q(n, o) order by q.o limit 100),",
-  " ", BLKW_NOW, ", ", BLKW_NOW,
-  " on conflict (token) do update set env = excluded.env,",
-  " followed_tags = excluded.followed_tags, updated_at = excluded.updated_at"
-  ], "")
-end
-
 # Plug: Phoenix.Controller.accepts(conn, ["json"]). A _format param (query,
 # body or path, even null) must be "json"; otherwise the first Accept
 # header must admit JSON, a missing one does. A refusal is Phoenix's
@@ -95,7 +80,10 @@ def psd_register(conn: Map) -> Map do
       case token_ok and env != "" do
         false -> bkp_json(conn, 422, BKP_UNPROCESSABLE)
         true ->
-          case DB <- :query(psd_upsert_sql(), [elem(token, 1), env, tags]) do
+          # Push.register_device/3 (temper/src/db/side.temper.md): the
+          # tags as the pg client would send the list, JSON
+          q = psd_upsert_q(elem(token, 1), env, json_encode(tags))
+          case DB <- :query(head(q), tail(q)) do
             {:error, reason} -> blkw_no_db(conn, reason)
             {:ok, _} -> bkp_json(conn, 200, BKP_OK)
           end
