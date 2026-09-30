@@ -372,31 +372,10 @@ def blkw_path_id(s: String) -> Any do
   end
 end
 
-# A path segment decoded as Plug decodes a path: %XX only. The router's
-# own decoding (web_url_decode) is a form's, which turns "+177" into " 177"
-# and the tag "c++" into "c  ".
-def blkw_path_decode(seg: String) -> String do
-  web_url_decode(replace(seg, "+", "%2B"))
-end
-
-# :tag is the last segment of its route; :id follows .../api/blinks.
-def blkw_path_tag(conn: Map) -> String do
-  blkw_path_decode(last(split(conn.path, "/")))
-end
-
-def blkw_path_id_seg(parts: List) -> String do
-  case parts do
-    [] -> ""
-    [p | rest] ->
-      case p == "blinks" and rest != [] do
-        true -> blkw_path_decode(head(rest))
-        false -> blkw_path_id_seg(rest)
-      end
-  end
-end
-
+# :id as the router bound it: %XX decoded and "+" left a "+"
+# (web_path_decode), as Plug decodes a path, so /api/blinks/+3 is "+3".
 def blkw_with_id(conn: Map, k: Any) -> Map do
-  id = blkw_path_id(blkw_path_id_seg(split(conn.path, "/")))
+  id = blkw_path_id(web_param(conn, "id"))
   case id do
     :bad -> blkw_json(conn, 400, BLKW_BAD_ID)
     :missing -> blkw_json(conn, 404, BLKW_NOT_FOUND)
@@ -640,7 +619,22 @@ def blkw_remove_tag(conn: Map) -> Map do
 end
 
 def blkw_remove_tag_id(conn: Map, id: Int) -> Map do
-  blkw_edited(conn, DB <- :query(BLKW_REMOVE_TAG_SQL, [id, blkw_path_tag(conn)]), :blink_updated)
+  blkw_edited(conn, DB <- :query(BLKW_REMOVE_TAG_SQL, [id, blkw_tag_param(conn)]), :blink_updated)
+end
+
+# :tag, or nil when its bytes are not UTF-8 (/tags/%FF, /tags/ok%C3). The
+# framework checks queries and bodies but not path params, because Plug
+# does not, and Postgres refuses such a parameter (22021), which was a 503.
+# No stored tag can be those bytes, so this is an absent tag: Phoenix's
+# List.delete/2 removes nothing and answers 200 with the blink. A NULL $2
+# is equal to no tag, so the same statement does that, and a missing id is
+# still a 404.
+def blkw_tag_param(conn: Map) -> Any do
+  tag = web_param(conn, "tag")
+  case web_utf8_valid(tag) do
+    true -> tag
+    false -> nil
+  end
 end
 
 def blkw_delete(conn: Map) -> Map do
