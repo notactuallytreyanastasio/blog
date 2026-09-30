@@ -538,7 +538,7 @@ end
 # {what was answered, newest first ("GET /blog"), sockets}, the sockets
 # with any new WebSockets added.
 def accept_all(fd: Int, answered: List, desk: Map, home: List, socks: Map) -> Tuple do
-  c = tcp_accept(fd)
+  c = live_accept(fd)
   case c do
     nil -> {answered, socks}
     _ ->
@@ -722,12 +722,13 @@ def sockets_of(socks: Map, kind: Atom) -> List do
   filter(values(socks), fn(s: Map) -> Bool do s.kind == kind end)
 end
 
+def socket_fds_of(socks: Map, kind: Atom) -> List do
+  map(sockets_of(socks, kind), fn(s: Map) -> Int do s.fd end)
+end
+
 # Every god page is sent every game.
 def push_gods(socks: Map, games: Map) -> Int do
-  frame = ws_frame(1, pong_games_json(games))
-  gods = sockets_of(socks, :god)
-  each(gods, fn(s: Map) do tcp_write(s.fd, frame) end)
-  length(gods)
+  live_push(ROOMS, socket_fds_of(socks, :god), pong_games_json(games))
 end
 
 RUNTIME_PUSH_MS = 250
@@ -749,8 +750,7 @@ def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int) -> T
       case t - pushed_at >= RUNTIME_PUSH_MS do
         false -> {rays, pushed_at}
         true ->
-          frame = ws_frame(1, json_encode(%{actors: snap.actors, messages: rays}))
-          each(watchers, fn(s: Map) do tcp_write(s.fd, frame) end)
+          live_push(ROOMS, map(watchers, fn(s: Map) -> Int do s.fd end), json_encode(%{actors: snap.actors, messages: rays}))
           {[], t}
       end
   end
