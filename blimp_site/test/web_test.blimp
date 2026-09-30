@@ -260,7 +260,7 @@ actor WebTests do
     # the demo's PATCH/DELETE-only path is not ours for GET either
     assert_eq(wt_send("GET", "/web/echo/7", [], ""), nil)
   end
-  test "the body is exactly Content-Length bytes; POST, PUT and PATCH without one are 411" do
+  test "the body is exactly Content-Length bytes, and a request without one has an empty body" do
     extra = "POST /web/api/echo HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 5\r\n\r\n[1,2]EXTRA"
     got = web_dispatch(extra, parse_request(extra), web_demo_routes(), WT_SECRET)
     assert_eq(wt_status(got), 200)
@@ -268,10 +268,23 @@ actor WebTests do
     # (to a path that takes all three; one that does not is 405 first)
     echo = fn(c: Map) -> Map do web_text(c, 200, c.body) end
     all3 = map(["POST", "PUT", "PATCH"], fn(m: String) -> Map do web_route(m, "/w", [], echo) end)
+    # RFC 9112 6.3: neither Content-Length nor Transfer-Encoding is a body of
+    # length zero. What follows the head would be the next request; with no
+    # keep-alive it is dropped, not read as this one's body
     each(["POST", "PUT", "PATCH"], fn(m: String) do
       raw = concat(m, " /w HTTP/1.1\r\nContent-Type: application/json\r\n\r\n[1,2]")
-      assert_eq(wt_status(web_dispatch(raw, parse_request(raw), all3, WT_SECRET)), 411)
+      got = web_dispatch(raw, parse_request(raw), all3, WT_SECRET)
+      assert_eq(wt_status(got), 200)
+      assert_eq(wt_body(got), "")
+      bare = concat(m, " /w HTTP/1.1\r\nHost: x\r\n\r\n")
+      assert_eq(wt_status(web_dispatch(bare, parse_request(bare), all3, WT_SECRET)), 200)
     end)
+    # what the iOS app's report sends: POST, no body, no Content-Length
+    report = "POST /r HTTP/1.1\r\nHost: x\r\nAccept: application/json\r\n\r\n"
+    ok = fn(c: Map) -> Map do web_json(c, 200, %{status: "ok"}) end
+    r = web_dispatch(report, parse_request(report), [web_route("POST", "/r", [], ok)], WT_SECRET)
+    assert_eq(wt_status(r), 200)
+    assert_eq(wt_body(r), "{\"status\":\"ok\"}")
     # a DELETE carries no body to frame: no Content-Length is an empty one
     body_of = fn(c: Map) -> Map do web_text(c, 200, concat("[", c.body, "]")) end
     del = "DELETE /d HTTP/1.1\r\nHost: x\r\n\r\nstray"
@@ -312,8 +325,10 @@ actor WebTests do
     short = "PUT /blog HTTP/1.1\r\nContent-Length: 10\r\n\r\nabc"
     assert_eq(wt_status(web_dispatch(short, parse_request(short), web_demo_routes(), WT_SECRET)), 405)
     # the same bodies to a route that takes them are still judged, in order
+    # (no length is an empty body: framing passes it, and the route's own
+    # plugs judge it; WEB_API wants a JSON Content-Type)
     none = "POST /web/api/echo HTTP/1.1\r\nHost: x\r\n\r\n"
-    assert_eq(wt_status(web_dispatch(none, parse_request(none), web_demo_routes(), WT_SECRET)), 411)
+    assert_eq(wt_status(web_dispatch(none, parse_request(none), web_demo_routes(), WT_SECRET)), 415)
     ch2 = "POST /web/api/echo HTTP/1.1\r\nTransfer-Encoding: chunked\r\nContent-Length: 99999999\r\n\r\n"
     assert_eq(wt_status(web_dispatch(ch2, parse_request(ch2), web_demo_routes(), WT_SECRET)), 411)
     big2 = concat("POST /web/api/echo HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n")

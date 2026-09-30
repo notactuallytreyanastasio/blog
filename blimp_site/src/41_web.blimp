@@ -357,8 +357,9 @@ def web_conn(raw: String, req: Map, secret: String) -> Map do
     false -> take(raw, hend)
   end
   headers = web_headers(head_text)
-  # exactly Content-Length bytes; what came after them is dropped. There is
-  # no keep-alive, so no second request can be in them (see web_frame_error)
+  # exactly Content-Length bytes, and none without one; what came after
+  # them is dropped. There is no keep-alive, so a second request in them
+  # would never be answered (see web_frame_error)
   body = case hend < 0 do
     true -> ""
     false -> take(drop(raw, hend + 4), max(web_content_length(headers), 0))
@@ -603,10 +604,13 @@ end
 
 # A request routed to a handler here that must be refused before the
 # handler sees it, or nil. web_dispatch asks only once a route has matched.
-# Framing is Content-Length and nothing else: chunked is 411, and so is a
-# POST, PUT or PATCH without a length. Bytes after Content-Length are
-# dropped, not read as a second request: every response closes its
-# connection, so there is no pipelining for them to be.
+# Framing is Content-Length and nothing else: chunked is 411. A request
+# with neither Content-Length nor Transfer-Encoding has a body of length
+# zero, whatever its method (RFC 9112 6.3); 919656d made a POST, PUT or
+# PATCH without one 411, and that refused the iOS app's report, which is a
+# POST with no body. Bytes after the body (Content-Length bytes, or none)
+# would be the next request. Every response closes its connection, so
+# there is no pipelining for them to be, and they are dropped unread.
 def web_frame_error(raw: String) -> Any do
   hend = index_of(raw, "\r\n\r\n")
   case hend < 0 do
@@ -632,32 +636,16 @@ def web_body_error(raw: String, hend: Int, headers: Map) -> Any do
       case cl == -2 do
         true -> {400, "Content-Length is not a number"}
         false ->
-          case cl == -1 and web_has_body(web_method_of(raw)) do
-            true -> {411, "a body needs a Content-Length"}
+          case cl > WEB_MAX_BODY do
+            true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
             false ->
-              case cl > WEB_MAX_BODY do
-                true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
-                false ->
-                  case length(raw) - hend - 4 < max(cl, 0) do
-                    true -> {408, "the body did not all arrive"}
-                    false -> nil
-                  end
+              case length(raw) - hend - 4 < max(cl, 0) do
+                true -> {408, "the body did not all arrive"}
+                false -> nil
               end
           end
       end
   end
-end
-
-# POST, PUT and PATCH carry a body, so they must say how long it is: with
-# no Content-Length the only other way to know where it ends is the client
-# closing its side, which curl and browsers do not do. Any other method
-# (DELETE, OPTIONS) with no Content-Length has an empty body.
-def web_has_body(method: String) -> Bool do
-  method == "POST" or method == "PUT" or method == "PATCH"
-end
-
-def web_method_of(raw: String) -> String do
-  take(raw, max(index_of(raw, " "), 0))
 end
 
 def web_plain(req: Map, status: Int, message: String, extra: List) -> Tuple do
@@ -669,9 +657,9 @@ end
 # here matches. routes: web_route()s; secret: what sessions are signed with.
 #
 # The route comes first, then the framing. A method the path does not take
-# is 405 whatever its body looks like: `curl -X POST /blog` sends no body
-# and no Content-Length, and the answer is that /blog takes no POST, not
-# that the POST should have had a length. 431, 411, 413 and 408 are about
+# is 405 whatever its body looks like: a chunked or oversized POST to
+# /blog is told that /blog takes no POST, not what is wrong with the body
+# nobody would read. 431, 411, 413 and 408 are about
 # a body a handler would read, so only a request with a handler is held to
 # them. (919656d had it the other way round, and every bodyless POST or PUT
 # to any path was 411.)
