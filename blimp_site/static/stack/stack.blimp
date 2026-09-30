@@ -1,0 +1,376 @@
+# /stack: bobbby.online from source to screen, drawn by a Blimp program in
+# your browser.
+#
+# What the diagram is -- the boxes, the lines, the order of each column,
+# where everything goes, the curve of every line, what a click lights, what
+# a trace or a search finds -- is Temper, temper/src/stack, and build.sh
+# puts the part of it this program calls in front of it. The layout runs
+# once, while this file loads. What stays here is the actor: what is
+# selected, which chips are off, the zoom; and the view, an el() tree with
+# an <svg> in it.
+#
+# There is no hover and no drag in Blimp's view, so a box is picked by a
+# click, the diagram pans by scrolling its box, and zooms by buttons.
+
+STK_N = stk_count()
+STK_E = stk_edge_count()
+STK_NODES = range(0, STK_N - 1)
+STK_EDGES = range(0, STK_E - 1)
+STK_W = stk_width()
+STK_H = stk_height()
+STK_BOXW = stk_boxw()
+# percent; 0 is "fit the width"
+STK_ZOOMS = [0, 40, 55, 70, 85, 100, 125, 150]
+
+# A line or trace naming a box that is not there stops the program here,
+# naming it, rather than drawing a diagram with a line missing.
+assert_eq(stk_unknown(), [])
+
+# What never changes about a box and a line, made once: a box's rectangle,
+# colour tick, label and tooltip; a line's curve.
+STK_BOX_KIDS = map(STK_NODES, fn(i: Int) -> List do
+  [el("rect", %{class: "box", width: STK_BOXW, height: 20, rx: 3}),
+   el("rect", %{class: "tick", width: 4, height: 20}),
+   el("text", %{x: 10, y: 14}, stk_short(i)),
+   el("title", %{}, stk_label(i))]
+end)
+STK_BOX_AT = map(STK_NODES, fn(i: Int) -> String do
+  concat("translate(", to_string(stk_x(i)), ",", to_string(stk_y(i)), ")")
+end)
+STK_BASE_LINK = map(STK_EDGES, fn(e: Int) -> String do
+  case stk_edge_dashed(e) do
+    true -> "link loop"
+    false -> "link"
+  end
+end)
+
+def stk_nth(xs: List, i: Int) -> Any do
+  elem(xs, i)
+end
+
+def stk_member(xs: List, x: Any) -> Bool do
+  length(filter(xs, fn(y: Any) -> Bool do y == x end)) > 0
+end
+
+def stk_without(xs: List, x: Any) -> List do
+  filter(xs, fn(y: Any) -> Bool do y != x end)
+end
+
+# ── the drawing ─────────────────────────────────────────────────────────
+
+def stk_bands() -> List do
+  cols = stk_columns()
+  map(range(0, length(cols) - 1), fn(c: Int) -> Any do
+    x = stk_column_x(c)
+    col = elem(cols, c)
+    el("g", %{},
+      el("rect", %{class: "band", x: x - 10, y: 10, width: 230, height: STK_H - 10, rx: 4}),
+      el("text", %{class: "col-title", x: x, y: 34}, elem(col, 0)),
+      el("text", %{class: "col-sub", x: x, y: 50}, elem(col, 1)))
+  end)
+end
+
+STK_BANDS = el("g", %{}, stk_bands())
+
+# lit: [boxes lit, lines lit] or nil for nothing lit
+def stk_links(lit: Any, hidden_edges: List) -> Any do
+  el("g", %{}, map(STK_EDGES, fn(e: Int) -> Any do
+    is_on = case lit do
+      nil -> false
+      _ -> elem(elem(lit, 1), e)
+    end
+    cls = case is_on do
+      true -> concat(elem(STK_BASE_LINK, e), " on")
+      false -> elem(STK_BASE_LINK, e)
+    end
+    hid = case elem(hidden_edges, e) do
+      true -> concat(cls, " off")
+      false -> cls
+    end
+    el("path", %{class: hid, d: stk_edge_path(e)})
+  end))
+end
+
+def stk_boxes(lit: Any, sel: Int, hidden: List) -> Any do
+  el("g", %{}, map(STK_NODES, fn(i: Int) -> Any do
+    kind = stk_kind(i)
+    is_on = case lit do
+      nil -> ""
+      _ ->
+        case elem(elem(lit, 0), i) do
+          true -> " on"
+          false -> ""
+        end
+    end
+    picked = case i == sel do
+      true -> " sel"
+      false -> ""
+    end
+    off = case stk_member(hidden, kind) do
+      true -> " off"
+      false -> ""
+    end
+    el("g", %{class: concat("node k-", kind, is_on, picked, off), transform: elem(STK_BOX_AT, i), click: :pick, with: i}, elem(STK_BOX_KIDS, i))
+  end))
+end
+
+# The verbs on the lines that are lit and go right: a selected box's own
+# lines, or every line of a trace.
+def stk_verbs(edges: List) -> Any do
+  el("g", %{}, map(filter(edges, fn(e: Int) -> Bool do stk_edge_forward(e) end), fn(e: Int) -> Any do
+    el("text", %{class: "verb", x: stk_edge_label_x(e), y: stk_edge_label_y(e), "text-anchor": "middle"}, stk_edge_verb(e))
+  end))
+end
+
+def stk_svg(lit: Any, sel: Int, hidden: List, verbs: List, zoom: Int) -> Any do
+  dim = case lit do
+    nil -> ""
+    _ -> " dim"
+  end
+  box = concat("0 0 ", to_string(STK_W), " ", to_string(STK_H))
+  kids = [STK_BANDS, stk_links(lit, stk_edges_hidden(hidden)), stk_verbs(verbs), stk_boxes(lit, sel, hidden)]
+  case zoom do
+    0 -> el("svg", %{class: concat("diagram fit", dim), viewBox: box, click: :clear}, kids)
+    _ -> el("svg", %{class: concat("diagram", dim), viewBox: box, width: STK_W * zoom / 100, height: STK_H * zoom / 100, click: :clear}, kids)
+  end
+end
+
+# ── the panel ───────────────────────────────────────────────────────────
+
+def stk_prose(parts: List, i: Int, acc: List) -> List do
+  case parts do
+    [] -> reverse(acc)
+    [p | rest] ->
+      piece = case rem(i, 2) == 1 do
+        true -> el("code", %{}, p)
+        false -> p
+      end
+      stk_prose(rest, i + 1, [piece | acc])
+  end
+end
+
+def stk_link_item(other: Int, verb: String) -> Any do
+  el("li", %{},
+    el("button", %{class: "jump", click: :pick, with: other}, stk_label(other)),
+    " ", el("span", %{}, verb))
+end
+
+def stk_detail(n: Int) -> Any do
+  kind = stk_kind(n)
+  ins = stk_in_edges(n)
+  outs = stk_out_edges(n)
+  from = case ins do
+    [] -> []
+    _ -> [el("h3", %{}, "Comes from"), el("ul", %{}, map(ins, fn(e: Int) -> Any do stk_link_item(stk_edge_from(e), stk_edge_verb(e)) end))]
+  end
+  feeds = case outs do
+    [] -> []
+    _ -> [el("h3", %{}, "Feeds"), el("ul", %{}, map(outs, fn(e: Int) -> Any do stk_link_item(stk_edge_to(e), stk_edge_verb(e)) end))]
+  end
+  el("div", %{},
+    el("div", %{class: concat("kind k-", kind)}, stk_kind_name(kind), " · ", elem(elem(stk_columns(), stk_col(n)), 0)),
+    el("h2", %{}, stk_label(n)),
+    el("p", %{}, stk_prose(stk_detail_parts(n), 0, [])),
+    from, feeds,
+    el("p", %{class: "hint"}, "Lit: everything upstream that goes into this, and everything downstream it reaches. Click the background or press Escape to clear."))
+end
+
+def stk_trace_panel(p: Int) -> Any do
+  el("div", %{},
+    el("div", %{class: "kind c-hi"}, "Trace"),
+    el("h2", %{}, elem(stk_trace_names(), p)),
+    el("ul", %{}, map(stk_trace_ids(p), fn(i: Int) -> Any do stk_link_item(i, stk_kind_name(stk_kind(i))) end)))
+end
+
+def stk_search_panel(q: String, hits: List) -> Any do
+  says = case length(hits) == 1 do
+    true -> " box matches \""
+    false -> " boxes match \""
+  end
+  el("div", %{},
+    el("div", %{class: "kind c-hi"}, "Search"),
+    el("h2", %{}, concat(to_string(length(hits)), says, q, "\"")),
+    el("ul", %{}, map(hits, fn(i: Int) -> Any do stk_link_item(i, stk_kind_name(stk_kind(i))) end)))
+end
+
+def stk_intro() -> Any do
+  el("div", %{},
+    el("div", %{class: "kind"}, "How to read it"),
+    el("h2", %{}, concat(to_string(STK_N), " parts, ", to_string(STK_E), " connections")),
+    el("p", %{class: "hint"}, "Left to right is the direction things are made in: ", el("b", %{}, "Temper"),
+      " source is compiled by a Kotlin compiler on the JVM into Blimp; the ", el("b", %{}, "Blimp"),
+      " interpreter is Zig, built natively for tests, statically for Linux, and to WebAssembly for your browser; ",
+      el("b", %{}, "build.sh"), " splices the pieces into one program per page; ", el("b", %{}, "deploy.sh"),
+      " ships one Linux binary and those programs into one container; Caddy sends each path to that process or to Phoenix."),
+    el("p", %{class: "hint"}, "Dashed lines run backwards: the site reading its own source for /mirror, each post re-rendering itself in a Worker to compare bytes with the server, Phoenix pages captured as snapshots."),
+    el("p", %{class: "hint"}, "Click a box for what it comes from and what it feeds, pick a trace, or search. This page is itself a box: ", el("button", %{class: "jump", click: :pick, with: stk_find("p_stack")}, "stack/stack.blimp"), "."),
+    el("h3", %{}, "By kind"),
+    el("ul", %{}, map(stk_kinds(), fn(k: List) -> Any do
+      el("li", %{}, el("i", %{class: concat("sw c-", elem(k, 0))}, "■"), " ", elem(k, 1), " ", el("span", %{}, to_string(stk_kind_total(elem(k, 0)))))
+    end)))
+end
+
+# ── the bar ─────────────────────────────────────────────────────────────
+
+def stk_chips(hidden: List) -> Any do
+  el("div", %{class: "chips"}, map(stk_kinds(), fn(k: List) -> Any do
+    key = elem(k, 0)
+    shown = not(stk_member(hidden, key))
+    el("button", %{class: "chip", "aria-pressed": to_string(shown), click: :chip, with: key},
+      el("i", %{class: concat("sw c-", key)}, "■"), elem(k, 1))
+  end))
+end
+
+def stk_presets(trace: Int) -> Any do
+  names = stk_trace_names()
+  el("div", %{class: "paths"}, map(range(0, length(names) - 1), fn(p: Int) -> Any do
+    el("button", %{class: "path", "aria-pressed": to_string(p == trace), click: :trace, with: p}, elem(names, p))
+  end))
+end
+
+def stk_zoom_label(z: Int) -> String do
+  case z do
+    0 -> "fit"
+    _ -> concat(to_string(z), "%")
+  end
+end
+
+def stk_zoom_step(z: Int, by: Int) -> Int do
+  at = length(filter(STK_ZOOMS, fn(x: Int) -> Bool do x < z end))
+  next = at + by
+  case next < 0 do
+    true -> elem(STK_ZOOMS, 0)
+    false ->
+      case next >= length(STK_ZOOMS) do
+        true -> elem(STK_ZOOMS, length(STK_ZOOMS) - 1)
+        false -> elem(STK_ZOOMS, next)
+      end
+  end
+end
+
+# ── the actor ───────────────────────────────────────────────────────────
+
+actor Stack do
+  state sel: Int :: -1
+  state trace: Int :: -1
+  state query: String :: ""
+  state hidden: List :: []
+  state zoom: Int :: 0
+
+  on :pick(n: Int) do
+    become sel: n, trace: -1, query: ""
+    reply :ok
+  end
+
+  on :clear do
+    become sel: -1, trace: -1, query: ""
+    reply :ok
+  end
+
+  on :trace(p: Int) do
+    case trace == p do
+      true -> become trace: -1, sel: -1
+      false -> become trace: p, sel: -1, query: ""
+    end
+    reply :ok
+  end
+
+  on :chip(kind: String) do
+    case stk_member(hidden, kind) do
+      true -> become hidden: stk_without(hidden, kind)
+      false -> become hidden: [kind | hidden]
+    end
+    reply :ok
+  end
+
+  on :search(q: String) do
+    become query: q, sel: -1, trace: -1
+    reply :ok
+  end
+
+  # Enter in the search box: the best match, picked
+  on :go(fields: String) do
+    best = stk_best(query)
+    case best < 0 do
+      true -> become sel: sel
+      false -> become sel: best, trace: -1, query: ""
+    end
+    reply :ok
+  end
+
+  on :zoom(by: Int) do
+    become zoom: stk_zoom_step(zoom, by)
+    reply :ok
+  end
+
+  on :fit do
+    become zoom: 0
+    reply :ok
+  end
+
+  on :view do
+    hits = case query == "" do
+      true -> []
+      false -> stk_search_hits(query)
+    end
+    lit = case sel >= 0 do
+      true -> stk_lineage(sel)
+      false ->
+        case trace >= 0 do
+          true -> stk_trace(trace)
+          false ->
+            case query == "" do
+              true -> nil
+              false -> [stk_search(query), map(STK_EDGES, fn(e: Int) -> Bool do false end)]
+            end
+        end
+    end
+    verbs = case sel >= 0 do
+      true -> stk_concat(stk_in_edges(sel), stk_out_edges(sel))
+      false ->
+        case trace >= 0 do
+          true -> filter(STK_EDGES, fn(e: Int) -> Bool do elem(elem(lit, 1), e) end)
+          false -> []
+        end
+    end
+    panel = case sel >= 0 do
+      true -> stk_detail(sel)
+      false ->
+        case trace >= 0 do
+          true -> stk_trace_panel(trace)
+          false ->
+            case query == "" do
+              true -> stk_intro()
+              false -> stk_search_panel(query, hits)
+            end
+        end
+    end
+    reply el("div", %{class: "stack-app"},
+      el("header", %{},
+        el("h1", %{}, "bobbby.online, from source to screen"),
+        el("p", %{}, "Every compiler, build step, file, process and service that serves this site tonight: Temper compiled by a Kotlin compiler on the JVM into Blimp, run by a Zig interpreter built three ways. This page is a Blimp program in your browser; the graph and its layout are Temper.")),
+      el("div", %{class: "bar"},
+        el("span", %{class: "label"}, "Show"), stk_chips(hidden)),
+      el("div", %{class: "bar"},
+        el("span", %{class: "label"}, "Trace"), stk_presets(trace),
+        el("form", %{class: "find", submit: :go},
+          el("input", %{type: "search", name: "q", placeholder: "Find a file or process", "aria-label": "Find a file or process", value: query, input: :search}))),
+      el("div", %{class: "main"},
+        el("div", %{class: "stage"},
+          el("div", %{class: "scroller"}, stk_svg(lit, sel, hidden, verbs, zoom)),
+          el("div", %{class: "zoom"},
+            el("button", %{click: :zoom, with: -1, "aria-label": "Zoom out"}, "−"),
+            el("span", %{}, stk_zoom_label(zoom)),
+            el("button", %{click: :zoom, with: 1, "aria-label": "Zoom in"}, "+"),
+            el("button", %{click: :fit, "aria-label": "Fit to width"}, "fit"))),
+        el("aside", %{}, panel)),
+      key("Escape", :clear))
+  end
+end
+
+def stk_concat(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+stack = spawn Stack
+stack <- :view

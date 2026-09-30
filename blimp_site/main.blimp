@@ -146,6 +146,16 @@ def app_routes(routes: Map) -> Map do
   page_route(r4h, "/2048", app_page("2048 — Blitz Edition", "The classic 2048 puzzle with a twist: Blitz mode gives you seconds per move. Adjustable board sizes up to 12x12. Retro 1980s Macintosh style.", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game"))
 end
 
+
+# /stack: the site from source to screen, a Blimp program in the browser
+# (static/stack/stack.blimp) over the graph and its layout in Temper
+# (temper/src/stack), built into _build/stack.blimp.
+def stack_routes(routes: Map) -> Map do
+  r1 = load_asset(routes, "/stack/stack.blimp", "_build/stack.blimp")
+  r2 = load_asset(r1, "/assets/stack.css", "assets/stack.css")
+  page_route(r2, "/stack", app_page("bobbby.online, from source to screen", "Every compiler, build step, file, process and service between this site's source and your screen, as a diagram you can click through. A Blimp program; the graph is Temper.", ["/assets/stack.css"], "stack-page", "/stack/stack.blimp", "stack"))
+end
+
 # Everything that is not a fixed route. Only GET and HEAD reach here.
 # The homepage is here because its state is in the query string.
 def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
@@ -738,6 +748,7 @@ t_boot = now_ms()
 posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
 routes = build_routes(posts)
+routes = stack_routes(routes)
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
 # that cannot read them does not start. Unset (a laptop, the tests): the

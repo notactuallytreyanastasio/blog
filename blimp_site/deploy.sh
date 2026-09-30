@@ -55,6 +55,7 @@ stage() {
   cp _build/fh-skeets.blimp "$DIST/blimp_site/_build/fh-skeets.blimp"
   cp _build/fh-compare.blimp "$DIST/blimp_site/_build/fh-compare.blimp"
   cp _build/mta.blimp "$DIST/blimp_site/_build/mta.blimp"
+  cp _build/stack.blimp "$DIST/blimp_site/_build/stack.blimp"
   cp _build/sky.blimp _build/sky_layout.json _build/sky_points.json.gz "$DIST/blimp_site/_build/"
   cp -R assets data static content "$DIST/blimp_site/"
   cp Dockerfile "$DIST/Dockerfile"
