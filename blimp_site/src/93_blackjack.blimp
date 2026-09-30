@@ -1,0 +1,505 @@
+# /blackjack: the tables, on the server.
+#
+# A port of BlogWeb.BlackjackLive. That LiveView was multiplayer over
+# PubSub, but it had no table: every socket kept its own copy of the game,
+# changed it on a click and broadcast the result, and the host's socket
+# dealt newcomers in. Two players clicking at once each broadcast a game the
+# other had not seen, and the last one to arrive won. Whoever closed the tab
+# on their turn left the table waiting for ever. And every player's socket
+# was sent everyone's hole cards; only the template hid them.
+#
+# Here the tables are one actor, BJ, in the one server process. A browser
+# opens /live/blackjack; the Site actor hands BJ the socket (:join), every
+# text frame from it (:recv) and its closing (:leave). After anything
+# changes, BJ sends every socket its own view of the room: the lobby, the
+# open tables, and the table it sits at with the others' cards face down
+# already. The page's program (static/blackjack/blackjack.blimp) draws that
+# and sends back what was clicked.
+#
+# The rules -- the deck, a hand's value, the dealer, how a hand ends and
+# what it pays -- are Temper, temper/src/blackjack (bj_*). What is here is
+# who sits where and whose turn it is.
+
+BJ_BET = 10
+BJ_START_BALANCE = 100
+BJ_NAMES = ["Ace", "King", "Queen", "Jack", "Diamond", "Heart", "Spade", "Club"]
+BJ_BACK = "🂠"
+
+# A seed for a deck, from the system's randomness. Not `random`: the server
+# never seeds it, so it starts from the same state at every boot, and the
+# first game after each deploy would deal the same cards (two runs of the
+# local site dealt A and B J♠ 9♦ and J♥ A♥ both times).
+def bjt_seed() -> Int do
+  b = random_bytes(2)
+  char_code(char_at(b, 0)) * 256 + char_code(char_at(b, 1))
+end
+
+def bjt_pick(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> bjt_pick(tail(list), i - 1)
+  end
+end
+
+def bjt_without(list: List, x: Any) -> List do
+  filter(list, fn(y: Any) -> Bool do y != x end)
+end
+
+def bjt_has(list: List, x: Any) -> Bool do
+  length(filter(list, fn(y: Any) -> Bool do y == x end)) > 0
+end
+
+# ── a table ─────────────────────────────────────────────────────────────
+#
+# %{id, host, seats: [key], waiting: [key], hands: %{key => hand},
+#   dealer: [card], deck: [card], active: key or "", over: Bool}
+# where a hand is %{cards, status ("playing" "stand" "bust"), bet, balance,
+# result ("" until the round ends, then bj_outcome's word)}.
+
+def bjt_hand(balance: Int) -> Map do
+  %{cards: [], status: "playing", bet: BJ_BET, balance: balance, result: ""}
+end
+
+def bjt_statuses(t: Map) -> List do
+  map(t.seats, fn(k: String) -> String do lookup(t.hands, k).status end)
+end
+
+def bjt_active_key(t: Map) -> String do
+  i = bj_next_active(bjt_statuses(t))
+  case i < 0 do
+    true -> ""
+    false -> bjt_pick(t.seats, i)
+  end
+end
+
+# Two cards each, in seat order, then two to the dealer: new_game/1.
+# A natural stands at once. `balances` carries chips over from the last
+# round (new_round/1); a newcomer starts with BJ_START_BALANCE.
+def bjt_deal(t: Map, seats: List, balances: Map, seed: Int) -> Map do
+  deck0 = bj_shuffled_deck(seed)
+  dealt = reduce(seats, {%{}, deck0}, fn(acc: Tuple, k: String) -> Tuple do
+    deck = elem(acc, 1)
+    bal = case lookup(balances, k) do
+      nil -> BJ_START_BALANCE
+      b -> b
+    end
+    cards = bj_draw([], deck, 2)
+    status = case bj_natural(cards) do
+      true -> "stand"
+      false -> "playing"
+    end
+    {put(elem(acc, 0), k, put(put(bjt_hand(bal), :cards, cards), :status, status)), bj_rest(deck, 2)}
+  end)
+  deck1 = elem(dealt, 1)
+  dealt_t = merge(t, %{seats: seats, waiting: [], hands: elem(dealt, 0), dealer: bj_draw([], deck1, 2), deck: bj_rest(deck1, 2), over: false})
+  bjt_next_turn(dealt_t, seed)
+end
+
+def bjt_new(id: String, host: String, seats: List, seed: Int) -> Map do
+  bjt_deal(%{id: id, host: host, seats: [], waiting: [], hands: %{}, dealer: [], deck: [], active: "", over: false}, seats, %{}, seed)
+end
+
+# Play Again: the same seats, and whoever joined meanwhile, dealt again
+# from a new deck, with the chips they had.
+def bjt_new_round(t: Map, seed: Int) -> Map do
+  balances = reduce(t.seats, %{}, fn(acc: Map, k: String) -> Map do put(acc, k, lookup(t.hands, k).balance) end)
+  bjt_deal(t, list_append(t.seats, t.waiting), balances, seed)
+end
+
+# Whose turn it is now; nobody's means the dealer plays and the round ends.
+def bjt_next_turn(t: Map, seed: Int) -> Map do
+  next = bjt_active_key(t)
+  case next do
+    "" -> bjt_finish(put(t, :active, ""), seed)
+    _ -> put(t, :active, next)
+  end
+end
+
+# The dealer draws to 17 if anyone is still in, then every hand still
+# standing is settled: maybe_play_dealer_turn/1 and determine_winners/1.
+# A bust was paid when it happened.
+def bjt_finish(t: Map, seed: Int) -> Map do
+  deck = bj_topped(t.deck, 11, seed)
+  n = case bj_dealer_plays(bjt_statuses(t)) do
+    true -> bj_dealer_draws(t.dealer, deck)
+    false -> 0
+  end
+  dealer = bj_draw(t.dealer, deck, n)
+  hands = reduce(t.seats, t.hands, fn(acc: Map, k: String) -> Map do
+    h = lookup(acc, k)
+    case h.status == "bust" do
+      true -> acc
+      false ->
+        result = bj_outcome(h.cards, dealer)
+        put(acc, k, merge(h, %{result: result, balance: h.balance + bj_payout(result, h.bet)}))
+    end
+  end)
+  merge(t, %{dealer: dealer, deck: bj_rest(deck, n), hands: hands, over: true})
+end
+
+def bjt_hit(t: Map, k: String, seed: Int) -> Map do
+  case t.over or t.active != k do
+    true -> t
+    false ->
+      deck = bj_topped(t.deck, 1, seed)
+      h = lookup(t.hands, k)
+      cards = bj_draw(h.cards, deck, 1)
+      hand = case bj_busted(cards) do
+        true -> merge(h, %{cards: cards, status: "bust", result: "bust", balance: h.balance - h.bet})
+        false -> put(h, :cards, cards)
+      end
+      bjt_next_turn(merge(t, %{deck: bj_rest(deck, 1), hands: put(t.hands, k, hand)}), seed)
+  end
+end
+
+def bjt_stand(t: Map, k: String, seed: Int) -> Map do
+  case t.over or t.active != k do
+    true -> t
+    false -> bjt_next_turn(put(t, :hands, put(t.hands, k, put(lookup(t.hands, k), :status, "stand"))), seed)
+  end
+end
+
+# Join Game: dealt in at once while a round is being played (add_player/2:
+# two cards, a natural stands), or seated for the next deal if it is over.
+def bjt_add(t: Map, k: String, seed: Int) -> Map do
+  case bjt_has(t.seats, k) or bjt_has(t.waiting, k) do
+    true -> t
+    false ->
+      case t.over do
+        true -> put(t, :waiting, list_append(t.waiting, [k]))
+        false ->
+          deck = bj_topped(t.deck, 2, seed)
+          cards = bj_draw([], deck, 2)
+          status = case bj_natural(cards) do
+            true -> "stand"
+            false -> "playing"
+          end
+          hand = merge(bjt_hand(BJ_START_BALANCE), %{cards: cards, status: status})
+          seated = merge(t, %{seats: list_append(t.seats, [k]), hands: put(t.hands, k, hand), deck: bj_rest(deck, 2)})
+          case t.active == "" do
+            true -> bjt_next_turn(seated, seed)
+            false -> seated
+          end
+      end
+  end
+end
+
+# Return to Lobby, or a closed tab: out of the seats, and if it was their
+# turn the next player's. nil when nobody is left at the table.
+def bjt_remove(t: Map, k: String, seed: Int) -> Any do
+  seats = bjt_without(t.seats, k)
+  waiting = bjt_without(t.waiting, k)
+  case length(seats) + length(waiting) == 0 do
+    true -> nil
+    false ->
+      host = case t.host == k do
+        true -> head(list_append(seats, waiting))
+        false -> t.host
+      end
+      left = merge(t, %{seats: seats, waiting: waiting, hands: bjt_drop_key(t.hands, k), host: host})
+      case t.active == k and not(t.over) do
+        true -> bjt_next_turn(left, seed)
+        false ->
+          case length(seats) == 0 do
+            # only people waiting for the next deal: deal it
+            true -> bjt_new_round(merge(left, %{over: true}), seed)
+            false -> left
+          end
+      end
+  end
+end
+
+# ── what one player sees ────────────────────────────────────────────────
+
+def bjt_cards(cards: List, hide: Bool) -> List do
+  case hide do
+    false -> map(cards, fn(c: Int) -> String do bj_card_text(c) end)
+    true ->
+      case cards do
+        [] -> []
+        [first | rest] -> [bj_card_text(first) | map(rest, fn(c: Int) -> String do BJ_BACK end)]
+      end
+  end
+end
+
+# render_player_hand/4's status line: " (Bust!)", and the score only for
+# one's own hand and the dealer's once the round is over.
+def bjt_note(cards: List, status: String, hide: Bool) -> String do
+  bust = case status == "bust" do
+    true -> " (Bust!)"
+    false -> ""
+  end
+  case hide do
+    true -> bust
+    false -> concat(bust, " - Score: ", to_string(bj_value(cards)))
+  end
+end
+
+def bjt_border(t: Map, k: String, h: Map) -> String do
+  case t.active == k and not(t.over) do
+    true -> "border-yellow-400 player-active"
+    false ->
+      case h.status do
+        "bust" -> "border-red-500"
+        "stand" -> "border-gray-500"
+        _ -> "border-green-800"
+      end
+  end
+end
+
+def bjt_name(people: Map, k: String) -> String do
+  p = lookup(people, k)
+  case p do
+    nil -> "Unknown Player"
+    _ -> p.name
+  end
+end
+
+def bjt_table_view(t: Map, me: String, people: Map) -> Map do
+  players = map(t.seats, fn(k: String) -> Map do
+    h = lookup(t.hands, k)
+    mine = k == me
+    %{name: bjt_name(people, k), you: mine, balance: h.balance, chip: min(100, h.balance),
+      cards: bjt_cards(h.cards, not(mine)), note: bjt_note(h.cards, h.status, not(mine)),
+      border: bjt_border(t, k, h), turn: mine and t.active == k and not(t.over)}
+  end)
+  dealer_hidden = not(t.over)
+  %{over: t.over, players: players,
+    dealer: %{cards: bjt_cards(t.dealer, dealer_hidden), note: bjt_note(t.dealer, "", dealer_hidden)}}
+end
+
+def bjt_message(t: Map, me: String) -> String do
+  case bjt_has(t.waiting, me) do
+    true -> "Waiting to join game..."
+    false ->
+      case t.over do
+        false -> ""
+        true ->
+          h = lookup(t.hands, me)
+          bj_message(h.result, h.bet)
+      end
+  end
+end
+
+# Everything one socket is sent, as JSON.
+def bjt_view(people: Map, order: List, tables: Map, me: String) -> String do
+  p = lookup(people, me)
+  lobby = map(order, fn(k: String) -> Map do %{name: bjt_name(people, k), you: k == me} end)
+  games = map(sort(keys(tables)), fn(id: String) -> Map do
+    t = lookup(tables, id)
+    %{id: id, host: bjt_name(people, t.host), players: length(t.seats) + length(t.waiting)}
+  end)
+  t = case p.table do
+    "" -> nil
+    id -> lookup(tables, id)
+  end
+  body = case t do
+    nil -> %{view: "lobby", message: "", table: nil}
+    _ ->
+      case bjt_has(t.waiting, me) do
+        true -> %{view: "game", message: bjt_message(t, me), table: nil}
+        false -> %{view: "game", message: bjt_message(t, me), table: bjt_table_view(t, me, people)}
+      end
+  end
+  json_encode(merge(body, %{name: p.name, count: length(order), lobby: lobby, games: games}))
+end
+
+# ── the room ────────────────────────────────────────────────────────────
+
+actor Blackjack do
+  state people: Map :: %{}
+  state order: List :: []
+  state tables: Map :: %{}
+  state next_game: Int :: 1
+
+  # A new socket: a player in the lobby, named as mount/3 named them.
+  on :join(fd: Int) do
+    k = to_string(fd)
+    name = concat("Player ", bjt_pick(BJ_NAMES, rem(bjt_seed(), length(BJ_NAMES))))
+    p2 = put(people, k, %{fd: fd, name: name, table: ""})
+    o2 = list_append(bjt_without(order, k), [k])
+    bjt_push(p2, o2, tables)
+    become people: p2, order: o2
+    reply k
+  end
+
+  on :leave(fd: Int) do
+    k = to_string(fd)
+    left = bjt_leave_table(people, tables, k)
+    p2 = bjt_drop_key(elem(left, 0), k)
+    o2 = bjt_without(order, k)
+    bjt_push(p2, o2, elem(left, 1))
+    become people: p2, order: o2, tables: elem(left, 1)
+    reply :ok
+  end
+
+  # A frame from a player's page: {"t": "hit"} and so on. Anything that is
+  # not one of these is ignored, and answered :bad.
+  on :recv(fd: Int, text: String) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    msg = case json_decode(text) do
+      {:ok, m} ->
+        case type_of(m) == :map do
+          true -> m
+          false -> %{}
+        end
+      _ -> %{}
+    end
+    case p do
+      nil -> reply :bad
+      _ ->
+        r = bjt_act(people, tables, next_game, k, p, msg)
+        case r do
+          nil -> reply :bad
+          _ ->
+            bjt_push(elem(r, 0), order, elem(r, 1))
+            become people: elem(r, 0), tables: elem(r, 1), next_game: elem(r, 2)
+            reply lookup(msg, :t)
+        end
+    end
+  end
+
+  # From the prompt, or a test: what `key` would be sent now.
+  on :view(key: String) do
+    reply bjt_view(people, order, tables, key)
+  end
+
+  on :tables do
+    reply tables
+  end
+end
+
+# Every socket its own view.
+def bjt_push(people: Map, order: List, tables: Map) -> Int do
+  each(order, fn(k: String) do
+    p = lookup(people, k)
+    case p.fd < 0 do
+      true -> :test
+      false -> tcp_write(p.fd, ws_frame(1, bjt_view(people, order, tables, k)))
+    end
+  end)
+  length(order)
+end
+
+# {people, tables} with `k` up from whatever table they were at.
+def bjt_leave_table(people: Map, tables: Map, k: String) -> Tuple do
+  p = lookup(people, k)
+  case p == nil or p.table == "" do
+    true -> {people, tables}
+    false ->
+      t = lookup(tables, p.table)
+      rest = case t do
+        nil -> tables
+        _ ->
+          remaining = bjt_remove(t, k, bjt_seed())
+          case remaining do
+            nil -> bjt_drop_key(tables, p.table)
+            _ -> put(tables, p.table, remaining)
+          end
+      end
+      {put(people, k, put(p, :table, "")), rest}
+  end
+end
+
+def bjt_set_table(people: Map, keys_: List, id: String) -> Map do
+  reduce(keys_, people, fn(acc: Map, k: String) -> Map do put(acc, k, put(lookup(acc, k), :table, id)) end)
+end
+
+# One action: {people, tables, next_game}, or nil for one that is not.
+def bjt_act(people: Map, tables: Map, next_game: Int, k: String, p: Map, msg: Map) -> Any do
+  t = case p.table do
+    "" -> nil
+    id -> lookup(tables, id)
+  end
+  seed = bjt_seed()
+  what = lookup(msg, :t)
+  case what do
+    "name" ->
+      name = lookup(msg, :name)
+      case type_of(name) == :string and length(trim(name)) > 0 and length(name) <= 40 do
+        true -> {put(people, k, put(p, :name, trim(name))), tables, next_game}
+        false -> nil
+      end
+    # Start New Game deals in everyone in the lobby, as create_game did
+    # ("Create a new game with all players in the lobby").
+    "create" ->
+      left = bjt_leave_table(people, tables, k)
+      lobby = filter(keys(elem(left, 0)), fn(j: String) -> Bool do lookup(elem(left, 0), j).table == "" end)
+      seats = [k | bjt_without(sort(lobby), k)]
+      id = concat("game-", to_string(next_game))
+      {bjt_set_table(elem(left, 0), seats, id), put(elem(left, 1), id, bjt_new(id, k, seats, seed)), next_game + 1}
+    "join" ->
+      id = lookup(msg, :game)
+      target = case type_of(id) == :string do
+        true -> lookup(tables, id)
+        false -> nil
+      end
+      case target do
+        nil -> nil
+        _ ->
+          left = bjt_leave_table(people, tables, k)
+          {bjt_set_table(elem(left, 0), [k], id), put(elem(left, 1), id, bjt_add(lookup(elem(left, 1), id), k, seed)), next_game}
+      end
+    "lobby" ->
+      left = bjt_leave_table(people, tables, k)
+      {elem(left, 0), elem(left, 1), next_game}
+    _ ->
+      case t do
+        nil -> nil
+        _ ->
+          changed = case what do
+            "hit" -> bjt_hit(t, k, seed)
+            "stand" -> bjt_stand(t, k, seed)
+            "new_round" ->
+              case t.over do
+                true -> bjt_new_round(t, seed)
+                false -> t
+              end
+            _ -> nil
+          end
+          case changed do
+            nil -> nil
+            _ -> {people, put(tables, t.id, changed), next_game}
+          end
+      end
+  end
+end
+
+BJ = spawn Blackjack
+
+# ── the page ────────────────────────────────────────────────────────────
+
+BJ_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blackjack/play.js"]
+
+def blackjack_page() -> String do
+  body = join([
+    "<div id=\"blackjack\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, <a href=\"/blackjack/blackjack.blimp\">blackjack.blimp</a>, which your browser runs in Blimp's WebAssembly interpreter; that needs JavaScript to start.</p></noscript>\n",
+    script_tags(BJ_SCRIPTS)
+  ], "")
+  page_layout("Blackjack - Microsoft Casino", "Multiplayer blackjack: the tables are a Blimp actor on the server, the rules Temper.", "website", ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/assets/apps.css", "/assets/blimp-window.css"], body)
+end
+
+def bjt_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+BJ_PROGRAM = bjt_asset("static/blackjack/blackjack.blimp", "text/plain; charset=utf-8")
+BJ_JS = bjt_asset("static/blackjack/play.js", "text/javascript; charset=utf-8")
+
+def bjt_drop_key(m: Map, gone: String) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end

@@ -144,6 +144,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     # a new game id for every visit, so never a cached page
     "/pong" -> response(200, "text/html; charset=utf-8", "no-store", pong_page(pong_game_id()))
     "/directory" -> html_response(200, page_with_runtime(directory_page(desk)))
+    # the tables are live, so the page is never stale; the files are src/93_blackjack.blimp's
+    "/blackjack" -> response(200, "text/html; charset=utf-8", "no-cache", blackjack_page())
+    "/blackjack/blackjack.blimp" -> BJ_PROGRAM
+    "/blackjack/play.js" -> BJ_JS
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -276,6 +280,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       end
     "/live/pong-god" -> :god
     "/live/runtime" -> :runtime
+    "/live/blackjack" -> :blackjack
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -291,6 +296,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     false ->
       tcp_write(c, ws_handshake(raw))
       puts(concat("WS ", req.path, " 101 ", game))
+      # a blackjack player sits down in the lobby, and is sent it at once
+      case kind == :blackjack do
+        true -> BJ <- :join(c)
+        false -> :ok
+      end
       %{fd: c, kind: kind, game: game, buf: ""}
   end
 end
@@ -332,6 +342,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
   puts(concat("WS closed ", to_string(sock.kind), " ", sock.game, " ", why))
   case sock.kind do
     :player -> {map_without(socks, to_string(sock.fd)), map_without(games, sock.game), true}
+    :blackjack ->
+      BJ <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
 end
@@ -367,6 +380,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
                   {elem(after_bad, 0), elem(after_bad, 1), true}
                 _ -> live_frames(next, socks, put(games, sock.game, report), true)
               end
+            # an action at the tables; BJ sends every player the result itself
+            :blackjack ->
+              BJ <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
             _ -> live_frames(next, socks, games, changed)
           end
         8 ->

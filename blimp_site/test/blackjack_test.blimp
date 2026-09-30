@@ -1,0 +1,198 @@
+# needs: static/blackjack/blackjack.blimp
+#
+# The numbers marked "Elixir" are Blog.Games.Blackjack's, from `elixir`
+# on origin/main's lib/blog/games/blackjack.ex. Where this disagrees with
+# it, the test says so and why.
+
+# A hand from ranks, all spades: card = 39 + rank index.
+def bjh(ranks: List) -> List do
+  map(ranks, fn(r: String) -> Int do 39 + bjh_rank(r, ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"], 0) end)
+end
+
+def bjh_rank(r: String, all: List, i: Int) -> Int do
+  case head(all) == r do
+    true -> i
+    false -> bjh_rank(r, tail(all), i + 1)
+  end
+end
+
+def bj_decoded(json: String) -> Map do
+  elem(json_decode(json), 1)
+end
+
+actor BlackjackTests do
+  test "a hand's value, as calculate_score/1 gives it wherever that is right" do
+    # Elixir: 2,5,8 15  J,Q,K 30  10,10 20  A,5 16  A,6 17  A,K,5 16  A,A,5 17
+    #         A,A,A,8 21  A,K 21  A,A 12  A,A,9 21  8,A,A,A 21  A,A,A,A 14  10,6,A,A 18
+    hands = [["2", "5", "8"], ["J", "Q", "K"], ["10", "10"], ["A", "5"], ["A", "6"], ["A", "K", "5"], ["A", "A", "5"],
+             ["A", "A", "A", "8"], ["A", "K"], ["A", "A"], ["A", "A", "9"], ["8", "A", "A", "A"], ["A", "A", "A", "A"], ["10", "6", "A", "A"], []]
+    assert_eq(map(hands, fn(h: List) -> Int do bj_value(bjh(h)) end), [15, 30, 20, 16, 17, 16, 17, 21, 21, 12, 21, 21, 14, 18, 0])
+  end
+
+  test "two aces after a ten are 12, not the 22 calculate_score/1 made them" do
+    # Elixir: 10,A,A 22  5,5,A,A 22  9,A,A,A 22 -- each counted one ace 11 too many
+    assert_eq(bj_value(bjh(["10", "A", "A"])), 12)
+    assert_eq(bj_value(bjh(["5", "5", "A", "A"])), 12)
+    assert_eq(bj_value(bjh(["9", "A", "A", "A"])), 12)
+    refute(bj_busted(bjh(["10", "A", "A"])))
+  end
+
+  test "cards read as render_card/1 wrote them, suits in the Elixir's order" do
+    assert_eq(map([0, 13, 26, 51, 9], fn(c: Int) -> String do bj_card_text(c) end), ["A♥️", "A♦️", "A♣️", "K♠️", "10♥️"])
+  end
+
+  test "a seed deals the same 52 cards every time, a different seed another order" do
+    d = bj_shuffled_deck(1234)
+    assert_eq(d, bj_shuffled_deck(1234))
+    assert_eq(sort(d), range(0, 51))
+    refute(d == bj_shuffled_deck(1235))
+    refute(d == range(0, 51))
+    assert_eq(sort(bj_shuffled_deck(65536)), range(0, 51))
+  end
+
+  test "drawing appends to the hand, and the deck loses what was drawn" do
+    assert_eq(bj_draw([1, 2], [7, 8, 9], 2), [1, 2, 7, 8])
+    assert_eq(bj_rest([7, 8, 9], 2), [9])
+    assert_eq(bj_topped([7, 8, 9], 2, 5), [7, 8, 9])
+    assert_eq(length(bj_topped([7], 2, 5)), 52)
+  end
+
+  test "the dealer hits under 17 and stands on any 17, as play_dealer_turn/1" do
+    # Elixir: 10,6 + A,5,9 draws 1 (17); A,6 draws 0; 2,3 + 2,2,A,9 draws 3 (20); 10,7 draws 0
+    assert_eq(bj_dealer_draws(bjh(["10", "6"]), bjh(["A", "5", "9"])), 1)
+    assert_eq(bj_dealer_draws(bjh(["A", "6"]), bjh(["5"])), 0)
+    assert_eq(bj_dealer_draws(bjh(["2", "3"]), bjh(["2", "2", "A", "9"])), 3)
+    assert_eq(bj_dealer_draws(bjh(["10", "7"]), bjh(["9"])), 0)
+    # Elixir: A,4 + A,6,5,K draws 2 and busts on 22; the hand A,4,A,6 is 12
+    assert_eq(bj_dealer_draws(bjh(["A", "4"]), bjh(["A", "6", "5", "K"])), 3)
+    assert_eq(bj_dealer_plays(["bust", "stand"]), true)
+    assert_eq(bj_dealer_plays(["bust", "bust"]), false)
+    assert_eq(bj_next_active(["stand", "bust", "playing", "playing"]), 2)
+    assert_eq(bj_next_active(["stand"]), -1)
+  end
+
+  test "outcomes and payouts, as determine_winners/1 settles them" do
+    cases = [[["10", "7"], ["10", "9"]], [["10", "9"], ["10", "7"]], [["10", "8"], ["10", "8"]], [["A", "K"], ["10", "9"]],
+             [["7", "7", "7"], ["A", "K"]], [["10", "6"], ["10", "6", "K"]], [["9", "9"], ["10", "7"]], [["5", "5", "A"], ["10", "10"]]]
+    got = map(cases, fn(c: List) -> List do
+      r = bj_outcome(bjh(head(c)), bjh(last(c)))
+      [r, bj_payout(r, 10)]
+    end)
+    # Elixir: lose -10, win 10, push 0, blackjack 15, push 0, win 10, win 10, win 10
+    assert_eq(got, [["lose", -10], ["win", 10], ["push", 0], ["blackjack", 15], ["push", 0], ["win", 10], ["win", 10], ["win", 10]])
+    # Elixir: A,K vs A,Q is :blackjack paying 0, and the table said "You win 15 chips!"
+    assert_eq(bj_outcome(bjh(["A", "K"]), bjh(["A", "Q"])), "push")
+    assert_eq(bj_message("push", 10), "Push - your bet is returned.")
+    assert_eq(bj_message("blackjack", 10), "Blackjack! You win 15 chips!")
+    assert_eq(bj_message("bust", 10), "Bust! You lose 10 chips.")
+    assert_eq(bj_message("lose", 10), "You lose 10 chips.")
+  end
+
+  test "a table: turns go in seat order, the dealer plays when nobody is left, balances settle" do
+    t = bjt_new("game-1", "a", ["a", "b"], 42)
+    assert_eq(length(t.deck), 46)
+    first = t.active
+    refute(first == "")
+    after_stand = bjt_stand(t, first, 1)
+    # standing twice, or out of turn, changes nothing
+    assert_eq(bjt_stand(after_stand, first, 1), after_stand)
+    other = case first do
+      "a" -> "b"
+      _ -> "a"
+    end
+    done = bjt_stand(after_stand, other, 1)
+    assert(done.over)
+    assert(bj_value(done.dealer) >= 17 or length(done.dealer) == 2)
+    each(["a", "b"], fn(k: String) do
+      h = lookup(done.hands, k)
+      assert_eq(h.balance, 100 + bj_payout(h.result, 10))
+    end)
+    again = bjt_new_round(done, 7)
+    refute(again.over)
+    assert_eq(again.seats, ["a", "b"])
+  end
+
+  test "hitting to a bust pays at once and passes the turn" do
+    t = bjt_new("game-1", "a", ["a"], 42)
+    busted = bjt_hit_until_bust(t, 10)
+    h = lookup(busted.hands, "a")
+    assert_eq(h.status, "bust")
+    assert_eq(h.balance, 90)
+    assert(busted.over)
+    # nobody left in: the dealer keeps two cards
+    assert_eq(length(busted.dealer), 2)
+  end
+
+  test "joining mid-round deals in; joining a finished round waits for the next deal" do
+    t = bjt_new("game-1", "a", ["a"], 3)
+    case t.over do
+      true -> assert_eq(bjt_add(t, "b", 1).waiting, ["b"])
+      false ->
+        j = bjt_add(t, "b", 1)
+        assert_eq(j.seats, ["a", "b"])
+        assert_eq(length(lookup(j.hands, "b").cards), 2)
+    end
+    over = bjt_finish(t, 1)
+    w = bjt_add(over, "c", 1)
+    assert_eq(w.waiting, ["c"])
+    assert_eq(bjt_message(w, "c"), "Waiting to join game...")
+    assert_eq(bjt_new_round(w, 9).seats, ["a", "c"])
+  end
+
+  test "the one whose turn it is leaving passes the turn; the last one leaving closes the table" do
+    t = bjt_new("game-1", "a", ["a", "b"], 42)
+    who = t.active
+    left = bjt_remove(t, who, 1)
+    refute(bjt_has(left.seats, who))
+    refute(left.active == who)
+    assert_eq(bjt_remove(bjt_remove(t, "a", 1), "b", 1), nil)
+  end
+
+  test "two players at the room: a game deals in the lobby, and each sees only their own cards" do
+    room = spawn Blackjack
+    a = room <- :join(-1)
+    b = room <- :join(-2)
+    assert_eq(room <- :recv(-1, "{\"t\":\"name\",\"name\":\"Alice\"}"), "name")
+    assert_eq(room <- :recv(-1, "{\"t\":\"create\"}"), "create")
+    va = bj_decoded(room <- :view(a))
+    vb = bj_decoded(room <- :view(b))
+    assert_eq(va.view, "game")
+    assert_eq(vb.view, "game")
+    assert_eq(va.name, "Alice")
+    assert_eq(length(va.table.players), 2)
+    mine = head(filter(va.table.players, fn(p: Map) -> Bool do p.you end))
+    theirs = head(filter(va.table.players, fn(p: Map) -> Bool do not(p.you) end))
+    refute(contains(join(mine.cards, ""), "🂠"))
+    assert(contains(mine.note, "Score: "))
+    assert_eq(last(theirs.cards), "🂠")
+    assert_eq(theirs.name, head(filter(map(vb.lobby, fn(p: Map) -> String do p.name end), fn(n: String) -> Bool do n != "Alice" end)))
+    assert_eq(last(va.table.dealer.cards), "🂠")
+    assert_eq(room <- :recv(-1, "nonsense"), :bad)
+    assert_eq(length(va.games), 1)
+    assert_eq(head(va.games).host, "Alice")
+    room <- :leave(-1)
+    room <- :leave(-2)
+    assert_eq(room <- :tables, %{})
+  end
+
+  test "the page draws the lobby and queues what is clicked" do
+    v = spawn Table
+    refute(contains(to_html(v <- :view), "Game Lobby"))
+    v <- :state("{\"view\":\"lobby\",\"name\":\"Player Ace\",\"count\":1,\"message\":\"\",\"table\":null,\"lobby\":[{\"name\":\"Player Ace\",\"you\":true}],\"games\":[{\"id\":\"game-1\",\"host\":\"Player King\",\"players\":2}]}")
+    html = to_html(v <- :view)
+    assert(contains(html, "Game Lobby"))
+    assert(contains(html, "Player Ace (You)"))
+    assert(contains(html, "Players: 1"))
+    v <- :join("game-1")
+    v <- :hit
+    assert_eq(v <- :outbox, ["{\"t\":\"join\",\"game\":\"game-1\"}", "{\"t\":\"hit\"}"])
+    assert_eq(v <- :outbox, [])
+  end
+end
+
+def bjt_hit_until_bust(t: Map, n: Int) -> Map do
+  case n == 0 or lookup(t.hands, "a").status != "playing" do
+    true -> t
+    false -> bjt_hit_until_bust(bjt_hit(t, "a", 1), n - 1)
+  end
+end
