@@ -1,0 +1,232 @@
+# Guest posts: /post/<slug> for a published row of drafts, with its
+# comments and a form to add one, and every other /post/<slug> sent to "/".
+#
+# The files in priv/static/posts are fixed routes, rendered at boot, and are
+# answered before this file is asked (main.blimp's handle()). What reaches
+# GP_GET is a slug that is not one of them. Phoenix's PostLive did the same
+# in the same order: Blog.Content.Post.get_by_slug/1 looks in the files,
+# then Blog.Editor.get_draft_by_slug/1, and only a draft whose status is
+# "published" is a post (draft_to_post/1). Anything else is
+# push_navigate(to: "/") from mount, which on a plain GET is a 302.
+#
+# Read per request, not cached with the museum's refresh. A guest post
+# gets a handful of visits; a cache would save two indexed queries on them
+# and cost a comment that does not show on the page its author is sent
+# back to, or a publish from the editor that 302s for up to a minute. A
+# slug nobody has published costs one query (drafts_slug_index) to learn.
+#
+# The page is the file posts' page (post_page, src/50_pages.blimp) with
+# what PostLive adds for a guest: "by <author>" in the meta bar, the one tag
+# guest-post, and the comments section. Its markup is PostLive's, byte for
+# byte in the parts that are not whitespace, except the form, which posts
+# to GP_POST instead of over a LiveView socket. The CSS for all of it is
+# already in assets/post.css, copied from PostLive's <style>.
+
+GP_DRAFT_SQL = "select coalesce(title, 'Untitled') as title, slug, coalesce(content, '') as content, author_name, to_char(updated_at, 'FMMonth DD, YYYY') as date from drafts where slug = $1 and status = 'published'"
+
+# Blog.Comments.list_comments/1 orders by inserted_at alone; two comments in
+# the same second come back in whatever order Postgres finds them. id
+# breaks the tie here, which is insertion order.
+# Calendar.strftime(inserted_at, "%b %d, %Y at %I:%M %p") of the naive
+# column, as stored (UTC), with no time zone applied.
+GP_COMMENTS_SQL = "select author_name, content, to_char(inserted_at, 'Mon DD, YYYY \"at\" HH12:MI AM') as at from post_comments where post_slug = $1 order by inserted_at, id"
+
+# Ecto's timestamps(): NaiveDateTime.utc_now/0 truncated to the second,
+# the same value in both columns.
+GP_INSERT_SQL = "insert into post_comments (post_slug, author_name, content, inserted_at, updated_at) values ($1, $2, $3, date_trunc('second', timezone('UTC', now())), date_trunc('second', timezone('UTC', now())))"
+
+# What PostLive's mount sends a slug it does not know: Phoenix.LiveView's
+# dead render of push_navigate, as production answers /post/no-such-slug.
+GP_REDIRECT_BODY = "<html><body>You are being <a href=\"/\">redirected</a>.</body></html>"
+
+def guest_post_routes() -> List do
+  [
+    web_route("GET", "/post/:slug", WEB_BROWSER, gp_get),
+    web_route("POST", "/post/:slug/comments", WEB_BROWSER, gp_post)
+  ]
+end
+
+# {:ok, draft, comments} | :none | {:error, reason}
+def gp_load(slug: String) -> Any do
+  case DB <- :query(GP_DRAFT_SQL, [slug]) do
+    {:error, reason} -> {:error, reason}
+    {:ok, rows} ->
+      case rows do
+        [] -> :none
+        [draft | _] ->
+          case DB <- :query(GP_COMMENTS_SQL, [slug]) do
+            {:error, reason} -> {:error, reason}
+            {:ok, comments} -> {:ok, draft, comments}
+          end
+      end
+  end
+end
+
+def gp_get(conn: Map) -> Map do
+  slug = web_param(conn, "slug")
+  case gp_load(slug) do
+    :none -> gp_home(conn)
+    {:error, reason} -> gp_unavailable(conn, slug, reason)
+    {:ok, draft, comments} ->
+      c = web_ensure_csrf(conn)
+      put(web_html(c, 200, guest_post_page(draft, comments, c.csrf_token, "", "")), :cache, "no-cache")
+  end
+end
+
+# No database at all (a laptop, the tests) is the same as no such draft:
+# Phoenix without the drafts table would have nothing to show either, but
+# a production database that fails is a 503, not a redirect that hides it.
+def gp_unavailable(conn: Map, slug: String, reason: String) -> Map do
+  case reason == "no database is configured (DATABASE_URL)" do
+    true -> gp_home(conn)
+    false ->
+      puts(concat("guest post ", slug, ": ", reason))
+      web_text(conn, 503, "This post could not be read just now.\n")
+  end
+end
+
+def gp_home(conn: Map) -> Map do
+  put(put(web_html(conn, 302, GP_REDIRECT_BODY), :location, "/"), :cache, WEB_PLUG_CACHE)
+end
+
+# A comment, as PostLive's submit_comment took one. Only a published guest
+# post takes comments: the file posts' pages have shown none since they
+# moved to Blimp, and a comment nobody can see is worse than a 404.
+def gp_post(conn: Map) -> Map do
+  slug = web_param(conn, "slug")
+  name = gp_form_value(web_param(conn, "author_name"))
+  content = gp_form_value(web_param(conn, "content"))
+  case gp_load(slug) do
+    :none -> web_text(conn, 404, "There is no guest post here to comment on.\n")
+    {:error, reason} -> gp_unavailable(conn, slug, reason)
+    {:ok, draft, comments} ->
+      case gp_comment_ok(name, content) do
+        # Phoenix kept the form as typed and said nothing; so does this,
+        # with a status that says it was refused
+        false ->
+          c = web_ensure_csrf(conn)
+          put(web_html(c, 422, guest_post_page(draft, comments, c.csrf_token, web_or(name, ""), web_or(content, ""))), :cache, "no-cache")
+        true ->
+          case DB <- :query(GP_INSERT_SQL, [slug, name, content]) do
+            {:error, reason} ->
+              puts(concat("guest post ", slug, ": comment not saved: ", reason))
+              web_text(conn, 503, "The comment could not be saved just now.\n")
+            {:ok, _} -> web_redirect(conn, concat("/post/", web_url_encode(slug), "#comments"))
+          end
+      end
+  end
+end
+
+# A browser posts a textarea's line breaks as CRLF; the LiveView form sent
+# the value through FormData, which keeps them as LF. The rows Phoenix
+# wrote have LF, so these do too. Not a string (a repeated name sent as a
+# list, or no field at all): nil, which the checks refuse.
+def gp_form_value(v: Any) -> Any do
+  case type_of(v) == :string do
+    true -> replace(v, "\r\n", "\n")
+    false -> nil
+  end
+end
+
+# Blog.Comments.Comment.changeset/2: both required, author_name 1..100
+# and content 1..5000 graphemes. Ecto's cast turns a string that is empty
+# after String.trim_leading/1 into nil first, so whitespace alone is
+# missing, and trim_leading trims Unicode whitespace, not only ASCII.
+def gp_comment_ok(name: Any, content: Any) -> Bool do
+  gp_present(name) and gp_present(content) and grapheme_length(name) <= 100 and grapheme_length(content) <= 5000
+end
+
+def gp_present(v: Any) -> Bool do
+  v != nil and trim(gp_drop_unicode_space(v)) != ""
+end
+
+# The White_Space characters outside ASCII that String.trim_leading/1
+# trims. Removed everywhere, not only in front: this is for asking whether
+# anything else is left, and nothing but whitespace was in front.
+GP_UNICODE_SPACE = ["", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", "　"]
+
+def gp_drop_unicode_space(s: String) -> String do
+  reduce(GP_UNICODE_SPACE, s, fn(acc: String, ws: String) -> String do replace(acc, ws, "") end)
+end
+
+# PostLive's get_preview/2, which is what production's description meta
+# says: the tags line gone, lines joined with spaces, # * and ` removed,
+# whitespace runs made one space, trimmed, 200 graphemes and "...".
+def gp_preview(content: String) -> String do
+  joined = join(split(body_without_tags(content), "\n"), " ")
+  bare = replace(replace(replace(joined, "#", ""), "*", ""), "`", "")
+  concat(grapheme_take(trim(gp_squeeze_space(bare)), 200), "...")
+end
+
+def gp_squeeze_space(s: String) -> String do
+  one = replace(replace(replace(replace(s, "\t", " "), "\r", " "), "\f", " "), "\v", " ")
+  gp_squeeze_from(one)
+end
+
+def gp_squeeze_from(s: String) -> String do
+  case contains(s, "  ") do
+    true -> gp_squeeze_from(replace(s, "  ", " "))
+    false -> s
+  end
+end
+
+def gp_comment_html(c: Map) -> String do
+  join([
+    "<div class=\"comment\"><div class=\"comment-header\">",
+    "<span class=\"comment-author\">", escape_html(c.author_name), "</span>",
+    "<span class=\"comment-date\">", c.at, "</span></div>",
+    "<div class=\"comment-body\">", escape_html(c.content), "</div></div>"
+  ], "")
+end
+
+def gp_comments_html(slug: String, comments: List, token: String, name: String, content: String) -> String do
+  listing = case comments do
+    [] -> "<p class=\"no-comments\">No comments yet. Be the first to comment!</p>"
+    _ -> join(map(comments, fn(c: Map) -> String do gp_comment_html(c) end), "")
+  end
+  join([
+    "<div class=\"comments-section\" id=\"comments\">",
+    "<h3 class=\"comments-header\">Comments (", to_string(length(comments)), ")</h3>",
+    "<form class=\"comment-form\" method=\"post\" action=\"/post/", escape_html(web_url_encode(slug)), "/comments\">",
+    "<input type=\"hidden\" name=\"_csrf_token\" value=\"", escape_html(token), "\">",
+    "<div class=\"form-group\"><label for=\"author_name\">Name</label>",
+    "<input type=\"text\" id=\"author_name\" name=\"author_name\" value=\"", escape_html(name), "\" placeholder=\"Your name\" required></div>",
+    "<div class=\"form-group\"><label for=\"content\">Comment</label>",
+    "<textarea id=\"content\" name=\"content\" placeholder=\"Write a comment...\" rows=\"3\" required>", escape_html(content), "</textarea></div>",
+    "<button type=\"submit\" class=\"submit-btn\">Post Comment</button></form>",
+    "<div class=\"comments-list\">", listing, "</div></div>"
+  ], "")
+end
+
+def guest_post_page(draft: Map, comments: List, token: String, name: String, content: String) -> String do
+  body_md = body_without_tags(draft.content)
+  words = word_count(body_md)
+  # escaped, as HEEx escapes it: "&lt; 1 min read"
+  rt = escape_html(read_time(words))
+  author = case draft.author_name do
+    nil -> ""
+    a -> concat("<span class=\"post-author\">by ", escape_html(a), "</span>")
+  end
+  body = join([
+    "<div class=\"mac-post\">",
+    menu_bar("<a href=\"/blog\" class=\"menu-item\" style=\"text-decoration: none; color: inherit;\">Blog</a>", "served by Blimp"),
+    "<div class=\"mac-desktop\"><div class=\"mac-window\">",
+    "<div class=\"mac-title-bar\"><a href=\"/blog\" class=\"mac-close-box\"></a>",
+    "<div class=\"mac-title\">", escape_html(draft.title), "</div>",
+    "<div class=\"mac-resize-box\"></div></div>",
+    "<div class=\"mac-window-content\">",
+    "<div class=\"post-meta-bar\">",
+    "<span class=\"post-date\">", draft.date, "</span>",
+    author,
+    "<span class=\"post-stats\">", to_string(words), " words · ", rt, "</span>",
+    "<div class=\"post-tags-inline\">", tag_spans(["guest-post"], "mac-tag"), "</div>",
+    "</div>",
+    "<div id=\"post-content\" class=\"article-content\">", MARKDOWN <- :render(body_md), "</div>",
+    gp_comments_html(draft.slug, comments, token, name, content),
+    "<div class=\"post-footer\"><a href=\"/blog\" class=\"back-link\">← Back to all posts</a></div>",
+    "</div>",
+    "<div class=\"mac-status-bar\"><span>", to_string(words), " words</span><span>", rt, "</span></div>",
+    "</div></div></div>"
+  ], "")
+  page_layout(draft.title, gp_preview(draft.content), "article", ["/assets/base.css", "/assets/post.css", "/assets/highlight.css"], body)
+end

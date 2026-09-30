@@ -22,6 +22,24 @@
 		}
 	}
 
+	# A comment on a guest post (src/99_guest_posts.blimp), a form POST to
+	# Blimp. Its own matcher, above everything that routes by method, so
+	# it reaches Blimp with or without #111's @phoenix_write. No 404
+	# fallback: a POST's body cannot be re-sent to Phoenix (see #111), and
+	# Phoenix has no such route anyway. request_buffers so a slow client
+	# does not hold Blimp's one thread while it types.
+	@blimp_post_comment {
+		method POST
+		path /post/*/comments
+	}
+	handle @blimp_post_comment {
+		reverse_proxy blimp-blog:4100 {
+			request_buffers 1MB
+			lb_try_duration 20s
+			lb_try_interval 250ms
+		}
+	}
+
 	# Fill The Sky's points (4.8 MB) from Blimp, read whole into Caddy first.
 	# The Blimp server is one thread: a slow reader holds its write, and so
 	# every other request, for up to 10 s. Buffered, Blimp writes at loopback
