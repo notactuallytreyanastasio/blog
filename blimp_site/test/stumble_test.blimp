@@ -193,8 +193,13 @@ actor StumbleTests do
     assert_eq(st_redirectable("https://example.com/x"), true)
     assert_eq(st_redirectable("javascript:alert(1)"), false)
     assert_eq(st_redirectable("https://example.com/\r\nSet-Cookie: x"), false)
-    assert(contains(st_links_sql(true, true), "generate_series(1, 1000)"))
-    assert(contains(st_links_sql(false, false), "score >= 20 and $1 = $1 order by random() limit 50"))
+    sampled = st_links_q(true, STUMBLE_SAMPLE, STUMBLE_MIN_SCORE, STUMBLE_LINKS, "en,es")
+    assert(contains(head(sampled), "from generate_series(1, $1))) and score >= $2 and langs && string_to_array($3, ',')::varchar[] order by random() limit $4) q"))
+    assert_eq(tail(sampled), ["1000", "20", "en,es", "50"])
+    whole = st_links_q(false, STUMBLE_SAMPLE, STUMBLE_MIN_SCORE, STUMBLE_LINKS, "")
+    assert(contains(head(whole), "where score >= $1 order by random() limit $2) q"))
+    assert_eq(tail(whole), ["20", "50"])
+    assert_eq(st_go_q("12", true), ["UPDATE pa_links SET stumble_count = stumble_count + 1 WHERE id = $1::bigint returning url", "12"])
     assert(contains(ST_PAGE.body, "data-program=\"/stumble/stumble.blimp\""))
   end
 end

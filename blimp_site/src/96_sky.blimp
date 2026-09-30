@@ -46,7 +46,6 @@ SKY_LAYOUT = sky_asset("_build/sky_layout.json", "application/json; charset=utf-
 # unpacks or packs it again.
 SKY_POINTS = sky_asset("_build/sky_points.json.gz", "application/gzip")
 
-SKY_PROFILE_SQL = "select handle, did, display_name, bio, avatar_url, followers_count, following_count, community_index from sky_profiles where handle = $1 limit 1"
 
 # A handle as the points file has them: letters, digits, dots and hyphens.
 # Anything else is not one, and is not sent to the database.
@@ -71,7 +70,8 @@ def sky_profile_json(handle: String) -> Map do
   case sky_handle_ok(handle) do
     false -> response(400, "application/json; charset=utf-8", "no-cache", "{\"error\": \"not a handle\"}")
     true ->
-      case DB <- :query(SKY_PROFILE_SQL, [handle]) do
+      q = sky_profile_q(handle)
+      case DB <- :query(head(q), tail(q)) do
         {:error, reason} ->
           puts(concat("sky: ", reason))
           response(503, "application/json; charset=utf-8", "no-cache", "{\"error\": \"the database did not answer\"}")
