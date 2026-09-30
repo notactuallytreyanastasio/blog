@@ -8,7 +8,8 @@
 # LiveView re-rendered when the poller broadcast. It is current as of the
 # request.
 
-WORK_LOG_SQL = "select event_id, repo, branch, additions, deletions, extract(epoch from committed_at)::bigint as at, to_char(committed_at, 'Mon DD HH24:MI') as short_at, sha, message from work_log_commits where additions >= 10 or deletions >= 10 order by inserted_at desc limit 100"
+# The query is Alloy's (temper/src/db/pages.temper.md): [sql, params...].
+WORK_LOG_Q = work_log_q()
 
 # Enum.group_by/2: one entry per event, first-seen order, commits in
 # query order; then sorted newest first by the event's committed_at.
@@ -39,7 +40,7 @@ def wl_event_html(e: Map) -> String do
 end
 
 def work_log_page() -> Any do
-  case DB <- :query(WORK_LOG_SQL, []) do
+  case DB <- :query(head(WORK_LOG_Q), tail(WORK_LOG_Q)) do
     {:error, reason} ->
       puts(concat("work-log: ", reason))
       nil

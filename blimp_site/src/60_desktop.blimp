@@ -414,16 +414,15 @@ end
 # no script-free equivalent) is an error for the whole load, never a
 # skipped row: the caller keeps the desktop it has and says why.
 
-DESK_MUSEUM_SQL = "select slug, title, coalesce(tagline, '') as tagline, coalesce(description, '') as description, category, coalesce(array_to_string(tech_stack, ','), '') as tech, coalesce(internal_path, '') as internal_path, coalesce(external_url, '') as external_url from museum_projects where visible order by sort_order, id"
-DESK_REPOS_SQL = "select p.slug, coalesce(r.repo->>'name', '') as name, coalesce(r.repo->>'full_name', '') as full_name from museum_projects p, unnest(p.github_repos) with ordinality as r(repo, n) where p.visible order by p.sort_order, p.id, r.n"
-DESK_SECTIONS_SQL = "select name, coalesce(label, '') as label from finder_sections where visible order by sort_order, id"
-DESK_ITEMS_SQL = "select s.name as section, i.name, coalesce(i.icon, '') as icon, coalesce(i.path, '') as path, coalesce(i.action, '') as action, coalesce(i.description, '') as description from finder_items i join finder_sections s on s.id = i.section_id where s.visible and i.visible order by s.sort_order, s.id, i.sort_order, i.id"
+# The four queries are Alloy's (temper/src/db/desktop.temper.md), built
+# once, here: [sql, params...] each, and none of them takes a parameter.
+DESK_QUERIES = [desk_museum_q(), desk_repos_q(), desk_sections_q(), desk_items_q()]
 
-def desk_db_rows(db: Map, sqls: List, acc: List) -> Tuple do
-  case sqls do
+def desk_db_rows(db: Map, queries: List, acc: List) -> Tuple do
+  case queries do
     [] -> {:ok, reverse(acc), db}
-    [sql | rest] ->
-      case pg_query(db, sql, []) do
+    [q | rest] ->
+      case pg_query(db, head(q), tail(q)) do
         {:ok, rows, next} -> desk_db_rows(next, rest, [rows | acc])
         {:error, reason, next} -> {:error, reason, next}
       end
@@ -431,7 +430,7 @@ def desk_db_rows(db: Map, sqls: List, acc: List) -> Tuple do
 end
 
 def load_desk_db(db: Map) -> Tuple do
-  case desk_db_rows(db, [DESK_MUSEUM_SQL, DESK_REPOS_SQL, DESK_SECTIONS_SQL, DESK_ITEMS_SQL], []) do
+  case desk_db_rows(db, DESK_QUERIES, []) do
     {:error, reason, next} -> {:error, reason, next}
     {:ok, sets, next} ->
       projects = elem_at(sets, 0)

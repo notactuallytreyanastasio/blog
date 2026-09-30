@@ -89,10 +89,11 @@ def moon_nearest(fulls: List, noon: Int) -> Any do
   end
 end
 
-MOON_SHOWS_SQL = "select to_char(date, 'YYYY-MM-DD') as date, coalesce(venue, '') as venue, coalesce(location, '') as location, coalesce(tour_name, '') as tour_name from phish_shows order by date, id"
+# The query is Alloy's (temper/src/db/pages.temper.md): [sql, params...].
+MOON_SHOWS_Q = moon_shows_q()
 
 def moon_build() -> Any do
-  case DB <- :query(MOON_SHOWS_SQL, []) do
+  case DB <- :query(head(MOON_SHOWS_Q), tail(MOON_SHOWS_Q)) do
     {:error, reason} ->
       puts(concat("moon_phish: ", reason))
       nil

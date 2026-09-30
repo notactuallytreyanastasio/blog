@@ -46,43 +46,8 @@ STUMBLE_MIN_SCORE = 20
 STUMBLE_SAMPLE = 1000
 STUMBLE_COUNT_TTL_S = 60
 
-ST_LINK_JSON = "json_build_object('id', q.id, 'url', q.url, 'post_text', coalesce(q.post_text, ''), 'domain', coalesce(q.domain, ''))"
-
-def st_links_sql(sample: Bool, with_langs: Bool) -> String do
-  pick = case sample do
-    true -> concat("id = any(array(select (1 + floor(random() * (select max(id) from pa_links)))::bigint from generate_series(1, ", to_string(STUMBLE_SAMPLE), "))) and ")
-    false -> ""
-  end
-  langs = case with_langs do
-    true -> " and langs && string_to_array($1, ',')::varchar[]"
-    false -> " and $1 = $1"
-  end
-  concat("select count(*) as n, coalesce(json_agg(", ST_LINK_JSON, "), '[]')::text as body from (select id, url, post_text, domain from pa_links where ",
-    pick, "score >= ", to_string(STUMBLE_MIN_SCORE), langs, " order by random() limit ", to_string(STUMBLE_LINKS), ") q")
-end
-
-# links_by_tag/2: the newest 50 with the tag
-def st_tag_sql(with_langs: Bool) -> String do
-  langs = case with_langs do
-    true -> " and l.langs && string_to_array($2, ',')::varchar[]"
-    false -> " and $2 = $2"
-  end
-  concat("select coalesce(json_agg(", ST_LINK_JSON, "), '[]')::text as body from (select l.id, l.url, l.post_text, l.domain from pa_links l ",
-    "join pa_link_tags lt on lt.link_id = l.id join pa_tags t on t.id = lt.tag_id where t.slug = $1", langs,
-    " order by l.inserted_at desc limit 50) q")
-end
-
-# Every tag, in list_tags/0's order (usage_count desc, name), with its
-# name as lower() has it, its age in seconds (inserted_at is UTC), and its
-# place among the names and among the creation times in Postgres's order:
-# the program sorts by those, so names sort by the database's collation as
-# they did.
-ST_TAGS_SQL = "select coalesce(json_agg(json_build_object('name', t.name, 'lower', lower(t.name), 'slug', t.slug, 'usage', t.usage_count, 'age', extract(epoch from (now() at time zone 'utc') - t.inserted_at)::float8, 'name_rank', t.name_rank, 'created_rank', t.created_rank) order by t.usage_count desc, t.name_rank), '[]')::text as body from (select *, (row_number() over (order by name))::int as name_rank, (dense_rank() over (order by inserted_at))::int as created_rank from pa_tags) t"
-
-ST_COUNT_SQL = "select count(*) as n from pa_links"
-
-ST_GO_SQL = "update pa_links set stumble_count = stumble_count + 1 where id = $1::bigint returning url"
-ST_URL_SQL = "select url from pa_links where id = $1::bigint"
+# The queries are Alloy's, in temper/src/db/stumble.temper.md: each comes
+# back as [sql, params...], and st_rows sends it as that.
 
 ST_DB_DOWN = "{\"error\": \"the database did not answer\"}"
 
@@ -90,8 +55,8 @@ def st_json(status: Int, cache: String, body: String) -> Map do
   response(status, "application/json; charset=utf-8", cache, body)
 end
 
-def st_rows(sql: String, params: List) -> Any do
-  case DB <- :query(sql, params) do
+def st_rows(q: List) -> Any do
+  case DB <- :query(head(q), tail(q)) do
     {:error, reason} ->
       puts(concat("stumble: ", reason))
       nil
@@ -133,14 +98,13 @@ def st_all_in(s: String, i: Int, lo: String, hi: String, commas: Bool) -> Bool d
 end
 
 def st_links_body(langs: String) -> Any do
-  with_langs = langs != ""
-  sampled = st_rows(st_links_sql(true, with_langs), [langs])
+  sampled = st_rows(st_links_q(true, STUMBLE_SAMPLE, STUMBLE_MIN_SCORE, STUMBLE_LINKS, langs))
   case sampled do
     nil -> nil
     _ ->
       case head(sampled).n >= STUMBLE_LINKS do
         true -> sampled
-        false -> st_rows(st_links_sql(false, with_langs), [langs])
+        false -> st_rows(st_links_q(false, STUMBLE_SAMPLE, STUMBLE_MIN_SCORE, STUMBLE_LINKS, langs))
       end
   end
 end
@@ -160,11 +124,7 @@ def st_go(id: String, method: String) -> Map do
   case st_digits_only(id) do
     false -> html_response(404, not_found_page("/stumble/go"))
     true ->
-      sql = case method == "GET" do
-        true -> ST_GO_SQL
-        false -> ST_URL_SQL
-      end
-      rows = st_rows(sql, [id])
+      rows = st_rows(st_go_q(id, method == "GET"))
       case rows do
         nil -> response(503, "text/plain; charset=utf-8", "no-cache", "The database did not answer just now.\n")
         [] -> html_response(404, not_found_page("/stumble/go"))
@@ -187,7 +147,7 @@ actor StumbleCount do
     case count >= 0 and at - counted_at < STUMBLE_COUNT_TTL_S do
       true -> reply count
       false ->
-        rows = st_rows(ST_COUNT_SQL, [])
+        rows = st_rows(st_count_q())
         case rows do
           nil -> reply count
           _ ->
@@ -204,10 +164,10 @@ STUMBLE = spawn StumbleCount
 def stumble_api(path: String, req: Map) -> Any do
   case path do
     "/stumble/links.json" -> st_answer(st_links_body(st_clean_langs(query_param(req.query, "langs"))), "no-store")
-    "/stumble/tags.json" -> st_answer(st_rows(ST_TAGS_SQL, []), "no-store")
+    "/stumble/tags.json" -> st_answer(st_rows(st_tags_q()), "no-store")
     "/stumble/tag.json" ->
       langs = st_clean_langs(query_param(req.query, "langs"))
-      st_answer(st_rows(st_tag_sql(langs != ""), [query_param(req.query, "slug"), langs]), "no-store")
+      st_answer(st_rows(st_tag_q(query_param(req.query, "slug"), langs)), "no-store")
     "/stumble/count.json" ->
       n = STUMBLE <- :count(now())
       case n < 0 do

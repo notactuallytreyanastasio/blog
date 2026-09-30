@@ -29,9 +29,10 @@
 
 MAP_SNAPSHOT = "data/tag_ins.json"
 
-# One tag as Postgres makes it, so a float comes back as the shortest text
+# A tag comes back as Postgres makes it, so a float is the shortest text
 # that reads as it (what Jason wrote), not as Blimp would print a numeric.
-MAP_TAG_SQL = "json_build_object('id', id::text, 'name', user_name, 'link', spotify_link, 'note', note, 'lat', latitude, 'lng', longitude)"
+# The queries are Alloy's (temper/src/db/pages.temper.md): [sql, params...].
+MAP_TAGS_Q = map_tags_q()
 
 def map_send(fd: Int, frame: String) -> Any do
   case fd < 0 do
@@ -116,7 +117,7 @@ actor MapRoom do
     loaded = case offline do
       true -> {:ok, tags}
       false ->
-        case DB <- :query(concat("select ", MAP_TAG_SQL, " as tag from tag_ins"), []) do
+        case DB <- :query(head(MAP_TAGS_Q), tail(MAP_TAGS_Q)) do
           {:ok, rows} -> {:ok, map_rows(rows)}
           {:error, reason} -> {:error, reason}
         end
@@ -164,14 +165,8 @@ actor MapRoom do
         made = case offline do
           true -> {:ok, map_wire(%{id: map_uuid(), name: name, link: link, note: note, lat: lat, lng: lng})}
           false ->
-            stored_note = case note do
-              "" -> nil
-              _ -> note
-            end
-            sql = concat("insert into tag_ins (id, user_name, spotify_link, note, latitude, longitude, inserted_at, updated_at) ",
-              "values ($1::uuid, $2, $3, $4, $5, $6, date_trunc('second', now() at time zone 'utc'), date_trunc('second', now() at time zone 'utc')) ",
-              "returning ", MAP_TAG_SQL, " as tag")
-            case DB <- :query(sql, [map_uuid(), name, link, stored_note, lat, lng]) do
+            q = map_insert_q(map_uuid(), name, link, note, lat * 1.0, lng * 1.0)
+            case DB <- :query(head(q), tail(q)) do
               {:ok, rows} -> {:ok, head(map_rows(rows))}
               {:error, reason} -> {:error, reason}
             end
