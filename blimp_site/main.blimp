@@ -251,6 +251,21 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/role-call/show.json" -> role_call_api(path, req.query)
     "/role-call/person.json" -> role_call_api(path, req.query)
     "/role-call/titles.json" -> role_call_api(path, req.query)
+    # bobby's links, the other pages (src/99_blinks_pages.blimp): surf, walk,
+    # tv, review and privacy, and what their programs ask for
+    "/blinks-next/surf" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk" -> blinks_pages_route(path, req.query)
+    "/blinks-next/tv" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review" -> blinks_pages_route(path, req.query)
+    "/blinks-next/privacy" -> blinks_pages_route(path, req.query)
+    "/blinks-next/surf.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/tv.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks-next/pages.css" -> blinks_pages_route(path, req.query)
+    "/blinks-next/pick.json" -> blinks_pages_route(path, req.query)
+    "/blinks-next/walk.json" -> blinks_pages_route(path, req.query)
+    "/blinks-next/review.json" -> blinks_pages_route(path, req.query)
     # bobby's links, read side (src/99_blinks.blimp): Phoenix's GET API at
     # its own paths and under /blinks-next, the feed, and the two pages
     "/api/blinks" -> blinks_route(path, req.query)

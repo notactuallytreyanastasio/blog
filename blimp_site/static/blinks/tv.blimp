@@ -1,0 +1,214 @@
+# /blinks-next/tv: BlinksTvLive, the stack as late-night cable, as a Blimp
+# program in the browser. The screen tunes to a new link every nine seconds
+# with a burst of static (a CSS animation that starts again because the
+# frame's id changes); the top twelve tags are the channels. ↑/↓ change
+# channel, → skips, space pauses. Postgres picks each link, preferring one
+# with a picture, and leaves out the last 25 shown.
+
+TV_DWELL_MS = 9000
+TV_CHANNELS = 12
+TV_NO_REPEAT = 25
+
+def tv_channel_label(channels: List, idx: Int) -> String do
+  tag = bk_nth(channels, idx)
+  case tag do
+    "" -> "ALL"
+    _ -> upcase(tag)
+  end
+end
+
+def tv_frame(b: Map, channels: List, idx: Int, playing: Bool) -> Any do
+  picture = case bkp_absent(b.image_url) do
+    true -> [el("div", %{class: "no-still"}, el("span", %{}, bkp_short_title(b)))]
+    false -> [el("img", %{class: "still", src: b.image_url, alt: ""})]
+  end
+  desc = case b.description do
+    nil -> []
+    d -> [el("p", %{class: "desc"}, d)]
+  end
+  mode = case playing do
+    true -> "▶ PLAY"
+    false -> "⏸ PAUSE"
+  end
+  el("a", %{class: "frame", id: concat("tv-frame-", to_string(b.id)), href: b.url, target: "_blank", rel: "noopener", title: "click to visit"},
+    picture,
+    el("div", %{class: "scanlines"}),
+    el("div", %{class: "vignette"}),
+    el("div", %{class: "caption"},
+      bkp_site(b),
+      el("h2", %{}, bkp_title(b)),
+      desc,
+      map(bkp_take(b.tags, 6), fn(t: String) -> Any do el("span", %{class: "tag"}, t) end)),
+    el("div", %{class: "static"}),
+    el("span", %{class: "osd osd-ch"}, concat("CH ", blkp_pad2(idx), " · ", tv_channel_label(channels, idx))),
+    el("span", %{class: "osd osd-mode"}, mode),
+    el("span", %{class: "osd osd-date"}, concat("SAVED ", blkp_saved(b.inserted_at, " "))))
+end
+
+actor Tv do
+  # channel 0 is every link ("" here, nil in the LiveView)
+  state channels: List :: [""]
+  state tags_asked: Bool :: false
+  state ch_idx: Int :: 0
+  state playing: Bool :: true
+  state recent: List :: []
+  state blink: Any :: nil
+  state no_signal: Bool :: false
+  # the pick being fetched: mount tunes channel 0 at once
+  state ask: String :: "/blinks-next/pick.json?image=1&n=0"
+  state n: Int :: 0
+  # rearm/1: the dwell clock is a timer in the view, and a new message name
+  # is a new timer, so flipping this starts the nine seconds again
+  state phase: Bool :: false
+  state problem: String :: ""
+
+  on :tags_loaded(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    names = case d do
+      nil -> []
+      _ -> map(bkp_take(d.tags, TV_CHANNELS), fn(t: Map) -> String do t.name end)
+    end
+    become channels: ["" | names], tags_asked: true
+    reply :ok
+  end
+
+  # tune/1
+  on :tune do
+    become ask: bkp_pick_url(recent, bk_nth(channels, ch_idx), true, n + 1), n: n + 1
+    reply :ok
+  end
+
+  on :tuned(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    become ask: ""
+    case d do
+      nil ->
+        become problem: concat("the server answered ", to_string(status), " for a link")
+        reply :error
+      _ ->
+        case d.blink do
+          nil ->
+            # the channel is used up inside the no-repeat window: clear it
+            # and go round again; with an empty window, the stack is empty
+            case recent do
+              [] ->
+                become blink: nil, no_signal: true, problem: ""
+                reply :ok
+              _ ->
+                become recent: []
+                self <- :tune
+                reply :ok
+            end
+          b ->
+            become blink: b, no_signal: false, problem: "", recent: blkp_keep([b.id | recent], TV_NO_REPEAT)
+            reply :ok
+        end
+    end
+  end
+
+  on :tick_a do
+    self <- :tick
+    reply :ok
+  end
+
+  on :tick_b do
+    self <- :tick
+    reply :ok
+  end
+
+  on :tick do
+    case playing do
+      true ->
+        self <- :tune
+        reply :ok
+      false -> reply :ok
+    end
+  end
+
+  on :next do
+    self <- :tune
+    become phase: not(phase)
+    reply :ok
+  end
+
+  on :toggle_play do
+    become playing: not(playing), phase: not(phase)
+    reply :ok
+  end
+
+  # zap/2
+  on :zap(step: Int) do
+    become ch_idx: blkp_mod(ch_idx + step, length(channels)), recent: [], phase: not(phase)
+    self <- :tune
+    reply :ok
+  end
+
+  on :channel_up do
+    self <- :zap(1)
+    reply :ok
+  end
+
+  on :channel_down do
+    self <- :zap(0 - 1)
+    reply :ok
+  end
+
+  # what the page is waiting for from the server ("" for nothing)
+  on :asking do
+    reply ask
+  end
+
+  on :view do
+    asks = case ask do
+      "" -> []
+      _ -> [fetch(ask, :tuned)]
+    end
+    tag_ask = case tags_asked do
+      false -> [fetch(BKP_TAGS_URL, :tags_loaded)]
+      true -> []
+    end
+    clock = case phase do
+      true -> timer(TV_DWELL_MS, :tick_b)
+      false -> timer(TV_DWELL_MS, :tick_a)
+    end
+    screen = case blink do
+      nil ->
+        case no_signal do
+          true -> [el("div", %{class: "no-still"}, el("span", %{}, "NO SIGNAL"))]
+          false ->
+            case problem do
+              "" -> []
+              _ -> [el("div", %{class: "no-still"}, el("span", %{}, problem))]
+            end
+        end
+      b -> [tv_frame(b, channels, ch_idx, playing)]
+    end
+    play_label = case playing do
+      true -> "PAUSE ⏸"
+      false -> "PLAY ▶"
+    end
+    reply el("div", %{id: "tv-page"},
+      el("div", %{class: "screen"}, screen),
+      el("div", %{class: "deck"},
+        el("span", %{class: "wordmark"}, "📺 blinks tv"),
+        el("button", %{class: "vcr-btn", click: :channel_down}, "CH ▼"),
+        el("button", %{class: "vcr-btn", click: :channel_up}, "CH ▲"),
+        el("button", %{class: "vcr-btn", click: :next}, "NEXT ⏭"),
+        el("button", %{class: "vcr-btn", click: :toggle_play}, play_label),
+        el("span", %{class: "spacer"}),
+        el("span", %{class: "hint"}, "↑↓ channel · → skip · space pause · click screen to visit"),
+        el("a", %{href: "/blinks-next"}, "all links"),
+        el("a", %{href: "/blinks-next/surf"}, "stumble 🎲"),
+        el("a", %{href: "/blinks-next/walk"}, "walk 🥾")),
+      clock,
+      key("ArrowUp", :channel_up),
+      key("ArrowDown", :channel_down),
+      key("ArrowRight", :next),
+      key(" ", :toggle_play),
+      asks,
+      tag_ask)
+  end
+end
+
+tv = spawn Tv
+tv <- :view

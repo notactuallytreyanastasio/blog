@@ -1,0 +1,187 @@
+# /blinks-next/walk: BlinksWalkLive, a wiki-walk through the stack, as a
+# Blimp program in the browser. Start at ?from=ID (or anywhere), and every
+# stop offers three doors, the nearest links by shared tags and title
+# similarity that this walk has not been through, plus a wildcard. The
+# trail stays on screen; a crumb rewinds to that fork. The server finds the
+# stop and ranks its neighbours (/blinks-next/walk.json, the same statement
+# as list_similar/2); which doors are left is Temper.
+
+WALK_SIMILAR = 12
+
+# The trail as the LiveView keeps it: newest first, so the page reverses it.
+def walk_trail_ids(trail: List) -> List do
+  bkp_ids(trail)
+end
+
+def walk_shared(door: Map, here: Map) -> List do
+  filter(door.tags, fn(t: String) -> Bool do bk_contains(here.tags, t) end)
+end
+
+def walk_door(door: Map, here: Map) -> Any do
+  el("button", %{class: "door", click: :step, with: door.id},
+    el("b", %{}, bkp_short_title(door)),
+    el("span", %{class: "via"},
+      blk_domain_or_url(door.url),
+      # the template's line break after the domain is a space
+      " ",
+      map(bkp_take(walk_shared(door, here), 3), fn(t: String) -> Any do el("span", %{class: "tag"}, t) end)))
+end
+
+def walk_here(b: Map) -> Any do
+  pic = case bkp_absent(b.image_url) do
+    true -> []
+    false -> [el("a", %{href: b.url, target: "_blank", rel: "noopener"}, el("img", %{class: "here-img", src: b.image_url, alt: "", loading: "lazy"}))]
+  end
+  desc = case b.description do
+    nil -> []
+    d -> [el("p", %{class: "desc"}, d)]
+  end
+  el("div", %{class: "here", id: concat("walk-here-", to_string(b.id))},
+    pic,
+    el("div", %{class: "here-body"},
+      bkp_site(b),
+      el("h2", %{}, el("a", %{href: b.url, target: "_blank", rel: "noopener"}, bkp_title(b))),
+      desc,
+      map(b.tags, fn(t: String) -> Any do el("span", %{class: "tag"}, t) end)))
+end
+
+actor Walk do
+  state blink: Any :: nil
+  state trail: List :: []
+  state doors: List :: []
+  # the trail the stop being fetched will have behind it
+  state next_trail: List :: []
+  state ask: String :: ""
+  state n: Int :: 0
+  state empty: Bool :: false
+  state problem: String :: ""
+
+  on :location(query: String) do
+    become ask: bkp_walk_url(blk_id(query_param(query, "from")), [], WALK_SIMILAR, n + 1), n: n + 1, next_trail: []
+    reply :ok
+  end
+
+  # arrive/2: the stop that was showing joins the trail (next_trail says
+  # which trail), and the doors are the first three neighbours not walked
+  on :arrived(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    become ask: ""
+    case d do
+      nil ->
+        become problem: concat("the server answered ", to_string(status), " for this stop")
+        reply :error
+      _ ->
+        case d.blink do
+          nil ->
+            # random_blink/1 found nothing: an empty stack, or a wildcard
+            # with every link walked (the LiveView does nothing then)
+            become empty: blink == nil
+            reply :ok
+          b ->
+            walked = [b.id | walk_trail_ids(next_trail)]
+            open = blkp_first_not_in(bkp_ids(d.similar), walked, 3)
+            become blink: b, trail: next_trail, doors: bkp_rows_with(d.similar, open), problem: "", empty: false
+            reply :ok
+        end
+    end
+  end
+
+  on :step(id: Int) do
+    behind = case blink do
+      nil -> trail
+      b -> [b | trail]
+    end
+    become ask: bkp_walk_url(id, [], WALK_SIMILAR, n + 1), n: n + 1, next_trail: behind
+    reply :ok
+  end
+
+  on :wildcard do
+    behind = case blink do
+      nil -> trail
+      b -> [b | trail]
+    end
+    become ask: bkp_walk_url(0, walk_trail_ids(behind), WALK_SIMILAR, n + 1), n: n + 1, next_trail: behind
+    reply :ok
+  end
+
+  # everything after the crumb, the current stop too, is abandoned
+  on :rewind(id: Int) do
+    i = blkp_index(walk_trail_ids(trail), id)
+    case i < 0 do
+      true -> reply :ok
+      false ->
+        become ask: bkp_walk_url(id, [], WALK_SIMILAR, n + 1), n: n + 1, next_trail: bkp_drop(trail, i + 1)
+        reply :ok
+    end
+  end
+
+  # assign(trail: []) |> arrive(random_blink()): arrive/2 still puts the
+  # stop that was showing on the fresh trail, so it stays as one crumb
+  on :restart do
+    behind = case blink do
+      nil -> []
+      b -> [b]
+    end
+    become ask: bkp_walk_url(0, [], WALK_SIMILAR, n + 1), n: n + 1, next_trail: behind
+    reply :ok
+  end
+
+  # what the page is waiting for from the server ("" for nothing)
+  on :asking do
+    reply ask
+  end
+
+  on :view do
+    asks = case ask do
+      "" -> []
+      _ -> [fetch(ask, :arrived)]
+    end
+    crumbs = case trail do
+      [] -> []
+      _ ->
+        here = case blink do
+          nil -> []
+          b -> [" ", el("span", %{class: "crumb-here"}, bkp_short_title(b))]
+        end
+        [el("div", %{class: "trail"},
+          # the template's line breaks between them are spaces (and a
+          # view's children are one list deep, so they are appended)
+          reduce(reverse(trail), [], fn(acc: List, s: Map) -> List do
+            bk_append(acc, [" ", el("span", %{class: "crumb", click: :rewind, with: s.id}, bkp_short_title(s)), " ", el("span", %{}, " → ")])
+          end),
+          here)]
+    end
+    stage = case blink do
+      nil ->
+        case empty do
+          true -> [el("div", %{class: "stage"}, el("p", %{}, "nothing saved yet — the walk starts once there are links."))]
+          false ->
+            case problem do
+              "" -> []
+              _ -> [el("div", %{class: "stage"}, el("p", %{style: "color:#b00;"}, problem))]
+            end
+        end
+      b -> [el("div", %{class: "stage"},
+        walk_here(b),
+        el("p", %{class: "doors-label"}, "where to next?"),
+        el("div", %{class: "doors"},
+          map(doors, fn(dr: Map) -> Any do walk_door(dr, b) end),
+          el("button", %{class: "door wild", click: :wildcard},
+            el("b", %{}, "??? — total wildcard"),
+            el("span", %{class: "via"}, "teleport anywhere in the stack"))))]
+    end
+    reply el("div", %{id: "walk-page"},
+      el("div", %{class: "bar"},
+        el("span", %{class: "wordmark"}, el("a", %{href: "/blinks-next"}, "bobbby's links"), " / walk 🥾"),
+        el("button", %{class: "restart", click: :restart}, "start over somewhere random"),
+        el("span", %{class: "others"},
+          el("a", %{href: "/blinks-next/surf"}, "stumble 🎲"),
+          el("a", %{href: "/blinks-next/tv"}, "tv 📺"))),
+      crumbs,
+      stage,
+      asks)
+  end
+end
+
+walk = spawn Walk
+walk <- :view
