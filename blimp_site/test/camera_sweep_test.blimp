@@ -298,12 +298,16 @@ actor CameraSweepTests do
   end
 
   test "the writes: numbered parameters, and updated_at only on a change" do
-    q = cs_update_sql(7, [{"closed_at", cs_ts("?"), 100}, {"closed_reason", "?::varchar", "gone"}, {"x", "null::varchar", nil}], 200)
-    assert_eq(elem(q, 0), "with v as (select (to_timestamp($2::float8) at time zone 'utc') as closed_at, $3::varchar as closed_reason, null::varchar as x) update camera_listings c set closed_at = v.closed_at, closed_reason = v.closed_reason, x = v.x, updated_at = case when row(c.closed_at, c.closed_reason, c.x) is distinct from row(v.closed_at, v.closed_reason, v.x) then (to_timestamp($4::float8) at time zone 'utc') else c.updated_at end from v where c.id = $1")
-    assert_eq(elem(q, 1), [7, 100, "gone", 200])
-    i = cs_insert_sql([{"posting_id", "?::bigint", 5}, {"image_ids", cs_array("?"), ["a"]}], 9)
-    assert_eq(elem(i, 0), "insert into camera_listings (posting_id, image_ids, inserted_at, updated_at) values ($1::bigint, array(select jsonb_array_elements_text($2::jsonb))::varchar[], (to_timestamp($3::float8) at time zone 'utc'), (to_timestamp($3::float8) at time zone 'utc'))")
-    assert_eq(elem(i, 1), [5, ["a"], 9])
+    q = cs_update_sql(7, [{"closed_at", "ts", 100}, {"closed_reason", "varchar", "gone"}, {"x", "null_varchar", nil}], 200)
+    assert_eq(head(q), "with v as (select (to_timestamp($1::float8) at time zone 'utc') as closed_at, $2::varchar as closed_reason, null::varchar as x) update camera_listings c set closed_at = v.closed_at, closed_reason = v.closed_reason, x = v.x, updated_at = case when row(c.closed_at, c.closed_reason, c.x) is distinct from row(v.closed_at, v.closed_reason, v.x) then (to_timestamp($3::float8) at time zone 'utc') else c.updated_at end from v where c.id = $4")
+    assert_eq(tail(q), ["100", "gone", "200", "7"])
+    i = cs_insert_sql([{"posting_id", "bigint", 5}, {"image_ids", "array", ["a"]}], 9)
+    assert_eq(head(i), "insert into camera_listings (posting_id, image_ids, inserted_at, updated_at) values ($1::bigint, array(select jsonb_array_elements_text($2::jsonb))::varchar[], (to_timestamp($3::float8) at time zone 'utc'), (to_timestamp($4::float8) at time zone 'utc'))")
+    assert_eq(tail(i), ["5", "[\"a\"]", "9", "9"])
+    # a missing value is NULL in the text, where the Blimp version bound a null
+    n = cs_update_sql(7, [{"body", "text", nil}, {"lat", "float8", 40.5}], 200)
+    assert(contains(head(n), "select NULL::text as body, $1::float8 as lat"))
+    assert_eq(tail(n), ["40.5", "200", "7"])
     # Ecto's empty values
     assert_eq(cs_text("  "), nil)
     assert_eq(cs_text("   "), nil)

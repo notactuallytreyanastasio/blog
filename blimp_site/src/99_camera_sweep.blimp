@@ -77,6 +77,9 @@ CS_PACE_MS = 600
 CS_DETAIL_CAP = 80
 CS_ANALYZE_CAP = 200
 CS_CLOSE_CAP = 150
+# the posts to fetch and to analyze: temper/src/db/data.temper.md
+CS_DETAIL_Q = cs_detail_q(CS_DETAIL_CAP)
+CS_AI_Q = cs_ai_q(CS_ANALYZE_CAP)
 CS_MIRROR_MAX = 24
 CS_FIRST_S = 120
 CS_EVERY_S = 900
@@ -472,68 +475,57 @@ end
 
 # ── SQL ─────────────────────────────────────────────────────────────────
 
-# :utc_datetime from Unix seconds, and from ISO 8601 text with an offset
-def cs_ts(p: String) -> String do
-  concat("(to_timestamp(", p, "::float8) at time zone 'utc')")
+# The statements are temper/src/db/data.temper.md (cs_*_q), built with
+# Alloy. A write is a list of {column, kind, value}: the kind is how the
+# value goes in ("varchar", "integer", "float8", "bigint", "jsonb", "text",
+# "ts" for Unix seconds as a :utc_datetime, "iso_ts" for ISO 8601 text with
+# an offset, "array" for a list as varchar[], and "null_timestamp",
+# "null_varchar" with no value).
+
+# A value as the text src/80_postgres.blimp's pg_param sends for it, nil
+# for NULL: what the Blimp version bound, now bound by Alloy's [sql,
+# params...].
+def cs_param(v: Any) -> Any do
+  case v do
+    nil -> nil
+    true -> "t"
+    false -> "f"
+    _ ->
+      case type_of(v) do
+        :string -> v
+        :integer -> to_string(v)
+        :float -> to_string(v)
+        :map -> json_encode(v)
+        :list -> json_encode(v)
+        other -> bubble concat("a query parameter of type ", to_string(other))
+      end
+  end
 end
 
-def cs_iso_ts(p: String) -> String do
-  concat("(", p, "::timestamptz at time zone 'utc')")
+def cs_col_names(cols: List) -> List do
+  map(cols, fn(c: Tuple) -> String do elem(c, 0) end)
 end
 
-def cs_array(p: String) -> String do
-  concat("array(select jsonb_array_elements_text(", p, "::jsonb))::varchar[]")
+def cs_col_kinds(cols: List) -> List do
+  map(cols, fn(c: Tuple) -> String do elem(c, 1) end)
 end
 
-# [{column, template, value}] -> {[{column, expression}], params}: each
-# template's "?" becomes the next $n, counting from `first`; a template
-# without one takes no parameter.
-def cs_number(cols: List, first: Int) -> Tuple do
-  r = reduce(cols, {[], [], first}, fn(acc: Tuple, c: Tuple) -> Tuple do
-    n = elem(acc, 2)
-    tpl = elem(c, 1)
-    case contains(tpl, "?") do
-      true -> {[{elem(c, 0), replace(tpl, "?", concat("$", to_string(n)))} | elem(acc, 0)], [elem(c, 2) | elem(acc, 1)], n + 1}
-      false -> {[{elem(c, 0), tpl} | elem(acc, 0)], elem(acc, 1), n}
-    end
-  end)
-  {reverse(elem(r, 0)), reverse(elem(r, 1))}
-end
-
-def cs_names(pairs: List) -> List do
-  map(pairs, fn(p: Tuple) -> String do elem(p, 0) end)
+def cs_col_values(cols: List) -> List do
+  map(cols, fn(c: Tuple) -> Any do cs_param(elem(c, 2)) end)
 end
 
 # Repo.update! of a changeset: set the columns, and updated_at only when
 # one of them changes (a changeset without changes is not written at all).
-def cs_update_sql(id: Int, cols: List, now_s: Int) -> Tuple do
-  numbered = cs_number(cols, 2)
-  pairs = elem(numbered, 0)
-  params = elem(numbered, 1)
-  names = cs_names(pairs)
-  now_p = concat("$", to_string(length(params) + 2))
-  v_cols = join(map(pairs, fn(p: Tuple) -> String do concat(elem(p, 1), " as ", elem(p, 0)) end), ", ")
-  assign = join(map(names, fn(n: String) -> String do concat(n, " = v.", n) end), ", ")
-  old = join(map(names, fn(n: String) -> String do concat("c.", n) end), ", ")
-  fresh = join(map(names, fn(n: String) -> String do concat("v.", n) end), ", ")
-  sql = concat("with v as (select ", v_cols, ") update camera_listings c set ", assign,
-    ", updated_at = case when row(", old, ") is distinct from row(", fresh, ") then ", cs_ts(now_p), " else c.updated_at end from v where c.id = $1")
-  {sql, cs_append([id | params], [now_s])}
+def cs_update_sql(id: Int, cols: List, now_s: Int) -> List do
+  cs_update_q(id, cs_col_names(cols), cs_col_kinds(cols), cs_col_values(cols), now_s)
 end
 
-def cs_insert_sql(cols: List, now_s: Int) -> Tuple do
-  numbered = cs_number(cols, 1)
-  pairs = elem(numbered, 0)
-  params = elem(numbered, 1)
-  now_p = concat("$", to_string(length(params) + 1))
-  exprs = map(pairs, fn(p: Tuple) -> String do elem(p, 1) end)
-  sql = concat("insert into camera_listings (", join(cs_names(pairs), ", "), ", inserted_at, updated_at) values (",
-    join(exprs, ", "), ", ", cs_ts(now_p), ", ", cs_ts(now_p), ")")
-  {sql, cs_append(params, [now_s])}
+def cs_insert_sql(cols: List, now_s: Int) -> List do
+  cs_insert_q(cs_col_names(cols), cs_col_kinds(cols), cs_col_values(cols), now_s)
 end
 
-def cs_run(q: Tuple, what: String) -> Any do
-  r = DB <- :query(elem(q, 0), elem(q, 1))
+def cs_run(q: List, what: String) -> Any do
+  r = DB <- :query(head(q), tail(q))
   case r do
     {:ok, rows} -> rows
     {:error, why} ->
@@ -542,41 +534,39 @@ def cs_run(q: Tuple, what: String) -> Any do
   end
 end
 
-CS_FIND_SQL = "select id, title, body, attrs, to_jsonb(image_ids) as image_ids, to_jsonb(queries) as queries from camera_listings where posting_id = $1"
-
 # upsert_from_search/3: the listing's posting_id, or nil when the write failed
 def cs_upsert(l: Map, query: String, now_s: Int) -> Any do
-  found = cs_run({CS_FIND_SQL, [l.posting_id]}, concat("reading ", to_string(l.posting_id)))
+  found = cs_run(cs_find_q(cs_param(l.posting_id)), concat("reading ", to_string(l.posting_id)))
   case found do
     nil -> nil
     _ ->
       common = [
-        {"area", "?::varchar", cs_text(l.area)},
-        {"subarea", "?::varchar", cs_text(l.subarea)},
-        {"location", "?::varchar", cs_text(cs_named(l.location, "location"))},
-        {"neighborhood", "?::varchar", cs_text(cs_named(l.neighborhood, "neighborhood"))},
-        {"title", "?::varchar", cs_text(cam_first_chars(l.title, 255))},
-        {"price_cents", "?::integer", l.price_cents},
-        {"url", "?::varchar", cs_text(l.url)},
-        {"lat", "?::float8", l.lat},
-        {"lng", "?::float8", l.lng},
-        {"category_id", "?::integer", l.category_id},
-        {"renewed_at", cs_ts("?"), l.posted_at},
-        {"last_seen_at", cs_ts("?"), now_s},
-        {"closed_at", "null::timestamp", nil},
-        {"closed_reason", "null::varchar", nil}
+        {"area", "varchar", cs_text(l.area)},
+        {"subarea", "varchar", cs_text(l.subarea)},
+        {"location", "varchar", cs_text(cs_named(l.location, "location"))},
+        {"neighborhood", "varchar", cs_text(cs_named(l.neighborhood, "neighborhood"))},
+        {"title", "varchar", cs_text(cam_first_chars(l.title, 255))},
+        {"price_cents", "integer", l.price_cents},
+        {"url", "varchar", cs_text(l.url)},
+        {"lat", "float8", l.lat},
+        {"lng", "float8", l.lng},
+        {"category_id", "integer", l.category_id},
+        {"renewed_at", "ts", l.posted_at},
+        {"last_seen_at", "ts", now_s},
+        {"closed_at", "null_timestamp", nil},
+        {"closed_reason", "null_varchar", nil}
       ]
       q = case found do
         [] ->
           c = cs_classify(l.title, nil, %{}, [query], l.image_ids)
           cs_insert_sql(cs_append(common, [
-            {"posting_id", "?::bigint", l.posting_id},
-            {"first_seen_at", cs_ts("?"), now_s},
-            {"posted_at", cs_ts("?"), l.posted_at},
-            {"image_ids", cs_array("?"), l.image_ids},
-            {"queries", cs_array("?"), [query]},
-            {"tags", cs_array("?"), c.tags},
-            {"score", "?::integer", c.score}
+            {"posting_id", "bigint", l.posting_id},
+            {"first_seen_at", "ts", now_s},
+            {"posted_at", "ts", l.posted_at},
+            {"image_ids", "array", l.image_ids},
+            {"queries", "array", [query]},
+            {"tags", "array", c.tags},
+            {"score", "integer", c.score}
           ]), now())
         [e | _] ->
           queries = cs_uniq_append(cs_list(e.queries), query)
@@ -587,10 +577,10 @@ def cs_upsert(l: Map, query: String, now_s: Int) -> Any do
           end
           c = cs_classify(e.title, e.body, e.attrs, queries, old_images)
           cs_update_sql(e.id, cs_append(common, [
-            {"queries", cs_array("?"), queries},
-            {"image_ids", cs_array("?"), images},
-            {"tags", cs_array("?"), c.tags},
-            {"score", "?::integer", c.score}
+            {"queries", "array", queries},
+            {"image_ids", "array", images},
+            {"tags", "array", c.tags},
+            {"score", "integer", c.score}
           ]), now())
       end
       case cs_run(q, concat("writing ", to_string(l.posting_id))) do
@@ -599,19 +589,6 @@ def cs_upsert(l: Map, query: String, now_s: Int) -> Any do
       end
   end
 end
-
-CS_DETAIL_SQL = join([
-  "select id, posting_id, url, title, to_jsonb(image_ids) as image_ids, to_jsonb(queries) as queries,",
-  " to_char(posted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as posted_at, lat::text as lat, lng::text as lng",
-  " from camera_listings where detail_fetched_at is null and closed_at is null",
-  " order by score desc, renewed_at desc limit $1"
-], "")
-
-CS_UNSEEN_SQL = join([
-  "select id, posting_id, url from camera_listings",
-  " where closed_at is null and last_seen_at < ", cs_ts("$1"),
-  " order by last_seen_at asc limit $2"
-], "")
 
 # fetch_detail/1's write for a post that is there
 def cs_detail_write(row: Map, post: Map, mirrored: List, now_s: Int) -> Any do
@@ -622,30 +599,30 @@ def cs_detail_write(row: Map, post: Map, mirrored: List, now_s: Int) -> Any do
   title = cs_or(post.title, row.title)
   c = cs_classify(title, post.body, post.attrs, cs_list(row.queries), images)
   cols = [
-    {"title", "?::varchar", cs_text(cam_first_chars(cs_or(title, ""), 255))},
-    {"body", "?::text", cs_text(post.body)},
-    {"attrs", "?::jsonb", post.attrs},
-    {"image_ids", cs_array("?"), images},
-    {"reply_url", "?::varchar", cs_text(post.reply_url)},
-    {"contact", "?::jsonb", post.contact},
-    {"posted_at", cs_iso_ts("?"), cs_or(post.posted_at, row.posted_at)},
-    {"cl_updated_at", cs_iso_ts("?"), post.updated_at},
-    {"lat", "?::float8", cs_or(post.lat, row.lat)},
-    {"lng", "?::float8", cs_or(post.lng, row.lng)},
-    {"detail_fetched_at", cs_ts("?"), now_s},
-    {"mirrored_images", cs_array("?"), mirrored},
-    {"tags", cs_array("?"), c.tags},
-    {"score", "?::integer", c.score}
+    {"title", "varchar", cs_text(cam_first_chars(cs_or(title, ""), 255))},
+    {"body", "text", cs_text(post.body)},
+    {"attrs", "jsonb", post.attrs},
+    {"image_ids", "array", images},
+    {"reply_url", "varchar", cs_text(post.reply_url)},
+    {"contact", "jsonb", post.contact},
+    {"posted_at", "iso_ts", cs_or(post.posted_at, row.posted_at)},
+    {"cl_updated_at", "iso_ts", post.updated_at},
+    {"lat", "float8", cs_or(post.lat, row.lat)},
+    {"lng", "float8", cs_or(post.lng, row.lng)},
+    {"detail_fetched_at", "ts", now_s},
+    {"mirrored_images", "array", mirrored},
+    {"tags", "array", c.tags},
+    {"score", "integer", c.score}
   ]
   cs_run(cs_update_sql(row.id, cols, now()), concat("writing the post of ", to_string(row.posting_id)))
 end
 
 def cs_close_write(id: Int, reason: String, now_s: Int) -> Any do
-  cs_run(cs_update_sql(id, [{"closed_at", cs_ts("?"), now_s}, {"closed_reason", "?::varchar", cs_text(reason)}], now()), concat("closing ", to_string(id)))
+  cs_run(cs_update_sql(id, [{"closed_at", "ts", now_s}, {"closed_reason", "varchar", cs_text(reason)}], now()), concat("closing ", to_string(id)))
 end
 
 def cs_seen_write(id: Int, now_s: Int) -> Any do
-  cs_run(cs_update_sql(id, [{"last_seen_at", cs_ts("?"), now_s}], now()), concat("marking ", to_string(id), " seen"))
+  cs_run(cs_update_sql(id, [{"last_seen_at", "ts", now_s}], now()), concat("marking ", to_string(id), " seen"))
 end
 
 # ── the bucket: AWS Signature Version 4 ─────────────────────────────────
@@ -726,14 +703,7 @@ CS_AI_SCHEMA = %{
   "required": ["quick_take", "rarity", "price_take", "price_note", "commentary", "fun_features", "facts"]
 }
 
-CS_AI_SQL = join([
-  "select id, posting_id, area, subarea, neighborhood, title, price_cents, attrs, cardinality(image_ids) as photos,",
-  " coalesce(extract(epoch from posted_at)::bigint, -1) as posted_at, body",
-  " from camera_listings where analyzed_at is null and detail_fetched_at is not null and closed_at is null",
-  " order by (analysis_error is not null) asc, score desc, id desc limit $1"
-], "")
-
-# Analyst.prompt/1 for a row of CS_AI_SQL
+# Analyst.prompt/1 for a row of cs_ai_q
 def cs_ai_prompt(r: Map) -> String do
   attrs = case type_of(r.attrs) == :map do
     true -> join(map(sort(keys(r.attrs)), fn(k: String) -> String do concat(k, ": ", to_string(lookup(r.attrs, k))) end), "; ")
@@ -858,11 +828,11 @@ end
 def cs_ai_write(row: Map, answer: Tuple, now_s: Int) -> Any do
   case answer do
     {:ok, analysis} ->
-      cs_run(cs_update_sql(row.id, [{"analysis", "?::jsonb", analysis}, {"analyzed_at", cs_ts("?"), now_s}, {"analysis_error", "null::varchar", nil}], now()), concat("storing the analysis of ", to_string(row.posting_id)))
+      cs_run(cs_update_sql(row.id, [{"analysis", "jsonb", analysis}, {"analyzed_at", "ts", now_s}, {"analysis_error", "null_varchar", nil}], now()), concat("storing the analysis of ", to_string(row.posting_id)))
     {:error, why} ->
       msg = slice(why, 0, 250)
       cs_log(concat("analyst: ", to_string(row.posting_id), " failed: ", msg))
-      cs_run(cs_update_sql(row.id, [{"analysis_error", "?::varchar", cs_text(msg)}], now()), concat("storing the analyst's error for ", to_string(row.posting_id)))
+      cs_run(cs_update_sql(row.id, [{"analysis_error", "varchar", cs_text(msg)}], now()), concat("storing the analyst's error for ", to_string(row.posting_id)))
   end
 end
 
@@ -1167,8 +1137,8 @@ def cs_step_search(s: Map, t: Int, now_s: Int) -> Map do
   end
 end
 
-def cs_rows(sql: String, params: List, what: String) -> List do
-  rows = cs_run({sql, params}, what)
+def cs_rows(q: List, what: String) -> List do
+  rows = cs_run(q, what)
   case rows do
     nil -> []
     _ -> rows
@@ -1176,7 +1146,7 @@ def cs_rows(sql: String, params: List, what: String) -> List do
 end
 
 def cs_enter_detail(s: Map, t: Int) -> Map do
-  rows = cs_rows(CS_DETAIL_SQL, [CS_DETAIL_CAP], "listing the posts to fetch")
+  rows = cs_rows(CS_DETAIL_Q, "listing the posts to fetch")
   merge(s, %{phase: :detail, queue: rows, current: nil, mirror: nil, ready: t + CS_PACE_MS})
 end
 
@@ -1316,7 +1286,7 @@ def cs_enter_analyze(s: Map, t: Int) -> Map do
     false -> cs_enter_close(merge(s, %{analyzed: 0}), t)
     true ->
       CAM_ANALYST <- :config(s.cfg.openai_key, s.cfg.model)
-      rows = cs_rows(CS_AI_SQL, [CS_ANALYZE_CAP], "listing the posts to analyze")
+      rows = cs_rows(CS_AI_Q, "listing the posts to analyze")
       CAM_ANALYST <- :run(rows)
       merge(s, %{phase: :analyze})
   end
@@ -1338,7 +1308,7 @@ def cs_enter_close(s: Map, t: Int) -> Map do
   case s.errors * 2 < total do
     false -> cs_finish(merge(s, %{closed: 0}))
     true ->
-      rows = cs_rows(CS_UNSEEN_SQL, [s.started, CS_CLOSE_CAP], "listing the posts not seen")
+      rows = cs_rows(cs_unseen_q(s.started, CS_CLOSE_CAP), "listing the posts not seen")
       merge(s, %{phase: :close, queue: rows, current: nil, ready: t + CS_PACE_MS})
   end
 end

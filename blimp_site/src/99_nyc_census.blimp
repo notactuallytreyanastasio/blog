@@ -18,11 +18,11 @@
 # The map is Leaflet, as it was: static/nyc_census/map.js, the NycMap hook
 # with the LiveView's side of it moved into the program.
 
-NYC_TRACTS_SQL = "select json_build_object('tracts', (select coalesce(json_object_agg(bct2020, json_build_array(lat, lng, units)), '{}') from (select bct2020, avg(latitude) as lat, avg(longitude) as lng, coalesce(sum(units_res), 0) as units from lots where bct2020 is not null and bct2020 <> '' and latitude is not null and longitude is not null group by bct2020) t), 'pops', (select coalesce(json_object_agg(geoid, population), '{}') from census_tracts))::text as body"
-
-# [lat, lng, units, bct2020, address, bbl, bldg_class, num_floors,
-# year_built] per lot, or a null body when there are more than $5.
-NYC_LOTS_SQL = "with b as (select latitude, longitude, coalesce(units_res, 0) as units, coalesce(bct2020, '') as tract, coalesce(address, '') as address, coalesce(bbl, '') as bbl, coalesce(bldg_class, '') as bldg_class, coalesce(num_floors, 0) as floors, coalesce(year_built, 0) as year from lots where latitude >= $1::float8 and latitude <= $2::float8 and longitude >= $3::float8 and longitude <= $4::float8 limit $5::int + 1) select count(*)::int as n, case when count(*) > $5::int then null else coalesce(json_agg(json_build_array(latitude, longitude, units, tract, address, bbl, bldg_class, floors, year)), '[]')::text end as body from b"
+# The queries are temper/src/db/data.temper.md (nyc_tracts_q, nyc_lots_q),
+# built with Alloy: lots.json is [lat, lng, units, bct2020, address, bbl,
+# bldg_class, num_floors, year_built] per lot, or a null body when there
+# are more than the limit.
+NYC_TRACTS_Q = nyc_tracts_q()
 
 # The LiveView had no limit. A box over all of Brooklyn is 270,000 lots and
 # some 25MB of JSON, for one process that serves the whole site and a
@@ -37,7 +37,7 @@ actor NycCensusStore do
   on :tracts do
     case tracts do
       nil ->
-        case DB <- :query(NYC_TRACTS_SQL, []) do
+        case DB <- :query(head(NYC_TRACTS_Q), tail(NYC_TRACTS_Q)) do
           {:ok, rows} ->
             body = head(rows).body
             become tracts: body
@@ -87,7 +87,10 @@ def nyc_lots_response(query: String) -> Map do
   case length(box) == 4 and nyc_numbers(box) do
     false -> nyc_json(400, "no-cache", "{\"error\": \"bbox is min_lat,max_lat,min_lng,max_lng\"}")
     true ->
-      case DB <- :query(NYC_LOTS_SQL, list_append(box, [NYC_MAX_LOTS])) do
+      q = case box do
+        [min_lat, max_lat, min_lng, max_lng] -> nyc_lots_q(min_lat, max_lat, min_lng, max_lng, NYC_MAX_LOTS)
+      end
+      case DB <- :query(head(q), tail(q)) do
         {:error, reason} ->
           puts(concat("nyc census: ", reason))
           nyc_json(503, "no-cache", "{\"error\": \"the database did not answer\"}")

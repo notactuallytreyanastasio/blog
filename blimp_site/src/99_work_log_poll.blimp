@@ -215,7 +215,9 @@ end
 
 # ── the rows ────────────────────────────────────────────────────────────
 
-WL_INSERT_SQL = "insert into work_log_commits (event_id, repo, branch, sha, message, additions, deletions, committed_at, inserted_at, updated_at) values ($1, $2, $3, $4, $5, $6, $7, (to_timestamp($8::float8) at time zone 'utc'), (to_timestamp($8::float8) at time zone 'utc'), (to_timestamp($8::float8) at time zone 'utc')) on conflict (sha) do nothing returning id"
+# The insert is wl_insert_q in temper/src/db/data.temper.md, built with
+# Alloy: committed_at, inserted_at and updated_at are all the time of
+# writing, and a sha already there is no row (on conflict (sha) do nothing).
 
 # The changeset's validate_required: Ecto 3.12 casts a string that trims to
 # "" to nil, and a nil event_id, repo, branch or sha is no insert at all.
@@ -230,7 +232,8 @@ def wl_upsert(e: Map, cmp: Map, now_s: Int) -> Int do
     case wl_valid(row) do
       false -> acc
       true ->
-        r = DB <- :query(WL_INSERT_SQL, [e.event_id, e.repo, e.branch, c.sha, c.message, cmp.additions, cmp.deletions, now_s])
+        q = wl_insert_q(e.event_id, e.repo, e.branch, c.sha, c.message, cmp.additions, cmp.deletions, now_s)
+        r = DB <- :query(head(q), tail(q))
         case r do
           {:ok, rows} -> acc + length(rows)
           {:error, why} ->
