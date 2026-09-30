@@ -74,6 +74,20 @@ def ws_frame(opcode: Int, payload: String) -> String do
   concat(from_char_code(128 + opcode), head, payload)
 end
 
+# ── accepting and pushing ───────────────────────────────────────────────
+
+# A connection off the listener, or nil when none is waiting.
+def live_accept(listener: Int) -> Any do
+  tcp_accept(listener)
+end
+
+# text, as one text frame, to each of fds. How many.
+def live_push(rooms: Any, fds: List, text: String) -> Int do
+  frame = ws_frame(1, text)
+  each(fds, fn(fd: Int) do tcp_write(fd, frame) end)
+  length(fds)
+end
+
 # `s` doubled until it is at least `n` bytes long: log2(n) concatenations,
 # where repeat/2 does one per copy and holds every partial string, which
 # for the mask of an 8KB frame is megabytes of garbage.

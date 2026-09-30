@@ -10,7 +10,71 @@ def client_frame(opcode: Int, payload: String, mask: String) -> String do
   concat(from_char_code(128 + opcode), head, mask, ws_unmask(payload, mask))
 end
 
+
+# A loopback pair off a blocking listener, as Linux hands every connection
+# to the site whatever its listener is: {listener, server end, client end}.
+def lv_pair(port: Int) -> Tuple do
+  l = tcp_listen(port)
+  c = tcp_connect("127.0.0.1", port)
+  tcp_poll([l], 1000)
+  {l, live_accept(l), c}
+end
+
+def lv_rep(s: String, n: Int) -> String do
+  case n <= 0 do
+    true -> s
+    false -> lv_rep(concat(s, s), n - 1)
+  end
+end
+
+# A 64KB push to fds, then a flush a second later than the last, until
+# fd is kicked or tries run out. {flushes, kicked}
+def lv_push_until_kicked(hub: Any, fd: Int, t: Int, n: Int, tries: Int) -> Tuple do
+  live_push(hub, [fd], lv_rep("0123456789abcdef", 12))
+  r = hub <- :flush_at(t)
+  case has_fd_in(r.kicked, fd) or tries <= 0 do
+    true -> {n, has_fd_in(r.kicked, fd)}
+    false -> lv_push_until_kicked(hub, fd, t + 1000, n + 1, tries - 1)
+  end
+end
+
+def has_fd_in(fds: List, fd: Int) -> Bool do
+  length(filter(fds, fn(x: Int) -> Bool do x == fd end)) > 0
+end
+
 actor LiveTests do
+
+  # On Linux accept(2) never passes O_NONBLOCK on from the listener, so
+  # every socket the site accepted was blocking, and tcp_write's 10s give-up
+  # (which only runs when write(2) says EAGAIN) never ran: a write to a peer
+  # that stopped reading sat in the kernel for good. macOS copies the flag,
+  # which is why this never showed on a laptop.
+  test "a connection accepted from a blocking listener reads without waiting" do
+    p = lv_pair(42931)
+    t0 = now_ms()
+    got = tcp_read(elem(p, 1))
+    assert_eq(got, nil)
+    assert(now_ms() - t0 < 1000)
+    tcp_close(elem(p, 2))
+    tcp_close(elem(p, 1))
+    tcp_close(elem(p, 0))
+  end
+
+  test "a runtime window that never reads costs a push nothing, and is kicked" do
+    l = tcp_listen(42932)
+    c = tcp_connect("127.0.0.1", 42932)
+    tcp_poll([l], 1000)
+    # accepted as before this fix: blocking, the way production had it
+    s = tcp_accept(l)
+    hub = spawn Rooms
+    t0 = now_ms()
+    r = lv_push_until_kicked(hub, s, 1000, 1, 400)
+    assert_eq(elem(r, 1), true)
+    assert(now_ms() - t0 < 10000)
+    tcp_close(c)
+    tcp_close(s)
+    tcp_close(l)
+  end
   test "a masked frame from a browser is read, and what follows it is kept" do
     f = client_frame(1, "{\"hi\": 1}", "abcd")
     got = ws_next(concat(f, "rest"))
