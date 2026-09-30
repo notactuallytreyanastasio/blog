@@ -22,6 +22,19 @@
 		}
 	}
 
+	# Fill The Sky's points (4.8 MB) from Blimp, read whole into Caddy first.
+	# The Blimp server is one thread: a slow reader holds its write, and so
+	# every other request, for up to 10 s. Buffered, Blimp writes at loopback
+	# speed and Caddy feeds the reader.
+	@sky_points path /sky/points.json.gz
+	handle @sky_points {
+		reverse_proxy blimp-blog:4100 {
+			response_buffers 16MB
+			lb_try_duration 20s
+			lb_try_interval 250ms
+		}
+	}
+
 	# The blog, served by Blimp (blimp_site/ in the blog repo, the blimp-blog
 	# service). Only what it renders goes there: the desktop, the index, the
 	# posts and their stylesheets. A 404 from it -- a guest post, which lives in
