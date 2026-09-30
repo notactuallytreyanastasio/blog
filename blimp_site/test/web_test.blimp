@@ -319,6 +319,22 @@ actor WebTests do
     big2 = concat("POST /web/api/echo HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n")
     assert_eq(wt_status(web_dispatch(big2, parse_request(big2), web_demo_routes(), WT_SECRET)), 413)
   end
+  test "a + in a path segment is a +; only a form or query value decodes it as a space" do
+    segs = drop_list(split("/api/blinks/:id/tags/:tag", "/"), 1)
+    got = web_match_path(segs, drop_list(split("/api/blinks/+3/tags/c++", "/"), 1), %{})
+    assert_eq(lookup(got, "id"), "+3")
+    assert_eq(lookup(got, "tag"), "c++")
+    enc = web_match_path(segs, drop_list(split("/api/blinks/7/tags/c%2B%2B%20x", "/"), 1), %{})
+    assert_eq(lookup(enc, "tag"), "c++ x")
+    # end to end, with a query and a form body beside it
+    both = fn(c: Map) -> Map do web_json(c, 200, [web_param(c, "tag"), web_param(c, "q"), web_param(c, "f")]) end
+    routes = [web_route("DELETE", "/api/blinks/:id/tags/:tag", [], both)]
+    raw = "DELETE /api/blinks/1/tags/c++?q=a+b HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 5\r\n\r\nf=x+y"
+    r = web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+    assert_eq(wt_body(r), "[\"c++\",\"a b\",\"x y\"]")
+    assert_eq(web_url_decode("a+b%2B"), "a b+")
+    assert_eq(web_path_decode("a+b%2B%20"), "a+b+ ")
+  end
   test "the cookie is Secure in production, and not in dev, so a LAN IP over plain HTTP keeps its session" do
     assert_eq(web_cookie_attrs(true), "; Path=/; HttpOnly; Secure; SameSite=Lax")
     assert_eq(web_cookie_attrs(false), "; Path=/; HttpOnly; SameSite=Lax")

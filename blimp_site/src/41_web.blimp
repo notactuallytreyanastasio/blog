@@ -196,7 +196,14 @@ end
 # request was never answered. Here the work is native split and join, one
 # step per %.
 def web_url_decode(s: String) -> String do
-  pieces = split(replace(s, "+", " "), "%")
+  web_path_decode(replace(s, "+", " "))
+end
+
+# %XX decoded and nothing else, for a path segment. "+" means a space only
+# in application/x-www-form-urlencoded (a query string, a form body); in a
+# path it is a "+", so /api/blinks/+3 is id "+3" and a tag c++ is "c++".
+def web_path_decode(s: String) -> String do
+  pieces = split(s, "%")
   concat(head(pieces), join(map(tail(pieces), fn(p: String) -> String do web_unescape_piece(p) end), ""))
 end
 
@@ -280,7 +287,7 @@ def web_match_path(segs: List, parts: List, acc: Map) -> Any do
             true ->
               case p do
                 "" -> nil
-                _ -> web_match_path(srest, prest, put(acc, drop(s, 1), web_url_decode(p)))
+                _ -> web_match_path(srest, prest, put(acc, drop(s, 1), web_path_decode(p)))
               end
             false ->
               case s == p do
