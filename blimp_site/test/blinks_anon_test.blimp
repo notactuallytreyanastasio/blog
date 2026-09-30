@@ -279,6 +279,33 @@ actor BlinksAnonTests do
     assert_eq(bat_status(bat_send(routes, "OPTIONS", "/blinks-next/api/blinks/9/save", [], "")), 204)
   end
 
+  test "invalid UTF-8 in a form body or a query is Plug.Parsers' 400: \"Bad Request\", text/html, no CORS" do
+    routes = bat_routes()
+    form = fn(target: String, body: String) -> Tuple do
+      bat_send(routes, "POST", target, ["Content-Type: application/x-www-form-urlencoded", "X-Forwarded-For: 192.0.2.9"], body)
+    end
+    each([
+      form("/api/blinks/106/comments", "author_name=bytes&content=A%FFB&website=&post_token=x"),
+      form("/api/blinks/106/comments", concat("content=A", hex_decode("ff"), "B")),
+      form("/api/blinks/comments/1/report", "a%FF=1"),
+      form("/blinks-next/api/blinks/5/save", "device_id=device-abc-%C0%AF"),
+      bat_send(routes, "POST", "/api/blinks/comments/1/report?x=%FF", [], ""),
+      bat_send(routes, "GET", "/api/blinks/5/comments?x=%E2%82", [], "")
+    ], fn(got: Tuple) do
+      assert_eq(bat_status(got), 400)
+      assert_eq(bat_body(got), "Bad Request")
+      assert(contains(bat_head(got), "text/html; charset=utf-8"))
+      assert(contains(bat_head(got), "max-age=0, private, must-revalidate"))
+      assert(not(contains(downcase(bat_head(got)), "access-control-")))
+    end)
+    # valid UTF-8, encoded or raw, and a U+FFFD the client sent itself, go on
+    # to the handler (503 here: no database behind it)
+    ok = form("/api/blinks/comments/1/report", concat("n=%E2%9C%93&m=", hex_decode("e29c93"), "&r=%EF%BF%BD"))
+    assert_eq(bat_status(ok), 503)
+    # a bad JSON body is still the JSON parser's 400, as before
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/comments/1/report", "192.0.2.9", concat("{\"a\":\"", hex_decode("ff"), "\"}"))), 400)
+  end
+
   test "invalid UTF-8 arrives as U+FFFD" do
     c = put(web_conn(bat_raw("GET", "/", [], ""), parse_request(bat_raw("GET", "/", [], "")), "s"), :params, put(%{}, "content", hex_decode("41ff42")))
     assert_eq(blka_param(c, "content"), concat("A", hex_decode("efbfbd"), "B"))

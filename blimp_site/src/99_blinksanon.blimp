@@ -127,7 +127,35 @@ def blka_hash(id: String, secret: String) -> String do
   take(sha256(concat(id, secret)), 16)
 end
 
+# Plug.Parsers, ahead of every route here: a form body or a query string
+# whose decoded names or values are not UTF-8 is refused. Phoenix raises
+# BadEncodingError (InvalidQueryError for the query), and the endpoint's
+# render_errors answers 400 "Bad Request" as text/html, whatever Accept
+# says, with Plug's cache-control and without CORSPlug's headers: CORSPlug
+# comes after Plug.Parsers in the endpoint, so it never ran. That is what
+# production sends (debug_errors is off there; dev sends a 73 KB debug
+# page). A JSON body is 41_web.blimp's parser's to refuse, and it does.
+# This runs before blkw_cors in every pipeline below for the same reason.
+def blka_bad_encoding(conn: Map) -> Map do
+  form = starts_with(downcase(web_header(conn, "content-type")), "application/x-www-form-urlencoded")
+  ok = blka_form_utf8(conn.query) and (not(form) or blka_form_utf8(conn.body))
+  case ok do
+    true -> conn
+    false -> web_halt(put(web_send(conn, 400, "text/html; charset=utf-8", "Bad Request"), :cache, BLK_CACHE))
+  end
+end
+
+# Every name and value of a=b&c=d text, decoded, is UTF-8.
+def blka_form_utf8(text: String) -> Bool do
+  reduce(split(text, "&"), true, fn(ok: Bool, pair: String) -> Bool do
+    d = web_url_decode(pair)
+    ok and utf8_scrub(d) == d
+  end)
+end
+
 # A string param with invalid UTF-8 replaced; anything else as it came.
+# Since blka_bad_encoding a form or query value cannot get here unscrubbed;
+# this is left for what a JSON decoder lets through.
 def blka_param(conn: Map, name: String) -> Any do
   v = web_param(conn, name)
   case type_of(v) == :string do
@@ -862,9 +890,9 @@ def blinks_anon_routes_for(secret: String, token: String, limiter: Any) -> List 
 end
 
 def blka_routes_at(base: String, ctx: Map, token: String) -> List do
-  c = [blkw_cors]
-  w = [blkw_cors, blka_require_secret(ctx)]
-  admin = [blkw_cors, blka_require_token(token)]
+  c = [blka_bad_encoding, blkw_cors]
+  w = [blka_bad_encoding, blkw_cors, blka_require_secret(ctx)]
+  admin = [blka_bad_encoding, blkw_cors, blka_require_token(token)]
   [
     web_route("GET", concat(base, "/:blink_id/comments"), c, fn(conn: Map) -> Map do blka_comments(ctx, conn) end),
     web_route("POST", concat(base, "/:blink_id/comments"), w, fn(conn: Map) -> Map do blka_comment(ctx, conn) end),
