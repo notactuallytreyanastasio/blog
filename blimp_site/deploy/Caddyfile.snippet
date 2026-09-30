@@ -9,6 +9,19 @@
 # Caddyfile), not with sed -i or mv, or the container keeps the old inode.
 # Then: docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 
+	# Phoenix LiveView's own socket, for the pages Phoenix still serves.
+	# /live/* below goes to Blimp, whose 404s Caddy re-sends to Phoenix; that
+	# carried the WebSocket upgrade, but Blimp answered the long-poll
+	# fallback's POST with 405, so a visitor without WebSockets could not use
+	# a Phoenix LiveView at all. Named matchers keep their order: this first.
+	@phoenix_live path /live/websocket /live/websocket/* /live/longpoll /live/longpoll/*
+	handle @phoenix_live {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+
 	# The blog, served by Blimp (blimp_site/ in the blog repo, the blimp-blog
 	# service). Only what it renders goes there: the desktop, the index, the
 	# posts and their stylesheets. A 404 from it -- a guest post, which lives in
