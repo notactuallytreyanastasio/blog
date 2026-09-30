@@ -1,0 +1,235 @@
+# Blinks enrichment (src/99_blinksenrich.blimp, temper/src/blinks_enrich).
+#
+# The page reading and URI.merge/2 were fuzzed against Floki 0.37.0 and
+# Elixir 1.19 (tens of thousands of generated pages and url pairs, none
+# different); what is here are the cases that say what the rules are, each
+# answer being what Floki gave. The Bluesky cases are Enricher's own tests
+# (test/blog_web/live/blinks_live_test.exs). The actor is driven with
+# stand-ins for http_start and http_result and no database (DB is never
+# opened in a test, so a write fails and is logged).
+
+BKT_FLOKI = [
+  ["<html><head><meta property=\"og:image\" content=\"/img/a.png\"><meta property=\"og:site_name\" content=\"Site &amp; Co\"><link rel=\"shortcut icon\" href=\"/fav.ico\"></head></html>", ["/img/a.png", "", "Site & Co", "", "", "/fav.ico"]],
+  ["<script>var s = '<meta property=\"og:image\" content=\"no\">';</script><meta property=\"og:image\" content=\"yes\">", ["yes", "", "", "", "", ""]],
+  ["<!-- <meta property=\"og:image\" content=\"no\"> --><meta name=\"twitter:image\" content=\"tw\">", ["", "tw", "", "", "", ""]],
+  ["<div title='<meta property=\"og:image\" content=\"no\">'></div><meta property=og:image content=unquoted>", ["unquoted", "", "", "", "", ""]],
+  ["<meta property=\"og:image\"><meta property=\"og:image\" content=\"second\">", ["second", "", "", "", "", ""]],
+  ["<meta property=\"og:image\" content=\"\"><meta name=\"twitter:image\" content=\"fallback\">", ["", "fallback", "", "", "", ""]],
+  ["<META PROPERTY=\"og:image\" CONTENT=\"caps\"><m&#69;ta property=\"og:site_name\" content=\"not a meta\">", ["caps", "", "", "", "", ""]],
+  ["<link rel=\"apple-touch-icon\" href=\"/apple.png\"><link rel=\"ICON\" href=\"/caps.png\"><link rel=\"icon\" href=\"/real.png\">", ["", "", "", "", "", "/real.png"]],
+  ["<meta content=\"&#65abc; &#x27; &#150; &notanentity; &NotEqualTilde;\" property=\"og:description\">", ["", "", "", "A ' – &notanentity; &NotEqualTilde;", "", ""]],
+  ["&#1<meta property=\"og:image\" content=\"swallowed\";<meta name=\"description\" content=\"d\">", ["swallowed", "", "", "", "swallowed", ""]],
+  ["<title><meta property=\"og:image\" content=\"no\"></title><textarea><meta name=description content=no></textarea x><meta name=description content=yes>", ["", "", "", "", "yes", ""]],
+  ["<!DOCTYPE><meta property=\"og:image\" content=\"eaten\"><meta property=\"og:site_name\" content=\"kept\">", ["", "", "kept", "", "", ""]],
+  ["</floki><meta property=\"og:image\" content=\"after\">", ["", "", "", "", "", ""]],
+  ["<meta property=\"og:image\" content=\"unterminated", ["unterminated</floki>", "", "", "", "", ""]]
+]
+
+def bkt_node(did: String, text: String, at: String, replies: List) -> Map do
+  put(put(%{}, "post", put(put(%{}, "author", put(put(put(%{}, "did", did), "handle", "bob.bsky"), "displayName", "Bob")), "record", put(put(%{}, "text", text), "createdAt", at))), "replies", replies)
+end
+
+def bkt_finish(st: List) -> List do
+  case bke_scan_done(st) do
+    true -> st
+    false -> bkt_finish(bke_scan_run(st, 3))
+  end
+end
+
+def bkt_texts(posts: List) -> List do
+  map(posts, fn(p: Map) -> Any do lookup(p, "text") end)
+end
+
+def bkt_with_embed(node: Map, embed: Map) -> Map do
+  put(node, "post", put(lookup(node, "post"), "embed", embed))
+end
+
+# Stand-ins for the network: every request gets the next handle, and a
+# handle's answer is whatever the test put in BKT_ANSWERS (nil: not yet).
+actor FakeNet do
+  state started: List :: []
+  state answers: Map :: %{}
+
+  on :start(u: String, o: Map) do
+    h = length(started)
+    become started: list_append(started, [%{url: u, opts: o}])
+    reply h
+  end
+
+  on :answer(h: Int, r: Any) do
+    become answers: put(answers, to_string(h), r)
+    reply :ok
+  end
+
+  on :result(h: Int) do
+    r = lookup(answers, to_string(h))
+    become answers: put(answers, to_string(h), nil)
+    reply r
+  end
+
+  on :started do
+    reply started
+  end
+end
+
+def bkt_enricher(net: Any) -> Any do
+  e = spawn BlinksEnricher
+  e <- :config(true, false)
+  e <- :http(fn(m: String, u: String, h: Map, b: String, o: Map) -> Int do net <- :start(u, o) end, fn(h: Int) -> Any do net <- :result(h) end)
+  e
+end
+
+actor BlinksEnrichTests do
+  test "the meta and link tags Floki finds, and the ones it does not" do
+    each(BKT_FLOKI, fn(c: List) -> Any do
+      assert_eq(bke_scan(head(c)), head(tail(c)))
+    end)
+  end
+
+  test "read a piece at a time, the page gives the same answer" do
+    big = concat(join(map(range(1, 2000), fn(i: Int) -> String do "<p class=\"x\">t</p>" end), ""), "<meta property=\"og:image\" content=\"/late.png\">")
+    st = bke_scan_start(big)
+    one = bke_scan_run(st, 1)
+    assert_eq(bke_scan_done(one), false)
+    assert_eq(bke_scan_values(bkt_finish(one)), bke_scan(big))
+    assert_eq(head(bke_scan(big)), "/late.png")
+  end
+
+  test "URI.merge/2 and to_string/1, quirks and all" do
+    base = "https://Example.com:443/a/b/c?q=1#f"
+    assert_eq(bke_merge(base, "/x.png"), "https://Example.com/x.png")
+    assert_eq(bke_merge(base, "x.png"), "https://Example.com/a/b/x.png")
+    assert_eq(bke_merge(base, "../../../../x"), "https://Example.com/x")
+    assert_eq(bke_merge(base, "//cdn.com:443/i"), "https://cdn.com/i")
+    assert_eq(bke_merge(base, "?z"), "https://Example.com/a/b/c?z")
+    assert_eq(bke_merge(base, "#h"), "https://Example.com/a/b/c?q=1#h")
+    assert_eq(bke_merge(base, "HTTP://o.com:0080/./p"), "http://o.com/p")
+    assert_eq(bke_merge(base, "data:image/png;base64,AA/../B"), "data:image/B")
+    assert_eq(bke_merge(base, " x"), "https://Example.com/a/b/ x")
+    assert_eq(bke_merge("https://[::1]:8080", "a"), "https://[::1]:8080/a")
+    # a base without a scheme raises in Elixir; absolutize/2 rescues it to nil
+    assert_eq(bke_merge("//a.com/x", "y"), "")
+  end
+
+  test "the favicon: the icon link made absolute, else /favicon.ico on the page's host" do
+    assert_eq(bke_favicon("/f.ico", "https://a.com/x/y"), "https://a.com/f.ico")
+    assert_eq(bke_favicon("", "https://A.com:8443/x"), "https://A.com/favicon.ico")
+    assert_eq(bke_favicon("", "http:no-host"), "")
+  end
+
+  test "the UPDATE's parameters: image, site name (a blank one clears it), favicon, description" do
+    page = "<meta name=\"twitter:image\" content=\"t.png\"><meta property=\"og:site_name\" content=\"  \"><meta property=\"og:description\" content=\" \"><meta name=\"description\" content=\"real\">"
+    assert_eq(bke_fields(page, "https://a.com/p/q"), ["https://a.com/p/t.png", "", "1", "https://a.com/favicon.ico", ""])
+    assert_eq(bke_fields("<meta name=\"description\" content=\"d\">", "https://a.com"), ["", "", "", "https://a.com/favicon.ico", "d"])
+  end
+
+  test "which urls are Bluesky posts, and how Req encodes the query" do
+    assert_eq(bke_bsky("https://bsky.app/profile/bob.bsky.social/post/3kabc?x=1"), ["bob.bsky.social", "3kabc"])
+    assert_eq(bke_bsky("https://bsky.app/profile/did:plc:xyz/post/abc#frag"), ["did:plc:xyz", "abc"])
+    assert_eq(bke_bsky("https://bsky.app/profile/bob/feed/x"), [])
+    assert_eq(bke_bsky("https://staging.bsky.app/profile//post/x bsky.app/profile/a/post/b"), ["a", "b"])
+    assert_eq(bke_form("at://did:plc:x/app.bsky.feed.post/3k é"), "at%3A%2F%2Fdid%3Aplc%3Ax%2Fapp.bsky.feed.post%2F3k+%C3%A9")
+  end
+
+  test "bluesky threads unroll into a single-post view (Enricher.unroll_posts/1)" do
+    other = bkt_node("did:other", "nice thread!", "2026-01-01T03:00:00Z", [])
+    third = bkt_node("did:me", "post three", "2026-01-01T02:00:00Z", [])
+    second = bkt_node("did:me", "post two", "2026-01-01T01:00:00Z", [third, other])
+    thread = bkt_node("did:me", "post one", "2026-01-01T00:00:00Z", [other, second])
+    assert_eq(bkt_texts(bke_unroll(thread)), ["post one", "post two", "post three"])
+    # standalone single post: just itself
+    assert_eq(bkt_texts(bke_unroll(bkt_node("did:solo", "just one post", "2026-01-01T00:00:00Z", []))), ["just one post"])
+    # a reply saved out of someone else's thread shows only that reply
+    my_reply = put(bkt_node("did:me", "my hot take", "2026-01-01T01:00:00Z", []), "parent", other)
+    assert_eq(bkt_texts(bke_unroll(my_reply)), ["my hot take"])
+  end
+
+  test "quote posts carry the quoted record's author, text and media; a post's own images come through" do
+    quoted = put(put(put(put(%{}, "$type", "app.bsky.embed.record#viewRecord"), "author", put(put(%{}, "handle", "quoted.bsky"), "displayName", "Q")), "value", put(%{}, "text", "the original hot take")), "embeds", [put(put(%{}, "$type", "app.bsky.embed.images#view"), "images", [put(put(put(%{}, "thumb", "https://cdn/q-thumb.jpg"), "fullsize", "https://cdn/q-full.jpg"), "alt", "qpic")])])
+    quoting = bkt_with_embed(bkt_node("did:me", "pirate math", "2026-01-01T00:00:00Z", []), put(put(%{}, "$type", "app.bsky.embed.record#view"), "record", quoted))
+    q = lookup(head(bke_unroll(quoting)), "quote")
+    assert_eq(lookup(q, "handle"), "quoted.bsky")
+    assert_eq(lookup(q, "text"), "the original hot take")
+    assert_eq(lookup(head(lookup(q, "images")), "thumb"), "https://cdn/q-thumb.jpg")
+    with_pic = bkt_with_embed(bkt_node("did:me", "look at this", "2026-01-01T00:00:00Z", []), put(put(%{}, "$type", "app.bsky.embed.images#view"), "images", [put(put(%{}, "thumb", "https://cdn/t.jpg"), "fullsize", "https://cdn/f.jpg")]))
+    p = head(bke_unroll(with_pic))
+    assert_eq(lookup(head(lookup(p, "images")), "full"), "https://cdn/f.jpg")
+    assert_eq(lookup(head(lookup(p, "images")), "alt"), nil)
+    assert_eq(lookup(p, "quote"), nil)
+    video = bkt_with_embed(bkt_node("did:me", "v", "x", []), put(put(%{}, "$type", "app.bsky.embed.video#view"), "thumbnail", "https://cdn/v.jpg"))
+    assert_eq(json_encode(lookup(head(bke_unroll(video)), "video")), "{\"thumb\":\"https://cdn/v.jpg\"}")
+  end
+
+  test "at most two requests in flight; the rest wait in the queue" do
+    net = spawn FakeNet
+    e = bkt_enricher(net)
+    each(range(1, 5), fn(i: Int) -> Any do e <- :enqueue(i, concat("https://a.com/", to_string(i))) end)
+    e <- :step
+    assert_eq(length(net <- :started), 2)
+    s = e <- :stats
+    assert_eq(s.queued, 3)
+    assert_eq(s.working, 2)
+    # nothing answered: nothing new starts
+    e <- :step
+    assert_eq(length(net <- :started), 2)
+    # one answers 404: that job is finished and the next one starts
+    net <- :answer(0, {:ok, 404, ""})
+    e <- :step
+    e <- :step
+    assert_eq(length(net <- :started), 3)
+  end
+
+  test "the page gets 10s and 4 redirects; Bluesky 10s/15s and Req's 10" do
+    net = spawn FakeNet
+    e = bkt_enricher(net)
+    e <- :enqueue(1, "https://a.com/x")
+    e <- :enqueue(2, "https://bsky.app/profile/bob.bsky/post/abc")
+    e <- :step
+    got = net <- :started
+    assert_eq(head(got).opts.timeout_ms, 10000)
+    assert_eq(head(got).opts.max_redirects, 4)
+    b = head(tail(got))
+    assert_eq(b.url, "https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=bob.bsky")
+    net <- :answer(1, {:ok, 200, "{\"did\":\"did:plc:bob\"}"})
+    e <- :step
+    e <- :step
+    t = head(drop_list(net <- :started, 2))
+    assert_eq(t.url, "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2Fdid%3Aplc%3Abob%2Fapp.bsky.feed.post%2Fabc&depth=50&parentHeight=50")
+    assert_eq(t.opts.timeout_ms, 15000)
+    # the thread fails: the page is still fetched, as enrich/1 goes on
+    net <- :answer(2, {:ok, 400, "{}"})
+    e <- :step
+    e <- :step
+    p = head(drop_list(net <- :started, 3))
+    assert_eq(p.url, "https://bsky.app/profile/bob.bsky/post/abc")
+  end
+
+  test "Req's retries: a 503 waits and goes again, three times; a 404 or a timeout does not" do
+    assert_eq(bke_retryable({:ok, 503, ""}), true)
+    assert_eq(bke_retryable({:error, "timeout"}), false)
+    assert_eq(bke_retryable({:error, "UnknownHostName"}), false)
+    assert_eq(bke_retryable({:ok, 404, ""}), false)
+    job = bke_job(7, "https://a.com")
+    again = bke_answered(job, {:ok, 503, ""}, 1000)
+    assert_eq(again.attempt, 1)
+    assert_eq(again.wake, 2000)
+    last = bke_answered(put(job, :attempt, 3), {:ok, 503, ""}, 1000)
+    assert_eq(last, nil)
+  end
+
+  test "a JSON body is not a page (Req would have decoded it); a url that is not http is skipped" do
+    assert_eq(bke_is_json(" {\"a\": 1}"), true)
+    assert_eq(bke_is_json("[1,2]"), true)
+    assert_eq(bke_is_json("<html>{}</html>"), false)
+    assert_eq(bke_answered(bke_job(1, "https://a.com/api"), {:ok, 200, "{\"x\":1}"}, 0), nil)
+    assert_eq(bke_to_page(bke_job(1, "ftp://a.com")), nil)
+    assert_eq(bke_to_page(bke_job(1, "httpx:a")), nil)
+    assert_eq(bke_to_page(bke_job(1, "http://a.com")).stage, :page)
+  end
+
+  test "a 200 page is read, then written (here the write fails: no database) and the job is done" do
+    job = bke_answered(bke_job(3, "https://a.com/p"), {:ok, 200, "<meta property=\"og:image\" content=\"/i.png\">"}, 0)
+    assert_eq(job.stage, :scan)
+    assert_eq(bke_scanning(job, now_ms() + 1000), nil)
+  end
+end
