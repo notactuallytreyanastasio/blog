@@ -1,0 +1,200 @@
+# needs: static/stumble/stumble.blimp
+#
+# /stumble: what the Temper decides (temper/src/stumble), the page's
+# program (static/stumble/stumble.blimp) driven as the browser drives it,
+# and the server's half (src/99_stumble.blimp) without a database.
+#
+# The fixtures are real:
+#   truncate.json   posts from production's pa_links and a few made to
+#                   hurt (ZWJ families, flags, skin tones, CRLF, a Hindi
+#                   conjunct, Burmese), each with what StumbleLive's
+#                   truncate/2 gave for it under Elixir 1.19. The same
+#                   check over every post in the development database
+#                   (24,156) and a 6,692-post production sample, most of
+#                   them not English, found no difference.
+#   tags.json       /stumble/tags.json's query over production's 15 tags
+#                   plus three made for this (a recent one, an upper-case
+#                   name with an underscore, a single-use one).
+#   list_tags.json  Blog.PokeAround.Tags.list_tags/1 over the same rows,
+#                   one case per preset and per operator, run against
+#                   the same database when tags.json was taken.
+
+def st_fixture(name: String) -> Any do
+  elem(json_decode(read_file(concat("test/fixtures/stumble/", name))), 1)
+end
+
+# A rule as the program keeps it.
+def st_r(id: Int, field: String, op: String, v: Int, v2: Int, text: String) -> Map do
+  %{id: id, field: field, op: op, v: v, v2: v2, text: text}
+end
+
+def st_names(tags: List, rules: List, mode: String, field: String, dir: String) -> List do
+  map(st_shown_tags(tags, rules, mode, field, dir), fn(t: Map) -> String do t.name end)
+end
+
+def st_tags_body() -> String do
+  read_file("test/fixtures/stumble/tags.json")
+end
+
+actor StumbleTests do
+  test "truncate/2: bytes decide, graphemes cut" do
+    map(st_fixture("truncate.json"), fn(c: List) -> Any do
+      assert_eq(st_truncate(head(c), 100), head(tail(c)))
+    end)
+  end
+
+  test "the language menu: newest first, a second click takes it out" do
+    assert_eq(st_toggle_lang("en", "es"), "es,en")
+    assert_eq(st_toggle_lang("es,en", "en"), "es")
+    assert_eq(st_toggle_lang("es", "es"), "")
+    assert_eq(st_toggle_lang("", "ja"), "ja")
+    assert_eq(st_langs_label("es,en"), "es, en")
+    assert_eq(st_lang_on("es,en", "en"), true)
+    assert_eq(st_lang_on("es,en", "e"), false)
+  end
+
+  test "parse_int/2 is Integer.parse/1, floored at 0" do
+    assert_eq(st_parse_int("12", 1), 12)
+    assert_eq(st_parse_int("12abc", 1), 12)
+    assert_eq(st_parse_int("abc", 1), 1)
+    assert_eq(st_parse_int("", 7), 7)
+    assert_eq(st_parse_int("-5", 1), 0)
+    assert_eq(st_parse_int("+3", 1), 3)
+    assert_eq(st_parse_int("-", 9), 9)
+  end
+
+  test "ILIKE: % and _ are wildcards, a backslash escapes" do
+    assert_eq(st_like("%a%", "gaming"), true)
+    assert_eq(st_like("%p_l%", "politics"), true)
+    assert_eq(st_like("%p_l%", "blimp_lang"), true)
+    assert_eq(st_like("%p\\_l%", "politics"), false)
+    assert_eq(st_like("%p\\_l%", "blimp_lang"), true)
+    assert_eq(st_like("bl%", "blimp_lang"), true)
+    assert_eq(st_like("%ing", "gaming"), true)
+    assert_eq(st_like("%ing", "ingest"), false)
+    assert_eq(st_like("%%", ""), true)
+    assert_eq(st_like("_", ""), false)
+  end
+
+  test "list_tags/1: every preset and operator, as Phoenix answered" do
+    tags = st_fixture("tags.json")
+    want = st_fixture("list_tags.json")
+    assert_eq(st_names(tags, [], "all", "usage_count", "desc"), want.default)
+    assert_eq(st_names(tags, st_rules_of_preset("popular", 1), "all", st_preset_sort_field("popular"), st_preset_sort_dir("popular")), want.popular)
+    assert_eq(st_names(tags, st_rules_of_preset("long_tail", 1), "all", st_preset_sort_field("long_tail"), st_preset_sort_dir("long_tail")), want.long_tail)
+    assert_eq(st_names(tags, st_rules_of_preset("new_week", 1), "all", st_preset_sort_field("new_week"), st_preset_sort_dir("new_week")), want.new_week)
+    assert_eq(st_names(tags, st_rules_of_preset("trending", 1), "all", st_preset_sort_field("trending"), st_preset_sort_dir("trending")), want.trending)
+    assert_eq(st_names(tags, st_rules_of_preset("single_use", 1), "all", st_preset_sort_field("single_use"), st_preset_sort_dir("single_use")), want.single_use)
+    # the program lower-cases what was typed, as String.downcase/1 did
+    assert_eq(st_names(tags, [st_r(1, "name", "contains", 0, 0, "A")], "any", "usage_count", "desc"), want.contains_a_any)
+    assert_eq(st_names(tags, [st_r(1, "name", "starts_with", 0, 0, "BL")], "all", "usage_count", "desc"), want.starts_bl)
+    assert_eq(st_names(tags, [st_r(1, "name", "ends_with", 0, 0, "ing")], "all", "name", "desc"), want.ends_ing)
+    assert_eq(st_names(tags, [st_r(1, "name", "equals", 0, 0, "ZIG")], "all", "usage_count", "desc"), want.equals_zig)
+    assert_eq(st_names(tags, [st_r(1, "name", "contains", 0, 0, "p_l")], "all", "usage_count", "desc"), want.underscore)
+    assert_eq(st_names(tags, [st_r(1, "usage_count", "between", 5, 30, "")], "all", "usage_count", "asc"), want.between_5_30)
+    assert_eq(st_names(tags, [st_r(1, "usage_count", "lte", 5, 0, "")], "all", "name", "asc"), want.lte_5_name)
+    both = [st_r(1, "usage_count", "eq", 0, 0, ""), st_r(2, "name", "contains", 0, 0, "ru")]
+    assert_eq(st_names(tags, both, "any", "inserted_at", "asc"), want.any_zero_or_ru)
+    assert_eq(st_names(tags, both, "all", "usage_count", "desc"), want.all_zero_and_ru)
+    assert_eq(st_names(tags, [st_r(1, "created", "before", 0, 0, "")], "all", "inserted_at", "desc"), want.before_now)
+    assert_eq(st_names(tags, [st_r(1, "created", "after", 0, 0, "")], "all", "usage_count", "desc"), want.after_now)
+    assert_eq(st_names(tags, [st_r(1, "created", "last_n_days", 3, 0, ""), st_r(2, "created", "last_n_days", 0, 0, "")], "any", "name", "asc"), want.days_3_any)
+  end
+
+  test "the page asks for 50 English links, every tag and the count" do
+    assert_eq(st <- :wants, ["/stumble/links.json?langs=en&n=1", "/stumble/tags.json?n=1", "/stumble/count.json"])
+  end
+
+  test "the program: answers, menus, shuffle, a tag and its links" do
+    p = spawn Stumble
+    p <- :start
+    p <- :linked(200, "[{\"id\": 7, \"url\": \"https://example.com/a\", \"post_text\": \"hello\", \"domain\": \"example.com\"}]")
+    p <- :tagged(200, st_tags_body())
+    p <- :counted(200, "{\"count\": 24156}")
+    assert_eq(p <- :wants, [])
+    html = to_html(p <- :view)
+    assert(contains(html, "stumble - bag of links"))
+    assert(contains(html, "href=\"/stumble/go?id=7\""))
+    assert(contains(html, "1 items"))
+    assert(contains(html, "Filter: en | 24156 links in database"))
+    # the Language menu: a language is fetched again, newest first
+    p <- :toggle_lang_menu
+    p <- :toggle_lang("es")
+    assert_eq(p <- :wants, ["/stumble/links.json?langs=es,en&n=2"])
+    assert(contains(to_html(p <- :view), "Filter: es, en |"))
+    p <- :clear_langs
+    assert_eq(p <- :wants, ["/stumble/links.json?langs=&n=3"])
+    p <- :shuffle
+    assert_eq(p <- :wants, ["/stumble/links.json?langs=&n=4"])
+    p <- :linked(503, "{}")
+    assert(contains(to_html(p <- :view), "No links found. Check back later!"))
+    # the Tags page
+    p <- :change_page("tags")
+    v = to_html(p <- :view)
+    assert(contains(v, "stumble - tag browsing"))
+    assert(contains(v, "18 tags"))
+    p <- :apply_preset("popular")
+    assert_eq(p <- :shown_tags, ["weather", "video", "news", "sports", "gardening", "cooking"])
+    p <- :add_rule
+    rs = p <- :rules
+    id = head(reverse(rs)).id
+    p <- :rule_field(id, "name")
+    p <- :rule_value(id, "O")
+    # every kind of rule row draws
+    rv = to_html(p <- :view)
+    assert(contains(rv, "placeholder=\"text...\""))
+    assert(contains(rv, "data-send=\"rule_value\" data-rule=\""))
+    assert_eq(p <- :shown_tags, ["video", "sports", "cooking"])
+    p <- :set_match_mode("any")
+    assert_eq(p <- :shown_tags, ["weather", "video", "news", "sports", "gardening", "cooking", "world", "politics"])
+    p <- :clear_filters
+    assert_eq(length(p <- :shown_tags), 18)
+    p <- :select_tag("rust")
+    assert_eq(p <- :wants, ["/stumble/tag.json?slug=rust&langs=&n=5"])
+    p <- :tag_linked(200, "[]")
+    tv = to_html(p <- :view)
+    assert(contains(tv, "stumble - tag: rust"))
+    assert(contains(tv, "No links with this tag yet."))
+    assert(contains(tv, "0 links"))
+    p <- :back_to_tags
+    assert_eq(p <- :wants, ["/stumble/tags.json?n=6"])
+    p <- :change_page("your_links")
+    assert(contains(to_html(p <- :view), "0 saved links"))
+  end
+
+  test "a between rule keeps its second number when the first changes" do
+    p = spawn Stumble
+    p <- :change_page("tags")
+    p <- :apply_preset("long_tail")
+    id = head(p <- :rules).id
+    p <- :rule_value(id, "2")
+    r = head(p <- :rules)
+    assert_eq(r.v, 2)
+    assert_eq(r.v2, 5)
+    assert(contains(to_html(p <- :view), ">and<"))
+    p <- :rule_value2(id, "x")
+    assert_eq(head(p <- :rules).v2, 100)
+    p <- :rule_op(id, "gte")
+    assert_eq(head(p <- :rules).v, 1)
+    p <- :rule_field(id, "created")
+    assert(contains(to_html(p <- :view), ">days<"))
+    p <- :rule_op(id, "after")
+    assert(contains(to_html(p <- :view), "(date picker)"))
+  end
+
+  test "the server: languages, ids and redirects it accepts" do
+    assert_eq(st_clean_langs("en,es"), "en,es")
+    assert_eq(st_clean_langs(""), "")
+    assert_eq(st_clean_langs("en'); drop"), "")
+    assert_eq(st_clean_langs("EN"), "")
+    assert_eq(st_digits_only("123"), true)
+    assert_eq(st_digits_only(""), false)
+    assert_eq(st_digits_only("1a"), false)
+    assert_eq(st_redirectable("https://example.com/x"), true)
+    assert_eq(st_redirectable("javascript:alert(1)"), false)
+    assert_eq(st_redirectable("https://example.com/\r\nSet-Cookie: x"), false)
+    assert(contains(st_links_sql(true, true), "generate_series(1, 1000)"))
+    assert(contains(st_links_sql(false, false), "score >= 20 and $1 = $1 order by random() limit 50"))
+    assert(contains(ST_PAGE.body, "data-program=\"/stumble/stumble.blimp\""))
+  end
+end
