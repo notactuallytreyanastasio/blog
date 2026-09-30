@@ -1,5 +1,17 @@
+# Since 2026-09-30 bobbby.online is only Blimp. Phoenix runs as its own site,
+# old.bobbby.online (PHX_HOST=old.bobbby.online, a plain reverse_proxy to
+# app:4000), and nothing in the bobbby.online block proxies to Phoenix: every
+# handle that used to (the Phoenix blink writes and review, @phoenix_write,
+# @blimp's 404 fallback, and the final catch-all) is now
+#     redir https://old.bobbby.online{uri} 308
+# which keeps the method and body, and Phoenix's LiveView socket handle is
+# gone (its pages and their sockets live on old.). The catch-all at the end
+# of the site block is the same redir, so any URL Blimp does not route still
+# lands where it used to work. Backups: /opt/backups/blog/*before-old-split*
+# and *before-blimp-only*.
+#
 # In /opt/blog/Caddyfile, inside the `bobbby.online, www.bobbby.online`
-# block, directly above "# Everything else: the Phoenix app." Installed
+# block, directly above the final catch-all handle. Installed
 # 2026-09-29; the file before it is /opt/blog/Caddyfile.bak-20260929T141541Z.
 # /tetris, /tetris/* and /assets/tetris.css were added the same day, then
 # /blimp/* and /assets/blimp-window.css, then the seven static pages with
@@ -11,19 +23,6 @@
 #
 # The /blinks handles (chapter 74) go above @blimp; deploy/Caddyfile.blinks-cutover.diff
 # is the whole change against production's Caddyfile as read on 2026-09-30.
-
-	# Phoenix LiveView's own socket, for the pages Phoenix still serves.
-	# /live/* below goes to Blimp, whose 404s Caddy re-sends to Phoenix; that
-	# carried the WebSocket upgrade, but Blimp answered the long-poll
-	# fallback's POST with 405, so a visitor without WebSockets could not use
-	# a Phoenix LiveView at all. Named matchers keep their order: this first.
-	@phoenix_live path /live/websocket /live/websocket/* /live/longpoll /live/longpoll/*
-	handle @phoenix_live {
-		reverse_proxy app:4000 {
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
-	}
 
 	# /admin/museum and /admin/finder (src/99_admin.blimp), every method:
 	# the pages and their files by GET, the login and every write by POST,
@@ -100,10 +99,7 @@
 		path /api/blinks
 	}
 	handle @phoenix_blink_create {
-		reverse_proxy app:4000 {
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
+		redir https://old.bobbby.online{uri} 308
 	}
 	# Every comment write broadcasts on blink_comments:<id>, the Phoenix
 	# channel the iOS app's comment view listens to on /socket/websocket,
@@ -116,20 +112,14 @@
 		path /api/blinks/*/comments /api/blinks/comments/*
 	}
 	handle @phoenix_blink_comments {
-		reverse_proxy app:4000 {
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
+		redir https://old.bobbby.online{uri} 308
 	}
 	# The bookmark review queue: an upvote is save_blink/1 (above), and the
 	# Blimp page (chapter 72) cannot vote. Its LiveView socket is
 	# /live/websocket, which @phoenix_live already sends to Phoenix.
 	@phoenix_blink_review path /blinks/review
 	handle @phoenix_blink_review {
-		reverse_proxy app:4000 {
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
+		redir https://old.bobbby.online{uri} 308
 	}
 
 	# Everything else of /blinks, every method, from Blimp: the pages at
@@ -219,10 +209,7 @@
 	}
 	@phoenix_write not method GET HEAD
 	handle @phoenix_write {
-		reverse_proxy app:4000 {
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
+		redir https://old.bobbby.online{uri} 308
 	}
 
 	# The blog, served by Blimp (blimp_site/ in the blog repo, the blimp-blog
@@ -246,10 +233,8 @@
 			lb_try_interval 250ms
 			@missing status 404
 			handle_response @missing {
-				reverse_proxy app:4000 {
-					header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-					header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-				}
+				redir https://old.bobbby.online{uri} 308
 			}
+
 		}
 	}
