@@ -6,6 +6,8 @@ Most of what you can load on bobbby.online today comes from one Blimp process, a
 
 [Blimp](https://github.com/notactuallytreyanastasio/blimp) is a language I have been building where actors are the only abstraction. [Temper](https://temperlang.dev/) compiles one library to many languages. The backend that makes Temper emit Blimp lives in [temper-blimp](https://github.com/notactuallytreyanastasio/temper-blimp), as a stacked series of pull requests; this post covers what [#113](https://github.com/notactuallytreyanastasio/temper-blimp/pull/113) added to it. The site side is pull requests [#41 through #80](https://github.com/notactuallytreyanastasio/blog/pulls?q=is%3Apr+is%3Amerged) in the blog repository, one chapter each.
 
+There is a map of all of it at [/stack](/stack): every compiler, build step, file, process and service between the Temper source and your screen, as a Blimp page whose graph and layout are themselves Temper. Click a box to see what it comes from and what it feeds.
+
 Claude wrote nearly all of the code, in Claude Code. Every number below was measured by running the thing, and most of them are copied out of commit messages.
 
 ## The short version
