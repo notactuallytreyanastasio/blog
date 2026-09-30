@@ -169,25 +169,26 @@ actor DesktopTests do
     refute(contains(dt_page("cat=ml"), "leica-veil"))
   end
 
-  test "the log is the newest three posts, each with its opening, and a link to the rest" do
+  test "the log is the newest three posts, a title, a date and a note each, and a link to the rest" do
     html = dt_page("")
-    assert(contains(html, "<li><a href=\"/post/chess\"><span class=\"log-title\">Chess</span><span class=\"log-date\">May 30, 2026</span></a></li>"))
+    assert(contains(html, "<li class=\"log-row\"><a class=\"log-link\" href=\"/post/chess\"><span class=\"log-title\">Chess</span><span class=\"log-date\">May 30, 2026</span></a>"))
     assert(contains(html, "href=\"/blog\">all 2 posts"))
     refute(contains(html, "blog-tag"))
+    refute(contains(html, "log-lede"))
+    refute(contains(html, "log-meta"))
     many = map(range(1, 15), fn(i: Int) -> Map do %{slug: concat("p", to_string(i)), title: "t", date: "d", tags: ["x"]} end)
     lines = desk_blog_lines(many)
-    assert_eq(length(split(lines, "<li>")) - 1, 3)
+    assert_eq(length(split(lines, "<li class=\"log-row\">")) - 1, 3)
     refute(contains(lines, "/post/p4\""))
-    src = "title: T\ntags: a,b\n\n# Heading\n\n*Updated.* See [the notes](/frontier) and `code`.\n\n```\nnot this\n```\n"
-    assert_eq(desk_excerpt(src, 200), "Updated. See the notes and code.")
-    assert_eq(desk_excerpt("one two three four", 12), "one two…")
-    lede = desk_blog_lines([%{slug: "x", title: "X", date: "d", source: "Hello <b> world", tags: ["a<b", "c"]}])
-    assert(contains(lede, "<span class=\"log-lede\">Hello &lt;b&gt; world</span>"))
-    # the reading line: length, time, tags, escaped
-    assert(contains(lede, "<span class=\"log-meta\">3 words &middot; &lt; 1 min read &middot; a&lt;b, c</span>"))
-    assert_eq(desk_thousands(2140), "2,140")
-    assert_eq(desk_thousands(12005), "12,005")
-    assert_eq(desk_thousands(999), "999")
+    # chess has a note in data/explainers.tsv; a made-up slug has none
+    chess = desk_blog_lines([%{slug: "chess", title: "Chess", date: "d", tags: []}])
+    assert(contains(chess, "class=\"note log-note\""))
+    assert(contains(chess, "Nine boards that make one 24×24 plane"))
+    assert(contains(chess, "href=\"/chess-lv\""))
+    refute(contains(chess, "<span class=\"who\">note</span>"))
+    bare = desk_blog_lines([%{slug: "no-such-post", title: "X <b>", date: "d", tags: []}])
+    refute(contains(bare, "log-note"))
+    assert(contains(bare, "X &lt;b&gt;"))
   end
 
   test "the background is Temper Art's Bauhaus, drawn once, a day's seed" do
@@ -295,12 +296,13 @@ actor DesktopTests do
   end
   test "the margin notes: every one in data/explainers.tsv is on the page, once" do
     html = dt_page("booted=1")
-    each(keys(DESK_NOTES), fn(k: String) do
-      assert_eq(length(split(html, concat("id=\"gl-", k, "\""))) - 1, 1)
-      # the word or tab that shows it points at it
-      assert(contains(html, concat("aria-describedby=\"gl-", k, "\"")))
-    end)
-    each(DESK_NOTE_WORDS, fn(k: String) do assert(lookup(DESK_NOTES, k) != nil) end)
+    # a post's note is shown with its post, and only the newest three are
+    # on the page, so those are tested with the log instead
+    shown = filter(keys(DESK_NOTES), fn(k: String) -> Bool do starts_with(k, "post-") == false end)
+    # each is on the page once, and the word or tab that shows it points at it
+    assert_eq(filter(shown, fn(k: String) -> Bool do length(split(html, concat("id=\"gl-", k, "\""))) - 1 != 1 end), [])
+    assert_eq(filter(shown, fn(k: String) -> Bool do contains(html, concat("aria-describedby=\"gl-", k, "\"")) == false end), [])
+    assert_eq(filter(DESK_NOTE_WORDS, fn(k: String) -> Bool do lookup(DESK_NOTES, k) == nil end), [])
     # a heading note for each card and for the machine
     assert_eq(length(split(html, "class=\"gloss gloss-sec\"")) - 1, 9)
     assert(contains(html, "<section class=\"scope-col\" id=\"machine\""))

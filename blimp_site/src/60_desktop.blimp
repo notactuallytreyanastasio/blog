@@ -291,7 +291,7 @@ end
 # must be asked for: a note that never shows, or a word whose note went
 # missing, stops the boot rather than rendering as nothing.
 
-DESK_NOTE_WORDS = ["programmer", "photographer", "artist", "nyc", "games-and-toys", "writing", "photographs", "older-projects"]
+DESK_NOTE_WORDS = ["programmer", "photographer", "artist", "nyc", "games-and-toys", "writing", "photographs", "older-projects", "blimp"]
 DESK_NOTE_SECTIONS = ["sec-machine", "sec-writing", "sec-museum", "sec-photos", "sec-more"]
 
 # "Label=/path | Label=" -> [[label, href], ...]; an empty href is kept (the
@@ -364,7 +364,7 @@ def desk_check_notes(groups: List) -> Bool do
   wanted = list_append(list_append(DESK_NOTE_WORDS, DESK_NOTE_SECTIONS), map(groups, fn(g: Map) -> String do concat("sec-", g.group) end))
   each(wanted, fn(k: String) do desk_note_html(k) end)
   each(keys(DESK_NOTES), fn(k: String) do
-    case desk_member(wanted, k) do
+    case desk_member(wanted, k) or starts_with(k, "post-") do
       true -> :ok
       false -> desk_die(concat("data/explainers.tsv: the page shows no note ", k))
     end
@@ -688,85 +688,24 @@ end
 
 # ── Built once: the log, the other pages ────────────────────────────────
 
-# The newest three posts: title, date and the opening of the post. The
-# rest are on /blog.
+# The newest three posts: title, date, and under them a margin note from
+# data/explainers.tsv keyed post-<slug>. The opening of each post used to
+# be here, four lines of it; a note says more in one. A post with no note
+# is a title and a date. The rest are on /blog.
 HOME_POSTS = 3
+
+def desk_post_note(slug: String) -> String do
+  n = lookup(DESK_NOTES, concat("post-", slug))
+  case n do
+    nil -> ""
+    _ -> replace_all(replace_all(n, "<span class=\"note\" role=\"note\"", "<span class=\"note log-note\" role=\"note\""), "<span class=\"who\">note</span>", "")
+  end
+end
 
 def desk_blog_lines(posts: List) -> String do
   join(map(desk_take_list(posts, HOME_POSTS, []), fn(p: Map) -> String do
-    source = lookup(p, "source")
-    excerpt = case source do
-      nil -> ""
-      _ -> desk_excerpt(source, 480)
-    end
-    lede = case excerpt do
-      "" -> ""
-      _ -> concat("<span class=\"log-lede\">", escape_html(excerpt), "</span>")
-    end
-    meta = case source do
-      nil -> ""
-      _ -> desk_log_meta(source, lookup(p, "tags"))
-    end
-    concat("<li><a href=\"/post/", p.slug, "\"><span class=\"log-title\">", escape_html(p.title), "</span><span class=\"log-date\">", p.date, "</span>", lede, meta, "</a></li>")
+    concat("<li class=\"log-row\"><a class=\"log-link\" href=\"/post/", p.slug, "\"><span class=\"log-title\">", escape_html(p.title), "</span><span class=\"log-date\">", p.date, "</span></a>", desk_post_note(p.slug), "</li>")
   end), "")
-end
-
-# Under the opening, a line on how long the post is and what it is about:
-# "2,140 words · 9 min read · blimp, temper".
-def desk_log_meta(source: String, tags: Any) -> String do
-  words = word_count(body_without_tags(source))
-  tag_text = case type_of(tags) == :list and length(tags) > 0 do
-    true -> concat(" &middot; ", escape_html(join(desk_take_list(tags, 4, []), ", ")))
-    false -> ""
-  end
-  concat("<span class=\"log-meta\">", desk_thousands(words), " words &middot; ", escape_html(read_time(words)), tag_text, "</span>")
-end
-
-def desk_thousands(n: Int) -> String do
-  case n < 1000 do
-    true -> to_string(n)
-    false -> concat(to_string(n / 1000), ",", desk_pad(rem(n, 1000), 3))
-  end
-end
-
-# The opening prose of a post's Markdown, as plain text: the first lines
-# before the first code fence that are not a header field, a heading, an image, HTML, a table
-# or a rule, with emphasis marks dropped and [text](url) made text, cut at
-# a word to at most n characters.
-def desk_prose_line(l: String) -> Bool do
-  t = trim(l)
-  not(length(t) == 0 or starts_with(t, "#") or starts_with(t, "```") or starts_with(t, "!") or starts_with(t, "<") or starts_with(t, "|") or starts_with(t, "---") or starts_with(t, "title:") or starts_with(t, "tags:"))
-end
-
-def desk_unlink(pieces: List, acc: List) -> String do
-  case pieces do
-    [] -> join(reverse(acc), "")
-    [p | rest] ->
-      close = index_of(p, ")")
-      kept = case close < 0 do
-        true -> p
-        false -> drop(p, close + 1)
-      end
-      desk_unlink(rest, [kept | acc])
-  end
-end
-
-def desk_cut(s: String, n: Int) -> String do
-  case length(s) <= n do
-    true -> s
-    false ->
-      words = split(take(s, n), " ")
-      concat(join(desk_take_list(words, length(words) - 1, []), " "), "…")
-  end
-end
-
-def desk_excerpt(source: String, n: Int) -> String do
-  before_code = head(split(source, "```"))
-  prose = join(desk_take_list(filter(split(before_code, "\n"), fn(l: String) -> Bool do desk_prose_line(l) end), 6, []), " ")
-  pieces = split(prose, "](")
-  unlinked = concat(head(pieces), desk_unlink(tail(pieces), []))
-  plain = replace_all(replace_all(replace_all(replace_all(unlinked, "[", ""), "*", ""), "`", ""), "  ", " ")
-  desk_cut(trim(plain), n)
 end
 
 # The Finder's sections, as one line of links each. An item with nowhere
@@ -969,6 +908,7 @@ def desk_intro(st: Map) -> String do
     # open <p> at the first one
     "<div class=\"intro-text\">I am a ", desk_gloss_term("programmer", "programmer"), ", ", desk_gloss_term("photographer", "photographer"), ", and ", desk_gloss_term("artist", "artist"), " living in ", desk_gloss_term("nyc", "NYC"), ". I like to evoke new directions of vision by playing with the social fabric that wraps us around a computer.</div>",
     "<div class=\"intro-text\">This is where that work lives: ", desk_gloss_link("games-and-toys", "#work", "games and toys"), " you can play, live views of the internet, data and maps, ", desk_gloss_link("writing", "/blog", "writing"), ", ", desk_gloss_link("photographs", desk_href(put(st, "leica", "1")), "photographs"), ", and ", desk_gloss_link("older-projects", "#museum", "older projects"), ". Most of it wants you to join in; please be kind to whoever else is there.</div>",
+    "<div class=\"intro-text\">All of it is written in ", desk_gloss_link("blimp", "https://blimp.bobbby.online/", "Blimp"), ", a language I made for it.</div>",
     "</section>"
   ], "")
 end

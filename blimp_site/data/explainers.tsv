@@ -20,6 +20,7 @@ writing	Posts on building this site, GenStage, tree law, Nathan Fielder and ches
 photographs	One very large image of my favourite Leica shots, 110 MB, so the link asks before it loads. The gallery is the smaller way in.	The gallery=/gallery
 older-projects	Hardware, maps, music, machine learning, social experiments. Each one says what it was built with, and where the source is when it is public.	The museum=#museum
 # One note a section: the headers down the right, and the machine on the left.
+blimp	A self-hosted actor language: actors are the only abstraction, and it compiles itself. It builds to native code through LLVM and runs in the browser as WASM. This page and the server behind it are Blimp.	Blimp's own site=https://blimp.bobbby.online/ | The tutorial=https://blimp.bobbby.online/tutorial/ | How this site is built=/stack | Source=https://github.com/notactuallytreyanastasio/blimp
 sec-machine	Every request to this site, yours included, is a message to one actor in one process. The hexagons are the actors; the rays are the messages between them.	How it is built=/stack | Read its source=/mirror
 sec-writing	The newest three posts. The rest, and their tags, are on the blog.	All posts=/blog
 sec-museum	These rows live in Postgres and are edited from an admin page. A change shows up here within a minute.
@@ -29,3 +30,10 @@ sec-numbers	Mostly Phish, some Bluesky, some New York. phangraphs and Moon Phish
 sec-toys	Things to use rather than read. The mirror and the stack are this site looking at itself.	The mirror=/mirror | The stack=/stack
 sec-photos	The collage is 30,846 by 20,550 pixels, which is why the link asks first. The gallery is the smaller way in.	The gallery=/gallery
 sec-more	The old Mac-style desktop's Finder, flattened into lines of links. Phoenix served it until September 2026.	The old site=https://old.bobbby.online
+# One note a post, shown under its title in the Writing card. Keyed by
+# the post's slug; a post with no line here shows no note, and a line for
+# a post that is not among the newest three is simply not shown yet.
+post-this-site-is-blimp-now	Written the night the port landed and finished the next morning: the Temper case study first, then how Phoenix got switched off.	The map of it=/stack | The source=/mirror
+post-notes-on-dario-altman-elmo-and-the-frontier	Started as a note to my friend Jeff after Dario's post. The annotated version puts a tl;dr in the margin of every section.	The annotated version=/frontier
+post-chess	Nine boards that make one 24×24 plane. Three prompts on a phone for the first version, then Claude Code for the rest. It runs on this site now.	Play Chess-9=/chess-lv | Source=https://github.com/notactuallytreyanastasio/chess9
+post-vibe-coding-rescue-missions	A receipt printer project that got to production on vibes, and how I untangled it. The printer still takes messages.	Send one=/very_direct_message
