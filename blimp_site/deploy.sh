@@ -69,6 +69,8 @@ stage() {
   cp -R ../priv/static/posts ../priv/static/images "$DIST/priv/static/"
   mkdir -p "$DIST/priv/static/static"
   cp -R ../priv/static/static/temper-snake "$DIST/priv/static/static/"
+  # /blinks-sw.js is read from here at boot (src/99_blinkspush.blimp)
+  cp -R ../priv/static/static/blinks-pwa "$DIST/priv/static/static/"
   cp ../priv/static/favicon.ico ../priv/static/robots.txt "$DIST/priv/static/"
   du -sh "$DIST"
 }

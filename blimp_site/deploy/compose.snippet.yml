@@ -27,4 +27,11 @@
       # (src/99_blinkswrite.blimp); Phoenix's app service has the same one.
       # Unset, every write is a 401.
       BLINKS_API_TOKEN: ${BLINKS_API_TOKEN}
+      # Web Push for the /blinks PWA (src/99_blinkspush.blimp): the pair
+      # Phoenix's app service has, from /opt/blog/.env. Unset, no pushes and
+      # no bell. Set, the site refuses to start unless the private key gives
+      # the public one. Needs an interpreter with Blimp #71's P-256/AES-GCM.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://bobbby.online}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network

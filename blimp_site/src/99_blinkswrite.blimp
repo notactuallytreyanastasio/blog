@@ -570,6 +570,8 @@ def blkw_saved(conn: Map, answer: Any) -> Map do
     {:ok, rows} ->
       row = head(rows)
       blkw_broadcast(:blink_saved, row)
+      # Notifier's pushes (src/99_blinkspush.blimp)
+      bkp_blink_saved(row)
       # (Phoenix starts Enricher.enrich_async/1 here: chapter 67)
       blkw_blink(conn, row)
   end

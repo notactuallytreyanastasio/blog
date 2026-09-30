@@ -1,0 +1,404 @@
+# Web Push (src/99_blinkspush.blimp): the RFC 8291 encryption and RFC 8292
+# JWT against their published vectors, the VAPID boot check, the routes as a
+# request reaches them (no database: past validation is a 503), and the
+# Pusher actor against a stand-in for http_start and Postgres. What goes
+# over the wire to a real push service, and what a browser makes of it,
+# is in the PR: headless Chrome received and decrypted it through FCM.
+
+BPT_SECRET = "test-secret-test-secret-test-secret-0123"
+# main.blimp (and its STATIC_DIR) is not part of a test build
+BPT_STATIC = "../priv/static"
+BPT_ROUTES = blinks_push_routes(BPT_STATIC)
+
+# RFC 8291 Appendix A
+BPT_AS_PRIVATE = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw"
+BPT_AS_PUBLIC = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8"
+BPT_UA_PRIVATE = "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94"
+BPT_UA_PUBLIC = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4"
+BPT_AUTH = "BTBZMqHH6r4Tts7J_aSIgg"
+BPT_SALT = "DGv6ra1nlYgDCS1FRnbzlw"
+BPT_MESSAGE = "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN"
+
+# What the browser does with a body: the receiving half of RFC 8291.
+def bpt_decrypt(body: String, ua_private: String, auth: String) -> Any do
+  salt = slice(body, 0, 16)
+  as_public = slice(body, 21, 65)
+  sealed = slice(body, 86, length(body) - 86)
+  ua_public = p256_public_key(ua_private)
+  shared = p256_ecdh(ua_private, as_public)
+  ikm = bkp_hkdf(auth, shared, join(["WebPush: info", hex_decode("00"), ua_public, as_public], ""), 32)
+  cek = bkp_hkdf(salt, ikm, concat("Content-Encoding: aes128gcm", hex_decode("00")), 16)
+  nonce = bkp_hkdf(salt, ikm, concat("Content-Encoding: nonce", hex_decode("00")), 12)
+  aes128gcm_decrypt(cek, nonce, sealed, "")
+end
+
+def bpt_send(method: String, target: String, headers: List, body: String) -> Tuple do
+  raw = bpt_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), BPT_ROUTES, BPT_SECRET)
+end
+
+def bpt_post(target: String, body: String) -> Tuple do
+  bpt_send("POST", target, ["Content-Type: application/json", "User-Agent: test-agent"], body)
+end
+
+def bpt_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD" or method == "OPTIONS" or method == "DELETE") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def bpt_status(got: Tuple) -> Int do
+  elem(got, 1)
+end
+
+def bpt_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def bpt_head(got: Tuple) -> String do
+  w = elem(got, 0)
+  take(w, index_of(w, "\r\n\r\n"))
+end
+
+def bpt_sub(endpoint: String, p256dh: String, auth: String) -> String do
+  concat("{\"subscription\":{\"endpoint\":", json_encode(endpoint), ",\"keys\":{\"p256dh\":", json_encode(p256dh), ",\"auth\":", json_encode(auth), "}}}")
+end
+
+# A stand-in for http_start/http_result and Postgres. Each url answers the
+# status in BPT_STATUS by its last path segment; "hang" never answers.
+# Queries are recorded; the subscriptions query answers `subs`.
+actor FakeIo do
+  state subs: List :: []
+  state started: List :: []
+  state queries: List :: []
+  state next: Int :: 0
+  state full: Bool :: false
+
+  on :subs(s: List) do
+    become subs: s
+    reply :ok
+  end
+
+  on :full(f: Bool) do
+    become full: f
+    reply :ok
+  end
+
+  on :start(url: String, headers: Map, body: String) do
+    case full do
+      true -> reply -1
+      false ->
+        become next: next + 1, started: list_append(started, [%{url: url, headers: headers, body: body, handle: next}])
+        reply next
+    end
+  end
+
+  on :poll(h: Int) do
+    url = head(map(filter(started, fn(s: Map) -> Bool do s.handle == h end), fn(s: Map) -> String do s.url end))
+    what = last(split(url, "/"))
+    case what do
+      "hang" -> reply nil
+      "gone" -> reply {:ok, 410, "gone"}
+      "missing" -> reply {:ok, 404, ""}
+      "busy" -> reply {:ok, 429, "slow down"}
+      "down" -> reply {:ok, 503, "down"}
+      "dns" -> reply {:error, "UnknownHostName"}
+      _ -> reply {:ok, 201, ""}
+    end
+  end
+
+  on :query(sql: String, params: List) do
+    become queries: list_append(queries, [[sql, params]])
+    case sql == BKP_SUBS_SQL do
+      true -> reply {:ok, subs}
+      false -> reply {:ok, []}
+    end
+  end
+
+  on :started do
+    reply started
+  end
+
+  on :queries do
+    reply filter(queries, fn(q: List) -> Bool do head(q) != BKP_SUBS_SQL end)
+  end
+end
+
+def bpt_row(id: Int, endpoint: String, tags: String) -> Map do
+  %{id: id, endpoint: endpoint, p256dh: BPT_UA_PUBLIC, auth: BPT_AUTH, tags: tags}
+end
+
+BPT_CONF = %{public: BPT_AS_PUBLIC, private: base64url_decode(BPT_AS_PRIVATE), subject: "https://bobbby.online"}
+
+def bpt_pusher(fake: Any) -> Any do
+  p = spawn Pusher
+  p <- :config(BPT_CONF)
+  p <- :io(%{
+    start: fn(url: String, headers: Map, body: String) -> Int do fake <- :start(url, headers, body) end,
+    poll: fn(h: Int) -> Any do fake <- :poll(h) end,
+    query: fn(sql: String, params: List) -> Any do fake <- :query(sql, params) end
+  })
+  p
+end
+
+def bpt_urls(started: List) -> List do
+  map(started, fn(s: Map) -> String do s.url end)
+end
+
+actor BlinksPushTests do
+  test "hkdf is RFC 5869 test case 1 (the 32 bytes Web Push can ask for)" do
+    ikm = hex_decode("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+    got = bkp_hkdf(hex_decode("000102030405060708090a0b0c"), ikm, hex_decode("f0f1f2f3f4f5f6f7f8f9"), 32)
+    assert_eq(hex_encode(got), "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf")
+  end
+
+  test "RFC 8291 Appendix A, byte for byte, and it decrypts with the user agent's key" do
+    body = bkp_encrypt("When I grow up, I want to be a watermelon", base64url_decode(BPT_UA_PUBLIC),
+      base64url_decode(BPT_AUTH), base64url_decode(BPT_SALT), base64url_decode(BPT_AS_PRIVATE))
+    assert_eq(base64url_encode(body), BPT_MESSAGE)
+    assert_eq(base64url_encode(p256_public_key(base64url_decode(BPT_AS_PRIVATE))), BPT_AS_PUBLIC)
+    got = bpt_decrypt(base64url_decode(BPT_MESSAGE), base64url_decode(BPT_UA_PRIVATE), base64url_decode(BPT_AUTH))
+    assert_eq(got, concat("When I grow up, I want to be a watermelon", hex_decode("02")))
+  end
+
+  test "a real send's body is fresh each time, 86 + n + 1 + 16 bytes, and decrypts" do
+    one = elem(bkp_body("{\"title\":\"new blink\"}", BPT_UA_PUBLIC, BPT_AUTH), 1)
+    two = elem(bkp_body("{\"title\":\"new blink\"}", BPT_UA_PUBLIC, BPT_AUTH), 1)
+    assert_ne(one, two)
+    assert_eq(length(one), 86 + 21 + 1 + 16)
+    assert_eq(slice(one, 16, 5), hex_decode("0000100041"))
+    assert_eq(bpt_decrypt(one, base64url_decode(BPT_UA_PRIVATE), base64url_decode(BPT_AUTH)), concat("{\"title\":\"new blink\"}", hex_decode("02")))
+  end
+
+  test "keys are read as Phoenix reads them, and wrong ones are named as it names them" do
+    # padding, whitespace and standard base64 are all taken
+    assert_eq(bkp_b64("BTBZMqHH6r4Tts7J_aSIgg=="), base64url_decode(BPT_AUTH))
+    assert_eq(bkp_b64("BTBZMqHH6r4Tts7J/aSIgg"), base64url_decode(BPT_AUTH))
+    assert_eq(bkp_b64(" BTBZMqHH6r4Tts7J_aSIgg\n"), base64url_decode(BPT_AUTH))
+    assert_eq(bkp_b64("not base64!"), nil)
+    assert_eq(bkp_b64(nil), nil)
+    assert_eq(bkp_body("x", "BCVx", BPT_AUTH), {:error, ":bad_p256dh"})
+    assert_eq(bkp_body("x", BPT_UA_PUBLIC, "BTBZMqHH6r4T"), {:error, ":bad_auth"})
+    assert_eq(bkp_body("x", "@@@", BPT_AUTH), {:error, ":bad_base64"})
+  end
+
+  test "the VAPID boot check: off when unset, refuses a missing, short or mismatched private key" do
+    assert_eq(bkp_vapid_check("", "", ""), nil)
+    assert_eq(bkp_vapid_check(nil, BPT_AS_PRIVATE, nil), nil)
+    assert_eq(elem(bkp_vapid_check(BPT_AS_PUBLIC, "", ""), 1), "VAPID_PRIVATE_KEY required with VAPID_PUBLIC_KEY")
+    short = base64url_encode(slice(base64url_decode(BPT_AS_PRIVATE), 1, 31))
+    assert(starts_with(elem(bkp_vapid_check(BPT_AS_PUBLIC, short, ""), 1), "VAPID_PRIVATE_KEY is 31 bytes"))
+    assert(starts_with(elem(bkp_vapid_check(BPT_AS_PUBLIC, "%%%", ""), 1), "VAPID_PRIVATE_KEY is -1 bytes"))
+    # the pair from the other side of the RFC: each key is valid, but they are not a pair
+    assert_eq(elem(bkp_vapid_check(BPT_AS_PUBLIC, BPT_UA_PRIVATE, ""), 1), "VAPID_PRIVATE_KEY does not give VAPID_PUBLIC_KEY: every push would be refused (403)")
+    ok = bkp_vapid_check(BPT_AS_PUBLIC, BPT_AS_PRIVATE, "")
+    assert_eq(ok.subject, "https://bobbby.online")
+    assert_eq(ok.public, BPT_AS_PUBLIC)
+    assert_eq(ok.private, base64url_decode(BPT_AS_PRIVATE))
+    assert_eq(bkp_vapid_check(concat(BPT_AS_PUBLIC, "="), BPT_AS_PRIVATE, "mailto:a@b").subject, "mailto:a@b")
+  end
+
+  test "the audience is the push service's origin, default port dropped" do
+    assert_eq(bkp_audience("https://web.push.apple.com/QGuQyavXutnMH"), "https://web.push.apple.com")
+    assert_eq(bkp_audience("https://fcm.googleapis.com:443/fcm/send/x"), "https://fcm.googleapis.com")
+    assert_eq(bkp_audience("https://push.example.net:8443/send/abc"), "https://push.example.net:8443")
+    assert_eq(bkp_audience("http://127.0.0.1:4171/s201/a"), "http://127.0.0.1:4171")
+  end
+
+  test "the JWT is JOSE's bytes, 12 hours out, and verifies against k=" do
+    value = bkp_authorization(BPT_CONF, "https://push.example.net/send/abc", 1700000000)
+    assert(starts_with(value, "vapid t="))
+    parts = split(drop(value, 8), ", k=")
+    assert_eq(last(parts), BPT_AS_PUBLIC)
+    pieces = split(head(parts), ".")
+    assert_eq(base64url_decode(head(pieces)), "{\"alg\":\"ES256\",\"typ\":\"JWT\"}")
+    assert_eq(base64url_decode(elem_at(pieces, 1)), "{\"aud\":\"https://push.example.net\",\"exp\":1700043200,\"sub\":\"https://bobbby.online\"}")
+    signed = concat(head(pieces), ".", elem_at(pieces, 1))
+    assert(ecdsa_p256_verify(base64url_decode(BPT_AS_PUBLIC), signed, base64url_decode(last(pieces))))
+    assert(not(ecdsa_p256_verify(base64url_decode(BPT_UA_PUBLIC), signed, base64url_decode(last(pieces)))))
+  end
+
+  test "the request carries WebPush.send/3's headers" do
+    job = %{kind: :blink, id: 1, endpoint: "https://fcm.googleapis.com/fcm/send/x", p256dh: BPT_UA_PUBLIC, auth: BPT_AUTH, payload: "{}"}
+    req = bkp_request(BPT_CONF, job, 1700000000)
+    h = elem(req, 1)
+    assert_eq(elem(req, 0), "https://fcm.googleapis.com/fcm/send/x")
+    assert_eq(sort(keys(h)), ["authorization", "content-encoding", "content-type", "ttl", "urgency"])
+    assert_eq(lookup(h, "content-encoding"), "aes128gcm")
+    assert_eq(lookup(h, "content-type"), "application/octet-stream")
+    assert_eq(lookup(h, "ttl"), "3600")
+    assert_eq(lookup(h, "urgency"), "normal")
+    assert_eq(bpt_decrypt(elem(req, 2), base64url_decode(BPT_UA_PRIVATE), base64url_decode(BPT_AUTH)), concat("{}", hex_decode("02")))
+    assert_eq(bkp_request(BPT_CONF, put(job, :auth, "AAAA"), 0), {:error, ":bad_auth"})
+  end
+
+  test "payloads are Jason's: keys sorted, the title or else the url" do
+    b = %{id: 177, url: "https://example.com/a?b=\"c\"", title: "Push — café", tags: []}
+    assert_eq(bkp_blink_payload(b), "{\"blink_id\":177,\"body\":\"Push — café\",\"title\":\"new blink\",\"url\":\"https://example.com/a?b=\\\"c\\\"\"}")
+    assert_eq(bkp_blink_payload(put(b, :title, nil)), "{\"blink_id\":177,\"body\":\"https://example.com/a?b=\\\"c\\\"\",\"title\":\"new blink\",\"url\":\"https://example.com/a?b=\\\"c\\\"\"}")
+    assert_eq(elem(json_decode(BKP_TEST_PAYLOAD), 1).tag, "blinks-test")
+  end
+
+  test "no followed tags is everything; otherwise one must be on the blink" do
+    assert(bkp_wants([], []))
+    assert(bkp_wants([], ["rust"]))
+    assert(bkp_wants(["film", "rust"], ["rust"]))
+    assert(not(bkp_wants(["film"], ["rust"])))
+    assert(not(bkp_wants(["film"], [])))
+  end
+
+  test "subscribe: 400 without subscription.endpoint and .keys, 422 for what the changeset refuses" do
+    missing = "{\"error\":\"subscription with endpoint and keys required\"}"
+    assert_eq(bpt_body(bpt_post("/api/push/web", "{}")), missing)
+    assert_eq(bpt_status(bpt_post("/api/push/web", "{\"subscription\":{\"endpoint\":\"https://a\"}}")), 400)
+    assert_eq(bpt_status(bpt_post("/api/push/web", "{\"subscription\":\"x\"}")), 400)
+    refused = "{\"status\":\"error\"}"
+    assert_eq(bpt_body(bpt_post("/api/push/web", bpt_sub("http://a.b/c", BPT_UA_PUBLIC, BPT_AUTH))), refused)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub("   ", BPT_UA_PUBLIC, BPT_AUTH))), 422)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub("https://a.b/c", "BCVx", BPT_AUTH))), 422)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub("https://a.b/c", BPT_UA_PUBLIC, "BTBZMqHH6r4Tts7"))), 422)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub("https://a.b/c", BPT_UA_PUBLIC, "BTBZMqHH6r4Tts7J_aSIggBTBZMqHH6"))), 422)
+    assert_eq(bpt_status(bpt_post("/api/push/web", "{\"subscription\":{\"endpoint\":7,\"keys\":{}}}")), 422)
+    assert_eq(bpt_status(bpt_post("/api/push/web", "{\"subscription\":{\"endpoint\":\"https://a.b/c\",\"keys\":null}}")), 422)
+    long = concat("https://", join(map(range(1, 1993), fn(i: Int) -> String do "a" end), ""))
+    assert_eq(length(long), 2001)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub(long, BPT_UA_PUBLIC, BPT_AUTH))), 422)
+    # past validation, at the (unopened) database
+    at_most = take(long, 2000)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub(at_most, BPT_UA_PUBLIC, BPT_AUTH))), 503)
+    assert_eq(bpt_status(bpt_post("/blinks-next/api/push/web", bpt_sub("https://a.b/c", BPT_UA_PUBLIC, BPT_AUTH))), 503)
+  end
+
+  test "unsubscribe and test need an endpoint; every answer carries CORSPlug's headers" do
+    got = bpt_send("DELETE", "/api/push/web", [], "")
+    assert_eq(bpt_status(got), 400)
+    assert_eq(bpt_body(got), "{\"error\":\"endpoint required\"}")
+    assert(contains(bpt_head(got), "access-control-allow-origin: *"))
+    assert_eq(bpt_status(bpt_send("DELETE", "/api/push/web?endpoint=https%3A%2F%2Fa.b%2Fc", [], "")), 503)
+    assert_eq(bpt_body(bpt_post("/api/push/web/test", "{}")), "{\"error\":\"endpoint required\"}")
+    assert_eq(bpt_status(bpt_post("/api/push/web/test", "{\"endpoint\":\"https://a.b/c\"}")), 503)
+    assert_eq(bpt_status(bpt_send("OPTIONS", "/api/push/web", [], "")), 204)
+  end
+
+  test "/blinks-sw.js is Phoenix's file, never cached, allowed the /blinks scope" do
+    got = bpt_send("GET", "/blinks-sw.js", [], "")
+    assert_eq(bpt_status(got), 200)
+    assert_eq(bpt_body(got), read_file(concat(BPT_STATIC, "/static/blinks-pwa/sw.js")))
+    h = bpt_head(got)
+    assert(contains(h, "Content-Type: application/javascript; charset=utf-8"))
+    assert(contains(h, "Cache-Control: no-cache"))
+    assert(contains(h, "service-worker-allowed: /blinks"))
+    assert(contains(h, "access-control-allow-origin: *"))
+  end
+
+  test "a new blink goes to the subscriptions that want it, four at a time, once" do
+    fake = spawn FakeIo
+    fake <- :subs([bpt_row(1, "https://p/1", "[]"), bpt_row(2, "https://p/2", "[\"film\"]"), bpt_row(3, "https://p/3", "[\"film\",\"rust\"]"),
+      bpt_row(4, "https://p/4", "[]"), bpt_row(5, "https://p/5", "[]"), bpt_row(6, "https://p/6", "[]")])
+    p = bpt_pusher(fake)
+    blink = %{id: 9, url: "https://x.y", title: "t", tags: ["rust"]}
+    assert_eq(p <- :blink_saved(blink), 5)
+    # the same id again (a re-save) is not pushed again
+    assert_eq(p <- :blink_saved(blink), 0)
+    p <- :step(1000)
+    assert_eq(bpt_urls(fake <- :started), ["https://p/1", "https://p/3", "https://p/4", "https://p/5"])
+    assert_eq((p <- :stats).queued, 1)
+    p <- :step(1001)
+    assert_eq(length(fake <- :started), 5)
+    p <- :step(1002)
+    s = p <- :stats
+    assert_eq([s.sent, s.delivered, s.queued, s.flying], [5, 5, 0, 0])
+    # every 2xx from a new-blink push touches last_ok_at, by id
+    assert_eq(map(fake <- :queries, fn(q: List) -> Any do last(q) end), [[1], [3], [4], [5], [6]])
+    body = head(fake <- :started).body
+    assert_eq(bpt_decrypt(body, base64url_decode(BPT_UA_PRIVATE), base64url_decode(BPT_AUTH)),
+      concat("{\"blink_id\":9,\"body\":\"t\",\"title\":\"new blink\",\"url\":\"https://x.y\"}", hex_decode("02")))
+  end
+
+  test "404 and 410 delete the subscription; 429, 5xx and transport errors are logged and kept" do
+    fake = spawn FakeIo
+    fake <- :subs([bpt_row(1, "https://p/gone", "[]"), bpt_row(2, "https://p/missing", "[]"), bpt_row(3, "https://p/busy", "[]"), bpt_row(4, "https://p/down", "[]")])
+    p = bpt_pusher(fake)
+    p <- :blink_saved(%{id: 1, url: "u", title: nil, tags: []})
+    p <- :step(0)
+    p <- :step(1)
+    s = p <- :stats
+    assert_eq([s.delivered, s.expired, s.failed], [0, 2, 2])
+    assert_eq(fake <- :queries, [[BKP_DELETE_SQL, ["https://p/gone"]], [BKP_DELETE_SQL, ["https://p/missing"]]])
+    assert_eq(bkp_verdict({:ok, 429, "x"}), {:failed, "{:http, 429, \"x\"}"})
+    assert_eq(bkp_verdict({:ok, 202, ""}), :ok)
+    assert_eq(bkp_verdict({:ok, 203, ""}), {:failed, "{:http, 203, \"\"}"})
+    assert_eq(bkp_verdict({:error, "UnknownHostName"}), {:failed, "UnknownHostName"})
+  end
+
+  test "a p256dh that is not on the curve costs its own push, not the ones after it" do
+    fake = spawn FakeIo
+    off = base64url_encode(concat(hex_decode("04"), join(map(range(1, 64), fn(i: Int) -> String do hex_decode("01") end), "")))
+    fake <- :subs([put(bpt_row(1, "https://p/1", "[]"), :p256dh, off), bpt_row(2, "https://p/2", "[]")])
+    p = bpt_pusher(fake)
+    p <- :blink_saved(%{id: 1, url: "u", title: nil, tags: []})
+    p <- :step(0)
+    assert_eq(bpt_urls(fake <- :started), ["https://p/2"])
+    s = p <- :stats
+    assert_eq([s.failed, s.sent, s.queued], [1, 1, 0])
+  end
+
+  test "a push service that never answers keeps its slot, and the rest wait behind it" do
+    fake = spawn FakeIo
+    fake <- :subs([bpt_row(1, "https://p/hang", "[]"), bpt_row(2, "https://q/hang", "[]"), bpt_row(3, "https://r/hang", "[]"),
+      bpt_row(4, "https://s/hang", "[]"), bpt_row(5, "https://p/ok", "[]")])
+    p = bpt_pusher(fake)
+    p <- :blink_saved(%{id: 1, url: "u", title: nil, tags: []})
+    p <- :step(0)
+    p <- :step(BKP_SLOW_S + 1)
+    p <- :step(BKP_SLOW_S + 2)
+    s = p <- :stats
+    assert_eq([s.flying, s.queued, s.sent], [4, 1, 4])
+  end
+
+  test "when every http slot is taken the job waits for a later tick" do
+    fake = spawn FakeIo
+    fake <- :subs([bpt_row(1, "https://p/1", "[]")])
+    fake <- :full(true)
+    p = bpt_pusher(fake)
+    p <- :blink_saved(%{id: 1, url: "u", title: nil, tags: []})
+    p <- :step(0)
+    assert_eq((p <- :stats).queued, 1)
+    fake <- :full(false)
+    p <- :step(1)
+    assert_eq((p <- :stats).sent, 1)
+  end
+
+  test "push off: nothing is read, sent or remembered; a test push says :not_configured" do
+    fake = spawn FakeIo
+    p = bpt_pusher(fake)
+    p <- :config(nil)
+    assert_eq(p <- :blink_saved(%{id: 1, url: "u", title: nil, tags: []}), 0)
+    assert_eq((p <- :stats).seen, 0)
+    assert_eq(p <- :test(bpt_row(1, "https://p/1", "[]"), 0), :off)
+  end
+
+  test "test pushes: five per endpoint per ten-minute window, then 429; not a touch of last_ok_at" do
+    fake = spawn FakeIo
+    p = bpt_pusher(fake)
+    sub = bpt_row(7, "https://p/7", "[]")
+    # range is inclusive: six tries
+    got = map(range(1, 6), fn(i: Int) -> Any do p <- :test(sub, 1200 + i) end)
+    assert_eq(got, [:queued, :queued, :queued, :queued, :queued, :limited])
+    assert_eq(p <- :test(bpt_row(8, "https://p/8", "[]"), 1206), :queued)
+    # the next window starts over
+    assert_eq(p <- :test(sub, 1800), :queued)
+    p <- :step(1800)
+    p <- :step(1801)
+    assert_eq((p <- :stats).delivered, 4)
+    p <- :step(1802)
+    p <- :step(1803)
+    assert_eq((p <- :stats).delivered, 7)
+    assert_eq(fake <- :queries, [])
+    body = head(fake <- :started).body
+    assert_eq(bpt_decrypt(body, base64url_decode(BPT_UA_PRIVATE), base64url_decode(BPT_AUTH)), concat(BKP_TEST_PAYLOAD, hex_decode("02")))
+  end
+end
