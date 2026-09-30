@@ -1,0 +1,126 @@
+# The work log poller (src/99_work_log_poll.blimp) against what Phoenix's
+# Blog.GitHub.WorkLogPoller made of the same answers.
+#
+# fixtures/work_log/:
+#   events.json        16 events: 14 made up to hit the Poller's corners
+#                      (a first push of a branch, a ref of refs/heads/x/refs/heads/y,
+#                      no ref, a WatchEvent, twelve new pushes for a cap of
+#                      10), then two (a push and a pull request) as
+#                      api.github.com answered on 2026-09-30: 14 pushes
+#   compare_real.json  /repos/notactuallytreyanastasio/blog/compare/ae03d1a...b17787b
+#                      as GitHub answered it on 2026-09-30
+#   compare_edge.json  a compare made up: files without additions, messages
+#                      with Unicode white space, a commit with no message,
+#                      one with no sha
+#
+# The expected values are the rows the Poller wrote when its handle_info(:poll)
+# was run on these answers (Req's :plug option in place of GitHub), and
+# String.trim/1's answers from `elixir -e`.
+
+def wlt_fixture(name: String) -> String do
+  read_file(concat("test/fixtures/work_log/", name))
+end
+
+def wlt_events() -> List do
+  elem(wl_events_result({:ok, 200, wlt_fixture("events.json")}), 1)
+end
+
+actor WorkLogPollTests do
+  test "only PushEvents are kept, with the branch as parse_push_event/1 cut it" do
+    evs = wlt_events()
+    assert_eq(length(evs), 14)
+    e4 = head(filter(evs, fn(e: Map) -> Bool do e.event_id == "9000000004" end))
+    # String.replace/3 replaces every refs/heads/, not only the first
+    assert_eq(e4.branch, "feature/x")
+    e6 = head(filter(evs, fn(e: Map) -> Bool do e.event_id == "9000000006" end))
+    assert_eq(e6.branch, "")
+    real = head(filter(evs, fn(e: Map) -> Bool do e.event_id == "22578291755" end))
+    assert_eq(real.repo, "notactuallytreyanastasio/blog")
+    assert_eq(real.before_sha, "ae03d1a87ed4447935c2e12957527393af6b83b5")
+    assert_eq(real.head_sha, "b17787b9c71eafcb2b6986b6b5e918f50eaf2311")
+    assert_eq(wl_compare_url("https://api.github.com", real), "https://api.github.com/repos/notactuallytreyanastasio/blog/compare/ae03d1a87ed4447935c2e12957527393af6b83b5...b17787b9c71eafcb2b6986b6b5e918f50eaf2311")
+  end
+
+  test "new events: not seen, not a first push, the first 10 in page order" do
+    evs = wlt_events()
+    fresh = wl_new_events(evs, %{})
+    assert_eq(length(fresh), 10)
+    ids = map(fresh, fn(e: Map) -> String do e.event_id end)
+    assert_eq(ids, ["9000000001", "9000000002", "9000000004", "9000000005", "9000000006", "9000000007", "9000000008", "9000000009", "9000000010", "9000000011"])
+    # every push on the page is seen afterwards, compared or not
+    seen = wl_mark_seen(%{}, evs)
+    assert_eq(length(keys(seen)), 14)
+    assert_eq(wl_new_events(evs, seen), [])
+  end
+
+  test "a real compare sums the files and keeps every commit with a message" do
+    r = wl_compare_result({:ok, 200, wlt_fixture("compare_real.json")})
+    cmp = elem(r, 1)
+    assert_eq(cmp.additions, 1475)
+    assert_eq(cmp.deletions, 43)
+    assert_eq(map(cmp.commits, fn(c: Map) -> String do c.sha end), ["8200954", "dd76fae", "cf47b8b", "f46aa33", "53e1452", "b17787b"])
+    # sha256 of each message column the Poller wrote
+    assert_eq(map(cmp.commits, fn(c: Map) -> String do sha256(c.message) end), [
+      "dacea04e0a6bad79c19ea59545d7e5c6178986db5ca6ad9fd6ec84125fc7b727",
+      "a3f319a6db6e370adb6addf67ff73091a3d55e7fd6c2d68d77f676588e128a8a",
+      "57e210bc4e5c140cbfa3df5ce9dffcd67111dfa938a3fb5aa6c38d558f1da80c",
+      "57e210bc4e5c140cbfa3df5ce9dffcd67111dfa938a3fb5aa6c38d558f1da80c",
+      "e6f1878402807e9f02083bd479b1c9ecfffd6879b609b36a31b7118f89622360",
+      "e14a96977eaa0165eeab31d2aa8f3fd02ed447bac2b9f6b7b2f4466cadf1a779"])
+  end
+
+  test "the edge compare: missing additions are 0, blank messages dropped, no sha kept as empty" do
+    cmp = elem(wl_compare_result({:ok, 200, wlt_fixture("compare_edge.json")}), 1)
+    assert_eq(cmp.additions, 5)
+    assert_eq(cmp.deletions, 8)
+    assert_eq(map(cmp.commits, fn(c: Map) -> String do c.sha end), ["aaaa000", "8c8cf8b", "", "aaaa000"])
+    assert_eq(head(cmp.commits).message, "fix the thing")
+    assert_eq(hex_encode(last(cmp.commits).message), "6c696e65206f6e650d0a0d0a626f647920c3a9e2988320f09f9880")
+    # the changeset's validate_required refuses the commit with no sha
+    e = %{event_id: "9000000004", repo: "notactuallytreyanastasio/blog", branch: "feature/x"}
+    assert_eq(map(cmp.commits, fn(c: Map) -> Bool do wl_valid(merge(e, %{sha: c.sha})) end), [true, true, false, true])
+    assert_eq(wl_valid(%{event_id: "1", repo: "r", branch: " ", sha: "abc"}), false)
+  end
+
+  test "String.trim/1 trims Unicode white space, as Elixir does" do
+    pairs = [
+      {"c2a02066697820746865207468696e67c2a00a0ae38080", "66697820746865207468696e67"},
+      {"2020200a", ""},
+      {"e280a878e280a9", "78"},
+      {"0cc28579e2808b", "79e2808b"},
+      {"e1a08e7ae1a08e", "e1a08e7ae1a08e"},
+      {"e280afe2819f77e19a80e28080e2808a", "77"}
+    ]
+    each(pairs, fn(p: Tuple) do
+      assert_eq(hex_encode(wl_trim(hex_decode(elem(p, 0)))), elem(p, 1))
+    end)
+  end
+
+  test "what the events answer means, as fetch_events/0 read it" do
+    assert_eq(wl_events_result({:ok, 304, ""}), :unchanged)
+    assert_eq(wl_events_result({:ok, 403, "{}"}), {:error, "GitHub Events API returned 403"})
+    # a 200 that is not a JSON list falls through to the status clause
+    assert_eq(wl_events_result({:ok, 200, "{\"message\":\"x\"}"}), {:error, "GitHub Events API returned 200"})
+    assert_eq(wl_events_result({:ok, 200, "<html>"}), {:error, "GitHub Events API returned 200"})
+    assert_eq(wl_compare_result({:ok, 404, "{}"}), {:error, "Compare API returned 404"})
+  end
+
+  test "Req's :safe_transient: which answers are tried again" do
+    assert_eq(map([408, 429, 500, 502, 503, 504, 403, 404, 200, 301], fn(s: Int) -> Bool do wl_transient({:ok, s, ""}) end),
+      [true, true, true, true, true, true, false, false, false, false])
+    assert_eq(wl_transient({:error, "timeout"}), true)
+    assert_eq(wl_transient({:error, "ConnectionRefused"}), true)
+    assert_eq(wl_transient({:error, "UnknownHostName"}), false)
+  end
+
+  test "off stays off, and on polls at once, as init/1 does" do
+    off = wl_new(%{enabled: false, api: "x"}, 1000)
+    assert_eq(wl_step(off, 99999999, 0).phase, :off)
+    enabled = wl_new(%{enabled: true, api: "x"}, 1000)
+    assert_eq(enabled.next_at, 1000)
+    assert_eq(wl_boot_config(%{enabled: true, api: "x"}, false).enabled, false)
+    done = wl_finish(enabled, 5000)
+    assert_eq(done.next_at, 65000)
+    assert_eq(done.phase, :idle)
+  end
+end
