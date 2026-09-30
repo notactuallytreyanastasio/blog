@@ -1,0 +1,90 @@
+/* /stack: the site from source to screen (static/stack/stack.blimp). The
+   colours are the d3 version's tokens, light and dark. */
+:root {
+  --bg: #eef1f4; --panel: #ffffff; --ink: #18212b; --muted: #5b6776; --rule: #cfd6de; --edge: #9aa6b4; --hi: #d2461e;
+  --temper: #6a4bc4; --jvm: #a33a3a; --zig: #c2661a; --blimp: #0f7b6c; --browserprog: #1f7a3a; --js: #8a7a12;
+  --build: #4a5a70; --check: #7b8794; --artifact: #2f6fb0; --server: #9a5b00; --browser: #1c8c55; --data: #8a3b7a; --dev: #55606e;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111820; --panel: #18212b; --ink: #e4e9ef; --muted: #9aa6b4; --rule: #2b3643; --edge: #4a5767; --hi: #ff7a4d;
+    --temper: #a58cf2; --jvm: #e07a7a; --zig: #f0a060; --blimp: #3cc3ad; --browserprog: #5ccf7c; --js: #d8c64a;
+    --build: #93a4bb; --check: #8e9aa7; --artifact: #6fa8e8; --server: #e0a64a; --browser: #52d493; --data: #d98ac6; --dev: #9aa6b4;
+    color-scheme: dark;
+  }
+}
+html.stack-page, html.stack-page body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px var(--sans); }
+#blimp-app { height: 100%; }
+.stack-app { display: flex; flex-direction: column; height: 100vh; }
+.stack-app header { padding: 14px 16px 8px; border-bottom: 1px solid var(--rule); }
+.stack-app header h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+.stack-app header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 80ch; }
+.stack-app .bar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 16px; border-bottom: 1px solid var(--rule); }
+.stack-app .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.stack-app .chips, .stack-app .paths { display: flex; flex-wrap: wrap; gap: 6px; }
+.stack-app .chip, .stack-app .path { font: 12px var(--sans); border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+.stack-app .chip[aria-pressed="false"] { opacity: 0.45; }
+.stack-app .path { background: transparent; }
+.stack-app .path[aria-pressed="true"] { border-color: var(--hi); color: var(--hi); }
+.stack-app .find { margin-left: auto; }
+.stack-app .find input { font: 13px var(--sans); padding: 4px 8px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: 3px; width: 14em; }
+.stack-app button:focus-visible, .stack-app input:focus-visible { outline: 2px solid var(--hi); outline-offset: 1px; }
+.stack-app .main { flex: 1; display: grid; grid-template-columns: 1fr 340px; min-height: 0; }
+.stack-app .stage { position: relative; min-width: 0; min-height: 0; }
+.stack-app .scroller { position: absolute; inset: 0; overflow: auto; }
+.stack-app .zoom { position: absolute; right: 16px; bottom: 12px; display: flex; gap: 4px; align-items: center; background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 3px; }
+.stack-app .zoom button { font: 13px var(--sans); min-width: 28px; height: 26px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: 3px; cursor: pointer; }
+.stack-app .zoom span { font: 12px var(--mono); color: var(--muted); min-width: 3.5em; text-align: center; }
+
+svg.diagram { display: block; }
+svg.diagram.fit { width: 100%; height: auto; }
+svg.diagram .band { fill: var(--panel); opacity: 0.55; }
+svg.diagram .col-title { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: 0.07em; fill: var(--muted); }
+svg.diagram .col-sub { font: 11px var(--sans); fill: var(--muted); }
+svg.diagram .link { fill: none; stroke: var(--edge); stroke-width: 1; opacity: 0.55; }
+svg.diagram .link.loop { stroke-dasharray: 4 3; }
+svg.diagram .link.on { stroke: var(--hi); opacity: 0.95; stroke-width: 1.6; }
+svg.diagram.dim .link:not(.on) { opacity: 0.05; }
+svg.diagram .node { cursor: pointer; }
+svg.diagram .node .box { fill: var(--panel); stroke-width: 1.2; }
+svg.diagram .node text { font: 11.5px var(--mono); fill: var(--ink); pointer-events: none; }
+svg.diagram.dim .node:not(.on) { opacity: 0.16; }
+svg.diagram .node.on .box { stroke-width: 2; }
+svg.diagram .node.sel .box { stroke: var(--hi); stroke-width: 2.5; }
+svg.diagram .off { display: none; }
+svg.diagram .verb { font: 10px var(--sans); fill: var(--hi); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; pointer-events: none; }
+
+.stack-app aside { border-left: 1px solid var(--rule); background: var(--panel); overflow: auto; padding: 16px; min-width: 0; }
+.stack-app aside h2 { font: 600 15px var(--mono); margin: 4px 0 2px; overflow-wrap: anywhere; }
+.stack-app aside .kind { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.stack-app aside p { line-height: 1.55; margin: 8px 0; }
+.stack-app aside code { font: 12px var(--mono); background: var(--bg); padding: 1px 4px; border-radius: 2px; overflow-wrap: anywhere; }
+.stack-app aside h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 6px; }
+.stack-app aside ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.stack-app aside li span { color: var(--muted); font-size: 12px; }
+.stack-app .jump { all: unset; cursor: pointer; font: 12px var(--mono); color: var(--ink); border-bottom: 1px dotted var(--muted); }
+.stack-app .hint { color: var(--muted); font-size: 13px; }
+.stack-app .hint b { color: var(--ink); }
+.stack-app .sw { font-style: normal; }
+
+/* a kind's colour: the box's outline and tick, a swatch, a panel heading */
+.k-temper { --k: var(--temper); } .k-jvm { --k: var(--jvm); } .k-zig { --k: var(--zig); } .k-blimp { --k: var(--blimp); }
+.k-browserprog { --k: var(--browserprog); } .k-js { --k: var(--js); } .k-build { --k: var(--build); } .k-check { --k: var(--check); }
+.k-artifact { --k: var(--artifact); } .k-server { --k: var(--server); } .k-browser { --k: var(--browser); } .k-data { --k: var(--data); } .k-dev { --k: var(--dev); }
+svg.diagram .node .box { stroke: var(--k); }
+svg.diagram .node .tick { fill: var(--k); }
+.c-temper { color: var(--temper); } .c-jvm { color: var(--jvm); } .c-zig { color: var(--zig); } .c-blimp { color: var(--blimp); }
+.c-browserprog { color: var(--browserprog); } .c-js { color: var(--js); } .c-build { color: var(--build); } .c-check { color: var(--check); }
+.c-artifact { color: var(--artifact); } .c-server { color: var(--server); } .c-browser { color: var(--browser); } .c-data { color: var(--data); } .c-dev { color: var(--dev); }
+.stack-app aside .kind.c-hi { color: var(--hi); }
+
+@media (max-width: 760px) {
+  .stack-app { height: auto; min-height: 100vh; }
+  .stack-app .main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; }
+  .stack-app aside { border-left: 0; border-top: 1px solid var(--rule); }
+  .stack-app .find { margin-left: 0; width: 100%; }
+  .stack-app .find input { width: 100%; box-sizing: border-box; }
+}
+.stack-app aside .kind[class*=" k-"] { color: var(--k); }

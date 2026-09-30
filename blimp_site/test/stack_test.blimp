@@ -1,0 +1,78 @@
+# needs: static/stack/stack.blimp
+
+def stk_test_nodes() -> List do
+  range(0, stk_count() - 1)
+end
+
+actor StackTests do
+  test "every line joins two boxes that exist, and nothing names a box that does not" do
+    assert_eq(stk_unknown(), [])
+    bad = filter(range(0, stk_edge_count() - 1), fn(e: Int) -> Bool do
+      stk_edge_from(e) < 0 or stk_edge_to(e) < 0 or stk_edge_from(e) >= stk_count() or stk_edge_to(e) >= stk_count()
+    end)
+    assert_eq(bad, [])
+  end
+
+  test "ids are unique" do
+    ids = map(stk_test_nodes(), fn(i: Int) -> String do stk_id(i) end)
+    dup = filter(stk_test_nodes(), fn(i: Int) -> Bool do stk_find(stk_id(i)) != i end)
+    assert_eq(dup, [])
+    assert_eq(length(ids), stk_count())
+  end
+
+  test "a box's lineage includes itself, what feeds it and what it feeds" do
+    bad = filter(stk_test_nodes(), fn(i: Int) -> Bool do not(elem(elem(stk_lineage(i), 0), i)) end)
+    assert_eq(bad, [])
+    lit = stk_lineage(stk_find("t_stack"))
+    assert(elem(elem(lit, 0), stk_find("b_temper")))
+    assert(elem(elem(lit, 0), stk_find("you")))
+    # upstream of the Temper source is nothing; a sibling module is not lit
+    refute(elem(elem(lit, 0), stk_find("t_wordle")))
+    # a line out of the box is lit
+    e = head(stk_out_edges(stk_find("t_stack")))
+    assert(elem(elem(lit, 1), e))
+  end
+
+  test "every trace names real boxes, and lights only lines between its boxes" do
+    names = stk_trace_names()
+    assert(length(names) >= 6)
+    map(range(0, length(names) - 1), fn(p: Int) -> Any do
+      t = stk_trace(p)
+      assert(length(stk_trace_ids(p)) > 5)
+      lines = filter(range(0, stk_edge_count() - 1), fn(e: Int) -> Bool do elem(elem(t, 1), e) end)
+      wrong = filter(lines, fn(e: Int) -> Bool do not(elem(elem(t, 0), stk_edge_from(e)) and elem(elem(t, 0), stk_edge_to(e))) end)
+      assert_eq(wrong, [])
+    end)
+  end
+
+  test "no two boxes in a column overlap, and every box is inside the drawing" do
+    clash = filter(stk_test_nodes(), fn(i: Int) -> Bool do
+      length(filter(stk_test_nodes(), fn(j: Int) -> Bool do
+        j != i and stk_col(j) == stk_col(i) and abs(stk_y(j) - stk_y(i)) < 22
+      end)) > 0
+    end)
+    assert_eq(clash, [])
+    outside = filter(stk_test_nodes(), fn(i: Int) -> Bool do
+      stk_x(i) < 0 or stk_y(i) < 60 or stk_x(i) + stk_boxw() > stk_width() or stk_y(i) + 20 > stk_height()
+    end)
+    assert_eq(outside, [])
+  end
+
+  test "search folds case and wants every word" do
+    assert(length(stk_search_hits("CADDY")) >= 3)
+    assert_eq(stk_search_hits("caddy zzzqqq"), [])
+    assert_eq(stk_best("site.blimp"), stk_find("a_site"))
+    assert_eq(stk_best(""), -1)
+  end
+
+  test "the program starts, and a click lights a lineage and fills the panel" do
+    s = spawn Stack
+    s <- :pick(stk_find("wss"))
+    v = s <- :view
+    refute(v == nil)
+    s <- :trace(0)
+    refute((s <- :view) == nil)
+    s <- :search("caddy")
+    refute((s <- :view) == nil)
+  end
+end
