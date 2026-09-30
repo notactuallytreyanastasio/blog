@@ -301,6 +301,9 @@ end
 # ?token=. This server does not hand dynamic() the request's headers, so
 # only ?token= is read here; a client sending the header gets the 401 it
 # would get without one. No BLINKS_API_TOKEN, no access, as in Phoenix.
+# (Since 64, GET /api/blinks/lookup and /export are web_route()s in
+# src/99_blinkswrite.blimp, which read the headers and answer before
+# dynamic() is asked; these two stay for a build without them.)
 def blk_token_ok(query: String) -> Bool do
   expected = getenv("BLINKS_API_TOKEN")
   offered = query_param(query, "token")
@@ -312,8 +315,13 @@ BLK_UNAUTHORIZED = "{\"error\":\"Invalid or missing auth token\"}"
 def blk_lookup(query: String) -> Map do
   case blk_token_ok(query) do
     false -> blk_json(401, BLK_UNAUTHORIZED)
-    true ->
-      url = query_param(query, "url")
+    true -> blk_lookup_url(query_param(query, "url"))
+  end
+end
+
+# The answer once the token has been checked (here, or by the token plug
+# of src/99_blinkswrite.blimp, which reads the headers too).
+def blk_lookup_url(url: String) -> Map do
       case url do
         "" -> blk_json(200, "{\"status\":\"ok\",\"blink\":null}")
         _ ->
@@ -326,18 +334,20 @@ def blk_lookup(query: String) -> Map do
               end
           end
       end
-  end
 end
 
-# Phoenix sends both with content-disposition: attachment; this server's
-# responses carry no extra headers yet, so a browser shows the export
-# instead of saving it.
+# Phoenix sends both with content-disposition: attachment; dynamic()'s
+# responses carry no extra headers, so the web route (blkw_export) adds it.
 def blk_export(query: String) -> Map do
   case blk_token_ok(query) do
     false -> blk_json(401, BLK_UNAUTHORIZED)
-    true ->
+    true -> blk_export_as(query_param(query, "format"))
+  end
+end
+
+def blk_export_as(format: String) -> Map do
       all = ["", "[]", "", 0, "", "", "", 100000, 0]
-      case query_param(query, "format") do
+      case format do
         "html" ->
           case DB <- :query(BLK_EXPORT_HTML_SQL, all) do
             {:error, reason} -> blk_no_db(reason)
@@ -356,7 +366,6 @@ def blk_export(query: String) -> Map do
             {:ok, rows} -> blk_json(200, concat("{\"status\":\"ok\",\"blinks\":", blk_rows_json(rows), "}"))
           end
       end
-  end
 end
 
 # BlinkCommentController.index/2, without the post_token: that is a
