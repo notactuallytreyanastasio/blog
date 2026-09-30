@@ -215,4 +215,15 @@ actor DesktopTests do
       assert(contains(html, concat("href=\"", h, "\"")))
     end)
   end
+
+  test "the homepage is Bobbby's Online Museum, with a large share card" do
+    html = dt_page("")
+    assert(contains(html, "<title>Bobbby&#39;s Online Museum</title>") or contains(html, "<title>Bobbby's Online Museum</title>"))
+    assert(contains(html, "content=\"https://bobbby.online/images/og-museum.png?v=1\""))
+    assert(contains(html, "<meta name=\"twitter:card\" content=\"summary_large_image\">"))
+    assert(contains(html, "It is a space to experiment with software and share it socially."))
+    assert(contains(html, "I love you\">"))
+    refute(contains(blog_index_page([]), "og:image"))
+    assert(contains(blog_index_page([]), "<meta name=\"twitter:card\" content=\"summary\">"))
+  end
 end

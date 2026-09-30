@@ -709,6 +709,13 @@ end
 
 HOME_TAGS = concat("<script src=\"/blimp/canvas.js\"></script><script src=\"", desk_script_href("/blimp/home.js", "static/blimp/home.js"), "\"></script>")
 
+# The share card: the scope, as a link preview. priv/static/images, served
+# at /images/; ?v= because Cloudflare and every link unfurler cache it.
+HOME_CARD = %{
+  url: "https://bobbby.online/images/og-museum.png?v=1",
+  alt: "Bobbby's Online Museum: the site's one Blimp process drawn live, its actors as hexagons and its messages as rays"
+}
+
 HOME_FONTS = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
 
 def desk_rail(epoch_s: Int) -> String do
@@ -821,5 +828,5 @@ def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, pr
     splash,
     HOME_TAGS
   ], "")
-  page_layout("Thoughts and Tidbits", site_description(), "website", [HOME_FONTS, "/assets/desktop.css"], body)
+  page_layout_full(SITE_NAME, site_description(), "website", [HOME_FONTS, "/assets/desktop.css"], body, "", HOME_CARD)
 end
