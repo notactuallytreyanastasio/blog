@@ -1,0 +1,45 @@
+# Fill The Sky's layout: where every community's disc goes, and its colour,
+# in each of the three views. The arithmetic is Temper (temper/src/sky);
+# this is the loop around it, which needs a list to grow.
+#
+# It is a function of sky_communities.json alone, and a slow one for an
+# interpreter (the All view is 1.1 million overlap tests: 4s natively), so
+# build.sh runs it once, when the data or the Temper changes, and writes
+# _build/sky_layout.json (static/sky/build_layout.blimp). The page's
+# program fetches that. test/sky_test.blimp holds it to the hook's numbers.
+
+SKY_MODES = ["big", "niche", "all"]
+
+# Largest first. sort_by_keys is stable, as the hook's Array.sort and
+# SkyLive's Enum.sort_by are, so communities of one size keep the file's
+# order -- which decides both where they go and what colour they get.
+def sky_sorted(cs: List) -> List do
+  sort_by_keys(cs, map(cs, fn(c: Map) -> Int do 0 - c.m end))
+end
+
+# The discs of one view, in the order they were placed: %{i, l, m, x, y,
+# r, rgb}, with the label and size the map's tooltips and labels show.
+# `placed` grows as x, y, r triples, first disc first (sky_place reads the
+# first one's radius).
+def sky_layout(sorted: List, mode: String) -> List do
+  shown = filter(sorted, fn(c: Map) -> Bool do sky_in_mode(mode, c.m) end)
+  done = reduce(shown, %{placed: [], discs: [], rank: 0}, fn(acc: Map, c: Map) -> Map do
+    r = sky_disc_radius(c.m)
+    xy = sky_place(acc.placed, r)
+    x = elem(xy, 0)
+    y = elem(xy, 1)
+    disc = %{i: c.i, l: c.l, m: c.m, x: x, y: y, r: r, rgb: sky_rgb(acc.rank)}
+    %{placed: append(append(append(acc.placed, x), y), r), discs: [disc | acc.discs], rank: acc.rank + 1}
+  end)
+  reverse(done.discs)
+end
+
+# What the page fetches: the communities for the list (largest first) and
+# every view's discs.
+def sky_layouts(cs: List) -> Map do
+  sorted = sky_sorted(cs)
+  list = map(sorted, fn(c: Map) -> Map do %{i: c.i, l: c.l, m: c.m} end)
+  reduce(SKY_MODES, %{communities: list}, fn(acc: Map, mode: String) -> Map do
+    put(acc, mode, sky_layout(sorted, mode))
+  end)
+end

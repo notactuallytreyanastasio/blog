@@ -1,0 +1,55 @@
+/* /sky, Fill The Sky: SkyLive's inline styles and its sky_root layout's
+   body, as classes, so the program's view carries a class name per row
+   instead of three hundred bytes of style. Values unchanged. */
+
+html.sky-page, html.sky-page body { height: 100%; }
+html.sky-page body {
+  margin: 0;
+  background: #a8a8a8;
+  background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%);
+  background-size: 2px 2px;
+}
+
+.sky-desktop { padding: 8px; min-height: 100vh; box-sizing: border-box; }
+.sky-window { width: 98vw; max-width: 100%; height: calc(100vh - 16px); display: flex; flex-direction: column; }
+.sky-content { flex: 1; display: flex; padding: 0; overflow: hidden; position: relative; }
+
+.sky-map-wrap { flex: 1; position: relative; min-width: 0; overflow: hidden; }
+.sky-map { width: 100%; height: 100%; background: #222; }
+.sky-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(34, 34, 34, 0.85); }
+.sky-loading.sky-on { display: none; }
+.sky-loading-text { color: #fff; font-size: 14px; font-family: Chicago, Geneva, Helvetica, sans-serif; }
+
+.sky-side { width: 500px; flex-shrink: 0; border-left: 1px solid #000; display: flex; flex-direction: column; background: #fff; }
+
+.sky-profile { padding: 8px; border-bottom: 1px solid #000; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 11px; }
+.sky-profile-head { display: flex; justify-content: space-between; align-items: start; }
+.sky-profile-who { display: flex; gap: 8px; align-items: start; min-width: 0; }
+.sky-avatar { width: 40px; height: 40px; border: 1px solid #000; flex-shrink: 0; }
+.sky-avatar-none { background: #ccc; display: flex; align-items: center; justify-content: center; }
+.sky-profile-names { min-width: 0; }
+.sky-profile-handle { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sky-profile-name { color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sky-close { border: 1px solid #000; background: #fff; cursor: pointer; padding: 0 4px; font-size: 11px; flex-shrink: 0; }
+.sky-profile-bio { margin: 6px 0 0 0; color: #333; line-height: 1.3; max-height: 3.9em; overflow: hidden; }
+.sky-profile-counts { margin-top: 4px; color: #666; display: flex; gap: 12px; }
+.sky-profile-link { display: inline-block; margin-top: 4px; color: #00f; text-decoration: underline; }
+
+.sky-modes-box { padding: 6px 8px; border-bottom: 1px solid #000; }
+.sky-modes { display: flex; border: 1px solid #000; font-size: 11px; }
+.sky-mode { flex: 1; padding: 3px 0; border: none; cursor: pointer; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 11px; background: #fff; color: #000; }
+.sky-mode + .sky-mode { border-left: 1px solid #000; }
+.sky-mode.sky-on { background: #000; color: #fff; }
+
+.sky-filter-box { padding: 4px 8px; border-bottom: 1px solid #ccc; }
+.sky-filter { width: 100%; border: 1px solid #000; padding: 2px 4px; font-size: 11px; font-family: Chicago, Geneva, Helvetica, sans-serif; box-sizing: border-box; }
+
+.sky-list { flex: 1; overflow-y: auto; font-size: 11px; }
+.sky-row { padding: 3px 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-family: Chicago, Geneva, Helvetica, sans-serif; }
+.sky-row.sky-on { background: #000; color: #fff; }
+.sky-row-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sky-row-count { font-size: 10px; color: #999; }
+.sky-row.sky-on .sky-row-count { color: #ccc; }
+
+/* the hook's tooltip */
+.sky-tip { position: absolute; z-index: 10; pointer-events: none; background: #000; color: #fff; padding: 4px 8px; font-size: 11px; font-family: Chicago, Geneva, Helvetica, sans-serif; border: 1px solid #000; box-shadow: 2px 2px 0 #000; display: none; max-width: 240px; }

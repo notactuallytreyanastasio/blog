@@ -88,6 +88,24 @@ with_temper _build/nyc_census.blimp static/nyc_census/census.blimp
 with_temper _build/fh-youtube.blimp static/firehose/youtube.blimp
 with_temper _build/fh-skeets.blimp static/firehose/skeets.blimp
 with_temper _build/fh-compare.blimp static/firehose/compare.blimp
+# Fill The Sky: where every community's disc goes is Temper (temper/src/sky),
+# run here rather than in the browser or at boot because the All view is
+# 1.1 million overlap tests, seconds even natively. It is a function of
+# the communities file and the program, so it runs again only when one of
+# them changes. The page's own program is the sidebar.
+with_temper _build/sky-layout.blimp.new static/sky/layout.blimp static/sky/build_layout.blimp
+cmp -s _build/sky-layout.blimp.new _build/sky-layout.blimp || mv _build/sky-layout.blimp.new _build/sky-layout.blimp
+rm -f _build/sky-layout.blimp.new
+if [ ! -f _build/sky_layout.json ] || [ -n "$(find _build/sky-layout.blimp ../priv/static/data/sky_communities.json -newer _build/sky_layout.json)" ]; then
+  "$BLIMP" _build/sky-layout.blimp || { echo "the sky layout failed" >&2; exit 1; }
+fi
+# The map's points, smaller (static/sky/build_points.blimp says why), gzipped
+# for the browser to unpack: 37.7MB -> 4.8MB.
+if [ ! -f _build/sky_points.json.gz ] || [ -n "$(find static/sky/build_points.blimp ../priv/static/data/sky_points.json -newer _build/sky_points.json.gz)" ]; then
+  "$BLIMP" static/sky/build_points.blimp || { echo "the sky points failed" >&2; exit 1; }
+  gzip -9 -n -f _build/sky_points.json
+fi
+with_temper _build/sky.blimp static/sky/sky.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
