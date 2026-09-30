@@ -1,0 +1,456 @@
+# needs: static/blinks/common.blimp static/blinks/live.blimp static/blinks/paper.blimp
+#
+# Chapter 71: every link's chat room. The server (src/99_blinkschat.blimp)
+# is driven over the socket as a page drives it (bkl_recv_with), against a
+# test Rooms hub and a stand-in for Postgres that keeps the three tables
+# in lists. So these tests check what the actor asks and says, not the
+# SQL; the SQL was checked against Phoenix on two copies of one database
+# (see the PR). Then render_md/2 as Phoenix has it, and the browser
+# program's chat window fed the frames the server sends.
+
+# Three tables in lists. Each SQL the actor sends is answered as Postgres
+# would answer it.
+actor FakeChatDb do
+  state chatters: List :: []
+  state messages: List :: []
+  state votes: List :: []
+  state next: Int :: 0
+  state asked: List :: []
+
+  on :asked do
+    reply asked
+  end
+
+  on :chatters do
+    reply chatters
+  end
+
+  on :messages do
+    reply messages
+  end
+
+  on :query(sql: String, params: List) do
+    become asked: list_append(asked, [sql])
+    case bct_kind(sql) do
+      :by_ip ->
+        reply {:ok, filter(chatters, fn(c: Map) -> Bool do lookup(c, "ip") == head(params) end)}
+      :taken ->
+        n = length(filter(chatters, fn(c: Map) -> Bool do lookup(c, "name") == head(params) and lookup(c, "id") != elem_at(params, 1) end))
+        reply {:ok, [%{n: n}]}
+      :create ->
+        c = %{id: next + 1, name: head(params), ip: elem_at(params, 1), color: elem_at(params, 2)}
+        become chatters: list_append(chatters, [c]), next: next + 1
+        reply {:ok, [c]}
+      :rename ->
+        id = elem_at(params, 1)
+        cs = map(chatters, fn(c: Map) -> Map do
+          case lookup(c, "id") == id do
+            true -> put(c, "name", head(params))
+            false -> c
+          end
+        end)
+        become chatters: cs
+        reply {:ok, filter(cs, fn(c: Map) -> Bool do lookup(c, "id") == id end)}
+      :history ->
+        here = filter(messages, fn(m: Map) -> Bool do lookup(m, "room") == head(params) end)
+        rows = map(here, fn(m: Map) -> Map do
+          c = bct_chatter(chatters, lookup(m, "chatter_id"))
+          %{id: lookup(m, "id"), reply_to_id: lookup(m, "reply_to_id"), content: lookup(m, "content"), at: "03:04 PM",
+            name: lookup(c, "name"), color: lookup(c, "color")}
+        end)
+        reply {:ok, [%{body: json_encode(rows)}]}
+      :votes ->
+        ids = map(filter(messages, fn(m: Map) -> Bool do lookup(m, "room") == head(params) end), fn(m: Map) -> Int do lookup(m, "id") end)
+        counts = reduce(ids, %{}, fn(acc: Map, id: Int) -> Map do
+          vs = filter(votes, fn(v: Map) -> Bool do v.message == id end)
+          case vs do
+            [] -> acc
+            _ -> put(acc, to_string(id), [length(filter(vs, fn(v: Map) -> Bool do v.value > 0 end)), length(filter(vs, fn(v: Map) -> Bool do v.value < 0 end))])
+          end
+        end)
+        mine = reduce(filter(votes, fn(v: Map) -> Bool do v.chatter == elem_at(params, 1) end), %{}, fn(acc: Map, v: Map) -> Map do put(acc, to_string(v.message), v.value) end)
+        reply {:ok, [%{counts: json_encode(counts), mine: json_encode(mine)}]}
+      :reply_to ->
+        got = filter(messages, fn(m: Map) -> Bool do lookup(m, "id") == head(params) and lookup(m, "room") == elem_at(params, 1) end)
+        case got do
+          [] -> reply {:ok, []}
+          [m | _] ->
+            top = case lookup(m, "reply_to_id") do
+              0 -> lookup(m, "id")
+              r -> r
+            end
+            reply {:ok, [%{top: top}]}
+        end
+      :say ->
+        m = %{id: next + 1, content: head(params), room: elem_at(params, 1), chatter_id: elem_at(params, 2), reply_to_id: elem_at(params, 3)}
+        become messages: list_append(messages, [m]), next: next + 1
+        reply {:ok, [%{id: next + 1, reply_to_id: elem_at(params, 3), at: "03:04 PM"}]}
+      :room_of ->
+        reply {:ok, map(filter(messages, fn(m: Map) -> Bool do lookup(m, "id") == head(params) end), fn(m: Map) -> Map do %{room: lookup(m, "room")} end)}
+      :vote ->
+        id = head(params)
+        who = elem_at(params, 1)
+        v = elem_at(params, 2)
+        old = filter(votes, fn(x: Map) -> Bool do x.message == id and x.chatter == who end)
+        rest = filter(votes, fn(x: Map) -> Bool do not(x.message == id and x.chatter == who) end)
+        now = case old do
+          [] -> list_append(rest, [%{message: id, chatter: who, value: v}])
+          [o | _] ->
+            case o.value == v do
+              true -> rest
+              false -> list_append(rest, [%{message: id, chatter: who, value: v}])
+            end
+        end
+        become votes: now
+        reply {:ok, [%{n: 1}]}
+      :counts ->
+        vs = filter(votes, fn(x: Map) -> Bool do x.message == head(params) end)
+        mine = filter(vs, fn(x: Map) -> Bool do x.chatter == elem_at(params, 1) end)
+        m = case mine do
+          [] -> 0
+          [x | _] -> x.value
+        end
+        reply {:ok, [%{up: length(filter(vs, fn(x: Map) -> Bool do x.value > 0 end)), down: length(filter(vs, fn(x: Map) -> Bool do x.value < 0 end)), mine: m}]}
+      _ -> reply {:error, concat("unexpected sql: ", sql)}
+    end
+  end
+end
+
+BCT_KINDS = [{BKC_BY_IP_SQL, :by_ip}, {BKC_TAKEN_SQL, :taken}, {BKC_CREATE_SQL, :create}, {BKC_RENAME_SQL, :rename}, {BKC_HISTORY_SQL, :history}, {BKC_VOTES_SQL, :votes}, {BKC_REPLY_TO_SQL, :reply_to}, {BKC_SAY_SQL, :say}, {BKC_ROOM_OF_SQL, :room_of}, {BKC_VOTE_SQL, :vote}, {BKC_COUNTS_SQL, :counts}]
+
+def bct_kind(sql: String) -> Atom do
+  got = filter(BCT_KINDS, fn(t: Tuple) -> Bool do elem(t, 0) == sql end)
+  case got do
+    [] -> :unknown
+    [t | _] -> elem(t, 1)
+  end
+end
+
+def bct_chatter(cs: List, id: Any) -> Map do
+  got = filter(cs, fn(c: Map) -> Bool do lookup(c, "id") == id end)
+  case got do
+    [] -> %{}
+    [c | _] -> c
+  end
+end
+
+def bct_frames(hub: Any, fd: Int) -> List do
+  hub <- :flush
+  map(hub <- :sent(fd), fn(s: String) -> Map do elem(json_decode(s), 1) end)
+end
+
+def bct_ts(frames: List) -> List do
+  map(frames, fn(f: Map) -> String do lookup(f, "t") end)
+end
+
+def bct_find(frames: List, t: String) -> Any do
+  got = filter(frames, fn(f: Map) -> Bool do lookup(f, "t") == t end)
+  case got do
+    [] -> nil
+    [f | _] -> f
+  end
+end
+
+def bct_last(frames: List, t: String) -> Any do
+  bct_find(reverse(frames), t)
+end
+
+def bct_say(hub: Any, chat: Any, fd: Int, frame: Map) -> Any do
+  bkl_recv_with(hub, chat, fd, json_encode(frame))
+end
+
+# A page with a socket: 70's rooms, then who it is.
+def bct_page(hub: Any, chat: Any, fd: Int, ip: String) -> Any do
+  bkl_join(hub, fd)
+  chat <- :hello(hub, fd, ip)
+end
+
+def bct_setup() -> Tuple do
+  hub = spawn Rooms
+  db = spawn FakeChatDb
+  chat = spawn BlinksChat
+  chat <- :fake(db)
+  {hub, db, chat}
+end
+
+def bct_html(v: Any) -> String do
+  to_html(v)
+end
+
+BCT_PAGE = read_file("test/fixtures/blinks/page_nyc.json")
+
+def bct_paper() -> Any do
+  p = spawn Paper
+  p <- :prefs("{\"hidden\":[],\"seenTour\":true}")
+  p <- :location("tags=nyc")
+  p <- :loaded(200, BCT_PAGE)
+  p <- :socket("open")
+  p
+end
+
+actor BlinksChatTests do
+  test "who a visitor is: Chat.hash_ip, sha256 of the first X-Forwarded-For entry and no secret" do
+    # :crypto.hash(:sha256, "203.0.113.9") |> Base.encode16(case: :lower) |> String.slice(0, 16)
+    assert_eq(bkc_hash_ip("203.0.113.9"), take(sha256("203.0.113.9"), 16))
+    assert_eq(length(bkc_hash_ip("203.0.113.9")), 16)
+    raw = "GET /live/blinks HTTP/1.1\r\nHost: x\r\nX-Forwarded-For:  203.0.113.9 , 10.0.0.1\r\n\r\n"
+    assert_eq(bkc_client_ip(raw), "203.0.113.9")
+    assert_eq(bkc_client_ip("GET /live/blinks HTTP/1.1\r\nHost: x\r\n\r\n"), "unknown")
+    c = bkc_color()
+    assert_eq(starts_with(c, "hsl(") and ends_with(c, ", 70%, 40%)"), true)
+  end
+
+  test "a stranger is signed out; signing on makes a chatter, and the name is who they are in the presence topic" do
+    s = bct_setup()
+    hub = elem(s, 0)
+    db = elem(s, 1)
+    chat = elem(s, 2)
+    assert_eq(bct_page(hub, chat, -1, "203.0.113.9"), nil)
+    f = bct_frames(hub, -1)
+    assert_eq(lookup(bct_find(f, "me"), "chatter"), nil)
+    assert_eq(lookup(bct_find(f, "me"), "returning"), "")
+    # a blank name does nothing, as sign-on's "" -> {:noreply, socket}
+    assert_eq(bct_say(hub, chat, -1, %{t: "sign_on", name: "   "}), :ignored)
+    got = bct_say(hub, chat, -1, %{t: "sign_on", name: "  bob "})
+    assert_eq(got.name, "bob")
+    me = bct_find(bct_frames(hub, -1), "me")
+    assert_eq(lookup(lookup(me, "chatter"), "name"), "bob")
+    assert_eq(lookup(head(db <- :chatters), "ip"), bkc_hash_ip("203.0.113.9"))
+    assert_eq(head(hub <- :list(BKL_PRESENCE)).meta.name, "bob")
+    # a second visitor asking for the same name gets bob2, then bob3
+    bct_page(hub, chat, -2, "198.51.100.7")
+    assert_eq(bct_name(bct_say(hub, chat, -2, %{t: "sign_on", name: "bob"})), "bob2")
+    bct_page(hub, chat, -3, "198.51.100.8")
+    assert_eq(bct_name(bct_say(hub, chat, -3, %{t: "sign_on", name: "bob"})), "bob3")
+    # Chatter.changeset: at most 20 characters, counted as Elixir counts them
+    bct_page(hub, chat, -4, "198.51.100.9")
+    assert_eq(bct_say(hub, chat, -4, %{t: "sign_on", name: "abcdefghijklmnopqrstu"}), :refused)
+    coder = concat(hex_decode("f09fa791"), hex_decode("e2808d"), hex_decode("f09f92bb"))
+    twenty = join(map(range(1, 20), fn(i: Int) -> String do coder end), "")
+    assert_eq(grapheme_length(twenty), 20)
+    assert_eq(bct_name(bct_say(hub, chat, -4, %{t: "sign_on", name: twenty})), twenty)
+  end
+
+  test "a returning IP is signed on already, keeps its name, and can rename or sign off" do
+    s = bct_setup()
+    hub = elem(s, 0)
+    chat = elem(s, 2)
+    bct_page(hub, chat, -1, "203.0.113.9")
+    bct_say(hub, chat, -1, %{t: "sign_on", name: "bob"})
+    # the same IP, another page (another tab, or tomorrow)
+    back = bct_page(hub, chat, -5, "203.0.113.9")
+    assert_eq(back.name, "bob")
+    me = bct_find(bct_frames(hub, -5), "me")
+    assert_eq(lookup(me, "returning"), "bob")
+    assert_eq(lookup(lookup(me, "chatter"), "name"), "bob")
+    # "(not you?)": signed out, the form offers the name it came back with
+    bct_say(hub, chat, -5, %{t: "sign_off"})
+    off = bct_find(bct_frames(hub, -5), "me")
+    assert_eq(lookup(off, "chatter"), nil)
+    assert_eq(lookup(off, "returning"), "bob")
+    # signing on as someone else renames the chatter this IP already has
+    assert_eq(bct_name(bct_say(hub, chat, -5, %{t: "sign_on", name: "robert"})), "robert")
+    assert_eq(length(elem(s, 1) <- :chatters), 1)
+  end
+
+  test "a room: its history on joining, a message to everyone in it, a reply hangs off the top message" do
+    s = bct_setup()
+    hub = elem(s, 0)
+    chat = elem(s, 2)
+    bct_page(hub, chat, -1, "203.0.113.9")
+    bct_page(hub, chat, -2, "198.51.100.7")
+    bct_say(hub, chat, -1, %{t: "sign_on", name: "bob"})
+    bct_frames(hub, -1)
+    bct_frames(hub, -2)
+    # saying something outside a room, or signed out, is refused
+    assert_eq(bct_say(hub, chat, -1, %{t: "say", text: "hi", reply_to: 0}), :refused)
+    assert_eq(bct_say(hub, chat, -1, %{t: "room", room: "blink:7"}), :ok)
+    assert_eq(bct_say(hub, chat, -2, %{t: "room", room: "blink:7"}), :ok)
+    h = bct_find(bct_frames(hub, -2), "chat")
+    assert_eq(lookup(h, "room"), "blink:7")
+    assert_eq(lookup(h, "messages"), [])
+    assert_eq(bct_say(hub, chat, -2, %{t: "say", text: "hi", reply_to: 0}), :refused)
+    m1 = bct_say(hub, chat, -1, %{t: "say", text: "  hello **there** @bob2  ", reply_to: 0})
+    assert_eq(m1.name, "bob")
+    assert_eq(m1.html, "<p>hello <strong>there</strong> <span class=\"mention\">@bob2</span></p>")
+    # both pages in the room get it, as the room's PubSub topic did
+    both = [bct_find(bct_frames(hub, -1), "msg"), bct_find(bct_frames(hub, -2), "msg")]
+    assert_eq(map(both, fn(f: Map) -> Int do lookup(lookup(f, "message"), "id") end), [m1.id, m1.id])
+    r1 = bct_say(hub, chat, -1, %{t: "say", text: "a reply", reply_to: m1.id})
+    assert_eq(r1.reply_to_id, m1.id)
+    # a reply to a reply is a reply to the top message: threads are one deep
+    r2 = bct_say(hub, chat, -1, %{t: "say", text: "deeper", reply_to: r1.id})
+    assert_eq(r2.reply_to_id, m1.id)
+    # blank and too long are not said (Message.changeset: 1..500 after trim)
+    assert_eq(bct_say(hub, chat, -1, %{t: "say", text: " \n ", reply_to: 0}), :ignored)
+    assert_eq(bct_say(hub, chat, -1, %{t: "say", text: join(map(range(1, 501), fn(i: Int) -> String do "é" end), ""), reply_to: 0}), :refused)
+    assert_eq(bct_say(hub, chat, -1, %{t: "say", text: join(map(range(1, 500), fn(i: Int) -> String do "é" end), ""), reply_to: 0}) != :refused, true)
+    # another room does not hear it, and a reply cannot reach across rooms
+    bct_page(hub, chat, -3, "198.51.100.8")
+    bct_say(hub, chat, -3, %{t: "sign_on", name: "eve"})
+    bct_say(hub, chat, -3, %{t: "room", room: "blink:8"})
+    bct_frames(hub, -3)
+    bct_say(hub, chat, -1, %{t: "say", text: "only in 7", reply_to: 0})
+    assert_eq(bct_find(bct_frames(hub, -3), "msg"), nil)
+    across = bct_say(hub, chat, -3, %{t: "say", text: "to 7?", reply_to: m1.id})
+    assert_eq(across.reply_to_id, 0)
+    # a page coming in later is sent the room so far
+    bct_page(hub, chat, -4, "192.0.2.1")
+    bct_say(hub, chat, -4, %{t: "room", room: "blink:7"})
+    later = lookup(bct_find(bct_frames(hub, -4), "chat"), "messages")
+    assert_eq(length(later), 5)
+    assert_eq(lookup(head(later), "name"), "bob")
+    assert_eq(lookup(head(later), "short"), "hello **there** @bob2")
+    # leaving the room (the window closed) stops the messages
+    bct_say(hub, chat, -2, %{t: "room", room: ""})
+    bct_frames(hub, -2)
+    bct_say(hub, chat, -1, %{t: "say", text: "anyone?", reply_to: 0})
+    assert_eq(bct_find(bct_frames(hub, -2), "msg"), nil)
+  end
+
+  test "votes: the same again takes it back, the other switches; counts to the room, your vote to you" do
+    s = bct_setup()
+    hub = elem(s, 0)
+    chat = elem(s, 2)
+    bct_page(hub, chat, -1, "203.0.113.9")
+    bct_page(hub, chat, -2, "198.51.100.7")
+    bct_say(hub, chat, -1, %{t: "sign_on", name: "bob"})
+    bct_say(hub, chat, -2, %{t: "sign_on", name: "amy"})
+    bct_say(hub, chat, -1, %{t: "room", room: "blink:7"})
+    bct_say(hub, chat, -2, %{t: "room", room: "blink:7"})
+    m = bct_say(hub, chat, -1, %{t: "say", text: "vote on me", reply_to: 0})
+    bct_frames(hub, -1)
+    bct_frames(hub, -2)
+    assert_eq(bct_say(hub, chat, -2, %{t: "vote", id: m.id, val: 1}), {1, 0})
+    f2 = bct_frames(hub, -2)
+    assert_eq(lookup(bct_find(f2, "votes"), "up"), 1)
+    assert_eq(lookup(bct_find(f2, "myvote"), "val"), 1)
+    # bob sees the count, not amy's vote
+    f1 = bct_frames(hub, -1)
+    assert_eq(bct_ts(f1), ["votes"])
+    assert_eq(bct_say(hub, chat, -1, %{t: "vote", id: m.id, val: -1}), {1, 1})
+    assert_eq(bct_say(hub, chat, -2, %{t: "vote", id: m.id, val: -1}), {0, 2})
+    assert_eq(bct_say(hub, chat, -2, %{t: "vote", id: m.id, val: -1}), {0, 1})
+    assert_eq(lookup(bct_last(bct_frames(hub, -2), "myvote"), "val"), 0)
+    # history carries the counts, and each page's own votes
+    bct_say(hub, chat, -1, %{t: "room", room: "blink:7"})
+    h = bct_find(bct_frames(hub, -1), "chat")
+    assert_eq(lookup(lookup(h, "votes"), to_string(m.id)), [0, 1])
+    assert_eq(lookup(lookup(h, "mine"), to_string(m.id)), -1)
+    # a vote from outside the message's room, or signed out, is refused
+    bct_say(hub, chat, -2, %{t: "room", room: "blink:8"})
+    assert_eq(bct_say(hub, chat, -2, %{t: "vote", id: m.id, val: 1}), :refused)
+    bct_say(hub, chat, -1, %{t: "sign_off"})
+    assert_eq(bct_say(hub, chat, -1, %{t: "vote", id: m.id, val: 1}), :refused)
+  end
+
+  test "render_md: escaped first, headings demoted, bad schemes gone, links in new tabs, mentions wrapped" do
+    assert_eq(bkc_md("<script>alert(1)</script>"), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>")
+    assert_eq(bkc_md("# big\n## bigger\n### fine"), "<h3>big</h3>\n<h3>bigger</h3>\n<h3>fine</h3>")
+    assert_eq(bkc_md("[x](javascript:alert(1))"), "<p><a target=\"_blank\" rel=\"noopener nofollow\" href=\"#\">x</a></p>")
+    assert_eq(bkc_md("see https://example.com/a"), "<p>see <a target=\"_blank\" rel=\"noopener nofollow\" href=\"https://example.com/a\">https://example.com/a</a></p>")
+    assert_eq(bkc_mentions("@amy and @bob.x, mail a@b.c"), "<span class=\"mention\">@amy</span> and <span class=\"mention\">@bob.x</span>, mail a@b.c")
+    assert_eq(bkc_mentions("<p>@amy</p>"), "<p><span class=\"mention\">@amy</span></p>")
+    assert_eq(bkc_mentions("@@amy @"), "@@amy @")
+    assert_eq(bkc_demote("#tag\n#\tx"), "#tag\n### x")
+  end
+
+  test "the window: sign-on, then the room with threads, votes, mentions of me, and replying" do
+    p = bct_paper()
+    p <- :open_chat(167)
+    v0 = bct_html(p <- :view)
+    assert_eq(contains(v0, "Sign On to chat"), true)
+    p <- :frame("{\"t\":\"me\",\"chatter\":null,\"returning\":\"bob\"}")
+    assert_eq(contains(bct_html(p <- :view), "Welcome back — confirm your name"), true)
+    p <- :sign_on("{\"screen_name\":\" bob \"}")
+    assert_eq(bk_contains(blt_ops_of(p), "ws {\"t\":\"sign_on\",\"name\":\"bob\"}"), true)
+    p <- :frame("{\"t\":\"me\",\"chatter\":{\"id\":1,\"name\":\"bob\",\"color\":\"hsl(1, 70%, 40%)\"},\"returning\":\"bob\"}")
+    p <- :frame(json_encode(%{t: "chat", room: "blink:167", votes: put(%{}, "11", [2, 1]), mine: put(%{}, "11", 1), messages: [
+      %{id: 11, reply_to_id: 0, name: "amy", color: "#123", at: "01:02 PM", html: "<p>hi <span class=\"mention\">@bob</span></p>", short: "hi @bob"},
+      %{id: 12, reply_to_id: 11, name: "bob", color: "#456", at: "01:03 PM", html: "<p>yo</p>", short: "yo"},
+      %{id: 13, reply_to_id: 99, name: "Anonymous", color: "#666", at: "01:04 PM", html: "<p>orphan</p>", short: "orphan"}]}))
+    v = bct_html(p <- :view)
+    assert_eq(contains(v, "win95 sized"), true)
+    assert_eq(contains(v, "chatting as bob — say something real"), true)
+    assert_eq(contains(v, "<span class=\"mention me\">@bob</span>"), true)
+    assert_eq(contains(v, "class=\"on haz\""), true)
+    assert_eq(contains(v, "👍2"), true)
+    assert_eq(contains(v, "👎1"), true)
+    # 12 hangs under 11; 13's parent is not loaded, so it is top-level
+    assert_eq(bct_count(v, "class=\"aim-reply\""), 1)
+    assert_eq(bct_count(v, "class=\"aim-msg\""), 3)
+    # the other room's frames are not this window's
+    p <- :frame("{\"t\":\"msg\",\"room\":\"blink:1\",\"message\":{\"id\":20,\"reply_to_id\":0,\"name\":\"x\",\"color\":\"#000\",\"at\":\"\",\"html\":\"<p>said in another room</p>\",\"short\":\"\"}}")
+    assert_eq(contains(bct_html(p <- :view), "said in another room"), false)
+    p <- :frame("{\"t\":\"msg\",\"room\":\"blink:167\",\"message\":{\"id\":21,\"reply_to_id\":0,\"name\":\"amy\",\"color\":\"#123\",\"at\":\"01:05 PM\",\"html\":\"<p>new one</p>\",\"short\":\"new one\"}}")
+    v2 = bct_html(p <- :view)
+    assert_eq(contains(v2, "new one"), true)
+    # the link's count goes up as BlinksLive's chat_counts does
+    assert_eq(contains(v2, "1 comment"), true)
+    p <- :reply(11)
+    assert_eq(contains(bct_html(p <- :view), "↪ replying to <b>amy</b> “hi @bob”"), true)
+    p <- :chat_typing("thanks")
+    p <- :send_chat("{\"message\":\"thanks\"}")
+    assert_eq(bk_contains(blt_ops_of(p), "ws {\"t\":\"say\",\"text\":\"thanks\",\"reply_to\":11}"), true)
+    v3 = bct_html(p <- :view)
+    assert_eq(contains(v3, "replying to"), false)
+    p <- :vote("11 -1")
+    assert_eq(bk_contains(blt_ops_of(p), "ws {\"t\":\"vote\",\"id\":11,\"val\":-1}"), true)
+    p <- :frame("{\"t\":\"myvote\",\"room\":\"blink:167\",\"id\":11,\"val\":0}")
+    p <- :frame("{\"t\":\"votes\",\"room\":\"blink:167\",\"id\":11,\"up\":1,\"down\":1}")
+    v4 = bct_html(p <- :view)
+    assert_eq(contains(v4, "class=\"on haz\""), false)
+    assert_eq(contains(v4, "👍1"), true)
+    p <- :sign_off
+    assert_eq(bk_contains(blt_ops_of(p), "ws {\"t\":\"sign_off\"}"), true)
+  end
+
+  test "mentions as you type: five names at most, who is here and who has spoken, never lurkers or Anonymous" do
+    buddies = [%{name: "amy", color: "#1", room: "blink:1"}, %{name: "lurker", color: "#888", room: "blink:1"}, %{name: "Ann", color: "#2", room: "blink:1"}]
+    msgs = [%{name: "anonymous2"}, %{name: "Anonymous"}, %{name: "amy"}, %{name: "bob"}]
+    assert_eq(bkx_suggest("hey @a", buddies, msgs), ["amy", "Ann", "anonymous2"])
+    assert_eq(bkx_suggest("hey @", buddies, msgs), ["amy", "Ann", "anonymous2", "bob"])
+    assert_eq(bkx_suggest("hey @a b", buddies, msgs), [])
+    assert_eq(bkx_suggest("no at", buddies, msgs), [])
+    assert_eq(bkx_complete("hey @a", "amy"), "hey @amy ")
+    assert_eq(bkx_mention("", "amy"), "@amy ")
+    assert_eq(bkx_mention("hi  ", "amy"), "hi @amy ")
+  end
+end
+
+def bct_name(c: Any) -> Any do
+  c.name
+end
+
+def bct_count(hay: String, needle: String) -> Int do
+  length(split(hay, needle)) - 1
+end
+
+def blt_ops_of(p: Any) -> List do
+  html = to_html(p <- :view)
+  box = drop(html, index_of(html, "id=\"bkl-outbox\""))
+  parts = bct_rest(split(box, "<i "))
+  map(parts, fn(s: String) -> String do concat(bct_attr(concat(" ", s), "op"), " ", bct_unescape(bct_attr(concat(" ", s), "a"))) end)
+end
+
+def bct_rest(l: List) -> List do
+  case l do
+    [] -> []
+    [_ | r] -> r
+  end
+end
+
+def bct_attr(s: String, name: String) -> String do
+  k = concat(" data-", name, "=\"")
+  at = index_of(s, k)
+  case at < 0 do
+    true -> ""
+    false ->
+      rest = drop(s, at + length(k))
+      take(rest, index_of(rest, "\""))
+  end
+end
+
+def bct_unescape(s: String) -> String do
+  replace(replace(s, "&quot;", "\""), "&amp;", "&")
+end
