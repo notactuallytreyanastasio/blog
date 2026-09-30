@@ -1,0 +1,272 @@
+# needs: static/collage/collage.blimp
+#
+# /collage-maker (src/99_collage.blimp) and its program
+# (static/collage/collage.blimp). No database and no bucket here: what a
+# stored collage looks like was checked end to end against a local Postgres
+# and MinIO (the PR says how). Here: reading a JPEG's size, the captcha, the
+# checks in front of every write, the routes, and what the program asks for.
+
+CT_SECRET = "collage-test-secret-collage-test-secret-01"
+
+def ct_bytes(xs: List) -> String do
+  join(map(xs, fn(i: Int) -> String do from_char_code(i) end), "")
+end
+
+# A JPEG as far as its markers go: SOI, an APP0 of 16, a DQT of 5 (to walk
+# past), then SOFn with height and width, then a scan start.
+def ct_jpeg(sof: Int, w: Int, h: Int) -> String do
+  concat(
+    ct_bytes([255, 216, 255, 224, 0, 16]), "JFIF", ct_bytes([0, 1, 1, 0, 0, 1, 0, 1, 0, 0]),
+    ct_bytes([255, 219, 0, 5, 0, 1, 2]),
+    ct_bytes([255, sof, 0, 17, 8, h / 256, rem(h, 256), w / 256, rem(w, 256), 3, 1, 34, 0, 2, 17, 1, 3, 17, 1]),
+    ct_bytes([255, 218, 0, 12, 3, 1, 0, 2, 17, 3, 17, 0, 63, 0, 1, 2, 3, 255, 217]))
+end
+
+def ct_multipart(boundary: String, fields: List, file: Any) -> String do
+  parts = map(fields, fn(f: Tuple) -> String do
+    concat("--", boundary, "\r\nContent-Disposition: form-data; name=\"", elem(f, 0), "\"\r\n\r\n", elem(f, 1), "\r\n")
+  end)
+  filepart = case file do
+    nil -> ""
+    _ -> concat("--", boundary, "\r\nContent-Disposition: form-data; name=\"collage\"; filename=\"collage.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n", file, "\r\n")
+  end
+  concat(join(parts, ""), filepart, "--", boundary, "--\r\n")
+end
+
+def ct_send(method: String, target: String, headers: List, body: String) -> Any do
+  cl = case body == "" and (method == "GET" or method == "HEAD") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  raw = concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: localhost:4100"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+  web_dispatch(raw, parse_request(raw), collage_routes(), CT_SECRET)
+end
+
+def ct_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def ct_cookie(got: Tuple) -> String do
+  w = elem(got, 0)
+  rest = drop(w, index_of(w, "Set-Cookie: ") + 12)
+  take(rest, index_of(rest, ";"))
+end
+
+def ct_attr(page: String, name: String) -> String do
+  rest = drop(page, index_of(page, concat(name, "=\"")) + length(name) + 2)
+  take(rest, index_of(rest, "\""))
+end
+
+# The page, then a POST with its cookie and token.
+def ct_post(fields: List, file: Any) -> Any do
+  page = ct_send("GET", "/collage-maker", [], "")
+  csrf = ct_attr(ct_body(page), "data-csrf")
+  b = "----ct"
+  ct_send("POST", "/collage-maker/collages",
+    [concat("Cookie: ", ct_cookie(page)), concat("x-csrf-token: ", csrf), concat("Content-Type: multipart/form-data; boundary=", b), "X-Forwarded-For: 203.0.113.9"],
+    ct_multipart(b, fields, file))
+end
+
+# a right answer for a token, by trying them: the token hides it
+def ct_solve(token: String) -> Int do
+  hits = filter(range(0, 225), fn(a: Int) -> Bool do clg_captcha_ok(CT_SECRET, to_string(a), token, now()) end)
+  head(hits)
+end
+
+actor CollageTests do
+  test "a JPEG's size from its SOF marker, past other segments; anything else is nil" do
+    assert_eq(clg_jpeg_size(ct_jpeg(192, 300, 200)), {300, 200})
+    assert_eq(clg_jpeg_size(ct_jpeg(194, 4096, 2048)), {4096, 2048})
+    # DHT (C4) is not a frame header
+    assert_eq(clg_jpeg_size(ct_jpeg(196, 10, 10)), nil)
+    assert_eq(clg_jpeg_size("PNG not a jpeg at all, 00000000"), nil)
+    assert_eq(clg_jpeg_size(""), nil)
+    assert_eq(clg_jpeg_size(take(ct_jpeg(192, 300, 200), 30)), nil)
+  end
+
+  test "the upload is checked against the grid it claims" do
+    ok = clg_check_upload(%{"image_count": "5", "columns": "2", "cell_size": "100"}, %{data: ct_jpeg(192, 200, 300)})
+    assert_eq(ok.width, 200)
+    assert_eq(ok.height, 300)
+    assert_eq(ok.count, 5)
+    wrong = clg_check_upload(%{"image_count": "5", "columns": "2", "cell_size": "100"}, %{data: ct_jpeg(192, 200, 200)})
+    assert_eq(wrong, "the JPEG is 200x200 but 5 squares of 100 in 2 columns make 200x300")
+    assert_eq(clg_check_upload(%{"image_count": "1", "columns": "2", "cell_size": "100"}, %{data: ""}), "image_count must be 2 to 36")
+    assert_eq(clg_check_upload(%{"image_count": "37", "columns": "2", "cell_size": "100"}, %{data: ""}), "image_count must be 2 to 36")
+    assert_eq(clg_check_upload(%{"image_count": "4", "columns": "9", "cell_size": "100"}, %{data: ""}), "columns must be 1 to 8")
+    assert_eq(clg_check_upload(%{"image_count": "4", "columns": "2", "cell_size": "2049"}, %{data: ""}), "cell_size must be 1 to 2048")
+    assert_eq(clg_check_upload(%{"image_count": "4", "columns": "2", "cell_size": "1e2"}, %{data: ""}), "cell_size must be 1 to 2048")
+    assert_eq(clg_check_upload(%{"image_count": "4", "columns": "2", "cell_size": "10"}, nil), "no collage was sent")
+    assert_eq(clg_check_upload(%{"image_count": "4", "columns": "2", "cell_size": "10"}, %{data: "not a jpeg at all"}), "the collage is not a JPEG")
+    # 36 at 2048 in 6 columns is 12288 square: no canvas makes that
+    assert_eq(clg_check_upload(%{"image_count": "36", "columns": "6", "cell_size": "2048"}, %{data: ct_jpeg(192, 12288, 12288)}), "the grid is larger than a canvas may be")
+  end
+
+  test "the captcha: the right answer within five minutes, and nothing else" do
+    c = clg_captcha_new(CT_SECRET, 1000)
+    assert(contains(c.question, " + ") or contains(c.question, " - ") or contains(c.question, " x "))
+    parts = split(c.question, " ")
+    x = to_int(elem_at(parts, 0))
+    y = to_int(elem_at(parts, 2))
+    want = case elem_at(parts, 1) do
+      "+" -> x + y
+      "-" -> x - y
+      _ -> x * y
+    end
+    assert(x >= 2 and x <= 15 and y >= 2 and y <= 15)
+    # the answer is not in the token
+    assert(not(contains(c.token, concat(".", to_string(want), "."))))
+    assert(clg_captcha_ok(CT_SECRET, to_string(want), c.token, 1000))
+    assert(clg_captcha_ok(CT_SECRET, concat(" ", to_string(want), " "), c.token, 1299))
+    assert(not(clg_captcha_ok(CT_SECRET, to_string(want + 1), c.token, 1000)))
+    assert(not(clg_captcha_ok(CT_SECRET, to_string(want), c.token, 1301)))
+    assert(not(clg_captcha_ok("another-secret-another-secret-another-01", to_string(want), c.token, 1000)))
+    assert(not(clg_captcha_ok(CT_SECRET, to_string(want), concat("9999", c.token), 1000)))
+    assert(not(clg_captcha_ok(CT_SECRET, "", c.token, 1000)))
+    assert(not(clg_captcha_ok(CT_SECRET, to_string(want), nil, 1000)))
+  end
+
+  test "the page carries a CSRF token and the program; the POST refuses without it" do
+    page = ct_send("GET", "/collage-maker", [], "")
+    assert_eq(elem(page, 1), 200)
+    html = ct_body(page)
+    assert(contains(html, "data-program=\"/collage-maker/collage.blimp\""))
+    assert(contains(html, "id=\"cm-files\""))
+    assert(contains(html, "/collage-maker/collage.js"))
+    assert(length(ct_attr(html, "data-csrf")) > 20)
+    b = "----ct"
+    bare = ct_send("POST", "/collage-maker/collages", [concat("Content-Type: multipart/form-data; boundary=", b)], ct_multipart(b, [], nil))
+    assert_eq(elem(bare, 1), 403)
+  end
+
+  test "a wrong answer is 422 captcha before anything else is looked at" do
+    got = ct_post([{"answer", "1"}, {"token", "1.x"}], nil)
+    assert_eq(elem(got, 1), 422)
+    assert(contains(ct_body(got), "\"error\":\"captcha\""))
+    assert(contains(ct_body(got), "Wrong answer. Try again."))
+  end
+
+  test "a right answer with a bad collage is 422 collage; a good one without a bucket is 503 storage" do
+    c = clg_captcha_new(CT_SECRET, now())
+    a = to_string(ct_solve(c.token))
+    bad = ct_post([{"answer", a}, {"token", c.token}, {"image_count", "4"}, {"columns", "2"}, {"cell_size", "10"}], ct_jpeg(192, 20, 30))
+    assert_eq(elem(bad, 1), 422)
+    assert(contains(ct_body(bad), "\"error\":\"collage\""))
+    assert(contains(ct_body(bad), "the JPEG is 20x30 but 4 squares of 10 in 2 columns make 20x20"))
+    good = ct_post([{"answer", a}, {"token", c.token}, {"image_count", "4"}, {"columns", "2"}, {"cell_size", "10"}], ct_jpeg(192, 20, 20))
+    assert_eq(elem(good, 1), 503)
+    assert(contains(ct_body(good), "\"error\":\"storage\""))
+  end
+
+  test "the rate limit: five an hour and twenty a day for one visitor" do
+    lim = spawn CollageLimits
+    assert_eq(lim <- :check("v", 100000), nil)
+    map(range(1, 5), fn(i: Int) -> Any do lim <- :record("v", 100000 + i) end)
+    assert_eq(lim <- :check("v", 100010), "Rate limit reached. Try again in an hour.")
+    assert_eq(lim <- :check("w", 100010), nil)
+    assert_eq(lim <- :check("v", 103700), nil)
+    map(range(1, 15), fn(i: Int) -> Any do lim <- :record("v", 90000 + i * 60) end)
+    assert_eq(lim <- :check("v", 103700), "Daily limit reached. Try again tomorrow.")
+    assert_eq(lim <- :check("v", 90000 + 86400 + 15 * 60 + 1), nil)
+  end
+
+  test "the other routes: the captcha JSON, the assets, and no database is 503, not a guess" do
+    q = ct_send("GET", "/collage-maker/captcha.json", [], "")
+    assert_eq(elem(q, 1), 200)
+    assert(contains(ct_body(q), "\"question\""))
+    assert(contains(ct_body(q), "\"token\""))
+    assert_eq(elem(ct_send("GET", "/collage-maker/collage.js", [], ""), 1), 200)
+    assert_eq(elem(ct_send("GET", "/collage-maker/viewer.js", [], ""), 1), 200)
+    assert(contains(ct_body(ct_send("GET", "/collage-maker/collage.blimp", [], "")), "actor CollageMaker"))
+    assert_eq(elem(ct_send("GET", "/collage-maker/status/abcd1234", [], ""), 1), 503)
+    assert_eq(elem(ct_send("GET", "/collage/abcd1234", [], ""), 1), 503)
+    assert_eq(elem(ct_send("GET", "/api/collage-maker/7/download", [], ""), 1), 503)
+    # an id that is not a number has no row, as Repo.get of a bad id raised... here it is the 404
+    nope = ct_send("GET", "/api/collage-maker/x/download", [], "")
+    assert_eq(elem(nope, 1), 404)
+    assert_eq(ct_body(nope), "{\"error\":\"Collage not found\"}")
+  end
+
+  test "requests to the bucket are signed for the endpoint's host" do
+    s3 = %{access: "AK", secret: "SK", bucket: "b", endpoint: "http://localhost:9000", host: clg_host_of("http://localhost:9000"), public: "http://localhost:9000/b"}
+    assert_eq(s3.host, "localhost:9000")
+    assert_eq(clg_host_of("https://fsn1.your-objectstorage.com"), "fsn1.your-objectstorage.com")
+    req = clg_s3_request(s3, "PUT", "collage-maker/1/collage.jpg", sha256("x"), 1, "image/jpeg", 0)
+    assert_eq(elem(req, 0), "http://localhost:9000/b/collage-maker/1/collage.jpg")
+    h = elem(req, 1)
+    assert_eq(lookup(h, "x-amz-acl"), "public-read")
+    assert(contains(lookup(h, "authorization"), "Credential=AK/19700101/fsn1/s3/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-acl;x-amz-content-sha256;x-amz-date, Signature="))
+    del = elem(clg_s3_request(s3, "DELETE", "k", sha256(""), 0, "", 0), 1)
+    assert(contains(lookup(del, "authorization"), "SignedHeaders=host;x-amz-content-sha256;x-amz-date,"))
+  end
+
+  test "the program: files, columns, a shuffle that is a permutation, and a make in the outbox" do
+    m = spawn CollageMaker
+    assert(contains(to_html(m <- :view), "Drop files here or click to browse"))
+    assert(contains(to_html(m <- :view), "for=\"cm-files\""))
+    m <- :files("{\"files\":[{\"name\":\"a.jpg\",\"size\":1250000}],\"rejected\":[\"b.gif: Invalid file type\"]}")
+    one = to_html(m <- :view)
+    assert(contains(one, "a.jpg"))
+    assert(contains(one, "1.3 MB"))
+    assert(contains(one, "b.gif: Invalid file type"))
+    m <- :next_configure
+    assert(contains(to_html(m <- :view), "Upload at least 2 images."))
+    m <- :files("{\"files\":[{\"name\":\"1.jpg\",\"size\":1},{\"name\":\"2.jpg\",\"size\":1},{\"name\":\"3.jpg\",\"size\":1},{\"name\":\"4.jpg\",\"size\":1},{\"name\":\"5.jpg\",\"size\":1}],\"rejected\":[]}")
+    m <- :next_configure
+    conf = to_html(m <- :view)
+    # suggest_columns(5) is 3
+    assert(contains(conf, "3 × 2 grid · last row: 2 images, centered"))
+    m <- :set_columns("2")
+    assert(contains(to_html(m <- :view), "2 × 3 grid · last row: 1 image, centered"))
+    m <- :shuffle
+    m <- :shuffle
+    assert(contains(to_html(m <- :view), "Shuffled 2x✓"))
+    m <- :next_captcha
+    # the question is being fetched (to_html leaves the fetch out): no OK yet
+    asked = to_html(m <- :view)
+    assert(contains(asked, "<strong>…</strong>"))
+    assert(contains(asked, "type=\"submit\" class=\"gm-btn gm-btn-primary\" disabled"))
+    m <- :captcha(200, "{\"question\":\"3 + 4\",\"token\":\"99.ab\"}")
+    assert(contains(to_html(m <- :view), "3 + 4"))
+    m <- :verify_captcha("{\"answer\":\"7\"}")
+    made = to_html(m <- :view)
+    assert(contains(made, "data-op=\"make\""))
+    assert(contains(made, "data-a=\"2\""))
+    # the order is 0..4 in some order
+    at = index_of(made, "data-b=\"")
+    order_text = replace(take(drop(made, at + 8), index_of(drop(made, at + 8), "\"")), "&quot;", "\"")
+    order = elem(json_decode(order_text), 1)
+    assert_eq(sort(order), [0, 1, 2, 3, 4])
+    assert(contains(made, "7"))
+    m <- :progress("Cropping image 2/5...")
+    assert(contains(to_html(m <- :view), "Cropping image 2/5..."))
+    m <- :done(2, 200, "{\"id\":1,\"share_token\":\"abcd1234\",\"share_url\":\"http://x/collage/abcd1234\"}")
+    polling = to_html(m <- :view)
+    assert(contains(polling, "Uploading collage..."))
+    m <- :status(200, "{\"status\":\"ready\",\"url\":\"http://b/k.jpg\",\"width\":200,\"height\":300,\"file_size\":45000,\"share_token\":\"abcd1234\",\"share_url\":\"http://x/collage/abcd1234\"}")
+    done = to_html(m <- :view)
+    assert(contains(done, "200 x 300 pixels (0.0 MB)"))
+    assert(contains(done, "src=\"http://b/k.jpg\""))
+    assert(contains(done, "href=\"/collage/abcd1234\""))
+  end
+
+  test "the program: a wrong answer goes back to the question; a browser failure is shown, not hidden" do
+    m = spawn CollageMaker
+    m <- :files("{\"files\":[{\"name\":\"1.jpg\",\"size\":1},{\"name\":\"2.jpg\",\"size\":1}],\"rejected\":[]}")
+    m <- :next_configure
+    m <- :next_captcha
+    m <- :captcha(200, "{\"question\":\"3 + 4\",\"token\":\"99.ab\"}")
+    m <- :verify_captcha("{\"answer\":\"8\"}")
+    m <- :done(1, 422, "{\"error\":\"captcha\",\"message\":\"Wrong answer. Try again.\"}")
+    again = to_html(m <- :view)
+    assert(contains(again, "Wrong answer. Try again."))
+    assert(contains(again, "<strong>…</strong>"))
+    m <- :captcha(200, "{\"question\":\"2 x 2\",\"token\":\"99.cd\"}")
+    m <- :verify_captcha("{\"answer\":\"4\"}")
+    m <- :done(2, 0, "{\"error\":\"browser\",\"message\":\"Could not read 2.jpg as an image (InvalidStateError)\"}")
+    shown = to_html(m <- :view)
+    assert(contains(shown, "An error occurred:"))
+    assert(contains(shown, "Could not read 2.jpg as an image"))
+  end
+end

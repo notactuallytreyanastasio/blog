@@ -1,0 +1,485 @@
+# /collage-maker's program: CollageMakerLive's four steps and its
+# template, element for element, in the browser. What the LiveView did on
+# the server with the files, static/collage/collage.js does here with a
+# canvas; this program is the steps, the grid settings, the shuffle, the
+# captcha and the result.
+#
+# The files are the page's (#cm-files, outside this view, so a redraw
+# never loses them): collage.js tells this program what is picked with
+# `:files(json)`. What it wants done it draws as hidden <i data-op> nodes
+# in #cm-outbox, numbered, and collage.js does each once:
+#
+#   op       data-a    data-b         data-c           answers
+#   remove   index                                     (a new :files)
+#   make     columns   order (JSON)   {answer, token}  :progress(text) while it
+#                                                      works, then :done(n,
+#                                                      status, body) of the POST
+#
+# While the bucket takes the collage, the program polls
+# /collage-maker/status/:token (a fetch() in the view) once a second.
+
+def cp_concat(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def cp_json(body: String) -> Any do
+  got = json_decode(body)
+  case elem(got, 0) do
+    :ok -> elem(got, 1)
+    _ -> nil
+  end
+end
+
+def cp_get(m: Any, k: String, dflt: Any) -> Any do
+  case type_of(m) do
+    :map ->
+      v = lookup(m, k)
+      case v do
+        nil -> dflt
+        _ -> v
+      end
+    _ -> dflt
+  end
+end
+
+def cp_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+# suggest_columns/1
+def cp_suggest(count: Int) -> Int do
+  case count <= 4 do
+    true -> count
+    false ->
+      case count <= 9 do
+        true -> 3
+        false ->
+          case count <= 16 do
+            true -> 4
+            false ->
+              case count <= 30 do
+                true -> 5
+                false -> 6
+              end
+          end
+      end
+  end
+end
+
+def cp_ceil_div(a: Int, b: Int) -> Int do
+  (a + b - 1) / b
+end
+
+# Enum.shuffle(0..n-1): a Fisher-Yates walk, from the front.
+def cp_shuffle(n: Int) -> List do
+  cp_shuffle_from(range(0, n - 1), [])
+end
+
+def cp_shuffle_from(xs: List, acc: List) -> List do
+  case xs do
+    [] -> acc
+    _ ->
+      i = random(0, length(xs) - 1)
+      picked = cp_at(xs, i)
+      rest = cp_without_at(xs, i)
+      cp_shuffle_from(rest, [picked | acc])
+  end
+end
+
+def cp_without_at(xs: List, i: Int) -> List do
+  case xs do
+    [] -> []
+    [h | rest] ->
+      case i == 0 do
+        true -> rest
+        false -> [h | cp_without_at(rest, i - 1)]
+      end
+  end
+end
+
+def cp_at(xs: List, i: Int) -> Any do
+  case xs do
+    [] -> nil
+    [h | rest] ->
+      case i <= 0 do
+        true -> h
+        false -> cp_at(rest, i - 1)
+      end
+  end
+end
+
+def cp_mb(size: Any) -> String do
+  case type_of(size) == :integer do
+    false -> "?"
+    true ->
+      tenths = (size + 50000) / 100000
+      concat(to_string(tenths / 10), ".", to_string(rem(tenths, 10)))
+  end
+end
+
+def cp_plural(n: Int, word: String) -> String do
+  case n == 1 do
+    true -> word
+    false -> concat(word, "s")
+  end
+end
+
+CP_CHICAGO = "font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px;"
+CP_GENEVA10 = "font-family: Geneva, Helvetica, sans-serif; font-size: 10px;"
+
+def cp_error_view(error: String) -> Any do
+  case error == "" do
+    true -> el("span", %{})
+    false ->
+      el("div", %{style: concat("border: 2px solid #000; padding: 8px 12px; margin-bottom: 10px; background: #fff; display: flex; gap: 8px; align-items: center; ", CP_CHICAGO)},
+        el("span", %{style: "font-size: 20px;"}, "⚠"),
+        el("span", %{}, error))
+  end
+end
+
+def cp_file_row(f: Map, i: Int) -> Any do
+  el("div", %{style: "display: flex; align-items: center; gap: 6px; padding: 2px 4px; font-family: Geneva, Helvetica, sans-serif; font-size: 11px; border-bottom: 1px solid #eee;"},
+    el("span", %{style: "flex-shrink: 0;"}, "🖼"),
+    el("span", %{style: "flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"}, cp_str(cp_get(f, "name", ""))),
+    el("span", %{style: "color: #666; flex-shrink: 0;"}, concat(cp_mb(cp_get(f, "size", 0)), " MB")),
+    el("button", %{type: "button", click: :remove, with: i, style: "border: 1px solid #999; background: #eee; font-size: 10px; padding: 0 4px; cursor: pointer; flex-shrink: 0;"}, "×"))
+end
+
+def cp_upload_view(files: List, rejected: List) -> Any do
+  count = length(files)
+  list = case count > 0 do
+    false -> []
+    true -> [
+      el("div", %{style: "border: 2px inset #c0c0c0; background: #fff; padding: 6px; margin-bottom: 8px; max-height: 200px; overflow-y: auto;"},
+        map(range(0, count - 1), fn(i: Int) -> Any do cp_file_row(cp_at(files, i), i) end)),
+      el("div", %{style: concat(CP_GENEVA10, " color: #333; margin-bottom: 8px;")}, concat(to_string(count), " ", cp_plural(count, "item")))
+    ]
+  end
+  el("div", %{},
+    el("div", %{style: concat(CP_CHICAGO, " margin-bottom: 10px;")}, "Select images to include in your collage."),
+    el("div", %{id: "cm-drop", style: "border: 2px inset #c0c0c0; background: #eee; padding: 20px; text-align: center; margin-bottom: 8px;"},
+      el("label", %{"for": "cm-files", style: "cursor: pointer; display: block;"},
+        el("div", %{style: "font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 24px; margin-bottom: 4px;"}, "📁"),
+        el("div", %{style: "font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; font-weight: bold;"}, "Drop files here or click to browse"),
+        el("div", %{style: "font-family: Geneva, Helvetica, sans-serif; font-size: 10px; color: #666; margin-top: 2px;"}, "JPEG, PNG, WebP · Up to 36 files · 20 MB each"))),
+    map(rejected, fn(r: Any) -> Any do
+      el("div", %{style: concat(CP_GENEVA10, " color: #900; margin-bottom: 2px;")}, cp_str(r))
+    end),
+    list,
+    el("div", %{style: "border-top: 1px solid #999; padding-top: 8px; text-align: right;"},
+      el("button", %{type: "button", class: "gm-btn gm-btn-primary", click: :next_configure, disabled: count < 2}, "Continue")))
+end
+
+def cp_configure_view(count: Int, columns: Int, shuffles: Int) -> Any do
+  rows = cp_ceil_div(count, columns)
+  last_row = count - columns * (rows - 1)
+  last_note = case last_row < columns do
+    true -> concat(" · last row: ", to_string(last_row), " ", cp_plural(last_row, "image"), ", centered")
+    false -> ""
+  end
+  shuffled = case shuffles > 0 do
+    false -> []
+    true ->
+      times = case shuffles > 1 do
+        true -> concat(to_string(shuffles), "x")
+        false -> ""
+      end
+      [el("span", %{style: concat(CP_GENEVA10, " color: #666;")}, concat("Shuffled ", times, "✓"))]
+  end
+  el("div", %{},
+    el("div", %{style: concat(CP_CHICAGO, " margin-bottom: 10px;")}, concat("Choose how to arrange your ", to_string(count), " images.")),
+    el("div", %{style: "border: 1px solid #000; padding: 10px 12px; margin-bottom: 10px; position: relative;"},
+      el("div", %{style: "position: absolute; top: -8px; left: 10px; background: #fff; padding: 0 4px; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 11px; font-weight: bold;"}, "Grid Settings"),
+      el("div", %{style: concat("display: flex; align-items: center; gap: 12px; ", CP_CHICAGO, " margin-top: 4px;")},
+        el("label", %{}, "Columns:"),
+        el("input", %{type: "range", min: "1", max: "8", value: to_string(columns), input: :set_columns, name: "columns", class: "cm-slider"}),
+        el("span", %{style: "font-weight: bold; min-width: 16px; text-align: center;"}, to_string(columns))),
+      el("div", %{style: concat(CP_GENEVA10, " color: #333; margin-top: 6px;")}, concat(to_string(columns), " × ", to_string(rows), " grid", last_note))),
+    el("div", %{style: "border: 2px inset #c0c0c0; background: #eee; padding: 8px; margin-bottom: 10px;"},
+      el("div", %{style: concat(CP_GENEVA10, " color: #666; margin-bottom: 4px;")}, "Preview:"),
+      el("div", %{style: concat("display: grid; grid-template-columns: repeat(", to_string(columns), ", 1fr); gap: 2px; max-width: 320px; margin: 0 auto;")},
+        map(range(1, count), fn(i: Int) -> Any do el("div", %{class: "cm-preview-cell"}, to_string(i)) end))),
+    el("div", %{style: "border-top: 1px solid #999; padding-top: 8px; display: flex; justify-content: space-between;"},
+      el("div", %{style: "display: flex; gap: 6px; align-items: center;"},
+        el("button", %{type: "button", class: "gm-btn", click: :back_to_upload}, "Back"),
+        el("button", %{type: "button", class: "gm-btn", click: :shuffle}, "Shuffle"),
+        shuffled),
+      el("button", %{type: "button", class: "gm-btn gm-btn-primary", click: :next_captcha}, "Continue")))
+end
+
+def cp_captcha_view(question: Any, answer: String, captcha_error: String) -> Any do
+  q = case question do
+    nil -> [fetch("/collage-maker/captcha.json", :captcha), el("strong", %{}, "…")]
+    _ -> [el("strong", %{}, question)]
+  end
+  err = case captcha_error == "" do
+    true -> []
+    false -> [el("div", %{style: concat(CP_GENEVA10, " color: #900; margin-top: 6px;")}, captcha_error)]
+  end
+  el("div", %{style: "padding: 20px 0;"},
+    el("div", %{style: "border: 2px solid #000; box-shadow: 3px 3px 0 #000; background: #fff; max-width: 360px; margin: 0 auto; padding: 16px;"},
+      el("div", %{style: "display: flex; gap: 12px; align-items: flex-start;"},
+        el("div", %{style: "width: 32px; height: 32px; border: 2px solid #000; display: flex; align-items: center; justify-content: center; font-family: Chicago, sans-serif; font-size: 22px; font-weight: bold; flex-shrink: 0;"}, "!"),
+        el("div", %{style: "flex: 1;"},
+          el("div", %{style: concat(CP_CHICAGO, " font-weight: bold; margin-bottom: 8px;")}, "Before we begin, a quick check:"),
+          el("div", %{style: concat(CP_CHICAGO, " margin-bottom: 10px;")}, "What is ", q, "?"),
+          el("form", %{submit: :verify_captcha, style: "display: flex; align-items: center; gap: 6px;"},
+            el("input", %{type: "text", name: "answer", value: answer, input: :update_captcha, class: "gm-input", style: "width: 70px;", autofocus: true, autocomplete: "off"}),
+            el("button", %{type: "submit", class: "gm-btn gm-btn-primary", disabled: question == nil}, "OK"),
+            el("button", %{type: "button", class: "gm-btn", click: :back_to_configure}, "Cancel")),
+          err))))
+end
+
+def cp_processing_view(message: String) -> Any do
+  el("div", %{style: "padding: 24px 12px; text-align: center;"},
+    el("div", %{style: concat(CP_CHICAGO, " margin-bottom: 12px;")}, message),
+    el("div", %{style: "border: 1px solid #000; height: 16px; width: 70%; margin: 0 auto; background: #fff; overflow: hidden;"},
+      el("div", %{style: "height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #000 0px, #000 4px, #fff 4px, #fff 6px); animation: cm-pulse 1.5s ease-in-out infinite;"})),
+    el("div", %{style: concat(CP_GENEVA10, " color: #666; margin-top: 8px;")}, "Please wait…"))
+end
+
+def cp_result_view(result: Any, error: String) -> Any do
+  case result do
+    nil ->
+      shown = case error == "" do
+        true -> "Unknown error"
+        false -> error
+      end
+      el("div", %{style: "padding: 24px 12px; text-align: center;"},
+        el("div", %{style: "border: 2px solid #000; box-shadow: 3px 3px 0 #000; display: inline-block; padding: 16px 24px; background: #fff;"},
+          el("div", %{style: concat(CP_CHICAGO, " margin-bottom: 10px;")}, el("strong", %{}, "An error occurred:"), el("br", %{}), shown),
+          el("button", %{type: "button", class: "gm-btn gm-btn-primary", click: :start_over}, "OK")))
+    _ ->
+      url = cp_str(cp_get(result, "url", ""))
+      w = cp_get(result, "width", 0)
+      h = cp_get(result, "height", 0)
+      el("div", %{},
+        el("div", %{style: concat(CP_CHICAGO, " margin-bottom: 10px;")},
+          el("strong", %{}, "Collage complete."),
+          concat(" ", to_string(w), " x ", to_string(h), " pixels (", cp_mb(cp_get(result, "file_size", 0)), " MB)")),
+        el("div", %{style: "border: 2px inset #c0c0c0; background: #808080; padding: 4px; margin-bottom: 10px;"},
+          el("img", %{src: url, alt: "Collage", style: "width: 100%; height: auto; display: block;"})),
+        el("div", %{style: "display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"},
+          el("a", %{href: url, download: "collage.jpg", target: "_blank", class: "gm-btn gm-btn-primary", style: "text-decoration: none;"}, "Save to Disk"),
+          el("a", %{href: concat("/collage/", cp_str(cp_get(result, "share_token", ""))), target: "_blank", class: "gm-btn", style: "text-decoration: none;"}, "Open Viewer")),
+        el("div", %{style: concat("border: 2px inset #c0c0c0; background: #fff; padding: 6px 8px; margin-bottom: 10px; ", CP_GENEVA10, " color: #333;")},
+          "Share: ", el("span", %{style: "font-family: Monaco, Courier, monospace;"}, cp_str(cp_get(result, "share_url", ""))),
+          el("br", %{}), "This link expires in 24 hours."),
+        el("div", %{style: "border-top: 1px solid #999; padding-top: 8px;"},
+          el("button", %{type: "button", class: "gm-btn", click: :start_over}, "New Collage")))
+  end
+end
+
+def cp_op(n: Int, op: String, a: String, b: String, c: String) -> Map do
+  %{n: n, attrs: %{"data-op": op, "data-n": to_string(n), "data-a": a, "data-b": b, "data-c": c}}
+end
+
+actor CollageMaker do
+  state step: Atom :: :upload
+  state files: List :: []
+  state rejected: List :: []
+  state columns: Int :: 4
+  state order: Any :: nil
+  state shuffles: Int :: 0
+  state question: Any :: nil
+  state token: String :: ""
+  state answer: String :: ""
+  state captcha_error: String :: ""
+  state message: String :: ""
+  state error: String :: ""
+  state result: Any :: nil
+  state watching: String :: ""
+  state polls: Int :: 0
+  state outbox: List :: []
+  state seq: Int :: 1
+
+  # from collage.js: {"files": [{name, size}], "rejected": ["a.gif: Invalid file type"]}
+  on :files(json: String) do
+    got = cp_json(json)
+    fs = cp_get(got, "files", [])
+    # a remove or a clear is answered by this; only a make is still waiting
+    left = filter(outbox, fn(e: Map) -> Bool do lookup(e.attrs, "data-op") == "make" end)
+    become files: fs, rejected: cp_get(got, "rejected", []), order: nil, shuffles: 0, outbox: left
+    reply :ok
+  end
+
+  on :remove(i: Int) do
+    become outbox: cp_concat(outbox, [cp_op(seq, "remove", to_string(i), "", "")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :next_configure do
+    count = length(files)
+    case count < 2 do
+      true -> become error: "Upload at least 2 images."
+      false -> become step: :configure, columns: cp_suggest(count), error: ""
+    end
+    reply :ok
+  end
+
+  on :set_columns(v: String) do
+    n = to_int(v)
+    case n >= 1 and n <= 8 do
+      true -> become columns: n
+      false -> become columns: columns
+    end
+    reply :ok
+  end
+
+  on :shuffle do
+    become order: cp_shuffle(length(files)), shuffles: shuffles + 1
+    reply :ok
+  end
+
+  on :next_captcha do
+    become step: :captcha, question: nil, token: "", answer: "", captcha_error: ""
+    reply :ok
+  end
+
+  on :captcha(status: Int, body: String) do
+    got = cp_json(body)
+    case status == 200 and got != nil do
+      true -> become question: cp_str(cp_get(got, "question", "")), token: cp_str(cp_get(got, "token", ""))
+      false -> become captcha_error: concat("Could not load a question (", to_string(status), ").")
+    end
+    reply :ok
+  end
+
+  on :update_captcha(v: String) do
+    become answer: v
+    reply :ok
+  end
+
+  on :verify_captcha(fields: String) do
+    a = cp_str(cp_get(cp_json(fields), "answer", answer))
+    ord = case order do
+      nil -> range(0, length(files) - 1)
+      _ -> order
+    end
+    op = cp_op(seq, "make", to_string(columns), json_encode(ord), json_encode(%{answer: a, token: token}))
+    become step: :processing, message: "Starting...", error: "", answer: a, outbox: cp_concat(outbox, [op]), seq: seq + 1
+    reply :ok
+  end
+
+  on :progress(text: String) do
+    become message: text
+    reply :ok
+  end
+
+  # the POST's answer
+  on :done(n: Int, status: Int, body: String) do
+    rest = filter(outbox, fn(e: Map) -> Bool do e.n != n end)
+    got = cp_json(body)
+    kind = cp_str(cp_get(got, "error", ""))
+    msg = cp_str(cp_get(got, "message", ""))
+    case status do
+      200 -> become outbox: rest, watching: cp_str(cp_get(got, "share_token", "")), polls: 0, message: "Uploading collage..."
+      422 ->
+        case kind == "captcha" do
+          true -> become outbox: rest, step: :captcha, question: nil, token: "", answer: "", captcha_error: msg
+          false -> become outbox: rest, step: :result, result: nil, error: msg
+        end
+      429 -> become outbox: rest, step: :captcha, captcha_error: msg
+      _ ->
+        shown = case msg == "" do
+          true -> concat("The upload failed (", to_string(status), "): ", take(body, 200))
+          false -> msg
+        end
+        become outbox: rest, step: :result, result: nil, error: shown
+    end
+    reply :ok
+  end
+
+  on :poll do
+    become polls: polls + 1
+    reply :ok
+  end
+
+  on :status(status: Int, body: String) do
+    got = cp_json(body)
+    s = cp_str(cp_get(got, "status", ""))
+    case status == 200 do
+      false -> become step: :result, result: nil, error: cp_str(cp_get(got, "message", concat("status ", to_string(status)))), watching: ""
+      true ->
+        case s do
+          "ready" -> become step: :result, result: got, error: "", watching: ""
+          "failed" -> become step: :result, result: nil, error: cp_str(cp_get(got, "error", "failed")), watching: ""
+          _ -> become watching: watching
+        end
+    end
+    reply :ok
+  end
+
+  on :back_to_upload do
+    become step: :upload, error: ""
+    reply :ok
+  end
+
+  on :back_to_configure do
+    become step: :configure, captcha_error: ""
+    reply :ok
+  end
+
+  on :start_over do
+    become outbox: cp_concat(outbox, [cp_op(seq, "clear", "", "", "")]), seq: seq + 1,
+      step: :upload, files: [], rejected: [], order: nil, shuffles: 0, result: nil, error: "", message: "", watching: ""
+    reply :ok
+  end
+
+  on :view do
+    count = length(files)
+    step_label = case step do
+      :upload -> "Step 1 of 4"
+      :configure -> "Step 2 of 4"
+      :captcha -> "Step 3 of 4"
+      :processing -> "Working..."
+      _ -> "Complete"
+    end
+    status_text = case step do
+      :upload -> concat(to_string(count), " items")
+      :configure -> concat(to_string(columns), " columns")
+      :captcha -> "Verification required"
+      :processing -> message
+      _ -> "Ready"
+    end
+    body = case step do
+      :upload -> cp_upload_view(files, rejected)
+      :configure -> cp_configure_view(count, columns, shuffles)
+      :captcha -> cp_captcha_view(question, answer, captcha_error)
+      :processing -> cp_processing_view(message)
+      _ -> cp_result_view(result, error)
+    end
+    effects = case watching == "" do
+      true -> []
+      false -> [fetch(concat("/collage-maker/status/", watching, "?n=", to_string(polls)), :status), timer(1000, :poll)]
+    end
+    shown_error = case step == :result do
+      true -> ""
+      false -> error
+    end
+    reply el("div", %{class: "flex items-start justify-center min-h-screen p-4 pt-8"},
+      el("div", %{class: "os-window-mac", style: "width: 640px; max-width: 95vw;"},
+        el("div", %{class: "os-titlebar"},
+          el("a", %{href: "/", class: "os-btn-close", title: "Close"}),
+          el("div", %{class: "os-titlebar-title"}, "Collage Maker")),
+        el("div", %{class: "os-content", style: "padding: 0;"},
+          el("div", %{style: concat("border-bottom: 1px solid #000; background: #fff; padding: 2px 8px; display: flex; gap: 16px; ", CP_CHICAGO)},
+            el("span", %{style: "font-weight: bold;"}, "File"),
+            el("span", %{}, "Edit"),
+            el("span", %{style: "color: #999;"}, "View"),
+            el("span", %{style: "margin-left: auto; color: #666;"}, step_label)),
+          el("div", %{style: "padding: 12px; background: #fff;"},
+            cp_error_view(shown_error),
+            body)),
+        el("div", %{class: "os-statusbar"},
+          el("span", %{style: concat(CP_GENEVA10, " color: #333;")}, status_text))),
+      el("div", %{id: "cm-outbox", hidden: true}, map(outbox, fn(e: Map) -> Any do el("i", e.attrs) end)),
+      el("div", %{hidden: true}, effects))
+  end
+end
+
+collage = spawn CollageMaker
+collage <- :view
