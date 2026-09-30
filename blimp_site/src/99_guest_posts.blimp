@@ -22,18 +22,12 @@
 # to GP_POST instead of over a LiveView socket. The CSS for all of it is
 # already in assets/post.css, copied from PostLive's <style>.
 
-GP_DRAFT_SQL = "select coalesce(title, 'Untitled') as title, slug, coalesce(content, '') as content, author_name, to_char(updated_at, 'FMMonth DD, YYYY') as date from drafts where slug = $1 and status = 'published'"
-
-# Blog.Comments.list_comments/1 orders by inserted_at alone; two comments in
-# the same second come back in whatever order Postgres finds them. id
-# breaks the tie here, which is insertion order.
+# The SQL is temper/src/db/side.temper.md's: gp_draft_q, gp_comments_q
+# (list_comments/1 orders by inserted_at alone; id breaks a tie in the
+# second there, which is insertion order; the date is
 # Calendar.strftime(inserted_at, "%b %d, %Y at %I:%M %p") of the naive
-# column, as stored (UTC), with no time zone applied.
-GP_COMMENTS_SQL = "select author_name, content, to_char(inserted_at, 'Mon DD, YYYY \"at\" HH12:MI AM') as at from post_comments where post_slug = $1 order by inserted_at, id"
-
-# Ecto's timestamps(): NaiveDateTime.utc_now/0 truncated to the second,
-# the same value in both columns.
-GP_INSERT_SQL = "insert into post_comments (post_slug, author_name, content, inserted_at, updated_at) values ($1, $2, $3, date_trunc('second', timezone('UTC', now())), date_trunc('second', timezone('UTC', now())))"
+# column, as stored, UTC) and gp_insert_q (Ecto's timestamps(), truncated
+# to the second, the same value in both columns).
 
 # What PostLive's mount sends a slug it does not know: Phoenix.LiveView's
 # dead render of push_navigate, as production answers /post/no-such-slug.
@@ -48,13 +42,15 @@ end
 
 # {:ok, draft, comments} | :none | {:error, reason}
 def gp_load(slug: String) -> Any do
-  case DB <- :query(GP_DRAFT_SQL, [slug]) do
+  dq = gp_draft_q(slug)
+  case DB <- :query(head(dq), tail(dq)) do
     {:error, reason} -> {:error, reason}
     {:ok, rows} ->
       case rows do
         [] -> :none
         [draft | _] ->
-          case DB <- :query(GP_COMMENTS_SQL, [slug]) do
+          cq = gp_comments_q(slug)
+          case DB <- :query(head(cq), tail(cq)) do
             {:error, reason} -> {:error, reason}
             {:ok, comments} -> {:ok, draft, comments}
           end
@@ -107,7 +103,8 @@ def gp_post(conn: Map) -> Map do
           c = web_ensure_csrf(conn)
           put(web_html(c, 422, guest_post_page(draft, comments, c.csrf_token, web_or(name, ""), web_or(content, ""))), :cache, "no-cache")
         true ->
-          case DB <- :query(GP_INSERT_SQL, [slug, name, content]) do
+          q = gp_insert_q(slug, name, content)
+          case DB <- :query(head(q), tail(q)) do
             {:error, reason} ->
               puts(concat("guest post ", slug, ": comment not saved: ", reason))
               web_text(conn, 503, "The comment could not be saved just now.\n")

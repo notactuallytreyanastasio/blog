@@ -274,10 +274,8 @@ end
 
 # The subscriptions, oldest first (Repo.all/1 has no order; the table's
 # is insertion order in practice).
-BKP_SUBS_SQL = "select id, endpoint, p256dh, auth, to_json(followed_tags)::text as tags from web_push_subscriptions order by id"
-BKP_TOUCH_SQL = "update web_push_subscriptions set last_ok_at = date_trunc('second', now() at time zone 'UTC') where id = $1::bigint"
-BKP_DELETE_SQL = "delete from web_push_subscriptions where endpoint = $1::text"
-BKP_GET_SQL = "select id, endpoint, p256dh, auth from web_push_subscriptions where endpoint = $1::text"
+# The SQL is temper/src/db/side.temper.md's.
+BKP_SUBS_Q = bkp_subs_q()
 
 # One job per subscription that wants this blink.
 def bkp_jobs(rows: List, tags: List, payload: String) -> List do
@@ -314,7 +312,7 @@ end
 
 # What the actor does to the world, so a test can stand in for it:
 # start(url, headers, body) -> handle, poll(handle) -> nil | result,
-# query(sql, params) -> {:ok, rows} | {:error, reason}.
+# query(sql, params) -> {:ok, rows} | {:error, reason}. `q` is [sql, params...].
 def bkp_start(io: Any, url: String, headers: Map, body: String) -> Int do
   case io do
     nil -> http_start("POST", url, headers, body)
@@ -333,12 +331,12 @@ def bkp_poll(io: Any, h: Int) -> Any do
   end
 end
 
-def bkp_query(io: Any, sql: String, params: List) -> Any do
+def bkp_query(io: Any, q: List) -> Any do
   case io do
-    nil -> DB <- :query(sql, params)
+    nil -> DB <- :query(head(q), tail(q))
     _ ->
       f = io.query
-      f(sql, params)
+      f(head(q), tail(q))
   end
 end
 
@@ -368,14 +366,14 @@ def bkp_settle(io: Any, job: Map, r: Any) -> Any do
     :ok ->
       # test_web does not touch last_ok_at; Notifier does
       case job.kind do
-        :blink -> bkp_query(io, BKP_TOUCH_SQL, [job.id])
+        :blink -> bkp_query(io, bkp_touch_q(job.id))
         _ -> :ok
       end
     :expired ->
       # Phoenix deletes without a word; one line here says who said so
       said = replace(slice(elem(r, 2), 0, min(length(elem(r, 2)), 200)), "\n", " ")
       puts(concat("web push: ", bkp_audience(job.endpoint), " answered ", to_string(elem(r, 1)), " (", said, "); subscription deleted"))
-      bkp_query(io, BKP_DELETE_SQL, [job.endpoint])
+      bkp_query(io, bkp_delete_q(job.endpoint))
     _ -> puts(concat("web push failed: ", elem(v, 1)))
   end
   v
@@ -414,7 +412,7 @@ actor Pusher do
       true -> reply 0
       false ->
         remembered = bkp_remember(seen, blink.id)
-        case bkp_query(io, BKP_SUBS_SQL, []) do
+        case bkp_query(io, BKP_SUBS_Q) do
           {:error, reason} ->
             puts(concat("web push: cannot read the subscriptions: ", reason))
             become seen: remembered, last_error: reason
@@ -574,8 +572,9 @@ def bkp_subscribe(conn: Map) -> Map do
       case ok do
         false -> bkp_json(conn, 422, BKP_UNPROCESSABLE)
         true ->
-          params = [elem(endpoint, 1), elem(p256dh, 1), elem(auth, 1), tags, ua]
-          case DB <- :query(bkp_upsert_sql(), params) do
+          # the tags as the pg client would send the list: JSON
+          q = bkp_upsert_q(elem(endpoint, 1), elem(p256dh, 1), elem(auth, 1), json_encode(tags), ua)
+          case DB <- :query(head(q), tail(q)) do
             {:error, reason} -> blkw_no_db(conn, reason)
             {:ok, _} -> bkp_json(conn, 200, BKP_OK)
           end
@@ -598,19 +597,6 @@ def bkp_valid(cast: Any, prefix: String, min: Int, max: Int) -> Bool do
   end
 end
 
-# (a function: src/99_blinkswrite.blimp, whose BLKW_NOW this uses, comes
-# after this file)
-def bkp_upsert_sql() -> String do
-  join([
-  "insert into web_push_subscriptions (endpoint, p256dh, auth, followed_tags, user_agent, inserted_at, updated_at)",
-  " select $1::text, $2::text, $3::text,",
-  " array(select q.n from unnest(", blkw_norm_tags(blkw_text_array("$4")), ") with ordinality q(n, o) order by q.o limit 100),",
-  " left($5::text, 255), ", BLKW_NOW, ", ", BLKW_NOW,
-  " on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth,",
-  " followed_tags = excluded.followed_tags, user_agent = excluded.user_agent, updated_at = excluded.updated_at"
-  ], "")
-end
-
 # unsubscribe_web/2: ?endpoint= (or in the body). Always "ok", whether or
 # not there was such a subscription.
 def bkp_unsubscribe(conn: Map) -> Map do
@@ -618,7 +604,8 @@ def bkp_unsubscribe(conn: Map) -> Map do
   case type_of(endpoint) == :string do
     false -> bkp_json(conn, 400, "{\"error\":\"endpoint required\"}")
     true ->
-      case DB <- :query(BKP_DELETE_SQL, [endpoint]) do
+      q = bkp_delete_q(endpoint)
+      case DB <- :query(head(q), tail(q)) do
         {:error, reason} -> blkw_no_db(conn, reason)
         {:ok, _} -> bkp_json(conn, 200, BKP_OK)
       end
@@ -632,7 +619,8 @@ def bkp_test(conn: Map) -> Map do
   case type_of(endpoint) == :string do
     false -> bkp_json(conn, 400, "{\"error\":\"endpoint required\"}")
     true ->
-      case DB <- :query(BKP_GET_SQL, [endpoint]) do
+      q = bkp_get_q(endpoint)
+      case DB <- :query(head(q), tail(q)) do
         {:error, reason} -> blkw_no_db(conn, reason)
         {:ok, rows} ->
           case rows do

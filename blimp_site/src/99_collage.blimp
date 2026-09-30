@@ -408,10 +408,11 @@ end
 
 COLLAGE_STORE = spawn CollageStore
 
-CLG_NOW = "date_trunc('second', timezone('UTC', now()))"
-
+# The SQL is temper/src/db/side.temper.md's.
+CLG_EXPIRE_Q = clg_expire_q()
 def clg_mark_ready(id: Int, key: String, size: Int) -> Any do
-  got = DB <- :query(concat("UPDATE collage_maker_collages SET status = 'ready', collage_s3_key = $2, collage_file_size = $3::integer, updated_at = ", CLG_NOW, " WHERE id = $1::bigint"), [id, key, size])
+  q = clg_ready_q(id, key, size)
+  got = DB <- :query(head(q), tail(q))
   case got do
     {:ok, _} -> puts(concat("collage ", to_string(id), ": ready (", to_string(size), " bytes)"))
     {:error, reason} -> puts(concat("collage ", to_string(id), ": stored but the row did not update: ", to_string(reason)))
@@ -420,7 +421,8 @@ end
 
 def clg_mark_failed(id: Int, reason: String) -> Any do
   puts(concat("collage ", to_string(id), " failed: ", reason))
-  DB <- :query(concat("UPDATE collage_maker_collages SET status = 'failed', error_message = $2, updated_at = ", CLG_NOW, " WHERE id = $1::bigint"), [id, reason])
+  q = clg_failed_q(id, reason)
+  DB <- :query(head(q), tail(q))
 end
 
 # cleanup_expired/0: every expired collage's objects (its own, and the
@@ -428,12 +430,7 @@ end
 # go with it (on_delete: :delete_all). The rows go now and the objects a
 # tick at a time after; an object whose delete fails is logged and left.
 def clg_expire() -> List do
-  got = DB <- :query(join([
-    "WITH gone AS (DELETE FROM collage_maker_collages WHERE expires_at < ", CLG_NOW, " RETURNING id, collage_s3_key) ",
-    "SELECT collage_s3_key AS key FROM gone WHERE collage_s3_key IS NOT NULL ",
-    "UNION ALL SELECT i.original_s3_key FROM collage_maker_images i JOIN gone g ON i.collage_id = g.id WHERE i.original_s3_key IS NOT NULL ",
-    "UNION ALL SELECT i.cropped_s3_key FROM collage_maker_images i JOIN gone g ON i.collage_id = g.id WHERE i.cropped_s3_key IS NOT NULL"
-  ], ""), [])
+  got = DB <- :query(head(CLG_EXPIRE_Q), tail(CLG_EXPIRE_Q))
   case got do
     {:ok, rows} ->
       case rows do
@@ -500,11 +497,8 @@ end
 
 def clg_insert(conn: Map, c: Map, who: String, now_s: Int) -> Map do
   token = hex_encode(random_bytes(4))
-  got = DB <- :query(join([
-    "INSERT INTO collage_maker_collages (status, columns, cell_size, image_count, collage_width, collage_height, ",
-    "ip_hash, share_token, expires_at, inserted_at, updated_at) VALUES ('processing', $1::integer, $2::integer, $3::integer, ",
-    "$4::integer, $5::integer, $6, $7, ", CLG_NOW, " + interval '24 hours', ", CLG_NOW, ", ", CLG_NOW, ") RETURNING id"
-  ], ""), [c.columns, c.cell, c.count, c.width, c.height, who, token])
+  q = clg_insert_q(c.columns, c.cell, c.count, c.width, c.height, who, token)
+  got = DB <- :query(head(q), tail(q))
   case got do
     {:error, reason} ->
       puts(concat("collage: insert failed: ", to_string(reason)))
@@ -524,7 +518,8 @@ def clg_insert(conn: Map, c: Map, who: String, now_s: Int) -> Map do
 end
 
 def clg_row(token: String) -> Any do
-  got = DB <- :query("SELECT id, status, columns, cell_size, image_count, collage_s3_key, collage_width, collage_height, collage_file_size, error_message, share_token FROM collage_maker_collages WHERE share_token = $1", [token])
+  q = clg_row_q(token)
+  got = DB <- :query(head(q), tail(q))
   case got do
     {:ok, rows} ->
       case rows do
@@ -559,7 +554,9 @@ def clg_download(conn: Map) -> Map do
   id = clg_int(web_param(conn, "collage_id"))
   got = case id < 0 do
     true -> {:ok, []}
-    false -> DB <- :query("SELECT status, collage_s3_key FROM collage_maker_collages WHERE id = $1::bigint", [id])
+    false ->
+      q = clg_download_q(id)
+      DB <- :query(head(q), tail(q))
   end
   case got do
     {:error, _} -> clg_error(conn, 503, "database", "The database did not answer.")

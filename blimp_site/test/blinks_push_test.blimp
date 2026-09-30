@@ -112,7 +112,7 @@ actor FakeIo do
 
   on :query(sql: String, params: List) do
     become queries: list_append(queries, [[sql, params]])
-    case sql == BKP_SUBS_SQL do
+    case sql == head(BKP_SUBS_Q) do
       true -> reply {:ok, subs}
       false -> reply {:ok, []}
     end
@@ -123,7 +123,7 @@ actor FakeIo do
   end
 
   on :queries do
-    reply filter(queries, fn(q: List) -> Bool do head(q) != BKP_SUBS_SQL end)
+    reply filter(queries, fn(q: List) -> Bool do head(q) != head(BKP_SUBS_Q) end)
   end
 end
 
@@ -313,8 +313,10 @@ actor BlinksPushTests do
     p <- :step(1002)
     s = p <- :stats
     assert_eq([s.sent, s.delivered, s.queued, s.flying], [5, 5, 0, 0])
-    # every 2xx from a new-blink push touches last_ok_at, by id
-    assert_eq(map(fake <- :queries, fn(q: List) -> Any do last(q) end), [[1], [3], [4], [5], [6]])
+    # every 2xx from a new-blink push touches last_ok_at, by id (as text,
+    # the form the pg client sends an Int in anyway)
+    assert_eq(map(fake <- :queries, fn(q: List) -> Any do last(q) end), [["1"], ["3"], ["4"], ["5"], ["6"]])
+    assert_eq(head(head(fake <- :queries)), head(bkp_touch_q(1)))
     body = head(fake <- :started).body
     assert_eq(bpt_decrypt(body, base64url_decode(BPT_UA_PRIVATE), base64url_decode(BPT_AUTH)),
       concat("{\"blink_id\":9,\"body\":\"t\",\"title\":\"new blink\",\"url\":\"https://x.y\"}", hex_decode("02")))
@@ -329,7 +331,10 @@ actor BlinksPushTests do
     p <- :step(1)
     s = p <- :stats
     assert_eq([s.delivered, s.expired, s.failed], [0, 2, 2])
-    assert_eq(fake <- :queries, [[BKP_DELETE_SQL, ["https://p/gone"]], [BKP_DELETE_SQL, ["https://p/missing"]]])
+    gone = bkp_delete_q("https://p/gone")
+    missing = bkp_delete_q("https://p/missing")
+    assert_eq(fake <- :queries, [[head(gone), tail(gone)], [head(missing), tail(missing)]])
+    assert_eq(tail(gone), ["https://p/gone"])
     assert_eq(bkp_verdict({:ok, 429, "x"}), {:failed, "{:http, 429, \"x\"}"})
     assert_eq(bkp_verdict({:ok, 202, ""}), :ok)
     assert_eq(bkp_verdict({:ok, 203, ""}), {:failed, "{:http, 203, \"\"}"})

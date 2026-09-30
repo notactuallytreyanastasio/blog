@@ -125,10 +125,14 @@ actor PushDevicesTests do
   end
 
   test "the upsert keeps Phoenix's order: tags trimmed, lower-cased, unique, the first 100" do
-    sql = psd_upsert_sql()
+    q = psd_upsert_q("tok", "prod", "[\" A \",\"b\"]")
+    sql = head(q)
+    assert_eq(tail(q), ["tok", "prod", "[\" A \",\"b\"]"])
     assert(contains(sql, "on conflict (token) do update set env = excluded.env"))
     assert(contains(sql, "limit 100"))
-    assert(contains(sql, "lower(btrim("))
+    # String.trim/1's 25 characters, as src/99_blinkswrite.blimp builds them
+    assert(contains(sql, concat("lower(btrim(u.t, ", BLKW_WS_SQL, "))")))
+    assert(contains(sql, "jsonb_array_elements_text($3::jsonb)"))
     assert(not(contains(sql, "inserted_at = excluded")))
   end
 end
