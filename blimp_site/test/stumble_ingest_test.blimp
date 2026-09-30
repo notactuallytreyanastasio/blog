@@ -1,0 +1,211 @@
+# /stumble's ingester (src/99_stumble_ingest.blimp) and what it decides
+# (temper/src/stumble/ingest.temper.md), against Phoenix's own answers.
+# Nothing here opens a socket or a database.
+#
+# The fixtures are real:
+#   turbostream.ndjson       100 frames of Graze's turbostream, recorded
+#                            2026-09-30 06:41-06:46 UTC: every frame of that
+#                            recording that became a row (53, one of them a
+#                            url already stored a minute earlier), 30 that
+#                            got past the filter and did not qualify, 17
+#                            the filter kept from being decoded.
+#   turbostream_rows.ndjson  pa_links after Phoenix ingested those frames:
+#                            Firehose.handle_frame/2 on each one, into the
+#                            running Extractor and Links.store_link/1, into
+#                            an empty copy of the table (mix run, at
+#                            STI_T_NOW). Over the whole five minutes, 9,554
+#                            frames, the two tables were identical, ids too.
+#   elixir_cases.ndjson      641 urls, dates and texts with what Elixir made
+#                            of them: Link.hash_url/1, extract_domain/1 and
+#                            the extractor's banned-domain test; Ecto's
+#                            :utc_datetime_usec of DateTime.from_iso8601/1;
+#                            post_qualifies?/1, String.trim/1 == "" and
+#                            String.downcase/1. Real ones, fuzzed urls, and
+#                            some made to hurt. The full run (39,738 cases)
+#                            differed only on years before 1.
+
+STI_T_NOW = 1790751729547
+
+def sti_t_lines(name: String) -> List do
+  filter(split(read_file(concat("test/fixtures/stumble/", name)), "\n"), fn(l: String) -> Bool do l != "" end)
+end
+
+def sti_t_json(l: String) -> Any do
+  elem(json_decode(l), 1)
+end
+
+STI_T_FRAMES = sti_t_lines("turbostream.ndjson")
+STI_T_ROWS = map(sti_t_lines("turbostream_rows.ndjson"), fn(l: String) -> Any do sti_t_json(l) end)
+STI_T_CASES = map(sti_t_lines("elixir_cases.ndjson"), fn(l: String) -> Any do sti_t_json(l) end)
+STI_T_KEYS = [:url, :url_hash, :post_uri, :post_text, :post_created_at, :author_did, :author_handle, :author_display_name, :author_followers_count, :score, :domain, :langs]
+
+def sti_t_kind(k: String) -> List do
+  filter(STI_T_CASES, fn(c: List) -> Bool do head(c) == k end)
+end
+
+# The rows, less a second one with a url_hash already seen: what
+# ON CONFLICT DO NOTHING keeps.
+def sti_t_first_of_each(rows: List) -> List do
+  reverse(elem(reduce(rows, {[], %{}}, fn(acc: Tuple, r: Map) -> Tuple do
+    case lookup(elem(acc, 1), r.url_hash) do
+      nil -> {[r | elem(acc, 0)], put(elem(acc, 1), r.url_hash, true)}
+      _ -> acc
+    end
+  end), 0))
+end
+
+def sti_t_frame(record: Map, user: Map) -> String do
+  json_encode(%{at_uri: "at://did:plc:t/app.bsky.feed.post/1", message: %{commit: %{operation: "create", record: record}}, hydrated_metadata: %{user: user}})
+end
+
+STI_T_TEXT = "A post that is long enough to qualify, about a link that is worth a read today."
+STI_T_USER = %{did: "did:plc:t", handle: "t.bsky.social", display_name: "T", description: "a bio", followers_count: 900, follows_count: 300, indexed_at: "2020-01-01T00:00:00Z"}
+
+def sti_t_record(uri: String) -> Map do
+  put(put(put(%{text: STI_T_TEXT, createdAt: "2026-09-30T06:00:00Z"}, :langs, ["en"]), :embed, put(%{external: %{uri: uri}}, STI_TYPE, "app.bsky.embed.external")), :facets, nil)
+end
+
+actor StumbleIngestTests do
+  test "the rows are Phoenix's, field for field and in order" do
+    got = sti_frames(STI_T_FRAMES, STI_T_NOW)
+    rows = sti_t_first_of_each(elem(got, 0))
+    assert_eq(length(elem(got, 0)), 53)
+    assert_eq(length(rows), length(STI_T_ROWS))
+    each(zip(rows, STI_T_ROWS), fn(pair: Any) do
+      mine = elem(pair, 0)
+      theirs = elem(pair, 1)
+      each(STI_T_KEYS, fn(k: Atom) do
+        assert_eq([k, lookup(mine, k)], [k, lookup(theirs, k)])
+      end)
+    end)
+  end
+
+  test "a url seen before in the same batch is left to ON CONFLICT" do
+    got = elem(sti_frames(STI_T_FRAMES, STI_T_NOW), 0)
+    dups = filter(got, fn(r: Map) -> Bool do r.url == "https://www.weather.gov/GRR/" end)
+    assert_eq(length(dups), 2)
+    assert_eq(head(dups).url_hash, head(tail(dups)).url_hash)
+  end
+
+  test "the filter decodes no frame that cannot qualify, and skips none that does" do
+    counts = elem(sti_frames(STI_T_FRAMES, STI_T_NOW), 1)
+    assert_eq(counts.filtered, 17)
+    assert_eq(counts.row, 53)
+    kept = filter(STI_T_FRAMES, fn(f: String) -> Bool do sti_may_qualify(f) end)
+    assert_eq(length(kept), 83)
+  end
+
+  test "urls hash, lose their www and are banned as Link and the extractor did" do
+    urls = sti_t_kind("url")
+    assert(length(urls) > 400)
+    each(urls, fn(c: List) do
+      url = head(tail(c))
+      ok = st_link_ok(url)
+      case ok do
+        false -> assert_eq([url, false], [url, head(tail(tail(c)))])
+        true ->
+          assert_eq([url, true, slice(sha256(st_url_normal(url)), 0, 32), st_url_domain(url), st_url_banned(url)], tail(c))
+      end
+    end)
+  end
+
+  test "dates are what Ecto stored from DateTime.from_iso8601" do
+    dates = sti_t_kind("date")
+    assert(length(dates) >= 70)
+    each(dates, fn(c: List) do
+      assert_eq([head(tail(c)), st_utc(head(tail(c)))], tail(c))
+    end)
+  end
+
+  test "texts qualify, are blank and lower-case as Elixir says" do
+    texts = sti_t_kind("text")
+    assert(length(texts) >= 100)
+    each(texts, fn(c: List) do
+      t = head(tail(c))
+      assert_eq([t, st_text_ok(t), st_blank(t), st_lower(t)], tail(c))
+    end)
+  end
+
+  test "the account age is 365 days of microseconds since indexed_at" do
+    day = 86400000
+    assert(st_age_ok("2025-09-30T00:00:00Z", 1759190400000 + 365 * day))
+    assert(not(st_age_ok("2025-09-30T00:00:00Z", 1759190400000 + 365 * day - 1)))
+    assert(not(st_age_ok("2025-09-30T00:00:00", 1759190400000 + 900 * day)))
+    assert(not(st_age_ok("", 1759190400000)))
+  end
+
+  test "the score is 15 log10 followers plus a capped ratio bonus" do
+    assert_eq(st_score(500, 5000), 41)
+    assert_eq(st_score(1000, 1), 65)
+    assert_eq(st_score(1000000, 0), 100)
+    assert_eq(st_score(0, 0), 0)
+  end
+
+  test "one link, English, a known author with a bio: a row; each failing part: none" do
+    good = sti_t_frame(sti_t_record("https://example.com/a"), STI_T_USER)
+    assert_eq(elem(sti_frame(good, STI_T_NOW), 0), :row)
+    row = elem(sti_frame(good, STI_T_NOW), 1)
+    assert_eq(row.domain, "example.com")
+    assert_eq(row.post_created_at, "2026-09-30 06:00:00.000000")
+    assert_eq(row.score, 59)
+    few = sti_t_frame(sti_t_record("https://example.com/a"), put(STI_T_USER, :followers_count, 499))
+    assert_eq(elem(sti_frame(few, STI_T_NOW), 1), :unqualified)
+    no_bio = sti_t_frame(sti_t_record("https://example.com/a"), put(STI_T_USER, :description, " \n"))
+    assert_eq(elem(sti_frame(no_bio, STI_T_NOW), 1), :unqualified)
+    banned = sti_t_frame(sti_t_record("https://sub.bit.ly/a"), STI_T_USER)
+    assert_eq(elem(sti_frame(banned, STI_T_NOW), 1), :banned)
+    fr = sti_t_frame(put(sti_t_record("https://example.com/a"), :langs, ["fr"]), STI_T_USER)
+    assert_eq(elem(sti_frame(fr, STI_T_NOW), 1), :filtered)
+  end
+
+  test "what Postgres or Ecto would refuse is not a row" do
+    long = sti_t_frame(sti_t_record("https://example.com/a"), put(STI_T_USER, :handle, join(map(range(1, 256), fn(i: Int) -> String do "h" end), "")))
+    assert_eq(elem(sti_frame(long, STI_T_NOW), 1), :refused)
+    nul = sti_t_frame(sti_t_record("https://example.com/a"), put(STI_T_USER, :display_name, concat("a", STI_NUL, "b")))
+    assert_eq(elem(sti_frame(nul, STI_T_NOW), 1), :refused)
+    odd = sti_t_frame(sti_t_record("https://example.com/a"), put(STI_T_USER, :handle, 7))
+    assert_eq(elem(sti_frame(odd, STI_T_NOW), 1), :uncastable)
+    blank = sti_t_frame(sti_t_record("https://example.com/a"), put(STI_T_USER, :display_name, "  "))
+    assert_eq(elem(sti_frame(blank, STI_T_NOW), 1).author_display_name, nil)
+  end
+
+  test "one INSERT for a batch, twelve parameters a row, conflicts skipped" do
+    rows = elem(sti_frames(STI_T_FRAMES, STI_T_NOW), 0)
+    sql = sti_insert_sql(3)
+    assert(contains(sql, "$36::json"))
+    assert(not(contains(sql, "$37")))
+    assert(contains(sql, "on conflict do nothing returning id"))
+    assert_eq(length(sti_params([head(rows), head(rows), head(rows)])), 36)
+  end
+
+  test "with no database the rows wait rather than go" do
+    rows = elem(sti_frames(STI_T_FRAMES, STI_T_NOW), 0)
+    got = sti_insert(rows)
+    assert_eq(elem(got, 0), 0)
+    assert_eq(length(elem(got, 1)), length(rows))
+  end
+
+  test "ingestion is off unless STUMBLE_INGEST says 1, true or on" do
+    assert(not(sti_env_on(nil)))
+    assert(not(sti_env_on("")))
+    assert(not(sti_env_on("0")))
+    assert(sti_env_on("1"))
+    st = STI <- :stats
+    assert_eq(st.enabled, false)
+    assert_eq(STI <- :tick(now_ms()), 0)
+    assert_eq((STI_HOSE <- :stats).want, false)
+    assert_eq((STI_HOSE <- :stats).open, false)
+  end
+
+  test "a turbostream frame's time_us is read through its space" do
+    f = head(STI_T_FRAMES)
+    assert_eq(fh_time_us(f), lookup(sti_t_json(f), :time_us))
+    assert_eq(fh_time_us("{\"time_us\": x}"), 0)
+    assert_eq(fh_time_us("{\"time_us\":17}"), 17)
+  end
+
+  test "the turbostream url, which has no query, takes no cursor" do
+    assert_eq(fh_resume_url(STI_URL, 17, 1000, 1000), STI_URL)
+    assert_eq(fh_resume_url("wss://r/s?a=b", 17, 1000, 1000), "wss://r/s?a=b&cursor=17")
+  end
+end

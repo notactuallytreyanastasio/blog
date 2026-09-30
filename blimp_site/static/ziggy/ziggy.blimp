@@ -1,0 +1,282 @@
+# /ziggy: the page's program. It draws ZiggyLive's window -- the header,
+# the tabs, and "Ask the Graph" -- and keeps what the LiveView kept for a
+# visitor: which tab is showing, whether the chat is open, whether it is
+# unlocked, the conversation, and whether an answer is on its way.
+#
+# The explorer is not here. It is d3 (static/ziggy/ziggy.js, which was the
+# ZiggyApp hook), and lives in #ziggy-explorer, an element this program
+# draws empty and never changes, so the explorer's DOM survives every
+# render. ziggy.js asks `zg <- :where` after renders to show the tab this
+# program chose and to keep ?view= and ?chat= in the URL; the explorer
+# tells this program when it switches tab itself (`:set_view`) or wants the
+# chat out of the way (`:close_chat`).
+#
+# The conversation is not here either, only its picture. The server's ZG
+# actor (src/99_ziggy.blimp) holds it and asks OpenAI; ziggy.js holds the
+# socket to /live/ziggy, hands this program every frame (`:frame`) and
+# each (re)connection (`:connected`), and sends up what `:outbox` returns.
+# The ghost-text suggestions go straight between ziggy.js and the socket,
+# as they went between the ZiggyChatInput hook and the LiveView.
+
+ZG_VIEWS = ["overview", "plot", "characters", "themes", "search"]
+
+def zgp_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+def zgp_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+# ZiggyLive.to_view/1: anything else is the overview
+def zgp_view(v: String) -> String do
+  case length(filter(ZG_VIEWS, fn(x: String) -> Bool do x == v end)) > 0 do
+    true -> v
+    false -> "overview"
+  end
+end
+
+def zgp_messages(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> filter(v, fn(m: Any) -> Bool do type_of(m) == :map end)
+    false -> []
+  end
+end
+
+def zgp_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+# ── the window ─────────────────────────────────────────────────────────
+
+def zgp_nav(s: Map) -> Any do
+  tab = fn(v: String, label: String) -> Any do
+    cls = case s.view == v do
+      true -> "on"
+      false -> ""
+    end
+    el("button", %{class: cls, click: :set_view, with: v}, label)
+  end
+  chat_cls = case s.chat_open do
+    true -> "on"
+    false -> ""
+  end
+  el("nav", %{class: "zg-nav"},
+    tab("overview", "Overview"), tab("plot", "Plot"), tab("characters", "Characters"),
+    tab("themes", "Themes"), tab("search", "Search"),
+    el("button", %{class: chat_cls, click: :toggle_chat}, "💬 Chat"))
+end
+
+def zgp_lock(s: Map) -> Any do
+  case s.enabled do
+    nil -> el("div", %{class: "zg-lock"}, el("p", %{}, "Connecting…"))
+    false -> el("div", %{class: "zg-lock"}, el("p", %{}, "Chat isn't configured on this deploy (no password set)."))
+    true ->
+      err = case s.error do
+        "" -> el("span", %{})
+        e -> el("div", %{class: "err"}, e)
+      end
+      el("div", %{class: "zg-lock"},
+        el("p", %{}, "This chat spends real API credits per message, so it's password-gated."),
+        el("form", %{submit: :unlock},
+          el("input", %{type: "password", name: "password", placeholder: "Password", autocomplete: "current-password"}),
+          el("button", %{type: "submit", class: "zg-send"}, "Unlock")),
+        err)
+  end
+end
+
+def zgp_message(m: Map, i: Int) -> Any do
+  role = zgp_str(lookup(m, :role))
+  content = zgp_str(lookup(m, :content))
+  case role do
+    "assistant" ->
+      el("div", %{class: "zg-msg assistant"},
+        el("div", %{inner_html: zgp_str(lookup(m, :html))}),
+        el("button", %{class: "zg-copy-btn", id: concat("zg-copy-", to_string(i)), "data-text": content}, "Copy"))
+    _ -> el("div", %{class: concat("zg-msg ", role)}, content)
+  end
+end
+
+def zgp_each_message(ms: List, i: Int, acc: List) -> List do
+  case ms do
+    [] -> reverse(acc)
+    [m | rest] -> zgp_each_message(rest, i + 1, [zgp_message(m, i) | acc])
+  end
+end
+
+def zgp_body(s: Map) -> Any do
+  empty = case s.messages do
+    [] ->
+      [el("div", %{class: "zg-empty"},
+        "Ask about a character, a decision, a theme, or how two chapters connect — grounded in the decision graph, not guesses. Browse the map beside this panel while you chat.",
+        el("div", %{class: "zg-presets"},
+          map(zg_presets, fn(q: String) -> Any do el("button", %{class: "zg-preset", click: :ask_preset, with: q}, q) end)))]
+    _ -> []
+  end
+  msgs = zgp_each_message(s.messages, 0, [])
+  thinking = case s.loading do
+    true -> [el("div", %{class: "zg-thinking"}, "reading the graph…")]
+    false -> []
+  end
+  el("div", %{class: "zg-chat-body", id: "zg-chat-body"}, zgp_append(empty, zgp_append(msgs, thinking)))
+end
+
+def zgp_form(s: Map) -> Any do
+  el("div", %{class: "zg-form"},
+    el("form", %{class: "zg-form-inner", submit: :send},
+      el("div", %{class: "zg-input-wrap"},
+        el("div", %{class: "zg-ghost", id: "zg-ghost"}, el("span", %{class: "typed"}), el("span", %{class: "suggestion"})),
+        el("textarea", %{name: "message", id: concat("zg-chat-input-", to_string(s.sent)), class: "zg-input", rows: "1",
+          placeholder: "Ask something — write a full thought, not a fragment.", disabled: s.loading})),
+      el("button", %{type: "submit", class: "zg-send", disabled: s.loading}, "Ask")),
+    el("div", %{class: "zg-input-hint"}, "Tab accepts a suggestion · Shift+Enter for a new line"))
+end
+
+def zgp_panel(s: Map) -> Any do
+  inner = case s.enabled == true and s.unlocked do
+    true -> [zgp_body(s), zgp_form(s)]
+    false -> [zgp_lock(s)]
+  end
+  cls = case s.chat_open do
+    true -> "zg-chat-panel open"
+    false -> "zg-chat-panel"
+  end
+  el("div", %{class: cls},
+    el("div", %{class: "zg-chat-panel-inner"},
+      el("div", %{class: "zg-chat-head"}, el("strong", %{}, "Ask the Graph")),
+      inner))
+end
+
+def zgp_page(s: Map) -> Any do
+  el("div", %{class: "zg-page"},
+    el("div", %{class: "zg-header"},
+      el("h1", %{}, "The Ziggy Account"),
+      el("span", %{class: "zg-meta"}, s.stats),
+      zgp_nav(s)),
+    el("div", %{class: "zg-main"},
+      el("div", %{class: "zge-wrap"}, el("div", %{id: "ziggy-explorer"})),
+      zgp_panel(s)))
+end
+
+actor ZiggyPage do
+  state view: String :: "overview"
+  state chat_open: Bool :: false
+  state stats: String :: ""
+  # nil until the server says whether this deploy has a password
+  state enabled: Any :: nil
+  state unlocked: Bool :: false
+  state error: String :: ""
+  state messages: List :: []
+  state loading: Bool :: false
+  # questions sent; each gives the textarea a new id, so it comes back empty
+  state sent: Int :: 0
+  state outbox: List :: []
+
+  # ?view= and ?chat=1, as ZiggyLive.handle_params/3 read them
+  on :location(q: String) do
+    become view: zgp_view(query_param(q, "view")), chat_open: query_param(q, "chat") == "1"
+    reply :ok
+  end
+
+  on :stats(nodes: Int, edges: Int, themes: Int) do
+    become stats: concat(to_string(nodes), " nodes · ", to_string(edges), " edges · ", to_string(themes), " themes")
+    reply :ok
+  end
+
+  on :set_view(v: String) do
+    become view: zgp_view(v)
+    reply :ok
+  end
+
+  on :toggle_chat do
+    become chat_open: not(chat_open)
+    reply :ok
+  end
+
+  on :close_chat do
+    become chat_open: false
+    reply :ok
+  end
+
+  # The socket is (again) open. The server's conversation for this page
+  # went with the old socket, as a LiveView's assigns went with its
+  # process: start again, locked.
+  on :connected do
+    become enabled: nil, unlocked: false, error: "", messages: [], loading: false
+    reply :ok
+  end
+
+  on :offline do
+    become loading: false
+    reply :ok
+  end
+
+  on :frame(text: String) do
+    msg = zgp_decode(text)
+    case lookup(msg, :t) do
+      "hello" ->
+        become enabled: lookup(msg, :enabled) == true
+        reply :hello
+      "unlock" ->
+        case lookup(msg, :ok) == true do
+          true -> become unlocked: true, error: ""
+          false -> become error: zgp_str(lookup(msg, :error))
+        end
+        reply :unlock
+      "chat" ->
+        become messages: zgp_messages(lookup(msg, :messages)), loading: lookup(msg, :loading) == true
+        reply :chat
+      _ -> reply :ignored
+    end
+  end
+
+  on :unlock(fields: String) do
+    pw = zgp_str(lookup(zgp_decode(fields), :password))
+    become outbox: zgp_append(outbox, [json_encode(%{t: "unlock", password: pw})])
+    reply :ok
+  end
+
+  # The form (the Ask button, or Enter in the textarea, which ziggy.js
+  # turns into a submit). The server trims it and ignores an empty one.
+  on :send(fields: String) do
+    text = zgp_str(lookup(zgp_decode(fields), :message))
+    case trim(text) == "" or loading or not(unlocked) do
+      true -> reply :ignored
+      false ->
+        become outbox: zgp_append(outbox, [json_encode(%{t: "ask", text: text})]), sent: sent + 1
+        reply :sent
+    end
+  end
+
+  on :ask_preset(q: String) do
+    reply (self <- :send(json_encode(%{message: q})))
+  end
+
+  on :outbox do
+    out = outbox
+    become outbox: []
+    reply out
+  end
+
+  on :where do
+    reply %{view: view, chat: chat_open}
+  end
+
+  on :view do
+    reply zgp_page(%{view: view, chat_open: chat_open, stats: stats, enabled: enabled, unlocked: unlocked,
+      error: error, messages: messages, loading: loading, sent: sent})
+  end
+end
+
+zg = spawn ZiggyPage
+zg <- :view

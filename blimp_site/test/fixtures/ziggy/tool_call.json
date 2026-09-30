@@ -1,0 +1,31 @@
+{
+  "id": "chatcmpl-fixture-1",
+  "object": "chat.completion",
+  "created": 1790000000,
+  "model": "gpt-5.1-2025-11-13",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_search_1",
+            "type": "function",
+            "function": {"name": "search_story", "arguments": "{\"query\":\"Willis Wallace mixup\"}"}
+          },
+          {
+            "id": "call_node_2",
+            "type": "function",
+            "function": {"name": "get_story_node", "arguments": "{\"id\":24}"}
+          }
+        ],
+        "refusal": null,
+        "annotations": []
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {"prompt_tokens": 1180, "completion_tokens": 52, "total_tokens": 1232}
+}
