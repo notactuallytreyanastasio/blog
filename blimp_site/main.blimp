@@ -541,7 +541,7 @@ end
 # {what was answered, newest first ("GET /blog"), sockets}, the sockets
 # with any new WebSockets added.
 def accept_all(fd: Int, answered: List, desk: Map, home: List, socks: Map) -> Tuple do
-  c = tcp_accept(fd)
+  c = live_accept(fd)
   case c do
     nil -> {answered, socks}
     _ ->
@@ -725,12 +725,13 @@ def sockets_of(socks: Map, kind: Atom) -> List do
   filter(values(socks), fn(s: Map) -> Bool do s.kind == kind end)
 end
 
+def socket_fds_of(socks: Map, kind: Atom) -> List do
+  map(sockets_of(socks, kind), fn(s: Map) -> Int do s.fd end)
+end
+
 # Every god page is sent every game.
 def push_gods(socks: Map, games: Map) -> Int do
-  frame = ws_frame(1, pong_games_json(games))
-  gods = sockets_of(socks, :god)
-  each(gods, fn(s: Map) do tcp_write(s.fd, frame) end)
-  length(gods)
+  live_push(ROOMS, socket_fds_of(socks, :god), pong_games_json(games))
 end
 
 RUNTIME_PUSH_MS = 250
@@ -752,8 +753,7 @@ def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int) -> T
       case t - pushed_at >= RUNTIME_PUSH_MS do
         false -> {rays, pushed_at}
         true ->
-          frame = ws_frame(1, json_encode(%{actors: snap.actors, messages: rays}))
-          each(watchers, fn(s: Map) do tcp_write(s.fd, frame) end)
+          live_push(ROOMS, map(watchers, fn(s: Map) -> Int do s.fd end), json_encode(%{actors: snap.actors, messages: rays}))
           {[], t}
       end
   end
@@ -817,6 +817,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   BKW <- :step(now_ms())
   CAMERAS <- :step
   CAM_SWEEP <- :step
+  # work_log_commits from GitHub, when WORK_LOG_POLL is on (src/99_work_log_poll.blimp)
+  WL <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -935,12 +937,17 @@ posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
 routes = build_routes(posts)
 routes = stack_routes(routes)
+# /static/* from data/static_files.txt, and /blog/tag/<tag> (src/96_static.blimp)
+routes = static_file_routes(routes, STATIC_DIR)
+routes = blog_tag_routes(routes, posts)
 # src/41_web.blimp: the routes that take methods, bodies and sessions, and
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).
 # src/99_blinkswrite.blimp: BlinkController's token-gated writes
 # src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
-WEB_ROUTES = list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes())
+# src/99_admin.blimp: /admin/museum and /admin/finder
+# src/99_guest_posts.blimp: guest posts and their comments
+WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes())
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
@@ -996,6 +1003,9 @@ end
 # The Craigslist sweep that fills camera_listings (src/99_camera_sweep.blimp):
 # off unless CAMERAS_SWEEP=1, which is for after Phoenix's Poller is stopped
 puts(CAM_SWEEP <- :config(cs_boot_config(cs_env_config(), DB_OPTS != nil)))
+# GitHub.WorkLogPoller, filling work_log_commits (src/99_work_log_poll.blimp):
+# off unless WORK_LOG_POLL=1, which is for after Phoenix's Poller is stopped
+puts(WL <- :config(wl_boot_config(wl_env_config(), DB_OPTS != nil)))
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do

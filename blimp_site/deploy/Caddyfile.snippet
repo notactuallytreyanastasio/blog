@@ -25,6 +25,42 @@
 		}
 	}
 
+	# /admin/museum and /admin/finder (src/99_admin.blimp), every method:
+	# the pages and their files by GET, the login and every write by POST,
+	# PATCH or DELETE. No handle_response fallback to Phoenix, which could
+	# not carry a write's body anyway, and a 404 here is Blimp's (no such
+	# row). This sits above any method-routed block (#111's @phoenix_write
+	# sends every other non-GET to Phoenix), and Caddy tries handle blocks in
+	# file order, so these paths reach Blimp whatever the method.
+	# request_buffers: the whole body first, so a slow client does not hold
+	# Blimp's one thread (see #111).
+	@blimp_admin path /admin/museum /admin/museum/* /admin/museum.blimp /admin/finder /admin/finder/* /admin/finder.blimp /admin/admin.js /admin/login /admin/logout /assets/admin-museum.css /assets/admin-finder.css
+	handle @blimp_admin {
+		reverse_proxy blimp-blog:4100 {
+			request_buffers 1MB
+			lb_try_duration 20s
+			lb_try_interval 250ms
+		}
+	}
+
+	# A comment on a guest post (src/99_guest_posts.blimp), a form POST to
+	# Blimp. Its own matcher, above everything that routes by method, so
+	# it reaches Blimp with or without #111's @phoenix_write. No 404
+	# fallback: a POST's body cannot be re-sent to Phoenix (see #111), and
+	# Phoenix has no such route anyway. request_buffers so a slow client
+	# does not hold Blimp's one thread while it types.
+	@blimp_post_comment {
+		method POST
+		path /post/*/comments
+	}
+	handle @blimp_post_comment {
+		reverse_proxy blimp-blog:4100 {
+			request_buffers 1MB
+			lb_try_duration 20s
+			lb_try_interval 250ms
+		}
+	}
+
 	# Fill The Sky's points (4.8 MB) from Blimp, read whole into Caddy first.
 	# The Blimp server is one thread: a slow reader holds its write, and so
 	# every other request, for up to 10 s. Buffered, Blimp writes at loopback
@@ -128,7 +164,10 @@
 	# posts and their stylesheets. A 404 from it -- a guest post, which lives in
 	# Postgres, or anything else it does not know -- is sent on to Phoenix, so
 	# no URL that worked before stops working.
-	@blimp path / /blog /post/* /tetris /tetris/* /blimp/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css /assets/tetris.css /assets/blimp-window.css /privacy /terms /trees /nathan /knicks /frontier /chess /static/d3.v7.min.js /assets/app-3cfac71d5552d1426de906087a8be2fe.css /pong /pong/* /live/* /assets/pong.css /2048 /2048/* /assets/apps.css /mirror /typewriter /typewriter/* /assets/typewriter.css /markdown-editor /markdown-editor/* /phish /phish/* /moon_phish /moon_phish/* /assets/moon_phish.css /temper-snake /static/temper-snake/* /snake/* /work-log /assets/work_log.css /directory /hacker-news /hacker-news/* /bookmarks /bookmarks/* /blackjack /blackjack/* /wordle /wordle/* /wordle_god /cursor-tracker /cursor-tracker/* /art /art/* /chess-lv /chess-lv/* /map /map/* /nyc_census_and_pluto /nyc_census_and_pluto/* /reddit-links /emoji-skeets /jetstream_comparison /firehose/* /sky /sky/* /assets/sky.css /mta-bus-map /mta-bus-map/* /stack /stack/* /assets/stack.css /phish_lab /phish_lab/* /assets/phish_lab.css /gallery /gallery/* /ziggy /ziggy/* /role-call /role-call/* /assets/role_call.css /stumble /stumble/* /assets/stumble.css /cameras /cameras/* /assets/blinks.css
+	# /static/* is named file by file, never as a prefix: priv/static/static
+	# also holds /seth, which is its own container's, and a prefix would send
+	# it here first (src/96_static.blimp serves only data/static_files.txt).
+	@blimp path / /blog /post/* /tetris /tetris/* /blimp/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css /assets/tetris.css /assets/blimp-window.css /privacy /terms /trees /nathan /knicks /frontier /chess /static/d3.v7.min.js /assets/app-3cfac71d5552d1426de906087a8be2fe.css /pong /pong/* /live/* /assets/pong.css /2048 /2048/* /assets/apps.css /mirror /typewriter /typewriter/* /assets/typewriter.css /markdown-editor /markdown-editor/* /phish /phish/* /moon_phish /moon_phish/* /assets/moon_phish.css /temper-snake /static/temper-snake/* /snake/* /work-log /assets/work_log.css /directory /hacker-news /hacker-news/* /bookmarks /bookmarks/* /blackjack /blackjack/* /wordle /wordle/* /wordle_god /cursor-tracker /cursor-tracker/* /art /art/* /chess-lv /chess-lv/* /map /map/* /nyc_census_and_pluto /nyc_census_and_pluto/* /reddit-links /emoji-skeets /jetstream_comparison /firehose/* /sky /sky/* /assets/sky.css /mta-bus-map /mta-bus-map/* /stack /stack/* /assets/stack.css /phish_lab /phish_lab/* /assets/phish_lab.css /gallery /gallery/* /ziggy /ziggy/* /role-call /role-call/* /assets/role_call.css /assets/blinks.css /stumble /stumble/* /assets/stumble.css /cameras /cameras/* /favicon.ico /robots.txt /images/* /blog/tag/* /static/blinks-og.png /static/knicks-og.png /static/blimp/* /static/home_a_cabinet.html /static/home_b_channel.html /static/home_c_starchart.html /static/home_d_brutal.html /static/scratch.html
 	handle @blimp {
 		reverse_proxy blimp-blog:4100 {
 			# /live/blinks' chat knows a chatter by the hash of this header's

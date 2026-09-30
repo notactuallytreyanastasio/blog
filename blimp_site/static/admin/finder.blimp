@@ -1,0 +1,376 @@
+# /admin/finder: BlogWeb.FinderAdminLive as a Blimp program. The rows are
+# finder_sections with their finder_items, from /admin/finder/sections.json;
+# every change is a request through the outbox (static/admin/common.blimp),
+# answered with every section again, as the LiveView re-read them.
+
+ADP_SECTIONS = "/admin/finder/sections"
+ADP_ITEMS = "/admin/finder/items"
+
+def adp_find_by_id(rows: List, id: Int) -> Any do
+  got = filter(rows, fn(r: Map) -> Bool do lookup(r, "id") == id end)
+  case got do
+    [] -> nil
+    [r | _] -> r
+  end
+end
+
+def adp_find_item(sections: List, id: Int) -> Any do
+  adp_find_by_id(reduce(reverse(sections), [], fn(acc: List, s: Map) -> List do adp_concat(adp_get(s, "items", []), acc) end), id)
+end
+
+def adp_vis_label(visible: Bool) -> String do
+  case visible do
+    true -> "Hide"
+    false -> "Show"
+  end
+end
+
+def adp_item_row(i: Map) -> Any do
+  id_n = lookup(i, "id")
+  visible = lookup(i, "visible")
+  path = case lookup(i, "path") do
+    nil -> []
+    p -> [el("span", %{class: "item-path"}, p)]
+  end
+  action = case lookup(i, "action") do
+    nil -> []
+    a -> [el("span", %{class: "item-action-tag"}, a)]
+  end
+  hidden = case visible do
+    true -> []
+    false -> [el("span", %{class: "item-path"}, "[hidden]")]
+  end
+  el("div", %{class: adp_hidden_class("item-row", visible)},
+    el("div", %{class: "item-info"},
+      el("span", %{class: "item-icon"}, adp_text(lookup(i, "icon"))),
+      el("span", %{}, adp_text(lookup(i, "name"))),
+      path, action, hidden),
+    el("div", %{class: "item-actions"},
+      el("button", %{class: "btn", click: :move_item_up, with: id_n}, "▲"),
+      el("button", %{class: "btn", click: :move_item_down, with: id_n}, "▼"),
+      el("button", %{class: "btn", click: :toggle_item, with: id_n}, adp_vis_label(visible)),
+      el("button", %{class: "btn", click: :edit_item, with: id_n}, "Edit"),
+      el("button", %{class: "btn btn-danger", click: :delete_item, with: id_n}, "Del")))
+end
+
+def adp_add_item_form(sid_n: Int) -> Any do
+  sid = to_string(sid_n)
+  el("div", %{class: "add-form"},
+    el("form", %{submit: :create_item},
+      el("input", %{type: "hidden", name: "section_id", value: sid}),
+      el("input", %{type: "text", name: "name", placeholder: "Name", required: true}),
+      el("input", %{type: "text", name: "icon", placeholder: "Emoji icon", required: true}),
+      el("input", %{type: "text", name: "path", placeholder: "Path (e.g. /pong)"}),
+      el("input", %{type: "text", name: "action", placeholder: "Action (e.g. toggle_phish)"}),
+      el("input", %{type: "text", name: "description", placeholder: "Tooltip description"}),
+      el("button", %{type: "submit", class: "btn btn-primary"}, "Add"),
+      el("button", %{type: "button", class: "btn", click: :add_item, with: sid_n}, "Cancel")))
+end
+
+def adp_section_card(s: Map, adding_to: Int) -> Any do
+  sid_n = lookup(s, "id")
+  visible = lookup(s, "visible")
+  items = adp_get(s, "items", [])
+  label = case lookup(s, "label") do
+    nil -> ""
+    l -> concat("(", l, ")")
+  end
+  hidden_note = case visible do
+    true -> ""
+    false -> "  [hidden]"
+  end
+  meta = join([label, " · ", to_string(length(items)), " items · order: ", to_string(lookup(s, "sort_order")), hidden_note], "")
+  add = case adding_to == lookup(s, "id") do
+    true -> adp_add_item_form(sid_n)
+    false -> el("div", %{style: "padding: 6px 12px; border-top: 1px solid #eee;"},
+      el("button", %{class: "btn", click: :add_item, with: sid_n}, "+ Item"))
+  end
+  el("div", %{class: adp_hidden_class("section-card", visible)},
+    el("div", %{class: "section-header"},
+      el("div", %{},
+        el("span", %{class: "section-name"}, adp_text(lookup(s, "name"))),
+        el("span", %{class: "section-meta"}, meta)),
+      el("div", %{class: "section-actions"},
+        el("button", %{class: "btn", click: :move_section_up, with: sid_n}, "▲"),
+        el("button", %{class: "btn", click: :move_section_down, with: sid_n}, "▼"),
+        el("button", %{class: "btn", click: :toggle_section, with: sid_n}, adp_vis_label(visible)),
+        el("button", %{class: "btn", click: :edit_section, with: sid_n}, "Edit"),
+        el("button", %{class: "btn btn-danger", click: :delete_section, with: sid_n}, "Del"))),
+    el("div", %{}, map(items, fn(i: Map) -> Any do adp_item_row(i) end)),
+    add)
+end
+
+def adp_section_modal(s: Map) -> Any do
+  el("div", %{class: "edit-modal"},
+    el("div", %{class: "edit-modal-content"},
+      el("h3", %{}, "Edit Section"),
+      el("form", %{submit: :update_section},
+        el("label", %{}, "Name"),
+        el("input", %{type: "text", name: "name", value: adp_text(lookup(s, "name")), required: true}),
+        el("label", %{}, "Label (display)"),
+        el("input", %{type: "text", name: "label", value: adp_text(lookup(s, "label"))}),
+        el("label", %{}, "Joyride Target"),
+        el("input", %{type: "text", name: "joyride_target", value: adp_text(lookup(s, "joyride_target"))}),
+        el("label", %{}, "Visible"),
+        adp_visible_select(lookup(s, "visible")),
+        el("div", %{class: "modal-actions"},
+          el("button", %{type: "button", class: "btn", click: :cancel_edit}, "Cancel"),
+          el("button", %{type: "submit", class: "btn btn-primary"}, "Save")))))
+end
+
+def adp_item_modal(i: Map) -> Any do
+  el("div", %{class: "edit-modal"},
+    el("div", %{class: "edit-modal-content"},
+      el("h3", %{}, "Edit Item"),
+      el("form", %{submit: :update_item},
+        el("label", %{}, "Name"),
+        el("input", %{type: "text", name: "name", value: adp_text(lookup(i, "name")), required: true}),
+        el("label", %{}, "Icon (emoji)"),
+        el("input", %{type: "text", name: "icon", value: adp_text(lookup(i, "icon")), required: true}),
+        el("label", %{}, "Path"),
+        el("input", %{type: "text", name: "path", value: adp_text(lookup(i, "path"))}),
+        el("label", %{}, "Action"),
+        el("input", %{type: "text", name: "action", value: adp_text(lookup(i, "action"))}),
+        el("label", %{}, "Description (tooltip)"),
+        el("input", %{type: "text", name: "description", value: adp_text(lookup(i, "description"))}),
+        el("label", %{}, "Joyride Target"),
+        el("input", %{type: "text", name: "joyride_target", value: adp_text(lookup(i, "joyride_target"))}),
+        el("label", %{}, "Visible"),
+        adp_visible_select(lookup(i, "visible")),
+        el("div", %{class: "modal-actions"},
+          el("button", %{type: "button", class: "btn", click: :cancel_edit}, "Cancel"),
+          el("button", %{type: "submit", class: "btn btn-primary"}, "Save")))))
+end
+
+actor FinderAdmin do
+  state phase: Atom :: :loading
+  state rows: List :: []
+  state flash: String :: ""
+  state adding_section: Bool :: false
+  # the section whose "+ Item" form is open, 0 for none
+  state adding_to: Int :: 0
+  state editing_section: Any :: nil
+  state editing_item: Any :: nil
+  state asking: Bool :: true
+  state outbox: List :: []
+  state seq: Int :: 0
+
+  on :loaded(status: Int, body: String) do
+    case status do
+      200 -> become phase: :ready, rows: adp_get(adp_json(body), "sections", []), asking: false
+      401 -> become phase: :login, asking: false
+      _ -> become asking: false, flash: concat("Could not load the sections (", to_string(status), ")")
+    end
+    reply :ok
+  end
+
+  on :login(fields: String) do
+    pw = adp_text(adp_get(adp_fields(fields), "password", ""))
+    become outbox: adp_concat(outbox, [adp_http(seq, "login", "POST", "/admin/login", %{password: pw})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :logout do
+    become outbox: adp_concat(outbox, [adp_http(seq, "logout", "POST", "/admin/logout", %{})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :clear_flash do
+    become flash: ""
+    reply :ok
+  end
+
+  on :toggle_add_section do
+    become adding_section: not(adding_section)
+    reply :ok
+  end
+
+  on :create_section(fields: String) do
+    f = adp_fields(fields)
+    body = %{name: adp_text(adp_get(f, "name", "")), label: adp_text(adp_get(f, "label", ""))}
+    become outbox: adp_concat(outbox, [adp_http(seq, "create_section", "POST", ADP_SECTIONS, body)]), seq: seq + 1
+    reply :ok
+  end
+
+  on :edit_section(id: Int) do
+    become editing_section: adp_find_by_id(rows, id)
+    reply :ok
+  end
+
+  on :update_section(fields: String) do
+    case editing_section do
+      nil -> reply :ok
+      s ->
+        url = concat(ADP_SECTIONS, "/", to_string(lookup(s, "id")))
+        become outbox: adp_concat(outbox, [adp_http(seq, "update_section", "PATCH", url, adp_fields(fields))]), seq: seq + 1
+        reply :ok
+    end
+  end
+
+  on :delete_section(id: Int) do
+    become outbox: adp_concat(outbox, [adp_confirm(seq, "Delete this section and all its items?", concat(ADP_SECTIONS, "/", to_string(id)))]), seq: seq + 1
+    reply :ok
+  end
+
+  on :move_section_up(id: Int) do
+    become outbox: adp_concat(outbox, [adp_move(seq, ADP_SECTIONS, id, "up")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :move_section_down(id: Int) do
+    become outbox: adp_concat(outbox, [adp_move(seq, ADP_SECTIONS, id, "down")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :toggle_section(id: Int) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "write", "POST", concat(ADP_SECTIONS, "/", to_string(id), "/toggle"), %{})]), seq: seq + 1
+    reply :ok
+  end
+
+  # toggle_add_item: the section's form opens, or closes if it was open
+  on :add_item(sid: Int) do
+    case adding_to == sid do
+      true -> become adding_to: 0
+      false -> become adding_to: sid
+    end
+    reply :ok
+  end
+
+  on :create_item(fields: String) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "create_item", "POST", ADP_ITEMS, adp_fields(fields))]), seq: seq + 1
+    reply :ok
+  end
+
+  on :edit_item(id: Int) do
+    become editing_item: adp_find_item(rows, id)
+    reply :ok
+  end
+
+  on :update_item(fields: String) do
+    case editing_item do
+      nil -> reply :ok
+      i ->
+        url = concat(ADP_ITEMS, "/", to_string(lookup(i, "id")))
+        become outbox: adp_concat(outbox, [adp_http(seq, "update_item", "PATCH", url, adp_fields(fields))]), seq: seq + 1
+        reply :ok
+    end
+  end
+
+  on :delete_item(id: Int) do
+    become outbox: adp_concat(outbox, [adp_confirm(seq, "Delete this item?", concat(ADP_ITEMS, "/", to_string(id)))]), seq: seq + 1
+    reply :ok
+  end
+
+  on :move_item_up(id: Int) do
+    become outbox: adp_concat(outbox, [adp_move(seq, ADP_ITEMS, id, "up")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :move_item_down(id: Int) do
+    become outbox: adp_concat(outbox, [adp_move(seq, ADP_ITEMS, id, "down")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :toggle_item(id: Int) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "write", "POST", concat(ADP_ITEMS, "/", to_string(id), "/toggle"), %{})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :cancel_edit do
+    become editing_section: nil, editing_item: nil
+    reply :ok
+  end
+
+  on :done(n: Int, status: Int, body: String) do
+    entry = adp_find(outbox, n)
+    rest = adp_without(outbox, n)
+    case entry do
+      nil -> become outbox: rest
+      _ ->
+        case entry.kind do
+          "login" ->
+            case status do
+              200 -> become outbox: rest, asking: true, flash: ""
+              _ -> become outbox: rest, flash: adp_answer(status, body, "sections").flash
+            end
+          "logout" -> become outbox: rest, phase: :login, rows: [], editing_section: nil, editing_item: nil, adding_section: false, adding_to: 0
+          "delete?" ->
+            case status do
+              1 -> become outbox: adp_concat(rest, [adp_http(seq, "write", "DELETE", entry.arg, nil)]), seq: seq + 1
+              _ -> become outbox: rest
+            end
+          _ ->
+            a = adp_answer(status, body, "sections")
+            fresh = case a.rows do
+              nil -> rows
+              r -> r
+            end
+            phase_now = case status do
+              401 -> :login
+              _ -> phase
+            end
+            k = entry.kind
+            to_now = case k == "create_item" and a.ok do
+              true -> 0
+              false -> adding_to
+            end
+            sec_now = case k == "update_section" and a.ok do
+              true -> nil
+              false -> editing_section
+            end
+            item_now = case k == "update_item" and a.ok do
+              true -> nil
+              false -> editing_item
+            end
+            become outbox: rest, rows: fresh, flash: a.flash, phase: phase_now, adding_section: adding_section and not(k == "create_section" and a.ok), adding_to: to_now, editing_section: sec_now, editing_item: item_now
+        end
+    end
+    reply :ok
+  end
+
+  on :view do
+    ask = case asking do
+      true -> [fetch("/admin/finder/sections.json", :loaded)]
+      false -> []
+    end
+    page = case phase do
+      :loading -> adp_loading_view(flash)
+      :login -> el("div", %{}, adp_flash_view(flash), adp_login_view("Finder Admin"))
+      _ ->
+        add = case adding_section do
+          true -> [el("div", %{class: "add-section-form"},
+            el("form", %{submit: :create_section},
+              el("input", %{type: "text", name: "name", placeholder: "Section name (e.g. games)", required: true}),
+              el("input", %{type: "text", name: "label", placeholder: "Display label (optional)"}),
+              el("button", %{type: "submit", class: "btn btn-primary"}, "Create"),
+              el("button", %{type: "button", class: "btn", click: :toggle_add_section}, "Cancel")))]
+          false -> []
+        end
+        sec_modal = case editing_section do
+          nil -> []
+          s -> [adp_section_modal(s)]
+        end
+        item_modal = case editing_item do
+          nil -> []
+          i -> [adp_item_modal(i)]
+        end
+        modals = adp_concat(sec_modal, item_modal)
+        el("div", %{class: "admin-container"},
+          adp_flash_view(flash),
+          el("div", %{style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;"},
+            el("h1", %{style: "margin: 0;"}, "Finder Admin"),
+            el("div", %{style: "display: flex; gap: 8px;"},
+              el("a", %{href: "/", class: "btn"}, "Back to Site"),
+              el("a", %{href: "/admin/museum", class: "btn"}, "Museum Admin"),
+              el("button", %{class: "btn btn-primary", click: :toggle_add_section}, "+ Section"),
+              el("button", %{class: "btn", click: :logout}, "Log out"))),
+          add,
+          map(rows, fn(s: Map) -> Any do adp_section_card(s, adding_to) end),
+          modals)
+    end
+    reply el("div", %{}, page, adp_outbox_view(outbox), ask)
+  end
+end
+
+admin = spawn FinderAdmin
+admin <- :view

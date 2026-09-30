@@ -1,0 +1,152 @@
+# needs: static/admin/common.blimp static/admin/museum.blimp
+#
+# /admin/museum and /admin/finder (src/99_admin.blimp) and the museum
+# page's program (static/admin/museum.blimp). The writes need Postgres,
+# which the tests do not have; what they wrote was checked against
+# MuseumAdminLive and FinderAdminLive's own handle_event/3 on two copies of
+# blog_dev (the PR says how). Here: the casting, the login and the gate in
+# front of every write, and what the program asks for.
+
+ADT_SECRET = "admin-test-secret-admin-test-secret-0123"
+
+def adt_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def adt_send(method: String, target: String, headers: List, body: String) -> Any do
+  raw = adt_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), admin_routes(), ADT_SECRET)
+end
+
+def adt_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def adt_cookie(got: Tuple) -> String do
+  w = elem(got, 0)
+  at = index_of(w, "Set-Cookie: ")
+  rest = drop(w, at + 12)
+  take(rest, index_of(rest, ";"))
+end
+
+def adt_token(page: String) -> String do
+  at = index_of(page, "data-csrf=\"")
+  rest = drop(page, at + 11)
+  take(rest, index_of(rest, "\""))
+end
+
+ADT_ROWS = "{\"projects\":[{\"id\":1,\"slug\":\"one\",\"title\":\"First One\",\"category\":\"tools\",\"tagline\":null,\"description\":null,\"tech_stack\":[\"A\",\"B\"],\"github_repos\":[{\"name\":\"n\",\"full_name\":\"o/r\"}],\"internal_path\":\"/one\",\"external_url\":null,\"sort_order\":1,\"visible\":true},{\"id\":2,\"slug\":\"two\",\"title\":\"Second Two\",\"category\":\"ml\",\"tagline\":\"t\",\"description\":null,\"tech_stack\":[],\"github_repos\":[],\"internal_path\":null,\"external_url\":null,\"sort_order\":2,\"visible\":false}]}"
+
+actor AdminTests do
+  test "values are cast as Ecto cast them, and the lists parsed as the LiveView did" do
+    # Ecto 3.12's cast/3: all-whitespace is nil, Unicode's included
+    assert_eq(adm_str(""), nil)
+    assert_eq(adm_str("  \t "), nil)
+    assert_eq(adm_str(" 　"), nil)
+    assert_eq(adm_str(" a "), " a ")
+    assert_eq(adm_str(nil), nil)
+    assert_eq(adm_trim("　 x "), "x")
+    # parse_comma_list/1 and parse_repos/1, run in Elixir on the same input
+    assert_eq(adm_comma_list(" , Rust , Zig ,,"), ["Rust", "Zig"])
+    assert_eq(adm_comma_list(""), [])
+    assert_eq(json_encode(adm_repos("a:b:c\r\n:x\r\n  n : o/r  \r\n\r\nnocolon\n")), json_encode([%{name: "a", full_name: "b:c"}, %{name: "", full_name: "x"}, %{name: "n", full_name: "o/r"}]))
+    assert_eq(adm_repos(nil), [])
+    assert(adm_visible("true"))
+    refute(adm_visible("on"))
+  end
+
+  test "the page sets the session's CSRF token and names its program" do
+    got = adt_send("GET", "/admin/museum", [], "")
+    assert_eq(elem(got, 1), 200)
+    page = adt_body(got)
+    assert(length(adt_token(page)) > 20)
+    assert(contains(page, "data-program=\"/admin/museum.blimp\""))
+    assert(contains(page, "/admin/admin.js"))
+    assert(contains(adt_body(adt_send("GET", "/admin/finder", [], "")), "/assets/admin-finder.css"))
+  end
+
+  test "every read and write wants a login, and every write the token" do
+    page = adt_send("GET", "/admin/museum", [], "")
+    cookie = concat("Cookie: ", adt_cookie(page))
+    token = concat("x-csrf-token: ", adt_token(adt_body(page)))
+    json = "Content-Type: application/json"
+    assert_eq(elem(adt_send("GET", "/admin/museum/projects.json", [cookie], ""), 1), 401)
+    assert_eq(elem(adt_send("GET", "/admin/finder/sections.json", [cookie], ""), 1), 401)
+    assert_eq(elem(adt_send("POST", "/admin/museum/projects", [cookie, json], "{\"slug\":\"x\"}"), 1), 403)
+    no_login = adt_send("POST", "/admin/finder/items", [cookie, token, json], "{\"name\":\"x\"}")
+    assert_eq(elem(no_login, 1), 401)
+    assert_eq(adt_body(no_login), "{\"error\":\"Log in first\"}")
+    assert_eq(elem(adt_send("DELETE", "/admin/finder/sections/1", [cookie, token], ""), 1), 401)
+    # FINDER_ADMIN_PASSWORD is unset here: nobody gets in, "" included
+    assert_eq(ADM_PASSWORD, "")
+    denied = adt_send("POST", "/admin/login", [cookie, token, json], "{\"password\":\"\"}")
+    assert_eq(elem(denied, 1), 403)
+    assert_eq(adt_body(denied), "{\"error\":\"Wrong password\"}")
+  end
+
+  test "a login is the password's, and runs out" do
+    at = 1000000
+    conn = %{secret: ADT_SECRET, session: put(put(%{}, "admin_at", at), "admin", adm_login_mac(ADT_SECRET, "pw", at))}
+    assert(adm_session_ok(conn, "pw", at + 10))
+    refute(adm_session_ok(conn, "changed", at + 10))
+    refute(adm_session_ok(conn, "pw", at + ADM_LOGIN_S))
+    refute(adm_session_ok(conn, "", at + 10))
+    refute(adm_session_ok(%{secret: ADT_SECRET, session: %{}}, "pw", at))
+  end
+
+  test "the museum page: the password, then the rows" do
+    m = spawn MuseumAdmin
+    assert(contains(to_html(m <- :view), "Loading"))
+    m <- :loaded(401, "{\"error\":\"Log in first\"}")
+    assert(contains(to_html(m <- :view), "type=\"password\""))
+    m <- :login("{\"password\":\"hunter2\"}")
+    html = to_html(m <- :view)
+    assert(contains(html, "/admin/login"))
+    assert(contains(html, "hunter2"))
+    m <- :done(0, 403, "{\"error\":\"Wrong password\"}")
+    assert(contains(to_html(m <- :view), "Wrong password"))
+    m <- :loaded(200, ADT_ROWS)
+    rows = to_html(m <- :view)
+    assert(contains(rows, "2 Projects"))
+    assert(contains(rows, "[hidden]"))
+    assert(index_of(rows, "First One") < index_of(rows, "Second Two"))
+  end
+
+  test "the museum page asks for each change, and shows the list it is sent back" do
+    m = spawn MuseumAdmin
+    m <- :loaded(200, ADT_ROWS)
+    m <- :move_up(2)
+    assert(contains(to_html(m <- :view), "/admin/museum/projects/2/move"))
+    # a drag: the new order at once, and the ids to write
+    m <- :reorder("[\"2\",\"1\"]")
+    moved = to_html(m <- :view)
+    assert(index_of(moved, "Second Two") < index_of(moved, "First One"))
+    assert(contains(moved, "/admin/museum/reorder"))
+    # Del asks first, as data-confirm did
+    m <- :delete(1)
+    asked = to_html(m <- :view)
+    assert(contains(asked, "Delete this project?"))
+    m <- :done(2, 1, "")
+    assert(contains(to_html(m <- :view), "DELETE"))
+    # the edit form holds the row as format_tech_stack/1 and format_repos/1 wrote it
+    m <- :edit(1)
+    modal = to_html(m <- :view)
+    assert(contains(modal, "Edit: First One"))
+    assert(contains(modal, "A, B"))
+    assert(contains(modal, "n:o/r"))
+    # a refused create keeps the form open, with the LiveView's flash
+    m <- :toggle_add
+    m <- :create("{\"slug\":\"one\",\"title\":\"Dup\"}")
+    m <- :done(4, 422, concat("{\"error\":\"Failed to create project\",", drop(ADT_ROWS, 1)))
+    shown = to_html(m <- :view)
+    assert(contains(shown, "Failed to create project"))
+    assert(contains(shown, "New Project"))
+    m <- :done(1, 401, "{\"error\":\"Log in first\"}")
+    assert(contains(to_html(m <- :view), "type=\"password\""))
+  end
+end

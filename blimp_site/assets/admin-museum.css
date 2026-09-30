@@ -1,0 +1,92 @@
+/* /admin/museum: the <style> BlogWeb.MuseumAdminLive rendered, as it was,
+   and the flash Phoenix's layout drew. */
+.admin-container {
+  max-width: 1000px;
+  margin: 40px auto;
+  font-family: "Geneva", "Chicago", "Helvetica Neue", sans-serif;
+  padding: 0 20px;
+}
+.admin-container h1 { font-size: 24px; margin-bottom: 20px; }
+.password-form {
+  max-width: 300px; margin: 100px auto; text-align: center;
+}
+.password-form input {
+  padding: 8px 12px; border: 1px solid #000; font-size: 14px;
+  width: 200px; margin-bottom: 10px; display: block;
+  margin-left: auto; margin-right: auto;
+}
+.password-form button {
+  padding: 6px 20px; background: #000; color: #fff;
+  border: none; cursor: pointer; font-size: 14px;
+}
+.project-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px;
+  cursor: grab; user-select: none;
+}
+.project-row:hover { background: #f9f9f9; }
+.project-row:active { cursor: grabbing; }
+.project-row.dragging { opacity: 0.4; }
+.project-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.drag-handle { color: #bbb; font-size: 16px; margin-right: 4px; }
+.project-order { width: 30px; text-align: center; color: #999; font-size: 11px; }
+.project-title { font-weight: bold; }
+.project-category {
+  background: #e8e8e8; padding: 1px 6px; font-size: 10px; border-radius: 2px;
+}
+.project-path { color: #666; font-size: 11px; }
+.project-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.btn {
+  padding: 3px 8px; border: 1px solid #000; background: #fff;
+  cursor: pointer; font-size: 11px; font-family: inherit;
+}
+.btn:hover { background: #f0f0f0; }
+.btn-danger { color: #c00; border-color: #c00; }
+.btn-danger:hover { background: #fee; }
+.btn-primary { background: #000; color: #fff; }
+.btn-primary:hover { background: #333; }
+.hidden-indicator { opacity: 0.4; }
+.project-list {
+  border: 1px solid #000; background: #fff; margin-bottom: 20px;
+}
+.project-list-header {
+  padding: 8px 12px; background: #eee; border-bottom: 1px solid #000;
+  font-weight: bold; font-size: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.add-form {
+  border: 1px solid #000; padding: 16px; margin-bottom: 16px; background: #fafafa;
+}
+.add-form label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 2px; }
+.add-form input, .add-form textarea, .add-form select {
+  display: block; width: 100%; padding: 4px 8px; border: 1px solid #ccc;
+  font-size: 13px; margin-bottom: 10px; box-sizing: border-box; font-family: inherit;
+}
+.add-form textarea { min-height: 80px; resize: vertical; }
+.form-row { display: flex; gap: 12px; }
+.form-row > div { flex: 1; }
+.edit-modal {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); display: flex;
+  align-items: center; justify-content: center; z-index: 1000;
+}
+.edit-modal-content {
+  background: #fff; border: 1px solid #000; padding: 20px;
+  min-width: 500px; max-width: 650px; max-height: 90vh; overflow-y: auto;
+}
+.edit-modal-content h3 { margin-top: 0; margin-bottom: 16px; }
+.edit-modal-content label {
+  display: block; font-size: 12px; margin-bottom: 2px; font-weight: bold;
+}
+.edit-modal-content input, .edit-modal-content textarea, .edit-modal-content select {
+  display: block; width: 100%; padding: 4px 8px; border: 1px solid #ccc;
+  font-size: 13px; margin-bottom: 10px; box-sizing: border-box; font-family: inherit;
+}
+.edit-modal-content textarea { min-height: 80px; resize: vertical; }
+.modal-actions {
+  display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;
+}
+.adm-flash {
+  max-width: 900px; margin: 16px auto; padding: 8px 12px; border: 1px solid #c00;
+  background: #fee; color: #900; font-size: 13px; cursor: pointer;
+}

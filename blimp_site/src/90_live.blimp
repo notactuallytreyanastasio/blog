@@ -74,6 +74,41 @@ def ws_frame(opcode: Int, payload: String) -> String do
   concat(from_char_code(128 + opcode), head, payload)
 end
 
+# ── accepting and pushing ───────────────────────────────────────────────
+
+# A connection off the listener, non-blocking, or nil when none is waiting.
+#
+# Non-blocking is not the listener's doing. macOS hands accept(2)'s socket
+# the listener's O_NONBLOCK; Linux never does, so in production every
+# connection was a blocking socket. tcp_write gives up on a reader that
+# takes nothing for 10s, but it counts those seconds between EAGAINs, and
+# a blocking write(2) never says EAGAIN: it waits in the kernel until the
+# peer reads. On 2026-09-30 a crawler opened /live/runtime and stopped
+# reading; four pushes a second filled its 1.7MB of socket buffers in
+# about a minute, and the next tcp_write held the only thread for good
+# (wchan wait_woken, 0% CPU) until the container was restarted.
+def live_accept(listener: Int) -> Any do
+  c = tcp_accept(listener)
+  case c do
+    nil -> nil
+    _ ->
+      tcp_set_nonblocking(c)
+      c
+  end
+end
+
+# text, as one text frame, to each of fds, by way of rooms: queued, and
+# written by the next :flush with tcp_write_some, which never waits. A
+# socket that stops reading is kicked there (src/89_rooms.blimp) and
+# closed by the Site. Not tcp_write: even on a non-blocking socket that
+# waits 10s for a stalled reader, and a push four times a second to a
+# reader that has stopped is a server that answers once every 10s. How
+# many sockets.
+def live_push(rooms: Any, fds: List, text: String) -> Int do
+  each(fds, fn(fd: Int) do rooms <- :send(fd, text) end)
+  length(fds)
+end
+
 # `s` doubled until it is at least `n` bytes long: log2(n) concatenations,
 # where repeat/2 does one per copy and holds every partial string, which
 # for the mask of an 8KB frame is megabytes of garbage.

@@ -1,0 +1,166 @@
+/* /admin/finder: the <style> BlogWeb.FinderAdminLive rendered, as it was,
+   and the flash Phoenix's layout drew. */
+.admin-container {
+  max-width: 900px;
+  margin: 40px auto;
+  font-family: "Geneva", "Chicago", "Helvetica Neue", sans-serif;
+  padding: 0 20px;
+}
+.admin-container h1 {
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+.password-form {
+  max-width: 300px;
+  margin: 100px auto;
+  text-align: center;
+}
+.password-form input {
+  padding: 8px 12px;
+  border: 1px solid #000;
+  font-size: 14px;
+  width: 200px;
+  margin-bottom: 10px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+.password-form button {
+  padding: 6px 20px;
+  background: #000;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+.section-card {
+  border: 1px solid #000;
+  margin-bottom: 16px;
+  background: #fff;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #eee;
+  border-bottom: 1px solid #000;
+}
+.section-header .section-name {
+  font-weight: bold;
+  font-size: 14px;
+}
+.section-header .section-meta {
+  font-size: 11px;
+  color: #666;
+  margin-left: 8px;
+}
+.section-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.btn {
+  padding: 3px 8px;
+  border: 1px solid #000;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+}
+.btn:hover { background: #f0f0f0; }
+.btn-danger { color: #c00; border-color: #c00; }
+.btn-danger:hover { background: #fee; }
+.btn-primary { background: #000; color: #fff; }
+.btn-primary:hover { background: #333; }
+.hidden-indicator { opacity: 0.4; }
+.item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+}
+.item-row:last-child { border-bottom: none; }
+.item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.item-icon { font-size: 18px; }
+.item-path { color: #666; font-size: 11px; }
+.item-action-tag {
+  background: #ffe0b2;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+.item-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.add-form {
+  padding: 12px;
+  background: #fafafa;
+  border-top: 1px solid #ddd;
+}
+.add-form input {
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  font-size: 12px;
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+.edit-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.edit-modal-content {
+  background: #fff;
+  border: 1px solid #000;
+  padding: 20px;
+  min-width: 350px;
+  max-width: 500px;
+}
+.edit-modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.edit-modal-content label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 2px;
+  font-weight: bold;
+}
+.edit-modal-content input, .edit-modal-content select {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  font-size: 13px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+.edit-modal-content .modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.add-section-form {
+  border: 1px solid #000;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #fafafa;
+}
+.adm-flash {
+  max-width: 900px; margin: 16px auto; padding: 8px 12px; border: 1px solid #c00;
+  background: #fee; color: #900; font-size: 13px; cursor: pointer;
+}
