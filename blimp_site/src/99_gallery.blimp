@@ -1,0 +1,495 @@
+# /gallery: an iCloud Shared Album, dressed as System 7.
+#
+# Blog.Gallery was a GenServer that asked iCloud about the album every 15
+# minutes and kept the photo list and Apple's signed CDN urls in ETS;
+# GalleryLive rendered the grid from it, and GalleryController answered
+# /gallery/img/:guid/:size with a 302 to whichever signed url was current.
+# Nothing was mirrored and no image byte went through Phoenix.
+#
+# Here the GALLERY actor does the asking, stepped by the Site's tick like
+# HackerNews, over http_start/http_result, so no request to Apple holds the
+# one process up. What it does with each answer is a function of the old
+# state and the answer (gal_after_stream, gal_after_urls), so the tests run
+# it on recorded answers without a network.
+#
+#   webstream     POST {"streamCtag": ctag|null} to the album's partition.
+#                 Partition 1 answers 330, with the partition's host in the
+#                 body ({"X-Apple-MMe-Host": ...}) as well as the header;
+#                 http_result gives no headers, so the body is what is read.
+#                 The host is kept, and asked from then on.
+#   webasseturls  POST {"photoGuids": [...]}: a signed url for every size of
+#                 every photo, which expire about three hours out.
+#
+# The photos' own logic (dates, sizes, timers, the markup) is Temper, in
+# temper/src/gallery. The viewer, the deck and the mosaic are the
+# GalleryAmbient hook's, as a page script: static/gallery/gallery.js.
+#
+# The album is ICLOUD_ALBUM_TOKEN, the fragment of its public website's
+# address. Without it the page says no album is connected and nothing is
+# asked.
+
+GAL_GIVE_UP_S = 30
+GAL_MAX_HOPS = 3
+GAL_REDIRECT_MAX_AGE = 1800
+
+def gal_token() -> String do
+  k = getenv("ICLOUD_ALBUM_TOKEN")
+  case k do
+    nil -> ""
+    _ -> trim(k)
+  end
+end
+
+def gal_headers() -> Map do
+  put(%{origin: "https://www.icloud.com"}, "content-type", "text/plain")
+end
+
+def gal_get(m: Any, k: Any) -> Any do
+  case type_of(m) == :map do
+    true -> lookup(m, k)
+    false -> nil
+  end
+end
+
+def gal_or(v: Any, dflt: Any) -> Any do
+  case v do
+    nil -> dflt
+    _ -> v
+  end
+end
+
+# ICloud.to_int/2: Apple writes sizes as strings, sometimes as numbers
+def gal_int(v: Any, dflt: Int) -> Int do
+  case type_of(v) do
+    :integer -> v
+    :string -> gal_leading_int(v, dflt)
+    _ -> dflt
+  end
+end
+
+def gal_text(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> trim(v)
+    false -> ""
+  end
+end
+
+# ── the answers ────────────────────────────────────────────────────────
+
+# ICloud.parse_photo/1: one entry of webstream's "photos", or nil for one
+# with no size to show (no all-digit derivative with a checksum).
+def gal_photo(p: Any) -> Any do
+  guid = gal_get(p, :photoGuid)
+  ders = gal_get(p, :derivatives)
+  case type_of(guid) == :string and type_of(ders) == :map do
+    false -> nil
+    true ->
+      sized = filter(map(keys(ders), fn(k: Any) -> Any do {gal_size_key(to_string(k)), lookup(ders, k)} end), fn(e: Any) -> Bool do
+        elem(e, 0) >= 0 and type_of(gal_get(elem(e, 1), :checksum)) == :string
+      end)
+      case sized do
+        [] -> nil
+        _ ->
+          ordered = sort_by_keys(sized, map(sized, fn(e: Any) -> Int do elem(e, 0) end))
+          thumb = elem(head(ordered), 1)
+          display = elem(head(reverse(ordered)), 1)
+          # the top-level size is the original's; the derivative is a scaled
+          # copy of it, so this is the aspect ratio to lay out against
+          %{guid: guid,
+            thumb: lookup(thumb, :checksum),
+            display: lookup(display, :checksum),
+            width: gal_int(gal_or(gal_get(p, :width), gal_get(display, :width)), 1),
+            height: gal_int(gal_or(gal_get(p, :height), gal_get(display, :height)), 1),
+            caption: gal_text(gal_get(p, :caption)),
+            ts: gal_ts(gal_text(gal_or(gal_get(p, :dateCreated), gal_get(p, :batchDateCreated))))}
+      end
+  end
+end
+
+# Newest first; photos with no date last, in Apple's order, so the order
+# never jitters between polls (the page's deck supplies the randomness).
+def gal_sorted(photos: List) -> List do
+  indexed = reduce(photos, {0, []}, fn(acc: Tuple, p: Map) -> Tuple do
+    {elem(acc, 0) + 1, [(0.0 - p.ts * 1.0) * 100000.0 + elem(acc, 0) * 1.0 | elem(acc, 1)]}
+  end)
+  sort_by_keys(photos, reverse(elem(indexed, 1)))
+end
+
+# webstream's 200: {:ok, ctag, album name, photos in Apple's order}
+def gal_stream(body: String) -> Tuple do
+  case json_decode(body) do
+    {:ok, doc} ->
+      case type_of(doc) == :map do
+        false -> {:error, "webstream: not an object"}
+        true ->
+          ps = gal_get(doc, :photos)
+          photos = case type_of(ps) == :list do
+            true -> filter(map(ps, fn(p: Any) -> Any do gal_photo(p) end), fn(p: Any) -> Bool do p != nil end)
+            false -> []
+          end
+          c = gal_get(doc, :streamCtag)
+          ctag = case type_of(c) == :string do
+            true -> c
+            false -> ""
+          end
+          n = gal_get(doc, :streamName)
+          name = case type_of(n) == :string and n != "" do
+            true -> n
+            false -> "Shared Album"
+          end
+          {:ok, ctag, name, photos}
+      end
+    _ -> {:error, concat("webstream: not JSON: ", slice(gal_text(body), 0, 60))}
+  end
+end
+
+# A 330's partition, or "" for one that does not name an Apple host
+def gal_moved_to(body: String) -> String do
+  case json_decode(body) do
+    {:ok, doc} ->
+      h = gal_get(doc, "X-Apple-MMe-Host")
+      case type_of(h) == :string and gal_apple_host(h) do
+        true -> h
+        false -> ""
+      end
+    _ -> ""
+  end
+end
+
+# webasseturls' 200: checksum -> signed url
+def gal_asset_urls(body: String) -> Map do
+  case json_decode(body) do
+    {:ok, doc} ->
+      items = gal_get(doc, :items)
+      case type_of(items) == :map do
+        false -> %{}
+        true ->
+          reduce(keys(items), %{}, fn(acc: Map, k: Any) -> Map do
+            it = lookup(items, k)
+            loc = gal_get(it, :url_location)
+            path = gal_get(it, :url_path)
+            case type_of(loc) == :string and type_of(path) == :string do
+              true -> put(acc, to_string(k), concat("https://", loc, path))
+              false -> acc
+            end
+          end)
+      end
+    _ -> %{}
+  end
+end
+
+def gal_soonest_ttl(urls: Map, t: Int) -> Int do
+  reduce(values(urls), -1, fn(best: Int, u: String) -> Int do
+    ttl = gal_ttl(u, t)
+    case best < 0 or ttl < best do
+      true -> ttl
+      false -> best
+    end
+  end)
+end
+
+# ── the state, and what each answer does to it ─────────────────────────
+#
+# `want` is what the actor starts next: :stream (the album, from `host`),
+# :urls (the signed urls) or :none. The page is rendered here, when the
+# photos change, not per request.
+
+def gal_new(token: String, css: String, tail: String) -> Map do
+  s = %{token: token, host: gal_first_host, ctag: "", name: "Shared Album", photos: [], by_guid: %{},
+        urls: %{}, next_poll: 0, next_urls: 0, empty_streak: 0, last_error: "", force: false,
+        hops: 0, want: :none, css: css, tail: tail, page: "", payload: "[]"}
+  gal_render(s)
+end
+
+def gal_due(s: Map, t: Int) -> Atom do
+  case s.token == "" do
+    true -> :none
+    false ->
+      case t >= s.next_poll do
+        true -> :stream
+        false ->
+          case s.photos != [] and t >= s.next_urls do
+            true -> :urls
+            false -> :none
+          end
+      end
+  end
+end
+
+def gal_failed(s: Map, t: Int, why: String) -> Map do
+  merge(s, %{want: :none, last_error: why, force: false, next_poll: t + gal_poll_s(s.empty_streak, true)})
+end
+
+def gal_after_stream(s: Map, r: Any, t: Int) -> Map do
+  case r do
+    {:ok, 330, body} ->
+      to = gal_moved_to(body)
+      case to == "" do
+        true -> gal_failed(s, t, "webstream: 330 without a host")
+        false ->
+          case to == s.host or s.hops >= GAL_MAX_HOPS do
+            true -> gal_failed(s, t, concat("webstream: 330 loop at ", to))
+            false -> merge(s, %{host: to, hops: s.hops + 1, want: :stream})
+          end
+      end
+    {:ok, 200, body} -> gal_took_stream(merge(s, %{hops: 0}), gal_stream(body), t)
+    {:ok, status, _} -> gal_failed(merge(s, %{hops: 0}), t, concat("webstream: HTTP ", to_string(status)))
+    {:error, why} -> gal_failed(merge(s, %{hops: 0}), t, concat("webstream: ", to_string(why)))
+    _ -> gal_failed(merge(s, %{hops: 0}), t, "webstream: no answer")
+  end
+end
+
+def gal_took_stream(s: Map, got: Tuple, t: Int) -> Map do
+  case elem(got, 0) do
+    :error -> gal_failed(s, t, elem(got, 1))
+    :ok ->
+      ctag = elem(got, 1)
+      photos = elem(got, 3)
+      case not(s.force) and s.ctag != "" and ctag == s.ctag do
+        # unchanged; the urls age out on their own schedule
+        true -> merge(s, %{want: :none, last_error: "", next_poll: t + gal_poll_s(s.empty_streak, false)})
+        false ->
+          case gal_keep_cached(length(photos), length(s.photos), s.empty_streak) do
+            true ->
+              streak = s.empty_streak + 1
+              print(concat("[gallery] empty stream for ", s.name, " (", to_string(streak), "/", to_string(gal_empty_tolerance), "), keeping ", to_string(length(s.photos)), " cached photos"))
+              merge(s, %{want: :none, last_error: "", force: false, empty_streak: streak, next_poll: t + gal_poll_s(streak, false)})
+            false ->
+              sorted = gal_sorted(photos)
+              changed = ctag != s.ctag
+              case changed do
+                true -> print(concat("[gallery] ", to_string(length(sorted)), " photos in ", elem(got, 2)))
+                false -> :ok
+              end
+              by_guid = reduce(sorted, %{}, fn(acc: Map, p: Map) -> Map do put(acc, p.guid, p) end)
+              then_want = case sorted == [] do
+                true -> :none
+                false -> :urls
+              end
+              gal_render(merge(s, %{ctag: ctag, name: elem(got, 2), photos: sorted, by_guid: by_guid,
+                                    empty_streak: 0, last_error: "", force: false, want: then_want,
+                                    next_poll: t + gal_poll_s(0, false)}))
+          end
+      end
+  end
+end
+
+def gal_after_urls(s: Map, r: Any, t: Int) -> Map do
+  case r do
+    {:ok, 200, body} ->
+      urls = gal_asset_urls(body)
+      case keys(urls) == [] do
+        # Blog.Gallery kept the old urls and scheduled nothing, so they were
+        # not asked for again until the album changed; this asks in a minute
+        true -> merge(s, %{want: :none, next_urls: t + 60})
+        false -> merge(s, %{want: :none, urls: urls, last_error: "", next_urls: t + gal_urls_again_s(gal_soonest_ttl(urls, t))})
+      end
+    {:ok, status, _} -> merge(s, %{want: :none, last_error: concat("webasseturls: HTTP ", to_string(status)), next_urls: t + 60})
+    {:error, why} -> merge(s, %{want: :none, last_error: concat("webasseturls: ", to_string(why)), next_urls: t + 60})
+    _ -> merge(s, %{want: :none, last_error: "webasseturls: no answer", next_urls: t + 60})
+  end
+end
+
+# The request for what `s` wants: {url, body}
+def gal_request(s: Map, what: Atom) -> Tuple do
+  case what do
+    :stream ->
+      ctag = case s.force do
+        true -> ""
+        false -> s.ctag
+      end
+      {gal_endpoint(s.host, s.token, "webstream"), gal_stream_body(ctag)}
+    _ -> {gal_endpoint(s.host, s.token, "webasseturls"), gal_assets_body(map(s.photos, fn(p: Map) -> String do p.guid end))}
+  end
+end
+
+# ── the page ───────────────────────────────────────────────────────────
+
+# GalleryLive.group_by_month/1: runs of photos in the same month, as
+# [{label, [photo..]}..] in order
+def gal_groups(photos: List) -> List do
+  runs = reduce(photos, [], fn(acc: List, p: Map) -> List do
+    k = gal_month_key(p.ts)
+    case acc do
+      [] -> [{k, [p]}]
+      [run | rest] ->
+        case elem(run, 0) == k do
+          true -> [{k, [p | elem(run, 1)]} | rest]
+          false -> [{k, [p]} | acc]
+        end
+    end
+  end)
+  reverse(map(runs, fn(run: Tuple) -> Tuple do
+    ps = reverse(elem(run, 1))
+    {gal_month_label(head(ps).ts), ps}
+  end))
+end
+
+def gal_grid(s: Map) -> String do
+  case s.photos do
+    [] -> gal_empty(s.token != "")
+    _ ->
+      join(map(gal_groups(s.photos), fn(g: Tuple) -> String do
+        label = elem(g, 0)
+        gal_group(label, join(map(elem(g, 1), fn(p: Map) -> String do gal_cell(p.guid, p.caption, label) end), ""))
+      end), "")
+  end
+end
+
+def gal_blank(s: String) -> Any do
+  case s do
+    "" -> nil
+    _ -> s
+  end
+end
+
+# Gallery.payload/1: what the deck needs of each photo
+def gal_payload(photos: List) -> String do
+  json_encode(map(photos, fn(p: Map) -> Map do
+    %{guid: p.guid, w: p.width, h: p.height, caption: gal_blank(p.caption), date: gal_blank(gal_pretty_date(p.ts))}
+  end))
+end
+
+def gal_render(s: Map) -> Map do
+  payload = gal_payload(s.photos)
+  merge(s, %{payload: payload, page: gal_page(s.name, length(s.photos), gal_grid(s), payload, s.css, s.tail)})
+end
+
+# GalleryController.image/2
+def gal_image(s: Map, guid: String, size: String) -> Map do
+  p = lookup(s.by_guid, guid)
+  url = case p == nil do
+    true -> nil
+    false ->
+      case gal_size(size) do
+        "thumb" -> lookup(s.urls, p.thumb)
+        _ -> lookup(s.urls, p.display)
+      end
+  end
+  case url do
+    nil -> response(404, "text/plain; charset=utf-8", "no-cache", "no such photo")
+    _ -> %{status: 302, content_type: "text/plain; charset=utf-8", cache: concat("public, max-age=", to_string(GAL_REDIRECT_MAX_AGE)), body: "", location: url}
+  end
+end
+
+# ── the actor ──────────────────────────────────────────────────────────
+
+# Start what `s` wants: {s, phase, handle, started}
+def gal_launch(s: Map, t: Int) -> Tuple do
+  case s.want do
+    :none -> {s, :idle, -1, 0}
+    _ ->
+      req = gal_request(s, s.want)
+      h = http_start("POST", elem(req, 0), gal_headers(), elem(req, 1))
+      case h < 0 do
+        true -> {gal_failed(s, t, "no free http slot"), :idle, -1, 0}
+        false -> {merge(s, %{want: :none}), s.want, h, t}
+      end
+  end
+end
+
+actor Gallery do
+  state s: Map :: %{}
+  state phase: Atom :: :idle
+  state handle: Int :: -1
+  state started: Int :: 0
+
+  on :start(token: String, css: String, tail: String) do
+    become s: gal_new(token, css, tail)
+    reply :ok
+  end
+
+  on :step do
+    t = now()
+    case phase do
+      :idle ->
+        what = gal_due(s, t)
+        case what do
+          :none -> reply :idle
+          _ ->
+            go = gal_launch(merge(s, %{want: what}), t)
+            become s: elem(go, 0), phase: elem(go, 1), handle: elem(go, 2), started: elem(go, 3)
+            reply elem(go, 1)
+        end
+      _ ->
+        r = http_result(handle)
+        case r do
+          nil ->
+            case t - started > GAL_GIVE_UP_S do
+              false -> reply :waiting
+              # the request keeps its slot (http_start has no timeout), not this poll
+              true ->
+                late = case phase do
+                  :stream -> gal_failed(s, t, "webstream: gave up after 30s")
+                  _ -> merge(s, %{want: :none, last_error: "webasseturls: gave up after 30s", next_urls: t + 60})
+                end
+                become s: late, phase: :idle, handle: -1
+                reply :gave_up
+            end
+          _ ->
+            got = case phase do
+              :stream -> gal_after_stream(s, r, t)
+              _ -> gal_after_urls(s, r, t)
+            end
+            go = gal_launch(got, t)
+            become s: elem(go, 0), phase: elem(go, 1), handle: elem(go, 2), started: elem(go, 3)
+            reply elem(go, 1)
+        end
+    end
+  end
+
+  on :page do
+    reply s.page
+  end
+
+  on :image(guid: String, size: String) do
+    reply gal_image(s, guid, size)
+  end
+
+  # Gallery.refresh/0: ask now, ignoring the ctag
+  on :refresh do
+    become s: merge(s, %{next_poll: 0, force: true})
+    reply :ok
+  end
+
+  # Gallery.status/0
+  on :stats do
+    reply %{configured: s.token != "", album: s.name, photos: length(s.photos), host: s.host, ctag: s.ctag, urls: length(keys(s.urls)), next_poll: s.next_poll, next_urls: s.next_urls, empty_streak: s.empty_streak, last_error: s.last_error, phase: phase}
+  end
+end
+
+GALLERY = spawn Gallery
+
+def gal_read(file: String) -> String do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> body
+  end
+end
+
+# The album, and the page rendered before it is first asked about. The tail
+# is the Blimp canvas every server-rendered page carries.
+GALLERY <- :start(gal_token(), gal_read("static/gallery/gallery.css"), RUNTIME_TAGS)
+
+GAL_JS = response(200, "text/javascript; charset=utf-8", "public, max-age=300", gal_read("static/gallery/gallery.js"))
+
+# /gallery, and /gallery/img/:guid/:size; nil for any other path
+def gallery_route(path: String) -> Any do
+  case path do
+    "/gallery" -> response(200, "text/html; charset=utf-8", "no-cache", GALLERY <- :page)
+    "/gallery/gallery.js" -> GAL_JS
+    _ ->
+      case starts_with(path, "/gallery/img/") do
+        false -> nil
+        true ->
+          parts = split(drop(path, 13), "/")
+          case length(parts) == 2 do
+            false -> nil
+            true -> GALLERY <- :image(elem_at(parts, 0), elem_at(parts, 1))
+          end
+      end
+  end
+end

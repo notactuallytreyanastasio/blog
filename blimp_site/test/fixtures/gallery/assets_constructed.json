@@ -1,0 +1,10 @@
+{"items":{
+"t-aug":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/AUG/IMG_0001.JPG?o=A&v=1&z=https%3A%2F%2Fp137-content.icloud.com%3A443&x=1&a=B&e=1790000000&r=C&s=D"},
+"d-aug":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/AUGD/IMG_0001.JPG?o=A&v=1&x=1&a=B&e=1790000000&r=C"},
+"t-sep-a":{"url_expiry":"2026-09-30T07:30:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/SEPA/IMG_0002.JPG?o=A&e=1789998200&r=C"},
+"d-sep-a":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/SEPAD/IMG_0002.JPG?o=A&e=1790000000&r=C"},
+"t-sep-b":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/SEPB/IMG_0003.JPG?e=1790000000"},
+"d-sep-b":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/SEPBD/IMG_0003.JPG?e=1790000000"},
+"t-nodate":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/ND/IMG_0004.JPG?e=1790000000"},
+"d-nodate":{"url_expiry":"2026-09-30T08:00:00Z","url_location":"cvws.icloud-content.com","url_path":"/S/NDD/IMG_0004.JPG?e=1790000000"}
+},"locations":{"cvws.icloud-content.com":{"hosts":["cvws.icloud-content.com"],"scheme":"https"}}}
