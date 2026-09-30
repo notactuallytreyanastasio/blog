@@ -46,10 +46,15 @@ temper_build
 # of temper-core in front of the site made rendering the posts 4.6s -> 7.6s
 # with not one of its functions called. temper/prune.pl follows names from
 # the program's own files to a fixed point.
+# Before the files are joined, temper/dupes.pl refuses a program that makes
+# a top-level name twice, because Blimp keeps the later one without a word
+# (two bkp_body defs came out of a merge that way). The Temper part is
+# checked with the rest; on a refusal $out.temper stays, for its line numbers.
 #   with_temper OUT FILE...   OUT = the Temper FILE... uses, then FILE...
 with_temper() {
   local out="$1"; shift
   perl temper/prune.pl _build/temper.blimp "$@" > "$out.temper"
+  perl temper/dupes.pl "$out.temper" "$@" || { echo "not building $out" >&2; exit 1; }
   cat "$out.temper" "$@" > "$out"
   rm -f "$out.temper"
 }
