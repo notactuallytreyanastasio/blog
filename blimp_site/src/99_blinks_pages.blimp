@@ -80,7 +80,7 @@ BKP_REVIEW_SQL = join([
   ")::text as body"
 ], "")
 
-def bkp_body(sql: String, params: List) -> Map do
+def bkp_sql_body(sql: String, params: List) -> Map do
   case DB <- :query(sql, params) do
     {:error, reason} -> blk_no_db(reason)
     {:ok, rows} -> response(200, BLK_JSON_TYPE, "no-store", head(rows).body)
@@ -92,7 +92,7 @@ def bkp_pick(query: String) -> Map do
     "1" -> "1"
     _ -> ""
   end
-  bkp_body(BKP_PICK_SQL, [json_encode(blk_ids(query_param(query, "exclude"))), query_param(query, "tag"), image])
+  bkp_sql_body(BKP_PICK_SQL, [json_encode(blk_ids(query_param(query, "exclude"))), query_param(query, "tag"), image])
 end
 
 def bkp_walk(query: String) -> Map do
@@ -102,7 +102,7 @@ def bkp_walk(query: String) -> Map do
     true -> 12
     false -> min(lim, 50)
   end
-  bkp_body(BKP_WALK_SQL, [max(id, 0), json_encode(blk_ids(query_param(query, "exclude"))), n])
+  bkp_sql_body(BKP_WALK_SQL, [max(id, 0), json_encode(blk_ids(query_param(query, "exclude"))), n])
 end
 
 # BlinksReviewLive's mount: the key must be the API token (BLINKS_API_TOKEN,
@@ -116,7 +116,7 @@ end
 def bkp_review_json(query: String) -> Map do
   case bkp_key_ok(query) do
     false -> blk_json(401, BLK_UNAUTHORIZED)
-    true -> bkp_body(BKP_REVIEW_SQL, [])
+    true -> bkp_sql_body(BKP_REVIEW_SQL, [])
   end
 end
 

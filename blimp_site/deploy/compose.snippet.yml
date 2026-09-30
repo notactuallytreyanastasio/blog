@@ -34,4 +34,11 @@
       # It also signs the comment post_token, which is a Phoenix.Token that
       # either server accepts. Unset, every anonymous write is a 503.
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      # Web Push for the /blinks PWA (src/99_blinkspush.blimp): the pair
+      # Phoenix's app service has, from /opt/blog/.env. Unset, no pushes and
+      # no bell. Set, the site refuses to start unless the private key gives
+      # the public one. Needs an interpreter with Blimp #71's P-256/AES-GCM.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://bobbby.online}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network
