@@ -3,7 +3,52 @@
 // It is runtime.js's corner window made the page's centrepiece: the same
 // feed into the same BlimpCanvas, into a canvas the page already has, and
 // it keeps the page's gauges (server-rendered, zero-padded) current.
+// The margin notes (src/60_desktop.blimp, desktop.css). They work with no
+// script: CSS shows a note while its word is hovered, focused or open. This
+// only tidies up: one open at a time, Escape or a click elsewhere closes
+// them, a note that would run off the right of the screen is pulled back,
+// and a note closed with the mouse lets go of the focus that would keep it up.
 (function () {
+  var glosses = document.querySelectorAll('.gloss')
+  if (!glosses.length) return
+  var byPointer = false
+  document.addEventListener('pointerdown', function () { byPointer = true }, true)
+  document.addEventListener('keydown', function (e) {
+    byPointer = false
+    if (e.key !== 'Escape') return
+    closeAll(null)
+    var a = document.activeElement
+    if (a && a.closest && a.closest('.gloss')) a.blur()
+  })
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest || !e.target.closest('.gloss')) closeAll(null)
+  })
+  function closeAll(except) {
+    document.querySelectorAll('.gloss-t[open]').forEach(function (d) { if (d !== except) d.open = false })
+  }
+  function fit(g) {
+    var n = g.querySelector(':scope > .note')
+    if (!n) return
+    n.style.translate = ''
+    var r = n.getBoundingClientRect()
+    if (!r.width) return
+    var over = r.right - (document.documentElement.clientWidth - 12)
+    if (over > 0) n.style.translate = -Math.min(over, Math.max(0, r.left - 12)) + 'px 0'
+  }
+  glosses.forEach(function (g) {
+    g.addEventListener('mouseenter', function () { fit(g) })
+    g.addEventListener('focusin', function () { fit(g) })
+    var d = g.querySelector(':scope > .gloss-t')
+    if (!d) return
+    d.addEventListener('toggle', function () {
+      if (d.open) { closeAll(d); fit(g); return }
+      var s = d.querySelector('summary')
+      if (byPointer && s && document.activeElement === s) s.blur()
+    })
+  })
+})()
+
+;(function () {
   var canvas = document.getElementById('scope-canvas')
   if (!canvas || !window.BlimpCanvas || !window.WebSocket) return
 
