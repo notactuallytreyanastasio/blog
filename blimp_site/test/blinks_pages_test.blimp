@@ -1,0 +1,221 @@
+# needs: static/blinks/common.blimp static/blinks/pages.blimp static/blinks/surf.blimp static/blinks/walk.blimp static/blinks/tv.blimp static/blinks/review.blimp
+#
+# /blinks-next/surf, /walk, /tv, /review and /privacy: the Temper helpers
+# (temper/src/blinks_pages), the server's routes without a database (the
+# tests have none), and the four browser programs fed what the server sent
+# from a Postgres loaded with production's 163 links
+# (test/fixtures/blinks/): pick_nyc.json (/blinks-next/pick.json?tag=nyc),
+# walk148.json (/blinks-next/walk.json?id=148), tags.json
+# (/blinks-next/api/blinks/tags), and review.json, five bookmarks made up
+# for the test (production's queue is behind the API token).
+
+BKPT_PICK = read_file("test/fixtures/blinks/pick_nyc.json")
+BKPT_WALK = read_file("test/fixtures/blinks/walk148.json")
+BKPT_TAGS = read_file("test/fixtures/blinks/tags.json")
+BKPT_REVIEW = read_file("test/fixtures/blinks/review.json")
+
+def bkpt_html(v: Any) -> String do
+  to_html(v)
+end
+
+def bkpt_count(hay: String, needle: String) -> Int do
+  length(split(hay, needle)) - 1
+end
+
+def bkpt_similar_ids() -> List do
+  bkp_ids(elem(json_decode(BKPT_WALK), 1).similar)
+end
+
+actor BlinksPagesTests do
+  test "dates, channel numbers and lists of ids" do
+    assert_eq(blkp_saved("2026-07-21T14:02:11", ", "), "Jul 21, 2026")
+    assert_eq(blkp_saved("2026-08-19T00:00:00", " "), "Aug 19 2026")
+    assert_eq(blkp_saved("x", ", "), "")
+    assert_eq(blkp_pad2(0), "00")
+    assert_eq(blkp_pad2(12), "12")
+    assert_eq(blkp_pad2(123), "123")
+    # Integer.mod/2: channel 0 minus one is the last channel
+    assert_eq(blkp_mod(0 - 1, 13), 12)
+    assert_eq(blkp_mod(13, 13), 0)
+    assert_eq(blkp_first_not_in([5, 4, 3, 2, 1], [4, 2], 3), [5, 3, 1])
+    assert_eq(blkp_first_not_in([5, 4], [4, 5], 3), [])
+    assert_eq(blkp_index([9, 8, 7], 7), 2)
+    assert_eq(blkp_index([9, 8, 7], 6), 0 - 1)
+    assert_eq(blkp_keep([1, 2, 3], 2), [1, 2])
+    assert_eq(blkp_keep([1], 25), [1])
+    assert_eq(blkp_csv([3, 1]), "3,1")
+    assert_eq(blkp_csv([]), "")
+    assert_eq(bkp_pick_url([90, 1], "nyc", true, 4), "/blinks-next/pick.json?exclude=90%2C1&tag=nyc&image=1&n=4")
+    assert_eq(bkp_pick_url([], "", false, 1), "/blinks-next/pick.json?n=1")
+    assert_eq(bkp_walk_url(0, [3], 12, 2), "/blinks-next/walk.json?exclude=3&limit=12&n=2")
+  end
+
+  test "routes: the pages, the privacy policy byte for byte, the review behind its key" do
+    assert_eq(blinks_pages_route("/blinks-next/surf", "").status, 200)
+    assert_eq(contains(BKP_SURF_PAGE.body, "data-program=\"/blinks-next/surf.blimp\""), true)
+    assert_eq(contains(BKP_WALK_PAGE.body, "data-location=\"1\""), true)
+    assert_eq(contains(BKP_TV_PAGE.body, "data-location"), false)
+    assert_eq(contains(BKP_TV_PAGE.body, "<title>Blinks TV</title>"), true)
+    assert_eq(contains(BKP_SURF_PAGE.body, "/blinks-next/pages.css"), true)
+    privacy = blinks_pages_route("/blinks-next/privacy", "")
+    assert_eq(privacy.body, read_file("static/blinks/privacy.html"))
+    assert_eq(privacy.cache, "max-age=0, private, must-revalidate")
+    assert_eq(contains(privacy.body, "<a href=\"mailto:bobbbygrayson@gmail.com\">"), true)
+    # no BLINKS_API_TOKEN in the tests, so no key opens it
+    no_key = blinks_pages_route("/blinks-next/review", "key=")
+    assert_eq(no_key.status, 302)
+    assert_eq(no_key.location, "/blinks-next")
+    assert_eq(blinks_pages_route("/blinks-next/review.json", "key=x").status, 401)
+    # what needs the database says so
+    assert_eq(blinks_pages_route("/blinks-next/pick.json", "").status, 503)
+    assert_eq(blinks_pages_route("/blinks-next/walk.json", "id=148").status, 503)
+    assert_eq(blinks_pages_route("/blinks-next/nope", ""), nil)
+    assert_eq(contains(BKP_CSS.body, "@keyframes tv-staticfuzz"), true)
+  end
+
+  test "surf: the channel is the URL's, a pick leaves out what was seen, back retraces" do
+    s = spawn Surf
+    s <- :location("tag=nyc")
+    assert_eq(elem(s <- :asking, 0), "/blinks-next/pick.json?tag=nyc&n=1")
+    s <- :tags_loaded(200, BKPT_TAGS)
+    s <- :dealt(200, BKPT_PICK)
+    v = bkpt_html(s <- :view)
+    assert_eq(contains(v, "id=\"surf-card-90\""), true)
+    assert_eq(contains(v, "1 stumbled · 14 in channel"), true)
+    assert_eq(contains(v, "<a class=\"tag on\">nyc</a>"), true)
+    assert_eq(contains(v, "<option value=\"nyc\" selected>nyc (14)</option>"), true)
+    assert_eq(bkpt_count(v, "<option "), 25)
+    assert_eq(contains(v, "saved "), true)
+    # links go to the Blimp pages
+    assert_eq(contains(v, "href=\"/blinks-next/walk\""), true)
+    assert_eq(elem(s <- :asking, 0), "")
+    s <- :stumble
+    # [current.id | MapSet.to_list(seen)]: the card showing is also in seen,
+    # so Phoenix sends it twice too
+    assert_eq(elem(s <- :asking, 0), "/blinks-next/pick.json?exclude=90%2C90&tag=nyc&n=2")
+    # the channel used up: the LiveView's exhausted screen
+    s <- :dealt(200, "{\"blink\" : null, \"pool\" : 14, \"total\" : 163}")
+    assert_eq(contains(bkpt_html(s <- :view), "all 14 links seen this session."), true)
+    s <- :reset
+    assert_eq(elem(s <- :asking, 0), "/blinks-next/pick.json?exclude=90&tag=nyc&n=3")
+    # more like this: three not seen, one at random
+    s <- :more_like
+    assert_eq(elem(s <- :asking, 1), "/blinks-next/walk.json?id=90&limit=8&n=4")
+    # switching to a channel the card is in keeps it and counts the pool
+    s <- :channel("new-york")
+    v2 = bkpt_html(s <- :view)
+    assert_eq(contains(v2, "id=\"surf-card-90\""), true)
+  end
+
+  test "surf: back returns to the card before, and is disabled with no history" do
+    s = spawn Surf
+    s <- :location("")
+    s <- :tags_loaded(200, BKPT_TAGS)
+    assert_eq(contains(bkpt_html(s <- :view), "disabled"), true)
+    rows = elem(json_decode(BKPT_WALK), 1).similar
+    s <- :deal(head(rows))
+    s <- :deal(head(tail(rows)))
+    v = bkpt_html(s <- :view)
+    assert_eq(contains(v, "2 stumbled · 0 in channel"), true)
+    s <- :back
+    assert_eq(contains(bkpt_html(s <- :view), concat("surf-card-", to_string(head(rows).id))), true)
+  end
+
+  test "walk: three doors not yet walked, a trail, rewinding to a crumb" do
+    w = spawn Walk
+    w <- :location("from=148")
+    assert_eq(w <- :asking, "/blinks-next/walk.json?id=148&limit=12&n=1")
+    w <- :arrived(200, BKPT_WALK)
+    v = bkpt_html(w <- :view)
+    assert_eq(contains(v, "id=\"walk-here-148\""), true)
+    ids = bkpt_similar_ids()
+    # the first three of list_similar(12)
+    assert_eq(bkpt_count(v, "class=\"door\""), 3)
+    assert_eq(contains(v, "??? — total wildcard"), true)
+    assert_eq(contains(v, "class=\"trail\""), false)
+    first = head(ids)
+    w <- :step(first)
+    assert_eq(w <- :asking, concat("/blinks-next/walk.json?id=", to_string(first), "&limit=12&n=2"))
+    # the stop 148 walked to comes back with 148 among its neighbours: that
+    # door is not offered again
+    here = elem(json_decode(BKPT_WALK), 1)
+    moved = json_encode(%{blink: head(here.similar), similar: [here.blink | tail(here.similar)]})
+    w <- :arrived(200, moved)
+    v2 = bkpt_html(w <- :view)
+    assert_eq(contains(v2, "class=\"trail\""), true)
+    assert_eq(contains(v2, "The Hidden Debt That Apple Owes to the CIA - WSJ"), true)
+    assert_eq(contains(v2, "<span class=\"crumb\">The Hidden Debt That Apple Owes to the CIA - WSJ</span> <span> → </span> <span class=\"crumb-here\">"), true)
+    assert_eq(bkpt_count(v2, "class=\"door\""), 3)
+    assert_eq(contains(v2, "<b>The Hidden Debt"), false)
+    w <- :wildcard
+    assert_eq(w <- :asking, concat("/blinks-next/walk.json?exclude=", to_string(first), "%2C148&limit=12&n=3"))
+    w <- :rewind(148)
+    assert_eq(w <- :asking, "/blinks-next/walk.json?id=148&limit=12&n=4")
+    w <- :arrived(200, BKPT_WALK)
+    assert_eq(contains(bkpt_html(w <- :view), "class=\"trail\""), false)
+  end
+
+  test "tv: channels are the top twelve tags, zapping wraps, a used-up channel goes round" do
+    t = spawn Tv
+    assert_eq(t <- :asking, "/blinks-next/pick.json?image=1&n=0")
+    t <- :tags_loaded(200, BKPT_TAGS)
+    t <- :tuned(200, BKPT_PICK)
+    v = bkpt_html(t <- :view)
+    assert_eq(contains(v, "CH 00 · ALL"), true)
+    assert_eq(contains(v, "id=\"tv-frame-90\""), true)
+    assert_eq(contains(v, "▶ PLAY"), true)
+    assert_eq(contains(v, "SAVED "), true)
+    t <- :zap(0 - 1)
+    v2 = bkpt_html(t <- :view)
+    assert_eq(contains(v2, "CH 12 · ML"), true)
+    # a zap clears the no-repeat window
+    assert_eq(t <- :asking, "/blinks-next/pick.json?tag=ml&image=1&n=1")
+    t <- :tuned(200, BKPT_PICK)
+    t <- :next
+    assert_eq(t <- :asking, "/blinks-next/pick.json?exclude=90&tag=ml&image=1&n=2")
+    # nothing left in the window: clear it and pick again
+    t <- :tuned(200, "{\"blink\" : null, \"pool\" : 0, \"total\" : 163}")
+    assert_eq(t <- :asking, "/blinks-next/pick.json?tag=ml&image=1&n=3")
+    t <- :toggle_play
+    assert_eq(contains(bkpt_html(t <- :view), "⏸ PAUSE"), true)
+    # paused, the clock ticks and nothing is asked
+    t <- :tuned(200, BKPT_PICK)
+    t <- :tick_a
+    assert_eq(t <- :asking, "")
+  end
+
+  test "tv: an empty stack is NO SIGNAL" do
+    t = spawn Tv
+    t <- :tuned(200, "{\"blink\" : null, \"pool\" : 0, \"total\" : 0}")
+    assert_eq(contains(bkpt_html(t <- :view), "NO SIGNAL"), true)
+  end
+
+  test "review: the queue and the counts are drawn, a vote says it is not ported and changes nothing" do
+    r = spawn Review
+    r <- :location("key=k")
+    assert_eq(contains(bkpt_html(r <- :view), "loading…"), true)
+    r <- :loaded(200, BKPT_REVIEW)
+    v = bkpt_html(r <- :view)
+    assert_eq(contains(v, "2 / 5 reviewed · "), true)
+    assert_eq(contains(v, "<b class=\"added\">1 blinked</b> · 1 passed"), true)
+    assert_eq(bkpt_count(v, "class=\"row\""), 3)
+    # Favorites is not a flair, and a missing title is the url
+    assert_eq(contains(v, "<span class=\"flair\">Favorites</span>"), false)
+    assert_eq(contains(v, "<span class=\"flair\">reading</span>"), true)
+    assert_eq(contains(v, ">https://www.example.org/blinks72-b</a>"), true)
+    assert_eq(contains(v, "(example.org)"), true)
+    r <- :vote("up")
+    v2 = bkpt_html(r <- :view)
+    assert_eq(contains(v2, "writes are not ported to Blimp yet; nothing was changed"), true)
+    assert_eq(bkpt_count(v2, "class=\"row\""), 3)
+    r <- :dismiss_note
+    assert_eq(contains(bkpt_html(r <- :view), "bkp-note"), false)
+    r <- :loaded(200, "{\"candidates\" : [], \"counts\" : {\"added\" : 3}}")
+    assert_eq(contains(bkpt_html(r <- :view), "queue zero. every bookmark has been judged. 🏁"), true)
+  end
+
+  test "the newspaper's masthead points at the Blimp pages" do
+    assert_eq(contains(read_file("static/blinks/paper.blimp"), "href: \"/blinks-next/surf\""), true)
+    assert_eq(contains(read_file("static/blinks/paper.blimp"), "href: \"/blinks/surf\""), false)
+  end
+end

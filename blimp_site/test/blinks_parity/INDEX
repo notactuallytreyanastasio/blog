@@ -1,0 +1,51 @@
+# name                                  path (exact query string sent)
+# --- JSON API: deterministic (order is inserted_at desc, id desc) ---
+api_blinks.json                         /api/blinks
+api_blinks_limit500.json                /api/blinks?limit=500
+api_blinks_limit5_offset10.json         /api/blinks?limit=5&offset=10
+api_blinks_limit0.json                  /api/blinks?limit=0
+api_blinks_limit501_offset160.json      /api/blinks?limit=501&offset=160
+api_blinks_tags_ai.json                 /api/blinks?tags=ai
+api_blinks_tags_union.json              /api/blinks?tags=ai,%20history,,bluesky
+api_blinks_tag_singular.json            /api/blinks?tag=history
+api_blinks_q_word.json                  /api/blinks?q=wikipedia
+api_blinks_q_partial.json               /api/blinks?q=wiki
+api_blinks_q_phrase.json                /api/blinks?q=%22new%20york%22
+api_blinks_q_or.json                    /api/blinks?q=%22the%20internet%22%20or%20wikipedia
+api_blinks_q_not.json                   /api/blinks?q=music%20-bluesky
+api_blinks_q_and_tags.json              /api/blinks?q=history&tags=interesting
+api_blinks_popular.json                 /api/blinks?sort=popular&limit=20
+api_blinks_tags.json                    /api/blinks/tags
+api_comments_148.json                   /api/blinks/148/comments
+api_comments_missing.json               /api/blinks/99999/comments
+api_comments_bad_id.json                /api/blinks/abc/comments
+# --- JSON API: error and gate behaviour as it is today ---
+api_blinks_offset_abc.txt               /api/blinks?offset=abc
+api_lookup_no_token.json                /api/blinks/lookup?url=https://example.com
+api_export_no_token.json                /api/blinks/export
+# --- random: compare shape, not content ---
+api_random.json                         /api/blinks/random
+api_random_exclude.json                 /api/blinks/random?exclude=1,2,x,3
+stumble.txt                             /blinks/stumble
+# --- feeds and static files ---
+blinks.rss                              /blinks.rss
+blinks_tags_ai.rss                      /blinks.rss?tags=ai
+blinks_tag_two.rss                      /blinks.rss?tag=history,ai
+blinks_privacy.html                     /blinks/privacy
+blinks-sw.js                            /blinks-sw.js
+manifest.json                           /static/blinks-pwa/manifest.json
+# --- LiveView first (static) renders: see README for what varies ---
+page_blinks.html                        /blinks
+page_blinks_tags_ai.html                /blinks?tags=ai
+page_blinks_q.html                      /blinks?q=wikipedia
+page_blinks_page2.html                  /blinks?page=2
+page_blinks_nodork.html                 /blinks?nodork=1
+page_blinks_similar.html                /blinks?similar=148
+page_blinks_archives.html               /blinks?view=archives
+page_blinks_archive_week.html           /blinks?view=archives&week=2026-09-07
+page_reader.html                        /blinks-reader
+page_reader_tags.html                   /blinks-reader?tags=bluesky
+page_walk_148.html                      /blinks/walk?id=148
+page_surf.html                          /blinks/surf
+page_tv.html                            /blinks/tv
+page_review_no_key.txt                  /blinks/review

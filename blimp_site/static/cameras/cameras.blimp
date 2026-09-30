@@ -1,0 +1,968 @@
+# /cameras, the Camera Browser: the page's program. CameraBrowserLive's
+# template, element for element and class for class, with its styles in
+# static/cameras/cameras.css.
+#
+# The rows are the server's (src/99_cameras.blimp): list_listings/1's query
+# for the filters in the URL, fetched again whenever one of them changes,
+# a sweep finishes or a listing is starred, hidden or noted. What the
+# LiveView did with them on the server, this does here: Facets.filter/2 and
+# compute/2, collapse_dupes/1, and printing, with what those decide in
+# Temper (temper/src/cameras). A facet is a click, not a round trip.
+#
+# The state is in the URL, as the LiveView's was (app.js hands it over as
+# :location, location_query writes it back): status, city, q, min, max,
+# hidden, starred, sort, key, open, and one parameter per facet.
+#
+# static/cameras/cameras.js is the socket, /live/cameras: every frame from
+# it is `cam <- :frame(json)`, and every 100ms `cam <- :outbox` says what to
+# send up (a star, a hide, a note).
+
+def cm_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+def cm_int(v: Any) -> Int do
+  case type_of(v) == :integer do
+    true -> v
+    false -> -1
+  end
+end
+
+def cm_list(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> v
+    false -> []
+  end
+end
+
+def cm_decode(text: String) -> Any do
+  case json_decode(text) do
+    {:ok, m} -> m
+    _ -> nil
+  end
+end
+
+def cm_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def cm_has(xs: List, x: Any) -> Bool do
+  length(filter(xs, fn(y: Any) -> Bool do y == x end)) > 0
+end
+
+def cm_nth(xs: List, i: Int) -> Any do
+  case xs do
+    [] -> nil
+    [h | rest] ->
+      case i <= 0 do
+        true -> h
+        false -> cm_nth(rest, i - 1)
+      end
+  end
+end
+
+def cm_index(xs: List, x: Any, i: Int) -> Int do
+  case xs do
+    [] -> -1
+    [h | rest] ->
+      case h == x do
+        true -> i
+        false -> cm_index(rest, x, i + 1)
+      end
+  end
+end
+
+def cm_take(xs: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case xs do
+        [] -> []
+        [h | rest] -> [h | cm_take(rest, n - 1)]
+      end
+  end
+end
+
+# 0 .. n-1 (range/2 includes its end)
+def cm_upto(n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false -> range(0, n - 1)
+  end
+end
+
+def cm_mod(a: Int, n: Int) -> Int do
+  r = rem(a, n)
+  case r < 0 do
+    true -> r + n
+    false -> r
+  end
+end
+
+# ── the URL ──────────────────────────────────────────────────────────
+
+# The filters and the facets, from a query string: handle_params/3.
+def cm_parse(q: String) -> Map do
+  city = case contains(concat("&", q), "&city=") do
+    true -> query_param(q, "city")
+    false -> "nyc"
+  end
+  active = map(cam_facet_names, fn(n: String) -> List do cam_param_values(query_param(q, n)) end)
+  %{status: cam_status(query_param(q, "status")), city: city, q: query_param(q, "q"),
+    min: cam_dollars(query_param(q, "min")), max: cam_dollars(query_param(q, "max")),
+    hidden: query_param(q, "hidden") == "1", starred: query_param(q, "starred") == "1",
+    sort: cam_sort(query_param(q, "sort")), key: query_param(q, "key"),
+    open: cm_open_id(query_param(q, "open")), active: active}
+end
+
+def cm_open_id(s: String) -> Int do
+  case s != "" and length(s) < 10 and length(filter(split(s, ""), fn(c: String) -> Bool do not(contains("0123456789", c)) end)) == 0 do
+    true -> to_int(s)
+    false -> -1
+  end
+end
+
+def cm_dollars_text(cents: Int) -> String do
+  case cents < 0 do
+    true -> ""
+    false -> to_string(cents / 100)
+  end
+end
+
+def cm_bool1(b: Bool) -> String do
+  case b do
+    true -> "1"
+    false -> ""
+  end
+end
+
+# filter_params/3 written out as ~p does a map: keys sorted, each value
+# encoded, the defaults left out.
+def cm_query(f: Map, open: Int) -> String do
+  facet_pairs = map(cam_facet_names, fn(n: String) -> List do
+    [n, join(cm_nth(f.active, cm_index(cam_facet_names, n, 0)), ",")]
+  end)
+  open_text = case open < 0 do
+    true -> ""
+    false -> to_string(open)
+  end
+  pairs = cm_append(facet_pairs, [["city", f.city], ["hidden", cm_bool1(f.hidden)], ["key", f.key], ["max", cm_dollars_text(f.max)],
+    ["min", cm_dollars_text(f.min)], ["open", open_text], ["q", f.q], ["sort", f.sort], ["starred", cm_bool1(f.starred)], ["status", f.status]])
+  kept = filter(pairs, fn(p: List) -> Bool do cam_param_kept(head(p), last(p)) end)
+  sorted = sort_by_keys(kept, map(kept, fn(p: List) -> String do head(p) end))
+  join(map(sorted, fn(p: List) -> String do concat(head(p), "=", cam_enc(last(p))) end), "&")
+end
+
+# What the server is asked: the filters it runs, not the facets or the
+# lightbox, and a serial that makes asking again a new request.
+def cm_rows_url(f: Map, v: Int) -> String do
+  pairs = [["city", f.city], ["hidden", cm_bool1(f.hidden)], ["key", f.key], ["max", cm_dollars_text(f.max)], ["min", cm_dollars_text(f.min)],
+    ["q", f.q], ["sort", f.sort], ["starred", cm_bool1(f.starred)], ["status", f.status]]
+  kept = filter(pairs, fn(p: List) -> Bool do cam_param_kept(head(p), last(p)) end)
+  qs = join(map(kept, fn(p: List) -> String do concat(head(p), "=", cam_enc(last(p))) end), "&")
+  case qs do
+    "" -> concat("/cameras/listings.json?v=", to_string(v))
+    _ -> concat("/cameras/listings.json?", qs, "&v=", to_string(v))
+  end
+end
+
+# ── the rows ─────────────────────────────────────────────────────────
+
+# A row as the server sent it, with what the facets and dupes need from it
+# worked out once: its value for each facet, in cam_facet_names order.
+def cm_row(r: Map, now: Int) -> Map do
+  title = cm_str(lookup(r, :title))
+  make = cm_str(lookup(r, :make))
+  cond = cm_str(lookup(r, :cond))
+  brand = cam_brand(downcase(concat(make, " ", title)))
+  rarity = cm_int(lookup(r, :rarity))
+  pt = cm_str(lookup(r, :pt))
+  analyzed = lookup(r, :analyzed) == true
+  renewed = cm_int(lookup(r, :renewed))
+  bumped = case renewed < 0 do
+    true -> cm_int(lookup(r, :posted))
+    false -> renewed
+  end
+  v_brand = case brand do
+    "" -> []
+    _ -> [brand]
+  end
+  v_rarity = case analyzed and rarity >= 0 do
+    true -> [cam_rarity_value(rarity)]
+    false -> []
+  end
+  v_take = case analyzed and pt != "" do
+    true -> [pt]
+    false -> []
+  end
+  v_cond = case cond do
+    "" -> []
+    _ -> [downcase(cond)]
+  end
+  v_contact = case lookup(r, :contact) == true do
+    true -> ["phone/email in post"]
+    false -> []
+  end
+  vals = [v_brand, cam_formats(downcase(concat(title, " ", cm_str(lookup(r, :body))))), cm_list(lookup(r, :tags)), v_rarity, v_take, v_cond,
+    [cam_price_bucket(cm_int(lookup(r, :price)))], [cam_photo_bucket(cm_int(lookup(r, :n_img)))], [cam_age_bucket(now, bumped)], v_contact]
+  put(put(put(r, :vals, vals), :dupe, cam_dupe_key(downcase(title), cm_int(lookup(r, :price)))), :bumped, bumped)
+end
+
+# collapse_dupes/1: the first row of each title and price, with how many
+# rows it stands for, in the order the rows came.
+def cm_collapse(rows: List) -> List do
+  counts = reduce(rows, %{}, fn(acc: Map, r: Map) -> Map do
+    put(acc, r.dupe, cm_count_of(acc, r.dupe) + 1)
+  end)
+  kept = reduce(rows, {%{}, []}, fn(acc: Tuple, r: Map) -> Tuple do
+    seen = elem(acc, 0)
+    case lookup(seen, r.dupe) do
+      nil -> {put(seen, r.dupe, true), [put(r, :dupes, lookup(counts, r.dupe)) | elem(acc, 1)]}
+      _ -> acc
+    end
+  end)
+  reverse(elem(kept, 1))
+end
+
+def cm_count_of(m: Map, k: String) -> Int do
+  n = lookup(m, k)
+  case n do
+    nil -> 0
+    _ -> n
+  end
+end
+
+def cm_filter(rows: List, active: List, skip: Int) -> List do
+  filter(rows, fn(r: Map) -> Bool do cam_passes(r.vals, active, skip) end)
+end
+
+# Facets.compute/2: each facet counted over the rows that pass every other
+# facet; the values with a row, and the selected ones, sorted, cut; a facet
+# with nothing to show left out.
+def cm_rail(rows: List, active: List) -> List do
+  facets = map(cm_upto(length(cam_facet_names)), fn(i: Int) -> Map do
+    name = cm_nth(cam_facet_names, i)
+    selected = cm_nth(active, i)
+    pool = cm_filter(rows, active, i)
+    counts = reduce(pool, %{}, fn(acc: Map, r: Map) -> Map do
+      reduce(cm_nth(r.vals, i), acc, fn(a: Map, v: String) -> Map do put(a, v, cm_count_of(a, v) + 1) end)
+    end)
+    known = sort(keys(counts))
+    extra = filter(selected, fn(v: String) -> Bool do lookup(counts, v) == nil end)
+    all = cm_uniq(cm_append(known, extra))
+    ordered = case cam_order_key(name, "") < 0 do
+      true ->
+        by_value = sort(all)
+        sort_by_keys(by_value, map(by_value, fn(v: String) -> Int do 0 - cm_count_of(counts, v) end))
+      false -> sort_by_keys(all, map(all, fn(v: String) -> Int do cam_order_key(name, v) end))
+    end
+    shown = cm_take(ordered, cam_facet_limit(name))
+    %{name: name, index: i, values: map(shown, fn(v: String) -> Map do
+      %{value: v, count: cm_count_of(counts, v), sel: cm_has(selected, v)}
+    end)}
+  end)
+  filter(facets, fn(f: Map) -> Bool do length(f.values) > 0 end)
+end
+
+def cm_uniq(xs: List) -> List do
+  reverse(reduce(xs, [], fn(acc: List, x: Any) -> List do
+    case cm_has(acc, x) do
+      true -> acc
+      false -> [x | acc]
+    end
+  end))
+end
+
+# What the table shows and what the rail counts, for these rows and facets.
+def cm_derive(rows: List, active: List) -> Map do
+  %{listings: cm_collapse(cm_filter(rows, active, -1)), rail: cm_rail(rows, active)}
+end
+
+def cm_any_active(active: List) -> Bool do
+  length(filter(active, fn(vs: List) -> Bool do length(vs) > 0 end)) > 0
+end
+
+def cm_toggle(active: List, i: Int, v: String) -> List do
+  map(cm_upto(length(active)), fn(j: Int) -> List do
+    vs = cm_nth(active, j)
+    case j == i do
+      false -> vs
+      true ->
+        case cm_has(vs, v) do
+          true -> filter(vs, fn(x: String) -> Bool do x != v end)
+          false -> cm_append(vs, [v])
+        end
+    end
+  end)
+end
+
+def cm_no_facets() -> List do
+  map(cam_facet_names, fn(n: String) -> List do [] end)
+end
+
+# ── the view ─────────────────────────────────────────────────────────
+
+def cm_menubar(stats: Any, now: Int) -> Any do
+  last_seen = case stats do
+    nil -> -1
+    _ -> cm_int(lookup(stats, :last_seen))
+  end
+  swept = case last_seen < 0 do
+    true -> el("span", %{}, "Never swept")
+    false -> el("span", %{}, concat("Swept ", cam_ago(now, last_seen), " ago"))
+  end
+  el("div", %{class: "cam-menubar"},
+    el("div", %{class: "cam-menu-left"},
+      el("a", %{href: "/", class: "cam-apple"}, ""),
+      el("a", %{href: "/", class: "cam-menu-item"}, "Finder"),
+      el("a", %{href: "/blog", class: "cam-menu-item"}, "Blog"),
+      el("a", %{href: "/directory", class: "cam-menu-item"}, "Directory"),
+      el("span", %{class: "cam-menu-item cam-menu-on"}, "Cameras")),
+    el("div", %{class: "cam-menu-right"}, swept))
+end
+
+def cm_toolbar(f: Map, admin: Bool) -> Any do
+  tab = cam_tab_of(f.city)
+  tabs = map(cam_tabs, fn(t: String) -> Any do
+    cls = case t == tab do
+      true -> "cam-tab on"
+      false -> "cam-tab"
+    end
+    el("a", %{class: cls, click: :city, with: t}, cam_tab_label(t))
+  end)
+  chip = fn(v: String, label: String) -> Any do
+    cls = case f.city == v do
+      true -> "cam-tag cam-tag-on"
+      false -> "cam-tag"
+    end
+    el("a", %{class: cls, click: :city, with: v}, label)
+  end
+  chips = [chip(tab, "all") | map(cam_tab_subs(tab), fn(s: String) -> Any do chip(s, cam_sub_label(s)) end)]
+  status_opts = map([["open", "live"], ["closed", "gone"], ["all", "all"]], fn(o: List) -> Any do
+    el("option", %{value: head(o), selected: f.status == head(o)}, last(o))
+  end)
+  sort_opts = map(cam_sorts, fn(s: String) -> Any do el("option", %{value: s, selected: f.sort == s}, cam_sort_label(s)) end)
+  hidden_box = case admin do
+    true -> [el("label", %{}, el("input", %{type: "checkbox", checked: f.hidden, change: :set_hidden}), " hidden")]
+    false -> []
+  end
+  el("div", %{class: "cam-toolbar"},
+    el("span", %{class: "cam-tabs"}, tabs),
+    el("span", %{class: "cam-chips"}, chips),
+    el("div", %{class: "cam-form"},
+      [el("select", %{name: "status", change: :set_status, value: f.status}, status_opts),
+       el("select", %{name: "sort", change: :set_sort, value: f.sort}, sort_opts),
+       el("input", %{type: "text", name: "q", value: f.q, placeholder: "search as you type", autocomplete: "off", input: :set_q, debounce: "150"}),
+       el("label", %{}, "$", el("input", %{type: "number", name: "min", value: cm_dollars_text(f.min), placeholder: "min", input: :set_min, debounce: "400"})),
+       el("label", %{}, "–", el("input", %{type: "number", name: "max", value: cm_dollars_text(f.max), placeholder: "max", input: :set_max, debounce: "400"})),
+       el("label", %{}, el("input", %{type: "checkbox", checked: f.starred, change: :set_starred}), " ★") | hidden_box]),
+    el("button", %{class: "cam-reset", click: :clear}, "reset"))
+end
+
+def cm_rail_view(rail: List, shown: Int, base: Int, any: Bool) -> Any do
+  clear = case any do
+    true -> [el("a", %{click: :clear_facets}, "clear")]
+    false -> []
+  end
+  head_el = el("div", %{class: "cam-rail-head"}, [el("span", %{}, concat(to_string(shown), " of ", to_string(base))) | clear])
+  facets = map(rail, fn(f: Map) -> Any do
+    n_on = length(filter(f.values, fn(v: Map) -> Bool do v.sel end))
+    badge = case n_on > 0 do
+      true -> [el("span", %{class: "on-n"}, to_string(n_on))]
+      false -> []
+    end
+    values = map(f.values, fn(v: Map) -> Any do
+      cls = cm_classes(["cam-fv", cm_if(v.sel, "on"), cm_if(v.count == 0, "zero")])
+      box = case v.sel do
+        true -> "■"
+        false -> "□"
+      end
+      el("a", %{class: cls, click: :facet, with: concat(to_string(f.index), "\t", v.value)},
+        el("span", %{class: "box"}, box),
+        el("span", %{class: "lbl"}, v.value),
+        el("span", %{class: "cnt"}, to_string(v.count)))
+    end)
+    el("details", %{class: "cam-facet", open: cam_facet_open(f.name, n_on)},
+      [el("summary", %{}, [cam_facet_label(f.name) | badge]) | values])
+  end)
+  el("aside", %{class: "cam-rail"}, [head_el | facets])
+end
+
+def cm_classes(xs: List) -> String do
+  join(filter(xs, fn(c: String) -> Bool do c != "" end), " ")
+end
+
+def cm_if(b: Bool, s: String) -> String do
+  case b do
+    true -> s
+    false -> ""
+  end
+end
+
+# The template's spans after the tags each sit on a line of their own, so
+# HEEx leaves whitespace between them, which the browser shows as a space.
+def cm_spaced(els: List) -> List do
+  reduce(reverse(els), [], fn(acc: List, e: Any) -> List do [" ", e | acc] end)
+end
+
+def cm_row_view(l: Map, active_tags: List, admin: Bool, now: Int) -> Any do
+  id = l.id
+  thumb = case l.img do
+    "" -> el("div", %{class: "nothumb"}, "")
+    _ -> el("img", %{class: "thumb", src: cam_image_url(l.img, "300x300"), alt: "", loading: "lazy"})
+  end
+  dupe = case l.dupes > 1 do
+    true -> [el("span", %{class: "cam-tag dupe", title: "posted this many times"}, concat("×", to_string(l.dupes)))]
+    false -> []
+  end
+  tags = map(cm_list(l.tags), fn(t: String) -> Any do
+    el("span", %{class: cm_classes(["cam-tag", cam_tag_class(t), cm_if(cm_has(active_tags, t), "cam-tag-on")]), click: :tag, with: t}, t)
+  end)
+  analysis = case l.analyzed do
+    true -> [el("span", %{class: concat("cam-tag pt-", l.pt), title: l.pn}, l.pt), el("span", %{class: "stars", title: "rarity"}, cam_stars(l.rarity))]
+    false -> []
+  end
+  cond = case l.cond do
+    "" -> []
+    _ -> [el("span", %{}, concat(l.cond, " · "))]
+  end
+  photos = case l.n_img > 0 do
+    true -> [el("span", %{}, concat(to_string(l.n_img), " photos"))]
+    false -> []
+  end
+  gone = case l.closed >= 0 do
+    true -> [el("span", %{}, concat(" · gone (", l.closed_reason, ")"))]
+    false -> []
+  end
+  note = case l.note do
+    "" -> []
+    _ -> [el("span", %{}, " · ", el("i", %{}, l.note))]
+  end
+  city = cam_city(l.sub, l.area)
+  where = cam_where(l.hood, l.loc, l.sub, l.area)
+  hood = case where != city do
+    true -> [el("span", %{class: "hood"}, concat(" · ", where))]
+    false -> []
+  end
+  posted_title = case l.posted < 0 do
+    true -> ""
+    false -> concat("first posted ", cam_month_day(l.posted))
+  end
+  act = case admin do
+    true ->
+      hide_label = case l.hidden do
+        true -> "↺"
+        false -> "✕"
+      end
+      [el("td", %{class: "act"},
+        el("button", %{class: cm_classes(["ib", cm_if(l.starred, "on")]), click: :star, with: id, title: "star"}, "★"),
+        el("button", %{class: "ib", click: :hide, with: id, title: cm_if(l.hidden, "unhide")}, hide_label))]
+    false -> []
+  end
+  star = cm_if(l.starred, "★ ")
+  el("tr", %{id: concat("l-", to_string(id)), class: cm_classes(["row", cm_if(l.starred, "starred"), cm_if(l.hidden, "hidden"), cm_if(l.closed >= 0, "closed")]), click: :open, with: id},
+    [el("td", %{class: "pic"}, thumb),
+     el("td", %{},
+       el("div", %{class: "title"}, [star, l.title | dupe]),
+       el("div", %{class: "sub"}, cm_append(tags, cm_spaced(cm_append(analysis, cm_append(cond, cm_append(photos, cm_append(gone, note)))))))),
+     el("td", %{class: "where"}, [el("b", %{}, city) | hood]),
+     el("td", %{class: "price"}, cam_price(l.price)),
+     el("td", %{class: "when cam-when", title: posted_title}, cam_ago(now, l.bumped)),
+     el("td", %{class: "score cam-score"}, to_string(l.score)) | act])
+end
+
+def cm_table(listings: List, active_tags: List, admin: Bool, now: Int, stats: Any, loaded: Bool, problem: String) -> Any do
+  open_count = case stats do
+    nil -> -1
+    _ -> cm_int(lookup(stats, :open))
+  end
+  case listings do
+    [] ->
+      text = case problem != "" do
+        true -> problem
+        false ->
+          case loaded do
+            true -> "Nothing here."
+            false -> "Loading…"
+          end
+      end
+      seed = case loaded and open_count == 0 do
+        true -> [el("span", %{}, " Seed it with ", el("code", %{}, "Blog.CameraBrowser.poll()"), ".")]
+        false -> []
+      end
+      el("div", %{class: "cam-empty"}, [text | seed])
+    _ ->
+      admin_th = case admin do
+        true -> [el("th", %{}, "")]
+        false -> []
+      end
+      el("div", %{class: "cam-scroll"},
+        el("table", %{class: "cam-table"},
+          el("thead", %{}, el("tr", %{}, [el("th", %{}, ""), el("th", %{}, "Listing"), el("th", %{}, "Where"), el("th", %{class: "r"}, "Price"),
+            el("th", %{class: "r cam-when"}, "Bumped"), el("th", %{class: "r cam-score"}, "Score") | admin_th])),
+          el("tbody", %{}, map(listings, fn(l: Map) -> Any do cm_row_view(l, active_tags, admin, now) end))))
+  end
+end
+
+def cm_statusbar(shown: Int, stats: Any, city: String, sort: String) -> Any do
+  n = fn(k: Atom) -> String do
+    case stats do
+      nil -> "0"
+      _ -> to_string(cm_int(lookup(stats, k)))
+    end
+  end
+  el("div", %{class: "cam-statusbar"},
+    el("span", %{}, concat(to_string(shown), " shown · ", n(:open), " live · ", n(:closed), " gone · ", n(:starred), " starred")),
+    el("span", %{}, concat(upcase(cam_tab_of(city)), " · ", cam_sort_label(sort))))
+end
+
+# The lightbox, for one listing as /cameras/listing.json has it.
+def cm_lightbox(d: Map, photo: Int, admin: Bool, now: Int, bucket: String) -> Any do
+  urls = cam_photo_urls(bucket, cm_list(lookup(d, :mirrored)), cm_list(lookup(d, :image_ids)))
+  n = length(urls)
+  stage_img = case n do
+    0 -> [el("div", %{class: "cam-nophoto"}, "no photos")]
+    _ -> [el("img", %{src: cm_nth(urls, photo), alt: ""})]
+  end
+  nav = case n > 1 do
+    true -> [
+      el("div", %{class: "nav prev", click: :photo_by, with: -1}, "‹"),
+      el("div", %{class: "nav next", click: :photo_by, with: 1}, "›"),
+      el("div", %{class: "strip"}, map(cm_upto(n), fn(i: Int) -> Any do
+        el("img", %{src: cm_nth(urls, i), class: cm_if(i == photo, "on"), click: :photo_at, with: i, alt: ""})
+      end))]
+    false -> []
+  end
+  price = cam_price(cm_int(lookup(d, :price)))
+  city = cam_city(cm_str(lookup(d, :sub)), cm_str(lookup(d, :area)))
+  where = cam_where(cm_str(lookup(d, :hood)), cm_str(lookup(d, :loc)), cm_str(lookup(d, :sub)), cm_str(lookup(d, :area)))
+  posted = cm_int(lookup(d, :posted))
+  renewed = cm_int(lookup(d, :renewed))
+  closed = cm_int(lookup(d, :closed))
+  where_part = case where != city do
+    true -> [el("span", %{}, concat(" · ", where))]
+    false -> []
+  end
+  bumped = case renewed >= 0 and posted >= 0 and renewed - posted > 3600 do
+    true -> [el("span", %{}, concat(", bumped ", cam_ago(now, renewed), " ago"))]
+    false -> []
+  end
+  gone = case closed >= 0 do
+    true -> [el("span", %{}, " · ", el("b", %{class: "gone"}, "gone"), concat(" (", cm_str(lookup(d, :closed_reason)), ", ", cam_ago(now, closed), " ago)"))]
+    false -> []
+  end
+  meta = el("div", %{class: "meta"}, cm_append([el("b", %{}, price), concat(" · ", city)], cm_append(where_part, cm_append([concat(" · posted ", cam_ago(now, posted), " ago")], cm_append(bumped, gone)))))
+  a = lookup(d, :analysis)
+  body = cm_str(lookup(d, :body))
+  ai = case type_of(a) == :map do
+    true ->
+      pt = cm_str(lookup(a, :price_take))
+      feats = cm_list(lookup(a, :fun_features))
+      facts = cm_list(lookup(a, :facts))
+      feat_el = case feats do
+        [] -> []
+        _ -> [el("div", %{class: "ai-list"}, el("b", %{}, "fun features"), el("ul", %{}, map(feats, fn(x: Any) -> Any do el("li", %{}, cm_str(x)) end)))]
+      end
+      fact_el = case facts do
+        [] -> []
+        _ -> [el("div", %{class: "ai-list"}, el("b", %{}, "did you know"), el("ul", %{}, map(facts, fn(x: Any) -> Any do el("li", %{}, cm_str(x)) end)))]
+      end
+      [el("div", %{class: "ai"}, cm_append([
+        el("div", %{class: "ai-head"}, el("b", %{}, "the take"), el("span", %{class: "stars", title: "rarity"}, cam_stars(cm_int(lookup(a, :rarity)))), el("span", %{class: concat("cam-tag pt-", pt)}, pt)),
+        el("p", %{class: "ai-quick"}, cm_str(lookup(a, :quick_take))),
+        el("p", %{class: "ai-price"}, el("b", %{}, "price:"), concat(" ", cm_str(lookup(a, :price_note)))),
+        el("p", %{}, cm_str(lookup(a, :commentary)))], cm_append(feat_el, cm_append(fact_el, [el("div", %{class: "ai-foot"}, concat(cm_str(lookup(a, :model)), " · not gospel"))]))))]
+    false ->
+      case body do
+        "" -> []
+        _ -> [el("div", %{class: "ai ai-pending"}, "analysis pending — it's queued for the next sweep")]
+      end
+  end
+  body_el = case body do
+    "" -> el("div", %{class: "body dim"}, "Full post not fetched yet.")
+    _ -> el("div", %{class: "body"}, body)
+  end
+  starred = lookup(d, :starred) == true
+  hidden = lookup(d, :hidden) == true
+  id = lookup(d, :id)
+  map_url = cam_map_url(cm_str(lookup(d, :lat)), cm_str(lookup(d, :lng)))
+  reply_href = cm_str(lookup(d, :reply_url))
+  reply_btn = case reply_href do
+    "" -> []
+    _ -> [el("a", %{class: "cam-btn", href: reply_href, target: "_blank", rel: "noopener"}, "reply ↗")]
+  end
+  map_btn = case map_url do
+    "" -> []
+    _ -> [el("a", %{class: "cam-btn", href: map_url, target: "_blank", rel: "noopener"}, "map ↗")]
+  end
+  hide_text = case hidden do
+    true -> "unhide"
+    false -> "hide"
+  end
+  admin_btns = case admin do
+    true -> [
+      el("button", %{class: cm_classes(["cam-btn", cm_if(starred, "on")]), click: :star, with: id}, "★ star"),
+      el("button", %{class: cm_classes(["cam-btn", cm_if(hidden, "on")]), click: :hide, with: id}, hide_text)]
+    false -> []
+  end
+  btns = cm_append([el("a", %{class: "cam-btn", href: cm_str(lookup(d, :url)), target: "_blank", rel: "noopener"}, "craigslist ↗")],
+    cm_append(reply_btn, cm_append(map_btn, admin_btns)))
+  contact = cm_list(lookup(d, :contact_list))
+  contact_el = case contact do
+    [] -> []
+    _ -> [el("div", %{class: "contact"}, map(contact, fn(kv: List) -> Any do
+      el("div", %{}, el("b", %{}, concat(cm_str(head(kv)), ":")), concat(" ", join(map(cm_list(last(kv)), fn(x: Any) -> String do cm_str(x) end), ", ")))
+    end))]
+  end
+  kv_rows = cm_append(map(cm_list(lookup(d, :attrs)), fn(kv: List) -> Any do
+    el("tr", %{}, el("th", %{}, cm_str(head(kv))), el("td", %{}, cm_str(last(kv))))
+  end), [
+    el("tr", %{}, el("th", %{}, "tags"), el("td", %{}, map(cm_list(lookup(d, :tags)), fn(t: String) -> Any do el("span", %{class: cm_classes(["cam-tag", cam_tag_class(t)])}, t) end))),
+    el("tr", %{}, el("th", %{}, "found via"), el("td", %{}, join(map(cm_list(lookup(d, :queries)), fn(x: Any) -> String do cm_str(x) end), ", "))),
+    el("tr", %{}, el("th", %{}, "score"), el("td", %{}, to_string(cm_int(lookup(d, :score))))),
+    el("tr", %{}, el("th", %{}, "seen"), el("td", %{}, concat(cam_ago(now, cm_int(lookup(d, :first_seen))), " ago → ", cam_ago(now, cm_int(lookup(d, :last_seen))), " ago"))),
+    el("tr", %{}, el("th", %{}, "id"), el("td", %{}, el("code", %{}, cm_str(lookup(d, :posting_id)))))])
+  note = cm_str(lookup(d, :note))
+  note_el = case admin do
+    true -> [el("div", %{}, el("textarea", %{name: "note", placeholder: "your note", input: :note, debounce: "600", value: note}, note))]
+    false ->
+      case note do
+        "" -> []
+        _ -> [el("div", %{class: "note"}, note)]
+      end
+  end
+  keys_hint = concat("← → photos · ↑ ↓ next listing", cm_if(admin, " · s star · h hide"), " · esc close")
+  el("div", %{class: "cam-lb", id: concat("lb-", to_string(id))},
+    el("div", %{class: "cam-win cam-lbwin"},
+      el("div", %{class: "cam-titlebar"},
+        el("a", %{class: "cam-close", click: :close}, ""),
+        el("div", %{class: "cam-title"}, cm_str(lookup(d, :title))),
+        el("div", %{class: "cam-resize"}, "")),
+      el("div", %{class: "cam-stage"}, cm_append(stage_img, nav)),
+      el("div", %{class: "cam-panel"},
+        el("div", %{}, cm_append([meta], cm_append(ai, [body_el]))),
+        el("div", %{class: "side"}, cm_append([el("div", %{class: "btns"}, btns)], cm_append(contact_el, cm_append([el("table", %{class: "kv"}, el("tbody", %{}, kv_rows))], note_el))))),
+      el("div", %{class: "cam-statusbar"},
+        el("span", %{}, concat(to_string(photo + 1), " / ", to_string(max(n, 1)), " photos")),
+        el("span", %{}, keys_hint))))
+end
+
+def cm_page(s: Map) -> Any do
+  f = s.f
+  shown = length(s.listings)
+  lb = case s.detail do
+    nil -> []
+    _ -> [cm_lightbox(s.detail, s.photo, s.admin, s.now, s.bucket)]
+  end
+  el("div", %{class: "cam", id: "cam-page"}, cm_append([
+    cm_menubar(s.stats, s.now),
+    el("div", %{class: "cam-desktop"},
+      el("div", %{class: "cam-win"},
+        el("div", %{class: "cam-titlebar"},
+          el("a", %{href: "/", class: "cam-close"}, ""),
+          el("div", %{class: "cam-title"}, "Camera Browser — film cameras live on craigslist"),
+          el("div", %{class: "cam-resize"}, "")),
+        cm_toolbar(f, s.admin),
+        el("div", %{class: "cam-main"},
+          cm_rail_view(s.rail, shown, length(s.rows), cm_any_active(f.active)),
+          el("div", %{class: "cam-content"}, cm_table(s.listings, cm_nth(f.active, 2), s.admin, s.now, s.stats, s.loaded, s.problem))),
+        cm_statusbar(shown, s.stats, f.city, f.sort)))], lb))
+end
+
+# ── the program ──────────────────────────────────────────────────────
+
+# photos/1's length, as step_photo/2 counts it (at least one).
+def cm_step_photo(detail: Any, photo: Int, by: Int) -> Int do
+  n = case detail do
+    nil -> 1
+    _ -> max(length(cam_photo_urls("", cm_list(lookup(detail, :mirrored)), cm_list(lookup(detail, :image_ids)))), 1)
+  end
+  cm_mod(photo + by, n)
+end
+
+# step_listing/2: the next (or previous) listing in the table, round the
+# end; where it is when it is not in the table.
+def cm_next_listing(listings: List, open: Int, by: Int) -> Int do
+  ids = map(listings, fn(l: Map) -> Int do l.id end)
+  i = cm_index(ids, open, 0)
+  case i < 0 do
+    true -> open
+    false -> cm_nth(ids, cm_mod(i + by, length(ids)))
+  end
+end
+
+# A star or a hide for the socket; nothing without the key (guard/2).
+def cm_curate(outbox: List, admin: Bool, what: String, id: Int, key: String) -> List do
+  case admin do
+    true -> cm_append(outbox, [json_encode(%{t: what, id: id, key: key})])
+    false -> outbox
+  end
+end
+
+actor CameraBrowser do
+  state started: Bool :: false
+  state f: Map :: %{}
+  state open: Int :: -1
+  state photo: Int :: 0
+  # the server's answer: rows as sent (with their facet values), its clock,
+  # whether the key is good, the header's counts
+  state rows: List :: []
+  state now: Int :: 0
+  state admin: Bool :: false
+  state stats: Any :: nil
+  state bucket: String :: "bobbby-media"
+  state loaded: Bool :: false
+  state problem: String :: ""
+  # what the table and the rail show, worked out when rows or facets change
+  state listings: List :: []
+  state rail: List :: []
+  # the lightbox's listing, and serials that make a fetch a new one
+  state detail: Any :: nil
+  state v: Int :: 0
+  state dv: Int :: 0
+  state outbox: List :: []
+
+  on :location(q: String) do
+    p = cm_parse(q)
+    become started: true, f: p, open: p.open
+    reply :ok
+  end
+
+  on :rows_loaded(status: Int, body: String) do
+    doc = case status == 200 do
+      true -> cm_decode(body)
+      false -> nil
+    end
+    case type_of(doc) == :map do
+      false ->
+        become problem: concat("The listings could not be read just now (", to_string(status), ").")
+        reply :error
+      true ->
+        t = cm_int(lookup(doc, :now))
+        rs = map(cm_list(lookup(doc, :rows)), fn(r: Map) -> Map do cm_row(r, t) end)
+        d = cm_derive(rs, f.active)
+        become rows: rs, now: t, admin: lookup(doc, :admin) == true, stats: lookup(doc, :stats), bucket: cm_str(lookup(doc, :bucket)),
+          loaded: true, problem: "", listings: d.listings, rail: d.rail
+        reply length(rs)
+    end
+  end
+
+  on :detail_loaded(status: Int, body: String) do
+    doc = case status == 200 do
+      true -> cm_decode(body)
+      false -> nil
+    end
+    case type_of(doc) == :map do
+      true -> become detail: doc
+      false -> become open: -1, detail: nil
+    end
+    reply :ok
+  end
+
+  # A new set of filters: the server is asked again, the lightbox closes
+  # (filter_params/2 keeps `open` only when it is the change).
+  on :set_status(v2: String) do
+    become f: put(f, :status, cam_status(v2)), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :set_sort(v2: String) do
+    become f: put(f, :sort, cam_sort(v2)), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :set_q(v2: String) do
+    become f: put(f, :q, v2), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :set_min(v2: String) do
+    become f: put(f, :min, cam_dollars(v2)), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :set_max(v2: String) do
+    become f: put(f, :max, cam_dollars(v2)), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :set_starred(b: Bool) do
+    become f: put(f, :starred, b), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :set_hidden(b: Bool) do
+    become f: put(f, :hidden, b), open: -1, detail: nil
+    reply :ok
+  end
+
+  on :city(c: String) do
+    become f: put(f, :city, c), open: -1, detail: nil
+    reply :ok
+  end
+
+  # "reset": /cameras with nothing in the query.
+  on :clear do
+    become f: cm_parse(""), open: -1, detail: nil, listings: [], rail: [], rows: [], loaded: false
+    reply :ok
+  end
+
+  # A facet value, "index\tvalue"; the rows stay, only what shows changes.
+  on :facet(iv: String) do
+    tab = index_of(iv, "\t")
+    i = to_int(take(iv, tab))
+    val = drop(iv, tab + 1)
+    active = cm_toggle(f.active, i, val)
+    d = cm_derive(rows, active)
+    become f: put(f, :active, active), listings: d.listings, rail: d.rail, open: -1, detail: nil
+    reply :ok
+  end
+
+  # a tag in a row is the tags facet
+  on :tag(t: String) do
+    active = cm_toggle(f.active, 2, t)
+    d = cm_derive(rows, active)
+    become f: put(f, :active, active), listings: d.listings, rail: d.rail, open: -1, detail: nil
+    reply :ok
+  end
+
+  on :clear_facets do
+    active = cm_no_facets()
+    d = cm_derive(rows, active)
+    become f: put(f, :active, active), listings: d.listings, rail: d.rail, open: -1, detail: nil
+    reply :ok
+  end
+
+  on :open(id: Int) do
+    become open: id, photo: 0, detail: nil, dv: dv + 1
+    reply :ok
+  end
+
+  on :close do
+    become open: -1, detail: nil
+    reply :ok
+  end
+
+  on :photo_by(by: Int) do
+    become photo: cm_step_photo(detail, photo, by)
+    reply :ok
+  end
+
+  on :photo_at(i: Int) do
+    become photo: i
+    reply :ok
+  end
+
+  # phx-window-keydown, while the lightbox is open.
+  on :key(k: String) do
+    case open < 0 do
+      true -> reply :ok
+      false ->
+        case k do
+          "Escape" ->
+            become open: -1, detail: nil
+            reply :ok
+          "ArrowRight" ->
+            become photo: cm_step_photo(detail, photo, 1)
+            reply :ok
+          "ArrowLeft" ->
+            become photo: cm_step_photo(detail, photo, -1)
+            reply :ok
+          "ArrowDown" ->
+            become open: cm_next_listing(listings, open, 1), photo: 0, detail: nil, dv: dv + 1
+            reply :ok
+          "ArrowUp" ->
+            become open: cm_next_listing(listings, open, -1), photo: 0, detail: nil, dv: dv + 1
+            reply :ok
+          "s" ->
+            become outbox: cm_curate(outbox, admin, "star", open, f.key)
+            reply :ok
+          "h" ->
+            become outbox: cm_curate(outbox, admin, "hide", open, f.key)
+            reply :ok
+          _ -> reply :ok
+        end
+    end
+  end
+
+  # Curation goes up the socket with the key; the server checks it.
+  on :star(id: Int) do
+    become outbox: cm_curate(outbox, admin, "star", id, f.key)
+    reply :ok
+  end
+
+  on :hide(id: Int) do
+    become outbox: cm_curate(outbox, admin, "hide", id, f.key)
+    reply :ok
+  end
+
+  on :note(text: String) do
+    case admin and open >= 0 do
+      true -> become outbox: cm_append(outbox, [json_encode(%{t: "note", id: open, note: text, key: f.key})])
+      false -> become outbox: outbox
+    end
+    reply :ok
+  end
+
+  # From /live/cameras: a sweep finished, or someone changed a listing.
+  # Ask again; the open listing too when it changed, unless it is this
+  # page's own note (asking would put the note back under the cursor).
+  on :frame(json: String) do
+    m = cm_decode(json)
+    t = case type_of(m) == :map do
+      true -> lookup(m, :t)
+      false -> nil
+    end
+    case t do
+      "polled" -> become v: v + 1
+      "changed" ->
+        own_note = lookup(m, :what) == "note" and lookup(m, :mine) == true
+        case lookup(m, :id) == open and not(own_note) do
+          true -> become v: v + 1, dv: dv + 1
+          false -> become v: v + 1
+        end
+      "refused" -> become problem: problem
+      _ -> become v: v
+    end
+    reply :ok
+  end
+
+  on :outbox do
+    out = outbox
+    become outbox: []
+    reply out
+  end
+
+  # For a test: the rows the table shows and the rail, as values.
+  on :shown do
+    reply %{listings: map(listings, fn(l: Map) -> List do [l.id, l.dupes] end), rail: rail}
+  end
+
+  on :view do
+    asks = case started do
+      false -> []
+      true ->
+        detail_ask = case open >= 0 and detail == nil do
+          true -> [fetch(concat("/cameras/listing.json?id=", to_string(open), "&v=", to_string(dv)), :detail_loaded)]
+          false -> []
+        end
+        keys = case open >= 0 do
+          true -> [key("*", :key)]
+          false -> []
+        end
+        cm_append([fetch(cm_rows_url(f, v), :rows_loaded), location_query(cm_query(f, open))], cm_append(detail_ask, keys))
+    end
+    page = case started do
+      false -> el("div", %{class: "cam"}, "")
+      true -> cm_page(%{f: f, rows: rows, listings: listings, rail: rail, now: now, admin: admin, stats: stats, loaded: loaded,
+        problem: problem, detail: detail, photo: photo, bucket: bucket})
+    end
+    reply el("div", %{}, [page | asks])
+  end
+end
+
+cam = spawn CameraBrowser
+cam <- :view

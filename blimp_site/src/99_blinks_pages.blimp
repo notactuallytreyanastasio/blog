@@ -1,0 +1,170 @@
+# Blinks, the other pages: /blinks/surf, /blinks/walk, /blinks/tv,
+# /blinks/review and /blinks/privacy, under /blinks-next.
+#
+#   /blinks-next/surf      BlinksSurfLive, one random link at a time
+#   /blinks-next/walk      BlinksWalkLive, hop between similar links (?from=ID)
+#   /blinks-next/tv        BlinksTvLive, a new link every nine seconds
+#   /blinks-next/review    BlinksReviewLive, the bookmark queue (?key=, the API token)
+#   /blinks-next/privacy   BlinkFeedController.privacy/2, the iOS app's policy
+#
+# The four LiveViews are Blimp programs in the browser (static/blinks/),
+# which ask this server for what Phoenix asked Postgres:
+#
+#   /blinks-next/pick.json    ?exclude=1,2 &tag= &image=1
+#                             Blinks.random_blink/1, plus the pool it drew from
+#   /blinks-next/walk.json    ?id= (or none, for a random one) &exclude= &limit=
+#                             a blink and Blinks.list_similar/2 of it
+#   /blinks-next/review.json  ?key=  pending_candidates/0 and candidate_counts/0
+#
+# The randomness is Postgres's `order by random()`, as it is for Phoenix;
+# the similarity ranking is the same statement as list_similar/2. The
+# channel lists come from /blinks-next/api/blinks/tags (src/99_blinks.blimp).
+#
+# Nothing here writes. A review vote (review_candidate/2 makes a blink or
+# dismisses a bookmark) is a write; the page draws the arrows and says so
+# when one is clicked.
+
+# This file can come before src/99_blinks.blimp (the shell's glob order
+# depends on the locale: "_" before "." in en_US), so what runs at load
+# time here names nothing of that file's; its functions are fine, since they
+# are looked up when called.
+BKP_CACHE = "max-age=0, private, must-revalidate"
+BKP_DESCRIPTION = "every link I want to keep — tagged, searched, archived"
+
+# A blink as the pages read it: what the LiveViews' templates use.
+def bkp_row_sql(w: String) -> String do
+  join([
+    "json_build_object('id', ", w, ".id, 'url', ", w, ".url, 'title', ", w, ".title, 'description', ", w, ".description,",
+    " 'tags', ", w, ".tags, 'quotes', ", w, ".quotes, 'favicon_url', ", w, ".favicon_url, 'image_url', ", w, ".image_url,",
+    " 'site_name', ", w, ".site_name, 'inserted_at', ", w, ".inserted_at)"
+  ], "")
+end
+
+# Blinks.random_blink/1: $1 the ids to skip (JSON list), $2 a tag or "",
+# $3 "1" for with_image, which prefers a link with an og image and falls
+# back to the whole pool when none is left. `pool` is count_blinks/1 of the
+# channel, which Surf shows; `total` every link.
+BKP_PICK_SQL = join([
+  "with p as (select array(select json_array_elements_text($1::json))::bigint[] as ex, nullif($2::text, '') as tag, $3::text = '1' as img),",
+  " pool as (select b.* from blinks b, p where not (b.id = any(p.ex)) and (p.tag is null or b.tags && array[p.tag])),",
+  " with_img as (select pool.* from pool, p where p.img and pool.image_url is not null and pool.image_url <> '' order by random() limit 1),",
+  " any_one as (select * from pool order by random() limit 1),",
+  " pick as (select * from with_img union all (select * from any_one where not exists (select 1 from with_img)))",
+  " select json_build_object('blink', (select ", bkp_row_sql("w"), " from pick w limit 1),",
+  " 'pool', (select count(*) from blinks b, p where p.tag is null or b.tags && array[p.tag]),",
+  " 'total', (select count(*) from blinks))::text as body"
+], "")
+
+# get_blink/1 or, when there is no such id, random_blink(exclude: $2); then
+# list_similar/2 of it, $3 of them: shared tags count double, then trigram
+# similarity of the titles, then newest (Blog.Blinks.list_similar/2's
+# ORDER BY, word for word).
+BKP_WALK_SQL = join([
+  "with p as (select array(select json_array_elements_text($2::json))::bigint[] as ex),",
+  " s as (select b.* from blinks b where b.id = $1::bigint",
+  " union all (select b.* from blinks b, p where not exists (select 1 from blinks where id = $1::bigint) and not (b.id = any(p.ex)) order by random() limit 1))",
+  " select json_build_object('blink', (select ", bkp_row_sql("s"), " from s limit 1),",
+  " 'similar', (select coalesce(json_agg(", bkp_row_sql("w"), " order by w.rk), '[]'::json) from",
+  " (select b.*, row_number() over (order by (select count(*) from unnest(b.tags) t where t = any(s.tags)) * 2",
+  " + similarity(coalesce(b.title, ''), coalesce(s.title, '')) desc, b.inserted_at desc) as rk",
+  " from blinks b, s where b.id <> s.id order by rk limit $3::int) w))::text as body"
+], "")
+
+# pending_candidates/0 (by folder, then id; a NULL folder last, as Postgres
+# sorts one ascending) and candidate_counts/0 (status -> count).
+BKP_REVIEW_SQL = join([
+  "select json_build_object(",
+  "'candidates', (select coalesce(json_agg(json_build_object('id', c.id, 'url', c.url, 'title', c.title, 'folder', c.folder) order by c.folder, c.id), '[]'::json)",
+  " from bookmark_candidates c where c.status = 'pending'),",
+  " 'counts', (select coalesce(json_object_agg(k.status, k.n), '{}'::json) from (select status, count(*) as n from bookmark_candidates group by status) k)",
+  ")::text as body"
+], "")
+
+def bkp_body(sql: String, params: List) -> Map do
+  case DB <- :query(sql, params) do
+    {:error, reason} -> blk_no_db(reason)
+    {:ok, rows} -> response(200, BLK_JSON_TYPE, "no-store", head(rows).body)
+  end
+end
+
+def bkp_pick(query: String) -> Map do
+  image = case query_param(query, "image") do
+    "1" -> "1"
+    _ -> ""
+  end
+  bkp_body(BKP_PICK_SQL, [json_encode(blk_ids(query_param(query, "exclude"))), query_param(query, "tag"), image])
+end
+
+def bkp_walk(query: String) -> Map do
+  id = blk_id(query_param(query, "id"))
+  lim = blk_int(query_param(query, "limit"))
+  n = case lim == nil do
+    true -> 12
+    false -> min(lim, 50)
+  end
+  bkp_body(BKP_WALK_SQL, [max(id, 0), json_encode(blk_ids(query_param(query, "exclude"))), n])
+end
+
+# BlinksReviewLive's mount: the key must be the API token (BLINKS_API_TOKEN,
+# compared whole); anything else goes back to the links, as Phoenix sends
+# it to /blinks.
+def bkp_key_ok(query: String) -> Bool do
+  expected = getenv("BLINKS_API_TOKEN")
+  expected != nil and expected != "" and query_param(query, "key") == expected
+end
+
+def bkp_review_json(query: String) -> Map do
+  case bkp_key_ok(query) do
+    false -> blk_json(401, BLK_UNAUTHORIZED)
+    true -> bkp_body(BKP_REVIEW_SQL, [])
+  end
+end
+
+# Phoenix's redirect/2 answer, body and all.
+BKP_TO_LINKS = %{status: 302, content_type: "text/html; charset=utf-8", cache: BKP_CACHE,
+  body: "<html><body>You are being <a href=\"/blinks-next\">redirected</a>.</body></html>", location: "/blinks-next"}
+
+# -- the pages ---------------------------------------------------------------
+
+def bkp_page(title: String, program: String, actor_var: String, located: Bool) -> Map do
+  html = app_page_with(title, BKP_DESCRIPTION, [APP_CSS, "/blinks-next/pages.css"], "blinks-html", program, actor_var, located)
+  response(200, "text/html; charset=utf-8", "public, max-age=300", html)
+end
+
+BKP_SURF_PAGE = bkp_page("Blinks: stumble", "/blinks-next/surf.blimp", "surf", true)
+BKP_WALK_PAGE = bkp_page("Blinks: walk", "/blinks-next/walk.blimp", "walk", true)
+BKP_TV_PAGE = bkp_page("Blinks TV", "/blinks-next/tv.blimp", "tv", false)
+# the page only answers with the key in its URL: nothing shared keeps it
+BKP_REVIEW_PAGE = put(bkp_page("bookmark review", "/blinks-next/review.blimp", "review", true), :cache, BKP_CACHE)
+BKP_SURF_PROGRAM = bjt_asset("_build/blinks-surf.blimp", "text/plain; charset=utf-8")
+BKP_WALK_PROGRAM = bjt_asset("_build/blinks-walk.blimp", "text/plain; charset=utf-8")
+BKP_TV_PROGRAM = bjt_asset("_build/blinks-tv.blimp", "text/plain; charset=utf-8")
+BKP_REVIEW_PROGRAM = bjt_asset("_build/blinks-review.blimp", "text/plain; charset=utf-8")
+BKP_CSS = bjt_asset("assets/blinks-pages.css", "text/css; charset=utf-8")
+# BlinkFeedController.privacy/2's heredoc, byte for byte (Cloudflare
+# rewrites the mailto: link on the way out, for both servers).
+BKP_PRIVACY = put(bjt_asset("static/blinks/privacy.html", "text/html; charset=utf-8"), :cache, BKP_CACHE)
+
+# Every path above, or nil.
+def blinks_pages_route(path: String, query: String) -> Any do
+  case path do
+    "/blinks-next/surf" -> BKP_SURF_PAGE
+    "/blinks-next/walk" -> BKP_WALK_PAGE
+    "/blinks-next/tv" -> BKP_TV_PAGE
+    "/blinks-next/review" ->
+      case bkp_key_ok(query) do
+        true -> BKP_REVIEW_PAGE
+        false -> BKP_TO_LINKS
+      end
+    "/blinks-next/privacy" -> BKP_PRIVACY
+    "/blinks-next/surf.blimp" -> BKP_SURF_PROGRAM
+    "/blinks-next/walk.blimp" -> BKP_WALK_PROGRAM
+    "/blinks-next/tv.blimp" -> BKP_TV_PROGRAM
+    "/blinks-next/review.blimp" -> BKP_REVIEW_PROGRAM
+    "/blinks-next/pages.css" -> BKP_CSS
+    "/blinks-next/pick.json" -> bkp_pick(query)
+    "/blinks-next/walk.json" -> bkp_walk(query)
+    "/blinks-next/review.json" -> bkp_review_json(query)
+    _ -> nil
+  end
+end

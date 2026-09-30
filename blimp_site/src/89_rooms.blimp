@@ -1,0 +1,713 @@
+# Rooms: who is here, and what everyone in a room is sent.
+#
+# Every live page on this server had grown its own room actor, and each one
+# had written the same five things by hand: a map of sockets to people, a
+# join that sends the newcomer the room, a leave, a send-to-everyone that
+# loops over tcp_write, and a :push the Site's tick calls. CURSORS, MAP_ROOM,
+# FIREHOSE, MTA, BJ and WORDLE each have their own copy, and none of them
+# can say who is in the room without its own code for that. /blinks, the next thing
+# to come off Phoenix, uses Phoenix.PubSub, Presence and a Channel for the
+# same job, per link. This file is that job, once.
+#
+# A Rooms actor holds topics (a room is a topic: "cursors", "blink:42") and
+# the sockets in them. A socket is a plain fd, as main.blimp keeps it; a
+# negative fd is a test's and is never written, what it would have been sent
+# is kept instead (:sent). The site has one, ROOMS; a test spawns its own.
+#
+#   :open(topic, %{diffs, format}) optional; a topic opens on its first join.
+#                                 Again: only what is given changes
+#   :join(topic, fd, who, meta)   -> member %{ref, who, since, meta}
+#   :update(topic, fd, meta)      -> member, or nil when fd is not in topic
+#   :patch(topic, fd, fields)     the same, merging fields into meta
+#   :leave(topic, fd) / :drop(fd) -> :ok / the topics it left
+#   :member(topic, fd) / :list(topic)
+#   :broadcast(topic, text) / :broadcast_from(fd, topic, text)
+#   :send(fd, text)               to fd, joined to a topic or not
+#   :inbound(fd)                  -> :ok | :limited, for every frame received
+#   :flush                        -> %{sockets, frames, bytes, kicked,
+#                                      written, owed, behind}
+#   :flush_at(t)                  the same, at time t (ms), for a test
+#
+# Nothing is written when it is said. A broadcast is framed once and put on
+# an outbox; :flush, once per tick after every room has had its say, gives
+# each socket everything addressed to it this tick in one write. A room
+# of n people each sent m frames a tick costs n writes, not n*m, and a
+# frame to a thousand sockets is one string, not a thousand.
+#
+# Presence: who is a name the app chooses, since is when they joined (ms),
+# meta is what they said about themselves, replaced whole by :update. A
+# topic opened with diffs (the default) sends a joiner
+#   {"t":"presence_state","topic":..,"members":[member..]}
+# and, once per flush when anything changed, every member
+#   {"t":"presence_diff","topic":..,"joins":[member..],"leaves":[member..]}
+# A client applies leaves, then joins, keyed by ref: an update is its old
+# self in leaves and its new self in joins, and someone who came and went
+# in the same tick is in neither. A joiner's own state and the diff that
+# follows it overlap, which keying by ref makes harmless. A topic opened
+# with diffs: false sends none of this, for a page (like /cursor-tracker)
+# whose frames already carry the room in their own shape; :list is there
+# for it to build them from. A topic opened with a format fn sends them in
+# the shape it returns (a Phoenix v2 client wants [nil, nil, topic, event,
+# payload]). A ref is fixed at join and kept through updates.
+#
+# Writes never wait. Each flush offers a socket what it still owes from
+# earlier flushes followed by this tick's frames, in one tcp_write_some,
+# which takes what the kernel has room for and returns at once; the rest is
+# that socket's backlog, offered again next flush, ahead of anything newer.
+# So bytes go out in the order they were said, and a frame is only ever
+# split between two writes to the same socket, which a WebSocket reader
+# cannot tell from TCP splitting it. A peer that never reads costs the
+# tick one send() that takes 0 bytes. (Before, tcp_write waited on the only
+# thread until the peer read or 10s passed with nothing taken: a room sent
+# 64KB a tick, one member of which never read, held its 9th tick 15s, and a
+# client asking every 20ms got no answer in 6s.)
+#
+# Bounds, all per socket:
+#   inbound   a token bucket, ROOMS_RATE frames a second with bursts of
+#             ROOMS_BURST; a frame over it is :limited, and the app drops it
+#   backlog   what the kernel would not take, at most ROOMS_MAX_BYTES. Over
+#             that the socket leaves every topic and its fd comes back in
+#             kicked for main.blimp to close. Dropping frames and carrying
+#             on would leave the page showing a room that is not the room.
+#   stall     a backlog of which the kernel has taken nothing for
+#             ROOMS_STALL_MS: kicked the same way. This is for the quiet
+#             room, where a peer that has gone without a word (a phone
+#             asleep, a cable pulled) would take hours to owe 256KB.
+#   gone      tcp_write_some said :error (EPIPE, ECONNRESET): kicked.
+# main.blimp must :drop an fd when it closes it, whatever the reason: a
+# backlog left for a closed fd would be written to a closed descriptor (a
+# TypeError) or to the next connection the kernel gives the same number.
+
+ROOMS_RATE = 30
+ROOMS_BURST = 60
+ROOMS_MAX_BYTES = 262144
+# 10s is what tcp_write itself allowed a socket that took nothing before it
+# gave up, so no page that lived through a stall before is kicked now; the
+# difference is that the thread no longer waits those 10s with it.
+ROOMS_STALL_MS = 10000
+
+def rooms_key(fd: Int) -> String do
+  to_string(fd)
+end
+
+def rooms_has(list: List, x: Any) -> Bool do
+  case list do
+    [] -> false
+    [h | rest] ->
+      case h == x do
+        true -> true
+        false -> rooms_has(rest, x)
+      end
+  end
+end
+
+def rooms_without(list: List, gone: Any) -> List do
+  filter(list, fn(x: Any) -> Bool do x != gone end)
+end
+
+def rooms_drop_key(m: Map, gone: Any) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+def rooms_topic(diffs: Bool) -> Map do
+  %{diffs: diffs, format: nil, members: %{}, order: [], joins: [], leaves: []}
+end
+
+# A presence frame as this library sends it: event is "presence_state"
+# (body %{members}) or "presence_diff" (body %{joins, leaves}).
+def rooms_format(event: String, name: String, body: Map) -> String do
+  json_encode(merge(%{t: event, topic: name}, body))
+end
+
+# ... or as the topic's own :format says, for a client that wants another
+# shape (the Phoenix v2 socket the iOS blinks app speaks).
+def rooms_presence(tp: Map, event: String, name: String, body: Map) -> String do
+  f = tp.format
+  case f == nil do
+    true -> rooms_format(event, name, body)
+    false -> f(event, name, body)
+  end
+end
+
+def rooms_socket(fd: Int, t: Int) -> Map do
+  %{fd: fd, topics: [], tokens: ROOMS_BURST * 1000, at: t, limited: 0}
+end
+
+# The members of a topic, in the order they came.
+def rooms_members(topic: Map) -> List do
+  map(topic.order, fn(k: String) -> Map do lookup(topic.members, k) end)
+end
+
+# A presence change, batched for the next flush. A leave of someone whose
+# join has not gone out yet cancels it: nobody saw them come.
+def rooms_note_join(topic: Map, m: Map) -> Map do
+  put(topic, :joins, list_append(filter(topic.joins, fn(j: Map) -> Bool do j.ref != m.ref end), [m]))
+end
+
+def rooms_note_leave(topic: Map, m: Map) -> Map do
+  pending = filter(topic.joins, fn(j: Map) -> Bool do j.ref == m.ref end)
+  kept = filter(topic.joins, fn(j: Map) -> Bool do j.ref != m.ref end)
+  already_left = filter(topic.leaves, fn(j: Map) -> Bool do j.ref == m.ref end)
+  case pending == [] or already_left != [] do
+    true -> merge(topic, %{joins: kept, leaves: list_append(topic.leaves, [m])})
+    false -> put(topic, :joins, kept)
+  end
+end
+
+# A token bucket in thousandths of a frame: refilled at ROOMS_RATE a
+# second up to ROOMS_BURST, one frame costs 1000. {verdict, socket}
+def rooms_take(s: Map, t: Int) -> Tuple do
+  filled = min(ROOMS_BURST * 1000, s.tokens + max(0, t - s.at) * ROOMS_RATE)
+  case filled >= 1000 do
+    true -> {:ok, merge(s, %{tokens: filled - 1000, at: t})}
+    false -> {:limited, merge(s, %{tokens: filled, at: t, limited: s.limited + 1})}
+  end
+end
+
+# Whether an outbox entry is for this socket.
+def rooms_for(e: Map, s: Map) -> Bool do
+  case e.to == nil do
+    false -> e.to == s.fd
+    true -> e.except != s.fd and rooms_has(s.topics, e.topic)
+  end
+end
+
+def rooms_entry(to: Any, topic: String, except: Any, text: String) -> Map do
+  %{to: to, topic: topic, except: except, text: text, frame: ws_frame(1, text)}
+end
+
+# The presence diffs a flush sends, one per topic that changed.
+def rooms_diff_entries(topics: Map) -> List do
+  reduce(keys(topics), [], fn(acc: List, name: Any) -> List do
+    tp = lookup(topics, name)
+    case tp.diffs and (tp.joins != [] or tp.leaves != []) do
+      false -> acc
+      true -> list_append(acc, [rooms_entry(nil, name, nil, rooms_presence(tp, "presence_diff", name, %{joins: tp.joins, leaves: tp.leaves}))])
+    end
+  end)
+end
+
+def rooms_cleared(topics: Map) -> Map do
+  reduce(keys(topics), %{}, fn(acc: Map, name: Any) -> Map do
+    put(acc, name, merge(lookup(topics, name), %{joins: [], leaves: []}))
+  end)
+end
+
+# The topic broadcasts for a socket in `names`, from a cache keyed by the
+# set of topics. {cache, entries, what they are on the wire}
+def rooms_cached(cache: Map, plain: List, names: List) -> Tuple do
+  k = join(names, "\n")
+  hit = lookup(cache, k)
+  case hit == nil do
+    false -> {cache, elem(hit, 0), elem(hit, 1)}
+    true ->
+      mine = filter(plain, fn(e: Map) -> Bool do rooms_has(names, e.topic) end)
+      data = rooms_data(mine)
+      {put(cache, k, {mine, data}), mine, data}
+  end
+end
+
+# The sockets a :send names that are in no topic, and the sockets still
+# owed bytes that are in no topic any more, as sockets in no topic, so the
+# flush delivers to them like any other: one write, the same bounds. They
+# are not added to the socket table; a :send is not a join.
+def rooms_loose(entries: List, sockets: Map, owed: Map) -> List do
+  sent_to = reduce(entries, [], fn(acc: List, e: Map) -> List do
+    case e.to == nil or lookup(sockets, rooms_key(e.to)) != nil or rooms_has(acc, e.to) do
+      true -> acc
+      false -> list_append(acc, [e.to])
+    end
+  end)
+  fds = reduce(values(owed), sent_to, fn(acc: List, o: Map) -> List do
+    case lookup(sockets, rooms_key(o.fd)) != nil or rooms_has(acc, o.fd) do
+      true -> acc
+      false -> list_append(acc, [o.fd])
+    end
+  end)
+  map(fds, fn(fd: Int) -> Map do rooms_socket(fd, 0) end)
+end
+
+# One socket's turn in a flush: what it owed, then data, offered to the
+# kernel once (or, when taken is not nil, data alone was just offered and
+# the kernel took that many bytes of it). {verdict, owed, bytes taken}:
+# verdict is :ok, or why fd is kicked ("gone", "N bytes owed", "nothing
+# taken for Nms"); owed is fd's backlog after this, %{fd, data, since}, or
+# nil. since is when the kernel last took a byte of it (or when it began),
+# which is what the stall bound counts from, so a reader that is slow but
+# reading is never stalled.
+def rooms_offer(fd: Int, prev: Any, data: String, t: Int, taken: Any) -> Tuple do
+  all = case prev == nil do
+    true -> data
+    false -> concat(prev.data, data)
+  end
+  took = case taken == nil do
+    true -> tcp_write_some(fd, all)
+    false -> taken
+  end
+  case took == :error do
+    true -> {"gone", nil, 0}
+    false ->
+      left = length(all) - took
+      case left == 0 do
+        true -> {:ok, nil, took}
+        false ->
+          since = case prev == nil or took > 0 do
+            true -> t
+            false -> prev.since
+          end
+          rest = %{fd: fd, data: slice(all, took, left), since: since}
+          case left > ROOMS_MAX_BYTES do
+            true -> {concat(to_string(left), " bytes owed"), nil, took}
+            false ->
+              case t - since >= ROOMS_STALL_MS do
+                true -> {concat("nothing taken for ", to_string(t - since), "ms"), nil, took}
+                false -> {:ok, rest, took}
+              end
+          end
+      end
+  end
+end
+
+# One socket's part of a flush: one = {cache, its entries, their bytes}.
+# A test socket's kernel takes everything, unless one tick is over the
+# bound, which a kernel that took nothing would owe. A real socket is
+# offered what it owed and then this. acc as in rooms_flush_some; taken is
+# what a write of this tick's bytes alone already took, or nil.
+def rooms_deliver(acc: Tuple, fd: Int, one: Tuple, t: Int, taken: Any) -> Tuple do
+  mine = elem(one, 1)
+  data = elem(one, 2)
+  n = length(data)
+  counted = case mine do
+    [] -> {elem(one, 0), elem(acc, 1), elem(acc, 2), elem(acc, 3), elem(acc, 4), elem(acc, 5), elem(acc, 6), elem(acc, 7)}
+    _ -> {elem(one, 0), elem(acc, 1), elem(acc, 2) + 1, elem(acc, 3) + length(mine), elem(acc, 4) + n, elem(acc, 5), elem(acc, 6), elem(acc, 7)}
+  end
+  owed = elem(acc, 6)
+  case fd < 0 do
+    true ->
+      case mine == [] do
+        true -> counted
+        false ->
+          case n > ROOMS_MAX_BYTES do
+            true ->
+              puts(concat("rooms: kicked ", rooms_key(fd), ", ", to_string(n), " bytes owed"))
+              rooms_with(counted, 1, [fd | elem(acc, 1)])
+            false -> rooms_with(counted, 5, [{fd, map(mine, fn(e: Map) -> String do e.text end)} | elem(acc, 5)])
+          end
+      end
+    false ->
+      k = rooms_key(fd)
+      prev = case owed == %{} do
+        true -> nil
+        false -> lookup(owed, k)
+      end
+      case prev == nil and n == 0 do
+        true -> counted
+        false -> rooms_offered(counted, fd, k, rooms_offer(fd, prev, data, t, taken))
+      end
+  end
+end
+
+# acc with element i replaced by v
+def rooms_with(acc: Tuple, i: Int, v: Any) -> Tuple do
+  case i do
+    1 -> {elem(acc, 0), v, elem(acc, 2), elem(acc, 3), elem(acc, 4), elem(acc, 5), elem(acc, 6), elem(acc, 7)}
+    5 -> {elem(acc, 0), elem(acc, 1), elem(acc, 2), elem(acc, 3), elem(acc, 4), v, elem(acc, 6), elem(acc, 7)}
+  end
+end
+
+# acc after rooms_offer's verdict on fd: its backlog kept or forgotten,
+# what the kernel took counted, and fd kicked when the verdict says so.
+def rooms_offered(acc: Tuple, fd: Int, k: String, o: Tuple) -> Tuple do
+  owed = case elem(o, 1) == nil do
+    true -> rooms_drop_key(elem(acc, 6), k)
+    false -> put(elem(acc, 6), k, elem(o, 1))
+  end
+  kicked = case elem(o, 0) == :ok do
+    true -> elem(acc, 1)
+    false ->
+      puts(concat("rooms: kicked ", k, ", ", elem(o, 0)))
+      [fd | elem(acc, 1)]
+  end
+  {elem(acc, 0), kicked, elem(acc, 2), elem(acc, 3), elem(acc, 4), elem(acc, 5), owed, elem(acc, 7) + elem(o, 2)}
+end
+
+# A flush at time t. %{topics, sockets, owed, sent, kicked, answer}
+def rooms_flush(topics: Map, sockets: Map, outbox: List, owed: Map, sent: Map, t: Int) -> Map do
+  entries = list_append(reverse(outbox), rooms_diff_entries(topics))
+  case entries == [] and owed == %{} do
+    true ->
+      idle = %{sockets: 0, frames: 0, bytes: 0, kicked: [], written: 0, owed: 0, behind: 0}
+      %{topics: topics, sockets: sockets, owed: owed, sent: sent, kicked: [], answer: idle}
+    false -> rooms_flush_some(topics, sockets, entries, owed, sent, t)
+  end
+end
+
+def rooms_flush_some(topics: Map, sockets: Map, entries: List, owed: Map, sent: Map, t: Int) -> Map do
+  # The sockets an entry names (to, except) get their frames picked one
+  # by one; every other socket gets the topic broadcasts of its topics,
+  # which are the same string for every socket in the same topics, so it
+  # is built once per set of topics, not per socket.
+  named = reduce(entries, %{}, fn(acc: Map, e: Map) -> Map do
+    with_to = case e.to == nil do
+      true -> acc
+      false -> put(acc, rooms_key(e.to), true)
+    end
+    case e.except == nil do
+      true -> with_to
+      false -> put(with_to, rooms_key(e.except), true)
+    end
+  end)
+  plain = filter(entries, fn(e: Map) -> Bool do e.to == nil and e.except == nil end)
+  # {cache, kicked, sockets, frames, bytes, test frames: [{fd, texts}],
+  #  owed, written}. Each socket is in the list once, so whether it owed
+  # anything is a question about owed as it was, not as the flush leaves it.
+  clear = owed == %{}
+  r = reduce(list_append(values(sockets), rooms_loose(entries, sockets, owed)), {%{}, [], 0, 0, 0, [], owed, 0}, fn(acc: Tuple, s: Map) -> Tuple do
+    one = case entries == [] do
+      true -> {elem(acc, 0), [], ""}
+      false ->
+        case s.fd < 0 or lookup(named, rooms_key(s.fd)) != nil do
+          true ->
+            picked = filter(entries, fn(e: Map) -> Bool do rooms_for(e, s) end)
+            {elem(acc, 0), picked, rooms_data(picked)}
+          false -> rooms_cached(elem(acc, 0), plain, s.topics)
+        end
+    end
+    mine = elem(one, 1)
+    data = elem(one, 2)
+    n = length(data)
+    # the usual case, kept to one send() and one tuple: a real socket that
+    # owes nothing and whose kernel takes all of this tick's frames
+    case clear and n > 0 and s.fd >= 0 do
+      true ->
+        took = tcp_write_some(s.fd, data)
+        case took == n do
+          true -> {elem(one, 0), elem(acc, 1), elem(acc, 2) + 1, elem(acc, 3) + length(mine), elem(acc, 4) + n, elem(acc, 5), elem(acc, 6), elem(acc, 7) + n}
+          false -> rooms_deliver(acc, s.fd, one, t, took)
+        end
+      false -> rooms_deliver(acc, s.fd, one, t, nil)
+    end
+  end)
+  kicked = elem(r, 1)
+  sent2 = reduce(elem(r, 5), sent, fn(acc: Map, x: Tuple) -> Map do
+    k = rooms_key(elem(x, 0))
+    before = lookup(acc, k)
+    had = case before == nil do
+      true -> []
+      false -> before
+    end
+    put(acc, k, list_append(had, elem(x, 1)))
+  end)
+  gone = reduce(kicked, %{topics: rooms_cleared(topics), sockets: sockets}, fn(acc: Map, fd: Int) -> Map do
+    rooms_drop_all(acc.topics, acc.sockets, fd)
+  end)
+  still = values(elem(r, 6))
+  %{topics: gone.topics, sockets: gone.sockets, owed: elem(r, 6), sent: sent2, kicked: kicked,
+    answer: %{sockets: elem(r, 2), frames: elem(r, 3), bytes: elem(r, 4), kicked: kicked, written: elem(r, 7),
+      owed: sum(map(still, fn(o: Map) -> Int do length(o.data) end)), behind: length(still)}}
+end
+
+def rooms_data(entries: List) -> String do
+  join(map(entries, fn(e: Map) -> String do e.frame end), "")
+end
+
+# A member's meta, replaced (or merged into, with merge_in).
+# {topics, member or nil}
+def rooms_set_meta(topics: Map, name: String, fd: Int, meta: Map, merge_in: Bool) -> Tuple do
+  k = rooms_key(fd)
+  tp = lookup(topics, name)
+  old = case tp == nil do
+    true -> nil
+    false -> lookup(tp.members, k)
+  end
+  case old == nil do
+    true -> {topics, nil}
+    false ->
+      next = case merge_in do
+        true -> merge(old.meta, meta)
+        false -> meta
+      end
+      m = put(old, :meta, next)
+      tp1 = put(tp, :members, put(tp.members, k, m))
+      tp2 = case tp.diffs do
+        true -> rooms_note_join(rooms_note_leave(tp1, old), m)
+        false -> tp1
+      end
+      {put(topics, name, tp2), m}
+  end
+end
+
+# fd out of one topic, and out of the socket table when that was its last.
+# %{topics, sockets}
+def rooms_leave(topics: Map, sockets: Map, name: String, fd: Int) -> Map do
+  k = rooms_key(fd)
+  tp = lookup(topics, name)
+  old = case tp == nil do
+    true -> nil
+    false -> lookup(tp.members, k)
+  end
+  case old == nil do
+    true -> %{topics: topics, sockets: sockets}
+    false ->
+      tp1 = merge(tp, %{members: rooms_drop_key(tp.members, k), order: rooms_without(tp.order, k)})
+      tp2 = case tp.diffs do
+        true -> rooms_note_leave(tp1, old)
+        false -> tp1
+      end
+      s = lookup(sockets, k)
+      left = case s == nil do
+        true -> sockets
+        false ->
+          rest = rooms_without(s.topics, name)
+          case rest do
+            [] -> rooms_drop_key(sockets, k)
+            _ -> put(sockets, k, put(s, :topics, rest))
+          end
+      end
+      %{topics: put(topics, name, tp2), sockets: left}
+  end
+end
+
+def rooms_drop_all(topics: Map, sockets: Map, fd: Int) -> Map do
+  s = lookup(sockets, rooms_key(fd))
+  names = case s == nil do
+    true -> []
+    false -> s.topics
+  end
+  r = reduce(names, %{topics: topics, sockets: sockets}, fn(acc: Map, name: String) -> Map do
+    rooms_leave(acc.topics, acc.sockets, name, fd)
+  end)
+  %{topics: r.topics, sockets: rooms_drop_key(r.sockets, rooms_key(fd))}
+end
+
+# {verdict, sockets}. A socket in no topic is not limited here: the app
+# decides what it is.
+def rooms_inbound(sockets: Map, fd: Int, t: Int) -> Tuple do
+  k = rooms_key(fd)
+  s = lookup(sockets, k)
+  case s == nil do
+    true -> {:ok, sockets}
+    false ->
+      r = rooms_take(s, t)
+      {elem(r, 0), put(sockets, k, elem(r, 1))}
+  end
+end
+
+actor Rooms do
+  # topic -> rooms_topic(..)
+  state topics: Map :: %{}
+  # rooms_key(fd) -> rooms_socket(..)
+  state sockets: Map :: %{}
+  # what the next flush sends, newest first
+  state outbox: List :: []
+  state seq: Int :: 0
+  # a test socket's frames (their text), fd key -> list, oldest first
+  state sent: Map :: %{}
+  # rooms_key(fd) -> %{fd, data, since}: what the kernel would not take yet
+  state owed: Map :: %{}
+  state kicked_total: Int :: 0
+  state frames_total: Int :: 0
+  state bytes_total: Int :: 0
+  state flushes: Int :: 0
+
+  # opts: diffs (default true), format (a fn(event, topic, body) -> String
+  # for the presence frames; default rooms_format). Opening a topic that is
+  # already open changes only what opts names. /cursor-tracker opens its
+  # topic on every join; had it passed %{} (or a caller that sets only
+  # diffs), the format set by whoever opened it first went back to the
+  # default, and the next presence frame came out in the wrong shape.
+  on :open(name: String, opts: Map) do
+    tp = lookup(topics, name)
+    base = case tp == nil do
+      true -> rooms_topic(true)
+      false -> tp
+    end
+    diffs = case lookup(opts, :diffs) do
+      nil -> base.diffs
+      d -> d != false
+    end
+    format = case lookup(opts, :format) do
+      nil -> base.format
+      f -> f
+    end
+    become topics: put(topics, name, merge(base, %{diffs: diffs, format: format}))
+    reply :ok
+  end
+
+  # fd joins topic as who, saying meta about themselves. Joining again
+  # replaces the old membership (a leave and a join to everyone else).
+  on :join(name: String, fd: Int, who: String, meta: Map) do
+    k = rooms_key(fd)
+    t = now_ms()
+    tp0 = lookup(topics, name)
+    tp1 = case tp0 == nil do
+      true -> rooms_topic(true)
+      false -> tp0
+    end
+    old = lookup(tp1.members, k)
+    tp2 = case old == nil do
+      true -> tp1
+      false -> rooms_note_leave(merge(tp1, %{members: rooms_drop_key(tp1.members, k), order: rooms_without(tp1.order, k)}), old)
+    end
+    m = %{ref: concat(k, ".", to_string(seq + 1)), who: who, since: t, meta: meta}
+    tp3 = merge(tp2, %{members: put(tp2.members, k, m), order: list_append(tp2.order, [k])})
+    tp4 = case tp3.diffs do
+      true -> rooms_note_join(tp3, m)
+      false -> tp3
+    end
+    s0 = lookup(sockets, k)
+    s1 = case s0 == nil do
+      true -> rooms_socket(fd, t)
+      false -> s0
+    end
+    s2 = case rooms_has(s1.topics, name) do
+      true -> s1
+      false -> put(s1, :topics, list_append(s1.topics, [name]))
+    end
+    box = case tp4.diffs do
+      true -> [rooms_entry(fd, name, nil, rooms_presence(tp4, "presence_state", name, %{members: rooms_members(tp4)})) | outbox]
+      false -> outbox
+    end
+    become topics: put(topics, name, tp4), sockets: put(sockets, k, s2), outbox: box, seq: seq + 1
+    reply m
+  end
+
+  # What fd says about itself in topic, replaced; nil when fd is not in it.
+  on :update(name: String, fd: Int, meta: Map) do
+    r = rooms_set_meta(topics, name, fd, meta, false)
+    become topics: elem(r, 0)
+    reply elem(r, 1)
+  end
+
+  # The same, with fields merged into what it said before.
+  on :patch(name: String, fd: Int, fields: Map) do
+    r = rooms_set_meta(topics, name, fd, fields, true)
+    become topics: elem(r, 0)
+    reply elem(r, 1)
+  end
+
+  # fd out of topic. What was queued for fd as a member of it (the room it
+  # was sent on joining) goes too; what was queued for its other topics,
+  # and a :send, still go out. Leaving the last topic is not a close.
+  on :leave(name: String, fd: Int) do
+    r = rooms_leave(topics, sockets, name, fd)
+    box = filter(outbox, fn(e: Map) -> Bool do e.to != fd or e.topic != name end)
+    become topics: r.topics, sockets: r.sockets, outbox: box
+    reply :ok
+  end
+
+  # The socket is gone: out of every topic it was in. The topics it left.
+  # Everything queued for fd alone goes too, whether or not it had joined
+  # anything: the connection is closed, and the next flush writing to fd
+  # would write to a closed descriptor or to a new connection the kernel
+  # gave the same number. What it still owed from earlier flushes goes for
+  # the same reason.
+  on :drop(fd: Int) do
+    box = filter(outbox, fn(e: Map) -> Bool do e.to != fd end)
+    left = rooms_drop_key(owed, rooms_key(fd))
+    s = lookup(sockets, rooms_key(fd))
+    case s == nil do
+      true ->
+        become outbox: box, owed: left
+        reply []
+      false ->
+        r = rooms_drop_all(topics, sockets, fd)
+        become topics: r.topics, sockets: r.sockets, outbox: box, owed: left
+        reply s.topics
+    end
+  end
+
+  on :member(name: String, fd: Int) do
+    tp = lookup(topics, name)
+    case tp == nil do
+      true -> reply nil
+      false -> reply lookup(tp.members, rooms_key(fd))
+    end
+  end
+
+  on :list(name: String) do
+    tp = lookup(topics, name)
+    case tp == nil do
+      true -> reply []
+      false -> reply rooms_members(tp)
+    end
+  end
+
+  on :broadcast(name: String, text: String) do
+    become outbox: [rooms_entry(nil, name, nil, text) | outbox]
+    reply :ok
+  end
+
+  on :broadcast_from(fd: Int, name: String, text: String) do
+    become outbox: [rooms_entry(nil, name, fd, text) | outbox]
+    reply :ok
+  end
+
+  # To fd alone, whether or not it has joined a topic: a page can be told
+  # something (who it is, why it was refused) before it joins anything.
+  # Before this, a :send to a socket in no topic was dropped without a word.
+  # A :drop in the same tick takes it back; after :drop, the caller must
+  # not :send to fd again, since the number may be a new connection's.
+  on :send(fd: Int, text: String) do
+    become outbox: [rooms_entry(fd, "", nil, text) | outbox]
+    reply :ok
+  end
+
+  # A frame came in on fd: may it be acted on?
+  on :inbound(fd: Int) do
+    r = rooms_inbound(sockets, fd, now_ms())
+    become sockets: elem(r, 1)
+    reply elem(r, 0)
+  end
+
+  on :inbound_at(fd: Int, t: Int) do
+    r = rooms_inbound(sockets, fd, t)
+    become sockets: elem(r, 1)
+    reply elem(r, 0)
+  end
+
+  # Everything queued this tick, and what is still owed from before, one
+  # write per socket that never waits (see the top of this file). A socket
+  # over a bound leaves every topic and comes back in kicked, to be closed.
+  on :flush do
+    r = rooms_flush(topics, sockets, outbox, owed, sent, now_ms())
+    become outbox: [], topics: r.topics, sockets: r.sockets, owed: r.owed, sent: r.sent, flushes: flushes + 1,
+      kicked_total: kicked_total + length(r.kicked), frames_total: frames_total + r.answer.frames, bytes_total: bytes_total + r.answer.bytes
+    reply r.answer
+  end
+
+  on :flush_at(t: Int) do
+    r = rooms_flush(topics, sockets, outbox, owed, sent, t)
+    become outbox: [], topics: r.topics, sockets: r.sockets, owed: r.owed, sent: r.sent, flushes: flushes + 1,
+      kicked_total: kicked_total + length(r.kicked), frames_total: frames_total + r.answer.frames, bytes_total: bytes_total + r.answer.bytes
+    reply r.answer
+  end
+
+  # What a test socket has been sent since it was last asked, oldest first.
+  on :sent(fd: Int) do
+    k = rooms_key(fd)
+    got = lookup(sent, k)
+    become sent: rooms_drop_key(sent, k)
+    case got == nil do
+      true -> reply []
+      false -> reply got
+    end
+  end
+
+  # From the prompt, or a test.
+  on :stats do
+    reply %{
+      topics: map(keys(topics), fn(name: Any) -> Map do %{topic: name, members: length(lookup(topics, name).order)} end),
+      sockets: map(values(sockets), fn(s: Map) -> Map do %{fd: s.fd, topics: s.topics, limited: s.limited} end),
+      queued: length(outbox), flushes: flushes, kicked: kicked_total, frames: frames_total, bytes: bytes_total,
+      owed: map(values(owed), fn(o: Map) -> Map do %{fd: o.fd, bytes: length(o.data), since: o.since} end)
+    }
+  end
+end
+
+ROOMS = spawn Rooms

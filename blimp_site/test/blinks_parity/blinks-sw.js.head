@@ -1,0 +1,11 @@
+HTTP/2 200 
+content-type: application/javascript; charset=utf-8
+access-control-allow-credentials: true
+access-control-allow-origin: *
+access-control-expose-headers: 
+cache-control: max-age=14400
+service-worker-allowed: /blinks
+strict-transport-security: max-age=31536000
+vary: Accept-Encoding
+last-modified: Wed, 30 Sep 2026 04:22:47 GMT
+

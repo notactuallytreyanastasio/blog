@@ -1,0 +1,336 @@
+# The anonymous blink writes (src/99_blinksanon.blimp): the hashes, the
+# post_token and the rules, checked against values Elixir computed, and
+# the routes through web_dispatch with no database. DB is never opened
+# here, so a request that gets as far as a query is answered 503: that
+# makes "got past the honeypot, the token and the rate limit" visible
+# without Postgres. What the queries write was compared with Phoenix's own
+# answers against two copies of one database (see the PR).
+
+BAT_SECRET = "test-secret-key-base"
+BAT_TOKEN = "test-blinks-token"
+BAT_WEB_SECRET = "test-secret-test-secret-test-secret-0123"
+BAT_KEY = blka_pbkdf2(BAT_SECRET, "blink comment")
+
+def bat_routes() -> List do
+  blinks_anon_routes_for(BAT_SECRET, BAT_TOKEN, spawn RateLimiter)
+end
+
+def bat_send(routes: List, method: String, target: String, headers: List, body: String) -> Tuple do
+  raw = bat_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), routes, BAT_WEB_SECRET)
+end
+
+def bat_json(routes: List, method: String, target: String, ip: String, body: String) -> Tuple do
+  bat_send(routes, method, target, ["Content-Type: application/json", concat("X-Forwarded-For: ", ip)], body)
+end
+
+def bat_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD" or method == "OPTIONS") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def bat_status(got: Tuple) -> Int do
+  elem(got, 1)
+end
+
+def bat_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def bat_head(got: Tuple) -> String do
+  w = elem(got, 0)
+  take(w, index_of(w, "\r\n\r\n"))
+end
+
+# A comment body with a token issued `age` seconds ago.
+def bat_comment(age: Int, content: String) -> String do
+  now_s = now()
+  json_encode(%{author_name: "sleepy-carp-23", content: content, post_token: blka_sign(BAT_KEY, now_s - age, now_s - age), website: ""})
+end
+
+BAT_DEVICE = "{\"device_id\":\"device-abc-12345\"}"
+
+actor BlinksAnonTests do
+  test "device and IP hashes are Phoenix's: sha256(id <> SECRET_KEY_BASE), 16 hex digits" do
+    # values from :crypto.hash(:sha256, id <> secret) in Elixir
+    assert_eq(blka_hash("device-abc-12345", BAT_SECRET), "084bb24dcdd71d66")
+    assert_eq(blka_hash("203.0.113.9", BAT_SECRET), "c8daef9f3a97b51f")
+  end
+
+  test "the first X-Forwarded-For entry is the visitor; none is \"unknown\"" do
+    c = web_conn(bat_raw("GET", "/", ["X-Forwarded-For:  203.0.113.9 , 10.0.0.1"], ""), parse_request(bat_raw("GET", "/", [], "")), "s")
+    assert_eq(blka_client_ip(c), "203.0.113.9")
+    c2 = web_conn(bat_raw("GET", "/", [], ""), parse_request(bat_raw("GET", "/", [], "")), "s")
+    assert_eq(blka_client_ip(c2), "unknown")
+  end
+
+  test "the token key is Plug.Crypto.KeyGenerator's PBKDF2 (1000 rounds of HMAC-SHA256)" do
+    assert_eq(hex_encode(blka_pbkdf2("secret", "blink comment")), "67c57330a1b48b1802dbb3cd19f05918f92d6241da3188167ae23532cb643230")
+  end
+
+  test "term_to_binary of three integers, byte for byte" do
+    # small, 32-bit signed, and a 6-byte bignum (milliseconds since 1970)
+    assert_eq(hex_encode(blka_etf_triple(1790000000, 1790000000123, 86400)), "836803626ab13b806e06007b6c50c4a0016200015180")
+    assert_eq(hex_encode(blka_etf_triple(5, 300, -1)), "8368036105620000012c62ffffffff")
+    assert_eq(blka_etf_untriple(blka_etf_triple(1790000000, 1790000000123, 86400)), [1790000000, 1790000000123, 86400])
+    assert_eq(blka_etf_untriple(blka_etf_triple(-5, -1790000000123, 0)), [-5, -1790000000123, 0])
+    # a 2-tuple, a trailing byte, a truncated one: refused
+    assert_eq(blka_etf_untriple(hex_decode("836802610161")), nil)
+    assert_eq(blka_etf_untriple(concat(blka_etf_triple(1, 2, 3), "x")), nil)
+    assert_eq(blka_etf_untriple(hex_decode("836803626ab13b806e06007b")), nil)
+  end
+
+  test "a token signed here is the one Plug.Crypto.sign makes, and each verifies the other's" do
+    # Plug.Crypto.sign("test-secret-key-base", "blink comment", 1790000000, signed_at: 1790000001)
+    phx = "SFMyNTY.g2gDYmqxO4BuBgDob1DEoAFiAAFRgA.je000vzhxkyZgjaCxykpGKfVnUmMhT7qO4wJONdQL0o"
+    assert_eq(blka_sign(BAT_KEY, 1790000000, 1790000001), phx)
+    assert_eq(blka_verify(BAT_KEY, phx, 1790000010), 1790000000)
+    # signed_at 1790000001.5: Phoenix's milliseconds, which this clock has not
+    half = "SFMyNTY.g2gDYmqxO4BuBgDccVDEoAFiAAFRgA.yoC8-QuR9lAmvKGBdNpF1klR225aPfHv0l98nPc8JSc"
+    assert_eq(blka_verify(BAT_KEY, half, 1790000010), 1790000000)
+    # still valid in the second it was signed in, not before
+    assert_eq(blka_verify(BAT_KEY, half, 1790000001), 1790000000)
+    assert_eq(blka_verify(BAT_KEY, half, 1790000000), nil)
+    # two hours is the limit
+    assert_eq(blka_verify(BAT_KEY, phx, 1790000001 + 7200), 1790000000)
+    assert_eq(blka_verify(BAT_KEY, phx, 1790000001 + 7201), nil)
+  end
+
+  test "a token that is not one is refused without a crash" do
+    good = blka_sign(BAT_KEY, 1790000000, 1790000001)
+    parts = split(good, ".")
+    assert_eq(blka_verify(BAT_KEY, nil, 1790000010), nil)
+    assert_eq(blka_verify(BAT_KEY, 5, 1790000010), nil)
+    assert_eq(blka_verify(BAT_KEY, "", 1790000010), nil)
+    assert_eq(blka_verify(BAT_KEY, "SFMyNTY.!!!.???", 1790000010), nil)
+    # the alphabet is right, the bits left over are not: base64url_decode raises
+    assert_eq(blka_verify(BAT_KEY, "SFMyNTY.xx.yy", 1790000010), nil)
+    assert_eq(blka_verify(BAT_KEY, concat(good, "x"), 1790000010), nil)
+    assert_eq(blka_verify(BAT_KEY, concat("SFM1MTI.", elem_at(parts, 1), ".", elem_at(parts, 2)), 1790000010), nil)
+    assert_eq(blka_verify(blka_pbkdf2("another-secret", "blink comment"), good, 1790000010), nil)
+    assert_eq(blka_verify(blka_pbkdf2(BAT_SECRET, "other salt"), good, 1790000010), nil)
+  end
+
+  test "fixed windows: every hit counts, refused ones too, and the next window starts over" do
+    r = spawn RateLimiter
+    t = 1790000040
+    assert_eq(map(range(1, 5), fn(i: Int) -> Bool do r <- :allow("comment:1.2.3.4", 4, 60, t) end), [true, true, true, true, false])
+    # another key, another window size: their own counts
+    assert(r <- :allow("comment:5.6.7.8", 4, 60, t))
+    assert(r <- :allow("comment:1.2.3.4", 60, 86400, t))
+    # 1790000040 starts a minute (it is 29833334 * 60)
+    assert_eq(r <- :allow("comment:1.2.3.4", 4, 60, t + 59), false)
+    assert(r <- :allow("comment:1.2.3.4", 4, 60, t + 60))
+    # an hour on, the ended windows are gone
+    r <- :allow("x", 1, 60, t + 3700)
+    assert_eq(r <- :size, 2)
+  end
+
+  test "Comment.changeset's messages, in Phoenix's order (from Elixir)" do
+    long_name = concat(join(map(range(1, 41), fn(i: Int) -> String do "a" end), ""), "kike")
+    long_body = concat(join(map(range(1, 500), fn(i: Int) -> String do "x" end), ""), " http:// https:// http:// kike")
+    a = blka_cast(long_name, blka_squish)
+    c = blka_cast(long_body, blkw_trim)
+    assert_eq(blka_first_error(blka_field_errors(a, 40, false), blka_field_errors(c, 500, true)),
+      "author_name keep it civil, should be at most 40 character(s); content keep it civil, too many links, should be at most 500 character(s)")
+    assert_eq(blka_first_error(blka_field_errors(blka_cast(nil, blka_squish), 40, false), blka_field_errors(blka_cast("   ", blkw_trim), 500, true)),
+      "author_name can't be blank; content can't be blank")
+    assert_eq(blka_first_error(blka_field_errors(blka_cast(5, blka_squish), 40, false), blka_field_errors(blka_cast([7], blkw_trim), 500, true)),
+      "author_name is invalid; content is invalid")
+    assert_eq(blka_first_error(blka_field_errors(blka_cast("ok", blka_squish), 40, false), blka_field_errors(blka_cast("KIKE http:// hTTp://  HTTPS://", blkw_trim), 500, true)),
+      "content keep it civil, too many links")
+    assert_eq(blka_first_error(blka_field_errors(blka_cast("ok", blka_squish), 40, false), blka_field_errors(blka_cast("fine", blkw_trim), 500, true)), "")
+  end
+
+  test "lengths are graphemes: 40 family emoji is a name, 41 is not" do
+    fam = "👨‍👩‍👧"
+    forty = join(map(range(1, 40), fn(i: Int) -> String do fam end), "")
+    assert_eq(blka_field_errors(blka_cast(forty, blka_squish), 40, false), [])
+    assert_eq(blka_field_errors(blka_cast(concat(forty, fam), blka_squish), 40, false), ["should be at most 40 character(s)"])
+    # 500 hearts (6 bytes each) is a comment
+    hearts = join(map(range(1, 500), fn(i: Int) -> String do "❤️" end), "")
+    assert_eq(blka_field_errors(blka_cast(hearts, blkw_trim), 500, true), [])
+  end
+
+  test "squish is String.trim then ASCII \\s+ to one space; the blocklist reads Unicode lower case" do
+    assert_eq(blka_squish(concat(" a", hex_decode("09"), hex_decode("0b"), "b  c", hex_decode("c2a0"), "d ")), concat("a b c", hex_decode("c2a0"), "d"))
+    assert_eq(blka_squish(concat(hex_decode("e38080"), "x", hex_decode("e38080"))), "x")
+    assert(blka_uncivil("TRANNY"))
+    # String.downcase("İ") is "i̇" (i + U+0307), so this is not the word
+    assert_eq(blka_uncivil("KİKE"), false)
+    assert_eq(blka_links("HTTP://a hTTps://b http://c https:// x"), 4)
+  end
+
+  test "comments: bad id, honeypot, token, then the rate limit, in Phoenix's order" do
+    routes = bat_routes()
+    ip = "203.0.113.9"
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/x1/comments", ip, bat_comment(10, "hi"))), BLKA_BAD_ID)
+    # the honeypot answers ok with nothing checked, not even the token
+    hp = bat_json(routes, "POST", "/api/blinks/5/comments", ip, "{\"website\":\"http://spam\"}")
+    assert_eq(bat_status(hp), 200)
+    assert_eq(bat_body(hp), "{\"status\":\"ok\"}")
+    # no token, a young one, a forged one
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/5/comments", ip, "{\"content\":\"hi\"}")), BLKA_SLOW_DOWN)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/5/comments", ip, bat_comment(1, "hi"))), 429)
+    forged = json_encode(%{content: "hi", post_token: blka_sign(blka_pbkdf2("guess", "blink comment"), now() - 60, now() - 60)})
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/5/comments", ip, forged)), BLKA_SLOW_DOWN)
+    # four get through to the (unopened) database, the fifth is limited
+    got = map(range(1, 5), fn(i: Int) -> Int do bat_status(bat_json(routes, "POST", "/api/blinks/5/comments", ip, bat_comment(10, "hi"))) end)
+    assert_eq(got, [503, 503, 503, 503, 429])
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/5/comments", ip, bat_comment(10, "hi"))), BLKA_LIMITED)
+    # another visitor is not
+    assert_eq(bat_status(bat_json(routes, "POST", "/blinks-next/api/blinks/5/comments", "198.51.100.1", bat_comment(10, "hi"))), 503)
+  end
+
+  test "the daily limits: 60 comments and 20 suggestions a day per IP, whatever the minute says" do
+    lim = spawn RateLimiter
+    routes = blinks_anon_routes_for(BAT_SECRET, BAT_TOKEN, lim)
+    ip = "198.51.100.60"
+    each(range(1, 60), fn(i: Int) -> Any do lim <- :allow(concat("comment_day:", ip), 60, 86400, now()) end)
+    each(range(1, 20), fn(i: Int) -> Any do lim <- :allow(concat("suggest_day:", ip), 20, 86400, now()) end)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/5/comments", ip, bat_comment(10, "hi"))), BLKA_LIMITED)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/suggest", ip, "{\"url\":\"https://a.b\"}")), BLKA_LIMITED)
+    # the other IP is not
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/suggest", "198.51.100.61", "{\"url\":\"https://a.b\"}")), 503)
+  end
+
+  test "saves: device_id is 8..64 bytes, and a rate-limited save is the same 400" do
+    routes = bat_routes()
+    ip = "203.0.113.9"
+    short = bat_json(routes, "POST", "/api/blinks/5/save", ip, "{\"device_id\":\"1234567\"}")
+    assert_eq(bat_status(short), 400)
+    assert_eq(bat_body(short), BLKA_NO_DEVICE)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/5/save", ip, "{\"device_id\":12345678}")), 400)
+    assert_eq(bat_status(bat_json(routes, "DELETE", "/api/blinks/5/save", ip, "{}")), 400)
+    # the id is looked at after the device and the limit
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/abc/save", ip, BAT_DEVICE)), BLKA_BAD_ID)
+    got = map(range(1, 30), fn(i: Int) -> Int do bat_status(bat_json(routes, "POST", "/api/blinks/5/save", ip, BAT_DEVICE)) end)
+    # 30 a minute, and the bad-id request above was one of them
+    assert_eq(length(filter(got, fn(s: Int) -> Bool do s == 503 end)), 29)
+    assert_eq(bat_body(bat_json(routes, "DELETE", "/api/blinks/5/save", ip, BAT_DEVICE)), BLKA_NO_DEVICE)
+  end
+
+  test "ids are the router's :blink_id and :id: a + is a sign, %20 is not a digit" do
+    routes = bat_routes()
+    ip = "203.0.113.77"
+    assert_eq(bat_status(bat_json(routes, "GET", "/api/blinks/+5/comments", ip, "")), 503)
+    assert_eq(bat_body(bat_json(routes, "GET", "/api/blinks/%205/comments", ip, "")), BLKA_BAD_ID)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/+5/save", ip, BAT_DEVICE)), 503)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/%205/save", ip, BAT_DEVICE)), BLKA_BAD_ID)
+    assert_eq(bat_status(bat_json(routes, "POST", "/blinks-next/api/blinks/comments/+1/react", ip, "{\"emoji\":\"🔥\",\"device_id\":\"device-abc-12345\"}")), 503)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/comments/1x/react", ip, BAT_DEVICE)), BLKA_BAD_ID)
+  end
+
+  test "reactions: device, then the limit (429), then the id, then the emoji" do
+    routes = bat_routes()
+    ip = "203.0.113.9"
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/comments/1/react", ip, "{\"emoji\":\"🔥\"}")), 400)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/comments/x/react", ip, BAT_DEVICE)), BLKA_BAD_ID)
+    bad = bat_json(routes, "POST", "/api/blinks/comments/1/react", ip, "{\"emoji\":\"🍕\",\"device_id\":\"device-abc-12345\"}")
+    assert_eq(bat_status(bad), 422)
+    assert_eq(bat_body(bad), "{\"error\":\"bad emoji\"}")
+    # ❤ without its variation selector is not ❤️
+    assert_eq(bat_status(bat_json(routes, "DELETE", "/api/blinks/comments/1/react", ip, concat("{\"emoji\":\"", hex_decode("e29da4"), "\",\"device_id\":\"device-abc-12345\"}"))), 422)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/comments/1/react", ip, "{\"emoji\":\"❤️\",\"device_id\":\"device-abc-12345\"}")), 503)
+    got = map(range(1, 26), fn(i: Int) -> Int do bat_status(bat_json(routes, "DELETE", "/api/blinks/comments/1/react", ip, "{\"emoji\":\"👀\",\"device_id\":\"device-abc-12345\"}")) end)
+    assert_eq(last(got), 503)
+    limited = bat_json(routes, "POST", "/api/blinks/comments/1/react", ip, "{\"emoji\":\"👀\",\"device_id\":\"device-abc-12345\"}")
+    assert_eq(bat_status(limited), 429)
+    assert_eq(bat_body(limited), BLKA_LIMITED)
+  end
+
+  test "reports: 10 a minute per IP" do
+    routes = bat_routes()
+    got = map(range(1, 11), fn(i: Int) -> Int do bat_status(bat_json(routes, "POST", "/api/blinks/comments/2/report", "192.0.2.1", "")) end)
+    assert_eq(got, [503, 503, 503, 503, 503, 503, 503, 503, 503, 503, 429])
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/comments/two/report", "192.0.2.1", "")), BLKA_BAD_ID)
+  end
+
+  test "suggest: honeypot first, then 3 a minute, then the url" do
+    routes = bat_routes()
+    ip = "192.0.2.7"
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/suggest", ip, "{\"url\":\"x\",\"website\":\"y\"}")), "{\"status\":\"ok\",\"queued\":true}")
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/suggest", ip, "{\"url\":\"ftp://x\",\"website\":\"\"}")), "{\"error\":\"bad url\",\"status\":\"error\"}")
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/suggest", ip, "{\"url\":\"https://a.b\",\"title\":7}")), 422)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/suggest", ip, "{\"url\":\"https://a.b\"}")), 503)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/suggest", ip, "{\"url\":\"https://a.b\"}")), 429)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/suggest", "192.0.2.8", "{\"url\":\"https://a.b\"}")), "{\"error\":\"the database did not answer\"}")
+  end
+
+  test "deleting a comment takes the token and says only \"unauthorized\" without it" do
+    routes = bat_routes()
+    no = bat_json(routes, "DELETE", "/api/blinks/comments/1", "192.0.2.1", "")
+    assert_eq(bat_status(no), 401)
+    assert_eq(bat_body(no), "{\"error\":\"unauthorized\"}")
+    yes = bat_send(routes, "DELETE", "/api/blinks/comments/1", [concat("X-Blinks-Token: ", BAT_TOKEN)], "")
+    assert_eq(bat_status(yes), 503)
+  end
+
+  test "without SECRET_KEY_BASE every write is a 503 that says so, and the room is still readable" do
+    routes = blinks_anon_routes_for("", BAT_TOKEN, spawn RateLimiter)
+    got = bat_json(routes, "POST", "/api/blinks/5/save", "192.0.2.1", BAT_DEVICE)
+    assert_eq(bat_status(got), 503)
+    assert_eq(bat_body(got), BLKA_NO_SECRET)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/comments/1/react", "192.0.2.1", "{}")), 503)
+    # the GET gets to the database (503 there, for another reason)
+    assert_eq(bat_body(bat_send(routes, "GET", "/api/blinks/5/comments", [], "")), "{\"error\":\"the database did not answer\"}")
+  end
+
+  test "CORSPlug's headers on every answer, and a preflight on every path" do
+    routes = bat_routes()
+    got = bat_json(routes, "POST", "/api/blinks/5/save", "192.0.2.1", "{}")
+    assert(contains(bat_head(got), "access-control-allow-origin: *"))
+    pre = bat_send(routes, "OPTIONS", "/api/blinks/comments/3/react", [], "")
+    assert_eq(bat_status(pre), 204)
+    assert(contains(bat_head(pre), "access-control-allow-methods: GET,POST,PUT,DELETE,OPTIONS"))
+    assert_eq(bat_status(bat_send(routes, "OPTIONS", "/blinks-next/api/blinks/9/save", [], "")), 204)
+  end
+
+  test "invalid UTF-8 in a form body or a query is Plug.Parsers' 400 from 41_web.blimp: \"Bad Request\", no CORS" do
+    routes = bat_routes()
+    form = fn(target: String, body: String) -> Tuple do
+      bat_send(routes, "POST", target, ["Content-Type: application/x-www-form-urlencoded", "X-Forwarded-For: 192.0.2.9"], body)
+    end
+    each([
+      form("/api/blinks/106/comments", "author_name=bytes&content=A%FFB&website=&post_token=x"),
+      form("/api/blinks/106/comments", concat("content=A", hex_decode("ff"), "B")),
+      form("/api/blinks/comments/1/report", "a%FF=1"),
+      form("/blinks-next/api/blinks/5/save", "device_id=device-abc-%C0%AF"),
+      bat_send(routes, "POST", "/api/blinks/comments/1/report?x=%FF", [], ""),
+      bat_send(routes, "GET", "/api/blinks/5/comments?x=%E2%82", [], "")
+    ], fn(got: Tuple) do
+      assert_eq(bat_status(got), 400)
+      assert_eq(bat_body(got), "Bad Request")
+      assert(contains(bat_head(got), "text/html; charset=utf-8"))
+      assert(contains(bat_head(got), "max-age=0, private, must-revalidate"))
+      assert(not(contains(downcase(bat_head(got)), "access-control-")))
+    end)
+    # valid UTF-8, encoded or raw, and a U+FFFD the client sent itself, go on
+    # to the handler (503 here: no database behind it)
+    ok = form("/api/blinks/comments/1/report", concat("n=%E2%9C%93&m=", hex_decode("e29c93"), "&r=%EF%BF%BD"))
+    assert_eq(bat_status(ok), 503)
+    # a bad JSON body is the same 400 (Plug.Parsers answers any JSON it
+    # cannot parse so)
+    bad_json = bat_json(routes, "POST", "/api/blinks/comments/1/report", "192.0.2.9", concat("{\"a\":\"", hex_decode("ff"), "\"}"))
+    assert_eq(bat_status(bad_json), 400)
+    assert_eq(bat_body(bad_json), "Bad Request")
+    # and with Accept: application/json Phoenix's render_errors answers in
+    # JSON (blka_bad_encoding, 30e5ad2, said html here, which was wrong)
+    j = form("/api/blinks/106/comments?_format=json", "content=A%FFB")
+    assert_eq(bat_status(j), 400)
+    assert_eq(bat_body(j), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    ja = bat_send(routes, "POST", "/api/blinks/comments/1/report", ["Accept: application/json", "Content-Type: application/x-www-form-urlencoded"], "a%FF=1")
+    assert_eq(bat_body(ja), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    assert(contains(bat_head(ja), "application/json; charset=utf-8"))
+    assert(not(contains(downcase(bat_head(ja)), "access-control-")))
+  end
+
+  test "invalid UTF-8 arrives as U+FFFD" do
+    c = put(web_conn(bat_raw("GET", "/", [], ""), parse_request(bat_raw("GET", "/", [], "")), "s"), :params, put(%{}, "content", hex_decode("41ff42")))
+    assert_eq(blka_param(c, "content"), concat("A", hex_decode("efbfbd"), "B"))
+  end
+end

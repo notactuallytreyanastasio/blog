@@ -1,0 +1,9 @@
+HTTP/2 500 
+content-type: application/json; charset=utf-8
+access-control-allow-credentials: true
+access-control-allow-origin: *
+access-control-expose-headers: 
+cache-control: max-age=0, private, must-revalidate
+strict-transport-security: max-age=31536000
+vary: accept-encoding
+
