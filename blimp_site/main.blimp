@@ -896,6 +896,9 @@ posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
 routes = build_routes(posts)
 routes = stack_routes(routes)
+# /static/* from data/static_files.txt, and /blog/tag/<tag> (src/96_static.blimp)
+routes = static_file_routes(routes, STATIC_DIR)
+routes = blog_tag_routes(routes, posts)
 # src/41_web.blimp: the routes that take methods, bodies and sessions, and
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).
