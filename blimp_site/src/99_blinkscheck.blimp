@@ -14,16 +14,17 @@
 # LinkCheck checks one url at a time; this keeps BLC_IN_FLIGHT going, of the
 # 32 http_start slots the site shares. Each request is a GET with 15s for
 # the whole of it (Req: 15s per read), 5 redirects, no retries, and
-# LinkCheck's User-Agent (sent after std.http's own; see
-# src/99_blinksenrich.blimp).
+# LinkCheck's User-Agent (which replaces std.http's own, since Blimp #76).
 #
 # Where http_result changes a verdict:
 #   - A body over 8 MiB is {:error, "ResponseTooLarge"}: unknown, where Req
 #     reads it all and says ok. (Req holds the whole body in memory too.)
-#   - An http:// url is checked without following redirects, because a
-#     redirect from http:// to https:// panics the interpreter
-#     (bke_redirects). Its 3xx is unknown: the page it points at was not
-#     looked at.
+#   - A page that sends its body slower than 15s in all is
+#     {:error, "timeout"}: unknown, where Req, which times each read, says
+#     ok.
+# A body cut off by a reset ("ConnectionResetByPeer") or by a close before
+# its Content-Length or last chunk ("HttpBodyTruncated",
+# "HttpChunkTruncated") is unknown, as Req's %Mint.TransportError{} is.
 #
 # Off unless BLINKS_LINK_CHECK=on. Phoenix's LinkCheck sweeps the same
 # table; with both running, a dead link would get its two strikes from one
@@ -62,13 +63,9 @@ def blc_log(s: String) -> Any do
 end
 
 # check_url/1's verdict from what http_result answered.
-def blc_verdict(url: String, r: Any) -> String do
+def blc_verdict(r: Any) -> String do
   case r do
-    {:ok, status, _} ->
-      case status >= 300 and status < 400 and bke_redirects(url, 1) == 0 do
-        true -> "unknown"
-        false -> blc_status_verdict(status)
-      end
+    {:ok, status, _} -> blc_status_verdict(status)
     {:error, reason} -> blc_error_verdict(reason)
     _ -> "unknown"
   end
@@ -78,7 +75,7 @@ def blc_start(start: Any, url: String) -> Int do
   case starts_with(url, "http://") or starts_with(url, "https://") do
     # Req errors on any other url, and http_start would raise: unknown.
     false -> -2
-    true -> start("GET", url, %{"user-agent": BLC_UA}, "", %{timeout_ms: 15000, max_redirects: bke_redirects(url, 5)})
+    true -> start("GET", url, %{"user-agent": BLC_UA}, "", %{timeout_ms: 15000, max_redirects: 5})
   end
 end
 
@@ -191,7 +188,7 @@ actor BlinksLinkCheck do
             case got do
               nil -> reply :canary
               _ ->
-                case blc_verdict(head(canaries), got) == "ok" do
+                case blc_verdict(got) == "ok" do
                   true ->
                     become phase: :checking, queue: due, flying: [], results: [], handle: -1
                     reply :checking
@@ -220,7 +217,7 @@ actor BlinksLinkCheck do
         end)
         done = filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) != nil end)
         still = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) == nil end), fn(p: Tuple) -> Tuple do {elem(p, 0), elem(p, 1)} end)
-        got = map(done, fn(p: Tuple) -> Tuple do {elem(p, 0), blc_verdict(elem(p, 0).url, elem(p, 2))} end)
+        got = map(done, fn(p: Tuple) -> Tuple do {elem(p, 0), blc_verdict(elem(p, 2))} end)
         room = BLC_IN_FLIGHT - length(still)
         starting = bke_take(queue, room, [])
         launched = map(starting, fn(row: Map) -> Tuple do {row, blc_start(s, row.url)} end)

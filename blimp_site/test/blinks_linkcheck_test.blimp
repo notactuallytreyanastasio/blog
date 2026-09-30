@@ -32,21 +32,21 @@ end
 
 actor BlinksLinkCheckTests do
   test "check_url/1: below 400 is ok, 404 and 410 dead, anything else unknown; no such host is dead" do
-    assert_eq(blc_verdict("https://a.com", {:ok, 200, ""}), "ok")
-    assert_eq(blc_verdict("https://a.com", {:ok, 304, ""}), "ok")
-    assert_eq(blc_verdict("https://a.com", {:ok, 404, ""}), "dead")
-    assert_eq(blc_verdict("https://a.com", {:ok, 410, ""}), "dead")
-    assert_eq(blc_verdict("https://a.com", {:ok, 403, ""}), "unknown")
-    assert_eq(blc_verdict("https://a.com", {:ok, 429, ""}), "unknown")
-    assert_eq(blc_verdict("https://a.com", {:ok, 503, ""}), "unknown")
-    assert_eq(blc_verdict("https://a.com", {:error, "UnknownHostName"}), "dead")
-    assert_eq(blc_verdict("https://a.com", {:error, "timeout"}), "unknown")
-    assert_eq(blc_verdict("https://a.com", {:error, "TooManyHttpRedirects"}), "unknown")
-    assert_eq(blc_verdict("https://a.com", {:error, "ResponseTooLarge"}), "unknown")
-    # an http:// redirect is not followed (it panics the interpreter), so
-    # where it goes was not looked at
-    assert_eq(blc_verdict("http://a.com", {:ok, 301, ""}), "unknown")
-    assert_eq(blc_verdict("http://a.com", {:ok, 200, ""}), "ok")
+    assert_eq(blc_verdict({:ok, 200, ""}), "ok")
+    assert_eq(blc_verdict({:ok, 304, ""}), "ok")
+    assert_eq(blc_verdict({:ok, 404, ""}), "dead")
+    assert_eq(blc_verdict({:ok, 410, ""}), "dead")
+    assert_eq(blc_verdict({:ok, 403, ""}), "unknown")
+    assert_eq(blc_verdict({:ok, 429, ""}), "unknown")
+    assert_eq(blc_verdict({:ok, 503, ""}), "unknown")
+    assert_eq(blc_verdict({:error, "UnknownHostName"}), "dead")
+    assert_eq(blc_verdict({:error, "timeout"}), "unknown")
+    assert_eq(blc_verdict({:error, "TooManyHttpRedirects"}), "unknown")
+    assert_eq(blc_verdict({:error, "ResponseTooLarge"}), "unknown")
+    # a body cut short, by a reset or a close, is Req's TransportError: unknown
+    assert_eq(blc_verdict({:error, "ConnectionResetByPeer"}), "unknown")
+    assert_eq(blc_verdict({:error, "HttpBodyTruncated"}), "unknown")
+    assert_eq(blc_verdict({:error, "HttpChunkTruncated"}), "unknown")
   end
 
   test "a sweep of 5 or more where over 30% failed is thrown away" do
@@ -93,7 +93,7 @@ actor BlinksLinkCheckTests do
     assert_eq(o.timeout_ms, 15000)
     assert_eq(o.max_redirects, 5)
     blc_start(s, "http://a.com")
-    assert_eq(head(tail(net <- :started)).opts.max_redirects, 0)
+    assert_eq(head(tail(net <- :started)).opts.max_redirects, 5)
   end
 
   test "commit: a discarded sweep writes nothing" do
