@@ -71,6 +71,8 @@ with_temper _build/twenty48.blimp static/twenty48/twenty48.blimp
 # Wordle: the rules are Temper (temper/src/wordle), the actor and view Blimp.
 with_temper _build/wordle.blimp static/wordle/wordle.blimp
 with_temper _build/wordle-god.blimp static/wordle/god.blimp
+# Cursor tracker: the arithmetic is Temper (temper/src/cursor_tracker), the view Blimp.
+with_temper _build/cursors.blimp static/cursors/cursors.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

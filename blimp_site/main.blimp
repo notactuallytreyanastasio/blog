@@ -159,6 +159,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/blackjack" -> response(200, "text/html; charset=utf-8", "no-cache", blackjack_page())
     "/blackjack/blackjack.blimp" -> BJ_PROGRAM
     "/blackjack/play.js" -> BJ_JS
+    # the room is live; the page and its files are src/94_cursor_tracker.blimp's
+    "/cursor-tracker" -> CT_PAGE
+    "/cursor-tracker/cursors.blimp" -> CT_PROGRAM
+    "/cursor-tracker/cursors.js" -> CT_JS
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -298,6 +302,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/wordle-god" -> :wordle_god
     "/live/runtime" -> :runtime
     "/live/blackjack" -> :blackjack
+    "/live/cursors" -> :cursors
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -316,6 +321,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a blackjack player sits down in the lobby, and is sent it at once
       case kind == :blackjack do
         true -> BJ <- :join(c)
+        false -> :ok
+      end
+      # a cursor tracker visitor is given an id and sent the room
+      case kind == :cursors do
+        true -> CURSORS <- :join(c)
         false -> :ok
       end
       %{fd: c, kind: kind, game: game, buf: ""}
@@ -362,6 +372,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
     :blackjack ->
       BJ <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
+    :cursors ->
+      CURSORS <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
 end
@@ -400,6 +413,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # an action at the tables; BJ sends every player the result itself
             :blackjack ->
               BJ <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # a move, a point or a clear; CURSORS sends the room itself
+            :cursors ->
+              CURSORS <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             :wordle ->
               taken = WORDLE <- :report(sock.game, payload)
@@ -538,6 +555,7 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   joined = length(keys(elem(accepted, 1))) > length(keys(socks))
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
   WORDLE <- :push(elem(read, 0))
+  CURSORS <- :push(now_ms(), now())
   t = now_ms()
   case elem(read, 2) and t - pushed_at >= 50 do
     true ->

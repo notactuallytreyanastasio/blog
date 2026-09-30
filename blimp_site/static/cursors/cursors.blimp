@@ -1,0 +1,285 @@
+# /cursor-tracker: the page's program. It draws the room the server sends
+# and says where this visitor's cursor is.
+#
+# The room is not here: who is present, their cursors and the points are
+# the server's CursorRoom actor (src/94_cursor_tracker.blimp), because they
+# are shared. This is CursorTrackerLive's template, element for element and
+# class for class. Blimp's view has no mousemove, so cursors.js is the hook:
+# it tells the program where the mouse is (`cur <- :move(...)`, at most once
+# a frame) and what time it is (`cur <- :clock(s)`, the WebAssembly build has
+# no clock), hands it every frame from /live/cursors (`cur <- :frame(json)`),
+# and sends up the socket `cur <- :report` when it changes (at most 20 times
+# a second) and `cur <- :outbox` after every render.
+
+CT_DEFAULT_COLOR = "rgb(100, 255, 100)"
+CT_MAX_SHOWN = 1000
+
+def ctv_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+def ctv_others(users: Any, me: String) -> List do
+  case type_of(users) == :list do
+    true -> filter(users, fn(u: Map) -> Bool do u.id != me end)
+    false -> []
+  end
+end
+
+def ctv_first(list: List, n: Int, acc: List) -> List do
+  case n <= 0 do
+    true -> reverse(acc)
+    false ->
+      case list do
+        [] -> reverse(acc)
+        [h | rest] -> ctv_first(rest, n - 1, [h | acc])
+      end
+  end
+end
+
+def ctv_n(n: Int) -> String do
+  to_string(n)
+end
+
+def ctv_px(n: Int) -> String do
+  concat(to_string(n), "px")
+end
+
+# ── the template ────────────────────────────────────────────────────────
+
+def ctv_dot(color: String, label: String) -> Any do
+  el("div", %{class: "flex items-center"},
+    el("div", %{class: "w-4 h-4 rounded-full mr-1", style: concat("background-color: ", color)}, ""),
+    el("span", %{class: "text-xs"}, label))
+end
+
+def ctv_header(s: Map) -> Any do
+  mine = case s.color do
+    "" -> CT_DEFAULT_COLOR
+    c -> c
+  end
+  el("div", %{class: "mb-8 border border-green-500 p-4"},
+    el("h1", %{class: "text-3xl mb-2 glitch-text"}, "CURSOR POSITION TRACKER"),
+    el("div", %{class: "text-2xl glitch-text mb-2"}, el("h1", %{}, concat("// ACTIVE USERS: ", ctv_n(length(s.users) + 1)))),
+    el("div", %{class: "text-2xl glitch-text mb-2"}, el("h1", %{}, "Click to draw a point")),
+    el("div", %{class: "grid grid-cols-2 gap-4 mb-8"},
+      el("div", %{class: "border border-green-500 p-4"},
+        el("div", %{class: "text-xs mb-1 opacity-70"}, "X-COORDINATE"),
+        el("div", %{id: "x-coord", class: "text-2xl font-bold tracking-wider"}, ctv_n(s.x))),
+      el("div", %{class: "border border-green-500 p-4"},
+        el("div", %{class: "text-xs mb-1 opacity-70"}, "Y-COORDINATE"),
+        el("div", %{id: "y-coord", class: "text-2xl font-bold tracking-wider"}, ctv_n(s.y)))),
+    el("div", %{class: "border-t border-green-500 pt-4"},
+      el("div", %{class: "flex flex-wrap gap-2"},
+        ctv_dot(mine, "YOU"),
+        map(s.users, fn(u: Map) -> Any do ctv_dot(u.color, ct_short(u.id)) end))))
+end
+
+# This visitor's own crosshair, or the prompt to move into the area.
+def ctv_mine(s: Map) -> List do
+  case s.inside do
+    false -> [el("div", %{class: "flex items-center justify-center h-full text-sm opacity-50"}, "Move cursor here to visualize position")]
+    true -> [
+      el("div", %{class: "absolute w-4 h-4 opacity-70", style: concat("left: calc(", ctv_px(s.rx), " - 8px); top: calc(", ctv_px(s.ry), " - 8px);")},
+        el("div", %{class: "w-full h-full border border-green-500 animate-pulse"}, "")),
+      el("div", %{class: "absolute w-1 h-full bg-green-500 opacity-20", style: concat("left: ", ctv_px(s.rx), ";")}, ""),
+      el("div", %{class: "absolute w-full h-1 bg-green-500 opacity-20", style: concat("top: ", ctv_px(s.ry), ";")}, ""),
+      el("div", %{class: "absolute text-xs opacity-70", style: concat("left: calc(", ctv_px(s.rx), " + 12px); top: calc(", ctv_px(s.ry), " - 12px);")},
+        concat("X: ", ctv_n(s.rx), ", Y: ", ctv_n(s.ry)))
+    ]
+  end
+end
+
+def ctv_other(u: Map) -> List do
+  case u.inside do
+    false -> []
+    true -> [
+      el("div", %{class: "absolute w-4 h-4 opacity-50", style: concat("left: calc(", ctv_px(u.rx), " - 8px); top: calc(", ctv_px(u.ry), " - 8px);")},
+        el("div", %{class: "w-full h-full border-2", style: concat("border-color: ", u.color)}, "")),
+      el("div", %{class: "absolute text-xs opacity-50", style: concat("color: ", u.color, "; left: calc(", ctv_px(u.rx), " + 12px); top: calc(", ctv_px(u.ry), " - 12px);")},
+        ct_short(u.id))
+    ]
+  end
+end
+
+def ctv_point(p: Map) -> Any do
+  el("div", %{
+    class: "absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2",
+    style: concat("background-color: ", p.color, "; left: ", ctv_px(p.x), "; top: ", ctv_px(p.y), ";"),
+    title: concat("Point by ", ct_short(p.id), " at X: ", ctv_n(p.x), ", Y: ", ctv_n(p.y))
+  }, "")
+end
+
+def ctv_dots(points: List) -> List do
+  map(points, fn(p: Map) -> Any do ctv_point(p) end)
+end
+
+def ctv_area(s: Map) -> Any do
+  el("div", %{class: "border border-green-500 p-4 mb-8"},
+    el("div", %{class: "flex justify-between items-center mb-2"},
+      el("div", %{class: "text-xs opacity-70"}, "// CURSOR VISUALIZATION"),
+      el("div", %{class: "flex items-center gap-4"},
+        el("div", %{class: "text-xs opacity-70"}, "AUTO-CLEAR IN: ", el("span", %{class: "font-mono"}, ct_clock(s.now_s))),
+        el("button", %{class: "text-xs border border-green-500 px-2 py-1 hover:bg-green-900 transition-colors", click: :clear}, "CLEAR POINTS"))),
+    el("div", %{id: "visualization-area", class: "relative h-64 border border-green-500 overflow-hidden cursor-crosshair", click: :save_point},
+      ctv_mine(s),
+      flat(map(s.users, fn(u: Map) -> List do ctv_other(u) end)),
+      s.dots),
+    el("div", %{class: "mt-2 text-xs opacity-70 text-center"}, "Click anywhere in the visualization area to save a point"))
+end
+
+def ctv_log(s: Map) -> Any do
+  n = length(s.points)
+  here = case s.inside do
+    true -> [el("div", %{}, concat("> Cursor in visualization area: X:", ctv_n(s.rx), " Y:", ctv_n(s.ry)))]
+    false -> []
+  end
+  saved = case n > 0 do
+    false -> []
+    true ->
+      numbered = zip(range(1, min(n, 5) + 1), ctv_first(s.points, 5, []))
+      lines = map(numbered, fn(ip: Any) -> Any do
+        p = elem(ip, 1)
+        el("div", %{}, ct_point_line(elem(ip, 0), p.x, p.y, ct_author(p.id, s.me)))
+      end)
+      more = case n > 5 do
+        true -> [el("div", %{}, concat("> ... and ", ctv_n(n - 5), " more points"))]
+        false -> []
+      end
+      flat([[el("div", %{}, concat("> Saved points: ", ctv_n(n)))], lines, more])
+  end
+  others = case length(s.users) > 0 do
+    true -> [el("div", %{}, concat("> Other users online: ", ctv_n(length(s.users))))]
+    false -> []
+  end
+  el("div", %{class: "border border-green-500 p-4"},
+    el("div", %{class: "text-xs mb-2 opacity-70"}, "// SYSTEM LOG"),
+    el("div", %{id: "system-log", class: "h-32 overflow-y-auto font-mono text-xs leading-relaxed"},
+      el("div", %{}, concat("> Current position: X:", ctv_n(s.x), " Y:", ctv_n(s.y))),
+      here, saved, others,
+      el("div", %{}, concat("> Auto-clear scheduled in ", ct_left_text(s.now_s)))))
+end
+
+def ctv_window(s: Map) -> Any do
+  online = length(s.users) + 1
+  status = case s.connected do
+    true -> concat(ctv_n(online), " user(s) online")
+    false -> "connecting..."
+  end
+  el("div", %{class: "os-desktop-win95"},
+    el("div", %{class: "os-window os-window-win95", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+      el("div", %{class: "os-titlebar"},
+        el("span", %{class: "os-titlebar-title"}, "Cursor Tracker - Multi-User Drawing"),
+        el("div", %{class: "os-titlebar-buttons"},
+          el("span", %{class: "os-btn"}, "_"),
+          el("span", %{class: "os-btn"}, "□"),
+          el("a", %{href: "/", class: "os-btn"}, "×"))),
+      el("div", %{class: "os-menubar"},
+        el("span", %{}, "File"), el("span", %{}, "View"),
+        el("span", %{}, concat("Users (", ctv_n(online), ")")), el("span", %{}, "Help")),
+      el("div", %{class: "os-content", style: "height: calc(100% - 80px); overflow-y: auto; background: #000; color: #00ff00;"},
+        el("div", %{class: "font-mono p-4", id: "cursor-tracker"},
+          el("div", %{class: "max-w-4xl mx-auto"}, ctv_header(s), ctv_area(s), ctv_log(s)))),
+      el("div", %{class: "os-statusbar"},
+        el("div", %{class: "os-statusbar-section"}, concat("Points: ", ctv_n(length(s.points)))),
+        el("div", %{class: "os-statusbar-section"}, concat("X: ", ctv_n(s.x), " Y: ", ctv_n(s.y))),
+        el("div", %{class: "os-statusbar-section", style: "flex: 1;"}, status))))
+end
+
+# ── the program ─────────────────────────────────────────────────────────
+
+actor Tracker do
+  state me: String :: ""
+  state color: String :: ""
+  state x: Int :: 0
+  state y: Int :: 0
+  state rx: Int :: 0
+  state ry: Int :: 0
+  state inside: Bool :: false
+  state users: List :: []
+  state points: List :: []
+  # the points' elements, made when the points change rather than on every
+  # render: with a thousand points, making them was 19ms of each mousemove
+  state dots: List :: []
+  state now_s: Int :: 0
+  state connected: Bool :: false
+  state outbox: List :: []
+
+  # Where the mouse is: on the page (x, y) and from the drawing area's
+  # corner (rx, ry), with the area's size, as the hook measured it.
+  on :move(x1: Int, y1: Int, rx1: Int, ry1: Int, w: Int, h: Int) do
+    become x: x1, y: y1, rx: rx1, ry: ry1, inside: ct_inside(rx1, ry1, w, h)
+    reply :ok
+  end
+
+  on :clock(s: Int) do
+    become now_s: s
+    reply :ok
+  end
+
+  # A frame from /live/cursors (the kinds are in src/94_cursor_tracker.blimp).
+  on :frame(json: String) do
+    m = ctv_decode(json)
+    case lookup(m, :t) do
+      "hello" ->
+        become me: m.id, color: m.color, points: m.points, dots: ctv_dots(m.points), users: ctv_others(m.users, m.id), connected: true
+      "users" ->
+        become users: ctv_others(m.users, me), connected: true
+      "point" ->
+        kept = ctv_first([m.point | points], CT_MAX_SHOWN, [])
+        become points: kept, dots: ctv_dots(kept)
+      "clear" ->
+        become points: [], dots: []
+      _ ->
+        become connected: connected
+    end
+    reply :ok
+  end
+
+  on :offline do
+    become connected: false, users: []
+    reply :ok
+  end
+
+  # save_point: only from inside the area, where the click landed.
+  on :save_point do
+    case inside do
+      true -> become outbox: [json_encode(%{t: "point", x: rx, y: ry}) | outbox]
+      false -> become outbox: outbox
+    end
+    reply :ok
+  end
+
+  on :clear do
+    become outbox: [json_encode(%{t: "clear"}) | outbox]
+    reply :ok
+  end
+
+  # What the room should know of this cursor. Outside the area it is the
+  # same report however the mouse moves, so cursors.js sends nothing.
+  on :report do
+    case inside do
+      true -> reply json_encode(%{t: "move", rx: rx, ry: ry, inside: true})
+      false -> reply json_encode(%{t: "move", rx: 0, ry: 0, inside: false})
+    end
+  end
+
+  on :outbox do
+    out = reverse(outbox)
+    become outbox: []
+    reply out
+  end
+
+  on :view do
+    reply ctv_window(%{me: me, color: color, x: x, y: y, rx: rx, ry: ry, inside: inside, users: users, points: points, dots: dots, now_s: now_s, connected: connected})
+  end
+end
+
+cur = spawn Tracker
+cur <- :view
