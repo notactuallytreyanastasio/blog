@@ -1,0 +1,230 @@
+# Temper Art, for bobbby.online/art: played in the browser by Blimp's
+# interpreter.
+#
+# A port of BlogWeb.ArtLive and its TemperArt hook. The engine was Temper
+# already, compiled to JavaScript; now it is compiled to Blimp
+# (temper/src/art: art_svg, art_generators, art_seed_of), and build.sh puts
+# the part of it this program calls in front of it, in _build/art.blimp.
+# What stays here is what the hook and the LiveView did around the engine:
+# the seed and generator, the back/forward history, the keys, the
+# full-screen view, and the page, element for element from
+# art_live.html.heex with the same classes.
+#
+# The picture is SVG, not the canvas the hook drew on: draw() has no
+# polygon and no round line caps, and Bauhaus needs both. The engine draws
+# at one size, ART_W x ART_H, where the hook asked for the canvas's own; the
+# SVG scales to the width it is given.
+
+ART_W = 880
+ART_H = 600
+
+ART_FONT = "font-family:'Chicago','Geneva','Helvetica',sans-serif;"
+
+# The hook's Save PNG was canvas.toBlob, called from an onclick. Blimp's
+# el() refuses on* attributes, and has no way to hand the browser a file, so
+# the picture is saved as what it is: a link to the SVG as a data: URL,
+# which the browser downloads. It is vector, so any size prints sharp.
+def art_file(seed: Int, gen: String) -> String do
+  concat("temper-art-", gen, "-", to_string(seed), ".svg")
+end
+
+def art_href(svg: String) -> String do
+  concat("data:image/svg+xml;base64,", base64_encode(svg))
+end
+
+# Every shape is one self-closing element (a flow particle's <g> is not),
+# and so is the background.
+def art_count(svg: String) -> Int do
+  length(split(svg, "/>")) - 2
+end
+
+def art_pick(gen: String, current: String) -> String do
+  case gen == current do
+    true -> "background:#000; color:#fff;"
+    false -> "background:#fff; color:#000;"
+  end
+end
+
+actor Art do
+  state started: Bool :: false
+  state seed: Int :: 42
+  state gen: String :: "bauhaus"
+  state svg: String :: ""
+  state href: String :: ""
+  state shapes: Int :: 0
+  # the hook's history: what has been drawn, newest first (the one showing
+  # is the head), and what Back stepped over, nearest first
+  state past: List :: []
+  state future: List :: []
+  state modal: Bool :: false
+
+  # ArtLive.mount/3: what the URL says, when the page starts.
+  on :location(q: String) do
+    s = art_seed_of(query_param(q, "seed"), 42)
+    raw = query_param(q, "generator")
+    g = case raw do
+      "" -> "bauhaus"
+      _ -> raw
+    end
+    become started: true, past: [], future: []
+    reply self <- :draw(s, g)
+  end
+
+  # TemperArt._draw(seed, generator, push = true)
+  on :draw(s: Int, g: String) do
+    self <- :show(s, g)
+    become past: [{s, g} | past], future: []
+    reply :ok
+  end
+
+  # _draw(..., push = false): Back and Forward redraw without adding to it.
+  on :show(s: Int, g: String) do
+    picture = art_svg(s, g, ART_W, ART_H)
+    become seed: s, gen: g, svg: picture, href: art_href(picture), shapes: art_count(picture)
+    reply :ok
+  end
+
+  on :set_generator(g: String) do
+    reply self <- :draw(seed, g)
+  end
+
+  on :set_seed(fields: String) do
+    raw = case json_decode(fields) do
+      {:ok, f} -> lookup(f, :seed)
+      _ -> nil
+    end
+    s = case type_of(raw) == :string do
+      true -> art_seed_of(raw, seed)
+      false -> seed
+    end
+    reply self <- :draw(s, gen)
+  end
+
+  on :random do
+    reply self <- :draw(random(0, 2147483646), gen)
+  end
+
+  on :back do
+    case length(past) > 1 do
+      true ->
+        rest = tail(past)
+        to = head(rest)
+        self <- :show(elem(to, 0), elem(to, 1))
+        become past: rest, future: [head(past) | future]
+      false -> become past: past
+    end
+    reply :ok
+  end
+
+  on :forward do
+    case future do
+      [] -> become future: future
+      [to | ahead] ->
+        self <- :show(elem(to, 0), elem(to, 1))
+        become past: [to | past], future: ahead
+    end
+    reply :ok
+  end
+
+  on :open do
+    become modal: started
+    reply :ok
+  end
+
+  on :close do
+    become modal: false
+    reply :ok
+  end
+
+  # the modal's Random: a new picture, and back to the page
+  on :random_close do
+    self <- :random
+    become modal: false
+    reply :ok
+  end
+
+  on :view do
+    gens = art_generators()
+    file = art_file(seed, gen)
+    info = case started do
+      true -> [el("span", %{}, "shapes: ", el("strong", %{style: "color:#000;"}, to_string(shapes)), el("br", %{}),
+                "seed: ", el("strong", %{style: "color:#000;"}, to_string(seed)), el("br", %{}))]
+      false -> []
+    end
+    mobile_info = case started do
+      true -> [el("div", %{class: "text-xs", style: "color:#555;"}, "shapes: ", el("strong", %{style: "color:#000;"}, to_string(shapes)), concat(" · seed ", to_string(seed)))]
+      false -> []
+    end
+    overlay = case modal do
+      false -> []
+      true -> [el("div", %{click: :close, style: "position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; touch-action:none; cursor:zoom-out;"},
+        el("div", %{style: concat("width:min(100vw, calc(100vh * ", to_string(ART_W), " / ", to_string(ART_H), "));"), inner_html: svg}),
+        el("div", %{style: "position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:8px; font-family:'Chicago','Geneva',sans-serif;"},
+          el("button", %{click: :random_close, style: "padding:6px 14px; border:1px solid #fff; background:rgba(0,0,0,.6); color:#fff; cursor:pointer; font-size:13px; font-family:inherit;"}, "↺ Random"),
+          el("a", %{href: href, download: file, style: "padding:6px 14px; border:1px solid #fff; background:rgba(0,0,0,.6); color:#fff; cursor:pointer; font-size:13px; font-family:inherit; text-decoration:none;"}, "⬇ Save SVG"),
+          el("button", %{click: :close, style: "padding:6px 14px; border:1px solid #fff; background:rgba(0,0,0,.6); color:#fff; cursor:pointer; font-size:13px; font-family:inherit;"}, "✕ Close")))]
+    end
+    el("div", %{class: "os-window os-window-mac", style: "max-width:1100px; margin:16px auto;"},
+      el("div", %{class: "os-titlebar"},
+        el("div", %{class: "os-titlebar-buttons"}, el("div", %{class: "os-btn-close"})),
+        el("div", %{class: "os-titlebar-title"}, "temper-art — generative art engine"),
+        el("div", %{class: "os-titlebar-spacer"})),
+      el("div", %{class: "os-content", style: "padding:0;"},
+        # the mobile controls bar (hidden on md+)
+        el("div", %{class: "md:hidden border-b border-black bg-white px-3 py-2 space-y-2", style: concat(ART_FONT, " font-size:12px;")},
+          el("div", %{class: "flex gap-2 items-center flex-wrap"},
+            map(gens, fn(g: String) -> Any do
+              el("button", %{click: :set_generator, with: g, class: "px-3 py-1 border border-black text-xs", style: concat(art_pick(g, gen), " font-family:inherit;")}, g)
+            end)),
+          el("div", %{class: "flex gap-2 items-center"},
+            el("form", %{submit: :set_seed, class: "flex gap-1 flex-1"},
+              el("input", %{type: "number", name: "seed", value: to_string(seed), min: "0", max: "2147483647", class: "border border-black px-2 py-1 text-xs w-full", style: "font-family:inherit;"})),
+            el("button", %{click: :random, class: "px-3 py-1 border border-black bg-white text-xs whitespace-nowrap", style: "font-family:inherit;"}, "↺ Random")),
+          el("div", %{class: "flex gap-2"},
+            el("button", %{click: :back, class: "flex-1 py-1 border border-black bg-white text-xs", style: "font-family:inherit;"}, "← Back"),
+            el("button", %{click: :forward, class: "flex-1 py-1 border border-black bg-white text-xs", style: "font-family:inherit;"}, "Forward →"),
+            el("a", %{href: href, download: file, class: "flex-1 py-1 border border-black bg-white text-xs text-center", style: "font-family:inherit; color:#000; text-decoration:none;"}, "⬇ SVG")),
+          mobile_info),
+        # sidebar + picture
+        el("div", %{class: "flex flex-col md:grid md:grid-cols-[220px_1fr]", style: "min-height:min(70vh,600px);"},
+          # the desktop sidebar (hidden on mobile)
+          el("div", %{class: "hidden md:flex flex-col gap-4 border-r border-black p-4 bg-white", style: concat(ART_FONT, " font-size:12px;")},
+            el("div", %{},
+              el("div", %{class: "font-bold border-b border-black pb-1 mb-2"}, "Generator"),
+              el("div", %{class: "flex flex-col gap-1"},
+                map(gens, fn(g: String) -> Any do
+                  el("button", %{click: :set_generator, with: g, style: concat("padding:4px 8px; border:1px solid #000; ", art_pick(g, gen), " cursor:pointer; text-align:left; font-family:inherit; font-size:12px;")}, g)
+                end))),
+            el("div", %{},
+              el("div", %{class: "font-bold border-b border-black pb-1 mb-2"}, "Seed"),
+              el("form", %{submit: :set_seed, class: "flex gap-1"},
+                el("input", %{type: "number", name: "seed", value: to_string(seed), min: "0", max: "2147483647", style: "width:100%; border:1px solid #000; padding:3px 6px; font-family:inherit; font-size:12px;"}))),
+            el("div", %{class: "flex flex-col gap-1"},
+              el("button", %{click: :random, style: "padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"},
+                "↺ Random ", el("kbd", %{style: "opacity:.6"}, "R")),
+              el("button", %{click: :back, style: "padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"},
+                "← Back ", el("kbd", %{style: "opacity:.6"}, "←")),
+              el("button", %{click: :forward, style: "padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px;"},
+                "→ Forward ", el("kbd", %{style: "opacity:.6"}, "→")),
+              el("a", %{href: href, download: file, style: "padding:4px 8px; border:2px outset #ddd; background:#ddd; cursor:pointer; font-family:inherit; font-size:12px; color:#000; text-decoration:none; text-align:center;"},
+                "⬇ Save SVG")),
+            el("div", %{class: "border-t border-black pt-3 text-xs leading-relaxed", style: "color:#555;"},
+              info,
+              "Engine: Temper → Blimp", el("br", %{}),
+              "Generators: bauhaus, flow, subdivision")),
+          # the picture
+          el("div", %{id: "art-picture", click: :open, title: "Tap to open full screen", class: "bg-gray-200 flex items-center", style: "min-height:min(70vh,600px); cursor:zoom-in;", inner_html: svg}))),
+      el("div", %{class: "os-statusbar", style: concat(ART_FONT, " font-size:11px;")},
+        el("span", %{}, concat("seed: ", to_string(seed), " · ", gen)),
+        el("span", %{}, "Temper Art Engine v0.1")),
+      overlay,
+      key("r", :random),
+      key("R", :random),
+      key("ArrowLeft", :back),
+      key("ArrowRight", :forward),
+      key("Escape", :close))
+  end
+end
+
+art = spawn Art
+art <- :view

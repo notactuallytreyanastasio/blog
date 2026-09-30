@@ -163,6 +163,9 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/cursor-tracker" -> CT_PAGE
     "/cursor-tracker/cursors.blimp" -> CT_PROGRAM
     "/cursor-tracker/cursors.js" -> CT_JS
+    # the title names the seed in the URL; the files are src/94_art.blimp's
+    "/art" -> response(200, "text/html; charset=utf-8", "public, max-age=300", art_page(req.query))
+    "/art/art.blimp" -> ART_PROGRAM
     "/work-log" ->
       page = work_log_page()
       case page do

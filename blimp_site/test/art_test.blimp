@@ -1,0 +1,91 @@
+# needs: static/art/art.blimp
+
+actor ArtTests do
+  test "the generator is splitmix32, number for number with the engine Phoenix ran" do
+    # mkRng(seed).next() five times, from assets/vendor/temper-engine.js
+    assert_eq(map(range(0, 4), fn(c: Int) -> Int do art_raw(art_start(42), c) end), [939911724, -346236540, 321366731, -977648579, 527392959])
+    assert_eq(map(range(0, 4), fn(c: Int) -> Int do art_raw(art_start(0), c) end), [-741437289, 1645313261, -221771711, -1534574223, -1212958544])
+    assert_eq(map(range(0, 4), fn(c: Int) -> Int do art_raw(art_start(2147483646), c) end), [204350796, -1666851378, 1206511992, -1545740978, -351553267])
+  end
+
+  test "Bauhaus, seed 42, is the picture Phoenix's engine made, shape for shape" do
+    # the engine's scene for generate(42, "bauhaus", 880, 600), written as SVG
+    assert_eq(art_svg(42, "bauhaus", 880, 600), "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8800 6000\" width=\"100%\" preserveAspectRatio=\"xMidYMid meet\" stroke-linecap=\"round\" style=\"display:block\"><rect width=\"8800\" height=\"6000\" fill=\"#1c182e\"/><rect x=\"0\" y=\"0\" width=\"1257\" height=\"1500\" fill=\"#ffc46e\" fill-opacity=\"0.838\"/><polygon points=\"1257,1500 2514,1500 1886,0\" fill=\"#ffc46e\" fill-opacity=\"0.998\"/><circle cx=\"4400\" cy=\"750\" r=\"512\" fill=\"#f5ebdc\" fill-opacity=\"0.869\"/><circle cx=\"5657\" cy=\"750\" r=\"468\" fill=\"#ff6e5a\" fill-opacity=\"0.967\"/><polygon points=\"7543,1500 8800,1500 8171,0\" fill=\"#f5ebdc\" fill-opacity=\"0.857\"/><line x1=\"1257\" y1=\"1500\" x2=\"2514\" y2=\"3000\" stroke=\"#f5ebdc\" stroke-width=\"270\" stroke-opacity=\"0.990\"/><polygon points=\"2514,3000 3771,3000 3143,1500\" fill=\"#ffc46e\" fill-opacity=\"0.971\"/><circle cx=\"5657\" cy=\"2250\" r=\"425\" fill=\"#f5ebdc\" fill-opacity=\"0.798\"/><circle cx=\"6914\" cy=\"2250\" r=\"445\" fill=\"#f5ebdc\" fill-opacity=\"0.786\"/><line x1=\"7543\" y1=\"1500\" x2=\"8800\" y2=\"3000\" stroke=\"#ff6e5a\" stroke-width=\"270\" stroke-opacity=\"0.928\"/><circle cx=\"629\" cy=\"3750\" r=\"527\" fill=\"#ff6e5a\" fill-opacity=\"0.886\"/><line x1=\"3771\" y1=\"3000\" x2=\"5029\" y2=\"4500\" stroke=\"#ffc46e\" stroke-width=\"270\" stroke-opacity=\"0.934\"/><circle cx=\"629\" cy=\"5250\" r=\"378\" fill=\"#f5ebdc\" fill-opacity=\"0.946\"/><line x1=\"1257\" y1=\"4500\" x2=\"2514\" y2=\"6000\" stroke=\"#ffc46e\" stroke-width=\"270\" stroke-opacity=\"0.902\"/><polygon points=\"2514,6000 3771,6000 3143,4500\" fill=\"#ffc46e\" fill-opacity=\"0.808\"/><rect x=\"3771\" y=\"4500\" width=\"1257\" height=\"1500\" fill=\"#78c8dc\" fill-opacity=\"0.803\"/><line x1=\"5029\" y1=\"4500\" x2=\"6286\" y2=\"6000\" stroke=\"#f5ebdc\" stroke-width=\"270\" stroke-opacity=\"0.915\"/><polygon points=\"7543,6000 8800,6000 8171,4500\" fill=\"#ffc46e\" fill-opacity=\"0.803\"/><circle cx=\"1778\" cy=\"5558\" r=\"408\" fill=\"#78c8dc\" fill-opacity=\"0.827\"/><circle cx=\"7076\" cy=\"5752\" r=\"964\" fill=\"#f5ebdc\" fill-opacity=\"0.646\"/></svg>")
+  end
+
+  test "flow and subdivision make as many shapes as Phoenix's engine did" do
+    flow = art_svg(42, "flow", 880, 600)
+    assert_eq(art_count(flow), 6678)
+    assert_eq(length(flow), 328018)
+    sub = art_svg(42, "subdivision", 880, 600)
+    assert_eq(art_count(sub), 370)
+    assert_eq(length(sub), 35941)
+    assert_eq(art_count(art_svg(42, "bauhaus", 880, 600)), 20)
+  end
+
+  test "an unknown generator draws Bauhaus, as the engine did" do
+    assert_eq(art_shapes(9, "nonsense", 400, 300), art_shapes(9, "bauhaus", 400, 300))
+  end
+
+  test "alphas are three places, and 1 when they round up to it" do
+    assert_eq(art_alpha(0.5), "0.500")
+    assert_eq(art_alpha(0.047), "0.047")
+    assert_eq(art_alpha(0.003), "0.003")
+    assert_eq(art_alpha(0.9996), "1")
+  end
+
+  test "a seed in the URL is digits that fit, or the default" do
+    assert_eq(art_seed_of("7", 42), 7)
+    assert_eq(art_seed_of("2147483647", 42), 2147483647)
+    assert_eq(art_seed_of("2147483648", 42), 42)
+    assert_eq(art_seed_of("-3", 42), 42)
+    assert_eq(art_seed_of("12abc", 42), 42)
+    assert_eq(art_seed_of("", 42), 42)
+    assert_eq(art_seed_of("99999999999999999999", 42), 42)
+  end
+
+  test "the URL picks the picture; Random, Back and Forward walk the history" do
+    a = spawn Art
+    a <- :location("seed=7&generator=flow")
+    html = to_html(a <- :view)
+    assert(contains(html, "seed: 7 · flow"))
+    assert(contains(html, "<line x1="))
+    a <- :random
+    refute(contains(to_html(a <- :view), "seed: 7 · flow"))
+    a <- :back
+    assert(contains(to_html(a <- :view), "seed: 7 · flow"))
+    a <- :back
+    assert(contains(to_html(a <- :view), "seed: 7 · flow"))
+    a <- :forward
+    refute(contains(to_html(a <- :view), "seed: 7 · flow"))
+    a <- :forward
+    a <- :set_generator("subdivision")
+    after = to_html(a <- :view)
+    assert(contains(after, " · subdivision"))
+    a <- :set_seed("{\"seed\":\"123\"}")
+    assert(contains(to_html(a <- :view), "seed: 123 · subdivision"))
+  end
+
+  test "the full-screen view opens on the picture and closes" do
+    a = spawn Art
+    a <- :location("")
+    assert(contains(to_html(a <- :view), "seed: 42 · bauhaus"))
+    refute(contains(to_html(a <- :view), "rgba(0,0,0,.92)"))
+    a <- :open
+    html = to_html(a <- :view)
+    assert(contains(html, "rgba(0,0,0,.92)"))
+    # Save is a download of the SVG itself, not a script
+    assert(contains(html, "download=\"temper-art-bauhaus-42.svg\""))
+    assert(contains(html, concat("href=\"", art_href(art_svg(42, "bauhaus", 880, 600)), "\"")))
+    a <- :close
+    refute(contains(to_html(a <- :view), "rgba(0,0,0,.92)"))
+  end
+
+  test "the page's title names the seed and generator in the URL" do
+    page = art_page("seed=5&generator=flow")
+    assert(contains(page, "<title>Temper Art — seed 5 · flow</title>"))
+    assert(contains(page, "Flow, seed 5."))
+    assert(contains(page, "data-program=\"/art/art.blimp\""))
+    assert(contains(art_page(""), "seed 42 · bauhaus"))
+  end
+end
