@@ -812,6 +812,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   PUSHER <- :step(now())
   CAMERAS <- :step
   CAM_SWEEP <- :step
+  # work_log_commits from GitHub, when WORK_LOG_POLL is on (src/99_work_log_poll.blimp)
+  WL <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -930,12 +932,17 @@ posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
 routes = build_routes(posts)
 routes = stack_routes(routes)
+# /static/* from data/static_files.txt, and /blog/tag/<tag> (src/96_static.blimp)
+routes = static_file_routes(routes, STATIC_DIR)
+routes = blog_tag_routes(routes, posts)
 # src/41_web.blimp: the routes that take methods, bodies and sessions, and
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).
 # src/99_blinkswrite.blimp: BlinkController's token-gated writes
 # src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
-WEB_ROUTES = list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes())
+# src/99_admin.blimp: /admin/museum and /admin/finder
+# src/99_guest_posts.blimp: guest posts and their comments
+WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes())
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
@@ -991,6 +998,9 @@ end
 # The Craigslist sweep that fills camera_listings (src/99_camera_sweep.blimp):
 # off unless CAMERAS_SWEEP=1, which is for after Phoenix's Poller is stopped
 puts(CAM_SWEEP <- :config(cs_boot_config(cs_env_config(), DB_OPTS != nil)))
+# GitHub.WorkLogPoller, filling work_log_commits (src/99_work_log_poll.blimp):
+# off unless WORK_LOG_POLL=1, which is for after Phoenix's Poller is stopped
+puts(WL <- :config(wl_boot_config(wl_env_config(), DB_OPTS != nil)))
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do

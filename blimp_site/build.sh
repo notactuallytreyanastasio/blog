@@ -148,6 +148,10 @@ with_temper _build/stumble.blimp static/stumble/stumble.blimp
 # are Temper (temper/src/cameras), the rows, the counting and the view
 # Blimp; query_param is the server's.
 with_temper _build/cameras.blimp src/40_http.blimp static/cameras/cameras.blimp
+# /admin/museum and /admin/finder: what they share (the outbox, the login),
+# then each page's program.
+with_temper _build/admin-museum.blimp static/admin/common.blimp static/admin/museum.blimp
+with_temper _build/admin-finder.blimp static/admin/common.blimp static/admin/finder.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

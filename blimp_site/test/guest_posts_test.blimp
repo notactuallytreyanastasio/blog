@@ -1,0 +1,104 @@
+# What production answered for four of the nine guest posts, GET-only, on
+# 2026-09-30: the article HTML and the description meta. The Markdown is
+# what that HTML and description reveal it was; rendered by Phoenix (MDEx)
+# locally from those rows, it gives production's HTML byte for byte.
+GPT_POSTS = [
+  %{slug: "untitled-1769028420804070-730", title: "Asking. Hacker News to Write For me", author: "Bobby", content: "I decided to post [there](https://news.ycombinator.com/item?id=46711360) to see if anyone would write a post here.\n\nHi hacker news, feel free to have some fun with this, long or short\n\nheck, write a poem if you want\n\nCheers,\nBobby", html: "<p>I decided to post <a href=\"https://news.ycombinator.com/item?id=46711360\">there</a> to see if anyone would write a post here.</p>\n<p>Hi hacker news, feel free to have some fun with this, long or short</p>\n<p>heck, write a poem if you want</p>\n<p>Cheers,\nBobby</p>", description: "I decided to post [there](https://news.ycombinator.com/item?id=46711360) to see if anyone would write a post here. Hi hacker news, feel free to have some fun with this, long or short heck, write a poe..."},
+  %{slug: "untitled-1769029429643605-5899", title: "Under-learning > Over-learning", author: "Zach Daniel", content: "Written quickly and sloppily:\n\nTons of people are more worried about \"under-learning\" than the should be, and \"over-learning\" is barely considered. In my experience, we are a species tuned towards learning, and have not calibrated for the amount and rate of signal that we ingest in the modern world.\n\nPeople will fail 2 or 3 times at a given task or venture and will take the common thread and attribute it, when the equation is almost always far too multivariate to pinpoint reasons for failure.\n\nThe damage of under learning is that you get another chance to try again and prove that the problem was actually the th\n\nOur subconscious, however, is uniquely tuned for this kind of work, in my humble opinion. Let it do its job. Analyze less, intuit more. Fail repeatedly. You may be surprised that things you thought *didn't* work, are actually not root problems at all.", html: "<p>Written quickly and sloppily:</p>\n<p>Tons of people are more worried about &quot;under-learning&quot; than the should be, and &quot;over-learning&quot; is barely considered. In my experience, we are a species tuned towards learning, and have not calibrated for the amount and rate of signal that we ingest in the modern world.</p>\n<p>People will fail 2 or 3 times at a given task or venture and will take the common thread and attribute it, when the equation is almost always far too multivariate to pinpoint reasons for failure.</p>\n<p>The damage of under learning is that you get another chance to try again and prove that the problem was actually the th</p>\n<p>Our subconscious, however, is uniquely tuned for this kind of work, in my humble opinion. Let it do its job. Analyze less, intuit more. Fail repeatedly. You may be surprised that things you thought <em>didn't</em> work, are actually not root problems at all.</p>", description: "Written quickly and sloppily: Tons of people are more worried about &quot;under-learning&quot; than the should be, and &quot;over-learning&quot; is barely considered. In my experience, we are a species tuned towards lear..."},
+  %{slug: "untitled-1769030646999925-4012", title: "heya", author: "vielle.dev", content: "", html: "", description: "..."},
+  %{slug: "untitled-1769058482877973-8547", title: "this mortal coil", author: "scott", content: "Bobby Weir’s death hit me harder than i would have predicted. i wasn’t expecting his passing, nor how it would have me thinking, more than i would prefer, about my own inevitable demise.\n\nMore than thoughts of death itself, Bobby’s passing feels like the undeniable end of my own youth—even though that actually happened long ago—because it feels like the final chapter of the grateful dead that i was lucky enough to catch the very end of. but more than even a few years of shows, the dead are a massive, immeasurable, indescribable part of my formative years.\n\nsure, everything directly connected took time and space in my life. mail orders and ticketmaster lotteries and ticket line lists, going to shows, new tapes of cherry soundboards, great acid, and just being on tour. but also my people, and listening to 4.29.71 and 2.13.70 and 6.28.74 . . . st. stephen jams and mind left the body jams, hard to handle and the weather report suite. pretty hippie girls and sugar mag, and sonya, i miss you and always think about hitting the disco bus after the shows with you. everyone bugging us to come on and the cops clearing lots.\n\nwhen jerry died it was a shock, when phil died it was sad, but it feels like bob’s death closed the book. i’ve been listening to a lot of black-throated winds, and greatest stories, and jack straws and sugar mags. and I’m sad.\n\ni wish there was another thing that could be that for me, but it wasn’t just the experience, it was the experience at that point in life, before i’d learned too much and seen enough. i know this, but try my best to deny it and bob’s passing has made that impossible now.\n\nRIP Bobby, Phil, Jerry, and Sonya. i love you and wish you were here with me—you missed too much.", html: "<p>Bobby Weir’s death hit me harder than i would have predicted. i wasn’t expecting his passing, nor how it would have me thinking, more than i would prefer, about my own inevitable demise.</p>\n<p>More than thoughts of death itself, Bobby’s passing feels like the undeniable end of my own youth—even though that actually happened long ago—because it feels like the final chapter of the grateful dead that i was lucky enough to catch the very end of. but more than even a few years of shows, the dead are a massive, immeasurable, indescribable part of my formative years.</p>\n<p>sure, everything directly connected took time and space in my life. mail orders and ticketmaster lotteries and ticket line lists, going to shows, new tapes of cherry soundboards, great acid, and just being on tour. but also my people, and listening to 4.29.71 and 2.13.70 and 6.28.74 . . . st. stephen jams and mind left the body jams, hard to handle and the weather report suite. pretty hippie girls and sugar mag, and sonya, i miss you and always think about hitting the disco bus after the shows with you. everyone bugging us to come on and the cops clearing lots.</p>\n<p>when jerry died it was a shock, when phil died it was sad, but it feels like bob’s death closed the book. i’ve been listening to a lot of black-throated winds, and greatest stories, and jack straws and sugar mags. and I’m sad.</p>\n<p>i wish there was another thing that could be that for me, but it wasn’t just the experience, it was the experience at that point in life, before i’d learned too much and seen enough. i know this, but try my best to deny it and bob’s passing has made that impossible now.</p>\n<p>RIP Bobby, Phil, Jerry, and Sonya. i love you and wish you were here with me—you missed too much.</p>", description: "Bobby Weir’s death hit me harder than i would have predicted. i wasn’t expecting his passing, nor how it would have me thinking, more than i would prefer, about my own inevitable demise. More than tho..."}
+]
+
+GPT_SECRET = "guest-post-test-secret-0123456789abcdef"
+
+def gpt_send(method: String, target: String, headers: List, body: String) -> Any do
+  cl = case body == "" do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body))), "Content-Type: application/x-www-form-urlencoded"]
+  end
+  raw = concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+  web_dispatch(raw, parse_request(raw), guest_post_routes(), GPT_SECRET)
+end
+
+def gpt_draft(p: Map) -> Map do
+  %{title: p.title, slug: p.slug, content: p.content, author_name: p.author, date: "January 22, 2026"}
+end
+
+actor GuestPostTests do
+  test "four guest posts render to production's article HTML and description" do
+    each(GPT_POSTS, fn(p: Map) do
+      html = guest_post_page(gpt_draft(p), [], "tok", "", "")
+      assert(contains(html, concat("<div id=\"post-content\" class=\"article-content\">", p.html, "</div>")))
+      assert(contains(html, concat("<meta name=\"description\" content=\"", p.description, "\">")))
+      assert(contains(html, concat("<span class=\"post-author\">by ", escape_html(p.author), "</span>")))
+      assert(contains(html, "<p class=\"no-comments\">No comments yet. Be the first to comment!</p>"))
+    end)
+  end
+
+  test "the meta bar and status bar say what PostLive says, escaped as HEEx escapes" do
+    p = head(filter(GPT_POSTS, fn(x: Map) -> Bool do x.slug == "untitled-1769058482877973-8547" end))
+    html = guest_post_page(gpt_draft(p), [], "tok", "", "")
+    assert(contains(html, "<span class=\"post-date\">January 22, 2026</span><span class=\"post-author\">by scott</span><span class=\"post-stats\">315 words · 1 min read</span><div class=\"post-tags-inline\"><span class=\"mac-tag\">guest-post</span></div>"))
+    empty = head(filter(GPT_POSTS, fn(x: Map) -> Bool do x.content == "" end))
+    e = guest_post_page(gpt_draft(empty), [], "tok", "", "")
+    assert(contains(e, "0 words · &lt; 1 min read"))
+    assert(contains(e, "<span>0 words</span><span>&lt; 1 min read</span>"))
+    assert(contains(e, "<meta name=\"description\" content=\"...\">"))
+    # a NULL author_name has no "by" at all; a NULL title was made "Untitled" by the query
+    anon = guest_post_page(%{title: "A <b> & 'c'", slug: "s", content: "x", author_name: nil, date: "d"}, [], "tok", "", "")
+    refute(contains(anon, "post-author"))
+    assert(contains(anon, "<div class=\"mac-title\">A &lt;b&gt; &amp; &#39;c&#39;</div>"))
+  end
+
+  test "comments are PostLive's markup, escaped, counted, with the form's token and values" do
+    rows = [%{author_name: "<b>M</b> & co", content: "one\ntwo \"q\" 'a'", at: "Jan 22, 2026 at 06:00 AM"}]
+    html = guest_post_page(%{title: "t", slug: "s-1", content: "x", author_name: "a", date: "d"}, rows, "TOKEN", "kept <name>", "kept\nbody")
+    assert(contains(html, "<h3 class=\"comments-header\">Comments (1)</h3>"))
+    assert(contains(html, "<div class=\"comment\"><div class=\"comment-header\"><span class=\"comment-author\">&lt;b&gt;M&lt;/b&gt; &amp; co</span><span class=\"comment-date\">Jan 22, 2026 at 06:00 AM</span></div><div class=\"comment-body\">one\ntwo &quot;q&quot; &#39;a&#39;</div></div>"))
+    refute(contains(html, "no-comments"))
+    assert(contains(html, "<form class=\"comment-form\" method=\"post\" action=\"/post/s-1/comments\"><input type=\"hidden\" name=\"_csrf_token\" value=\"TOKEN\">"))
+    assert(contains(html, "value=\"kept &lt;name&gt;\""))
+    assert(contains(html, "required>kept\nbody</textarea>"))
+  end
+
+  # Each row: author_name, content, and Blog.Comments.Comment.changeset/2's
+  # valid? for them, from `mix run` of the changeset on the same strings.
+  test "a comment is valid exactly when Comment.changeset/2 says so" do
+    cases = [
+      ["a", "b", true], ["", "b", false], ["a", "", false], [" ", "b", false], ["a", " \n\t", false],
+      [" ", "b", false], ["a", "　x", true], ["​", "b", true],
+      [repeat("x", 100), "b", true], [repeat("x", 101), "b", false],
+      [repeat("👍🏽", 100), "b", true], [repeat("👍🏽", 101), "b", false],
+      ["a", repeat("y", 5000), true], ["a", repeat("y", 5001), false], ["a", repeat("é", 5000), true],
+      [nil, "b", false], ["a", nil, false], ["", "b", false], ["᠎", "b", true], ["﻿", "b", true]
+    ]
+    each(cases, fn(c: List) do
+      assert_eq(gp_comment_ok(elem_at(c, 0), elem_at(c, 1)), elem_at(c, 2))
+    end)
+    assert_eq(gp_form_value("a\r\nb\r\n"), "a\nb\n")
+    assert_eq(gp_form_value(["a", "b"]), nil)
+    assert_eq(gp_form_value(nil), nil)
+  end
+
+  test "a slug that is not a published guest post is sent home, as PostLive's push_navigate" do
+    got = gpt_send("GET", "/post/no-such-slug", [], "")
+    assert_eq(elem(got, 1), 302)
+    wire = elem(got, 0)
+    assert(contains(wire, "Location: /\r\n"))
+    assert(contains(wire, "Cache-Control: max-age=0, private, must-revalidate\r\n"))
+    assert(ends_with(wire, "\r\n\r\n<html><body>You are being <a href=\"/\">redirected</a>.</body></html>"))
+    refute(contains(wire, "Set-Cookie"))
+    head_got = gpt_send("HEAD", "/post/no-such-slug", [], "")
+    assert_eq(elem(head_got, 1), 302)
+    assert(ends_with(elem(head_got, 0), "\r\n\r\n"))
+    # two segments are not /post/:slug, in Phoenix's router or here
+    assert_eq(gpt_send("GET", "/post/a/b", [], ""), nil)
+  end
+
+  test "a comment without the session's token is refused before anything is read" do
+    got = gpt_send("POST", "/post/x/comments", [], "author_name=a&content=b")
+    assert_eq(elem(got, 1), 403)
+    # a GET there is not claimed: it goes on to dynamic(), whose 404 Caddy hands to Phoenix
+    assert_eq(gpt_send("GET", "/post/x/comments", [], ""), nil)
+  end
+end

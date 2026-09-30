@@ -12,6 +12,8 @@
 # And one rename: a bare /assets/app.css (nathan links it by hand) becomes
 # the digested name, so the Blimp site never answers for the un-digested URL
 # Phoenix's own pages may one day ask for and get a frozen copy of.
+# And one fix: the sidebar's tag chips link /blog/tag/<tag>, not the
+# /post/<tag> Phoenix's layout wrote, which only ever redirected to /.
 # Every other byte, the page's own scripts included, is what Phoenix sent.
 #
 #   ORIGIN=https://bobbby.online ./content/snapshot.sh
@@ -32,6 +34,10 @@ s = re.sub(r'<meta name="csrf-token" content="[^"]*"\s*/?>\s*', '', s)
 s = re.sub(r' data-phx-session="[^"]*"', '', s)
 s = re.sub(r' data-phx-static="[^"]*"', '', s)
 s = s.replace('<link phx-track-static rel="stylesheet"', '<link rel="stylesheet"')
+# The sidebar's "Posts by Tag" chips linked /post/<tag>, which was never a
+# page (PostLive sends an unknown slug to /); src/96_static.blimp's
+# /blog/tag/<tag> is.
+s = re.sub(r'<a href="/post/([^"]+)" (class="inline-block px-3 py-1 bg-gradient-to-r from-fuchsia-200 to-cyan-200)', r'<a href="/blog/tag/\1" \2', s)
 assert '/assets/app-' not in s or '.js' not in re.findall(r'/assets/app-[0-9a-f]+\.(\w+)', s), "a LiveView client script is left"
 css = re.search(r'/assets/app-[0-9a-f]+\.css', s)
 if css: s = s.replace('href="/assets/app.css"', f'href="{css.group(0)}"')

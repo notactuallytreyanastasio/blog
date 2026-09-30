@@ -1,0 +1,319 @@
+# /admin/museum: BlogWeb.MuseumAdminLive as a Blimp program. The rows are
+# museum_projects, from /admin/museum/projects.json; every change is a
+# request through the outbox (static/admin/common.blimp), answered with the
+# whole list again, as the LiveView re-read it after each event.
+
+ADP_CATEGORY_NAMES = [["tools", "Tools"], ["ml", "ML & AI"], ["music", "Music"], ["social", "Social"], ["maps", "Maps"], ["writing", "Writing"], ["hardware", "Hardware"]]
+ADP_CATEGORIES = ["tools", "ml", "music", "social", "maps", "writing", "hardware"]
+ADP_PROJECTS = "/admin/museum/projects"
+
+# format_tech_stack/1
+def adp_tech(stack: Any) -> String do
+  case type_of(stack) do
+    :list -> join(stack, ", ")
+    _ -> ""
+  end
+end
+
+# format_repos/1: "name:owner/repo" a line; a repo without both keys is an
+# empty line.
+def adp_repos(repos: Any) -> String do
+  case type_of(repos) do
+    :list ->
+      join(map(repos, fn(r: Any) -> String do
+        name = adp_get(r, "name", nil)
+        full = adp_get(r, "full_name", nil)
+        case name == nil or full == nil do
+          true -> ""
+          false -> concat(to_string(name), ":", to_string(full))
+        end
+      end), "\n")
+    _ -> ""
+  end
+end
+
+def adp_find_row(rows: List, id: Int) -> Any do
+  got = filter(rows, fn(r: Map) -> Bool do lookup(r, "id") == id end)
+  case got do
+    [] -> nil
+    [r | _] -> r
+  end
+end
+
+# The rows in the order dragged: ids as strings, from admin.js.
+def adp_in_order(rows: List, ids: List) -> List do
+  reduce(reverse(ids), [], fn(acc: List, id: Any) -> List do
+    r = adp_find_row(rows, to_int(to_string(id)))
+    case r do
+      nil -> acc
+      _ -> [r | acc]
+    end
+  end)
+end
+
+def adp_project_row(p: Map) -> Any do
+  id_n = lookup(p, "id")
+  id = to_string(id_n)
+  visible = lookup(p, "visible")
+  path = case lookup(p, "internal_path") do
+    nil -> []
+    ip -> [el("span", %{class: "project-path"}, ip)]
+  end
+  url = case lookup(p, "external_url") do
+    nil -> []
+    u -> [el("span", %{class: "project-path"}, u)]
+  end
+  hidden = case visible do
+    true -> []
+    false -> [el("span", %{class: "project-path"}, "[hidden]")]
+  end
+  toggle_label = case visible do
+    true -> "Hide"
+    false -> "Show"
+  end
+  el("div", %{class: adp_hidden_class("project-row", visible), draggable: "true", "data-sort-id": id},
+    el("div", %{class: "project-info"},
+      el("span", %{class: "drag-handle"}, "☰"),
+      el("span", %{class: "project-order"}, to_string(lookup(p, "sort_order"))),
+      el("span", %{class: "project-title"}, lookup(p, "title")),
+      el("span", %{class: "project-category"}, lookup(p, "category")),
+      path, url, hidden),
+    el("div", %{class: "project-actions"},
+      el("button", %{class: "btn", click: :move_up, with: id_n}, "▲"),
+      el("button", %{class: "btn", click: :move_down, with: id_n}, "▼"),
+      el("button", %{class: "btn", click: :toggle, with: id_n}, toggle_label),
+      el("button", %{class: "btn", click: :edit, with: id_n}, "Edit"),
+      el("button", %{class: "btn btn-danger", click: :delete, with: id_n}, "Del")))
+end
+
+def adp_add_form() -> Any do
+  el("div", %{class: "add-form"},
+    el("h3", %{style: "margin-top: 0;"}, "New Project"),
+    el("form", %{submit: :create},
+      el("div", %{class: "form-row"},
+        el("div", %{}, el("label", %{}, "Slug"), el("input", %{type: "text", name: "slug", placeholder: "my-project", required: true})),
+        el("div", %{}, el("label", %{}, "Title"), el("input", %{type: "text", name: "title", placeholder: "My Project", required: true})),
+        el("div", %{}, el("label", %{}, "Category"), el("select", %{name: "category", value: "tools"}, adp_options(ADP_CATEGORY_NAMES, "tools")))),
+      el("label", %{}, "Tagline"),
+      el("input", %{type: "text", name: "tagline", placeholder: "Short description"}),
+      el("label", %{}, "Description"),
+      el("textarea", %{name: "description", placeholder: "Full description"}),
+      el("div", %{class: "form-row"},
+        el("div", %{}, el("label", %{}, "Tech Stack (comma-separated)"), el("input", %{type: "text", name: "tech_stack", placeholder: "Elixir, Rust, Python"})),
+        el("div", %{}, el("label", %{}, "Internal Path"), el("input", %{type: "text", name: "internal_path", placeholder: "/my-project"})),
+        el("div", %{}, el("label", %{}, "External URL"), el("input", %{type: "text", name: "external_url", placeholder: "https://..."}))),
+      el("label", %{}, "GitHub Repos (one per line, format: name:owner/repo)"),
+      el("textarea", %{name: "github_repos", placeholder: "my_repo:username/my_repo"}),
+      el("div", %{style: "display: flex; gap: 8px; margin-top: 8px;"},
+        el("button", %{type: "submit", class: "btn btn-primary"}, "Create"),
+        el("button", %{type: "button", class: "btn", click: :toggle_add}, "Cancel"))))
+end
+
+def adp_edit_modal(p: Map) -> Any do
+  cat = adp_text(lookup(p, "category"))
+  el("div", %{class: "edit-modal"},
+    el("div", %{class: "edit-modal-content"},
+      el("h3", %{}, concat("Edit: ", adp_text(lookup(p, "title")))),
+      el("form", %{submit: :update},
+        el("div", %{class: "form-row"},
+          el("div", %{}, el("label", %{}, "Slug"), el("input", %{type: "text", name: "slug", value: adp_text(lookup(p, "slug")), required: true})),
+          el("div", %{}, el("label", %{}, "Title"), el("input", %{type: "text", name: "title", value: adp_text(lookup(p, "title")), required: true}))),
+        el("div", %{class: "form-row"},
+          el("div", %{}, el("label", %{}, "Category"),
+            el("select", %{name: "category", value: cat}, adp_options(map(ADP_CATEGORIES, fn(c: String) -> List do [c, c] end), cat))),
+          el("div", %{}, el("label", %{}, "Visible"), adp_visible_select(lookup(p, "visible")))),
+        el("label", %{}, "Tagline"),
+        el("input", %{type: "text", name: "tagline", value: adp_text(lookup(p, "tagline"))}),
+        el("label", %{}, "Description"),
+        el("textarea", %{name: "description", value: adp_text(lookup(p, "description"))}),
+        el("div", %{class: "form-row"},
+          el("div", %{}, el("label", %{}, "Tech Stack (comma-separated)"), el("input", %{type: "text", name: "tech_stack", value: adp_tech(lookup(p, "tech_stack"))}))),
+        el("div", %{class: "form-row"},
+          el("div", %{}, el("label", %{}, "Internal Path"), el("input", %{type: "text", name: "internal_path", value: adp_text(lookup(p, "internal_path"))})),
+          el("div", %{}, el("label", %{}, "External URL"), el("input", %{type: "text", name: "external_url", value: adp_text(lookup(p, "external_url"))}))),
+        el("label", %{}, "GitHub Repos (one per line, format: name:owner/repo)"),
+        el("textarea", %{name: "github_repos", value: adp_repos(lookup(p, "github_repos"))}),
+        el("div", %{class: "modal-actions"},
+          el("button", %{type: "button", class: "btn", click: :cancel_edit}, "Cancel"),
+          el("button", %{type: "submit", class: "btn btn-primary"}, "Save")))))
+end
+
+actor MuseumAdmin do
+  # :loading until the first list answers, :login on a 401, then :ready
+  state phase: Atom :: :loading
+  state rows: List :: []
+  state flash: String :: ""
+  state adding: Bool :: false
+  state editing: Any :: nil
+  state asking: Bool :: true
+  state outbox: List :: []
+  state seq: Int :: 0
+
+  on :loaded(status: Int, body: String) do
+    case status do
+      200 ->
+        become phase: :ready, rows: adp_get(adp_json(body), "projects", []), asking: false
+      401 -> become phase: :login, asking: false
+      _ -> become asking: false, flash: concat("Could not load the projects (", to_string(status), ")")
+    end
+    reply :ok
+  end
+
+  on :login(fields: String) do
+    pw = adp_text(adp_get(adp_fields(fields), "password", ""))
+    become outbox: adp_concat(outbox, [adp_http(seq, "login", "POST", "/admin/login", %{password: pw})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :logout do
+    become outbox: adp_concat(outbox, [adp_http(seq, "logout", "POST", "/admin/logout", %{})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :clear_flash do
+    become flash: ""
+    reply :ok
+  end
+
+  on :toggle_add do
+    become adding: not(adding)
+    reply :ok
+  end
+
+  on :create(fields: String) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "create", "POST", ADP_PROJECTS, adp_fields(fields))]), seq: seq + 1
+    reply :ok
+  end
+
+  on :edit(id: Int) do
+    become editing: adp_find_row(rows, id)
+    reply :ok
+  end
+
+  on :cancel_edit do
+    become editing: nil
+    reply :ok
+  end
+
+  on :update(fields: String) do
+    case editing do
+      nil -> reply :ok
+      p ->
+        url = concat(ADP_PROJECTS, "/", to_string(lookup(p, "id")))
+        become outbox: adp_concat(outbox, [adp_http(seq, "update", "PATCH", url, adp_fields(fields))]), seq: seq + 1
+        reply :ok
+    end
+  end
+
+  # data-confirm="Delete this project?"
+  on :delete(id: Int) do
+    become outbox: adp_concat(outbox, [adp_confirm(seq, "Delete this project?", concat(ADP_PROJECTS, "/", to_string(id)))]), seq: seq + 1
+    reply :ok
+  end
+
+  on :move_up(id: Int) do
+    become outbox: adp_concat(outbox, [adp_move(seq, ADP_PROJECTS, id, "up")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :move_down(id: Int) do
+    become outbox: adp_concat(outbox, [adp_move(seq, ADP_PROJECTS, id, "down")]), seq: seq + 1
+    reply :ok
+  end
+
+  on :toggle(id: Int) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "write", "POST", concat(ADP_PROJECTS, "/", to_string(id), "/toggle"), %{})]), seq: seq + 1
+    reply :ok
+  end
+
+  # a drag (admin.js): shown in its new order at once, then written
+  on :reorder(ids_json: String) do
+    ids = adp_json(ids_json)
+    case type_of(ids) do
+      :list ->
+        become rows: adp_in_order(rows, ids), outbox: adp_concat(outbox, [adp_http(seq, "write", "POST", "/admin/museum/reorder", %{ids: ids})]), seq: seq + 1
+      _ -> :ok
+    end
+    reply :ok
+  end
+
+  on :done(n: Int, status: Int, body: String) do
+    entry = adp_find(outbox, n)
+    rest = adp_without(outbox, n)
+    case entry do
+      nil -> become outbox: rest
+      _ ->
+        case entry.kind do
+          "login" ->
+            case status do
+              200 -> become outbox: rest, asking: true, flash: ""
+              _ -> become outbox: rest, flash: adp_answer(status, body, "projects").flash
+            end
+          "logout" -> become outbox: rest, phase: :login, rows: [], editing: nil, adding: false
+          "delete?" ->
+            case status do
+              1 -> become outbox: adp_concat(rest, [adp_http(seq, "write", "DELETE", entry.arg, nil)]), seq: seq + 1
+              _ -> become outbox: rest
+            end
+          _ ->
+            a = adp_answer(status, body, "projects")
+            fresh = case a.rows do
+              nil -> rows
+              r -> r
+            end
+            phase_now = case status do
+              401 -> :login
+              _ -> phase
+            end
+            # a form closes when its write went through, as the LiveView's did
+            adding_now = adding and not(entry.kind == "create" and a.ok)
+            editing_now = case entry.kind == "update" and a.ok do
+              true -> nil
+              false -> editing
+            end
+            become outbox: rest, rows: fresh, flash: a.flash, phase: phase_now, adding: adding_now, editing: editing_now
+        end
+    end
+    reply :ok
+  end
+
+  on :view do
+    ask = case asking do
+      true -> [fetch("/admin/museum/projects.json", :loaded)]
+      false -> []
+    end
+    page = case phase do
+      :loading -> adp_loading_view(flash)
+      :login -> el("div", %{}, adp_flash_view(flash), adp_login_view("Museum Admin"))
+      _ ->
+        add = case adding do
+          true -> [adp_add_form()]
+          false -> []
+        end
+        modal = case editing do
+          nil -> []
+          p -> [adp_edit_modal(p)]
+        end
+        el("div", %{class: "admin-container"},
+          adp_flash_view(flash),
+          el("div", %{style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;"},
+            el("h1", %{style: "margin: 0;"}, "Museum Admin"),
+            el("div", %{style: "display: flex; gap: 8px;"},
+              el("a", %{href: "/", class: "btn"}, "Back to Site"),
+              el("a", %{href: "/admin/finder", class: "btn"}, "Finder Admin"),
+              el("button", %{class: "btn btn-primary", click: :toggle_add}, "+ Project"),
+              el("button", %{class: "btn", click: :logout}, "Log out"))),
+          add,
+          el("div", %{class: "project-list"},
+            el("div", %{class: "project-list-header"},
+              el("span", %{}, concat(to_string(length(rows)), " Projects")),
+              el("span", %{style: "font-size: 11px; font-weight: normal; color: #888;"}, "Drag rows to reorder")),
+            el("div", %{id: "adm-sortable"}, map(rows, fn(p: Map) -> Any do adp_project_row(p) end))),
+          modal)
+    end
+    reply el("div", %{}, page, adp_outbox_view(outbox), ask)
+  end
+end
+
+admin = spawn MuseumAdmin
+admin <- :view
