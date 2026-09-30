@@ -1,0 +1,232 @@
+# needs: static/cameras/cameras.blimp
+#
+# /cameras: what the Temper decides (temper/src/cameras), the page's
+# program (static/cameras/cameras.blimp) fed recorded answers of the
+# server, and the server's half (src/99_cameras.blimp) without a database.
+#
+# fixtures/cameras/rows<n>.json are what /cameras/listings.json answered
+# for the query on line n of queries.txt, run against a copy of the
+# camera_listings table (137 rows). elixir.json is what
+# Blog.CameraBrowser.list_listings/1, Facets.filter/2, Facets.compute/2
+# and collapse_dupes/1 gave for the same filters on the same rows, run
+# with `mix run` in the Phoenix app: the listings as [id, dupe_count] and
+# the rail as [facet, [[value, count, on], ...]]. Values marked "Elixir"
+# below are what the Elixir functions give for the same input.
+
+def cmt_fixture(name: String) -> String do
+  read_file(concat("test/fixtures/cameras/", name))
+end
+
+def cmt_queries() -> List do
+  # the first query is "", an empty first line, which trim would take away
+  cm_take(split(cmt_fixture("queries.txt"), "\n"), 4)
+end
+
+# The page as it stands after the URL and the server's answer for it.
+def cmt_shown(q: String, rows_file: String) -> Map do
+  cam <- :location(q)
+  cam <- :rows_loaded(200, cmt_fixture(rows_file))
+  sh = cam <- :shown
+  %{ids: sh.listings, rail: map(sh.rail, fn(f: Map) -> List do [f.name, map(f.values, fn(v: Map) -> List do [v.value, v.count, v.sel] end)] end)}
+end
+
+actor CamerasTests do
+  test "the page shows what Blog.CameraBrowser showed, for four sets of filters" do
+    want = elem(json_decode(cmt_fixture("elixir.json")), 1)
+    qs = cmt_queries()
+    each(range(0, 3), fn(i: Int) do
+      got = cmt_shown(cm_nth(qs, i), concat("rows", to_string(i), ".json"))
+      ref = cm_nth(want, i)
+      assert_eq(got.ids, ref.ids)
+      assert_eq(got.rail, ref.rail)
+    end)
+  end
+
+  test "a facet is a click: the rows stay, what shows changes" do
+    cmt_shown("", "rows0.json")
+    cam <- :facet("0\tnikon")
+    after_nikon = cam <- :shown
+    assert_eq(length(after_nikon.listings), 21)
+    # the brand facet still counts every brand (its own selection is not applied to it)
+    brand = head(after_nikon.rail)
+    assert_eq(brand.name, "brand")
+    assert(length(brand.values) > 1)
+    cam <- :facet("0\tnikon")
+    assert_eq(length((cam <- :shown).listings), 102)
+  end
+
+  test "the URL is written as ~p wrote it (Plug.Conn.Query.encode/1)" do
+    f = cm_parse("status=all&q=leica+m6+%26+co&brand=nikon,canon&price=%24200%E2%80%93500&rarity=%E2%98%85%E2%98%85")
+    # Elixir: Plug.Conn.Query.encode(%{"brand" => "nikon,canon", "open" => "12", "price" => "$200–500",
+    #   "q" => "leica m6 & co", "rarity" => "★★", "status" => "all"})
+    assert_eq(cm_query(f, 12), "brand=nikon%2Ccanon&open=12&price=%24200%E2%80%93500&q=leica+m6+%26+co&rarity=%E2%98%85%E2%98%85&status=all")
+    # the defaults are left out: /cameras
+    assert_eq(cm_query(cm_parse(""), -1), "")
+    assert_eq(cm_query(cm_parse("city=nyc&status=open&sort=best&min=0"), -1), "")
+    # the server is asked for the filters only, never the facets or the lightbox
+    assert_eq(cm_rows_url(cm_parse("brand=nikon&city=brk&min=200&open=5"), 3), "/cameras/listings.json?city=brk&min=200&v=3")
+  end
+
+  test "handle_params/3's parsing" do
+    assert_eq(cam_status("closed"), "closed")
+    assert_eq(cam_status("nope"), "open")
+    assert_eq(cam_sort("price_desc"), "price_desc")
+    assert_eq(cam_sort(""), "best")
+    # parse_dollars/1: Integer.parse, positive only, in cents
+    assert_eq(cam_dollars("250"), 25000)
+    assert_eq(cam_dollars("12abc"), 1200)
+    assert_eq(cam_dollars("+5"), 500)
+    assert_eq(cam_dollars("-5"), -1)
+    assert_eq(cam_dollars("0"), -1)
+    assert_eq(cam_dollars(""), -1)
+    assert_eq(cam_dollars("abc"), -1)
+    assert_eq(cam_param_values(" leica , ,nikon"), ["leica", "nikon"])
+    # no city in the URL is NYC; an empty one is everywhere
+    assert_eq(cm_parse("").city, "nyc")
+    assert_eq(cm_parse("city=").city, "")
+    assert_eq(cm_parse("open=12").open, 12)
+    assert_eq(cm_parse("open=12x").open, -1)
+  end
+
+  test "where a listing is, and which tab that is" do
+    assert_eq(cam_city("brk", "newyork"), "Brooklyn")
+    assert_eq(cam_city("xyz", "newyork"), "xyz")
+    assert_eq(cam_city("", "newyork"), "newyork")
+    assert_eq(cam_where("Gowanus", "Brooklyn", "brk", "newyork"), "Gowanus")
+    assert_eq(cam_where("", "queens", "que", "newyork"), "queens")
+    assert_eq(cam_where("", "", "que", "newyork"), "Queens")
+    assert_eq(cam_tab_of("eby"), "bay")
+    assert_eq(cam_tab_of("clk"), "pdx")
+    assert_eq(cam_tab_of("mnh"), "nyc")
+    assert_eq(cam_tab_of("anything"), "nyc")
+    assert_eq(cam_city_area("sea"), "seattle")
+    assert_eq(cam_city_area("see"), "")
+  end
+
+  test "printing" do
+    assert_eq(cam_price(25000), "$250")
+    assert_eq(cam_price(265000), "$2,650")
+    assert_eq(cam_price(123456789), "$1,234,567")
+    assert_eq(cam_price(-1), "—")
+    now = 1790743935
+    assert_eq(cam_ago(now, now - 30), "1m")
+    assert_eq(cam_ago(now, now + 30), "1m")
+    assert_eq(cam_ago(now, now - 3599), "59m")
+    assert_eq(cam_ago(now, now - 3600), "1h")
+    assert_eq(cam_ago(now, now - 86400 * 3 - 5), "3d")
+    # Elixir: Calendar.strftime(~U[2026-08-21 12:00:00Z], "%b %-d")
+    assert_eq(cam_ago(now, 1787313600), "Aug 21")
+    assert_eq(cam_month_day(1767225600), "Jan 1")
+    assert_eq(cam_month_day(1772236800), "Feb 28")
+    assert_eq(cam_ago(now, -1), "")
+    assert_eq(cam_stars(2), "★★☆☆☆")
+    assert_eq(cam_stars(-1), "")
+    assert_eq(cam_tag_class("working"), "t-good")
+    assert_eq(cam_tag_class("lot"), "t-hope")
+    assert_eq(cam_tag_class("not film?"), "t-bad")
+    assert_eq(cam_tag_class("film"), "")
+  end
+
+  test "Facets.brand/1 and formats/1" do
+    assert_eq(cam_brand(downcase("Nikon F3 body")), "nikon")
+    # a whole word only: "canonet" is not canon, and aliases are folded
+    assert_eq(cam_brand("canonet ql17"), "")
+    assert_eq(cam_brand("rolleiflex 2.8f"), "rollei")
+    assert_eq(cam_brand("fujifilm klasse"), "fuji")
+    # @brands order, not position in the text
+    assert_eq(cam_brand("canon lens on a leica"), "leica")
+    assert_eq(cam_brand("minolta-x700"), "minolta")
+    assert_eq(cam_formats("pentax 67 medium format 120 film slr"), ["medium format", "slr"])
+    assert_eq(cam_formats("rolleiflex tlr"), ["medium format", "tlr"])
+    assert_eq(cam_formats("a lamp"), [])
+  end
+
+  test "the buckets" do
+    assert_eq(cam_price_bucket(-1), "no price")
+    assert_eq(cam_price_bucket(19999), "under $200")
+    assert_eq(cam_price_bucket(20000), "$200–500")
+    assert_eq(cam_price_bucket(250000), "$2.5k+")
+    assert_eq(cam_photo_bucket(0), "none")
+    assert_eq(cam_photo_bucket(2), "1–2")
+    assert_eq(cam_photo_bucket(6), "6+")
+    assert_eq(cam_age_bucket(1790743935, 1790743935 - 86399), "today")
+    assert_eq(cam_age_bucket(1790743935, 1790743935 - 86400 * 29), "this month")
+    assert_eq(cam_age_bucket(1790743935, -1), "unknown")
+    assert_eq(cam_order_key("price", "$2.5k+"), 4)
+    assert_eq(cam_order_key("condition", "used"), 99)
+    assert_eq(cam_order_key("brand", "leica"), -1)
+  end
+
+  test "collapse_dupes/1's key" do
+    assert_eq(cam_dupe_key("  canon ae-1 (35mm)!! ", 25000), "canon ae 1 35mm|25000")
+    assert_eq(cam_dupe_key("leica m6", -1), "leica m6|-1")
+    # Elixir downcases first, so the É goes (as a separator) and COLE stays
+    assert_eq(cam_dupe_key(downcase("ÉCOLE leica"), 1), "cole leica|1")
+  end
+
+  test "the lightbox: open, photos, keys, the next listing" do
+    cmt_shown("", "rows0.json")
+    cam <- :open(1459)
+    one = elem(json_decode(cmt_fixture("rows0.json")), 1)
+    # a listing as listing.json has it: the row plus its photos
+    detail = put(cm_nth(one.rows, 1), :image_ids, ["a", "b", "c"])
+    cam <- :detail_loaded(200, json_encode(put(detail, :mirrored, [])))
+    cam <- :key("ArrowLeft")
+    assert_eq(cm_step_photo(detail, 0, -1), 2)
+    cam <- :key("ArrowDown")
+    ids = map((cam <- :shown).listings, fn(p: List) -> Int do head(p) end)
+    assert_eq(cm_index(ids, 1459, 0), 1)
+    assert_eq(cm_next_listing(map(ids, fn(i: Int) -> Map do %{id: i} end), 1459, 1), cm_nth(ids, 2))
+    assert_eq(cm_next_listing(map(ids, fn(i: Int) -> Map do %{id: i} end), cm_nth(ids, 0), -1), last(ids))
+    # without the key, s and h send nothing
+    cam <- :key("s")
+    assert_eq(cam <- :outbox, [])
+    cam <- :key("Escape")
+    assert_eq(cm_query(cm_parse(""), -1), "")
+  end
+
+  test "photos: the mirrored copies when the sweep made them" do
+    assert_eq(cam_photo_urls("bobbby-media", [], ["00a_x"]), ["https://images.craigslist.org/00a_x_1200x900.jpg"])
+    assert_eq(cam_photo_urls("bobbby-media", ["camera-browser/1/00a_x.jpg"], ["00a_x"]), ["https://bobbby-media.fsn1.your-objectstorage.com/camera-browser/1/00a_x.jpg"])
+    assert_eq(cam_map_url("40.7208", "-73.7433"), "https://www.google.com/maps?q=40.7208,-73.7433")
+    assert_eq(cam_map_url("", "-73.7"), "")
+  end
+
+  test "the server: list_listings/1's query" do
+    q = cam_list_query(cam_filters("city=brk&q=50%25_off&min=200&max=1000&starred=1&sort=newest"))
+    sql = elem(q, 0)
+    assert(contains(sql, "WHERE (NOT (c0.\"title\" ILIKE $1) AND ((c0.\"body\" IS NULL) OR NOT (c0.\"body\" ILIKE $2))) AND (c0.\"closed_at\" IS NULL) AND (c0.\"subarea\" = $3) AND ((c0.\"title\" ILIKE $4) OR (c0.\"body\" ILIKE $5)) AND (c0.\"price_cents\" >= $6) AND (c0.\"price_cents\" <= $7) AND (c0.\"hidden_at\" IS NULL) AND (NOT (c0.\"starred_at\" IS NULL)) ORDER BY c0.\"renewed_at\" DESC NULLS LAST, c0.\"id\" DESC LIMIT 500"))
+    # String.replace(text, ~r/[%_]/, "")
+    assert_eq(elem(q, 1), ["%digital%", "%digital%", "brk", "%50off%", "%50off%", 20000, 100000])
+    tab = cam_list_query(cam_filters("status=all"))
+    assert(contains(elem(tab, 0), "AND (c0.\"area\" = $3) AND (c0.\"hidden_at\" IS NULL) ORDER BY c0.\"score\" DESC, c0.\"renewed_at\" DESC NULLS LAST"))
+    assert_eq(elem(tab, 1), ["%digital%", "%digital%", "newyork"])
+    anywhere = cam_list_query(cam_filters("city=&hidden=1&status=closed"))
+    assert(contains(elem(anywhere, 0), "AND (NOT (c0.\"closed_at\" IS NULL)) ORDER BY"))
+  end
+
+  test "the server without a database, and without BLINKS_API_TOKEN" do
+    assert_eq(cameras_listings_json("").status, 503)
+    assert_eq(cameras_listing_json("id=abc").status, 404)
+    assert_eq(cameras_listing_json("id=").status, 404)
+    assert_eq(cameras_listing_json("id=5").status, 503)
+    # no token: nobody may write, whatever key they bring
+    assert_eq(cam_admin(""), false)
+    assert_eq(cam_admin("anything"), false)
+    CAMERAS <- :join(-1)
+    assert_eq(CAMERAS <- :recv(-1, "{\"t\":\"star\",\"id\":1,\"key\":\"\"}"), :refused)
+    assert_eq(CAMERAS <- :recv(-1, "not json"), :refused)
+    CAMERAS <- :leave(-1)
+    # nobody looking: no question for Postgres
+    assert_eq(CAMERAS <- :step, :idle)
+    assert_eq((CAMERAS <- :stats).curation, false)
+  end
+
+  test "the page and its files" do
+    assert(contains(CAM_PAGE.body, "data-program=\"/cameras/cameras.blimp\""))
+    assert(contains(CAM_PAGE.body, "og-cameras.png?v=2"))
+    assert(contains(CAM_PAGE.body, "<meta name=\"robots\" content=\"noindex\">"))
+    assert(contains(CAM_PAGE.body, "/cameras/cameras.js"))
+    assert(contains(CAM_CSS.body, ".cam-lbwin"))
+  end
+end

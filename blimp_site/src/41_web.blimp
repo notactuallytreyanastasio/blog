@@ -1,0 +1,1111 @@
+# The request side of a web framework: methods other than GET, bodies,
+# routes with :params, pipelines of plugs, a session in a signed cookie, and
+# CSRF. What /blinks needs before it can leave Phoenix.
+#
+# A request reaches this file two ways (main.blimp's handle()):
+#   - any method but GET and HEAD, always, and first: the fixed table and
+#     dynamic() answer only GET and HEAD, so nothing else is asked;
+#   - a GET or HEAD that is not a fixed route, before dynamic().
+# web_handle() answers {wire, status, req} or nil, and nil only for a GET or
+# HEAD no GET route here claims, which then goes on to dynamic() exactly as
+# before. A GET or HEAD to a fixed route is answered before this file is
+# asked anything; a POST to the same path is this file's alone.
+#
+# The conn is a map, as in Plug:
+#   method, path, query      from the request line ("POST", "/web/echo", "")
+#   headers                  lower-cased names -> values ("cookie" -> "a=b")
+#   body                     the raw body, all of it (Content-Length bytes)
+#   cookies                  request cookies, name -> value
+#   query_params             the query string, decoded, name -> value
+#   body_params              a form, or a JSON object, name -> value
+#   json                     the decoded JSON body (any value), nil if none
+#   path_params              :params of the route that matched ("id" -> "7")
+#   params                   all three merged: query, then body, then path
+#   session                  string keys -> JSON values; %{} until fetched
+#   session_dirty            true once web_put_session has changed it
+#   session_status           :none, :ok, :tampered (a cookie whose MAC failed)
+#   csrf_token               the session's token, "" until web_ensure_csrf
+#   secret                   the key sessions are signed with
+#   status, content_type, cache, resp_body, resp_headers, location
+#   halted                   a plug that halts ends the pipeline
+#   assigns                  for plugs to hand things to handlers
+
+WEB_MAX_BODY = 1048576
+# 431 over this, whether the headers are still arriving or came whole. It
+# holds for every request a route here matches; a 405, and a GET that goes
+# on to the fixed table or dynamic(), are not held to it (a GET is read
+# once, at most 64KiB).
+WEB_MAX_HEAD = 16384
+# How long the one server thread waits for the rest of a request. The
+# server answers nobody else meanwhile, so this is short.
+WEB_READ_MS = 2000
+WEB_SESSION_COOKIE = "_blimp_session"
+WEB_MAX_COOKIE = 4000
+WEB_DEV_SECRET = "blimp-dev-session-secret-not-for-production-use-000"
+
+# ---------------------------------------------------------------- reading
+
+# serve_client reads a socket once. One tcp_read is one read(2) of at most
+# 64KiB that does not wait, so a body larger than that, or one sent after
+# its headers (curl with Expect: 100-continue, a proxy streaming), arrives
+# in part or not at all. For anything but GET and HEAD, read until the
+# headers and Content-Length bytes of body are in, or the body is known to
+# be refused, or WEB_READ_MS pass. A GET is returned as it was read.
+def web_read_rest(c: Int, raw: Any) -> Any do
+  case raw do
+    nil -> nil
+    _ ->
+      case starts_with(raw, "GET ") or starts_with(raw, "HEAD ") do
+        true -> raw
+        false -> web_read_more(c, raw, now_ms() + WEB_READ_MS, false)
+      end
+  end
+end
+
+def web_read_more(c: Int, got: String, deadline: Int, continued: Bool) -> String do
+  hend = index_of(got, "\r\n\r\n")
+  case hend < 0 do
+    true ->
+      case length(got) > WEB_MAX_HEAD do
+        true -> got
+        false -> web_read_wait(c, got, deadline, continued)
+      end
+    false ->
+      headers = web_headers(take(got, hend))
+      cl = web_content_length(headers)
+      # refused whatever the body is: web_frame_error says so, unread
+      case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > WEB_MAX_BODY do
+        true -> got
+        false ->
+          case length(got) >= hend + 4 + max(cl, 0) do
+            true -> got
+            false ->
+              expect = downcase(web_or(lookup(headers, "expect"), ""))
+              case expect == "100-continue" and not(continued) do
+                true ->
+                  tcp_write(c, "HTTP/1.1 100 Continue\r\n\r\n")
+                  web_read_wait(c, got, deadline, true)
+                false -> web_read_wait(c, got, deadline, continued)
+              end
+          end
+      end
+  end
+end
+
+def web_read_wait(c: Int, got: String, deadline: Int, continued: Bool) -> String do
+  left = deadline - now_ms()
+  case left <= 0 do
+    true -> got
+    false ->
+      ready = tcp_poll([c], left)
+      case length(ready) > 0 do
+        false -> got
+        true ->
+          more = tcp_read(c)
+          case more do
+            nil -> web_read_more(c, got, deadline, continued)
+            "" -> got
+            _ -> web_read_more(c, concat(got, more), deadline, continued)
+          end
+      end
+  end
+end
+
+# ---------------------------------------------------------------- parsing
+
+def web_or(v: Any, dflt: Any) -> Any do
+  case v do
+    nil -> dflt
+    _ -> v
+  end
+end
+
+# "Host: x\r\nCookie: a=b" (the request line first) -> %{"host" => "x", ...}.
+# A header sent twice is joined with ", ", and Cookie with "; ".
+def web_headers(head_text: String) -> Map do
+  web_headers_in(drop_list(split(head_text, "\r\n"), 1), %{})
+end
+
+def web_headers_in(lines: List, acc: Map) -> Map do
+  case lines do
+    [] -> acc
+    [line | rest] ->
+      colon = index_of(line, ":")
+      case colon > 0 do
+        false -> web_headers_in(rest, acc)
+        true ->
+          name = downcase(trim(take(line, colon)))
+          value = trim(drop(line, colon + 1))
+          had = lookup(acc, name)
+          joined = case had do
+            nil -> value
+            _ ->
+              case name == "cookie" do
+                true -> concat(had, "; ", value)
+                false -> concat(had, ", ", value)
+              end
+          end
+          web_headers_in(rest, put(acc, name, joined))
+      end
+  end
+end
+
+# -1 when absent, -2 when it is not a plain non-negative number.
+def web_content_length(headers: Map) -> Int do
+  v = lookup(headers, "content-length")
+  case v do
+    nil -> -1
+    _ ->
+      case length(v) > 0 and length(v) <= 12 and web_all_digits(v, 0) do
+        true -> to_int(v)
+        false -> -2
+      end
+  end
+end
+
+def web_all_digits(s: String, i: Int) -> Bool do
+  case i >= length(s) do
+    true -> true
+    false ->
+      code = char_code(char_at(s, i))
+      code >= 48 and code <= 57 and web_all_digits(s, i + 1)
+  end
+end
+
+# "a=1; b=2" -> %{"a" => "1", "b" => "2"}. Values are kept as sent.
+def web_parse_cookies(header: String) -> Map do
+  web_cookies_in(split(header, ";"), %{})
+end
+
+def web_cookies_in(parts: List, acc: Map) -> Map do
+  case parts do
+    [] -> acc
+    [p | rest] ->
+      eq = index_of(p, "=")
+      case eq > 0 do
+        false -> web_cookies_in(rest, acc)
+        true -> web_cookies_in(rest, put(acc, trim(take(p, eq)), trim(drop(p, eq + 1))))
+      end
+  end
+end
+
+# %XX and + decoded, as url_decode does, but with no step per character.
+# url_decode (src/40_http.blimp) recurses once per byte, which is fine for a
+# query string and not for a body: a 300KB form field ran the interpreter
+# out of its 2GB heap (it reclaims nothing until the tick returns), and the
+# request was never answered. Here the work is native split and join, one
+# step per %.
+def web_url_decode(s: String) -> String do
+  web_path_decode(replace(s, "+", " "))
+end
+
+# %XX decoded and nothing else, for a path segment. "+" means a space only
+# in application/x-www-form-urlencoded (a query string, a form body); in a
+# path it is a "+", so /api/blinks/+3 is id "+3" and a tag c++ is "c++".
+def web_path_decode(s: String) -> String do
+  pieces = split(s, "%")
+  concat(head(pieces), join(map(tail(pieces), fn(p: String) -> String do web_unescape_piece(p) end), ""))
+end
+
+# "41rest" -> "Arest"; a piece that does not start with two hex digits was
+# a stray %, kept as written.
+def web_unescape_piece(p: String) -> String do
+  case length(p) >= 2 do
+    false -> concat("%", p)
+    true ->
+      hi = hex_value(char_at(p, 0))
+      lo = hex_value(char_at(p, 1))
+      case hi >= 0 and lo >= 0 do
+        true -> concat(from_char_code(hi * 16 + lo), drop(p, 2))
+        false -> concat("%", p)
+      end
+  end
+end
+
+# "a=1&b=x+y" -> %{"a" => "1", "b" => "x y"}; a name sent twice keeps the last.
+def web_decode_form(text: String) -> Map do
+  web_form_in(split(text, "&"), %{})
+end
+
+def web_form_in(pairs: List, acc: Map) -> Map do
+  case pairs do
+    [] -> acc
+    [p | rest] ->
+      case p do
+        "" -> web_form_in(rest, acc)
+        _ ->
+          eq = index_of(p, "=")
+          case eq < 0 do
+            true -> web_form_in(rest, put(acc, web_url_decode(p), ""))
+            false -> web_form_in(rest, put(acc, web_url_decode(take(p, eq)), web_url_decode(drop(p, eq + 1))))
+          end
+      end
+  end
+end
+
+# The bytes a name or value may carry into a query string or form. One
+# step per byte (see web_url_decode): for short strings, a URL's parts.
+def web_url_encode(s: String) -> String do
+  web_url_encode_from(s, 0, [])
+end
+
+def web_url_encode_from(s: String, i: Int, acc: List) -> String do
+  case i >= length(s) do
+    true -> join(reverse(acc), "")
+    false ->
+      c = char_at(s, i)
+      code = char_code(c)
+      plain = (code >= 48 and code <= 57) or (code >= 65 and code <= 90) or (code >= 97 and code <= 122) or c == "-" or c == "_" or c == "." or c == "~"
+      case plain do
+        true -> web_url_encode_from(s, i + 1, [c | acc])
+        false -> web_url_encode_from(s, i + 1, [concat("%", upcase(hex_encode(c))) | acc])
+      end
+  end
+end
+
+# ---------------------------------------------------------------- routes
+
+# A route as data. pattern: "/api/blinks/:id/save"; pipeline: a list of
+# plugs (fn(conn) -> conn); handler: fn(conn) -> conn.
+def web_route(method: String, pattern: String, pipeline: List, handler: Any) -> Map do
+  %{method: method, pattern: pattern, segs: drop_list(split(pattern, "/"), 1), pipeline: pipeline, handler: handler}
+end
+
+# The path's :params when the segments match, nil when they do not.
+def web_match_path(segs: List, parts: List, acc: Map) -> Any do
+  case segs do
+    [] ->
+      case parts do
+        [] -> acc
+        _ -> nil
+      end
+    [s | srest] ->
+      case parts do
+        [] -> nil
+        [p | prest] ->
+          case starts_with(s, ":") do
+            true ->
+              case p do
+                "" -> nil
+                _ -> web_match_path(srest, prest, put(acc, drop(s, 1), web_path_decode(p)))
+              end
+            false ->
+              case s == p do
+                true -> web_match_path(srest, prest, acc)
+                false -> nil
+              end
+          end
+      end
+  end
+end
+
+# {:ok, route, path_params} | {:method, allowed} | nil. HEAD is answered by
+# a GET route; allowed lists every method some route has for this path.
+# A GET or HEAD is claimed only by a GET route. A route for another method
+# on the same path does not make it 405: the GET goes on to the fixed table
+# and dynamic(), which may well serve that path (POST /directory beside
+# dynamic()'s GET /directory).
+def web_find(routes: List, method: String, path: String) -> Any do
+  got = web_find_in(routes, method, drop_list(split(path, "/"), 1), [])
+  case got != nil and elem(got, 0) == :method and (method == "GET" or method == "HEAD") do
+    true -> nil
+    false -> got
+  end
+end
+
+def web_find_in(routes: List, method: String, parts: List, allowed: List) -> Any do
+  case routes do
+    [] ->
+      case allowed do
+        [] -> nil
+        _ -> {:method, reverse(allowed)}
+      end
+    [r | rest] ->
+      got = web_match_path(r.segs, parts, %{})
+      case got do
+        nil -> web_find_in(rest, method, parts, allowed)
+        _ ->
+          case r.method == method or (method == "HEAD" and r.method == "GET") do
+            true -> {:ok, r, got}
+            false -> web_find_in(rest, method, parts, [r.method | allowed])
+          end
+      end
+  end
+end
+
+def web_allow(allowed: List) -> String do
+  with_head = case has_string(allowed, "GET") and not(has_string(allowed, "HEAD")) do
+    true -> list_append(allowed, ["HEAD"])
+    false -> allowed
+  end
+  join(uniq(with_head), ", ")
+end
+
+def has_string(xs: List, x: String) -> Bool do
+  case xs do
+    [] -> false
+    [h | rest] -> h == x or has_string(rest, x)
+  end
+end
+
+# ---------------------------------------------------------------- the conn
+
+def web_conn(raw: String, req: Map, secret: String) -> Map do
+  hend = index_of(raw, "\r\n\r\n")
+  head_text = case hend < 0 do
+    true -> raw
+    false -> take(raw, hend)
+  end
+  headers = web_headers(head_text)
+  # exactly Content-Length bytes, and none without one; what came after
+  # them is dropped. There is no keep-alive, so a second request in them
+  # would never be answered (see web_frame_error)
+  body = case hend < 0 do
+    true -> ""
+    false -> take(drop(raw, hend + 4), max(web_content_length(headers), 0))
+  end
+  qp = web_decode_form(req.query)
+  %{method: req.method, path: req.path, query: req.query, headers: headers, body: body,
+    cookies: web_parse_cookies(web_or(lookup(headers, "cookie"), "")),
+    query_params: qp, body_params: %{}, json: nil, path_params: %{}, params: qp,
+    session: %{}, session_dirty: false, session_status: :none, csrf_token: "", secret: secret,
+    status: 200, content_type: "text/plain; charset=utf-8", cache: "no-store", resp_body: "",
+    resp_headers: [], location: "", halted: false, assigns: %{}}
+end
+
+def web_header(conn: Map, name: String) -> String do
+  web_or(lookup(conn.headers, downcase(name)), "")
+end
+
+def web_param(conn: Map, name: String) -> Any do
+  lookup(conn.params, name)
+end
+
+def web_assign(conn: Map, key: String, value: Any) -> Map do
+  put(conn, :assigns, put(conn.assigns, key, value))
+end
+
+# ---------------------------------------------------------------- responses
+
+def web_send(conn: Map, status: Int, content_type: String, body: String) -> Map do
+  put(put(put(conn, :status, status), :content_type, content_type), :resp_body, body)
+end
+
+def web_text(conn: Map, status: Int, body: String) -> Map do
+  web_send(conn, status, "text/plain; charset=utf-8", body)
+end
+
+def web_html(conn: Map, status: Int, body: String) -> Map do
+  web_send(conn, status, "text/html; charset=utf-8", body)
+end
+
+def web_json(conn: Map, status: Int, value: Any) -> Map do
+  web_send(conn, status, "application/json", json_encode(value))
+end
+
+# After a form POST: 303, so the browser GETs the page again.
+def web_redirect(conn: Map, location: String) -> Map do
+  put(web_text(conn, 303, ""), :location, location)
+end
+
+def web_put_resp_header(conn: Map, name: String, value: String) -> Map do
+  put(conn, :resp_headers, list_append(conn.resp_headers, [[name, value]]))
+end
+
+def web_halt(conn: Map) -> Map do
+  put(conn, :halted, true)
+end
+
+# Answer and stop the pipeline: what a refusing plug does.
+def web_refuse(conn: Map, status: Int, message: String) -> Map do
+  web_halt(web_text(conn, status, concat(message, "\n")))
+end
+
+# ---------------------------------------------------------------- sessions
+
+# The cookie is payload.mac: payload the session as JSON in base64url, mac
+# the HMAC-SHA256 of "blimp-session." + payload under the secret, in hex.
+# Anyone can read a session; nobody without the secret can write one.
+def web_sign_session(session: Map, secret: String) -> String do
+  payload = base64url_encode(json_encode(session))
+  concat(payload, ".", hmac_sha256(secret, concat("blimp-session.", payload)))
+end
+
+# The session a cookie carries: {:ok, session} | :tampered. A MAC that
+# does not match is :tampered, and nothing in the cookie is decoded.
+def web_verify_session(cookie: String, secret: String) -> Any do
+  # base64url and hex have no ".", so a real cookie is exactly two parts
+  parts = split(cookie, ".")
+  case length(parts) == 2 do
+    false -> :tampered
+    true ->
+      payload = head(parts)
+      mac = last(parts)
+      case web_secure_eq(mac, hmac_sha256(secret, concat("blimp-session.", payload)), secret) do
+        false -> :tampered
+        true ->
+          decoded = json_decode(base64url_decode(payload))
+          case decoded do
+            {:ok, m} ->
+              case type_of(m) do
+                :map -> {:ok, m}
+                _ -> :tampered
+              end
+            _ -> :tampered
+          end
+      end
+  end
+end
+
+# == on two strings stops at the first byte that differs, which says how
+# much of a guess was right. Comparing their MACs instead says nothing:
+# where two MACs first differ has nothing to do with where a and b do.
+def web_secure_eq(a: String, b: String, secret: String) -> Bool do
+  hmac_sha256(secret, concat("blimp-eq.", a)) == hmac_sha256(secret, concat("blimp-eq.", b))
+end
+
+# Plug: the session from its cookie. A cookie that fails its MAC is
+# dropped and said so in the log; the request goes on with no session,
+# so whatever it needed the session for (a CSRF token) fails.
+def web_fetch_session(conn: Map) -> Map do
+  cookie = lookup(conn.cookies, WEB_SESSION_COOKIE)
+  case cookie do
+    nil -> conn
+    _ ->
+      got = web_verify_session(cookie, conn.secret)
+      case got do
+        :tampered ->
+          puts(concat("web: a session cookie failed its MAC on ", conn.method, " ", conn.path))
+          put(conn, :session_status, :tampered)
+        _ ->
+          s = elem(got, 1)
+          put(put(put(conn, :session, s), :session_status, :ok), :csrf_token, web_or(lookup(s, "_csrf_token"), ""))
+      end
+  end
+end
+
+def web_get_session(conn: Map, key: String) -> Any do
+  lookup(conn.session, key)
+end
+
+# Values must survive JSON: strings, numbers, booleans, lists, maps.
+def web_put_session(conn: Map, key: String, value: Any) -> Map do
+  put(put(conn, :session, put(conn.session, key, value)), :session_dirty, true)
+end
+
+# Log out: the cookie is deleted, token and all.
+def web_clear_session(conn: Map) -> Map do
+  put(put(put(conn, :session, %{}), :session_dirty, true), :csrf_token, "")
+end
+
+# ---------------------------------------------------------------- CSRF
+
+# The session's CSRF token, made on first use: 32 random bytes. A page
+# with a form calls this and puts conn.csrf_token in a hidden _csrf_token
+# field (or a meta tag for fetch to send as x-csrf-token).
+def web_ensure_csrf(conn: Map) -> Map do
+  case conn.csrf_token do
+    "" ->
+      token = base64url_encode(random_bytes(32))
+      put(web_put_session(conn, "_csrf_token", token), :csrf_token, token)
+    _ -> conn
+  end
+end
+
+# Plug: every request that can change something carries the session's
+# token, in x-csrf-token or a _csrf_token field. A cross-site form can
+# send the cookie (not under SameSite=Lax, but a browser that ignores it
+# can) but cannot read the token out of the page to send it back.
+def web_protect_from_forgery(conn: Map) -> Map do
+  case conn.method == "GET" or conn.method == "HEAD" or conn.method == "OPTIONS" do
+    true -> conn
+    false ->
+      sent_header = web_header(conn, "x-csrf-token")
+      sent = case sent_header do
+        "" -> web_or(lookup(conn.body_params, "_csrf_token"), "")
+        _ -> sent_header
+      end
+      ok = conn.csrf_token != "" and type_of(sent) == :string and sent != "" and web_secure_eq(sent, conn.csrf_token, conn.secret)
+      case ok do
+        true -> conn
+        false ->
+          puts(concat("web: CSRF token missing or wrong on ", conn.method, " ", conn.path))
+          web_refuse(conn, 403, "invalid CSRF token")
+      end
+  end
+end
+
+# Plug, for JSON API routes that opt out of the token: the body must be
+# JSON. A cross-site <form> cannot send Content-Type: application/json,
+# and a cross-site fetch() that does is preflighted, which this server
+# never approves. So a request that gets past this came from a page on
+# this site, or from something that is not a browser and has no cookie
+# to abuse.
+def web_require_json(conn: Map) -> Map do
+  case conn.method == "GET" or conn.method == "HEAD" or conn.method == "DELETE" do
+    true -> conn
+    false ->
+      case starts_with(downcase(web_header(conn, "content-type")), "application/json") do
+        true -> conn
+        false -> web_refuse(conn, 415, "this route takes Content-Type: application/json")
+      end
+  end
+end
+
+# ---------------------------------------------------------------- bodies
+
+# The body into body_params (and json), then params. Runs on every request
+# a route matched, before its pipeline. A form or a JSON object becomes
+# body_params; any other JSON value is conn.json alone. Multipart is
+# refused by name (no uploads yet); an unknown type leaves the raw body.
+#
+# First, what Plug.Parsers refuses in the endpoint, before Phoenix's router
+# and so before any plug: a query string or a form whose decoded names or
+# values are not UTF-8, and a JSON body that does not parse. Each is
+# web_bad_request's 400, halted, so the route's pipeline never runs; a
+# plug that would have added CORS headers or checked a CSRF token does not
+# get to. A path segment is not checked: Phoenix's router decodes it with
+# URI.decode and hands the bytes to the controller as they are
+# (DELETE /api/blinks/1/tags/%FF is a 200 there that removes nothing).
+def web_parse_body(conn: Map) -> Map do
+  query_ok = web_form_utf8(conn.query)
+  ct = downcase(web_header(conn, "content-type"))
+  parsed = case query_ok do
+    false -> web_bad_request(conn, false)
+    true ->
+      case conn.body == "" do
+        true -> conn
+        false ->
+          case starts_with(ct, "application/x-www-form-urlencoded") do
+            true ->
+              case web_form_utf8(conn.body) do
+                true -> put(conn, :body_params, web_decode_form(conn.body))
+                false -> web_bad_request(conn, true)
+              end
+            false ->
+              case starts_with(ct, "application/json") do
+                # json_decode refuses invalid UTF-8 in a string or a key,
+                # and a \ud800 with no pair, as Jason does; Plug answers
+                # every JSON that does not parse the same way, UTF-8 or not
+                true ->
+                  decoded = json_decode(conn.body)
+                  case decoded do
+                    {:ok, v} ->
+                      with_json = put(conn, :json, v)
+                      case type_of(v) do
+                        :map -> put(with_json, :body_params, v)
+                        _ -> with_json
+                      end
+                    {:error, reason} -> web_bad_request(conn, true)
+                  end
+                false ->
+                  case starts_with(ct, "multipart/") do
+                    true -> web_refuse(conn, 415, "multipart bodies are not supported")
+                    false -> conn
+                  end
+              end
+          end
+      end
+  end
+  put(parsed, :params, merge(merge(parsed.query_params, parsed.body_params), parsed.path_params))
+end
+
+# ---------------------------------------------------------------- bad bytes
+
+# Every name and value of a=b&c=d text, decoded, is UTF-8. One check of the
+# whole text decoded is the same answer: & and = are ASCII, a valid
+# multi-byte sequence has no ASCII byte in it, so cutting at them never
+# splits one, and a sequence broken on either side of a cut is still
+# broken with the cut put back. So %C3&b=%A9 is refused, as Plug refuses
+# its two halves; and x=%FF&x=ok is refused, although web_decode_form
+# keeps only the last x. A stray % is kept as written, as Plug keeps it
+# (a=%ZZ is a 200 from Phoenix). Text with no % decodes to itself with +
+# made a space, and + is ASCII, so its bytes are checked as they are: the
+# decode is the dear part. On 896614f, 852 KB of "ab%E2%9C%93cd": 585 ms to
+# check, then 630 ms for web_decode_form, so a body of nearly all %XX costs
+# twice what it did; 1.3 MB of raw UTF-8 and +: 5 ms, then 11 ms.
+def web_form_utf8(text: String) -> Bool do
+  case contains(text, "%") do
+    true -> web_utf8_valid(web_url_decode(text))
+    false -> web_utf8_valid(text)
+  end
+end
+
+# utf8_valid is Blimp #72. The interpreter in production (896614f) does not
+# have it, and there json_encode is the check: it runs
+# std.unicode.utf8ValidateSlice on every string it writes and raises
+# TypeError when that fails, which builtins.zig lists as part of what it
+# does. Both are native and one pass. A byte loop here would be one
+# interpreted step per byte of a body that may be 1 MiB, with this sitting
+# next to it. Both reject what String.valid? does: overlongs, surrogates
+# (ED A0 80), past U+10FFFF, a sequence cut short.
+def web_utf8_valid(s: String) -> Bool do
+  case WEB_UTF8_NATIVE do
+    true -> utf8_valid(s)
+    false -> web_utf8_valid_json(s)
+  end
+end
+
+def web_utf8_valid_json(s: String) -> Bool do
+  try do
+    json_encode(s)
+    true
+  catch e do
+    false
+  end
+end
+
+# An unknown function is an error at the call, not at load, and it can be
+# caught; so ask once.
+def web_has_utf8_valid() -> Bool do
+  try do
+    utf8_valid("")
+  catch e do
+    false
+  end
+end
+
+WEB_UTF8_NATIVE = web_has_utf8_valid()
+
+# What Plug puts on a response it answers itself.
+WEB_PLUG_CACHE = "max-age=0, private, must-revalidate"
+
+# Plug.Parsers' 400 as production draws it: the endpoint's render_errors
+# with debug_errors off (dev draws a 73 KB Plug.Debugger page instead).
+# Measured against Phoenix on :4185, from a copy of the site with
+# debug_errors: false:
+#     Accept: application/json -> 400 application/json; charset=utf-8
+#         {"errors":{"detail":"Bad Request"}}
+#     no Accept, */*, text/html -> 400 text/html; charset=utf-8
+#         Bad Request
+# both with cache-control: max-age=0, private, must-revalidate and nothing
+# else of the route's: no CORS headers, no session cookie.
+def web_bad_request(conn: Map, query_ok: Bool) -> Map do
+  sent = case web_error_format(conn, query_ok) do
+    "json" -> web_send(conn, 400, "application/json; charset=utf-8", "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    _ -> web_send(conn, 400, "text/html; charset=utf-8", "Bad Request")
+  end
+  web_halt(put(sent, :cache, WEB_PLUG_CACHE))
+end
+
+# "html" or "json", as Phoenix 1.7.19's Controller.accepts/2 picks between
+# render_errors' [html, json]. A _format in the query wins, when the query
+# could be read (a bad query leaves render_errors no params); one that is
+# neither is NotAcceptableError, and render_errors falls back to html.
+def web_error_format(conn: Map, query_ok: Bool) -> String do
+  f = case query_ok do
+    true -> lookup(conn.query_params, "_format")
+    false -> nil
+  end
+  case f do
+    nil -> web_accept_format(web_header(conn, "accept"))
+    "json" -> "json"
+    _ -> "html"
+  end
+end
+
+# Any */* in the header means a browser, and html. Otherwise the first
+# entry at q=1 that names html or json decides; failing that, the highest
+# q that does, ties going to the entry whose text sorts first (Elixir sorts
+# {-q, entry, exts}), and failing that html. text/* is html,
+# application/* json.
+def web_accept_format(h: String) -> String do
+  case h == "" or contains(h, "*/*") do
+    true -> "html"
+    false -> web_accept_pick(split(h, ","), [])
+  end
+end
+
+def web_accept_pick(entries: List, acc: List) -> String do
+  case entries do
+    [] -> web_accept_best(acc, nil)
+    [e | rest] ->
+      m = web_media_format(e)
+      case m do
+        nil -> web_accept_pick(rest, acc)
+        _ ->
+          case elem(m, 1) >= 1 and elem(m, 1) <= 1 and elem(m, 0) != "" do
+            true -> elem(m, 0)
+            false -> web_accept_pick(rest, [{elem(m, 1), e, elem(m, 0)} | acc])
+          end
+      end
+  end
+end
+
+def web_accept_best(acc: List, best: Any) -> String do
+  case acc do
+    [] ->
+      case best do
+        nil -> "html"
+        _ -> elem(best, 2)
+      end
+    [c | rest] ->
+      better = elem(c, 2) != "" and (best == nil or elem(c, 0) > elem(best, 0) or (elem(c, 0) >= elem(best, 0) and head(sort([elem(c, 1), elem(best, 1)])) == elem(c, 1)))
+      case better do
+        true -> web_accept_best(rest, c)
+        false -> web_accept_best(rest, best)
+      end
+  end
+end
+
+# One Accept entry: {"html" | "json" | "", q}, or nil when it is not a
+# type/subtype at all (Plug.Conn.Utils.media_type's :error, skipped).
+def web_media_format(entry: String) -> Any do
+  parts = split(entry, ";")
+  ts = split(downcase(trim(head(parts))), "/")
+  case length(ts) == 2 and head(ts) != "" and last(ts) != "" do
+    false -> nil
+    true ->
+      t = head(ts)
+      sub = last(ts)
+      fmt = case sub == "*" do
+        true ->
+          case t do
+            "text" -> "html"
+            "application" -> "json"
+            _ -> ""
+          end
+        false ->
+          case concat(t, "/", sub) do
+            "text/html" -> "html"
+            "application/json" -> "json"
+            _ -> ""
+          end
+      end
+      {fmt, reduce(tail(parts), 1, fn(q: Any, p: String) -> Any do web_q_param(q, p) end)}
+  end
+end
+
+# q=N; the last one wins, as Plug's params map keeps it. Float.parse reads
+# the longest number off the front and ignores the rest; one it cannot read
+# at all is 1.0. Here the front is the longest prefix json_decode reads as a
+# number, after a leading + (JSON has none; Float.parse takes one): "0.5x",
+# "0.5e" and "+0.5" are 0.5, "x" and ".5" are 1, as there.
+def web_q_param(q: Any, p: String) -> Any do
+  eq = index_of(p, "=")
+  case eq > 0 and downcase(trim(take(p, eq))) == "q" do
+    false -> q
+    true ->
+      v = trim(drop(p, eq + 1))
+      unsigned = case starts_with(v, "+") do
+        true -> drop(v, 1)
+        false -> v
+      end
+      web_q_number(web_number_prefix(unsigned, 0))
+  end
+end
+
+def web_q_number(v: String) -> Any do
+  case v do
+    "" -> 1
+    _ ->
+      got = json_decode(v)
+      case got do
+        {:ok, n} ->
+          case type_of(n) == :integer or type_of(n) == :float do
+            true -> n
+            false -> web_q_number(take(v, length(v) - 1))
+          end
+        _ -> web_q_number(take(v, length(v) - 1))
+      end
+  end
+end
+
+def web_number_prefix(v: String, i: Int) -> String do
+  case i < length(v) and contains("0123456789.eE-", char_at(v, i)) do
+    true -> web_number_prefix(v, i + 1)
+    false -> take(v, i)
+  end
+end
+
+# ---------------------------------------------------------------- running
+
+def web_run_plugs(plugs: List, conn: Map) -> Map do
+  case conn.halted do
+    true -> conn
+    false ->
+      case plugs do
+        [] -> conn
+        [plug | rest] -> web_run_plugs(rest, plug(conn))
+      end
+  end
+end
+
+# A request routed to a handler here that must be refused before the
+# handler sees it, or nil. web_dispatch asks only once a route has matched.
+# Framing is Content-Length and nothing else: chunked is 411. A request
+# with neither Content-Length nor Transfer-Encoding has a body of length
+# zero, whatever its method (RFC 9112 6.3); 919656d made a POST, PUT or
+# PATCH without one 411, and that refused the iOS app's report, which is a
+# POST with no body. Bytes after the body (Content-Length bytes, or none)
+# would be the next request. Every response closes its connection, so
+# there is no pipelining for them to be, and they are dropped unread.
+def web_frame_error(raw: String) -> Any do
+  hend = index_of(raw, "\r\n\r\n")
+  case hend < 0 do
+    true ->
+      case length(raw) > WEB_MAX_HEAD do
+        true -> {431, "the request headers are too large"}
+        false -> {408, "the request headers did not all arrive"}
+      end
+    false ->
+      # the same limit on a header block that arrived whole
+      case hend > WEB_MAX_HEAD do
+        true -> {431, "the request headers are too large"}
+        false -> web_body_error(raw, hend, web_headers(take(raw, hend)))
+      end
+  end
+end
+
+def web_body_error(raw: String, hend: Int, headers: Map) -> Any do
+  cl = web_content_length(headers)
+  case lookup(headers, "transfer-encoding") != nil do
+    true -> {411, "chunked bodies are not accepted; send Content-Length"}
+    false ->
+      case cl == -2 do
+        true -> {400, "Content-Length is not a number"}
+        false ->
+          case cl > WEB_MAX_BODY do
+            true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
+            false ->
+              case length(raw) - hend - 4 < max(cl, 0) do
+                true -> {408, "the body did not all arrive"}
+                false -> nil
+              end
+          end
+      end
+  end
+end
+
+def web_plain(req: Map, status: Int, message: String, extra: List) -> Tuple do
+  resp = response(status, "text/plain; charset=utf-8", "no-cache", concat(message, "\n"))
+  {web_splice(serialize(resp, req.method), extra), status, req}
+end
+
+# {wire, status, req} for this request, or nil: a GET or HEAD no route
+# here matches. routes: web_route()s; secret: what sessions are signed with.
+#
+# The route comes first, then the framing. A method the path does not take
+# is 405 whatever its body looks like: a chunked or oversized POST to
+# /blog is told that /blog takes no POST, not what is wrong with the body
+# nobody would read. 431, 411, 413 and 408 are about
+# a body a handler would read, so only a request with a handler is held to
+# them. (919656d had it the other way round, and every bodyless POST or PUT
+# to any path was 411.)
+def web_dispatch(raw: String, req: Map, routes: List, secret: String) -> Any do
+  bodyless = req.method == "GET" or req.method == "HEAD"
+  found = web_find(routes, req.method, req.path)
+  case found do
+    nil ->
+      case bodyless do
+        true -> nil
+        # the answer every non-GET got before this file, with Allow
+        false -> web_plain(req, 405, "method not allowed", [["Allow", "GET, HEAD"]])
+      end
+    {:method, allowed} -> web_plain(req, 405, "method not allowed", [["Allow", web_allow(allowed)]])
+    {:ok, route, pp} ->
+      framing = case bodyless do
+        # a GET or HEAD has no body to frame, but is held to the header limit
+        true ->
+          case index_of(raw, "\r\n\r\n") > WEB_MAX_HEAD do
+            true -> {431, "the request headers are too large"}
+            false -> nil
+          end
+        false -> web_frame_error(raw)
+      end
+      case framing do
+        nil -> web_run(raw, req, route, pp, secret)
+        _ -> web_plain(req, elem(framing, 0), elem(framing, 1), [])
+      end
+  end
+end
+
+# The route's pipeline and handler, then the response they built. Either
+# can crash: a handler that divides by zero, a plug that reads a field a
+# map does not have, a handler that returns a conn whose resp_body is nil
+# (serialize fails on it after the handler has returned). A crash here used
+# to unwind out of the tick with the socket still open: the client waited
+# for an answer that never came and nothing was logged. Now each step is
+# caught, the client gets a 500 that names nothing inside the server, and
+# the log gets one line with the request and the step that failed.
+def web_run(raw: String, req: Map, route: Map, pp: Map, secret: String) -> Tuple do
+  done = try do
+    conn = web_parse_body(put(web_conn(raw, req, secret), :path_params, pp))
+    piped = web_run_plugs(route.pipeline, conn)
+    case piped.halted do
+      true -> {:conn, piped}
+      false ->
+        h = route.handler
+        {:conn, h(piped)}
+    end
+  catch e do
+    {:crashed, web_crashed(req, "the pipeline or handler", e)}
+  end
+  case elem(done, 0) do
+    :crashed -> elem(done, 1)
+    :conn ->
+      try do
+        web_finish(elem(done, 1), req)
+      catch e do
+        web_crashed(req, "building the response", e)
+      end
+  end
+end
+
+def web_crashed(req: Map, step: String, e: Any) -> Tuple do
+  puts(concat("web: 500 on ", req.method, " ", req.path, ": ", step, " crashed (", to_string(e), ")"))
+  web_plain(req, 500, "internal server error", [])
+end
+
+# The conn's response on the wire, with its session cookie if it changed.
+def web_finish(conn: Map, req: Map) -> Tuple do
+  cookie = case conn.session_dirty do
+    false -> nil
+    true ->
+      case length(keys(conn.session)) == 0 do
+        true -> concat(WEB_SESSION_COOKIE, "=", WEB_COOKIE_ATTRS, "; Max-Age=0")
+        false -> concat(WEB_SESSION_COOKIE, "=", web_sign_session(conn.session, conn.secret), WEB_COOKIE_ATTRS)
+      end
+  end
+  bad = web_bad_header(conn.resp_headers) or contains(conn.location, "\r") or contains(conn.location, "\n")
+  case bad do
+    true ->
+      puts(concat("web: a response header with a line break on ", conn.method, " ", conn.path))
+      web_plain(req, 500, "a response header carried a line break", [])
+    false ->
+      case cookie != nil and length(cookie) > WEB_MAX_COOKIE do
+        true ->
+          puts(concat("web: the session outgrew its cookie on ", conn.method, " ", conn.path))
+          web_plain(req, 500, "the session is too large for its cookie", [])
+        false ->
+          extra = case cookie do
+            nil -> conn.resp_headers
+            _ -> list_append(conn.resp_headers, [["Set-Cookie", cookie]])
+          end
+          resp = %{status: conn.status, content_type: conn.content_type, cache: conn.cache, body: conn.resp_body, location: conn.location}
+          {web_splice(serialize(resp, req.method), extra), conn.status, req}
+      end
+  end
+end
+
+def web_bad_header(hs: List) -> Bool do
+  case hs do
+    [] -> false
+    [h | rest] ->
+      v = concat(head(h), last(h))
+      contains(v, "\r") or contains(v, "\n") or web_bad_header(rest)
+  end
+end
+
+# serialize()'s wire with more headers, put before X-Served-By.
+def web_splice(wire: String, extra: List) -> String do
+  case extra do
+    [] -> wire
+    _ ->
+      at = index_of(wire, "X-Served-By: blimp\r\n")
+      lines = join(map(extra, fn(h: List) -> String do concat(head(h), ": ", last(h), "\r\n") end), "")
+      concat(take(wire, at), lines, drop(wire, at))
+  end
+end
+
+# ---------------------------------------------------------------- the secret
+
+# SESSION_SECRET signs every session. With DATABASE_URL set (production),
+# a site without one, or with one under 32 bytes, does not start: a
+# default there would let anyone who has read this file sign a session.
+# Without DATABASE_URL (a laptop, the tests) the dev secret, and the boot
+# log says so.
+def web_session_secret() -> String do
+  s = web_or(getenv("SESSION_SECRET"), "")
+  prod = web_or(getenv("DATABASE_URL"), "") != ""
+  case s do
+    "" ->
+      case prod do
+        true ->
+          puts("SESSION_SECRET is not set, and DATABASE_URL is: refusing to start with a guessable session key")
+          exit(1)
+        false ->
+          puts("SESSION_SECRET is not set: sessions are signed with the dev secret (DATABASE_URL is unset, so this is not production)")
+          WEB_DEV_SECRET
+      end
+    _ ->
+      case length(s) < 32 do
+        true ->
+          puts("SESSION_SECRET is under 32 bytes: refusing to start")
+          exit(1)
+        false -> s
+      end
+  end
+end
+
+# The session cookie's attributes. Secure in production (DATABASE_URL set,
+# the rule web_session_secret uses): the browser sends it over HTTPS only.
+# Without DATABASE_URL, not Secure. A browser treats http://localhost as
+# secure but not http://192.168.x.y, so a Secure cookie set over plain
+# HTTP to a LAN IP is dropped: the session never comes back, and every
+# POST that checks the CSRF token is refused.
+def web_cookie_attrs(prod: Bool) -> String do
+  case prod do
+    true -> "; Path=/; HttpOnly; Secure; SameSite=Lax"
+    false -> "; Path=/; HttpOnly; SameSite=Lax"
+  end
+end
+
+WEB_COOKIE_ATTRS = web_cookie_attrs(web_or(getenv("DATABASE_URL"), "") != "")
+
+# ---------------------------------------------------------------- pipelines
+
+# Pages with forms, and the fetch()es they make: the session, and a token
+# on everything that is not a GET.
+WEB_BROWSER = [web_fetch_session, web_protect_from_forgery]
+# JSON routes that opt out of the token: the session, and JSON bodies only.
+WEB_API = [web_fetch_session, web_require_json]
+
+# ---------------------------------------------------------------- the demo
+
+# /web/echo: a page with a form that POSTs back to itself. The session
+# counts the posts and keeps the last message; the form carries the token.
+# A JSON POST (x-csrf-token header) is answered with JSON. /web/echo/:id
+# answers PATCH and DELETE, /web/api/echo is the opt-out.
+def web_demo_routes() -> List do
+  [
+    web_route("GET", "/web/echo", WEB_BROWSER, web_echo_page),
+    web_route("POST", "/web/echo", WEB_BROWSER, web_echo_post),
+    web_route("PATCH", "/web/echo/:id", WEB_BROWSER, web_echo_item),
+    web_route("DELETE", "/web/echo/:id", WEB_BROWSER, web_echo_item),
+    web_route("POST", "/web/api/echo", WEB_API, web_echo_api)
+  ]
+end
+
+def web_echo_page(conn: Map) -> Map do
+  c = web_ensure_csrf(conn)
+  count = web_or(web_get_session(c, "count"), 0)
+  last_msg = web_or(web_get_session(c, "last"), "")
+  html = join([
+    "<!doctype html><html><head><meta charset=\"utf-8\"><title>POST echo</title>",
+    "<meta name=\"csrf-token\" content=\"", c.csrf_token, "\"></head><body>",
+    "<h1>POST echo</h1><p>", to_string(count), " posts this session. Last: ", escape_html(last_msg), "</p>",
+    "<form method=\"post\" action=\"/web/echo\">",
+    "<input type=\"hidden\" name=\"_csrf_token\" value=\"", c.csrf_token, "\">",
+    "<input name=\"message\"> <button>Send</button></form></body></html>"
+  ], "")
+  web_html(c, 200, html)
+end
+
+def web_echo_post(conn: Map) -> Map do
+  count = web_or(web_get_session(conn, "count"), 0) + 1
+  message = web_or(web_param(conn, "message"), "")
+  c = web_put_session(web_put_session(conn, "count", count), "last", to_string(message))
+  case starts_with(downcase(web_header(c, "content-type")), "application/json") do
+    true -> web_json(c, 200, %{count: count, message: message, params: c.params})
+    false -> web_redirect(c, "/web/echo")
+  end
+end
+
+def web_echo_item(conn: Map) -> Map do
+  web_json(conn, 200, %{method: conn.method, id: web_param(conn, "id"), params: conn.params})
+end
+
+def web_echo_api(conn: Map) -> Map do
+  web_json(conn, 200, %{json: conn.json, session: conn.session_status})
+end

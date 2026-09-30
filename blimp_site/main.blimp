@@ -229,6 +229,47 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     # photos, /gallery/img/:guid/:size, are gallery_or_404's
     "/gallery" -> gallery_route(path)
     "/gallery/gallery.js" -> GAL_JS
+    # The Ziggy Account (src/99_ziggy.blimp): the page, its program, the
+    # explorer and its css, and the graph the explorer draws
+    "/ziggy" -> ZG_PAGE
+    "/ziggy/ziggy.blimp" -> ZG_PROGRAM
+    "/ziggy/ziggy.js" -> ZG_JS
+    "/ziggy/ziggy.css" -> ZG_CSS
+    "/ziggy/graph.json" -> ZG_GRAPH_JSON
+    # Role Call (src/99_role_call.blimp): the page, its program, script,
+    # sunflower and css, and Blog.RoleCall's queries
+    "/role-call" -> RC_PAGE
+    "/role-call/role_call.blimp" -> RC_PROGRAM
+    "/role-call/role_call.js" -> RC_JS
+    "/role-call/sunflower.blimp" -> RC_SUNFLOWER
+    "/role-call/sunflower.js" -> RC_SUNFLOWER_JS
+    "/assets/role_call.css" -> RC_CSS
+    "/role-call/count.json" -> role_call_api(path, req.query)
+    "/role-call/search.json" -> role_call_api(path, req.query)
+    "/role-call/picks.json" -> role_call_api(path, req.query)
+    "/role-call/recs.json" -> role_call_api(path, req.query)
+    "/role-call/show.json" -> role_call_api(path, req.query)
+    "/role-call/person.json" -> role_call_api(path, req.query)
+    "/role-call/titles.json" -> role_call_api(path, req.query)
+    # Stumble (src/99_stumble.blimp): the page, its program, script and
+    # css, and Blog.PokeAround's queries
+    "/stumble" -> ST_PAGE
+    "/stumble/stumble.blimp" -> ST_PROGRAM
+    "/stumble/stumble.js" -> ST_JS
+    "/assets/stumble.css" -> ST_CSS
+    "/stumble/links.json" -> stumble_api(path, req)
+    "/stumble/tags.json" -> stumble_api(path, req)
+    "/stumble/tag.json" -> stumble_api(path, req)
+    "/stumble/count.json" -> stumble_api(path, req)
+    "/stumble/go" -> stumble_api(path, req)
+    # the Camera Browser (src/99_cameras.blimp): the page, its program,
+    # script and css, list_listings/1's rows and one listing
+    "/cameras" -> CAM_PAGE
+    "/cameras/cameras.blimp" -> CAM_PROGRAM
+    "/cameras/cameras.js" -> CAM_JS
+    "/cameras/cameras.css" -> CAM_CSS
+    "/cameras/listings.json" -> cameras_listings_json(req.query)
+    "/cameras/listing.json" -> cameras_listing_json(req.query)
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -283,7 +324,8 @@ end
 def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
   req = parse_request(raw)
   case req.method == "GET" or req.method == "HEAD" do
-    false -> {serialize(response(405, "text/plain", "no-cache", "method not allowed\n"), "GET"), 405, req}
+    # POST, PATCH, PUT, DELETE: src/41_web.blimp's routes, else 405 with Allow
+    false -> web_handle(raw, req)
     true ->
       fixed = case req.path == "/" and req.query == "" do
         true -> bare_home(home)
@@ -291,8 +333,14 @@ def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tupl
       end
       case fixed do
         nil ->
-          resp = dynamic(req, routes, posts, desk)
-          {serialize(resp, req.method), resp.status, req}
+          # src/41_web.blimp's GET routes, then everything that was here before
+          web = web_handle(raw, req)
+          case web do
+            nil ->
+              resp = dynamic(req, routes, posts, desk)
+              {serialize(resp, req.method), resp.status, req}
+            _ -> web
+          end
         _ ->
           case req.method == "HEAD" do
             true -> {head_of(fixed), 200, req}
@@ -300,6 +348,10 @@ def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tupl
           end
       end
   end
+end
+
+def web_handle(raw: String, req: Map) -> Any do
+  web_dispatch(raw, req, WEB_ROUTES, WEB_SECRET)
 end
 
 # The homepage with no query string is most of the traffic to "/", and all
@@ -335,7 +387,8 @@ def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
   t0 = now_ms()
   ready = tcp_poll([c], 2000)
   raw = case length(ready) > 0 do
-    true -> tcp_read(c)
+    # the rest of a body that did not come with its headers (src/41_web.blimp)
+    true -> web_read_rest(c, tcp_read(c))
     false -> nil
   end
   case raw do
@@ -381,6 +434,8 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/map" -> :map
     "/live/firehose" -> :firehose
     "/live/mta" -> :mta
+    "/live/ziggy" -> :ziggy
+    "/live/cameras" -> :cameras
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -421,6 +476,16 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         true -> MTA <- :join(c)
         false -> :ok
       end
+      # a /ziggy page is told whether its chat can be unlocked
+      case kind == :ziggy do
+        true -> ZG <- :join(c)
+        false -> :ok
+      end
+      # a /cameras page is told when a sweep finishes
+      case kind == :cameras do
+        true -> CAMERAS <- :join(c)
+        false -> :ok
+      end
       %{fd: c, kind: kind, game: game, buf: ""}
   end
 end
@@ -459,6 +524,8 @@ end
 # {socks, games, changed}
 def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
   tcp_close(sock.fd)
+  # whatever ROOMS still owes this fd is for a connection that is gone
+  ROOMS <- :drop(sock.fd)
   puts(concat("WS closed ", to_string(sock.kind), " ", sock.game, " ", why))
   case sock.kind do
     :player -> {map_without(socks, to_string(sock.fd)), map_without(games, sock.game), true}
@@ -477,8 +544,28 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
     :mta ->
       MTA <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
+    :ziggy ->
+      ZG <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
+    :cameras ->
+      CAMERAS <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
+end
+
+# The sockets ROOMS kicked this tick (too far behind, stalled, or gone;
+# it logs which), closed. {socks, games, changed}
+def rooms_kick(fds: List, read: Tuple) -> Tuple do
+  reduce(fds, read, fn(acc: Tuple, fd: Int) -> Tuple do
+    sock = lookup(elem(acc, 0), to_string(fd))
+    case sock == nil do
+      true -> acc
+      false ->
+        r = drop_socket(sock, elem(acc, 0), elem(acc, 1), "kicked by rooms")
+        {elem(r, 0), elem(r, 1), elem(acc, 2) or elem(r, 2)}
+    end
+  end)
 end
 
 # Read what a ready socket has and act on every whole frame in it.
@@ -527,6 +614,14 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # which routes a bus map page watches, or its Update button
             :mta ->
               MTA <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # an unlock, a question or a suggestion; ZG answers it itself
+            :ziggy ->
+              ZG <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # a star, a hide or a note; CAMERAS tells every page itself
+            :cameras ->
+              CAMERAS <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             :wordle ->
               taken = WORDLE <- :report(sock.game, payload)
@@ -659,6 +754,9 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   HN <- :step
   MTA <- :step
   GALLERY <- :step
+  ZG <- :step
+  CAMERAS <- :step
+  CAM_SWEEP <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -668,8 +766,14 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
   WORDLE <- :push(elem(read, 0))
   CURSORS <- :push(now_ms(), now())
+  # what the rooms said this tick goes out, one write a socket that never
+  # waits (src/89_rooms.blimp); a socket too far behind is closed
+  flushed = ROOMS <- :flush
+  read = rooms_kick(flushed.kicked, read)
   # the Bluesky relays: drain what arrived, push to the firehose pages
   FIREHOSE <- :tick(now_ms())
+  # /stumble's links from Graze's turbostream, when STUMBLE_INGEST is on
+  STI <- :tick(now_ms())
   t = now_ms()
   case elem(read, 2) and t - pushed_at >= 50 do
     true ->
@@ -771,6 +875,11 @@ posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
 routes = build_routes(posts)
 routes = stack_routes(routes)
+# src/41_web.blimp: the routes that take methods, bodies and sessions, and
+# the key their sessions are signed with (a production site without
+# SESSION_SECRET stops here).
+WEB_ROUTES = web_demo_routes()
+WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
 # that cannot read them does not start. Unset (a laptop, the tests): the
@@ -814,6 +923,17 @@ case getenv("FIREHOSE") do
 end
 # The MTA bus map's Bus Time key; without it the page says so
 MTA <- :key(mta_key())
+# /ziggy's graph, and its chat's key, password and models
+ZG <- :graph(ZG_GRAPH)
+ZG <- :config(zg_env("OPENAI_API_KEY", ""), zg_env("ZIGGY_CHAT_PASSWORD", ""), zg_env("OPENAI_MODEL", "gpt-5.1"), zg_env("OPENAI_AUTOCOMPLETE_MODEL", "gpt-5.4-nano"), zg_env("OPENAI_BASE_URL", "https://api.openai.com/v1"))
+# /cameras' star, hide and note need BLINKS_API_TOKEN; without it nobody can
+case CAM_TOKEN do
+  "" -> puts("cameras: BLINKS_API_TOKEN is not set, so nobody can star, hide or note a listing")
+  _ -> :ok
+end
+# The Craigslist sweep that fills camera_listings (src/99_camera_sweep.blimp):
+# off unless CAMERAS_SWEEP=1, which is for after Phoenix's Poller is stopped
+puts(CAM_SWEEP <- :config(cs_boot_config(cs_env_config(), DB_OPTS != nil)))
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do
