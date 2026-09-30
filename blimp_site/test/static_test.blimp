@@ -1,0 +1,72 @@
+actor StaticTests do
+  test "every listed /static file is served whole, with Phoenix's content type" do
+    routes = static_file_routes(%{}, "../priv/static")
+    assert_eq(length(keys(routes)), length(static_files(read_file(STATIC_FILES_TXT))))
+    manifest = lookup(routes, "/static/blinks-pwa/manifest.json")
+    assert(starts_with(manifest, "HTTP/1.1 200 OK\r\n"))
+    assert(contains(manifest, "Content-Type: application/json\r\n"))
+    assert(contains(manifest, "\"start_url\": \"/blinks\""))
+    png = lookup(routes, "/static/knicks-og.png")
+    assert(contains(png, "Content-Type: image/png\r\n"))
+    raw = read_file("../priv/static/static/knicks-og.png")
+    assert_eq(drop(png, index_of(png, "\r\n\r\n") + 4), raw)
+    assert(contains(lookup(routes, "/static/blinks-pwa/sw.js"), "Content-Type: text/javascript; charset=utf-8\r\n"))
+  end
+
+  test "the icons the manifest names are among the files served" do
+    routes = static_file_routes(%{}, "../priv/static")
+    manifest = elem(json_decode(read_file("../priv/static/static/blinks-pwa/manifest.json")), 1)
+    assert_eq(length(manifest.icons), 2)
+    each(manifest.icons, fn(i: Map) do
+      assert(lookup(routes, i.src) != nil)
+    end)
+  end
+
+  test "the list names nothing another container serves, and nothing that is not a plain path" do
+    assert(static_path_ok("blinks-pwa/icon-192.png"))
+    refute(static_path_ok("seth/index.html"))
+    refute(static_path_ok("lolly/app.js"))
+    refute(static_path_ok("rooted_in_good/x"))
+    refute(static_path_ok("../../config/prod.secret.exs"))
+    refute(static_path_ok(".env"))
+    refute(static_path_ok("a//b"))
+    refute(contains(read_file(STATIC_FILES_TXT), "seth/"))
+  end
+
+  test "a tag page lists exactly the posts that carry the tag" do
+    posts = [
+      %{slug: "a", title: "A", date: "2025-01-01", tags: ["tech", "nyc"]},
+      %{slug: "b", title: "B", date: "2025-01-02", tags: ["nyc", ""]},
+      %{slug: "c", title: "C", date: "2025-01-03", tags: []}
+    ]
+    assert_eq(blog_tags(posts), ["tech", "nyc"])
+    routes = blog_tag_routes(%{}, posts)
+    assert_eq(sort(keys(routes)), ["/blog/tag/nyc", "/blog/tag/tech"])
+    nyc = lookup(routes, "/blog/tag/nyc")
+    assert(contains(nyc, "href=\"/post/a\""))
+    assert(contains(nyc, "href=\"/post/b\""))
+    refute(contains(nyc, "href=\"/post/c\""))
+    assert(contains(nyc, "2 posts tagged nyc"))
+    assert_eq(blog_tag_path("c++ & more"), "/blog/tag/c%2B%2B%20%26%20more")
+  end
+
+  test "every tag chip in the kept snapshots goes to a tag page the real posts make" do
+    posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
+    routes = blog_tag_routes(%{}, posts)
+    each(["directory", "privacy", "terms", "nathan", "trees"], fn(page: String) do
+      html = read_file(concat("content/pages/", page, ".html"))
+      refute(contains(html, "<a href=\"/post/ai\""))
+      chips = drop_list(split(html, "<a href=\"/blog/tag/"), 1)
+      assert_eq(length(chips), 29)
+      each(chips, fn(c: String) do
+        path = concat("/blog/tag/", take(c, index_of(c, "\"")))
+        # guest-post is the tag Phoenix gives every published draft, and
+        # drafts are Postgres rows, not posts this file reads
+        case lookup(routes, path) == nil and path != "/blog/tag/guest-post" do
+          true -> assert_eq(path, "a tag page")
+          false -> :ok
+        end
+      end)
+    end)
+  end
+end

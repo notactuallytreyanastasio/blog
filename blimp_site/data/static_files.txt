@@ -1,0 +1,16 @@
+# The files under priv/static/static this server publishes at /static/<path>
+# (src/96_static.blimp). Only files git tracks; deploy.sh refuses any other.
+blinks-og.png
+blinks-pwa/icon-180.png
+blinks-pwa/icon-192.png
+blinks-pwa/icon-512.png
+blinks-pwa/manifest.json
+blinks-pwa/sw.js
+knicks-og.png
+blimp/blimp.wasm
+blimp/sunflower.blimp
+home_a_cabinet.html
+home_b_channel.html
+home_c_starchart.html
+home_d_brutal.html
+scratch.html
