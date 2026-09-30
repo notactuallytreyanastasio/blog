@@ -3,11 +3,13 @@
 # the same classes (its inline <style> is assets/moon_phish.css). The
 # shows, each with its moon, come from /moon_phish/shows.json, which the
 # Blimp server computes with src/98_moon.blimp (Blog.Moon's Meeus ch. 49,
-# checked equal to the Elixir for all 2,136 shows).
+# checked equal to the Elixir for all 2,136 shows). Its formatting --
+# mp_year, mp_date, mp_long_date, mp_pct, mp_era_title, mp_era_match,
+# mp_near, mp_class -- is Temper, in temper/src/moon, and build.sh puts
+# what this file uses of it in front of it.
 
 MP_PHASES = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous", "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"]
 MP_EMOJI = %{"New Moon": "🌑", "Waxing Crescent": "🌒", "First Quarter": "🌓", "Waxing Gibbous": "🌔", "Full Moon": "🌕", "Waning Gibbous": "🌖", "Last Quarter": "🌗", "Waning Crescent": "🌘"}
-MP_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 MP_ERAS = [["all", "All eras"], ["1.0", "1.0"], ["2.0", "2.0"], ["3.0", "3.0"], ["4.0", "4.0"]]
 
 def mp_nth(list: List, i: Int) -> Any do
@@ -17,77 +19,12 @@ def mp_nth(list: List, i: Int) -> Any do
   end
 end
 
-def mp_year(date: String) -> Int do
-  to_int(slice(date, 0, 4))
-end
-
-# Calendar.strftime(date, "%b %d"): "Dec 02"
-def mp_date(date: String) -> String do
-  concat(slice(mp_nth(MP_MONTHS, to_int(slice(date, 5, 2)) - 1), 0, 3), " ", slice(date, 8, 2))
-end
-
-# "%B %-d, %Y": "December 2, 1983"
-def mp_long_date(date: String) -> String do
-  case date do
-    "" -> ""
-    _ -> concat(mp_nth(MP_MONTHS, to_int(slice(date, 5, 2)) - 1), " ", to_string(to_int(slice(date, 8, 2))), ", ", slice(date, 0, 4))
-  end
-end
-
-# fmt_pct/2: one decimal, from :erlang.float_to_binary(decimals: 1)
-def mp_pct(count: Int, total: Any) -> String do
-  case total > 0 do
-    false -> "0%"
-    true ->
-      tenths = round(1000 * count / (total * 1.0))
-      concat(to_string(tenths / 10), ".", to_string(rem(tenths, 10)), "%")
-  end
-end
-
-def mp_era_title(era: String) -> String do
-  case era do
-    "1.0" -> "Phish 1.0 — 1983–2000"
-    "2.0" -> "Phish 2.0 — 2002–2004"
-    "3.0" -> "Phish 3.0 — 2009–2020"
-    "4.0" -> "Phish 4.0 — 2021–now"
-    _ -> "All eras"
-  end
-end
-
-def mp_era_match(year: Int, era: String) -> Bool do
-  case era do
-    "1.0" -> year <= 2000
-    "2.0" -> year >= 2002 and year <= 2004
-    "3.0" -> year >= 2009 and year <= 2020
-    "4.0" -> year >= 2021
-    _ -> true
-  end
-end
-
 def mp_query_match(s: Map, q: String) -> Bool do
   case q do
     "" -> true
     _ ->
       needle = downcase(q)
       contains(downcase(s.venue), needle) or contains(downcase(s.location), needle) or contains(downcase(s.tour), needle)
-  end
-end
-
-# near_full_label/1: within a day and a half of the full moon, and not on it
-def mp_near(s: Map) -> String do
-  d = abs(s.dff)
-  case s.full or d > 1.5 do
-    true -> ""
-    false ->
-      n = round(d)
-      days = case n < 1 do
-        true -> 1
-        false -> n
-      end
-      case s.dff < 0 do
-        true -> concat(to_string(days), "d before full")
-        false -> concat(to_string(days), "d after full")
-      end
   end
 end
 
@@ -117,13 +54,6 @@ def mp_take_year(shows: List, y: Int, acc: List) -> Tuple do
   end
 end
 
-def mp_class(base: String, active: Bool) -> String do
-  case active do
-    true -> concat(base, " mp95-active")
-    false -> base
-  end
-end
-
 def mp_row(s: Map) -> Any do
   cls = case s.full do
     true -> "mp95-row mp95-full"
@@ -133,7 +63,7 @@ def mp_row(s: Map) -> Any do
     "" -> []
     l -> [el("span", %{}, concat(" — ", l))]
   end
-  near = case mp_near(s) do
+  near = case mp_near(s.full, s.dff) do
     "" -> []
     n -> [" ", el("span", %{class: "mp95-near"}, concat("[", n, "]"))]
   end
@@ -290,11 +220,11 @@ def mp_page(shows: List, today: Map, view_mode: String, era: String, phase: Stri
         el("div", %{class: "mp95-infobar"},
           concat("Every Phish show since ", mp_long_date(head(shows).date), ", checked against the instant of every full moon. "),
           el("b", %{}, to_string(fulls)),
-          concat(" of ", to_string(total), " shows landed on the night of a full moon — ", mp_pct(fulls, total), ", about what chance predicts (", mp_pct(1, 29.5), ").")),
+          concat(" of ", to_string(total), " shows landed on the night of a full moon — ", mp_pct(fulls, total * 1.0), ", about what chance predicts (", mp_pct(1, 29.5), ").")),
         el("div", %{class: "mp95-stats"},
           el("div", %{class: "mp95-stat"}, el("b", %{}, to_string(total)), el("span", %{}, "shows")),
           el("div", %{class: "mp95-stat mp95-stat-full"}, el("b", %{}, to_string(fulls)), el("span", %{}, "full-moon shows")),
-          el("div", %{class: "mp95-stat"}, el("b", %{}, mp_pct(fulls, total)), el("span", %{}, "of all shows")),
+          el("div", %{class: "mp95-stat"}, el("b", %{}, mp_pct(fulls, total * 1.0)), el("span", %{}, "of all shows")),
           next_stat),
         el("div", %{class: "mp95-chart-panel"},
           el("div", %{class: "mp95-chart", role: "group", "aria-label": "Shows by moon phase"}, bars),
@@ -308,7 +238,7 @@ def mp_page(shows: List, today: Map, view_mode: String, era: String, phase: Stri
         el("div", %{class: "mp95-list"}, listing)),
       el("div", %{class: "os-statusbar"},
         el("div", %{class: "os-statusbar-section"}, concat(to_string(length(visible)), " object(s)")),
-        el("div", %{class: "os-statusbar-section"}, concat("🌕 ", to_string(fulls), " of ", to_string(total), " shows (", mp_pct(fulls, total), ")")),
+        el("div", %{class: "os-statusbar-section"}, concat("🌕 ", to_string(fulls), " of ", to_string(total), " shows (", mp_pct(fulls, total * 1.0), ")")),
         el("div", %{class: "os-statusbar-section"}, "Data: phish.in · Moon: Meeus, ±1 min"))))
 end
 
