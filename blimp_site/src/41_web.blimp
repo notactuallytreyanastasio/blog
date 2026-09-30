@@ -344,11 +344,13 @@ def web_conn(raw: String, req: Map, secret: String) -> Map do
     true -> raw
     false -> take(raw, hend)
   end
+  headers = web_headers(head_text)
+  # exactly Content-Length bytes; what came after them is dropped. There is
+  # no keep-alive, so no second request can be in them (see web_frame_error)
   body = case hend < 0 do
     true -> ""
-    false -> drop(raw, hend + 4)
+    false -> take(drop(raw, hend + 4), max(web_content_length(headers), 0))
   end
-  headers = web_headers(head_text)
   qp = web_decode_form(req.query)
   %{method: req.method, path: req.path, query: req.query, headers: headers, body: body,
     cookies: web_parse_cookies(web_or(lookup(headers, "cookie"), "")),
@@ -588,6 +590,10 @@ def web_run_plugs(plugs: List, conn: Map) -> Map do
 end
 
 # A request this file must refuse before any route sees it, or nil.
+# Framing is Content-Length and nothing else: chunked is 411, and so is a
+# POST, PUT or PATCH without a length. Bytes after Content-Length are
+# dropped, not read as a second request: every response closes its
+# connection, so there is no pipelining for them to be.
 def web_frame_error(raw: String) -> Any do
   hend = index_of(raw, "\r\n\r\n")
   case hend < 0 do
@@ -605,17 +611,33 @@ def web_frame_error(raw: String) -> Any do
           case cl == -2 do
             true -> {400, "Content-Length is not a number"}
             false ->
-              case cl > WEB_MAX_BODY do
-                true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
+              case cl == -1 and web_has_body(web_method_of(raw)) do
+                true -> {411, "a body needs a Content-Length"}
                 false ->
-                  case length(raw) - hend - 4 < max(cl, 0) do
-                    true -> {408, "the body did not all arrive"}
-                    false -> nil
+                  case cl > WEB_MAX_BODY do
+                    true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
+                    false ->
+                      case length(raw) - hend - 4 < max(cl, 0) do
+                        true -> {408, "the body did not all arrive"}
+                        false -> nil
+                      end
                   end
               end
           end
       end
   end
+end
+
+# POST, PUT and PATCH carry a body, so they must say how long it is: with
+# no Content-Length the only other way to know where it ends is the client
+# closing its side, which curl and browsers do not do. Any other method
+# (DELETE, OPTIONS) with no Content-Length has an empty body.
+def web_has_body(method: String) -> Bool do
+  method == "POST" or method == "PUT" or method == "PATCH"
+end
+
+def web_method_of(raw: String) -> String do
+  take(raw, max(index_of(raw, " "), 0))
 end
 
 def web_plain(req: Map, status: Int, message: String, extra: List) -> Tuple do

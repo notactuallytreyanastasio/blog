@@ -260,4 +260,20 @@ actor WebTests do
     # the demo's PATCH/DELETE-only path is not ours for GET either
     assert_eq(wt_send("GET", "/web/echo/7", [], ""), nil)
   end
+  test "the body is exactly Content-Length bytes; POST, PUT and PATCH without one are 411" do
+    extra = "POST /web/api/echo HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 5\r\n\r\n[1,2]EXTRA"
+    got = web_dispatch(extra, parse_request(extra), web_demo_routes(), WT_SECRET)
+    assert_eq(wt_status(got), 200)
+    assert_eq(wt_body(got), "{\"json\":[1,2],\"session\":\"none\"}")
+    each(["POST", "PUT", "PATCH"], fn(m: String) do
+      raw = concat(m, " /web/api/echo HTTP/1.1\r\nContent-Type: application/json\r\n\r\n[1,2]")
+      assert_eq(wt_status(web_dispatch(raw, parse_request(raw), web_demo_routes(), WT_SECRET)), 411)
+    end)
+    # a DELETE carries no body to frame: no Content-Length is an empty one
+    body_of = fn(c: Map) -> Map do web_text(c, 200, concat("[", c.body, "]")) end
+    del = "DELETE /d HTTP/1.1\r\nHost: x\r\n\r\nstray"
+    d = web_dispatch(del, parse_request(del), [web_route("DELETE", "/d", [], body_of)], WT_SECRET)
+    assert_eq(wt_status(d), 200)
+    assert_eq(wt_body(d), "[]")
+  end
 end
