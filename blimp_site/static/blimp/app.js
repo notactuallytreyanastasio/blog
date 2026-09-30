@@ -34,6 +34,9 @@
     }
     status.textContent = ''
     status.className = 'blimp-app-status'
+    // For a page's own script after this one (static/wordle/live.js).
+    window.BlimpApp = { blimp: blimp, view: view, actor: el.dataset.actor }
+    document.dispatchEvent(new Event('blimp-app-mounted'))
   } catch (e) {
     fail(String(e.message || e))
   }

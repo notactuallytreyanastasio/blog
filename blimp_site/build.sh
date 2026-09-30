@@ -68,6 +68,9 @@ with_temper _build/phish.blimp src/40_http.blimp src/97_phish.blimp static/phish
 with_temper _build/moon.blimp static/moon/moon.blimp
 # 2048: the rules are Temper (temper/src/twenty48), the actor and view Blimp.
 with_temper _build/twenty48.blimp static/twenty48/twenty48.blimp
+# Wordle: the rules are Temper (temper/src/wordle), the actor and view Blimp.
+with_temper _build/wordle.blimp static/wordle/wordle.blimp
+with_temper _build/wordle-god.blimp static/wordle/god.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

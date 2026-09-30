@@ -1,0 +1,173 @@
+# needs: static/wordle/wordle.blimp static/wordle/god.blimp
+
+# The table is Blog.Wordle.GuessChecker.check_guess/2's own answers, from
+# `elixir -r lib/blog/wordle/guess_checker.ex`: repeated letters in the
+# guess, in the target, and in both.
+WD_ELIXIR = [
+  ["eerie", "there", "present,present,present,absent,correct"],
+  ["kebab", "abbey", "absent,present,correct,present,present"],
+  ["bbbbb", "abbey", "absent,correct,correct,absent,absent"],
+  ["abbey", "kebab", "present,present,correct,present,absent"],
+  ["speed", "abide", "absent,absent,present,present,present"],
+  ["sassy", "asset", "present,present,correct,present,absent"],
+  ["llama", "hello", "present,present,absent,absent,absent"],
+  ["hello", "llama", "absent,absent,present,present,absent"],
+  ["geese", "eerie", "absent,correct,present,absent,correct"],
+  ["eerie", "geese", "present,correct,absent,absent,correct"],
+  ["array", "ratio", "present,present,present,present,absent"],
+  ["otter", "trout", "present,present,present,absent,present"],
+  ["mamma", "maxim", "correct,correct,present,present,absent"],
+  ["about", "about", "correct,correct,correct,correct,correct"],
+  ["crane", "zebra", "absent,present,present,absent,present"],
+  ["allee", "eagle", "present,present,present,present,correct"],
+  ["eagle", "allee", "present,present,absent,present,correct"],
+  ["sheep", "sleep", "correct,absent,correct,correct,correct"],
+  ["tweet", "treat", "correct,absent,correct,absent,correct"],
+  ["puppy", "upper", "present,present,correct,present,absent"],
+  ["xxxxx", "abcde", "absent,absent,absent,absent,absent"],
+  ["aaaaa", "aaaab", "correct,correct,correct,correct,absent"],
+  ["baaaa", "aaaab", "present,correct,correct,correct,present"],
+  ["stars", "sassy", "correct,absent,present,absent,present"],
+  ["level", "eleve", "present,present,present,present,present"]
+]
+
+actor WordleTests do
+  test "the checker answers what GuessChecker.check_guess/2 answers, repeated letters and all" do
+    wrong = filter(WD_ELIXIR, fn(c: List) -> Bool do join(wd_check(elem(c, 0), elem(c, 1)), ",") != elem(c, 2) end)
+    assert_eq(wrong, [])
+  end
+
+  test "a yellow does not use its letter up: speed against abide is yellow twice for one e" do
+    assert_eq(wd_check("speed", "abide"), ["absent", "absent", "present", "present", "present"])
+  end
+
+  test "hard mode wants every green and yellow letter somewhere, not in place" do
+    words = ["crane"]
+    results = [wd_check("crane", "zebra")]
+    assert(wd_hard_ok("bread", words, results))
+    assert(wd_hard_ok("arena", words, results))
+    refute(wd_hard_ok("about", words, results))
+    assert(wd_hard_ok("about", [], []))
+  end
+
+  test "Enter refuses a word not in the list first, then a hard-mode miss" do
+    dict = "\nabout\nbread\ncrane\nzebra\n"
+    prev = ["crane"]
+    results = [wd_check("crane", "zebra")]
+    assert_eq(wd_refusal("xxxxx", true, dict, prev, results), "Not in word list")
+    assert_eq(wd_refusal("about", true, dict, prev, results), "Guess must use all discovered letters")
+    assert_eq(wd_refusal("about", false, dict, prev, results), "")
+    assert_eq(wd_refusal("bread", true, dict, prev, results), "")
+    assert_eq(wd_refusal("bread", true, "", prev, results), "Word list still loading")
+    refute(wd_valid_guess(dict, "brea"))
+    refute(wd_valid_guess(dict, "bread\nzebra"))
+  end
+
+  test "a key is a letter only when it is one ASCII letter, lower-cased" do
+    assert_eq(map(["a", "Q", "Enter", "1", "", "é", "Z"], fn(k: String) -> String do wd_key_letter(k) end), ["a", "q", "", "", "", "", "z"])
+  end
+
+  test "the keyboard shows a letter's best result over every guess" do
+    words = ["speed", "sleep"]
+    results = [wd_check("speed", "sleep"), wd_check("sleep", "sleep")]
+    assert_eq(wd_key_status("l", words, results), "correct")
+    assert_eq(wd_key_status("d", words, results), "absent")
+    assert_eq(wd_key_status("z", words, results), "")
+  end
+
+  test "every target is a five-letter word the list lets you guess" do
+    dict = concat("\n", read_file("static/wordle/words.txt"))
+    assert_eq(length(wd_answers), 529)
+    assert_eq(filter(wd_answers, fn(w: String) -> Bool do not(wd_valid_guess(dict, w)) end), [])
+  end
+
+  test "time ago and win rate as the LiveViews wrote them" do
+    assert_eq(map([5, 59, 60, 3599, 3600, 86399, 86400, 200000], fn(s: Int) -> String do wd_ago(s) end),
+      ["just now", "just now", "1 min ago", "59 min ago", "1 hours ago", "23 hours ago", "1 days ago", "2 days ago"])
+    assert_eq(wd_win_rate(1, 3), 33)
+    assert_eq(wd_win_rate(1, 2), 50)
+    assert_eq(wd_win_rate(2, 3), 67)
+    assert_eq(wd_win_rate(0, 0), 0)
+  end
+
+  test "a game: typing, a refusal, a win, and the report the server is sent" do
+    w = spawn Wordle
+    w <- :start
+    assert_eq(w <- :report, "")
+    w <- :words(200, "about\ncrane\nzebra\nbread\n")
+    each(["c", "R", "a", "n", "e", "x"], fn(k: String) do w <- :key(k) end)
+    w <- :key("Enter")
+    r = elem(json_decode(w <- :report), 1)
+    assert_eq(length(r.words), 1)
+    w <- :new_game
+    w <- :key("q")
+    w <- :key("Backspace")
+    w <- :key("Enter")
+    assert_eq(elem(json_decode(w <- :report), 1).current, "")
+  end
+
+  test "hard mode can only be switched before the first guess" do
+    w = spawn Wordle
+    w <- :start
+    w <- :words(200, "about\ncrane\n")
+    assert_eq(w <- :toggle_hard, false)
+    assert_eq(w <- :toggle_hard, true)
+    each(["a", "b", "o", "u", "t", "Enter"], fn(k: String) do w <- :key(k) end)
+    assert_eq(w <- :toggle_hard, true)
+  end
+
+  test "the background is the server's games less this page's own, at most twelve" do
+    w = spawn Wordle
+    w <- :joined("wd_me")
+    games = map(range(1, 14), fn(i: Int) -> Map do %{id: concat("wd_", to_string(i)), player: "p", target: "about", current: "", words: [], results: [], over: false, won: false, hard: true, ago: 0} end)
+    assert_eq(w <- :others(json_encode(%{games: [%{id: "wd_me"} | games]})), 12)
+    assert_eq(w <- :others("not json"), 0)
+  end
+
+  test "the server rebuilds a report's colours with its own checker, and refuses what is not a game" do
+    g = wordle_report(json_encode(%{player: "player-42", target: "sleep", current: "sh", words: ["speed", "sleep"], hard: true, results: [["correct"]]}))
+    assert_eq(g.results, [wd_check("speed", "sleep"), wd_check("sleep", "sleep")])
+    assert(g.won)
+    assert(g.over)
+    assert_eq(wordle_report("[1]"), nil)
+    assert_eq(wordle_report(json_encode(%{player: "<script>", target: "sleep", current: "", words: [], hard: true})), nil)
+    assert_eq(wordle_report(json_encode(%{player: "player-1", target: "dish", current: "", words: [], hard: true})), nil)
+    assert_eq(wordle_report(json_encode(%{player: "player-1", target: "sleep", current: "SH", words: [], hard: true})), nil)
+    assert_eq(wordle_report(json_encode(%{player: "player-1", target: "sleep", current: "", words: ["a", "b"], hard: true})), nil)
+    assert_eq(wordle_report(json_encode(%{player: "player-1", target: "sleep", current: "", words: ["about", "about", "about", "about", "about", "about", "about"], hard: true})), nil)
+    lost = wordle_report(json_encode(%{player: "player-1", target: "sleep", current: "", words: ["about", "about", "about", "about", "about", "about"], hard: false}))
+    assert(lost.over)
+    refute(lost.won)
+  end
+
+  test "the store keeps a game past its page, and the god page's cleanups take them" do
+    st = spawn WordleStore
+    assert(st <- :report("wd_a", json_encode(%{player: "player-1", target: "sleep", current: "", words: [], hard: true})))
+    assert(st <- :report("wd_b", json_encode(%{player: "player-1", target: "about", current: "", words: ["crane", "crane", "crane", "crane", "crane", "crane"], hard: true})))
+    assert(st <- :report("wd_c", json_encode(%{player: "player-1", target: "about", current: "ab", words: [], hard: true})))
+    refute(st <- :report("wd_d", "nonsense"))
+    assert_eq(length(keys(st <- :games)), 3)
+    assert_eq(st <- :command(json_encode(%{cleanup: "duplicates"})), "Removed 1 duplicate player sessions")
+    assert_eq(st <- :command(json_encode(%{cleanup: "idle"})), "Removed 0 idle games with no activity")
+    assert_eq(st <- :command(json_encode(%{cleanup: "stale", hours: 1})), "Cleaned up games older than 1 hour(s)")
+    assert_eq(length(keys(st <- :games)), 2)
+  end
+
+  test "god's statistics, as calculate_stats counts them" do
+    mk = fn(id: String, target: String, words: List, over: Bool, won: Bool, ago: Int) -> Map do
+      %{id: id, player: concat("player-", id), target: target, current: "", words: words, results: map(words, fn(w: String) -> List do wd_check(w, target) end), over: over, won: won, hard: true, ago: ago}
+    end
+    games = [mk("1", "about", [], false, false, 10), mk("2", "about", [], false, false, 100), mk("3", "about", ["about"], true, true, 4000),
+             mk("4", "sleep", ["about", "about", "about", "about", "about", "about"], true, false, 90000), mk("5", "crane", ["about"], false, false, 400)]
+    s = wg_stats(games)
+    assert_eq([s.active, s.completed, s.won, s.lost, s.empty, s.idle_empty], [3, 2, 1, 1, 2, 1])
+    assert_eq([s.recent, s.hour, s.day, s.older, s.players, s.win_rate], [2, 1, 1, 1, 5, 50])
+    assert_eq(head(s.common), ["about", 3])
+    g = spawn God
+    g <- :games(json_encode(%{games: games}))
+    g <- :cleanup("stale24")
+    assert_eq(g <- :outbox, json_encode(%{cleanup: "stale", hours: 24}))
+    assert_eq(g <- :outbox, "")
+    assert_eq(type_of(g <- :view), :view_node)
+  end
+end

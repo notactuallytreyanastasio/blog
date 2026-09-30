@@ -55,7 +55,7 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  app_routes(pong_routes(static_page_routes(tetris_routes(r7))))
+  app_routes(wordle_routes(pong_routes(static_page_routes(tetris_routes(r7)))))
 end
 
 # Pages that were LiveViews with nothing for a server to do, and two that
@@ -104,6 +104,17 @@ def pong_routes(routes: Map) -> Map do
   r4 = load_asset(r3, "/pong/god.js", "static/pong/god.js")
   r5 = load_asset(r4, "/assets/pong.css", "assets/pong.css")
   page_route(r5, "/pong/god", pong_god_page())
+end
+
+# /wordle and /wordle_god (src/93_wordle.blimp): the rules in _build, the
+# allowed guesses as text the page fetches.
+def wordle_routes(routes: Map) -> Map do
+  r1 = load_asset(routes, "/wordle/wordle.blimp", "_build/wordle.blimp")
+  r2 = load_asset(r1, "/wordle/god.blimp", "_build/wordle-god.blimp")
+  r3 = load_asset(r2, "/wordle/live.js", "static/wordle/live.js")
+  r4 = load_asset(r3, "/wordle/words.txt", "static/wordle/words.txt")
+  r5 = page_route(r4, "/wordle", wordle_page())
+  page_route(r5, "/wordle_god", wordle_god_page())
 end
 
 # The pages that are one Blimp program each (src/95_apps.blimp).
@@ -279,6 +290,12 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         false -> nil
       end
     "/live/pong-god" -> :god
+    "/live/wordle" ->
+      case starts_with(game, "wd_") and length(game) <= 40 and desk_url_safe(game) do
+        true -> :wordle
+        false -> nil
+      end
+    "/live/wordle-god" -> :wordle_god
     "/live/runtime" -> :runtime
     "/live/blackjack" -> :blackjack
     _ -> nil
@@ -383,6 +400,19 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # an action at the tables; BJ sends every player the result itself
             :blackjack ->
               BJ <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            :wordle ->
+              taken = WORDLE <- :report(sock.game, payload)
+              case taken do
+                true -> live_frames(next, socks, games, changed)
+                false ->
+                  tcp_write(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(235))))
+                  after_wd = drop_socket(sock, socks, games, "a wordle report that is not one")
+                  {elem(after_wd, 0), elem(after_wd, 1), changed}
+              end
+            :wordle_god ->
+              said = WORDLE <- :command(payload)
+              tcp_write(sock.fd, ws_frame(1, json_encode(%{message: said})))
               live_frames(next, socks, games, changed)
             _ -> live_frames(next, socks, games, changed)
           end
@@ -507,6 +537,7 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   end
   joined = length(keys(elem(accepted, 1))) > length(keys(socks))
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
+  WORDLE <- :push(elem(read, 0))
   t = now_ms()
   case elem(read, 2) and t - pushed_at >= 50 do
     true ->

@@ -1,0 +1,265 @@
+# /wordle_god: every game of Wordle on the site, as it is played. A port of
+# BlogWeb.WordleGodLive, run in the browser.
+#
+# The server (src/93_wordle.blimp) sends every game it keeps, newest first,
+# as `god <- :games(json)` whenever one changes; each game carries its age
+# in seconds, since the WebAssembly build has no clock. The statistics are
+# WordleGodLive.calculate_stats/1, worked out here from that list. The
+# cleanup buttons do not reach the server themselves: a click leaves a
+# command in `outbox`, and static/wordle/live.js takes it (`god <- :outbox`)
+# and sends it up the socket. The server answers with the message to show.
+#
+# From temper/src/wordle: wd_ago, wd_activity_class, wd_win_rate, and the
+# board's wd_letters.
+
+WG_MAX = 6
+WG_TILE = "w-full aspect-square flex items-center justify-center text-sm font-bold rounded-none"
+
+def wg_color_class(status: String) -> String do
+  case status do
+    "correct" -> "bg-green-600 border-green-600"
+    "present" -> "bg-yellow-500 border-yellow-500"
+    "absent" -> "bg-gray-600 border-gray-600"
+    _ -> "border-2 border-gray-300"
+  end
+end
+
+def wg_at(s: String, i: Int) -> String do
+  case i < length(s) do
+    true -> char_at(s, i)
+    false -> ""
+  end
+end
+
+def wg_count(xs: List, keep: Any) -> Int do
+  length(filter(xs, keep))
+end
+
+def wg_idle_empty(g: Map) -> Bool do
+  g.words == [] and g.ago > 60
+end
+
+# WordleGodLive.calculate_stats/1.
+def wg_stats(games: List) -> Map do
+  completed = wg_count(games, fn(g: Map) -> Bool do g.over end)
+  won = wg_count(games, fn(g: Map) -> Bool do g.over and g.won end)
+  %{
+    active: wg_count(games, fn(g: Map) -> Bool do not(g.over) end),
+    completed: completed,
+    won: won,
+    lost: completed - won,
+    empty: wg_count(games, fn(g: Map) -> Bool do not(g.over) and g.words == [] end),
+    idle_empty: wg_count(games, fn(g: Map) -> Bool do wg_idle_empty(g) end),
+    recent: wg_count(games, fn(g: Map) -> Bool do g.ago < 300 end),
+    hour: wg_count(games, fn(g: Map) -> Bool do g.ago >= 300 and g.ago < 3600 end),
+    day: wg_count(games, fn(g: Map) -> Bool do g.ago >= 3600 and g.ago < 86400 end),
+    older: wg_count(games, fn(g: Map) -> Bool do g.ago >= 86400 end),
+    players: length(uniq(map(games, fn(g: Map) -> String do g.player end))),
+    win_rate: wd_win_rate(won, completed),
+    common: wg_common(games)
+  }
+end
+
+# The five most common targets, [word, count], most first.
+def wg_common(games: List) -> List do
+  words = sort(uniq(map(games, fn(g: Map) -> String do g.target end)))
+  counted = map(words, fn(w: String) -> List do [w, wg_count(games, fn(g: Map) -> Bool do g.target == w end)] end)
+  wg_first(sort_by_keys(counted, map(counted, fn(c: List) -> Int do 0 - elem(c, 1) end)), 5)
+end
+
+def wg_first(xs: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case xs do
+        [] -> []
+        [x | rest] -> [x | wg_first(rest, n - 1)]
+      end
+  end
+end
+
+def wg_board(g: Map) -> List do
+  done = map(range(0, length(g.words) - 1), fn(i: Int) -> Any do
+    el("div", %{class: "grid grid-cols-5 gap-[3px]"},
+      map(zip(wd_letters(elem(g.words, i)), elem(g.results, i)), fn(p: Tuple) -> Any do
+        el("div", %{class: concat(WG_TILE, " text-white uppercase ", wg_color_class(elem(p, 1)))}, elem(p, 0))
+      end))
+  end)
+  n = length(g.words)
+  case n < WG_MAX and not(g.over) do
+    false -> done
+    true ->
+      typing = el("div", %{class: "grid grid-cols-5 gap-[3px]"},
+        map(range(0, 4), fn(i: Int) -> Any do
+          edge = case i < length(g.current) do
+            true -> "border-gray-600"
+            false -> "border-gray-300"
+          end
+          el("div", %{class: concat(WG_TILE, " uppercase border ", edge)}, wg_at(g.current, i))
+        end))
+      empty = map(range(n + 1, WG_MAX - 1), fn(i: Int) -> Any do
+        el("div", %{class: "grid grid-cols-5 gap-[3px]"},
+          map(range(1, 5), fn(j: Int) -> Any do el("div", %{class: concat(WG_TILE, " border border-gray-200")}) end))
+      end)
+      reduce(reverse(done), [typing | empty], fn(acc: List, x: Any) -> List do [x | acc] end)
+  end
+end
+
+def wg_card(g: Map) -> Any do
+  idle = wg_idle_empty(g)
+  idle_edge = case idle do
+    true -> "border-t-4 border-t-gray-400"
+    false -> ""
+  end
+  badge = case idle do
+    true -> [el("span", %{class: "ml-1 text-xs text-white bg-gray-400 px-1 rounded"}, "Idle")]
+    false -> []
+  end
+  mode = case g.hard do
+    true -> el("span", %{class: "ml-2 text-yellow-600 font-bold"}, "HARD MODE")
+    false -> el("span", %{class: "ml-2 text-gray-500"}, "Normal")
+  end
+  status = case g.over do
+    true ->
+      case g.won do
+        true -> el("span", %{class: "text-green-600 font-bold"}, "Won")
+        false -> el("span", %{class: "text-red-600 font-bold"}, "Lost")
+      end
+    false -> el("span", %{class: "text-blue-600"}, concat("In Progress (", to_string(length(g.words)), "/", to_string(WG_MAX), " guesses)"))
+  end
+  el("div", %{class: concat("bg-white p-4 rounded-lg shadow-md ", wd_activity_class(g.ago), " ", idle_edge)},
+    el("div", %{class: "flex justify-between items-center mb-2"},
+      el("div", %{class: "font-bold"}, concat("Player: ", g.player), badge),
+      el("div", %{class: "text-xs text-gray-500"}, wd_ago(g.ago))),
+    el("div", %{class: "text-sm mb-2"}, el("span", %{class: "font-semibold"}, "Target:"), concat(" ", g.target), mode),
+    el("div", %{class: "text-sm mb-2"}, el("span", %{class: "font-semibold"}, "Session:"), " ", el("span", %{class: "text-xs font-mono text-gray-500"}, g.id)),
+    el("div", %{class: "text-sm mb-3"}, el("span", %{class: "font-semibold"}, "Status:"), " ", status),
+    el("div", %{class: "grid grid-rows-6 gap-[3px] mb-2"}, wg_board(g)))
+end
+
+def wg_button(label: String, cmd: String, color: String) -> Any do
+  el("button", %{click: :cleanup, with: cmd, class: concat("px-3 py-1 ", color, " text-white rounded text-sm")}, label)
+end
+
+def wg_li(label: String, value: Any, cls: String) -> Any do
+  el("li", %{}, concat(label, ": "), el("span", %{class: concat("font-medium", cls)}, to_string(value)))
+end
+
+actor God do
+  state games: List :: []
+  state message: String :: ""
+  state outbox: String :: ""
+  state online: Bool :: false
+
+  on :games(json: String) do
+    decoded = json_decode(json)
+    case decoded do
+      {:ok, data} ->
+        case type_of(data) == :map do
+          false -> become online: true
+          true ->
+            case type_of(lookup(data, :games)) == :list do
+              true -> become games: data.games, online: true
+              false ->
+                said = lookup(data, :message)
+                case type_of(said) == :string and said != "" do
+                  true -> become message: said, online: true
+                  false -> become online: true
+                end
+            end
+        end
+      _ -> become online: true
+    end
+    reply :ok
+  end
+
+  on :offline do
+    become online: false
+    reply :ok
+  end
+
+  on :cleanup(cmd: String) do
+    body = case cmd do
+      "stale1" -> json_encode(%{cleanup: "stale", hours: 1})
+      "stale24" -> json_encode(%{cleanup: "stale", hours: 24})
+      _ -> json_encode(%{cleanup: cmd})
+    end
+    become outbox: body
+    reply :ok
+  end
+
+  # live.js, every few hundred ms: the command waiting to go up, once.
+  on :outbox do
+    out = outbox
+    become outbox: ""
+    reply out
+  end
+
+  on :view do
+    s = wg_stats(games)
+    ids = concat("[", join(map(games, fn(g: Map) -> String do concat("\"", g.id, "\"") end), ", "), "]")
+    said = case message do
+      "" -> []
+      _ -> [el("span", %{class: "ml-2 text-green-600 font-medium"}, message)]
+    end
+    common = case s.common do
+      [] -> []
+      _ -> [el("div", %{class: "mt-4"},
+        el("h3", %{class: "font-semibold mb-2"}, "Most Common Target Words"),
+        el("div", %{class: "flex flex-wrap gap-2"},
+          map(s.common, fn(c: List) -> Any do
+            el("div", %{class: "px-2 py-1 bg-white rounded border border-gray-300 text-sm"},
+              el("span", %{class: "font-medium"}, elem(c, 0)),
+              el("span", %{class: "text-xs text-gray-500 ml-1"}, concat("(", to_string(elem(c, 1)), ")")))
+          end)))]
+    end
+    topic = case online do
+      true -> "wordle:games (the /live/wordle-god socket)"
+      false -> "connecting..."
+    end
+    reply el("div", %{class: "p-4"},
+      el("div", %{class: "flex justify-between items-center mb-6"},
+        el("h1", %{class: "text-3xl font-bold"}, "Wordle God Mode"),
+        el("div", %{}, concat(to_string(length(games)), " active games"))),
+      el("div", %{class: "mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4"},
+        el("div", %{class: "p-4 bg-gray-100 rounded-lg"},
+          el("h2", %{class: "text-lg font-bold mb-2"}, "Debug Info"),
+          el("div", %{class: "text-sm"},
+            el("p", %{}, concat("Subscribed to topic: ", topic)),
+            el("p", %{}, concat("Games in state: ", ids))),
+          el("div", %{class: "mt-4 flex flex-wrap gap-2 items-center"},
+            wg_button("Clean 1h Inactive", "stale1", "bg-blue-500 hover:bg-blue-600"),
+            wg_button("Clean 24h Inactive", "stale24", "bg-blue-500 hover:bg-blue-600"),
+            wg_button("Clean Invalid Sessions", "invalid", "bg-red-500 hover:bg-red-600"),
+            wg_button("Clean Duplicate Sessions", "duplicates", "bg-yellow-500 hover:bg-yellow-600"),
+            wg_button("Clean Idle Empty Games", "idle", "bg-green-500 hover:bg-green-600"),
+            said)),
+        el("div", %{class: "p-4 bg-gray-100 rounded-lg"},
+          el("h2", %{class: "text-lg font-bold mb-2"}, "Game Statistics"),
+          el("div", %{class: "grid grid-cols-2 gap-4"},
+            el("div", %{},
+              el("h3", %{class: "font-semibold mb-2"}, "Game Status"),
+              el("ul", %{class: "text-sm"},
+                wg_li("Active Games", s.active, ""),
+                wg_li("Completed Games", s.completed, ""),
+                wg_li("Won Games", s.won, " text-green-600"),
+                wg_li("Lost Games", s.lost, " text-red-600"),
+                el("li", %{}, "Empty Games: ", el("span", %{class: "font-medium text-gray-500"}, to_string(s.empty)),
+                  el("span", %{class: "text-xs text-gray-500"}, " (Idle: ", el("span", %{class: "text-gray-600 font-medium"}, to_string(s.idle_empty)), ")")),
+                el("li", %{}, "Win Rate: ", el("span", %{class: "font-medium"}, concat(to_string(s.win_rate), "%"))))),
+            el("div", %{},
+              el("h3", %{class: "font-semibold mb-2"}, "Activity"),
+              el("ul", %{class: "text-sm"},
+                wg_li("Recent (5m)", s.recent, " text-green-600"),
+                wg_li("Last Hour", s.hour, " text-yellow-600"),
+                wg_li("Last Day", s.day, " text-orange-600"),
+                wg_li("Older", s.older, " text-gray-600"),
+                wg_li("Unique Players", s.players, "")))),
+          common)),
+      el("div", %{class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"},
+        map(games, fn(g: Map) -> Any do wg_card(g) end)))
+  end
+end
+
+god = spawn God
+god <- :view

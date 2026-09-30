@@ -1,0 +1,282 @@
+# /wordle and /wordle_god: the server's half.
+#
+# Each /wordle page plays its own game (static/wordle/wordle.blimp) and
+# reports it over /live/wordle?game=wd_<id> whenever it changes. The report
+# is words and flags only: the WordleStore rebuilds the game from them with
+# the same Temper the page ran (temper/src/wordle), so a colour on someone
+# else's screen is never one a browser wrote. It keeps the games as
+# Blog.Wordle.GameStore kept them in ETS -- a game outlives its page, until
+# a cleanup takes it -- and sends them on: the 13 most recent to every
+# /wordle page (each draws twelve, less its own), all of them to every
+# /wordle_god page (/live/wordle-god), which can also ask for the cleanups
+# WordleGodLive's buttons ran.
+
+WORDLE_MAX_GAMES = 500
+WORDLE_PUSH_MS = 100
+# the god pages' "5 min ago"s go stale without a push
+WORDLE_REFRESH_S = 30
+# GameStore's @cleanup_interval, 10 minutes, and @idle_threshold, 60s
+WORDLE_CLEANUP_S = 600
+WORDLE_IDLE_S = 60
+
+# "player-" and up to five digits, as the LiveView made them.
+def wordle_player_ok(p: Any) -> Bool do
+  case type_of(p) == :string and starts_with(p, "player-") and length(p) > 7 and length(p) <= 12 do
+    false -> false
+    true -> wordle_digits(p, 7)
+  end
+end
+
+def wordle_digits(s: String, i: Int) -> Bool do
+  case i >= length(s) do
+    true -> true
+    false ->
+      c = char_code(char_at(s, i))
+      case c >= 48 and c <= 57 do
+        true -> wordle_digits(s, i + 1)
+        false -> false
+      end
+  end
+end
+
+# Up to five letters of a row being typed.
+def wordle_partial_ok(s: Any) -> Bool do
+  case type_of(s) == :string and length(s) <= 5 do
+    false -> false
+    true -> length(s) == 0 or wd_is_word(concat(s, slice("aaaaa", 0, 5 - length(s))))
+  end
+end
+
+def wordle_words_ok(ws: Any) -> Bool do
+  case type_of(ws) == :list and length(ws) <= 6 do
+    false -> false
+    true -> length(filter(ws, fn(w: Any) -> Bool do not(type_of(w) == :string and wd_is_word(w)) end)) == 0
+  end
+end
+
+def wordle_has(words: List, w: String) -> Bool do
+  length(filter(words, fn(x: String) -> Bool do x == w end)) > 0
+end
+
+# A report from a page, rebuilt: the game as the store keeps it (without
+# its id or time), or nil for a report that is not one.
+def wordle_report(text: String) -> Any do
+  case json_decode(text) do
+    {:ok, r} ->
+      case type_of(r) == :map do
+        false -> nil
+        true ->
+          target = lookup(r, :target)
+          words = lookup(r, :words)
+          ok = wordle_player_ok(lookup(r, :player)) and type_of(target) == :string and wd_is_word(target) and wordle_words_ok(words) and wordle_partial_ok(lookup(r, :current))
+          case ok do
+            false -> nil
+            true ->
+              won = wordle_has(words, target)
+              %{
+                player: lookup(r, :player),
+                target: target,
+                current: lookup(r, :current),
+                words: words,
+                results: map(words, fn(w: String) -> List do wd_check(w, target) end),
+                won: won,
+                over: won or length(words) >= 6,
+                hard: lookup(r, :hard) == true
+              }
+          end
+      end
+    _ -> nil
+  end
+end
+
+# A kept game as a page is sent it: its age in seconds instead of a time,
+# because the WebAssembly build has no clock.
+def wordle_wire(g: Map, t: Int) -> Map do
+  %{id: g.id, player: g.player, target: g.target, current: g.current, words: g.words, results: g.results,
+    won: g.won, over: g.over, hard: g.hard, ago: t - g.last}
+end
+
+def wordle_newest(games: Map) -> List do
+  all = values(games)
+  sort_by_keys(all, map(all, fn(g: Map) -> Int do 0 - g.last end))
+end
+
+def wordle_first(xs: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case xs do
+        [] -> []
+        [x | rest] -> [x | wordle_first(rest, n - 1)]
+      end
+  end
+end
+
+def wordle_keep(games: Map, keep: Any) -> Map do
+  reduce(filter(values(games), keep), %{}, fn(acc: Map, g: Map) -> Map do put(acc, g.id, g) end)
+end
+
+# GameStore.cleanup_stale_games/1: nothing older than `hours`.
+def wordle_clean_stale(games: Map, hours: Int, t: Int) -> Map do
+  wordle_keep(games, fn(g: Map) -> Bool do t - g.last <= hours * 3600 end)
+end
+
+# GameStore.cleanup_idle_empty_games/0: no guesses and idle over a minute.
+def wordle_clean_idle(games: Map, t: Int) -> Map do
+  wordle_keep(games, fn(g: Map) -> Bool do not(g.words == [] and t - g.last > WORDLE_IDLE_S) end)
+end
+
+# GameStore.cleanup_duplicate_player_sessions/0: per player, the newest
+# game still going and the newest one finished.
+def wordle_clean_duplicates(games: Map) -> Map do
+  newest = wordle_newest(games)
+  kept = reduce(newest, %{seen: %{}, games: %{}}, fn(acc: Map, g: Map) -> Map do
+    slot = concat(g.player, "/", to_string(g.over))
+    case lookup(acc.seen, slot) do
+      nil -> %{seen: put(acc.seen, slot, true), games: put(acc.games, g.id, g)}
+      _ -> acc
+    end
+  end)
+  kept.games
+end
+
+def wordle_json(games: List, t: Int) -> String do
+  json_encode(%{games: map(games, fn(g: Map) -> Map do wordle_wire(g, t) end)})
+end
+
+actor WordleStore do
+  state games: Map :: %{}
+  state dirty: Bool :: false
+  state pushed_at: Int :: 0
+  state refreshed_at: Int :: 0
+  state cleaned_at: Int :: 0
+  state fds: List :: []
+
+  # true if the report was one (kept, or the same as before), false if not
+  on :report(id: String, text: String) do
+    g = wordle_report(text)
+    case g do
+      nil -> reply false
+      _ ->
+        old = lookup(games, id)
+        fresh = put(put(g, :id, id), :last, now())
+        same = old != nil and put(put(g, :id, id), :last, old.last) == old
+        case same do
+          true -> reply true
+          false ->
+            kept = case old == nil and length(keys(games)) >= WORDLE_MAX_GAMES do
+              true -> wordle_keep(games, fn(x: Map) -> Bool do x.id != last(wordle_newest(games)).id end)
+              false -> games
+            end
+            become games: put(kept, id, fresh), dirty: true
+            reply true
+        end
+    end
+  end
+
+  # What a /wordle_god page's buttons ask for: the message it shows after.
+  on :command(text: String) do
+    decoded = json_decode(text)
+    cmd = case decoded do
+      {:ok, c} ->
+        case type_of(c) == :map do
+          true -> c
+          false -> %{}
+        end
+      _ -> %{}
+    end
+    t = now()
+    before = length(keys(games))
+    what = lookup(cmd, :cleanup)
+    next = case what do
+      "stale" -> wordle_clean_stale(games, live_int(lookup(cmd, :hours), 1, 24000), t)
+      "duplicates" -> wordle_clean_duplicates(games)
+      "idle" -> wordle_clean_idle(games, t)
+      _ -> games
+    end
+    gone = to_string(before - length(keys(next)))
+    said = case what do
+      "stale" -> concat("Cleaned up games older than ", to_string(live_int(lookup(cmd, :hours), 1, 24000)), " hour(s)")
+      "invalid" -> concat("Removed ", gone, " invalid/problematic games")
+      "duplicates" -> concat("Removed ", gone, " duplicate player sessions")
+      "idle" -> concat("Removed ", gone, " idle games with no activity")
+      _ -> ""
+    end
+    become games: next, dirty: true
+    reply said
+  end
+
+  # From the Site's tick: send the pages the games, if they changed, a page
+  # joined, or the god pages' ages are getting old; and now and then the
+  # cleanups GameStore ran every ten minutes. Answers how many sockets
+  # were written to.
+  on :push(socks: Map) do
+    t = now()
+    players = filter(values(socks), fn(s: Map) -> Bool do s.kind == :wordle end)
+    gods = filter(values(socks), fn(s: Map) -> Bool do s.kind == :wordle_god end)
+    open = sort(map(list_append(players, gods), fn(s: Map) -> Int do s.fd end))
+    tidy = t - cleaned_at >= WORDLE_CLEANUP_S
+    kept = case tidy do
+      true -> wordle_clean_idle(wordle_clean_duplicates(wordle_clean_stale(games, 24, t)), t)
+      false -> games
+    end
+    due = dirty or open != fds or tidy or (gods != [] and t - refreshed_at >= WORDLE_REFRESH_S)
+    cleaned = case tidy do
+      true -> t
+      false -> cleaned_at
+    end
+    case due and now_ms() - pushed_at >= WORDLE_PUSH_MS do
+      false ->
+        become games: kept, cleaned_at: cleaned, dirty: dirty or tidy
+        reply 0
+      true ->
+        newest = wordle_newest(kept)
+        case players do
+          [] -> :ok
+          _ ->
+            frame = ws_frame(1, wordle_json(wordle_first(newest, 13), t))
+            each(players, fn(s: Map) do tcp_write(s.fd, frame) end)
+        end
+        case gods do
+          [] -> :ok
+          _ ->
+            frame = ws_frame(1, wordle_json(newest, t))
+            each(gods, fn(s: Map) do tcp_write(s.fd, frame) end)
+        end
+        become games: kept, dirty: false, pushed_at: now_ms(), refreshed_at: t, fds: open, cleaned_at: cleaned
+        reply length(open)
+    end
+  end
+
+  # From the prompt: `WORDLE <- :games`.
+  on :games do
+    reply games
+  end
+end
+
+WORDLE = spawn WordleStore
+
+# ── pages ───────────────────────────────────────────────────────────────
+#
+# app_page's page, with static/wordle/live.js after app.js: the socket.
+
+WORDLE_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/wordle/live.js"]
+
+def wordle_app_page(title: String, description: String, program: String, actor_var: String) -> String do
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", escape_html(program), "\" data-actor=\"", escape_html(actor_var), "\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", escape_html(program), "\">", escape_html(program), "</a>.</p></noscript>\n",
+    script_tags(WORDLE_SCRIPTS)
+  ], "")
+  page_layout_html(title, description, "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css"], body, "")
+end
+
+def wordle_page() -> String do
+  wordle_app_page("Wordle Clone", "A LiveView wordle clone", "/wordle/wordle.blimp", "wordle")
+end
+
+def wordle_god_page() -> String do
+  wordle_app_page("Wordle God Mode", "Every game of Wordle being played on this site, as it is played.", "/wordle/god.blimp", "god")
+end
