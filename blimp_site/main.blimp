@@ -740,6 +740,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   CURSORS <- :push(now_ms(), now())
   # the Bluesky relays: drain what arrived, push to the firehose pages
   FIREHOSE <- :tick(now_ms())
+  # /stumble's links from Graze's turbostream, when STUMBLE_INGEST is on
+  STI <- :tick(now_ms())
   t = now_ms()
   case elem(read, 2) and t - pushed_at >= 50 do
     true ->
