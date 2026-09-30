@@ -225,39 +225,21 @@ end
 
 # ---------------------------------------------------------------- SQL
 
-# Ecto's timestamps(): NaiveDateTime.utc_now() cut to the second, once per
-# insert or update, the same value in inserted_at and updated_at. Postgres
-# rounds a timestamp(0) cast; date_trunc cuts, as NaiveDateTime.truncate does.
-ADM_NOW = "date_trunc('second', timezone('utc', clock_timestamp()))"
+# Every statement is built in temper/src/db/admin.temper.md with Alloy and
+# comes back as [sql, params...]. The three reads take no input, so they are
+# built once, here.
+ADM_PROJECTS_Q = adm_projects_q()
+ADM_SECTIONS_Q = adm_sections_q()
+ADM_ITEMS_Q = adm_items_q()
 
-ADM_PROJECT_COLS = "id, slug, title, tagline, description, category, array_to_json(tech_stack) as tech_stack, array_to_json(github_repos) as github_repos, internal_path, external_url, pixel_art_path, emoji, color, sort_order, visible, inserted_at::text as inserted_at, updated_at::text as updated_at"
-# list_projects/0; ties in sort_order come out as Postgres has them, as there
-ADM_PROJECTS_SQL = concat("select ", ADM_PROJECT_COLS, " from museum_projects order by sort_order")
-
-ADM_SECTION_COLS = "id, name, label, sort_order, joyride_target, visible, inserted_at::text as inserted_at, updated_at::text as updated_at"
-ADM_ITEM_COLS = "id, name, icon, path, sort_order, joyride_target, action, description, visible, section_id, inserted_at::text as inserted_at, updated_at::text as updated_at"
-ADM_SECTIONS_SQL = concat("select ", ADM_SECTION_COLS, " from finder_sections order by sort_order")
-ADM_ITEMS_SQL = concat("select ", ADM_ITEM_COLS, " from finder_items order by sort_order")
-
-# A JSON array of strings -> varchar[], and of objects -> jsonb[], in order;
-# [] is '{}', as Ecto writes an empty list.
-ADM_TEXT_ARRAY = "array(select e from jsonb_array_elements_text(ARG::jsonb) with ordinality as a(e, n) order by n)::varchar[]"
-ADM_JSONB_ARRAY = "array(select e from jsonb_array_elements(ARG::jsonb) with ordinality as a(e, n) order by n)"
-
-def adm_text_array(arg: String) -> String do
-  replace(ADM_TEXT_ARRAY, "ARG", arg)
+# A value the form left empty is nil, which the _q functions write as NULL;
+# a list is passed as its JSON text, which is what the client sent for one.
+def adm_query(q: List) -> Tuple do
+  DB <- :query(head(q), tail(q))
 end
 
-def adm_jsonb_array(arg: String) -> String do
-  replace(ADM_JSONB_ARRAY, "ARG", arg)
-end
-
-def adm_query(sql: String, params: List) -> Tuple do
-  DB <- :query(sql, params)
-end
-
-def adm_rows(sql: String, params: List) -> List do
-  got = adm_query(sql, params)
+def adm_rows(q: List) -> List do
+  got = adm_query(q)
   case got do
     {:ok, rows} -> rows
     {:error, reason} -> bubble concat("admin: ", reason)
@@ -265,12 +247,12 @@ def adm_rows(sql: String, params: List) -> List do
 end
 
 def adm_projects() -> List do
-  adm_rows(ADM_PROJECTS_SQL, [])
+  adm_rows(ADM_PROJECTS_Q)
 end
 
 def adm_sections() -> List do
-  items = adm_rows(ADM_ITEMS_SQL, [])
-  map(adm_rows(ADM_SECTIONS_SQL, []), fn(s: Map) -> Map do
+  items = adm_rows(ADM_ITEMS_Q)
+  map(adm_rows(ADM_SECTIONS_Q), fn(s: Map) -> Map do
     put(s, :items, filter(items, fn(i: Map) -> Bool do i.section_id == s.id end))
   end)
 end
@@ -298,8 +280,8 @@ end
 # row (a slug or name taken, a value past varchar(255)) is the other. The
 # first was {:error, changeset} there too; the second raised, and the
 # LiveView crashed and remounted, flash and all.
-def adm_write(sql: String, params: List) -> Any do
-  got = adm_query(sql, params)
+def adm_write(q: List) -> Any do
+  got = adm_query(q)
   case got do
     {:ok, rows} -> {:ok, rows}
     {:error, reason} ->
@@ -333,8 +315,6 @@ def adm_project_fields(conn: Map) -> Map do
 end
 
 # save_new_project: sort_order one past the highest (1 for the first), visible.
-ADM_PROJECT_INSERT = concat("with t as (select ", ADM_NOW, " as ts) insert into museum_projects (slug, title, tagline, description, category, tech_stack, github_repos, internal_path, external_url, sort_order, visible, inserted_at, updated_at) select $1, $2, $3, $4, $5, ", adm_text_array("$6"), ", ", adm_jsonb_array("$7"), ", $8, $9, (select coalesce(max(sort_order), 0) + 1 from museum_projects), true, t.ts, t.ts from t returning id")
-
 def adm_project_create(conn: Map) -> Map do
   f0 = adm_project_fields(conn)
   # params["category"] || "tools": only a missing field; "" is cast to nil
@@ -345,7 +325,7 @@ def adm_project_create(conn: Map) -> Map do
   case adm_missing([f.slug, f.title, f.category]) do
     true -> adm_museum_err(conn, 422, "Failed to create project")
     false ->
-      got = adm_write(ADM_PROJECT_INSERT, [f.slug, f.title, f.tagline, f.description, f.category, f.tech_stack, f.github_repos, f.internal_path, f.external_url])
+      got = adm_write(adm_project_insert_q(f.slug, f.title, f.tagline, f.description, f.category, json_encode(f.tech_stack), json_encode(f.github_repos), f.internal_path, f.external_url))
       case got do
         {:ok, _} -> adm_museum_ok(conn)
         _ -> adm_museum_err(conn, 422, "Failed to create project")
@@ -357,11 +337,6 @@ end
 # them differs, because Ecto writes the changes and there are none when
 # every value is what the row holds. In an UPDATE the columns on the right
 # are the row as it was.
-ADM_PROJECT_UPDATE = concat("with n as (select $2::varchar as slug, $3::varchar as title, $4::varchar as tagline, $5::text as description, $6::varchar as category, ", adm_text_array("$7"), " as tech_stack, ", adm_jsonb_array("$8"), " as github_repos, $9::varchar as internal_path, $10::varchar as external_url, $11::boolean as visible, ", ADM_NOW, " as ts) ",
-  "update museum_projects p set slug = n.slug, title = n.title, tagline = n.tagline, description = n.description, category = n.category, tech_stack = n.tech_stack, github_repos = n.github_repos, internal_path = n.internal_path, external_url = n.external_url, visible = n.visible, ",
-  "updated_at = case when (p.slug, p.title, p.tagline, p.description, p.category, p.tech_stack, p.github_repos, p.internal_path, p.external_url, p.visible) is distinct from (n.slug, n.title, n.tagline, n.description, n.category, n.tech_stack, n.github_repos, n.internal_path, n.external_url, n.visible) then n.ts else p.updated_at end ",
-  "from n where p.id = $1 returning p.id")
-
 def adm_project_update(conn: Map) -> Map do
   id = adm_id(conn)
   f = adm_project_fields(conn)
@@ -371,7 +346,7 @@ def adm_project_update(conn: Map) -> Map do
       case adm_missing([f.slug, f.title, f.category]) do
         true -> adm_museum_err(conn, 422, "Failed to update project")
         false ->
-          got = adm_write(ADM_PROJECT_UPDATE, [id, f.slug, f.title, f.tagline, f.description, f.category, f.tech_stack, f.github_repos, f.internal_path, f.external_url, adm_visible(adm_param(conn, "visible"))])
+          got = adm_write(adm_project_update_q(to_string(id), f.slug, f.title, f.tagline, f.description, f.category, json_encode(f.tech_stack), json_encode(f.github_repos), f.internal_path, f.external_url, adm_visible(adm_param(conn, "visible"))))
           case got do
             {:ok, []} -> adm_museum_err(conn, 404, "No such project")
             {:ok, _} -> adm_museum_ok(conn)
@@ -397,15 +372,13 @@ end
 # 2, ... by update_all, which leaves updated_at alone; one transaction.
 # An id that is not a number made String.to_integer raise inside it, so
 # nothing was written, and neither is it here.
-ADM_BULK_REORDER = "update museum_projects p set sort_order = a.n - 1 from jsonb_array_elements_text($1::jsonb) with ordinality as a(id, n) where p.id = a.id::bigint"
-
 def adm_project_reorder(conn: Map) -> Map do
   ids = lookup(conn.body_params, "ids")
   ok = type_of(ids) == :list and filter(ids, fn(i: Any) -> Bool do not(type_of(i) == :string and length(i) > 0 and length(i) <= 18 and web_all_digits(i, 0)) end) == []
   case ok do
     false -> adm_museum_err(conn, 400, "ids must be a list of project ids")
     true ->
-      adm_write(ADM_BULK_REORDER, [ids])
+      adm_write(adm_bulk_reorder_q(json_encode(ids)))
       adm_museum_ok(conn)
   end
 end
@@ -432,7 +405,7 @@ def adm_delete(conn: Map, table: String, missing: String, museum: Bool) -> Map d
   case id do
     nil -> adm_err(conn, museum, 404, missing)
     _ ->
-      got = adm_write(concat("delete from ", table, " where id = $1 returning id"), [id])
+      got = adm_write(adm_delete_q(table, to_string(id)))
       case got do
         {:ok, []} -> adm_err(conn, museum, 404, missing)
         _ -> adm_ok(conn, museum)
@@ -446,7 +419,7 @@ def adm_toggle(conn: Map, table: String, missing: String, museum: Bool) -> Map d
   case id do
     nil -> adm_err(conn, museum, 404, missing)
     _ ->
-      got = adm_write(concat("update ", table, " set visible = not visible, updated_at = ", ADM_NOW, " where id = $1 returning id"), [id])
+      got = adm_write(adm_toggle_q(table, to_string(id)))
       case got do
         {:ok, []} -> adm_err(conn, museum, 404, missing)
         _ -> adm_ok(conn, museum)
@@ -491,13 +464,13 @@ end
 # Finder.reorder_item/2 reads only the item's own section.
 def adm_move_list(table: String, id: Int) -> List do
   case table do
-    "finder_items" -> adm_rows("select i.id, i.sort_order from finder_items i where i.section_id = (select section_id from finder_items where id = $1) order by i.sort_order", [id])
-    _ -> adm_rows(concat("select id, sort_order from ", table, " order by sort_order"), [])
+    "finder_items" -> adm_rows(adm_move_items_q(to_string(id)))
+    _ -> adm_rows(adm_move_list_q(table))
   end
 end
 
 def adm_set_order(table: String, id: Int, order: Int) -> Any do
-  adm_write(concat("update ", table, " set sort_order = $2, updated_at = ", ADM_NOW, " where id = $1 and sort_order is distinct from $2::int"), [id, order])
+  adm_write(adm_set_order_q(table, to_string(id), order))
 end
 
 def adm_index_of(list: List, id: Int, i: Int) -> Int do
@@ -518,25 +491,18 @@ def adm_finder_list(conn: Map) -> Map do
 end
 
 # save_new_section: sort_order one past the highest (0 for the first).
-ADM_SECTION_INSERT = concat("with t as (select ", ADM_NOW, " as ts) insert into finder_sections (name, label, sort_order, visible, inserted_at, updated_at) select $1, $2, (select coalesce(max(sort_order), -1) + 1 from finder_sections), true, t.ts, t.ts from t returning id")
-
 def adm_section_create(conn: Map) -> Map do
   name = adm_str(adm_param(conn, "name"))
   label = adm_str(adm_param(conn, "label"))
   case name do
     nil -> adm_finder_err(conn, 422, "Failed to create section")
     _ ->
-      case adm_write(ADM_SECTION_INSERT, [name, label]) do
+      case adm_write(adm_section_insert_q(name, label)) do
         {:ok, _} -> adm_finder_ok(conn)
         _ -> adm_finder_err(conn, 422, "Failed to create section")
       end
   end
 end
-
-ADM_SECTION_UPDATE = concat("with n as (select $2::varchar as name, $3::varchar as label, $4::varchar as joyride_target, $5::boolean as visible, ", ADM_NOW, " as ts) ",
-  "update finder_sections p set name = n.name, label = n.label, joyride_target = n.joyride_target, visible = n.visible, ",
-  "updated_at = case when (p.name, p.label, p.joyride_target, p.visible) is distinct from (n.name, n.label, n.joyride_target, n.visible) then n.ts else p.updated_at end ",
-  "from n where p.id = $1 returning p.id")
 
 def adm_section_update(conn: Map) -> Map do
   id = adm_id(conn)
@@ -547,7 +513,7 @@ def adm_section_update(conn: Map) -> Map do
       case name do
         nil -> adm_finder_err(conn, 422, "Failed to update section")
         _ ->
-          got = adm_write(ADM_SECTION_UPDATE, [id, name, adm_str(adm_param(conn, "label")), adm_str(adm_param(conn, "joyride_target")), adm_visible(adm_param(conn, "visible"))])
+          got = adm_write(adm_section_update_q(to_string(id), name, adm_str(adm_param(conn, "label")), adm_str(adm_param(conn, "joyride_target")), adm_visible(adm_param(conn, "visible"))))
           case got do
             {:ok, []} -> adm_finder_err(conn, 404, "No such section")
             {:ok, _} -> adm_finder_ok(conn)
@@ -572,8 +538,6 @@ end
 # save_new_item: get_section!/1 first (a section that is gone raised), then
 # sort_order one past the section's highest (0 for its first), visible by
 # the schema's default, no joyride_target.
-ADM_ITEM_INSERT = concat("with t as (select ", ADM_NOW, " as ts) insert into finder_items (name, icon, path, action, description, sort_order, section_id, visible, inserted_at, updated_at) select $1, $2, $3, $4, $5, (select coalesce(max(sort_order), -1) + 1 from finder_items where section_id = $6), $6, true, t.ts, t.ts from t returning id")
-
 def adm_item_create(conn: Map) -> Map do
   sid_text = web_or(adm_param(conn, "section_id"), "")
   sid = case length(sid_text) > 0 and length(sid_text) <= 18 and web_all_digits(sid_text, 0) do
@@ -582,7 +546,7 @@ def adm_item_create(conn: Map) -> Map do
   end
   exists = case sid do
     nil -> []
-    _ -> adm_rows("select id from finder_sections where id = $1", [sid])
+    _ -> adm_rows(adm_section_exists_q(to_string(sid)))
   end
   case exists do
     [] -> adm_finder_err(conn, 404, "No such section")
@@ -592,7 +556,7 @@ def adm_item_create(conn: Map) -> Map do
       case adm_missing([name, icon]) do
         true -> adm_finder_err(conn, 422, "Failed to create item")
         false ->
-          got = adm_write(ADM_ITEM_INSERT, [name, icon, adm_str(adm_param(conn, "path")), adm_str(adm_param(conn, "action")), adm_str(adm_param(conn, "description")), sid])
+          got = adm_write(adm_item_insert_q(name, icon, adm_str(adm_param(conn, "path")), adm_str(adm_param(conn, "action")), adm_str(adm_param(conn, "description")), to_string(sid)))
           case got do
             {:ok, _} -> adm_finder_ok(conn)
             _ -> adm_finder_err(conn, 422, "Failed to create item")
@@ -600,11 +564,6 @@ def adm_item_create(conn: Map) -> Map do
       end
   end
 end
-
-ADM_ITEM_UPDATE = concat("with n as (select $2::varchar as name, $3::varchar as icon, $4::varchar as path, $5::varchar as action, $6::varchar as description, $7::varchar as joyride_target, $8::boolean as visible, ", ADM_NOW, " as ts) ",
-  "update finder_items p set name = n.name, icon = n.icon, path = n.path, action = n.action, description = n.description, joyride_target = n.joyride_target, visible = n.visible, ",
-  "updated_at = case when (p.name, p.icon, p.path, p.action, p.description, p.joyride_target, p.visible) is distinct from (n.name, n.icon, n.path, n.action, n.description, n.joyride_target, n.visible) then n.ts else p.updated_at end ",
-  "from n where p.id = $1 returning p.id")
 
 def adm_item_update(conn: Map) -> Map do
   id = adm_id(conn)
@@ -616,7 +575,7 @@ def adm_item_update(conn: Map) -> Map do
       case adm_missing([name, icon]) do
         true -> adm_finder_err(conn, 422, "Failed to update item")
         false ->
-          got = adm_write(ADM_ITEM_UPDATE, [id, name, icon, adm_str(adm_param(conn, "path")), adm_str(adm_param(conn, "action")), adm_str(adm_param(conn, "description")), adm_str(adm_param(conn, "joyride_target")), adm_visible(adm_param(conn, "visible"))])
+          got = adm_write(adm_item_update_q(to_string(id), name, icon, adm_str(adm_param(conn, "path")), adm_str(adm_param(conn, "action")), adm_str(adm_param(conn, "description")), adm_str(adm_param(conn, "joyride_target")), adm_visible(adm_param(conn, "visible"))))
           case got do
             {:ok, []} -> adm_finder_err(conn, 404, "No such item")
             {:ok, _} -> adm_finder_ok(conn)
