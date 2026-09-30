@@ -73,6 +73,9 @@ with_temper _build/wordle.blimp static/wordle/wordle.blimp
 with_temper _build/wordle-god.blimp static/wordle/god.blimp
 # Cursor tracker: the arithmetic is Temper (temper/src/cursor_tracker), the view Blimp.
 with_temper _build/cursors.blimp static/cursors/cursors.blimp
+# Temper Art: the engine is Temper (temper/src/art), the studio Blimp; the
+# URL is read with the server's query_param.
+with_temper _build/art.blimp src/40_http.blimp static/art/art.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

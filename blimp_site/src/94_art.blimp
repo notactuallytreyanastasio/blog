@@ -1,0 +1,18 @@
+# /art (static/art/art.blimp, engine in temper/src/art): the page is the
+# program, as for the other apps, but its title names the seed and the
+# generator in the URL, as ArtLive's assign_meta did, so a shared link
+# says which picture it is.
+
+def art_page(query: String) -> String do
+  seed = to_string(art_seed_of(query_param(query, "seed"), 42))
+  raw = query_param(query, "generator")
+  gen = case raw do
+    "" -> "bauhaus"
+    _ -> raw
+  end
+  title = concat("Temper Art — seed ", seed, " · ", gen)
+  description = concat("The engine is one Temper program — a statically-typed language that cross-compiles to JS, Python, Java, C#, Lua, Rust and Blimp. Written once, it runs natively on every backend. Three algorithms: Bauhaus grids, flow-field particles, Mondrian subdivision. Every seed is deterministic across all backends. Currently running as compiled Blimp, in your browser. ", upcase(slice(gen, 0, 1)), drop(gen, 1), ", seed ", seed, ".")
+  app_page_with(title, description, [APP_CSS], "", "/art/art.blimp", "art", true)
+end
+
+ART_PROGRAM = bjt_asset("_build/art.blimp", "text/plain; charset=utf-8")
