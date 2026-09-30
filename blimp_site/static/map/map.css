@@ -1,0 +1,287 @@
+/* /map, "Tag a Wook": MapLive's <style>, unchanged, then what the app
+ * layout gave the page and what the Blimp version adds. */
+body { margin: 0; padding: 0; }
+#mapid { height: 100vh; width: 100vw; }
+.spotify-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    z-index: 10000; /* Ensure it's above the map */
+    border-radius: 8px;
+}
+.spotify-modal input[type="text"] {
+    width: 90%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.spotify-modal button {
+    padding: 8px 15px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.spotify-modal button.submit {
+    background-color: #4CAF50;
+    color: white;
+}
+.spotify-modal button.cancel {
+    background-color: #f44336;
+    color: white;
+}
+
+/* Floating button styles */
+.browse-button {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background-color: #1DB954; /* Spotify green */
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.browse-button:hover {
+    background-color: #1ed760;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Drawer styles */
+.drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.drawer-overlay.show {
+    opacity: 1;
+}
+
+.drawer {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 400px;
+    height: 100vh;
+    background-color: white;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+    z-index: 2001;
+    transition: right 0.3s ease;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.drawer.show {
+    right: 0;
+}
+
+.drawer-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f8f8;
+}
+
+.drawer-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin: 0;
+}
+
+.drawer-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drawer-content {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.song-list-sidebar .song-item {
+    margin-bottom: 0;
+    padding: 0;
+    background-color: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.song-list-sidebar .song-item iframe {
+    display: block; /* Good for layout */
+    margin-bottom: 0;
+}
+
+.song-list-sidebar .song-item .song-note {
+    display: none; /* Hides notes to allow iframes to touch */
+}
+
+.locate-me-button {
+    position: fixed;
+    bottom: 30px; /* Adjust if too close to browse button */
+    left: 30px; /* Position on the left */
+    background-color: #4A90E2; /* A nice blue */
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 15px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    display: flex; /* For icon and text alignment */
+    align-items: center;
+}
+
+.locate-me-button:hover {
+    background-color: #357ABD;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.locate-me-button svg {
+    margin-right: 8px;
+    width: 20px; /* Adjust size as needed */
+    height: 20px; /* Adjust size as needed */
+    fill: white;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+    .drawer {
+        width: 100%;
+        right: -100%;
+    }
+
+    .browse-button {
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 24px;
+        font-size: 14px;
+    }
+    .locate-me-button {
+        bottom: 20px;
+        left: 20px;
+        padding: 12px 18px;
+        font-size: 14px;
+    }
+    .locate-me-button svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+.map-header-text {
+    position: fixed; /* Changed from absolute to fixed for viewport positioning */
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 900; /* Below modals (1000+), above map tiles */
+    color: white;
+    padding: 15px;
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black background */
+    pointer-events: none; /* Allow clicks to pass through to the map */
+}
+.map-header-text h1 {
+    font-size: 2.8em;
+    margin: 0 0 5px 0;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+}
+.map-header-text p {
+    font-size: 1.2em;
+    margin: 0;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+}
+
+@media (max-width: 600px) {
+    .map-header-text h1 {
+        font-size: 2em;
+    }
+    .map-header-text p {
+        font-size: 1em;
+    }
+    .map-header-text {
+        padding: 10px;
+        top: 10px; /* Adjust for smaller screens */
+    }
+}
+
+/* The app layout's <html class="h-full bg-gray-100"> and <body class="h-full
+ * font-mono bg-gradient-to-br from-cyan-50 to-indigo-50">. */
+body {
+    height: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    background-image: linear-gradient(to bottom right, #ecfeff, #eef2ff);
+}
+
+/* Blimp's loader line, over the map rather than under it. */
+.blimp-app-status {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    margin: 0;
+    font-size: 13px;
+    color: #444;
+}
+.blimp-app-status:empty { display: none; }
+.blimp-app-status.bad { color: #b00020; background: white; padding: 6px 10px; border-radius: 6px; }
+
+/* A tag the server did not save, or tags it could not read. MapLive said
+ * nothing either time. */
+.map-notice {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    color: #b00020;
+    padding: 12px 16px;
+    border: 1px solid #f44336;
+    border-radius: 8px;
+    z-index: 10000;
+    cursor: pointer;
+}
+
+/* The window drawing this page's program sits in the corner BROWSE is in;
+ * it goes above the button instead, and under the drawer and the prompt. */
+body .blimp-runtime { bottom: 100px; z-index: 1500; }
+@media (max-width: 768px) { body .blimp-runtime { bottom: 80px; } }

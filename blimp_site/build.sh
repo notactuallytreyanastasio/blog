@@ -79,6 +79,8 @@ with_temper _build/art.blimp src/40_http.blimp static/art/art.blimp
 # Chess-9: the rules and the bot are Temper (temper/src/chess_lv), the actor,
 # the view and the bot's root loop Blimp.
 with_temper _build/chess_lv.blimp static/chess_lv/chess_lv.blimp
+# Tag a Wook: embeds, validation and popups are Temper (temper/src/map), the view Blimp.
+with_temper _build/map.blimp static/map/map.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

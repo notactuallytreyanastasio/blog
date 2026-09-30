@@ -1,0 +1,142 @@
+# needs: static/map/map.blimp
+#
+# /map: the room (src/97_map.blimp), the page's program
+# (static/map/map.blimp) and the Temper they share (temper/src/map).
+# Sockets here are negative, which the room does not write to. The room is
+# offline, as it is without DATABASE_URL.
+#
+# fixtures/map_embeds.json is 307 links and what MapLive's
+# generate_embed_url/1 made of each, run by Elixir 1.19 (nil as ""): the 60
+# links on production's /map, 47 written to find the edges of its regex and
+# of URI.parse/1, and every 25th of 5,000 generated from pieces of links.
+# All 5,107 agreed when this was written.
+
+def mt_decoded(json: String) -> Map do
+  elem(json_decode(json), 1)
+end
+
+actor MapTests do
+  test "a link embeds as the player MapLive made of it" do
+    cases = mt_decoded(concat("{\"c\":", read_file("test/fixtures/map_embeds.json"), "}")).c
+    wrong = filter(cases, fn(c: Map) -> Bool do geo_embed_url(c.link) != c.embed end)
+    assert_eq(length(cases), 307)
+    assert_eq(map(wrong, fn(c: Map) -> String do c.link end), [])
+    assert_eq(geo_embed_url("https://open.spotify.com/intl-pt/track/ABC123?si=x"), "https://open.spotify.com/embed/track/ABC123")
+    # the optional segment is tried first
+    assert_eq(geo_embed_url("https://open.spotify.com/track/track/abc"), "https://open.spotify.com/embed/track/abc")
+    assert_eq(geo_embed_url("https://open.spotify.com/a/b/track/abc"), "")
+    # Apple: host exactly music.apple.com, a path, the query kept, the fragment not
+    assert_eq(geo_embed_url("https://music.apple.com/us/album/x/1?i=2#top"), "https://embed.music.apple.com/us/album/x/1?i=2")
+    assert_eq(geo_embed_url("https://music.apple.com?i=2"), "")
+    assert_eq(geo_embed_url("https://music.apple.com/us?"), "https://embed.music.apple.com/us?")
+    # a link that mentions both is Apple's to parse, and fails there
+    assert_eq(geo_embed_url("https://open.spotify.com/track/abc music.apple.com"), "")
+  end
+
+  test "a tag is refused as TagIn's changeset refused it" do
+    assert_eq(geo_user_name(""), "Anonymous Wook")
+    assert_eq(geo_user_name("  "), "  ")
+    assert_eq(geo_tag_problem("K8", "x", 40.7, -73.9), "")
+    # Ecto 3.12 casts a string that trims to nothing to nil
+    assert_eq(geo_tag_problem("  ", "x", 40.7, -73.9), "user_name can't be blank")
+    assert_eq(geo_tag_problem("K8", " \n", 40.7, -73.9), "spotify_link can't be blank")
+    assert_eq(geo_tag_problem("K8", " ", 40.7, -73.9), "spotify_link can't be blank")
+    assert_eq(geo_tag_problem("K8", "x", 90.0, 180.0), "")
+    assert_eq(geo_tag_problem("K8", "x", 90.5, 0.0), "latitude must be between -90 and 90")
+    # Leaflet's longitude runs past 180 on the world's second copy
+    assert_eq(geo_tag_problem("K8", "x", 0.0, 190.2), "longitude must be between -180 and 180")
+    assert_eq(geo_note("  "), "")
+    assert_eq(geo_note(" hi "), " hi ")
+  end
+
+  test "a popup is MapHook's, with the name and note escaped" do
+    p = map_popup_html("Bob & <i>", "it's\nok", "https://open.spotify.com/embed/track/x", "https://l", 3)
+    assert(starts_with(p, "<div style=\"margin-bottom: 8px;\"><strong>Bob &amp; &lt;i&gt;</strong></div><p style=\"margin-bottom: 5px; white-space: pre-wrap;\">it&#039;s\nok</p><iframe title=\"Spotify Embed Bob &amp; &lt;i&gt; 3\""))
+    assert(contains(p, "src=\"https://open.spotify.com/embed/track/x\" width=\"300\" height=\"152\""))
+    assert_eq(map_popup_html("", "", "", "", 0), "<b>Anonymous</b><br><a href=\"#\" target=\"_blank\" rel=\"noopener noreferrer\">Listen on Spotify</a>")
+    assert_eq(map_popup_html("<b>", "", "", "https://x\"y", 0), "<b>&lt;b&gt;</b><br><a href=\"https://x&quot;y\" target=\"_blank\" rel=\"noopener noreferrer\">Listen on Spotify</a>")
+  end
+
+  test "a drawer song is the player, or a link that cannot be a script" do
+    assert_eq(map_song_html("https://open.spotify.com/embed/track/x", "L"), "<iframe src=\"https://open.spotify.com/embed/track/x\" width=\"100%\" height=\"152\" frameBorder=\"0\" allowtransparency=\"true\" allow=\"encrypted-media\" style=\"border-radius: 12px;\"></iframe>")
+    assert(contains(map_song_html("", "https://x.com/a?b=1&c=\"2\""), "<a href=\"https://x.com/a?b=1&amp;c=&quot;2&quot;\" target=\"_blank\" style=\"color: #1DB954;\">Open in Spotify</a>"))
+    assert_eq(geo_href(" \tJavaScript:alert(1)"), "#")
+    assert_eq(geo_href("JAVASCRIPT:x"), "#")
+    assert_eq(geo_href("javascript"), "javascript")
+    assert_eq(geo_href("https://javascript:x"), "https://javascript:x")
+  end
+
+  test "the room sends every tag, saves a new one and sends it to everyone" do
+    room = spawn MapRoom
+    assert_eq(room <- :offline(map_snapshot()), 60)
+    assert_eq(room <- :join(-1), 60)
+    assert_eq(room <- :join(-2), 60)
+    t = room <- :recv(-1, json_encode(%{t: "tag", name: "", link: "https://open.spotify.com/track/abc?si=1", note: "  ", lat: 40.5, lng: -73}))
+    assert_eq(t.name, "Anonymous Wook")
+    assert_eq(t.note, "")
+    assert_eq(t.embed_url, "https://open.spotify.com/embed/track/abc")
+    assert_eq(t.lng, -73)
+    assert_eq(length(t.id), 36)
+    assert_eq(slice(t.id, 14, 1), "4")
+    assert_eq(room <- :recv(-2, json_encode(%{t: "tag", name: "x", link: " ", lat: 1, lng: 1})), "spotify_link can't be blank")
+    assert_eq(room <- :recv(-2, "{\"t\":\"tag\",\"lat\":\"1\"}"), "not a tag")
+    assert_eq(room <- :recv(-2, "garbage"), "not a tag")
+    room <- :leave(-2)
+    s = room <- :stats
+    assert_eq([s.pages, s.offline, s.tags, s.saved, s.refused], [1, true, 61, 1, 3])
+    # a page joining now gets the new one too, last
+    assert_eq(room <- :join(-3), 61)
+  end
+
+  test "the snapshot is production's rows with production's embeds" do
+    ts = map_snapshot()
+    assert_eq(length(ts), 60)
+    first = head(ts)
+    assert_eq(first.name, "K8 Fuego")
+    assert_eq(first.lat, 40.71490655857919)
+    assert_eq(first.embed_url, "https://open.spotify.com/embed/track/1ETZhP9orTkDclKEyt0xqm")
+    assert_eq(length(filter(ts, fn(t: Map) -> Bool do t.embed_url == "" end)), 3)
+  end
+
+  test "the program: tags in, pins out, and a tap opens the prompt for there" do
+    w = spawn Wook
+    w <- :frame(json_encode(%{t: "hello", tags: map_snapshot()}))
+    p = w <- :pins(0, 0)
+    assert_eq([p.epoch, p.from, length(p.pins)], [1, 0, 60])
+    assert(contains(head(p.pins).popup, "<strong>K8 Fuego</strong>"))
+    assert_eq(length((w <- :pins(1, 60)).pins), 0)
+    w <- :clicked("{\"lat\":12.5,\"lng\":-7.25}")
+    w <- :submit("{\"user_name\":\"me\",\"music_link\":\"L\",\"note\":\"\"}")
+    out = w <- :outbox
+    assert_eq(length(out), 1)
+    sent = mt_decoded(head(out).frame)
+    assert_eq([sent.t, sent.name, sent.link, sent.lat, sent.lng], ["tag", "me", "L", 12.5, -7.25])
+    assert_eq(w <- :outbox, [])
+    # no prompt open, nothing sent
+    w <- :submit("{\"user_name\":\"me\",\"music_link\":\"L\",\"note\":\"\"}")
+    assert_eq(w <- :outbox, [])
+    w <- :locate
+    assert_eq(w <- :outbox, [%{to: "map", what: "locate"}])
+    # a new tag goes in front of the drawer and after the pins
+    w <- :frame(json_encode(%{t: "tag", tag: %{id: "n", name: "New", link: "", note: "", lat: 1.5, lng: 2.5, embed_url: ""}}))
+    q = w <- :pins(1, 60)
+    assert_eq([q.from, length(q.pins)], [60, 1])
+    assert(contains(head(q.pins).popup, "<b>New</b>"))
+    w <- :frame("{\"t\":\"refused\",\"message\":\"spotify_link can't be blank\"}")
+    v = to_html(w <- :view)
+    assert(contains(v, "Not saved: spotify_link can't be blank"))
+    w <- :toggle_drawer
+    v2 = to_html(w <- :view)
+    assert(contains(v2, "All Songs on Map"))
+    assert(contains(v2, "https://open.spotify.com/embed/track/1ETZhP9orTkDclKEyt0xqm"))
+  end
+
+  test "the page loads Leaflet, the program and its socket's script" do
+    assert_eq(map_route_ok(), true)
+  end
+end
+
+def map_route_ok() -> Bool do
+  body = MAP_PAGE.body
+  contains(body, "<div id=\"mapid\"></div>") and contains(body, "data-program=\"/map/map.blimp\" data-actor=\"wook\"") and contains(body, "<script src=\"/map/map.js\"></script>") and contains(body, "<title>Tag A Wook</title>") and contains(MAP_JS.body, "Leaflet 1.9.4") and contains(MAP_JS.body, "markerClusterGroup") and contains(MAP_CSS.body, ".browse-button")
+end

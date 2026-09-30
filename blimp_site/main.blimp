@@ -170,6 +170,14 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/chess-lv" -> CHESS_LV_PAGE
     "/chess-lv/chess_lv.blimp" -> CHESS_LV_PROGRAM
     "/chess-lv/chess_lv.css" -> CHESS_LV_CSS
+    # Tag a Wook (src/97_map.blimp): the page, its program, Leaflet with map.js, the css, the pin
+    "/map" -> MAP_PAGE
+    "/map/map.blimp" -> MAP_PROGRAM
+    "/map/map.js" -> MAP_JS
+    "/map/map.css" -> MAP_CSS
+    "/map/images/marker-icon.png" -> MAP_ICON
+    "/map/images/marker-icon-2x.png" -> MAP_ICON_2X
+    "/map/images/marker-shadow.png" -> MAP_SHADOW
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -310,6 +318,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/runtime" -> :runtime
     "/live/blackjack" -> :blackjack
     "/live/cursors" -> :cursors
+    "/live/map" -> :map
     _ -> nil
   end
   case kind == nil or not(room) do
@@ -333,6 +342,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a cursor tracker visitor is given an id and sent the room
       case kind == :cursors do
         true -> CURSORS <- :join(c)
+        false -> :ok
+      end
+      # a /map page is sent every tag
+      case kind == :map do
+        true -> MAP_ROOM <- :join(c)
         false -> :ok
       end
       %{fd: c, kind: kind, game: game, buf: ""}
@@ -382,6 +396,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
     :cursors ->
       CURSORS <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
+    :map ->
+      MAP_ROOM <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
     _ -> {map_without(socks, to_string(sock.fd)), games, false}
   end
 end
@@ -424,6 +441,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # a move, a point or a clear; CURSORS sends the room itself
             :cursors ->
               CURSORS <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # a tag; MAP_ROOM sends it to every /map page itself
+            :map ->
+              MAP_ROOM <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             :wordle ->
               taken = WORDLE <- :report(sock.game, payload)
@@ -686,6 +707,11 @@ case first do
   _ -> :ok
 end
 DB <- :open(DB_OPTS)
+# /map's tags are rows in tag_ins; without a database, the snapshot in data/
+case DB_OPTS do
+  nil -> MAP_ROOM <- :offline(map_snapshot())
+  _ -> :ok
+end
 # Moon Phish's annotated shows take about two seconds to compute, and the
 # one process answers nothing else meanwhile: better at boot than during
 # someone's request.
