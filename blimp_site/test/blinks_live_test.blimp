@@ -1,0 +1,342 @@
+# needs: static/blinks/common.blimp static/blinks/live.blimp static/blinks/paper.blimp
+#
+# Chapter 70: /blinks-next as the live, editable page. The server side
+# (src/99_blinkslive.blimp: the socket's rooms, the broadcast 64 left as a
+# TODO, the page, the dork list, the admin check) through the router with
+# no database, so a request that gets as far as a query is a 503; the
+# Temper (temper/src/blinks_live); and the browser program fed 62's
+# page.json for ?tags=nyc (14 of production's 163 links), driven the way
+# static/blinks/live.js drives it.
+
+BLT_TOKEN = "test-blinks-token"
+BLT_SECRET = "test-secret-test-secret-test-secret-0123"
+BLT_ROUTES = blinks_live_routes_for(BLT_TOKEN)
+BLT_PAGE = read_file("test/fixtures/blinks/page_nyc.json")
+
+def blt_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def blt_send(method: String, target: String, headers: List, body: String) -> Tuple do
+  raw = blt_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), BLT_ROUTES, BLT_SECRET)
+end
+
+def blt_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def blt_cookie(got: Tuple) -> String do
+  w = elem(got, 0)
+  at = index_of(w, "Set-Cookie: ")
+  rest = drop(w, at + 12)
+  take(rest, index_of(rest, ";"))
+end
+
+def blt_attr(html: String, name: String) -> String do
+  at = index_of(html, concat(" data-", name, "=\""))
+  rest = drop(html, at + length(name) + 8)
+  take(rest, index_of(rest, "\""))
+end
+
+def blt_frames(hub: Any, fd: Int) -> List do
+  map(hub <- :sent(fd), fn(s: String) -> Map do elem(json_decode(s), 1) end)
+end
+
+def blt_html(v: Any) -> String do
+  to_html(v)
+end
+
+def blt_count(hay: String, needle: String) -> Int do
+  length(split(hay, needle)) - 1
+end
+
+# The ops the program's view asks live.js to do, as "op a b".
+def blt_ops(p: Any) -> List do
+  html = blt_html(p <- :view)
+  box = drop(html, index_of(html, "id=\"bkl-outbox\""))
+  parts = drop_first(split(box, "<i "))
+  map(parts, fn(s: String) -> String do concat(blt_attr(concat(" ", s), "op"), " ", blt_attr(concat(" ", s), "a"), " ", blt_attr(concat(" ", s), "b")) end)
+end
+
+def drop_first(l: List) -> List do
+  case l do
+    [] -> []
+    [_ | rest] -> rest
+  end
+end
+
+# The number of the newest op of that kind, for :done.
+def blt_n(p: Any, op: String) -> Int do
+  html = blt_html(p <- :view)
+  at = index_of(html, concat("data-op=\"", op, "\""))
+  rest = drop(html, at)
+  n_at = index_of(rest, "data-n=\"")
+  to_int(take(drop(rest, n_at + 8), index_of(drop(rest, n_at + 8), "\"")))
+end
+
+# A page that has booted with `prefs` and loaded ?tags=nyc.
+def blt_paper(prefs: String) -> Any do
+  p = spawn Paper
+  p <- :prefs(prefs)
+  p <- :location("tags=nyc")
+  p <- :loaded(200, BLT_PAGE)
+  p
+end
+
+actor BlinksLiveTests do
+  test "a page on /live/blinks is in the blinks room and, as a lurker in no room, in the presence topic" do
+    hub = spawn Rooms
+    bkl_join(hub, -1)
+    assert_eq(map(hub <- :list("blinks"), fn(m: Map) -> String do m.who end), ["page"])
+    present = hub <- :list(BKL_PRESENCE)
+    assert_eq(length(present), 1)
+    assert_eq(head(present).meta, %{room: "", name: "lurker", color: "#888"})
+    hub <- :flush
+    # the joiner is sent the presence topic (and the diff of its own join,
+    # which keying by ref makes harmless); the blinks room has no presence frames
+    assert_eq(map(blt_frames(hub, -1), fn(f: Map) -> String do concat(f.t, ":", f.topic) end), ["presence_state:blinks_rooms_presence", "presence_diff:blinks_rooms_presence"])
+  end
+
+  test "saying which chat room it is in reaches every page as a presence diff; nothing else is taken" do
+    hub = spawn Rooms
+    bkl_join(hub, -1)
+    bkl_join(hub, -2)
+    hub <- :flush
+    hub <- :sent(-1)
+    hub <- :sent(-2)
+    assert_eq(bkl_recv(hub, -1, "{\"t\":\"room\",\"room\":\"blink:42\"}"), :ok)
+    hub <- :flush
+    diff = head(blt_frames(hub, -2))
+    assert_eq(diff.t, "presence_diff")
+    assert_eq(lookup(head(diff.joins).meta, "room"), "blink:42")
+    # a room is "" or blink:<id>, and the frame is exactly that
+    assert_eq(bkl_recv(hub, -1, "{\"t\":\"room\",\"room\":\"<script>\"}"), :ignored)
+    assert_eq(bkl_recv(hub, -1, "{\"t\":\"room\",\"room\":\"blink:007\"}"), :ignored)
+    assert_eq(bkl_recv(hub, -1, "{\"t\":\"chat\",\"room\":\"blink:1\"}"), :ignored)
+    assert_eq(bkl_recv(hub, -1, "not json"), :ignored)
+    assert_eq(bkl_recv(hub, -1, "{\"t\":\"room\",\"room\":\"\"}"), :ok)
+    assert_eq(bkl_room_ok("blink:12345678901234567890"), false)
+    assert_eq(bkl_room_ok("blink:0"), false)
+    # the socket's rate: a burst of 60, then dropped
+    hub2 = spawn Rooms
+    bkl_join(hub2, -3)
+    results = map(range(1, 70), fn(i: Int) -> Any do bkl_recv(hub2, -3, "{\"t\":\"room\",\"room\":\"blink:1\"}") end)
+    assert_eq(length(filter(results, fn(r: Any) -> Bool do r == :limited end)) > 0, true)
+  end
+
+  test "64's blkw_broadcast is said on the blinks room: event and id, for a row or a deleted id" do
+    hub = spawn Rooms
+    bkl_join(hub, -1)
+    hub <- :flush
+    hub <- :sent(-1)
+    row = %{pre: "{\"id\":7,\"url\":\"https://a.b\",\"title\":null,\"description\":null,\"tags\":[],\"quotes\":[]}", thread: nil, post: "{}"}
+    bkl_broadcast_on(hub, :blink_saved, row)
+    bkl_broadcast_on(hub, :blink_deleted, 9)
+    hub <- :flush
+    assert_eq(hub <- :sent(-1), ["{\"t\":\"blink\",\"event\":\"blink_saved\",\"id\":7}", "{\"t\":\"blink\",\"event\":\"blink_deleted\",\"id\":9}"])
+    # and the site's own: the write routes' hook goes to ROOMS
+    bkl_join(ROOMS, -91)
+    ROOMS <- :flush
+    ROOMS <- :sent(-91)
+    blkw_broadcast(:blink_updated, row)
+    ROOMS <- :flush
+    assert_eq(ROOMS <- :sent(-91), ["{\"t\":\"blink\",\"event\":\"blink_updated\",\"id\":7}"])
+    ROOMS <- :drop(-91)
+  end
+
+  test "the page reads the always-shuffle cookie before the first render, and gives the page a seed and a CSRF token" do
+    plain = blt_send("GET", "/blinks-next", [], "")
+    assert_eq(elem(plain, 1), 200)
+    html = blt_body(plain)
+    assert_eq(blt_attr(html, "always"), "")
+    assert_eq(length(blt_attr(html, "seed")), 8)
+    assert_eq(length(blt_attr(html, "csrf")), 43)
+    assert_eq(contains(html, "<script src=\"/blinks-next/live.js\"></script>"), true)
+    assert_eq(contains(html, "data-location"), false)
+    assert_eq(contains(elem(plain, 0), "Cache-Control: no-store"), true)
+    assert_eq(starts_with(blt_cookie(plain), "_blimp_session="), true)
+    lit = blt_body(blt_send("GET", "/blinks-next", ["Cookie: blinksAlwaysShuffle=1"], ""))
+    assert_eq(blt_attr(lit, "always"), "1")
+    # two loads, two seeds (random_bytes, not the unseeded random)
+    assert_eq(blt_attr(lit, "seed") != blt_attr(html, "seed"), true)
+    js = blt_send("GET", "/blinks-next/live.js", [], "")
+    assert_eq(contains(blt_body(js), "blinksAlwaysShuffle") or contains(blt_body(js), "/live/blinks"), true)
+  end
+
+  test "unlock: the API token or 401; the dork list takes the session's CSRF token, then asks the database" do
+    assert_eq(elem(blt_send("GET", "/blinks-next/admin", [], ""), 1), 401)
+    assert_eq(elem(blt_send("GET", "/blinks-next/admin", ["X-Blinks-Token: nope"], ""), 1), 401)
+    ok = blt_send("GET", "/blinks-next/admin", [concat("X-Blinks-Token: ", BLT_TOKEN)], "")
+    assert_eq(elem(ok, 1), 200)
+    assert_eq(blt_body(ok), "{\"status\":\"ok\"}")
+    page = blt_send("GET", "/blinks-next", [], "")
+    cookie = blt_cookie(page)
+    token = blt_attr(blt_body(page), "csrf")
+    body = "{\"dork_tags\":\"code, NYC\"}"
+    no_token = blt_send("POST", "/blinks-next/dork", [concat("Cookie: ", cookie), "Content-Type: application/json"], body)
+    assert_eq(elem(no_token, 1), 403)
+    # past the token, the database: none here, so 503
+    with_token = blt_send("POST", "/blinks-next/dork", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], body)
+    assert_eq(elem(with_token, 1), 503)
+    bad = blt_send("POST", "/blinks-next/dork", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], "{\"dork_tags\":[1]}")
+    assert_eq(elem(bad, 1), 422)
+    # the SQL trims, lower-cases in Postgres, drops empties, keeps the first of each
+    assert_eq(contains(bkl_dork_sql(), "lower(btrim(e.x, "), true)
+    assert_eq(contains(bkl_dork_sql(), "group by t order by min(o)"), true)
+  end
+
+  test "Temper: page size, shuffle, the bell, the tour" do
+    assert_eq(blkl_fit_size(2), 8)
+    assert_eq(blkl_fit_size(14), 28)
+    assert_eq(blkl_fit_size(90), 120)
+    assert_eq(blkl_fit_count(700, 60), 20)
+    assert_eq(blkl_fit_count(100, 0), 6)
+    assert_eq(blkl_shuffle_on(true, "", true), true)
+    assert_eq(blkl_shuffle_on(true, "0", true), false)
+    assert_eq(blkl_shuffle_on(false, "1", true), false)
+    assert_eq(blkl_bell(false, true, false, true, true, "granted"), "")
+    assert_eq(blkl_bell(true, true, false, true, true, "granted"), "ios")
+    assert_eq(blkl_bell(true, false, false, true, true, "granted"), "on")
+    assert_eq(blkl_bell(true, false, false, false, true, "denied"), "blocked")
+    assert_eq(blkl_bell(true, false, false, false, true, "default"), "notify")
+    assert_eq(blkl_push_auto_open(true, true, false, false, "default"), true)
+    assert_eq(blkl_push_auto_open(true, false, false, false, "default"), false)
+    assert_eq(length(blkl_tour_steps(false)), 5)
+    assert_eq(length(blkl_tour_steps(true)), 6)
+    assert_eq(head(last(blkl_tour_steps(true))), "chat-window")
+    assert_eq(blkl_tour_tip(100, 50, 200, 20, 1200, 800), "top:90px;left:40px;")
+    assert_eq(blkl_tour_tip(1100, 700, 40, 20, 1200, 800), "bottom:120px;left:860px;")
+    assert_eq(blkl_tour_spot(10, 20, 30, 40), "top:12px;left:2px;width:46px;height:56px;")
+    assert_eq(blkl_here_now(2), " · 2 here now")
+    assert_eq(blkl_delete_confirm("", false, "https://a.b"), "delete “https://a.b” and its chat forever?")
+  end
+
+  test "boot: hidden links leave the page, the tour starts for a new device, the stored key is checked" do
+    fresh = blt_paper("{\"hidden\":[],\"seenTour\":false,\"adminKey\":\"\"}")
+    v0 = blt_html(fresh <- :view)
+    assert_eq(blt_count(v0, "class=\"thing"), 14)
+    assert_eq(bk_contains(blt_ops(fresh), "rect search "), true)
+    fresh <- :done(blt_n(fresh, "rect"), 200, "{\"x\":100,\"y\":50,\"w\":200,\"h\":20,\"ww\":1200,\"wh\":800}")
+    v1 = blt_html(fresh <- :view)
+    assert_eq(contains(v1, "Search everything"), true)
+    assert_eq(contains(v1, "1 of 5"), true)
+    assert_eq(contains(v1, "top:90px;left:40px;"), true)
+    fresh <- :tour_close
+    assert_eq(bk_contains(blt_ops(fresh), "store blinksTourSeen 1"), true)
+    p = blt_paper("{\"hidden\":[167,90],\"seenTour\":true,\"adminKey\":\"k1\",\"seed\":\"ABCD1234\",\"always\":true}")
+    v = blt_html(p <- :view)
+    assert_eq(blt_count(v, "class=\"thing"), 12)
+    assert_eq(contains(v, "id=\"blink-167\""), false)
+    assert_eq(contains(v, "2 hidden by you · "), true)
+    # always-shuffle from the cookie: shuffled on the first fetch, seed from the server
+    assert_eq(contains(v, "✓ shuffled — undo"), true)
+    assert_eq(paper_data_url(false, 1, "", true, "ABCD1234", 0, "", "nyc", "", "", 30, 0), "/blinks-next/page.json?page=1&seed=ABCD1234&size=30&tags=nyc")
+    # the stored key is tried before admin shows
+    assert_eq(bk_contains(blt_ops(p), "http GET /blinks-next/admin"), true)
+    assert_eq(contains(v, "class=\"del\""), false)
+    p <- :done(blt_n(p, "http"), 200, "{\"status\":\"ok\"}")
+    va = blt_html(p <- :view)
+    assert_eq(contains(va, "✓ unlocked"), true)
+    assert_eq(blt_count(va, "class=\"del\""), 12)
+    p <- :unhide_all
+    assert_eq(bk_contains(blt_ops(p), "store blinksHidden []"), true)
+    assert_eq(blt_count(blt_html(p <- :view), "class=\"thing"), 14)
+  end
+
+  test "admin writes go out with the key; a wrong key says so" do
+    p = blt_paper("{\"hidden\":[],\"seenTour\":true}")
+    p <- :unlock_admin("{\"key\":\"wrong\"}")
+    p <- :done(blt_n(p, "http"), 401, "{\"error\":\"Invalid or missing auth token\"}")
+    assert_eq(contains(blt_html(p <- :view), "nope, that&#39;s not it") or contains(blt_html(p <- :view), "nope, that's not it"), true)
+    p <- :unlock_admin("{\"key\":\"right\"}")
+    p <- :done(blt_n(p, "http"), 200, "{\"status\":\"ok\"}")
+    assert_eq(bk_contains(blt_ops(p), "store blinksAdminKey right"), true)
+    p <- :save_edit("{\"id\":\"167\",\"title\":\"T\",\"description\":\" d \"}")
+    assert_eq(bk_contains(blt_ops(p), "http PATCH /blinks-next/api/blinks/167"), true)
+    p <- :add_tags("{\"id\":\"167\",\"tags\":\"Foo, bar\"}")
+    assert_eq(bk_contains(blt_ops(p), "http POST /blinks-next/api/blinks/167/tags"), true)
+    p <- :remove_tag("167 two words")
+    assert_eq(bk_contains(blt_ops(p), "http DELETE /blinks-next/api/blinks/167/tags/two%20words"), true)
+    p <- :remove_tag("167 c++")
+    assert_eq(bk_contains(blt_ops(p), "http DELETE /blinks-next/api/blinks/167/tags/c%2B%2B"), true)
+    p <- :delete_blink(167)
+    n = blt_n(p, "confirm")
+    p <- :done(n, 1, "")
+    assert_eq(bk_contains(blt_ops(p), "http DELETE /blinks-next/api/blinks/167"), true)
+    html = blt_html(p <- :view)
+    assert_eq(contains(html, "data-key=\"right\""), true)
+  end
+
+  test "live: a saved link asks for the page again and tunes in; who is where shows as here now" do
+    p = blt_paper("{\"hidden\":[],\"seenTour\":true}")
+    p <- :socket("open")
+    assert_eq(blt_count(blt_html(p <- :view), "fetch"), 0)
+    p <- :frame("{\"t\":\"blink\",\"event\":\"blink_saved\",\"id\":166}")
+    # a new URL (r=1), so a fetch under way for the old one is not taken for it
+    p <- :loaded(200, BLT_PAGE)
+    v = blt_html(p <- :view)
+    assert_eq(contains(v, "class=\"thing fresh\" id=\"blink-166\""), true)
+    # moving on clears it, as handle_params does
+    p <- :toggle_dork
+    p <- :loaded(200, BLT_PAGE)
+    assert_eq(contains(blt_html(p <- :view), "thing fresh"), false)
+    p <- :frame("{\"t\":\"presence_state\",\"topic\":\"blinks_rooms_presence\",\"members\":[{\"ref\":\"1.1\",\"who\":\"v_1\",\"since\":1,\"meta\":{\"room\":\"blink:167\",\"name\":\"lurker\",\"color\":\"#888\"}},{\"ref\":\"2.2\",\"who\":\"v_2\",\"since\":1,\"meta\":{\"room\":\"\",\"name\":\"lurker\",\"color\":\"#888\"}}]}")
+    p <- :frame("{\"t\":\"presence_diff\",\"topic\":\"blinks_rooms_presence\",\"joins\":[{\"ref\":\"2.3\",\"who\":\"v_2\",\"since\":1,\"meta\":{\"room\":\"blink:167\",\"name\":\"lurker\",\"color\":\"#888\"}}],\"leaves\":[{\"ref\":\"2.2\"}]}")
+    v2 = blt_html(p <- :view)
+    assert_eq(contains(v2, "<span class=\"live-dot\"></span>"), true)
+    assert_eq(contains(v2, " · 2 here now"), true)
+    p <- :frame("{\"t\":\"presence_diff\",\"topic\":\"blinks_rooms_presence\",\"joins\":[],\"leaves\":[{\"ref\":\"1.1\"},{\"ref\":\"2.3\"}]}")
+    assert_eq(contains(blt_html(p <- :view), "here now"), false)
+    # opening a chat says so on the socket, and draws the window (signed
+    # out until the socket says who this is: the sign-on form)
+    p <- :open_chat(167)
+    assert_eq(bk_contains(blt_ops(p), "ws {&quot;t&quot;:&quot;room&quot;,&quot;room&quot;:&quot;blink:167&quot;} ") or bk_contains(blt_ops(p), "ws {\"t\":\"room\",\"room\":\"blink:167\"} "), true)
+    vc = blt_html(p <- :view)
+    assert_eq(contains(vc, "AOL Instant Messenger — "), true)
+    assert_eq(contains(vc, "Sign On to chat"), true)
+    # a dropped socket asks again when it is back
+    p <- :socket("closed")
+    p <- :socket("open")
+    assert_eq(paper_data_url(false, 1, "", false, "", 0, "", "nyc", "", "", 30, 2), "/blinks-next/page.json?page=1&r=2&size=30&tags=nyc")
+  end
+
+  test "always shuffle is a cookie; the stumble promo and the push prompt are remembered" do
+    p = blt_paper("{\"hidden\":[],\"seenTour\":true}")
+    p <- :toggle_shuffle
+    p <- :toggle_always
+    assert_eq(bk_contains(blt_ops(p), "cookie blinksAlwaysShuffle=1;path=/;max-age=31536000;samesite=lax "), true)
+    p <- :toggle_always
+    assert_eq(bk_contains(blt_ops(p), "cookie blinksAlwaysShuffle=;path=/;max-age=0 "), true)
+    p <- :dismiss_promo
+    assert_eq(bk_contains(blt_ops(p), "store blinksStumblePromoHidden 1"), true)
+    # no VAPID key (VAPID_* unset): no bell at all, as Phoenix
+    p <- :push_state("{\"supported\":true,\"permission\":\"default\"}")
+    v = blt_html(p <- :view)
+    assert_eq(contains(v, "notify me"), false)
+    assert_eq(contains(v, "tour-link notyet"), false)
+  end
+
+  test "with a VAPID key the bell subscribes: allow is a push op carrying the key, and the answer turns the bell on" do
+    p = blt_paper("{\"hidden\":[],\"seenTour\":true,\"vapid\":\"BKEY\"}")
+    p <- :push_state("{\"supported\":true,\"permission\":\"default\"}")
+    assert_eq(contains(blt_html(p <- :view), "🔔 notify me"), true)
+    p <- :push_dialog_open
+    assert_eq(contains(blt_html(p <- :view), "id=\"push-dialog\""), true)
+    p <- :push_allow
+    ops = blt_ops(p)
+    assert_eq(bk_contains(ops, "push subscribe BKEY"), true)
+    assert_eq(bk_contains(ops, "store blinksPushPromptSeen 1"), true)
+    p <- :done(blt_n(p, "push"), 200, "{\"supported\":true,\"permission\":\"granted\",\"subscribed\":true}")
+    v = blt_html(p <- :view)
+    assert_eq(contains(v, "🔔 on"), true)
+    assert_eq(contains(v, "id=\"push-dialog\""), false)
+    p <- :push_test
+    assert_eq(bk_contains(blt_ops(p), "push test BKEY"), true)
+  end
+end

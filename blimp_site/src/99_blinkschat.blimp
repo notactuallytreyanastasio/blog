@@ -1,0 +1,602 @@
+# Blinks, every link's chat room: the AIM window /blinks-next opens beside
+# a link, on the /live/blinks socket (src/99_blinkslive.blimp) and the
+# same three tables BlinksLive and Blog.Chat use, so a message said on
+# Phoenix's /blinks and one said here are rows of one kind in one table:
+#
+#   chatters            screen_name (unique), ip_hash, color
+#   chat_messages       content, room ("blink:<id>"), chatter_id, reply_to_id
+#   chat_message_votes  message_id, chatter_id, value (1 | -1)
+#
+# What a page says over the socket, beyond 70's {"t":"room"}:
+#
+#   {"t":"sign_on","name":"bob"}       find_or_create_chatter/2
+#   {"t":"sign_off"}                   the "(not you?)" link
+#   {"t":"say","text":"hi","reply_to":7}   create_message/4 (reply_to 0: none)
+#   {"t":"vote","id":7,"val":1}        vote_message/3
+#
+# and what it is told:
+#
+#   {"t":"me","chatter":{id,name,color}|null,"returning":"bob"|""}
+#   {"t":"chat","room","messages":[..],"votes":{id:[up,down]},"mine":{id:v}}
+#   {"t":"msg","room","message":{..}}         to everyone in the room
+#   {"t":"votes","room","id","up","down"}      to everyone in the room
+#   {"t":"myvote","room","id","val"}           to the voter
+#   {"t":"mine","room","mine":{id:v}}          on signing on, in a room
+#
+# A message is {id, reply_to_id (0: none), name, color, at ("03:04 PM"),
+# html, short}: the sender as sender_name/1 and sender_color/1 say it
+# ("Anonymous", "#666" without a chatter), the time as the template's
+# Calendar.strftime(inserted_at, "%I:%M %p") (inserted_at is UTC, as
+# Ecto writes it), the body through render_md/2 on this server, and the
+# first 40 characters for the "replying to" bar.
+#
+# Who a visitor is: Chat.hash_ip/1, the first 16 hex digits of
+# sha256(ip), with NO secret. That is not 65's hash (sha256(id <>
+# SECRET_KEY_BASE), for blink comments and saves); chatters rows were
+# always keyed by the bare hash, so this one must be too, or every
+# returning chatter becomes a stranger. The IP is the first
+# X-Forwarded-For entry of the socket's upgrade request, as BlogWeb's
+# RemoteIp plug takes it from the page request; without one it is
+# "unknown", as 65 has it (this server cannot see the peer address).
+#
+# The rules are Phoenix's and there are few: a screen name is trimmed and
+# 1..20 characters, and a taken one gets 2, 3, ... after it; a message is
+# trimmed and 1..500 characters; a reply to a reply is a reply to its
+# top-level message, and only within the room. Blog.Chat has no rate
+# limit and no word filter for these rooms, so neither has this; the
+# socket's own token bucket (ROOMS <- :inbound) is the only limit.
+#
+# Rooms: a page that says {"t":"room","room":"blink:7"} is joined to the
+# ROOMS topic "blink:7" (no presence on it: who is here is 70's
+# blinks_rooms_presence) and sent the last 100 messages. Saying another
+# room, or "", leaves it. Live delivery is within this server: a message
+# said on Phoenix reaches Blimp's pages only when they load the room
+# again, and the other way round, until one server serves both.
+
+BKC_NOW = "date_trunc('second', now() at time zone 'UTC')"
+
+BKC_BY_IP_SQL = "select id, screen_name as name, color from chatters where ip_hash = $1 order by id limit 1"
+
+BKC_TAKEN_SQL = "select count(*)::int as n from chatters where screen_name = $1 and id <> $2"
+
+BKC_CREATE_SQL = concat("insert into chatters (screen_name, ip_hash, color, inserted_at, updated_at) values ($1, $2, $3, ", BKC_NOW, ", ", BKC_NOW, ") returning id, screen_name as name, color")
+
+BKC_RENAME_SQL = concat("update chatters set screen_name = $1, updated_at = ", BKC_NOW, " where id = $2 returning id, screen_name as name, color")
+
+# list_messages(room, 100): the newest hundred, oldest first.
+BKC_LAST_100 = "select id from chat_messages where room = $1 order by inserted_at desc, id desc limit 100"
+
+BKC_HISTORY_SQL = join([
+  "select coalesce(json_agg(json_build_object('id', x.id, 'reply_to_id', coalesce(x.reply_to_id, 0), 'content', x.content,",
+  " 'at', to_char(x.inserted_at, 'HH12:MI AM'), 'name', x.name, 'color', x.color) order by x.inserted_at, x.id), '[]')::text as body",
+  " from (select m.id, m.reply_to_id, m.content, m.inserted_at, c.screen_name as name, c.color",
+  " from chat_messages m left join chatters c on c.id = m.chatter_id where m.id in (", BKC_LAST_100, ")) x"
+], "")
+
+# vote_counts/1 and my_votes/2 over those hundred: {"id": [up, down]}, {"id": v}.
+BKC_VOTES_SQL = join([
+  "select coalesce(json_object_agg(v.message_id, json_build_array(v.up, v.down)), '{}')::text as counts,",
+  " coalesce(json_object_agg(v.message_id, v.mine) filter (where v.mine <> 0), '{}')::text as mine",
+  " from (select message_id, count(*) filter (where value > 0) as up, count(*) filter (where value < 0) as down,",
+  " coalesce(max(value) filter (where chatter_id = $2), 0) as mine",
+  " from chat_message_votes where message_id in (", BKC_LAST_100, ") group by message_id) v"
+], "")
+
+# create_message/4: the reply target, only within the room; a reply to a
+# reply hangs off its top-level message (threads are one deep).
+BKC_REPLY_TO_SQL = "select coalesce(reply_to_id, id) as top from chat_messages where id = $1 and room = $2"
+
+BKC_SAY_SQL = concat("insert into chat_messages (content, room, chatter_id, reply_to_id, inserted_at, updated_at)",
+  " values ($1, $2, $3, nullif($4::bigint, 0), ", BKC_NOW, ", ", BKC_NOW, ")",
+  " returning id, coalesce(reply_to_id, 0) as reply_to_id, to_char(inserted_at, 'HH12:MI AM') as at")
+
+BKC_ROOM_OF_SQL = "select room from chat_messages where id = $1"
+
+# vote_message/3: none -> insert; the same value -> delete; the other -> switch.
+BKC_VOTE_SQL = join([
+  "with old as (select id, value from chat_message_votes where message_id = $1 and chatter_id = $2),",
+  " gone as (delete from chat_message_votes where id in (select id from old where value = $3) returning id),",
+  " switched as (update chat_message_votes set value = $3, updated_at = ", BKC_NOW, " where id in (select id from old where value <> $3) returning id),",
+  " added as (insert into chat_message_votes (message_id, chatter_id, value, inserted_at, updated_at)",
+  " select $1, $2, $3, ", BKC_NOW, ", ", BKC_NOW, " where not exists (select 1 from old) returning id)",
+  " select (select count(*) from gone)::int + (select count(*) from switched)::int + (select count(*) from added)::int as n"
+], "")
+
+BKC_COUNTS_SQL = join([
+  "select count(*) filter (where value > 0)::int as up, count(*) filter (where value < 0)::int as down,",
+  " coalesce(max(value) filter (where chatter_id = $2), 0)::int as mine from chat_message_votes where message_id = $1"
+], "")
+
+# -- who --------------------------------------------------------------------
+
+def bkc_hash_ip(ip: String) -> String do
+  take(sha256(ip), 16)
+end
+
+# RemoteIp's get_remote_ip/1, from the upgrade request.
+def bkc_client_ip(raw: String) -> String do
+  xff = header_value(raw, "X-Forwarded-For")
+  case xff do
+    "" -> "unknown"
+    _ -> blkw_trim(head(split(xff, ",")))
+  end
+end
+
+# Chatter.random_color/0: "hsl(<1..360>, 70%, 40%)". random is unseeded on
+# this server (the same colors after every restart), so the bytes decide.
+def bkc_color() -> String do
+  n = bkc_hex_int(hex_encode(random_bytes(2)))
+  concat("hsl(", to_string(rem(n, 360) + 1), ", 70%, 40%)")
+end
+
+def bkc_hex_int(h: String) -> Int do
+  reduce(range(0, length(h) - 1), 0, fn(acc: Int, i: Int) -> Int do acc * 16 + hex_value(slice(h, i, 1)) end)
+end
+
+# A name or a message as it came over the socket: invalid UTF-8 replaced
+# (Phoenix's socket would have refused the frame; Postgres would refuse
+# the row), then String.trim/1.
+def bkc_clean(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> blkw_trim(utf8_scrub(v))
+    false -> ""
+  end
+end
+
+def bkc_chatter_json(c: Any) -> Any do
+  case c do
+    nil -> nil
+    _ -> %{id: c.id, name: c.name, color: c.color}
+  end
+end
+
+def bkc_me_json(c: Any, returning: String) -> String do
+  json_encode(%{t: "me", chatter: bkc_chatter_json(c), returning: returning})
+end
+
+# -- render_md/2 ---------------------------------------------------------------
+
+# Plug.HTML.html_escape, then ^#{1,2}\s -> "### " on every line, then
+# Markdown, then javascript:/data:/vbscript: hrefs to "#", links to new
+# tabs, and @mentions wrapped. Whose mention is "me" depends on who is
+# reading, so the page adds that (static/blinks/live.blimp).
+def bkc_md(content: String) -> String do
+  esc = escape_html(content)
+  lines = split(bkc_demote(esc), "\n")
+  html = md_chop_newlines(md_render_blocks(elem(md_parse(lines), 0)))
+  bkc_mentions(replace(bkc_safe_hrefs(html), "<a href=", "<a target=\"_blank\" rel=\"noopener nofollow\" href="))
+end
+
+def bkc_ws(c: String) -> Bool do
+  c == " " or c == "\n" or c == "\t" or c == "\r" or c == hex_decode("0b") or c == hex_decode("0c")
+end
+
+# Regex.replace(~r/^\#{1,2}\s/m, s, "### "): at each line's start, "#" or
+# "##" and the whitespace character after it become "### ".
+def bkc_demote(s: String) -> String do
+  bkc_demote_at(s, 0, true, [])
+end
+
+def bkc_demote_at(s: String, i: Int, line_start: Bool, acc: List) -> String do
+  case i >= length(s) do
+    true -> join(reverse(acc), "")
+    false ->
+      c = slice(s, i, 1)
+      two = line_start and c == "#" and slice(s, i + 1, 1) == "#" and bkc_ws(slice(s, i + 2, 1))
+      one = line_start and c == "#" and bkc_ws(slice(s, i + 1, 1))
+      case two do
+        true -> bkc_demote_at(s, i + 3, slice(s, i + 2, 1) == "\n", ["### " | acc])
+        false ->
+          case one do
+            true -> bkc_demote_at(s, i + 2, slice(s, i + 1, 1) == "\n", ["### " | acc])
+            false ->
+              # the rest of this line goes as it is
+              nl = index_of(drop(s, i), "\n")
+              case nl < 0 do
+                true -> join(reverse([drop(s, i) | acc]), "")
+                false -> bkc_demote_at(s, i + nl + 1, true, [slice(s, i, nl + 1) | acc])
+              end
+          end
+      end
+  end
+end
+
+# String.replace(~r/href="(javascript|data|vbscript):[^"]*"/i, ~s(href="#")).
+def bkc_safe_hrefs(html: String) -> String do
+  parts = split(html, "href=\"")
+  join([head(parts) | map(tail(parts), fn(p: String) -> String do
+    low = downcase(p)
+    bad = starts_with(low, "javascript:") or starts_with(low, "data:") or starts_with(low, "vbscript:")
+    close = index_of(p, "\"")
+    case bad and close >= 0 do
+      true -> concat("#", drop(p, close))
+      false -> p
+    end
+  end)], "href=\"")
+end
+
+def bkc_word(c: String) -> Bool do
+  case c == "" do
+    true -> false
+    false ->
+      k = char_code(c)
+      (k >= 48 and k <= 57) or (k >= 65 and k <= 90) or (k >= 97 and k <= 122) or c == "_" or c == "." or c == "-"
+  end
+end
+
+def bkc_run(s: String, i: Int) -> Int do
+  case bkc_word(slice(s, i, 1)) do
+    true -> bkc_run(s, i + 1)
+    false -> i
+  end
+end
+
+# highlight_mentions/2: (^|[\s>])(@[\w.\-]+) -> the mention in a span.
+def bkc_mentions(html: String) -> String do
+  parts = split(html, "@")
+  bkc_mentions_in(tail(parts), head(parts), true, [head(parts)])
+end
+
+def bkc_mentions_in(rest: List, prev: String, first: Bool, acc: List) -> String do
+  case rest do
+    [] -> join(reverse(acc), "")
+    [p | more] ->
+      before_ok = case prev == "" do
+        true -> first
+        false ->
+          c = slice(prev, length(prev) - 1, 1)
+          bkc_ws(c) or c == ">"
+      end
+      n = bkc_run(p, 0)
+      piece = case before_ok and n > 0 do
+        true -> concat("<span class=\"mention\">@", take(p, n), "</span>", drop(p, n))
+        false -> concat("@", p)
+      end
+      bkc_mentions_in(more, p, false, [piece | acc])
+  end
+end
+
+# -- a message, as the page gets it -----------------------------------------------
+
+def bkc_short(content: String) -> String do
+  case grapheme_length(content) > 40 do
+    true -> concat(grapheme_take(content, 40), "…")
+    false -> content
+  end
+end
+
+def bkc_message(id: Int, reply_to: Int, content: String, at: String, name: Any, color: Any) -> Map do
+  n = case name do
+    nil -> "Anonymous"
+    _ -> name
+  end
+  col = case color do
+    nil -> "#666"
+    _ -> color
+  end
+  %{id: id, reply_to_id: reply_to, name: n, color: col, at: at, html: bkc_md(content), short: bkc_short(content)}
+end
+
+def bkc_row_message(r: Map) -> Map do
+  bkc_message(lookup(r, "id"), lookup(r, "reply_to_id"), lookup(r, "content"), lookup(r, "at"), lookup(r, "name"), lookup(r, "color"))
+end
+
+# -- the rooms --------------------------------------------------------------------
+
+def bkc_room_id(room: String) -> Int do
+  case starts_with(room, "blink:") do
+    true -> blk_id(drop(room, 6))
+    false -> 0
+  end
+end
+
+def bkc_q(fake: Any, sql: String, params: List) -> Any do
+  case fake do
+    nil -> DB <- :query(sql, params)
+    _ -> fake <- :query(sql, params)
+  end
+end
+
+def bkc_rows(got: Any) -> List do
+  case got do
+    {:ok, rows} -> rows
+    _ -> []
+  end
+end
+
+def bkc_one(got: Any) -> Any do
+  case bkc_rows(got) do
+    [] -> nil
+    [r | _] -> r
+  end
+end
+
+def bkc_chatter_of(row: Any) -> Any do
+  case row do
+    nil -> nil
+    _ -> %{id: lookup(row, "id"), name: lookup(row, "name"), color: lookup(row, "color")}
+  end
+end
+
+def bkc_json_field(row: Any, k: String, dflt: Any) -> Any do
+  case row do
+    nil -> dflt
+    _ ->
+      got = json_decode(lookup(row, k))
+      case elem(got, 0) do
+        :ok -> elem(got, 1)
+        _ -> dflt
+      end
+  end
+end
+
+# ensure_unique_name/2: the name, or the name with 2, 3, ... after it.
+def bkc_unique(fake: Any, name: String, except: Int, n: Int) -> String do
+  candidate = case n < 2 do
+    true -> name
+    false -> concat(name, to_string(n))
+  end
+  taken = bkc_one(bkc_q(fake, BKC_TAKEN_SQL, [candidate, except]))
+  case taken != nil and lookup(taken, "n") > 0 do
+    true -> bkc_unique(fake, name, except, max(n, 1) + 1)
+    false -> candidate
+  end
+end
+
+# Chatter.changeset/2's validate_length(:screen_name, min: 1, max: 20).
+def bkc_name_ok(name: String) -> Bool do
+  n = grapheme_length(name)
+  n >= 1 and n <= 20
+end
+
+# find_or_create_chatter/2: the chatter, or nil where Phoenix's changeset
+# said no (then nothing changes, as the LiveView ignores {:error, _}).
+def bkc_find_or_create(fake: Any, name: String, ip_hash: String) -> Any do
+  had = bkc_chatter_of(bkc_one(bkc_q(fake, BKC_BY_IP_SQL, [ip_hash])))
+  case had do
+    nil ->
+      unique = bkc_unique(fake, name, 0, 1)
+      case bkc_name_ok(unique) do
+        false -> nil
+        true -> bkc_chatter_of(bkc_one(bkc_q(fake, BKC_CREATE_SQL, [unique, ip_hash, bkc_color()])))
+      end
+    _ ->
+      case had.name == name do
+        true -> had
+        false ->
+          unique = bkc_unique(fake, name, had.id, 1)
+          case bkc_name_ok(unique) do
+            false -> nil
+            true -> bkc_chatter_of(bkc_one(bkc_q(fake, BKC_RENAME_SQL, [unique, had.id])))
+          end
+      end
+  end
+end
+
+def bkc_history_json(fake: Any, room: String, chatter: Any) -> String do
+  rows = bkc_json_field(bkc_one(bkc_q(fake, BKC_HISTORY_SQL, [room])), "body", [])
+  me = case chatter do
+    nil -> 0
+    _ -> chatter.id
+  end
+  v = bkc_one(bkc_q(fake, BKC_VOTES_SQL, [room, me]))
+  mine = case me do
+    0 -> %{}
+    _ -> bkc_json_field(v, "mine", %{})
+  end
+  json_encode(%{t: "chat", room: room, messages: map(rows, bkc_row_message), votes: bkc_json_field(v, "counts", %{}), mine: mine})
+end
+
+def bkc_mine_json(fake: Any, room: String, chatter: Any) -> String do
+  v = bkc_one(bkc_q(fake, BKC_VOTES_SQL, [room, chatter.id]))
+  json_encode(%{t: "mine", room: room, mine: bkc_json_field(v, "mine", %{})})
+end
+
+def bkc_sock(socks: Map, fd: Int) -> Any do
+  lookup(socks, to_string(fd))
+end
+
+def bkc_presence_as(hub: Any, fd: Int, c: Any) -> Any do
+  case c do
+    nil -> hub <- :patch(BKL_PRESENCE, fd, %{name: "lurker", color: "#888"})
+    _ -> hub <- :patch(BKL_PRESENCE, fd, %{name: c.name, color: c.color})
+  end
+end
+
+actor BlinksChat do
+  # fd -> %{ip_hash, chatter, returning, room}
+  state socks: Map :: %{}
+  # tests: a stand-in for DB
+  state fake: Any :: nil
+  state said: Int :: 0
+
+  on :fake(f: Any) do
+    become fake: f
+    reply :ok
+  end
+
+  # A page's socket opened. BlinksLive.mount/3: a visitor this IP has
+  # signed on before is signed on already.
+  on :hello(hub: Any, fd: Int, ip: String) do
+    h = bkc_hash_ip(ip)
+    c = bkc_chatter_of(bkc_one(bkc_q(fake, BKC_BY_IP_SQL, [h])))
+    returning = case c do
+      nil -> ""
+      _ -> c.name
+    end
+    hub <- :send(fd, bkc_me_json(c, returning))
+    bkc_presence_as(hub, fd, c)
+    become socks: put(socks, to_string(fd), %{ip_hash: h, chatter: c, returning: returning, room: ""})
+    reply c
+  end
+
+  on :bye(fd: Int) do
+    become socks: bkc_drop(socks, to_string(fd))
+    reply :ok
+  end
+
+  # sync_chat/2: in a room (or none), with its last hundred messages.
+  on :room(hub: Any, fd: Int, room: String) do
+    s = bkc_sock(socks, fd)
+    case s do
+      nil -> reply :ignored
+      _ ->
+        case s.room != "" and s.room != room do
+          true -> hub <- :leave(s.room, fd)
+          false -> :ok
+        end
+        case room do
+          "" -> :ok
+          _ ->
+            hub <- :open(room, %{diffs: false})
+            hub <- :join(room, fd, "chat", %{})
+            hub <- :send(fd, bkc_history_json(fake, room, s.chatter))
+        end
+        become socks: put(socks, to_string(fd), put(s, :room, room))
+        reply :ok
+    end
+  end
+
+  on :sign_on(hub: Any, fd: Int, raw: Any) do
+    s = bkc_sock(socks, fd)
+    name = bkc_clean(raw)
+    case s == nil or name == "" do
+      true -> reply :ignored
+      false ->
+        c = bkc_find_or_create(fake, name, s.ip_hash)
+        case c do
+          nil -> reply :refused
+          _ ->
+            hub <- :send(fd, bkc_me_json(c, s.returning))
+            bkc_presence_as(hub, fd, c)
+            # my_votes for what is on screen, as sign-on reloads them; the
+            # messages stay as they are (a renamed chatter's old messages
+            # keep the old name until the room is loaded again, as there)
+            case s.room do
+              "" -> :ok
+              _ -> hub <- :send(fd, bkc_mine_json(fake, s.room, c))
+            end
+            become socks: put(socks, to_string(fd), put(s, :chatter, c))
+            reply c
+        end
+    end
+  end
+
+  on :sign_off(hub: Any, fd: Int) do
+    s = bkc_sock(socks, fd)
+    case s do
+      nil -> reply :ignored
+      _ ->
+        hub <- :send(fd, bkc_me_json(nil, s.returning))
+        bkc_presence_as(hub, fd, nil)
+        become socks: put(socks, to_string(fd), put(s, :chatter, nil))
+        reply :ok
+    end
+  end
+
+  # send-chat-message: only someone signed on, only in the room they are in.
+  on :say(hub: Any, fd: Int, raw: Any, reply_to: Int) do
+    s = bkc_sock(socks, fd)
+    text = bkc_clean(raw)
+    case s == nil or text == "" do
+      true -> reply :ignored
+      false ->
+        case s.chatter == nil or s.room == "" or grapheme_length(text) > 500 do
+          true -> reply :refused
+          false ->
+            top = case reply_to > 0 do
+              true ->
+                r = bkc_one(bkc_q(fake, BKC_REPLY_TO_SQL, [reply_to, s.room]))
+                case r do
+                  nil -> 0
+                  _ -> lookup(r, "top")
+                end
+              false -> 0
+            end
+            row = bkc_one(bkc_q(fake, BKC_SAY_SQL, [text, s.room, s.chatter.id, top]))
+            case row do
+              nil -> reply :refused
+              _ ->
+                m = bkc_message(lookup(row, "id"), lookup(row, "reply_to_id"), text, lookup(row, "at"), s.chatter.name, s.chatter.color)
+                hub <- :broadcast(s.room, json_encode(%{t: "msg", room: s.room, message: m}))
+                become said: said + 1
+                reply m
+            end
+        end
+    end
+  end
+
+  on :vote(hub: Any, fd: Int, id: Int, val: Int) do
+    s = bkc_sock(socks, fd)
+    v = case val == 1 do
+      true -> 1
+      false -> -1
+    end
+    case s == nil or id <= 0 do
+      true -> reply :ignored
+      false ->
+        where = bkc_one(bkc_q(fake, BKC_ROOM_OF_SQL, [id]))
+        case s.chatter == nil or where == nil or s.room == "" do
+          true -> reply :refused
+          false ->
+            case lookup(where, "room") != s.room do
+              true -> reply :refused
+              false ->
+                bkc_q(fake, BKC_VOTE_SQL, [id, s.chatter.id, v])
+                n = bkc_one(bkc_q(fake, BKC_COUNTS_SQL, [id, s.chatter.id]))
+                up = bkc_int(n, "up")
+                down = bkc_int(n, "down")
+                hub <- :broadcast(s.room, json_encode(%{t: "votes", room: s.room, id: id, up: up, down: down}))
+                hub <- :send(fd, json_encode(%{t: "myvote", room: s.room, id: id, val: bkc_int(n, "mine")}))
+                reply {up, down}
+            end
+        end
+    end
+  end
+
+  on :stats do
+    reply %{sockets: length(keys(socks)), said: said}
+  end
+end
+
+def bkc_int(row: Any, k: String) -> Int do
+  case row do
+    nil -> 0
+    _ ->
+      v = lookup(row, k)
+      case type_of(v) do
+        :integer -> v
+        :string -> to_int(v)
+        _ -> 0
+      end
+  end
+end
+
+def bkc_drop(m: Map, gone: String) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+BKC = spawn BlinksChat
+
+# What a page says that is not 70's {"t":"room"}.
+def bkc_recv(hub: Any, chat: Any, fd: Int, m: Map) -> Any do
+  case lookup(m, "t") do
+    "sign_on" -> chat <- :sign_on(hub, fd, lookup(m, "name"))
+    "sign_off" -> chat <- :sign_off(hub, fd)
+    "say" -> chat <- :say(hub, fd, lookup(m, "text"), bkc_int_of(lookup(m, "reply_to")))
+    "vote" -> chat <- :vote(hub, fd, bkc_int_of(lookup(m, "id")), bkc_int_of(lookup(m, "val")))
+    _ -> :ignored
+  end
+end
+
+def bkc_int_of(v: Any) -> Int do
+  case type_of(v) do
+    :integer -> v
+    _ -> 0
+  end
+end

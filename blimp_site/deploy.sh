@@ -62,6 +62,10 @@ stage() {
   cp _build/role_call.blimp "$DIST/blimp_site/_build/role_call.blimp"
   cp _build/blinks.blimp "$DIST/blimp_site/_build/blinks.blimp"
   cp _build/blinks-reader.blimp "$DIST/blimp_site/_build/blinks-reader.blimp"
+  cp _build/blinks-surf.blimp "$DIST/blimp_site/_build/blinks-surf.blimp"
+  cp _build/blinks-walk.blimp "$DIST/blimp_site/_build/blinks-walk.blimp"
+  cp _build/blinks-tv.blimp "$DIST/blimp_site/_build/blinks-tv.blimp"
+  cp _build/blinks-review.blimp "$DIST/blimp_site/_build/blinks-review.blimp"
   cp _build/stumble.blimp "$DIST/blimp_site/_build/stumble.blimp"
   cp _build/cameras.blimp "$DIST/blimp_site/_build/cameras.blimp"
   cp _build/admin-museum.blimp _build/admin-finder.blimp "$DIST/blimp_site/_build/"
@@ -72,6 +76,8 @@ stage() {
   cp -R ../priv/static/posts ../priv/static/images "$DIST/priv/static/"
   mkdir -p "$DIST/priv/static/static"
   cp -R ../priv/static/static/temper-snake "$DIST/priv/static/static/"
+  # /blinks-sw.js is read from here at boot (src/99_blinkspush.blimp)
+  cp -R ../priv/static/static/blinks-pwa "$DIST/priv/static/static/"
   cp ../priv/static/favicon.ico ../priv/static/robots.txt "$DIST/priv/static/"
   du -sh "$DIST"
 }

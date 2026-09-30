@@ -1,0 +1,528 @@
+# What makes /blinks-next the live, editable page, for paper.blimp: the
+# outbox the program says its writes into, and the parts of the page that
+# only exist once it can write (the tour, admin, the chat window,
+# the push bell and its dialog).
+#
+# The outbox. A Blimp program in the browser can GET (fetch()) and keep
+# its URL (location_query()), and that is all; BlinksLive also posted
+# admin writes, kept things in localStorage and a cookie, measured the
+# page, asked confirm() and held a socket. So the program draws what it
+# wants done as hidden <i data-op=...> nodes in #bkl-outbox, one per
+# request, numbered, and static/blinks/live.js does each once and answers
+# `:done(n, status, body)`. Deciding stays here; live.js is transport.
+#
+#   op        data-a        data-b      data-c   answers
+#   http      method        url         body     status, body (data-key:
+#                                                X-Blinks-Token; data-csrf:
+#                                                x-csrf-token)
+#   store     localStorage key   value ("" removes)    0
+#   cookie    document.cookie line                    0
+#   ws        a frame for /live/blinks                0
+#   rect      a data-joyride target   200 + {x,y,w,h,ww,wh} | 404
+#   confirm   the question            1 | 0
+#   push      subscribe | unsubscribe | test   the push state, as JSON
+#
+# `kind` says what the answer means to the program; it is not sent.
+
+def bkv_op(n: Int, op: String, a: String, b: String, c: String) -> Map do
+  %{"data-op": op, "data-n": to_string(n), "data-a": a, "data-b": b, "data-c": c}
+end
+
+def bkv_entry(n: Int, kind: String, attrs: Map) -> Map do
+  %{n: n, kind: kind, attrs: attrs, arg: ""}
+end
+
+# `arg` is what the answer is about (the key being tried, the id to delete).
+def bkv_entry_arg(n: Int, kind: String, attrs: Map, arg: String) -> Map do
+  %{n: n, kind: kind, attrs: attrs, arg: arg}
+end
+
+def bkv_outbox_view(outbox: List) -> Any do
+  el("div", %{id: "bkl-outbox", hidden: true}, map(outbox, fn(e: Map) -> Any do el("i", e.attrs) end))
+end
+
+def bkv_without(outbox: List, n: Int) -> List do
+  filter(outbox, fn(e: Map) -> Bool do e.n != n end)
+end
+
+def bkv_find(outbox: List, n: Int) -> Any do
+  got = filter(outbox, fn(e: Map) -> Bool do e.n == n end)
+  case got do
+    [] -> nil
+    [e | _] -> e
+  end
+end
+
+def bkv_ok(status: Int) -> Bool do
+  status >= 200 and status < 300
+end
+
+def bkv_json(body: String) -> Any do
+  got = json_decode(body)
+  case elem(got, 0) do
+    :ok -> elem(got, 1)
+    _ -> nil
+  end
+end
+
+def bkv_get(m: Any, k: String, dflt: Any) -> Any do
+  case type_of(m) do
+    :map ->
+      v = lookup(m, k)
+      case v == nil do
+        true -> dflt
+        false -> v
+      end
+    _ -> dflt
+  end
+end
+
+def bkv_int_list(v: Any) -> List do
+  case type_of(v) do
+    :list -> filter(v, fn(x: Any) -> Bool do type_of(x) == :integer end)
+    _ -> []
+  end
+end
+
+def bkv_has(list: List, x: Any) -> Bool do
+  filter(list, fn(y: Any) -> Bool do y == x end) != []
+end
+
+def bkv_add(list: List, x: Any) -> List do
+  case bkv_has(list, x) do
+    true -> list
+    false -> bk_append(list, [x])
+  end
+end
+
+# -- presence ---------------------------------------------------------------
+
+# The presence topic's members, by ref, as {room, name, color}.
+def bkv_presence(members: Map, frame: Map) -> Map do
+  t = bkv_get(frame, "t", "")
+  case t do
+    "presence_state" -> bkv_put_members(%{}, bkv_get(frame, "members", []))
+    "presence_diff" ->
+      left = reduce(bkv_get(frame, "leaves", []), members, fn(acc: Map, m: Any) -> Map do
+        bkv_drop_key(acc, bkv_get(m, "ref", ""))
+      end)
+      bkv_put_members(left, bkv_get(frame, "joins", []))
+    _ -> members
+  end
+end
+
+def bkv_put_members(acc: Map, ms: List) -> Map do
+  reduce(ms, acc, fn(a: Map, m: Any) -> Map do
+    meta = bkv_get(m, "meta", %{})
+    put(a, bkv_get(m, "ref", ""), %{room: bkv_get(meta, "room", ""), name: bkv_get(meta, "name", "lurker"), color: bkv_get(meta, "color", "#888")})
+  end)
+end
+
+def bkv_drop_key(m: Map, gone: String) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+def bkv_rooms(members: Map) -> List do
+  map(values(members), fn(m: Map) -> String do m.room end)
+end
+
+# BlinksLive.list_buddies/1: who is in the room, by name.
+def bkv_buddies(members: Map, room: String) -> List do
+  here = filter(values(members), fn(m: Map) -> Bool do m.room == room end)
+  sort_by_keys(here, map(here, fn(m: Map) -> String do m.name end))
+end
+
+# -- the tour -----------------------------------------------------------------
+
+def bkv_tour_view(running: Bool, steps: List, i: Int, rect: Any) -> List do
+  case running and rect != nil and i < length(steps) do
+    false -> [el("div", %{id: "blinks-tour"})]
+    true ->
+      step = bk_nth(steps, i)
+      title = bk_nth(step, 1)
+      content = bk_nth(step, 2)
+      last_step = i == length(steps) - 1
+      back = case i > 0 do
+        true -> [el("button", %{click: :tour_prev, class: "bt-btn "}, "Back")]
+        false -> []
+      end
+      next_label = case last_step do
+        true -> "Done"
+        false -> "Next"
+      end
+      [el("div", %{id: "blinks-tour"},
+        el("div", %{class: "fixed inset-0 z-[9998] cursor-pointer bt-overlay", style: blkl_tour_clip(rect.x, rect.y, rect.w, rect.h), click: :tour_close}),
+        el("div", %{class: "fixed z-[9999] pointer-events-none bt-spot", style: blkl_tour_spot(rect.x, rect.y, rect.w, rect.h)}),
+        el("div", %{class: "fixed z-[10000] max-w-[320px] bt-tip", style: blkl_tour_tip(rect.x, rect.y, rect.w, rect.h, rect.ww, rect.wh)},
+          el("div", %{class: "p-4"},
+            el("div", %{class: "mb-2 bt-title"}, title),
+            el("div", %{class: "bt-content"}, content),
+            el("div", %{class: "flex justify-between items-center bt-footer"},
+              el("span", %{class: "bt-progress"}, blkl_tour_progress(i, length(steps))),
+              el("div", %{class: "flex gap-2"}, back, el("button", %{click: :tour_next, class: "bt-btn bt-btn-primary"}, next_label))))))]
+  end
+end
+
+def bkv_rect(body: String) -> Any do
+  m = bkv_json(body)
+  case type_of(m) do
+    :map -> %{x: bkv_get(m, "x", 0), y: bkv_get(m, "y", 0), w: bkv_get(m, "w", 0), h: bkv_get(m, "h", 0), ww: bkv_get(m, "ww", 1200), wh: bkv_get(m, "wh", 800)}
+    _ -> nil
+  end
+end
+
+# -- the admin box ------------------------------------------------------------
+
+def bkv_admin_box(admin: Bool, error: String) -> Any do
+  inner = case admin do
+    true -> [
+      el("span", %{style: "color:#4a8000; font-weight:bold;"}, "✓ unlocked"),
+      " — delete links from their rows. ",
+      el("a", %{click: :lock_admin, style: "color:#369; cursor:pointer;"}, "lock")]
+    false ->
+      err = case error do
+        "" -> []
+        _ -> [el("span", %{style: "color:#c00; font-size:10px;"}, error)]
+      end
+      [el("form", %{submit: :unlock_admin},
+        el("input", %{type: "password", name: "key", placeholder: "paste API key…", style: "width:100%; border:1px solid #5f99cf; font-size:11px; padding:3px; margin-bottom:4px;"}),
+        el("button", %{class: "aim-send", type: "submit"}, "unlock"), " ",
+        err)]
+  end
+  el("div", %{class: "sidebox"}, el("h2", %{}, "admin"), el("div", %{class: "body"}, inner))
+end
+
+# -- the chat window ------------------------------------------------------------
+
+# BlinksLive's AIM window over the /live/blinks socket (the server's half
+# is src/99_blinkschat.blimp). `cw` is what the socket said and what is
+# typed: %{me (%{id, name, color} | nil), returning, msgs, votes
+# ({"id": [up, down]}), mine ({"id": 1 | -1}), replying (an id, 0: none),
+# input, suggest}.
+
+# top_messages/1: not a reply, or a reply whose parent is not loaded.
+def bkx_top(msgs: List) -> List do
+  ids = map(msgs, fn(m: Map) -> Int do m.id end)
+  filter(msgs, fn(m: Map) -> Bool do m.reply_to_id == 0 or not(bkv_has(ids, m.reply_to_id)) end)
+end
+
+def bkx_replies(msgs: List, parent: Int) -> List do
+  filter(msgs, fn(m: Map) -> Bool do m.reply_to_id == parent end)
+end
+
+def bkx_find(msgs: List, id: Int) -> Any do
+  got = filter(msgs, fn(m: Map) -> Bool do m.id == id end)
+  case got do
+    [] -> nil
+    [m | _] -> m
+  end
+end
+
+# The server wraps every @mention; whose is "me" depends on who reads.
+def bkx_html(html: String, me: Any) -> String do
+  case me do
+    nil -> html
+    _ ->
+      mine = concat("<span class=\"mention\">@", me.name, "</span>")
+      replace(html, mine, concat("<span class=\"mention me\">@", me.name, "</span>"))
+  end
+end
+
+def bkx_counts(votes: Map, id: Int) -> List do
+  v = lookup(votes, to_string(id))
+  case type_of(v) == :list and length(v) == 2 do
+    true -> v
+    false -> [0, 0]
+  end
+end
+
+def bkx_mine(mine: Map, id: Int) -> Int do
+  v = lookup(mine, to_string(id))
+  case type_of(v) do
+    :integer -> v
+    _ -> 0
+  end
+end
+
+# class={[my_vote == v && "on", count > 0 && "haz"]}
+def bkx_vote_class(lit: Bool, haz: Bool) -> String do
+  a = case lit do
+    true -> ["on"]
+    false -> []
+  end
+  b = case haz do
+    true -> ["haz"]
+    false -> []
+  end
+  join(bk_append(a, b), " ")
+end
+
+def bkx_message(m: Map, cls: String, cw: Map) -> Any do
+  n = bkx_counts(cw.votes, m.id)
+  up = head(n)
+  down = head(tail(n))
+  my = bkx_mine(cw.mine, m.id)
+  el("div", %{class: cls},
+    el("span", %{class: "sn", style: concat("color: ", m.color, "; cursor: pointer;"), click: :mention, with: m.name}, concat(m.name, ":")), " ",
+    el("span", %{class: "ts"}, m.at), " ",
+    el("a", %{class: "reply-link", click: :reply, with: m.id}, "reply"),
+    el("div", %{class: "md", inner_html: bkx_html(m.html, cw.me)}),
+    el("span", %{class: "votes"},
+      el("a", %{class: bkx_vote_class(my == 1, up > 0), click: :vote, with: concat(to_string(m.id), " 1")}, concat("👍", to_string(up))), " ",
+      el("a", %{class: bkx_vote_class(my == -1, down > 0), click: :vote, with: concat(to_string(m.id), " -1")}, concat("👎", to_string(down)))))
+end
+
+def bkx_thread(m: Map, cw: Map) -> Any do
+  el("div", %{class: "aim-msg"},
+    bkx_message(m, "msg-main", cw),
+    map(bkx_replies(cw.msgs, m.id), fn(r: Map) -> Any do bkx_message(r, "aim-reply", cw) end))
+end
+
+def bkx_word(c: String) -> Bool do
+  case c == "" do
+    true -> false
+    false ->
+      k = char_code(c)
+      (k >= 48 and k <= 57) or (k >= 65 and k <= 90) or (k >= 97 and k <= 122) or c == "_" or c == "." or c == "-"
+  end
+end
+
+# Where ~r/@([\w.\-]*)$/ matches: the index of that @, or -1.
+def bkx_at(text: String) -> Int do
+  bkx_at_from(text, length(text) - 1)
+end
+
+def bkx_at_from(text: String, i: Int) -> Int do
+  case i < 0 do
+    true -> -1
+    false ->
+      c = slice(text, i, 1)
+      case c == "@" do
+        true -> i
+        false ->
+          case bkx_word(c) do
+            true -> bkx_at_from(text, i - 1)
+            false -> -1
+          end
+      end
+  end
+end
+
+# mention_candidates/1: who is here now (not lurkers), then who has
+# posted, once each, never "Anonymous".
+def bkx_candidates(buddies: List, msgs: List) -> List do
+  names = bk_append(filter(map(buddies, fn(b: Map) -> String do b.name end), fn(n: String) -> Bool do n != "lurker" end),
+    map(msgs, fn(m: Map) -> String do m.name end))
+  filter(reduce(names, [], fn(acc: List, n: String) -> List do bkv_add(acc, n) end), fn(n: String) -> Bool do n != "Anonymous" end)
+end
+
+# chat-typing: up to five names starting with what follows a trailing @.
+def bkx_suggest(text: String, buddies: List, msgs: List) -> List do
+  at = bkx_at(text)
+  case at < 0 do
+    true -> []
+    false ->
+      down = downcase(drop(text, at + 1))
+      bkx_take(filter(bkx_candidates(buddies, msgs), fn(n: String) -> Bool do starts_with(downcase(n), down) end), 5)
+  end
+end
+
+def bkx_take(l: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case l do
+        [] -> []
+        [x | rest] -> [x | bkx_take(rest, n - 1)]
+      end
+  end
+end
+
+# complete-mention: the trailing @prefix becomes "@name ".
+def bkx_complete(input: String, name: String) -> String do
+  at = bkx_at(input)
+  case at < 0 do
+    true -> input
+    false -> concat(take(input, at), "@", name, " ")
+  end
+end
+
+# mention (a name clicked): "@name " after what is typed.
+def bkx_mention(input: String, name: String) -> String do
+  t = bkx_trim_end(input)
+  case t do
+    "" -> concat("@", name, " ")
+    _ -> concat(t, " @", name, " ")
+  end
+end
+
+def bkx_trim_end(s: String) -> String do
+  case length(s) > 0 and bkx_space(slice(s, length(s) - 1, 1)) do
+    true -> bkx_trim_end(take(s, length(s) - 1))
+    false -> s
+  end
+end
+
+def bkx_space(c: String) -> Bool do
+  c == " " or c == "\n" or c == "\t" or c == "\r"
+end
+
+def bkx_signon(returning: String) -> Any do
+  title = case returning do
+    "" -> "Sign On to chat"
+    _ -> "Welcome back — confirm your name"
+  end
+  el("div", %{class: "aim-signon"},
+    el("div", %{class: "man"}, "🏃"),
+    el("b", %{}, title),
+    el("form", %{submit: :sign_on},
+      el("input", %{type: "text", name: "screen_name", value: returning, placeholder: "Screen Name", maxlength: "30", autocomplete: "off"}),
+      el("br", %{}),
+      el("button", %{type: "submit", class: "aim-send"}, "Sign On")),
+    el("div", %{style: "color:#888; font-size:10px;"}, "it'll stick around for next time"))
+end
+
+def bkx_room(cw: Map, buddies: List) -> List do
+  me = cw.me
+  replying = case cw.replying > 0 do
+    false -> []
+    true ->
+      t = bkx_find(cw.msgs, cw.replying)
+      case t do
+        nil -> []
+        _ -> [el("div", %{class: "replying-bar"}, "↪ replying to ", el("b", %{}, t.name), " “", t.short, "” ",
+          el("a", %{click: :cancel_reply, style: "cursor:pointer; color:#b33000; font-weight:bold;"}, "✕"))]
+      end
+  end
+  suggest = case cw.suggest do
+    [] -> []
+    names -> [el("div", %{class: "mention-suggest"}, "@… ",
+      map(names, fn(n: String) -> Any do el("button", %{type: "button", class: "tag", click: :complete_mention, with: n}, n) end))]
+  end
+  bk_append([
+    el("div", %{class: "aim-messages", id: "blink-chat-messages"},
+      el("div", %{class: "aim-msg"}, el("span", %{class: "sn", style: "color:#000080;"}, "ChatBot"), el("div", %{}, "This is both a comments section and a live discussion, join it")),
+      map(bkx_top(cw.msgs), fn(m: Map) -> Any do bkx_thread(m, cw) end))],
+    bk_append(replying, bk_append(suggest, [
+      el("form", %{class: "aim-compose", submit: :send_chat},
+        el("textarea", %{name: "message", class: "aim-box", placeholder: concat("chatting as ", me.name, " — say something real"), maxlength: "500", value: cw.input, input: :chat_typing}),
+        el("div", %{class: "aim-compose-row"},
+          el("button", %{type: "button", class: "aim-send", click: :toggle_buddies}, concat("Who's Here (", to_string(length(buddies)), ")")),
+          el("span", %{style: "font-size:9px; color:#666;"}, concat("you're ", me.name, " "), el("a", %{click: :sign_off, style: "color:#369; cursor:pointer;"}, "(not you?)")),
+          el("button", %{type: "submit", class: "aim-send"}, "Send")))])))
+end
+
+def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, cw: Map) -> List do
+  case id > 0 do
+    false -> []
+    true ->
+      shown = case b do
+        nil -> concat("link ", to_string(id))
+        _ ->
+          case b.title do
+            nil -> blk_domain(b.url)
+            t -> t
+          end
+      end
+      url = case b do
+        nil -> ""
+        _ -> b.url
+      end
+      cls = case cw.me do
+        nil -> "win95"
+        _ -> "win95 sized"
+      end
+      body = case cw.me do
+        nil -> [bkx_signon(cw.returning)]
+        _ -> bkx_room(cw, buddies)
+      end
+      window = el("div", %{class: cls, id: "blink-chat-window", "data-joyride": "chat-window"},
+        el("div", %{class: "win95-titlebar title-bar"},
+          el("span", %{}, "💬"),
+          el("span", %{class: "t"}, concat("AOL Instant Messenger — ", shown)),
+          el("button", %{class: "win95-btn", click: :close_chat, title: "Close"}, "✕")),
+        el("div", %{class: "win95-menubar"},
+          el("span", %{}, "File"), el("span", %{}, "Edit"), el("span", %{}, "Insert"), " ",
+          el("span", %{style: "cursor:pointer; text-decoration:underline;", click: :toggle_buddies}, concat("People (", to_string(length(buddies)), ")"))),
+        el("div", %{class: "aim-link"}, "re: ", el("a", %{href: url, target: "_blank", rel: "noopener", style: "color:#369;"}, url)),
+        body)
+      buddy_list = case show_buddies do
+        false -> []
+        true -> [el("div", %{class: "win95 buddies", id: "buddies-window"},
+          el("div", %{class: "win95-titlebar title-bar"},
+            el("span", %{}, "👥"),
+            el("span", %{class: "t"}, concat("Buddy List — ", shown)),
+            el("button", %{class: "win95-btn", click: :toggle_buddies, title: "Close"}, "✕")),
+          el("div", %{class: "buddy-panel"},
+            el("b", %{style: "font-size:10px; color:#000080;"}, concat("WHO'S HERE (", to_string(length(buddies)), ")")),
+            map(buddies, fn(m: Map) -> Any do
+              el("div", %{}, el("span", %{class: "buddy-dot"}), el("span", %{style: concat("color: ", m.color, "; cursor: pointer;"), click: :mention, with: m.name, title: "mention them"}, m.name))
+            end),
+            el("div", %{style: "color:#888; font-size:9px; margin-top:6px;"}, "click a name to @ them in the chat")))]
+      end
+      [window | buddy_list]
+  end
+end
+
+# -- the push bell ------------------------------------------------------------
+
+def bkv_push_state(body: String) -> Map do
+  m = bkv_json(body)
+  %{supported: bkv_get(m, "supported", false) == true, ios: bkv_get(m, "ios", false) == true,
+    mobile: bkv_get(m, "mobile", false) == true, standalone: bkv_get(m, "standalone", false) == true,
+    subscribed: bkv_get(m, "subscribed", false) == true, permission: bkv_get(m, "permission", "unknown"),
+    error: bkv_get(m, "error", ""), tested: bkv_get(m, "tested", false) == true, seen: bkv_get(m, "promptSeen", false) == true}
+end
+
+BKV_NO_PUSH = %{supported: false, ios: false, mobile: false, standalone: false, subscribed: false, permission: "unknown", error: "", tested: false, seen: false}
+
+def bkv_bell(vapid: String, push: Map, dialog: Bool) -> Any do
+  face = blkl_bell(vapid != "", push.ios, push.standalone, push.subscribed, push.supported, push.permission)
+  shown = case face do
+    "ios" -> [el("a", %{class: "tour-link", click: :push_dialog_open, title: "iOS only allows notifications for home-screen apps"}, "🔔 get alerts")]
+    "on" ->
+      tested = case push.tested do
+        true -> "sent ✓"
+        false -> "test"
+      end
+      [el("span", %{class: "tour-link push-on"}, "🔔 on"),
+        el("a", %{class: "tour-link", click: :push_test, title: "send yourself a test notification"}, tested),
+        el("a", %{class: "tour-link", click: :push_unsubscribe}, "off")]
+    "blocked" -> [el("span", %{class: "tour-link", style: "color:#999", title: "notifications are blocked for this site in your browser settings"}, "🔕 blocked")]
+    "notify" -> [el("a", %{class: "tour-link", click: :push_dialog_open, title: "get a nudge when a new link lands"}, "🔔 notify me")]
+    _ -> []
+  end
+  err = case push.error do
+    "" -> []
+    e -> [el("span", %{class: "push-err", title: e}, "!")]
+  end
+  modal = case dialog do
+    false -> []
+    true ->
+      body = case push.ios and not(push.standalone) do
+        true -> [
+          el("p", %{class: "push-pin"}, el("b", %{}, "one step first:"), " iPhone only lets home-screen apps send notifications. Tap ", el("b", %{}, "Share"), " ", el("span", %{class: "ico"}, "⬆️"), " → ", el("b", %{}, "Add to Home Screen"), ", then open Blinks from your home screen and you'll get this ask once more."),
+          el("div", %{class: "push-btns"}, el("button", %{class: "aim-send", click: :push_dialog_close}, "got it"))]
+        false ->
+          pin = case push.standalone do
+            true -> []
+            false -> [el("p", %{class: "push-pin"}, el("b", %{}, "tip:"), " pin it — ", el("b", %{}, "Share"), " ", el("span", %{class: "ico"}, "⬆️"), " or menu ", el("b", %{}, "⋮"), " → ", el("b", %{}, "Add to Home Screen"), " — and Blinks opens like an app.")]
+          end
+          bk_append(pin, [el("div", %{class: "push-btns"},
+            el("button", %{class: "aim-send", click: :push_allow}, "allow"),
+            el("button", %{class: "aim-send push-later", click: :push_dialog_close}, "not now"))])
+      end
+      [el("div", %{class: "push-modal-bg", id: "push-dialog"},
+        el("div", %{class: "push-modal", role: "dialog", "aria-modal": "true"},
+          el("div", %{class: "push-modal-title"}, el("span", %{}, "🔔 bobbby's links"), el("a", %{click: :push_dialog_close, title: "close"}, "✕")),
+          el("div", %{class: "push-modal-body"},
+            el("p", %{class: "push-copy"}, "We publish links live. Want to check them out? Allow in the next dialogue. WE NEVER SEND ADS OR PROMOTED OR SPONSORED CONTENT, only organic links"),
+            body)))]
+  end
+  el("span", %{id: "blinks-push", class: "pushwrap"}, shown, err, modal)
+end
