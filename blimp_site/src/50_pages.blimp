@@ -13,6 +13,26 @@ def meta_tag(attr: String, name: String, content: String) -> String do
   concat("<meta ", attr, "=\"", name, "\" content=\"", escape_html(content), "\">\n")
 end
 
+# A stylesheet under /assets/ is linked with ?v= and the start of its
+# content's sha256, so a changed file is a new URL. Cloudflare caches
+# /assets/* for four hours (max-age=14400) and kept serving the old
+# desktop.css after the homepage redesign shipped: the new markup arrived
+# with the old styles. The server routes by path, so the query changes
+# nothing but the cache key. A link it cannot read (Phoenix's digested
+# app-*.css, served from priv) is left as it is; its name is already its
+# version.
+def asset_href(href: String) -> String do
+  case starts_with(href, "/assets/") do
+    false -> href
+    true ->
+      body = read_file(concat("assets/", drop(href, 8)))
+      case body do
+        nil -> href
+        _ -> concat(href, "?v=", take(sha256(body), 10))
+      end
+  end
+end
+
 def page_layout(title: String, description: String, og_type: String, stylesheets: List, body: String) -> String do
   page_layout_html(title, description, og_type, stylesheets, body, "")
 end
@@ -24,7 +44,7 @@ def page_layout_html(title: String, description: String, og_type: String, styles
     _ -> concat("<html lang=\"en\" class=\"", escape_html(html_class), "\">")
   end
   links = join(map(stylesheets, fn(href: String) -> String do
-    concat("<link rel=\"stylesheet\" href=\"", href, "\">\n")
+    concat("<link rel=\"stylesheet\" href=\"", asset_href(href), "\">\n")
   end), "")
   join([
     "<!DOCTYPE html>\n", open_html, "\n<head>\n",
