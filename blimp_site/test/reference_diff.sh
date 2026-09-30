@@ -31,7 +31,7 @@ done
 # _build/temper.blimp, which build.sh makes) and the renderer: the other src
 # files are other work in progress and are not what this compares.
 ./build.sh > /dev/null
-R="src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp test/render_posts.blimp"
+R="src/05_actors.blimp src/10_markdown.blimp test/render_posts.blimp"
 { perl temper/prune.pl _build/temper.blimp $R; cat $R; } > _build/render_posts.blimp
 rm -f _build/out/*.html
 /usr/bin/time -l "$BLIMP" _build/render_posts.blimp 2> _build/render_time.txt || { cat _build/render_time.txt; exit 2; }

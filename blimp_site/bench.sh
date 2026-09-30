@@ -55,9 +55,9 @@ for s in building-this-blog on-making-a-link-blog a-me-museum a-hilarious-shared
 done
 mkdir -p _build/out
 if [ -f src/00_text.blimp ]; then
-  cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp test/render_posts.blimp > _build/bench_render.blimp
+  cat src/00_text.blimp src/05_actors.blimp src/10_markdown.blimp test/render_posts.blimp > _build/bench_render.blimp
 else
-  R="src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp test/render_posts.blimp"
+  R="src/05_actors.blimp src/10_markdown.blimp test/render_posts.blimp"
   { perl temper/prune.pl _build/temper.blimp $R; cat $R; } > _build/bench_render.blimp
 fi
 

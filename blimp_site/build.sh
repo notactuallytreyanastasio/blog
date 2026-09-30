@@ -59,9 +59,9 @@ if [ -f main.blimp ]; then
 fi
 # The program a post page runs in the browser: the server's own renderer,
 # file for file, and a Post actor to drive it.
-with_temper _build/post-renderer.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp static/post/tail.blimp
+with_temper _build/post-renderer.blimp src/05_actors.blimp src/10_markdown.blimp static/post/tail.blimp
 # The Markdown editor: the same renderer, with the editor after it.
-with_temper _build/editor.blimp src/05_actors.blimp src/10_markdown.blimp src/20_highlight.blimp static/editor/editor.blimp
+with_temper _build/editor.blimp src/05_actors.blimp src/10_markdown.blimp static/editor/editor.blimp
 # phangraphs: the site's own list logic (src/97_phish.blimp, checked against
 # the Elixir), with the page after it.
 with_temper _build/phish.blimp src/40_http.blimp src/97_phish.blimp static/phish/phish.blimp
