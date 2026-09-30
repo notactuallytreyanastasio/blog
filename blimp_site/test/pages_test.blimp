@@ -86,7 +86,7 @@ actor PageTests do
 
   test "the index lists posts newest first" do
     posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
-    assert_eq(head(posts).slug, "notes-on-dario-altman-elmo-and-the-frontier")
+    assert_eq(head(posts).slug, "this-site-is-blimp-now")
     assert_eq(last(posts).slug, "building-this-blog")
   end
 
