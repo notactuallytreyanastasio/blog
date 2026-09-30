@@ -1,0 +1,267 @@
+# /blinks-next/surf: BlinksSurfLive, StumbleUpon for the link stack, as a
+# Blimp program in the browser. One link at a time; STUMBLE! asks the
+# server for a random one this visit has not seen (Postgres picks it, as it
+# did for Phoenix), a channel narrows the pool to one tag (?tag=, the URL's
+# state as it was the LiveView's), ◀ back retraces the hops, and "more like
+# this" deals one of the three most similar links not yet seen.
+
+SURF_HISTORY = 50
+
+def surf_in_channel(b: Any, channel: String) -> Bool do
+  channel == "" or (b != nil and bk_contains(b.tags, channel))
+end
+
+# count_blinks(tags: [tag]) is the tag's count in list_tags/0, and
+# count_blinks() the whole stack.
+def surf_pool(tags: List, channel: String, total: Int) -> Int do
+  case channel do
+    "" -> total
+    _ ->
+      found = filter(tags, fn(t: Map) -> Bool do t.name == channel end)
+      case found do
+        [] -> 0
+        [t | _] -> t.count
+      end
+  end
+end
+
+def surf_card(b: Map, channel: String) -> Any do
+  pic = case bkp_absent(b.image_url) do
+    true -> []
+    false -> [el("a", %{href: b.url, target: "_blank", rel: "noopener"}, el("img", %{class: "card-img", src: b.image_url, alt: "", loading: "lazy"}))]
+  end
+  desc = case b.description do
+    nil -> []
+    d -> [el("p", %{class: "desc"}, d)]
+  end
+  quotes = case type_of(b.quotes) do
+    :list -> map(bkp_take(b.quotes, 2), fn(q: String) -> Any do el("blockquote", %{class: "quote"}, q) end)
+    _ -> []
+  end
+  tagrow = case b.tags do
+    [] -> []
+    _ -> [el("div", %{class: "tagrow"}, map(b.tags, fn(t: String) -> Any do
+      cls = case channel == t do
+        true -> "tag on"
+        false -> "tag"
+      end
+      el("a", %{class: cls, click: :channel, with: t}, t)
+    end))]
+  end
+  el("div", %{class: "card", id: concat("surf-card-", to_string(b.id))},
+    pic,
+    el("div", %{class: "card-body"},
+      bkp_site(b),
+      el("h2", %{}, el("a", %{href: b.url, target: "_blank", rel: "noopener"}, bkp_title(b))),
+      desc,
+      quotes,
+      tagrow),
+    el("div", %{class: "card-actions"},
+      el("a", %{class: "visit", href: b.url, target: "_blank", rel: "noopener"}, "visit ↗"),
+      el("button", %{class: "morelike", click: :more_like}, "more like this"),
+      el("span", %{class: "saved-on"}, concat("saved ", blkp_saved(b.inserted_at, ", ")))))
+end
+
+actor Surf do
+  state started: Bool :: false
+  state channel: String :: ""
+  state tags: Any :: nil
+  state blink: Any :: nil
+  state history: List :: []
+  state seen: List :: []
+  state pool: Int :: 0
+  state total: Int :: 0
+  state exhausted: Bool :: false
+  state ask: String :: ""
+  state like: String :: ""
+  state n: Int :: 0
+  state problem: String :: ""
+
+  on :location(query: String) do
+    become started: true, channel: query_param(query, "tag")
+    self <- :stumble
+    reply :ok
+  end
+
+  on :tags_loaded(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    list = case d do
+      nil -> []
+      _ -> d.tags
+    end
+    become tags: list, pool: surf_pool(list, channel, total)
+    reply :ok
+  end
+
+  # stumble/1: anything but what is showing and what this visit has seen
+  on :stumble do
+    exclude = case blink do
+      nil -> seen
+      b -> [b.id | seen]
+    end
+    become ask: bkp_pick_url(exclude, channel, false, n + 1), n: n + 1
+    reply :ok
+  end
+
+  on :dealt(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    case d do
+      nil ->
+        become ask: "", problem: concat("the server answered ", to_string(status), " for a link")
+        reply :error
+      _ ->
+        become ask: "", problem: "", pool: d.pool, total: d.total
+        case d.blink do
+          nil -> become exhausted: true
+          b -> self <- :deal(b)
+        end
+        reply :ok
+    end
+  end
+
+  # deal/2
+  on :deal(b: Map) do
+    kept = case blink do
+      nil -> []
+      cur -> bkp_take([cur | history], SURF_HISTORY)
+    end
+    now_seen = case blkp_has(seen, b.id) do
+      true -> seen
+      false -> [b.id | seen]
+    end
+    become blink: b, history: kept, seen: now_seen, exhausted: false
+    reply :ok
+  end
+
+  on :back do
+    case history do
+      [] -> reply :ok
+      [prev | rest] ->
+        become blink: prev, history: rest, exhausted: false
+        reply :ok
+    end
+  end
+
+  on :more_like do
+    case blink do
+      nil -> reply :ok
+      b ->
+        become like: bkp_walk_url(b.id, [], 8, n + 1), n: n + 1
+        reply :ok
+    end
+  end
+
+  # list_similar(8), less what has been seen, three of them, one at random;
+  # when every one has been seen, one of the first three anyway.
+  on :liked(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    become like: ""
+    rows = case d do
+      nil -> []
+      _ -> d.similar
+    end
+    ids = bkp_ids(rows)
+    fresh = blkp_first_not_in(ids, seen, 3)
+    choices = case fresh do
+      [] -> blkp_keep(ids, 3)
+      _ -> fresh
+    end
+    case choices do
+      [] -> self <- :stumble
+      _ -> self <- :deal(bk_find(rows, bk_nth(choices, random(1, length(choices)) - 1)))
+    end
+    reply :ok
+  end
+
+  # handle_params/3 after push_patch: the pool is the channel's, and a card
+  # the channel does not carry is dealt again
+  on :channel(tag: String) do
+    become channel: tag, pool: surf_pool(bk_or_empty(tags), tag, total)
+    case surf_in_channel(blink, tag) do
+      true -> reply :ok
+      false ->
+        self <- :stumble
+        reply :ok
+    end
+  end
+
+  on :reset do
+    become seen: [], exhausted: false
+    self <- :stumble
+    reply :ok
+  end
+
+  # what the page is waiting for from the server ("" for nothing)
+  on :asking do
+    reply {ask, like}
+  end
+
+  on :view do
+    asks = case ask do
+      "" -> []
+      _ -> [fetch(ask, :dealt)]
+    end
+    likes = case like do
+      "" -> []
+      _ -> [fetch(like, :liked)]
+    end
+    tag_ask = case tags do
+      nil -> [fetch(BKP_TAGS_URL, :tags_loaded)]
+      _ -> []
+    end
+    url = case started do
+      true -> [location_query(blk_query(["tag"], [channel]))]
+      false -> []
+    end
+    options = map(bkp_take(bk_or_empty(tags), 24), fn(t: Map) -> Any do
+      el("option", %{value: t.name, selected: channel == t.name}, concat(t.name, " (", to_string(t.count), ")"))
+    end)
+    stage = case exhausted do
+      true -> [el("div", %{class: "exhausted"},
+        el("h2", %{}, "you've stumbled the whole channel 🏁"),
+        el("p", %{}, concat("all ", to_string(pool), " links seen this session.")),
+        el("button", %{class: "stumble-btn", click: :reset}, "SHUFFLE & GO AGAIN"))]
+      false ->
+        case blink do
+          nil ->
+            case problem do
+              "" -> []
+              _ -> [el("p", %{style: "color:#b00;"}, problem)]
+            end
+          b -> [surf_card(b, channel)]
+        end
+    end
+    reply el("div", %{id: "surf-page"},
+      el("div", %{class: "bar"},
+        el("span", %{class: "wordmark"}, el("a", %{href: "/blinks-next"}, "bobbby's links"), " / stumble 🎲"),
+        el("button", %{class: "stumble-btn", click: :stumble}, "STUMBLE!"),
+        el("button", %{class: "back-btn", click: :back, disabled: history == []}, "◀ back"),
+        el("form", %{},
+          el("select", %{name: "tag", change: :channel},
+            el("option", %{value: "", selected: channel == ""}, "all channels"),
+            options)),
+        el("span", %{class: "meter"}, concat(to_string(length(seen)), " stumbled · ", to_string(pool), " in channel")),
+        el("a", %{href: "/blinks-next/walk"}, "walk 🥾"),
+        el("a", %{href: "/blinks-next/tv"}, "tv 📺")),
+      el("div", %{class: "stage"}, stage),
+      el("div", %{class: "hint"},
+        el("kbd", %{}, "→"), " or ", el("kbd", %{}, "s"), " stumble · ", el("kbd", %{}, "←"), " back · click a tag to tune the channel"),
+      key("ArrowRight", :stumble),
+      key("s", :stumble),
+      key("ArrowLeft", :back),
+      asks,
+      likes,
+      tag_ask,
+      url)
+  end
+end
+
+def bk_or_empty(v: Any) -> List do
+  case v do
+    nil -> []
+    _ -> v
+  end
+end
+
+surf = spawn Surf
+surf <- :view
