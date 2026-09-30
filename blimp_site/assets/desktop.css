@@ -119,8 +119,8 @@ a:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 .rail-clock span { font-size: 10px; letter-spacing: .1em; color: var(--ink-3); }
 
 /* ── The split: a still pane on the left, cards on the right ──────────── *
- * Below 1000px it is one column: the pane (rail, intro, scope), then the
- * cards. From 1000px the pane is sticky and a viewport tall, and the page
+ * Below 760px it is one column: the pane (rail, intro, scope), then the
+ * cards. From 760px the pane is sticky and a viewport tall, and the page
  * itself is the scroller: the root snaps to each card's top, so a wheel or
  * a trackpad anywhere on the page, the keyboard, and a #museum link all
  * move through the cards with no script. Proximity, not mandatory: the
@@ -448,8 +448,8 @@ a.sec-count:hover { text-decoration: underline; }
   .ex-icon svg { width: 64px; }
 }
 
-/* ── The split, from 1000px (after the rules it overrides) ───────────── */
-@media (min-width: 1000px) {
+/* ── The split, from 760px (after the rules it overrides) ───────────── */
+@media (min-width: 760px) {
   html { scroll-snap-type: y proximity; }
   .home {
     display: grid;
@@ -505,7 +505,7 @@ a.sec-count:hover { text-decoration: underline; }
   .gauge dt { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gauge dd { font-size: 14px; }
 }
-@media (min-width: 1000px) and (max-height: 860px) {
+@media (min-width: 760px) and (max-height: 860px) {
   .intro .plate-label { display: none; }
   .intro-text { font-size: 14.5px; line-height: 1.42; margin-top: 6px; }
   .headline { font-size: clamp(24px, 2vw, 34px); }
