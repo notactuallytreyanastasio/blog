@@ -76,6 +76,9 @@ with_temper _build/cursors.blimp static/cursors/cursors.blimp
 # Temper Art: the engine is Temper (temper/src/art), the studio Blimp; the
 # URL is read with the server's query_param.
 with_temper _build/art.blimp src/40_http.blimp static/art/art.blimp
+# Chess-9: the rules and the bot are Temper (temper/src/chess_lv), the actor,
+# the view and the bot's root loop Blimp.
+with_temper _build/chess_lv.blimp static/chess_lv/chess_lv.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

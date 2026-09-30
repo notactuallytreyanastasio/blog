@@ -1,0 +1,365 @@
+# Chess-9, for bobbby.online/chess-lv: nine chess boards on one 24x24
+# plane, against a bot, played in the browser by Blimp's interpreter.
+#
+# A port of BlogWeb.ChessLive. The rules, the bot's evaluation and its
+# search are Temper (temper/src/chess_lv, every name ch_*), compiled to
+# Blimp and put in front of this file by build.sh. What stays here is the
+# actor, the view (ChessLive's template, class for class, so the page is
+# drawn by the same CSS), and the bot's root: which of its moves to search,
+# in what order, one step per tick so the page keeps drawing, and the
+# random pick among the best.
+#
+# A game is the Temper's value: a list of 29 lists of Ints (the plane's 24
+# rows, then whose turn, statuses, clocks, credits and kings). A move is a
+# list of 14 Ints; ch_find gives the one a click means.
+
+# How deep the bot looks. Bot.best_move/2 searched 3 plies on the BEAM,
+# 1.1s after 1.e4. In this interpreter, in Chrome, two plies after 1.e4 take
+# 2.5s and one ply 0.6s; once pieces have been taken, every position's
+# score walks the crossing moves the credits allow, and one ply takes
+# 3.6-4.7s in the middle of a game, two plies 11-14s. So: the same search
+# (the same evaluation, the same root moves, the same 30 replies), two
+# plies while nobody holds a credit, one after. ch_depth is that rule.
+CH_ROOT_WIDTH = 12
+
+def ch_depth(st: List) -> Int do
+  case sum(elem(st, 27)) == 0 do
+    true -> 2
+    false -> 1
+  end
+end
+
+# How many root moves get their shallow score per tick.
+CH_SHALLOW_CHUNK = 24
+
+def ch_first(xs: List, n: Int) -> List do
+  case n <= 0 or empty?(xs) do
+    true -> []
+    false -> [head(xs) | ch_first(tail(xs), n - 1)]
+  end
+end
+
+def ch_drop(xs: List, n: Int) -> List do
+  case n <= 0 or empty?(xs) do
+    true -> xs
+    false -> ch_drop(tail(xs), n - 1)
+  end
+end
+
+# score_root/2's sort: largest shallow score first, the order the moves
+# were generated in among equals (Enum.sort_by/3 with :desc is stable).
+# Blimp's sort has no comparator and is not stable, so each index is keyed
+# by its score and itself.
+def ch_by_score(scores: List) -> List do
+  n = length(scores)
+  case n do
+    0 -> []
+    _ ->
+      keyed = map(range(0, n - 1), fn(i: Int) -> Int do (2000000000 - elem(scores, i)) * 4096 + i end)
+      map(sort(keyed), fn(k: Int) -> Int do rem(k, 4096) end)
+  end
+end
+
+# best_move/2: the best score, every root move within 1.0 of it (32 here),
+# and one of those at random.
+def ch_pick(scored: List) -> Int do
+  best = reduce(scored, -2000000000, fn(acc: Int, e: List) -> Int do max(acc, elem(e, 0)) end)
+  top = filter(scored, fn(e: List) -> Bool do elem(e, 0) >= best - 32 end)
+  elem(elem(top, random(0, length(top) - 1)), 1)
+end
+
+def ch_has_target(targets: List, sq: Int) -> Bool do
+  case targets do
+    [] -> false
+    [t | rest] ->
+      case t == sq do
+        true -> true
+        false -> ch_has_target(rest, sq)
+      end
+  end
+end
+
+# ── the view ────────────────────────────────────────────────────────────
+
+def ch_square(st: List, x: Int, y: Int, sel: Int, targets: List, last: List) -> Any do
+  sq = y * 24 + x
+  p = elem(elem(st, y), x)
+  selected = sq == sel
+  moved = case last do
+    [] -> false
+    [f, t] -> sq == f or sq == t
+  end
+  base = %{class: "sq", style: ch_square_bg(x, y), click: :click, with: sq}
+  a1 = case selected do
+    true -> put(base, "data-selected", "1")
+    false -> base
+  end
+  attrs = case ch_has_target(targets, sq) do
+    true -> put(a1, "data-legal", "1")
+    false -> a1
+  end
+  overlay = case moved and not(selected) do
+    true -> [el("div", %{class: "sq-overlay overlay-last-move"})]
+    false -> []
+  end
+  piece = case p do
+    0 -> []
+    _ -> [el("span", %{class: ch_piece_class(p)}, ch_glyph(p))]
+  end
+  el("div", attrs, overlay, piece)
+end
+
+def ch_board(st: List, bi: Int, sel: Int, targets: List, last: List, focus: Int) -> Any do
+  ox = rem(bi, 3) * 8
+  oy = (bi / 3) * 8
+  status = elem(elem(st, 25), bi)
+  squares = map(range(0, 63), fn(i: Int) -> Any do ch_square(st, ox + rem(i, 8), oy + i / 8, sel, targets, last) end)
+  label = ch_status_label(status)
+  frozen = case ch_frozen(status) and label != "" do
+    true -> [el("div", %{class: "board-frozen-overlay"}, el("div", %{class: "frozen-label"}, label))]
+    false -> []
+  end
+  cls = case focus == bi do
+    true -> "board-cell board-cell-bot-moved"
+    false -> "board-cell"
+  end
+  el("div", %{class: cls, id: "board-#{bi}"}, el("div", %{class: "board-grid"}, squares), frozen)
+end
+
+def ch_rules() -> Any do
+  h = fn(t: String) -> Any do el("div", %{style: "font-size:12px;color:#c0c0e0;margin-bottom:12px;font-weight:bold;letter-spacing:0.08em;"}, t) end
+  p = fn(t: String) -> Any do el("p", %{style: "color:#aaa;font-size:13px;line-height:1.6;margin-bottom:16px;"}, t) end
+  el("div", %{id: "rules-modal", click: :close_rules, style: "position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;"},
+    el("div", %{click: :close_rules, style: "background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;max-width:480px;width:100%;padding:28px 24px;color:#d0d0e8;font-family:monospace;max-height:90vh;overflow-y:auto;"},
+      el("div", %{style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;"},
+        el("span", %{style: "font-size:18px;font-weight:bold;color:#e0e0f8;"}, "Chess-9"),
+        el("button", %{click: :close_rules, style: "background:none;border:1px solid #444;color:#999;cursor:pointer;padding:4px 10px;border-radius:4px;font-family:monospace;font-size:13px;"}, "play →")),
+      p("Nine standard chess boards arranged in a 3×3 grid. All nine games are live at the same time. You play white on every board. One move per turn, on any board you choose. Win by checkmating the opponent on more boards than they checkmate you."),
+      h("CROSSING RULE"),
+      p("A piece may slide across a board boundary only when one of its own kind has already been captured on the destination board. Losing your bishop on board 4 earns you a bishop-crossing credit for board 4. Credits are spent one per crossing. Kings never cross. Any pawn that crosses a boundary promotes on arrival."),
+      h("GEOMETRY"),
+      p("The nine boards form a continuous 24×24 plane. Board boundaries are invisible to piece geometry. A bishop on the edge of one board slides diagonally onto the next along the same diagonal, if it holds the credit to enter it. A piece on a neighboring board can give check across the seam if it holds enough credits."),
+      h("DRAW CONDITIONS"),
+      el("p", %{style: "color:#aaa;font-size:13px;line-height:1.6;margin-bottom:4px;"}, "A board draws by the 50-move rule or insufficient material. A drawn board is frozen and cannot be fought over.")))
+end
+
+# ── the game ────────────────────────────────────────────────────────────
+
+actor ChessLv do
+  state game: List :: []
+  state sel: Int :: -1
+  state targets: List :: []
+  state last: List :: []
+  state thinking: Bool :: false
+  state focus: Int :: -1
+  state show_rules: Bool :: true
+  # See :view.
+  state drawn: Bool :: false
+  # the bot's root, while it thinks: its legal moves, their shallow scores
+  # so far, then the ones it searches deeper and their scores so far
+  state bot_moves: List :: []
+  state shallow: List :: []
+  state deep_order: List :: []
+  state deep: List :: []
+
+  on :new_game do
+    become game: ch_initial(), sel: -1, targets: [], last: [], thinking: false, focus: -1, bot_moves: [], shallow: [], deep_order: [], deep: []
+    reply :ok
+  end
+
+  on :close_rules do
+    become show_rules: false
+    reply :ok
+  end
+
+  on :drawn do
+    become drawn: true
+    reply :ok
+  end
+
+  on :game do
+    reply game
+  end
+
+  # ChessLive's click_square and the ChessGame hook together: select a white
+  # piece on a live board, move it to one of its targets, or let go.
+  on :click(sq: Int) do
+    busy = thinking or elem(elem(game, 24), 0) != 0 or ch_game_over(game)
+    case busy do
+      true ->
+        become focus: -1
+        reply :ignored
+      false ->
+        x = rem(sq, 24)
+        y = sq / 24
+        p = elem(elem(game, y), x)
+        mine = ch_color(p) == 0 and not(ch_frozen(elem(elem(game, 25), ch_board_of(x, y))))
+        case sq == sel do
+          true ->
+            become sel: -1, targets: []
+            reply :deselected
+          false ->
+            case sel >= 0 and ch_has_target(targets, sq) do
+              true ->
+                m = ch_find(game, rem(sel, 24), sel / 24, x, y)
+                case m do
+                  [] ->
+                    become sel: -1, targets: []
+                    reply :illegal
+                  _ ->
+                    become game: ch_apply(game, m), sel: -1, targets: [], last: [sel, sq], thinking: true, focus: -1, bot_moves: [], shallow: [], deep_order: [], deep: []
+                    reply :moved
+                end
+              false ->
+                case mine do
+                  true ->
+                    ts = map(ch_square_moves(game, x, y), fn(m: List) -> Int do elem(m, 4) * 24 + elem(m, 3) end)
+                    become sel: sq, targets: ts
+                    reply :selected
+                  false ->
+                    become sel: -1, targets: []
+                    reply :deselected
+                end
+            end
+        end
+    end
+  end
+
+  # The bot, a step per tick: its legal moves; their shallow scores,
+  # CH_SHALLOW_CHUNK at a time; then the best CH_ROOT_WIDTH of them searched
+  # one per tick; then the move.
+  on :bot_step do
+    case thinking do
+      false -> reply :idle
+      true ->
+        case elem(elem(game, 24), 0) != 1 or ch_game_over(game) do
+          true ->
+            become thinking: false
+            reply :idle
+          false -> reply self <- :bot_work
+        end
+    end
+  end
+
+  on :bot_work do
+    case empty?(bot_moves) do
+      true ->
+        moves = ch_legal_moves(game)
+        case moves do
+          [] ->
+            become thinking: false
+            reply :stuck
+          _ ->
+            become bot_moves: moves, shallow: []
+            reply :started
+        end
+      false ->
+        case length(shallow) < length(bot_moves) do
+          true ->
+            chunk = ch_first(ch_drop(bot_moves, length(shallow)), CH_SHALLOW_CHUNK)
+            scores = map(chunk, fn(m: List) -> Int do ch_shallow(game, m) end)
+            become shallow: flat([shallow, scores])
+            reply :shallow
+          false ->
+            order = case empty?(deep_order) do
+              true -> ch_by_score(shallow)
+              false -> deep_order
+            end
+            depth = ch_depth(game)
+            case depth <= 1 do
+              true -> reply self <- :bot_play(map(order, fn(i: Int) -> List do [elem(shallow, i), i] end))
+              false ->
+                top = ch_first(order, CH_ROOT_WIDTH)
+                case length(deep) < length(top) do
+                  true ->
+                    i = elem(top, length(deep))
+                    score = ch_deep(game, elem(bot_moves, i), depth)
+                    become deep_order: order, deep: flat([deep, [[score, i]]])
+                    reply :deep
+                  false -> reply self <- :bot_play(deep)
+                end
+            end
+        end
+    end
+  end
+
+  on :bot_play(scored: List) do
+    m = elem(bot_moves, ch_pick(scored))
+    from = elem(m, 2) * 24 + elem(m, 1)
+    to = elem(m, 4) * 24 + elem(m, 3)
+    become game: ch_apply(game, m), last: [from, to], thinking: false, focus: ch_board_of(elem(m, 3), elem(m, 4)), bot_moves: [], shallow: [], deep_order: [], deep: []
+    reply :played
+  end
+
+  # The first view is the rules and a timer, and the boards come a tick
+  # later. The first view is the one the page is mounted with, and the
+  # WebAssembly build writes that one into a fixed 64KB buffer; 576 squares
+  # are more than that, and a view cut short there mounts as no view at
+  # all. Every later view goes through blimp_send, whose buffer grows.
+  on :view do
+    case drawn do
+      true -> reply self <- :board_view
+      false -> reply el("div", %{class: "chess-page", id: "chess-game"}, ch_rules(), timer(1, :drawn))
+    end
+  end
+
+  on :board_view do
+    over = ch_game_over(game)
+    white = ch_boards_won(game, 0)
+    black = ch_boards_won(game, 1)
+    indicator = case thinking do
+      true -> [el("span", %{class: "bot-indicator"}, "⟳ bot thinking…")]
+      false -> []
+    end
+    turn = case over do
+      true -> []
+      false ->
+        text = case elem(elem(game, 24), 0) == 0 do
+          true -> "your turn (white)"
+          false -> "black to move"
+        end
+        [el("span", %{style: "font-size:12px;color:#aac;"}, text)]
+    end
+    banner = case over do
+      true -> [el("div", %{class: ch_banner_class(game)}, ch_banner_text(game))]
+      false -> []
+    end
+    boards = map(range(0, 8), fn(bi: Int) -> Any do ch_board(game, bi, sel, targets, last, focus) end)
+    rules = case show_rules do
+      true -> [ch_rules()]
+      false -> []
+    end
+    clock = case thinking do
+      true -> [timer(10, :bot_step)]
+      false -> []
+    end
+    reply el("div", %{class: "chess-page", id: "chess-game"},
+      el("div", %{class: "mac-window"},
+        el("div", %{class: "mac-titlebar"},
+          el("div", %{class: "mac-dot mac-dot-red"}),
+          el("div", %{class: "mac-dot mac-dot-yellow"}),
+          el("div", %{class: "mac-dot mac-dot-green"}),
+          el("div", %{class: "mac-title"}, "chess9 — 3×3 super-grid")),
+        el("div", %{class: "mac-body"},
+          el("div", %{class: "chess-header"},
+            el("div", %{class: "game-title"}, "CHESS9"),
+            el("div", %{style: "display:flex;align-items:center;gap:12px;"},
+              indicator,
+              el("button", %{class: "new-game-btn", click: :new_game}, "NEW GAME"))),
+          el("div", %{class: "score-bar"},
+            el("span", %{class: "score-label"}, "boards won:"),
+            el("span", %{class: "score-white"}, el("span", %{class: "score-pip", style: "background:#f0f0f0;border:1px solid #aaa;"}), " white #{white}"),
+            el("span", %{class: "score-black"}, el("span", %{class: "score-pip", style: "background:#222;"}), " black #{black}"),
+            el("span", %{style: "flex:1"}),
+            turn),
+          banner,
+          el("div", %{class: "super-grid"}, boards),
+          el("div", %{style: "margin-top:16px;font-size:11px;color:#555;text-align:center;letter-spacing:0.05em;"}, "9 boards · pieces may cross boundaries · win by checkmating on more boards"))),
+      rules,
+      clock)
+  end
+end
+
+chess = spawn ChessLv
+chess <- :new_game
+chess <- :view
