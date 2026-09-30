@@ -938,7 +938,8 @@ routes = blog_tag_routes(routes, posts)
 # SESSION_SECRET stops here).
 # src/99_blinkswrite.blimp: BlinkController's token-gated writes
 # src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
-WEB_ROUTES = list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes())
+# src/99_guest_posts.blimp: guest posts and their comments
+WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes())
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
