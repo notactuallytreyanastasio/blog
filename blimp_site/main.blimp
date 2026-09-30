@@ -426,8 +426,9 @@ def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
   t0 = now_ms()
   ready = tcp_poll([c], 2000)
   raw = case length(ready) > 0 do
-    # the rest of a body that did not come with its headers (src/41_web.blimp)
-    true -> web_read_rest(c, tcp_read(c))
+    # the rest of a body that did not come with its headers, up to the
+    # cap of the route that will take it (src/41_web.blimp)
+    true -> web_read_rest(c, tcp_read(c), WEB_ROUTES)
     false -> nil
   end
   case raw do

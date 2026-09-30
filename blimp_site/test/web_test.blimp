@@ -183,12 +183,14 @@ actor WebTests do
     assert_eq(wt_status(got), 403)
   end
 
-  test "bad JSON is 400, multipart 415, PATCH and DELETE get :id" do
+  test "bad JSON is 400, multipart/mixed 415, broken form-data 400, PATCH and DELETE get :id" do
     page = wt_send("GET", "/web/echo", [], "")
     cookie = concat("Cookie: ", wt_cookie(page))
     tok = concat("X-CSRF-Token: ", wt_token(wt_body(page)))
     assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: application/json"], "{\"a\":")), 400)
-    assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: multipart/form-data; boundary=x"], "--x--")), 415)
+    assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: multipart/mixed; boundary=x"], "--x--")), 415)
+    assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: multipart/form-data; boundary=x"], "--x\r\n\r\nno name, no end")), 400)
+    assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: multipart/form-data"], "--x--")), 400)
     del = wt_send("DELETE", "/web/echo/abc", [cookie, tok], "")
     assert_eq(wt_status(del), 200)
     assert_eq(lookup(elem(json_decode(wt_body(del)), 1), "id"), "abc")
@@ -285,6 +287,8 @@ actor WebTests do
     r = web_dispatch(report, parse_request(report), [web_route("POST", "/r", [], ok)], WT_SECRET)
     assert_eq(wt_status(r), 200)
     assert_eq(wt_body(r), "{\"status\":\"ok\"}")
+    gz = "POST /w HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n"
+    assert_eq(wt_status(web_dispatch(gz, parse_request(gz), all3, WT_SECRET)), 501)
     # a DELETE carries no body to frame: no Content-Length is an empty one
     body_of = fn(c: Map) -> Map do web_text(c, 200, concat("[", c.body, "]")) end
     del = "DELETE /d HTTP/1.1\r\nHost: x\r\n\r\nstray"

@@ -1,0 +1,220 @@
+# Uploads and big bodies (src/41_web.blimp): multipart/form-data parsed
+# binary-safe, a body cap each route sets, and the read loop over real
+# sockets, a body arriving in pieces, a client that stops, Expect.
+
+UT_SECRET = "test-secret-test-secret-test-secret-0123"
+
+# Every byte value, twice over, with CRLFs and "--" in it: what a file can be.
+def ut_all_bytes() -> String do
+  one = join(map(range(0, 255), fn(i: Int) -> String do from_char_code(i) end), "")
+  concat(one, "\r\n--\r\n\r\n", one)
+end
+
+# A multipart/form-data body as a browser builds it; parts are
+# [name, filename or nil, content type or nil, data].
+def ut_multipart(boundary: String, parts: List) -> String do
+  pieces = map(parts, fn(p: List) -> String do
+    name = elem_at(p, 0)
+    filename = elem_at(p, 1)
+    ctype = elem_at(p, 2)
+    disp = case filename do
+      nil -> concat("Content-Disposition: form-data; name=\"", name, "\"")
+      _ -> concat("Content-Disposition: form-data; name=\"", name, "\"; filename=\"", filename, "\"")
+    end
+    ct = case ctype do
+      nil -> ""
+      _ -> concat("\r\nContent-Type: ", ctype)
+    end
+    concat("--", boundary, "\r\n", disp, ct, "\r\n\r\n", elem_at(p, 3), "\r\n")
+  end)
+  concat(join(pieces, ""), "--", boundary, "--\r\n")
+end
+
+def ut_raw(method: String, target: String, headers: List, body: String) -> String do
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, [concat("Content-Length: ", to_string(length(body)))])), "\r\n"), "\r\n\r\n", body)
+end
+
+# An upload route that says what it got: fields, and each file's name,
+# type, size and sha256.
+def ut_upload_handler(conn: Map) -> Map do
+  files = map(conn.uploads, fn(u: Map) -> Map do
+    %{name: u.name, filename: u.filename, content_type: u.content_type, size: u.size, sha: sha256(u.data)}
+  end)
+  web_json(conn, 200, %{fields: conn.body_params, files: files})
+end
+
+def ut_size_handler(conn: Map) -> Map do
+  web_text(conn, 200, to_string(length(conn.body)))
+end
+
+def ut_routes() -> List do
+  [
+    web_max_body(web_route("POST", "/t/upload", [], ut_upload_handler), WEB_MAX_UPLOAD),
+    web_route("POST", "/t/small", [], ut_size_handler),
+    web_max_body(web_route("POST", "/t/tiny", [], ut_size_handler), 10)
+  ]
+end
+
+def ut_send(raw: String) -> Tuple do
+  web_dispatch(raw, parse_request(raw), ut_routes(), UT_SECRET)
+end
+
+def ut_body(got: Tuple) -> String do
+  w = elem(got, 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def ut_double(s: String, n: Int) -> String do
+  case n <= 0 do
+    true -> s
+    false -> ut_double(concat(s, s), n - 1)
+  end
+end
+
+# A connected pair on loopback: {server side, client side}.
+def ut_pair(port: Int) -> Tuple do
+  l = tcp_listen(port)
+  tcp_set_nonblocking(l)
+  client = tcp_connect("127.0.0.1", port)
+  tcp_poll([l], 1000)
+  {tcp_accept(l), client, l}
+end
+
+actor UploadTests do
+  test "header parameters: quoted, with ; inside, escapes, any case" do
+    p = web_header_params("form-data; NAME=\"a;b\"; filename=\"x \\\"y\\\".png\"; size=3")
+    assert_eq(lookup(p, "name"), "a;b")
+    assert_eq(lookup(p, "filename"), "x \"y\".png")
+    assert_eq(lookup(p, "size"), "3")
+    assert_eq(web_multipart_boundary("multipart/form-data; boundary=\"----WebKit Form\""), "----WebKit Form")
+    assert_eq(web_multipart_boundary("multipart/form-data; boundary=AbC"), "AbC")
+    assert_eq(web_multipart_boundary("multipart/form-data"), "")
+  end
+
+  test "a multipart body: fields, and a file whose bytes come back exactly" do
+    data = ut_all_bytes()
+    body = ut_multipart("XyZ", [["title", nil, nil, "café & more"], ["photo", "a;b é.png", "image/png", data], ["empty", "", "application/octet-stream", ""]])
+    got = web_parse_multipart(concat("preamble to ignore\r\n", body, "epilogue"), "XyZ")
+    assert_eq(elem(got, 0), :ok)
+    parts = elem(got, 1)
+    assert_eq(length(parts), 3)
+    title = elem_at(parts, 0)
+    assert_eq(title.name, "title")
+    assert_eq(title.filename, nil)
+    assert_eq(title.content_type, "text/plain")
+    assert_eq(title.data, "café & more")
+    photo = elem_at(parts, 1)
+    assert_eq(photo.filename, "a;b é.png")
+    assert_eq(photo.content_type, "image/png")
+    assert_eq(length(photo.data), 520)
+    assert_eq(photo.data, data)
+    assert_eq(elem_at(parts, 2).data, "")
+  end
+
+  test "a body that starts at its first boundary, and filename* over filename" do
+    body = "--b\r\nContent-Disposition: form-data; name=f; filename=\"plain.txt\"; filename*=UTF-8''%E2%80%94.txt\r\n\r\nhi\r\n--b--"
+    got = web_parse_multipart(body, "b")
+    assert_eq(elem(got, 0), :ok)
+    assert_eq(head(elem(got, 1)).filename, "—.txt")
+    assert_eq(head(elem(got, 1)).data, "hi")
+  end
+
+  test "broken multipart bodies are errors, not partial answers" do
+    assert_eq(elem(web_parse_multipart("--b\r\nContent-Disposition: form-data; name=a\r\n\r\ncut off", "b"), 0), :error)
+    assert_eq(elem(web_parse_multipart("no boundary here", "b"), 0), :error)
+    assert_eq(elem(web_parse_multipart("--b\r\nContent-Type: text/plain\r\n\r\nx\r\n--b--", "b"), 0), :error)
+    assert_eq(elem(web_parse_multipart("--bX\r\n\r\nx\r\n--b--", "b"), 0), :error)
+    assert_eq(elem(web_parse_multipart("--b--", ""), 0), :error)
+    many = concat(join(map(range(1, 1001), fn(i: Int) -> String do "--b\r\nContent-Disposition: form-data; name=a\r\n\r\nx\r\n" end), ""), "--b--")
+    assert_eq(elem(web_parse_multipart(many, "b"), 0), :error)
+  end
+
+  test "an upload through the router: fields in params, the file in uploads" do
+    data = ut_all_bytes()
+    body = ut_multipart("q1", [["caption", nil, nil, "hello"], ["file", "all.bin", "application/octet-stream", data]])
+    got = ut_send(ut_raw("POST", "/t/upload", ["Content-Type: multipart/form-data; boundary=q1"], body))
+    assert_eq(elem(got, 1), 200)
+    j = elem(json_decode(ut_body(got)), 1)
+    assert_eq(lookup(lookup(j, "fields"), "caption"), "hello")
+    f = head(lookup(j, "files"))
+    assert_eq(lookup(f, "filename"), "all.bin")
+    assert_eq(lookup(f, "size"), 520)
+    assert_eq(lookup(f, "sha"), sha256(data))
+  end
+
+  test "a multipart field that is not UTF-8 is Plug's 400; a file's bytes are not checked" do
+    bad = ut_multipart("q2", [["caption", nil, nil, from_char_code(255)]])
+    got = ut_send(ut_raw("POST", "/t/upload", ["Content-Type: multipart/form-data; boundary=q2", "Accept: application/json"], bad))
+    assert_eq(elem(got, 1), 400)
+    assert_eq(ut_body(got), "{\"errors\":{\"detail\":\"Bad Request\"}}")
+    fine = ut_multipart("q3", [["file", "x.bin", "application/octet-stream", from_char_code(255)]])
+    assert_eq(elem(ut_send(ut_raw("POST", "/t/upload", ["Content-Type: multipart/form-data; boundary=q3"], fine)), 1), 200)
+  end
+
+  test "each route has its own body cap, judged from Content-Length alone" do
+    over = concat("POST /t/small HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n")
+    assert_eq(elem(ut_send(over), 1), 413)
+    big_ok = concat("POST /t/upload HTTP/1.1\r\nContent-Type: application/octet-stream\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n", ut_double("x", 20), "y")
+    assert_eq(elem(ut_send(big_ok), 1), 200)
+    too_big = concat("POST /t/upload HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_UPLOAD + 1), "\r\n\r\n")
+    got = ut_send(too_big)
+    assert_eq(elem(got, 1), 413)
+    assert(contains(ut_body(got), "10485760"))
+    assert_eq(elem(ut_send(ut_raw("POST", "/t/tiny", [], "0123456789")), 1), 200)
+    assert_eq(elem(ut_send(ut_raw("POST", "/t/tiny", [], "0123456789a")), 1), 413)
+    assert_eq(web_cap_for(ut_routes(), "POST /t/upload HTTP/1.1\r\n"), WEB_MAX_UPLOAD)
+    assert_eq(web_cap_for(ut_routes(), "POST /nowhere HTTP/1.1\r\n"), WEB_MAX_BODY)
+  end
+
+  test "the read loop: a body in pieces over 64 KiB is read whole, and nothing past it" do
+    pair = ut_pair(47301)
+    s = elem(pair, 0)
+    c = elem(pair, 1)
+    body = ut_double("0123456789abcdef", 13)
+    assert_eq(length(body), 131072)
+    tcp_write(c, concat("POST /t/upload HTTP/1.1\r\nHost: x\r\nContent-Length: ", to_string(length(body)), "\r\n\r\n"))
+    tcp_write(c, take(body, 70000))
+    tcp_write(c, concat(drop(body, 70000), "EXTRA"))
+    tcp_poll([s], 1000)
+    raw = web_read_rest(s, tcp_read(s), ut_routes())
+    assert(ends_with(raw, "EXTRA") or ends_with(raw, "cdef"))
+    got = web_dispatch(raw, parse_request(raw), [web_max_body(web_route("POST", "/t/upload", [], ut_size_handler), WEB_MAX_UPLOAD)], UT_SECRET)
+    assert_eq(ut_body(got), "131072")
+    tcp_close(c)
+    tcp_close(s)
+    tcp_close(elem(pair, 2))
+  end
+
+  test "a client that stops sending is cut off at WEB_READ_MS and answered 408; Expect gets 100 Continue" do
+    pair = ut_pair(47302)
+    s = elem(pair, 0)
+    c = elem(pair, 1)
+    tcp_write(c, "POST /t/small HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 100\r\n\r\nonly this")
+    tcp_poll([s], 1000)
+    t0 = now_ms()
+    raw = web_read_rest(s, tcp_read(s), ut_routes())
+    waited = now_ms() - t0
+    assert(waited >= WEB_READ_MS - 50 and waited < WEB_READ_MS + 500)
+    assert_eq(elem(ut_send(raw), 1), 408)
+    tcp_poll([c], 1000)
+    assert(starts_with(tcp_read(c), "HTTP/1.1 100 Continue\r\n\r\n"))
+    tcp_close(c)
+    tcp_close(s)
+    tcp_close(elem(pair, 2))
+  end
+
+  test "a body over the route's cap is not waited for" do
+    pair = ut_pair(47303)
+    s = elem(pair, 0)
+    c = elem(pair, 1)
+    tcp_write(c, "POST /t/tiny HTTP/1.1\r\nHost: x\r\nContent-Length: 5000\r\n\r\n")
+    tcp_poll([s], 1000)
+    t0 = now_ms()
+    raw = web_read_rest(s, tcp_read(s), ut_routes())
+    assert(now_ms() - t0 < 100)
+    assert_eq(elem(ut_send(raw), 1), 413)
+    tcp_close(c)
+    tcp_close(s)
+    tcp_close(elem(pair, 2))
+  end
+end
