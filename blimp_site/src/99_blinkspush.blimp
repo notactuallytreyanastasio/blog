@@ -290,13 +290,13 @@ end
 
 # The last BKP_MAX_SEEN ids, newest first.
 def bkp_remember(seen: List, id: Any) -> List do
-  bkp_take([id | seen], BKP_MAX_SEEN, [])
+  bkp_first_n([id | seen], BKP_MAX_SEEN, [])
 end
 
-def bkp_take(xs: List, n: Int, acc: List) -> List do
+def bkp_first_n(xs: List, n: Int, acc: List) -> List do
   case n <= 0 or xs == [] do
     true -> reverse(acc)
-    false -> bkp_take(tail(xs), n - 1, [head(xs) | acc])
+    false -> bkp_first_n(tail(xs), n - 1, [head(xs) | acc])
   end
 end
 
