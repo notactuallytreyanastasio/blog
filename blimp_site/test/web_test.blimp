@@ -265,9 +265,12 @@ actor WebTests do
     got = web_dispatch(extra, parse_request(extra), web_demo_routes(), WT_SECRET)
     assert_eq(wt_status(got), 200)
     assert_eq(wt_body(got), "{\"json\":[1,2],\"session\":\"none\"}")
+    # (to a path that takes all three; one that does not is 405 first)
+    echo = fn(c: Map) -> Map do web_text(c, 200, c.body) end
+    all3 = map(["POST", "PUT", "PATCH"], fn(m: String) -> Map do web_route(m, "/w", [], echo) end)
     each(["POST", "PUT", "PATCH"], fn(m: String) do
-      raw = concat(m, " /web/api/echo HTTP/1.1\r\nContent-Type: application/json\r\n\r\n[1,2]")
-      assert_eq(wt_status(web_dispatch(raw, parse_request(raw), web_demo_routes(), WT_SECRET)), 411)
+      raw = concat(m, " /w HTTP/1.1\r\nContent-Type: application/json\r\n\r\n[1,2]")
+      assert_eq(wt_status(web_dispatch(raw, parse_request(raw), all3, WT_SECRET)), 411)
     end)
     # a DELETE carries no body to frame: no Content-Length is an empty one
     body_of = fn(c: Map) -> Map do web_text(c, 200, concat("[", c.body, "]")) end
@@ -287,6 +290,50 @@ actor WebTests do
     assert_eq(web_dispatch(wt_raw("GET", "/blog", [big], ""), parse_request(wt_raw("GET", "/blog", [big], "")), web_demo_routes(), WT_SECRET), nil)
     ok = wt_raw("POST", "/web/api/echo", ["Content-Type: application/json", take(big, 15000)], "[1]")
     assert_eq(wt_status(web_dispatch(ok, parse_request(ok), web_demo_routes(), WT_SECRET)), 200)
+  end
+  test "a method the path does not take is 405 before its body is judged; framing is for routed requests" do
+    # what curl -X POST and -X PUT send: no body and no Content-Length
+    each(["POST", "PUT", "PATCH"], fn(m: String) do
+      raw = concat(m, " /blog HTTP/1.1\r\nHost: x\r\nAccept: */*\r\n\r\n")
+      got = web_dispatch(raw, parse_request(raw), web_demo_routes(), WT_SECRET)
+      assert_eq(wt_status(got), 405)
+      assert(contains(wt_wire(got), "Allow: GET, HEAD\r\n"))
+    end)
+    # a path with routes, but not for this method: 405 with theirs
+    put = "PUT /web/echo HTTP/1.1\r\nHost: x\r\n\r\n"
+    got = web_dispatch(put, parse_request(put), web_demo_routes(), WT_SECRET)
+    assert_eq(wt_status(got), 405)
+    assert(contains(wt_wire(got), "Allow: GET, POST, HEAD\r\n"))
+    # chunked, oversize, short or unmeasured bodies to a path nothing here takes
+    ch = "POST /blog HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n"
+    assert_eq(wt_status(web_dispatch(ch, parse_request(ch), web_demo_routes(), WT_SECRET)), 405)
+    big = concat("POST /blog HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n")
+    assert_eq(wt_status(web_dispatch(big, parse_request(big), web_demo_routes(), WT_SECRET)), 405)
+    short = "PUT /blog HTTP/1.1\r\nContent-Length: 10\r\n\r\nabc"
+    assert_eq(wt_status(web_dispatch(short, parse_request(short), web_demo_routes(), WT_SECRET)), 405)
+    # the same bodies to a route that takes them are still judged, in order
+    none = "POST /web/api/echo HTTP/1.1\r\nHost: x\r\n\r\n"
+    assert_eq(wt_status(web_dispatch(none, parse_request(none), web_demo_routes(), WT_SECRET)), 411)
+    ch2 = "POST /web/api/echo HTTP/1.1\r\nTransfer-Encoding: chunked\r\nContent-Length: 99999999\r\n\r\n"
+    assert_eq(wt_status(web_dispatch(ch2, parse_request(ch2), web_demo_routes(), WT_SECRET)), 411)
+    big2 = concat("POST /web/api/echo HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n")
+    assert_eq(wt_status(web_dispatch(big2, parse_request(big2), web_demo_routes(), WT_SECRET)), 413)
+  end
+  test "a + in a path segment is a +; only a form or query value decodes it as a space" do
+    segs = drop_list(split("/api/blinks/:id/tags/:tag", "/"), 1)
+    got = web_match_path(segs, drop_list(split("/api/blinks/+3/tags/c++", "/"), 1), %{})
+    assert_eq(lookup(got, "id"), "+3")
+    assert_eq(lookup(got, "tag"), "c++")
+    enc = web_match_path(segs, drop_list(split("/api/blinks/7/tags/c%2B%2B%20x", "/"), 1), %{})
+    assert_eq(lookup(enc, "tag"), "c++ x")
+    # end to end, with a query and a form body beside it
+    both = fn(c: Map) -> Map do web_json(c, 200, [web_param(c, "tag"), web_param(c, "q"), web_param(c, "f")]) end
+    routes = [web_route("DELETE", "/api/blinks/:id/tags/:tag", [], both)]
+    raw = "DELETE /api/blinks/1/tags/c++?q=a+b HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 5\r\n\r\nf=x+y"
+    r = web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+    assert_eq(wt_body(r), "[\"c++\",\"a b\",\"x y\"]")
+    assert_eq(web_url_decode("a+b%2B"), "a b+")
+    assert_eq(web_path_decode("a+b%2B%20"), "a+b+ ")
   end
   test "the cookie is Secure in production, and not in dev, so a LAN IP over plain HTTP keeps its session" do
     assert_eq(web_cookie_attrs(true), "; Path=/; HttpOnly; Secure; SameSite=Lax")

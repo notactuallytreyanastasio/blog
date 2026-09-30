@@ -27,4 +27,11 @@
       # (src/99_blinkswrite.blimp); Phoenix's app service has the same one.
       # Unset, every write is a 401.
       BLINKS_API_TOKEN: ${BLINKS_API_TOKEN}
+      # Phoenix's own secret_key_base, the app service's value exactly
+      # (src/99_blinksanon.blimp). Saves and reactions are keyed by
+      # sha256(device_id <> it) and comments carry sha256(ip <> it), so a
+      # different value would orphan every save and reaction already made.
+      # It also signs the comment post_token, which is a Phoenix.Token that
+      # either server accepts. Unset, every anonymous write is a 503.
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network

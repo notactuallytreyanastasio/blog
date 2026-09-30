@@ -889,7 +889,7 @@ routes = stack_routes(routes)
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).
 # src/99_blinkswrite.blimp: BlinkController's token-gated writes
-WEB_ROUTES = list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_live_routes())
+WEB_ROUTES = list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_live_routes())
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site

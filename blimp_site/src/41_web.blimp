@@ -32,8 +32,9 @@
 
 WEB_MAX_BODY = 1048576
 # 431 over this, whether the headers are still arriving or came whole. It
-# holds for every request this file answers; a GET that goes on to the
-# fixed table or dynamic() is not held to it (it is read once, at most 64KiB).
+# holds for every request a route here matches; a 405, and a GET that goes
+# on to the fixed table or dynamic(), are not held to it (a GET is read
+# once, at most 64KiB).
 WEB_MAX_HEAD = 16384
 # How long the one server thread waits for the rest of a request. The
 # server answers nobody else meanwhile, so this is short.
@@ -195,7 +196,14 @@ end
 # request was never answered. Here the work is native split and join, one
 # step per %.
 def web_url_decode(s: String) -> String do
-  pieces = split(replace(s, "+", " "), "%")
+  web_path_decode(replace(s, "+", " "))
+end
+
+# %XX decoded and nothing else, for a path segment. "+" means a space only
+# in application/x-www-form-urlencoded (a query string, a form body); in a
+# path it is a "+", so /api/blinks/+3 is id "+3" and a tag c++ is "c++".
+def web_path_decode(s: String) -> String do
+  pieces = split(s, "%")
   concat(head(pieces), join(map(tail(pieces), fn(p: String) -> String do web_unescape_piece(p) end), ""))
 end
 
@@ -279,7 +287,7 @@ def web_match_path(segs: List, parts: List, acc: Map) -> Any do
             true ->
               case p do
                 "" -> nil
-                _ -> web_match_path(srest, prest, put(acc, drop(s, 1), web_url_decode(p)))
+                _ -> web_match_path(srest, prest, put(acc, drop(s, 1), web_path_decode(p)))
               end
             false ->
               case s == p do
@@ -593,7 +601,8 @@ def web_run_plugs(plugs: List, conn: Map) -> Map do
   end
 end
 
-# A request this file must refuse before any route sees it, or nil.
+# A request routed to a handler here that must be refused before the
+# handler sees it, or nil. web_dispatch asks only once a route has matched.
 # Framing is Content-Length and nothing else: chunked is 411, and so is a
 # POST, PUT or PATCH without a length. Bytes after Content-Length are
 # dropped, not read as a second request: every response closes its
@@ -658,31 +667,39 @@ end
 
 # {wire, status, req} for this request, or nil: a GET or HEAD no route
 # here matches. routes: web_route()s; secret: what sessions are signed with.
+#
+# The route comes first, then the framing. A method the path does not take
+# is 405 whatever its body looks like: `curl -X POST /blog` sends no body
+# and no Content-Length, and the answer is that /blog takes no POST, not
+# that the POST should have had a length. 431, 411, 413 and 408 are about
+# a body a handler would read, so only a request with a handler is held to
+# them. (919656d had it the other way round, and every bodyless POST or PUT
+# to any path was 411.)
 def web_dispatch(raw: String, req: Map, routes: List, secret: String) -> Any do
   bodyless = req.method == "GET" or req.method == "HEAD"
-  framing = case bodyless do
-    true -> nil
-    false -> web_frame_error(raw)
-  end
-  case framing do
+  found = web_find(routes, req.method, req.path)
+  case found do
     nil ->
-      found = web_find(routes, req.method, req.path)
-      case found do
-        nil ->
-          case bodyless do
-            true -> nil
-            # the answer every non-GET got before this file, with Allow
-            false -> web_plain(req, 405, "method not allowed", [["Allow", "GET, HEAD"]])
-          end
-        {:method, allowed} -> web_plain(req, 405, "method not allowed", [["Allow", web_allow(allowed)]])
-        {:ok, route, pp} ->
-          # a GET or HEAD skipped web_frame_error, but not the header limit
-          case bodyless and index_of(raw, "\r\n\r\n") > WEB_MAX_HEAD do
-            true -> web_plain(req, 431, "the request headers are too large", [])
-            false -> web_run(raw, req, route, pp, secret)
-          end
+      case bodyless do
+        true -> nil
+        # the answer every non-GET got before this file, with Allow
+        false -> web_plain(req, 405, "method not allowed", [["Allow", "GET, HEAD"]])
       end
-    _ -> web_plain(req, elem(framing, 0), elem(framing, 1), [])
+    {:method, allowed} -> web_plain(req, 405, "method not allowed", [["Allow", web_allow(allowed)]])
+    {:ok, route, pp} ->
+      framing = case bodyless do
+        # a GET or HEAD has no body to frame, but is held to the header limit
+        true ->
+          case index_of(raw, "\r\n\r\n") > WEB_MAX_HEAD do
+            true -> {431, "the request headers are too large"}
+            false -> nil
+          end
+        false -> web_frame_error(raw)
+      end
+      case framing do
+        nil -> web_run(raw, req, route, pp, secret)
+        _ -> web_plain(req, elem(framing, 0), elem(framing, 1), [])
+      end
   end
 end
 

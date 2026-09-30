@@ -1,0 +1,884 @@
+# Blinks, the anonymous writes: everything under /api/blinks that a visitor
+# without the token may do, with the abuse rules Phoenix puts around it.
+#
+#   GET    /api/blinks/:blink_id/comments   the room, plus a post_token
+#   POST   /api/blinks/:blink_id/comments   comment {author_name, content, post_token, website}
+#   POST   /api/blinks/comments/:id/report  three reports hide a comment
+#   POST   /api/blinks/comments/:id/react   {emoji, device_id}
+#   DELETE /api/blinks/comments/:id/react   {emoji, device_id}
+#   DELETE /api/blinks/comments/:id         admin, X-Blinks-Token
+#   POST   /api/blinks/:id/save             {device_id}, "x people saved this"
+#   DELETE /api/blinks/:id/save             {device_id}
+#   POST   /api/blinks/suggest              {url, title, website} into the review queue
+#
+# (and all of it again under /blinks-next/api/blinks, as 64 does)
+#
+# Who a visitor is. Saves and reactions are keyed by a device hash and
+# comments carry an IP hash: the first 16 hex digits of
+# sha256(id <> SECRET_KEY_BASE), exactly as the controllers compute them.
+# The rows already in production were written with Phoenix's secret, so
+# this server must be given the same SECRET_KEY_BASE; without one every
+# write here answers 503 instead of hashing with something else, which
+# would split every existing save and reaction from its device without a
+# word. The IP is the first X-Forwarded-For entry (Caddy always sets it);
+# a request without one is "unknown", as BlinksLive calls a visitor whose
+# session has no remote_ip. This server cannot see the peer address.
+#
+# The post_token is a Phoenix.Token, byte for byte: HMAC-SHA256 under a key
+# PBKDF2 derives from SECRET_KEY_BASE and the salt "blink comment", over
+# the Erlang term {issued_at, signed_at_ms, 86400}. So a token issued by
+# either server is accepted by the other, and nothing breaks at cutover.
+#
+# The rate limiter is an actor (Blog.RateLimiter is an ETS table): fixed
+# windows, per key, lost on restart as Phoenix's are. The rules and limits
+# are temper/src/blinks_anon.
+#
+# Strings arrive scrubbed: invalid UTF-8 becomes U+FFFD. Phoenix never
+# sees invalid UTF-8 (Plug.Parsers refuses the request, 400), and
+# Postgres would refuse it. Lengths are graphemes, as String.length/1
+# counts them (needs Blimp #72).
+#
+# Not here, on purpose:
+#   - Every comment, report, reaction and delete broadcasts on
+#     "blink_comments:<id>" so open rooms update. blka_broadcast is where
+#     that goes; it does nothing until rooms (61), the iOS room (66) and the
+#     live page (70, 71) exist.
+
+# ---------------------------------------------------------------- config
+
+BLKA_SALT = "blink comment"
+BLKA_EMOJIS = ["❤️", "😂", "🔥", "👍", "💀", "👀"]
+# Blog.Blinks.Comment's @blocked, matched as substrings of the
+# lower-cased text
+BLKA_BLOCKED = ["nigger", "nigga", "faggot", "kike", "spic", "chink", "tranny"]
+
+BLKA_NOW = "date_trunc('second', now() at time zone 'UTC')"
+
+BLKA_OK = "{\"status\":\"ok\"}"
+BLKA_NOT_FOUND = "{\"error\":\"not found\"}"
+BLKA_BAD_ID = "{\"error\":\"bad id\"}"
+BLKA_NO_DEVICE = "{\"error\":\"device_id required\"}"
+BLKA_LIMITED = "{\"error\":\"rate limited\",\"status\":\"error\"}"
+BLKA_SLOW_DOWN = "{\"error\":\"slow down\",\"status\":\"error\"}"
+BLKA_NO_SECRET = "{\"error\":\"SECRET_KEY_BASE is not set on this server\"}"
+
+# ---------------------------------------------------------------- rate limits
+
+# Blog.RateLimiter: {key, window, div(now, window)} -> hits. Every call
+# counts, the refused ones too. Windows that have ended are swept hourly,
+# on the first call after the hour.
+actor RateLimiter do
+  state windows: Map :: %{}
+  state swept: Int :: 0
+
+  on :allow(key: String, cap: Int, window: Int, now_s: Int) do
+    k = concat(key, "|", to_string(window), "|", to_string(blka_window_start(now_s, window)))
+    hit = lookup(windows, k)
+    count = case hit do
+      nil -> 1
+      _ -> elem(hit, 0) + 1
+    end
+    kept = case now_s - swept >= 3600 do
+      true -> blka_sweep(windows, now_s)
+      false -> windows
+    end
+    next_swept = case now_s - swept >= 3600 do
+      true -> now_s
+      false -> swept
+    end
+    become windows: put(kept, k, {count, blka_window_end(now_s, window)}), swept: next_swept
+    reply blka_allowed(count, cap)
+  end
+
+  on :size do
+    reply length(keys(windows))
+  end
+end
+
+def blka_sweep(windows: Map, now_s: Int) -> Map do
+  reduce(keys(windows), %{}, fn(acc: Map, k: Any) -> Map do
+    w = lookup(windows, k)
+    case elem(w, 1) > now_s do
+      true -> put(acc, k, w)
+      false -> acc
+    end
+  end)
+end
+
+BLKA_LIMITER = spawn RateLimiter
+
+def blka_allow(ctx: Map, key: String, cap: Int, window: Int) -> Bool do
+  ctx.limiter <- :allow(key, cap, window, now())
+end
+
+# ---------------------------------------------------------------- visitors
+
+# client_ip/1: the first X-Forwarded-For entry, trimmed.
+def blka_client_ip(conn: Map) -> String do
+  xff = lookup(conn.headers, "x-forwarded-for")
+  case xff do
+    nil -> "unknown"
+    _ -> blkw_trim(head(split(xff, ",")))
+  end
+end
+
+# device_hash/2 and ip_hash/1.
+def blka_hash(id: String, secret: String) -> String do
+  take(sha256(concat(id, secret)), 16)
+end
+
+# A string param with invalid UTF-8 replaced; anything else as it came.
+def blka_param(conn: Map, name: String) -> Any do
+  v = web_param(conn, name)
+  case type_of(v) == :string do
+    true -> utf8_scrub(v)
+    false -> v
+  end
+end
+
+# `(params["website"] || "") != ""`: a honeypot field humans never see.
+def blka_honeypot(v: Any) -> Bool do
+  not(v == nil or v == false or v == "")
+end
+
+# ---------------------------------------------------------------- Phoenix.Token
+
+# Plug.Crypto.KeyGenerator: PBKDF2-HMAC-SHA256, 1000 iterations, 32 bytes
+# (one block). Computed once, when the routes are built.
+def blka_pbkdf2(secret: String, salt: String) -> String do
+  u1 = hex_decode(hmac_sha256(secret, concat(salt, hex_decode("00000001"))))
+  last = reduce(range(2, 1000), {u1, u1}, fn(acc: Tuple, i: Int) -> Tuple do
+    u = hex_decode(hmac_sha256(secret, elem(acc, 0)))
+    {u, xor_bytes(elem(acc, 1), u)}
+  end)
+  elem(last, 1)
+end
+
+BLKA_HEX = "0123456789abcdef"
+
+def blka_hex_byte(b: Int) -> String do
+  concat(slice(BLKA_HEX, b / 16, 1), slice(BLKA_HEX, rem(b, 16), 1))
+end
+
+# n as `count` bytes, most significant first (n >= 0).
+def blka_be_hex(n: Int, count: Int) -> String do
+  case count do
+    0 -> ""
+    _ -> concat(blka_be_hex(n / 256, count - 1), blka_hex_byte(rem(n, 256)))
+  end
+end
+
+# n >= 0 as the fewest bytes, least significant first.
+def blka_le_hex(n: Int) -> String do
+  case n < 256 do
+    true -> blka_hex_byte(n)
+    false -> concat(blka_hex_byte(rem(n, 256)), blka_le_hex(n / 256))
+  end
+end
+
+# One integer in the external term format, as term_to_binary/1 writes it:
+# SMALL_INTEGER_EXT, INTEGER_EXT (signed 32-bit) or SMALL_BIG_EXT.
+def blka_etf_int(n: Int) -> String do
+  case n >= 0 and n <= 255 do
+    true -> concat("61", blka_hex_byte(n))
+    false ->
+      case n >= -2147483648 and n <= 2147483647 do
+        true ->
+          u = case n < 0 do
+            true -> n + 4294967296
+            false -> n
+          end
+          concat("62", blka_be_hex(u, 4))
+        false ->
+          mag = case n < 0 do
+            true -> 0 - n
+            false -> n
+          end
+          digits = blka_le_hex(mag)
+          sign = case n < 0 do
+            true -> "01"
+            false -> "00"
+          end
+          concat("6e", blka_hex_byte(length(digits) / 2), sign, digits)
+      end
+  end
+end
+
+# term_to_binary({a, b, c}) for three integers.
+def blka_etf_triple(a: Int, b: Int, c: Int) -> String do
+  hex_decode(concat("836803", blka_etf_int(a), blka_etf_int(b), blka_etf_int(c)))
+end
+
+def blka_byte(p: String, i: Int) -> Int do
+  char_code(slice(p, i, 1))
+end
+
+# The offsets 0 .. n-1 (range/2 includes its end).
+def blka_upto(n: Int) -> List do
+  case n > 0 do
+    true -> range(0, n - 1)
+    false -> []
+  end
+end
+
+# Unsigned big-endian bytes p[i .. i+count).
+def blka_read_be(p: String, i: Int, count: Int) -> Int do
+  reduce(blka_upto(count), 0, fn(acc: Int, k: Int) -> Int do acc * 256 + blka_byte(p, i + k) end)
+end
+
+def blka_read_le(p: String, i: Int, count: Int) -> Int do
+  reduce(reverse(blka_upto(count)), 0, fn(acc: Int, k: Int) -> Int do acc * 256 + blka_byte(p, i + k) end)
+end
+
+# One integer at p[i]: {value, next index}, or nil for anything else
+# (a term that is not an integer, or one too big for this server).
+def blka_etf_read_int(p: String, i: Int) -> Any do
+  n = length(p)
+  case i < n do
+    false -> nil
+    true ->
+      tag = blka_byte(p, i)
+      case tag do
+        97 ->
+          case i + 2 <= n do
+            true -> {blka_byte(p, i + 1), i + 2}
+            false -> nil
+          end
+        98 ->
+          case i + 5 <= n do
+            true ->
+              u = blka_read_be(p, i + 1, 4)
+              v = case u >= 2147483648 do
+                true -> u - 4294967296
+                false -> u
+              end
+              {v, i + 5}
+            false -> nil
+          end
+        110 ->
+          case i + 3 <= n do
+            false -> nil
+            true ->
+              count = blka_byte(p, i + 1)
+              sign = blka_byte(p, i + 2)
+              case count <= 7 and i + 3 + count <= n do
+                false -> nil
+                true ->
+                  mag = blka_read_le(p, i + 3, count)
+                  v = case sign == 1 do
+                    true -> 0 - mag
+                    false -> mag
+                  end
+                  {v, i + 3 + count}
+              end
+          end
+        _ -> nil
+      end
+  end
+end
+
+# binary_to_term of {a, b, c} for three integers: [a, b, c], or nil.
+# (Plug.Crypto also takes {data, signed} and %{data:, signed:} from older
+# versions; Phoenix has signed neither for years, and they are refused.)
+def blka_etf_untriple(p: String) -> Any do
+  case length(p) >= 3 and blka_byte(p, 0) == 131 and blka_byte(p, 1) == 104 and blka_byte(p, 2) == 3 do
+    false -> nil
+    true ->
+      a = blka_etf_read_int(p, 3)
+      case a do
+        nil -> nil
+        _ ->
+          b = blka_etf_read_int(p, elem(a, 1))
+          case b do
+            nil -> nil
+            _ ->
+              c = blka_etf_read_int(p, elem(b, 1))
+              case c do
+                nil -> nil
+                _ ->
+                  case elem(c, 1) == length(p) do
+                    true -> [elem(a, 0), elem(b, 0), elem(c, 0)]
+                    false -> nil
+                  end
+              end
+          end
+      end
+  end
+end
+
+# Phoenix.Token.sign(conn, "blink comment", issued_at). signed_at is in
+# milliseconds; this server's clock (now()) has whole seconds.
+def blka_sign(key: String, issued: Int, now_s: Int) -> String do
+  payload = base64url_encode(blka_etf_triple(issued, now_s * 1000, 86400))
+  plain = concat("SFMyNTY.", payload)
+  concat(plain, ".", base64url_encode(hex_decode(hmac_sha256(key, plain))))
+end
+
+def blka_b64url_ok(s: String) -> Bool do
+  length(s) > 0 and rem(length(s), 4) != 1 and reduce(blka_upto(length(s)), true, fn(ok: Bool, i: Int) -> Bool do
+    b = blka_byte(s, i)
+    ok and ((b >= 65 and b <= 90) or (b >= 97 and b <= 122) or (b >= 48 and b <= 57) or b == 45 or b == 95)
+  end)
+end
+
+# Base.url_decode64(s, padding: false), or nil. The alphabet is checked
+# first; base64url_decode also raises on leftover bits ("yy"), which the
+# check cannot see.
+def blka_unbase64(s: String) -> Any do
+  case blka_b64url_ok(s) do
+    false -> nil
+    true ->
+      try do
+        base64url_decode(s)
+      catch e do
+        nil
+      end
+  end
+end
+
+# Phoenix.Token.verify(conn, "blink comment", token, max_age: 7200):
+# the issued_at it carries, or nil. Only "SFMyNTY" (HMAC-SHA256) is
+# taken: Phoenix.Token signs nothing else, though Plug.Crypto would also
+# check an SHA-384 or SHA-512 token it was handed.
+def blka_verify(key: String, token: Any, now_s: Int) -> Any do
+  case type_of(token) == :string do
+    false -> nil
+    true ->
+      parts = split(token, ".")
+      case length(parts) == 3 and head(parts) == "SFMyNTY" do
+        false -> nil
+        true ->
+          payload64 = elem_at(parts, 1)
+          expected = hmac_sha256(key, concat("SFMyNTY.", payload64))
+          got = blka_unbase64(elem_at(parts, 2))
+          case got != nil and web_secure_eq(expected, hex_encode(web_or(got, "")), key) do
+            false -> nil
+            true ->
+              payload = blka_unbase64(payload64)
+              case payload do
+                nil -> nil
+                _ -> blka_fresh(blka_etf_untriple(payload), now_s)
+              end
+          end
+      end
+  end
+end
+
+# validate_age/2 with max_age 7200: not signed in the future, not older
+# than two hours. now() has whole seconds, so "the future" starts at the
+# end of the current second.
+def blka_fresh(term: Any, now_s: Int) -> Any do
+  case term do
+    nil -> nil
+    _ ->
+      signed = elem_at(term, 1)
+      case signed > now_s * 1000 + 999 or signed + blka_max_token_age * 1000 < now_s * 1000 do
+        true -> nil
+        false -> head(term)
+      end
+  end
+end
+
+# token_old_enough?/2.
+def blka_token_ok(ctx: Map, token: Any) -> Bool do
+  now_s = now()
+  issued = blka_verify(ctx.key, token, now_s)
+  case issued do
+    nil -> false
+    _ -> blka_token_old_enough(issued, now_s)
+  end
+end
+
+# ---------------------------------------------------------------- answers
+
+# Blinks.broadcast / Comments.broadcast. Open rooms hear of every new
+# comment, reaction count, hide and delete over PubSub.
+# TODO(chapters 61, 66, 70 and 71): send {event, payload} to the
+# "blink_comments:<blink_id>" room once there is one: :new_comment with the
+# comment, :reactions_updated with {comment_id, reactions}, :comment_hidden
+# and :comment_deleted with the comment.
+def blka_broadcast(event: Any, blink_id: Any, payload: Any) -> Any do
+  :ok
+end
+
+# A path id after `word` (".../blinks/:id/..." or ".../comments/:id..."),
+# Integer.parse/1 whole: :bad, :missing (too big for a bigint), or the id.
+def blka_path_id(conn: Map, word: String) -> Any do
+  blkw_path_id(blka_seg_after(split(conn.path, "/"), word))
+end
+
+def blka_seg_after(parts: List, word: String) -> String do
+  case parts do
+    [] -> ""
+    [p | rest] ->
+      case p == word and rest != [] do
+        true -> blkw_path_decode(head(rest))
+        false -> blka_seg_after(rest, word)
+      end
+  end
+end
+
+def blka_with_id(conn: Map, word: String, k: Any) -> Map do
+  id = blka_path_id(conn, word)
+  case id do
+    :bad -> blkw_json(conn, 400, BLKA_BAD_ID)
+    :missing -> blkw_json(conn, 404, BLKA_NOT_FOUND)
+    _ -> k(id)
+  end
+end
+
+# ---------------------------------------------------------------- saves
+
+# save_for_device/2: 404 for a blink that is not there, else the insert
+# (idempotent) and the count after it. The count reads the table as it was
+# before the insert (one snapshot), so the inserted row is added.
+BLKA_SAVE_SQL = join([
+  "with b as (select id from blinks where id = $1::bigint),",
+  " i as (insert into blink_saves (blink_id, device_hash, inserted_at, updated_at)",
+  " select b.id, $2::text, ", BLKA_NOW, ", ", BLKA_NOW, " from b",
+  " on conflict (blink_id, device_hash) do nothing returning 1)",
+  " select (select count(*) from b) as found,",
+  " (select count(*) from blink_saves where blink_id = $1::bigint) + (select count(*) from i) as n"
+], "")
+
+# unsave_for_device/2: no 404, the count after the delete.
+BLKA_UNSAVE_SQL = join([
+  "with d as (delete from blink_saves where blink_id = $1::bigint and device_hash = $2::text returning 1)",
+  " select (select count(*) from blink_saves where blink_id = $1::bigint) - (select count(*) from d) as n"
+], "")
+
+def blka_saved(conn: Map, n: Int) -> Map do
+  blkw_json(conn, 200, concat("{\"status\":\"ok\",\"save_count\":", to_string(n), "}"))
+end
+
+# with_device/3: the device id is 8 to 64 bytes and the IP is under 30
+# saves a minute, else 400 "device_id required" (the limit is folded into
+# the same check). Then the id.
+def blka_with_device(ctx: Map, conn: Map, k: Any) -> Map do
+  device = blka_param(conn, "device_id")
+  ok = type_of(device) == :string and blka_device_id_ok(length(device)) and blka_allow(ctx, concat("save:", blka_client_ip(conn)), 30, 60)
+  case ok do
+    false -> blkw_json(conn, 400, BLKA_NO_DEVICE)
+    true -> blka_with_id(conn, "blinks", fn(id: Int) -> Map do k(id, blka_hash(device, ctx.secret)) end)
+  end
+end
+
+def blka_save(ctx: Map, conn: Map) -> Map do
+  blka_with_device(ctx, conn, fn(id: Int, hash: String) -> Map do
+    case DB <- :query(BLKA_SAVE_SQL, [id, hash]) do
+      {:error, reason} -> blkw_no_db(conn, reason)
+      {:ok, rows} ->
+        row = head(rows)
+        case row.found == 0 do
+          true -> blkw_json(conn, 404, BLKA_NOT_FOUND)
+          false -> blka_saved(conn, row.n)
+        end
+    end
+  end)
+end
+
+def blka_unsave(ctx: Map, conn: Map) -> Map do
+  blka_with_device(ctx, conn, fn(id: Int, hash: String) -> Map do
+    case DB <- :query(BLKA_UNSAVE_SQL, [id, hash]) do
+      {:error, reason} -> blkw_no_db(conn, reason)
+      {:ok, rows} -> blka_saved(conn, head(rows).n)
+    end
+  end)
+end
+
+# ---------------------------------------------------------------- suggest
+
+# import_candidates/1 with one entry: skipped when the url is already a
+# blink (compared whole, before the cut) or already queued (the unique
+# index). The url is cut to 4,096 graphemes and the title to 1,000.
+BLKA_SUGGEST_SQL = join([
+  "with i as (insert into bookmark_candidates (url, title, folder, status, inserted_at, updated_at)",
+  " select $1::text, $2::text, 'app-suggest', 'pending', ", BLKA_NOW, ", ", BLKA_NOW,
+  " where not exists (select 1 from blinks b where b.url = $3::text)",
+  " on conflict (url) do nothing returning 1)",
+  " select count(*) as n from i"
+], "")
+
+def blka_suggest(ctx: Map, conn: Map) -> Map do
+  ip = blka_client_ip(conn)
+  url = blka_param(conn, "url")
+  title = blka_param(conn, "title")
+  case blka_honeypot(web_param(conn, "website")) do
+    true -> blkw_json(conn, 200, "{\"status\":\"ok\",\"queued\":true}")
+    false ->
+      allowed = blka_allow(ctx, concat("suggest:", ip), 3, 60) and blka_allow(ctx, concat("suggest_day:", ip), 20, 86400)
+      case allowed do
+        false -> blkw_json(conn, 429, BLKA_LIMITED)
+        true ->
+          case type_of(url) == :string and starts_with(url, "http") do
+            false -> blkw_json(conn, 422, "{\"error\":\"bad url\",\"status\":\"error\"}")
+            true ->
+              # `e["title"] && String.slice(...)`: a title that is not a
+              # string makes Phoenix raise (500)
+              case title == nil or type_of(title) == :string do
+                false -> blkw_json(conn, 422, "{\"error\":\"bad title\",\"status\":\"error\"}")
+                true ->
+                  cut_title = case title do
+                    nil -> nil
+                    _ -> grapheme_take(title, 1000)
+                  end
+                  case DB <- :query(BLKA_SUGGEST_SQL, [grapheme_take(url, 4096), cut_title, url]) do
+                    {:error, reason} -> blkw_no_db(conn, reason)
+                    {:ok, rows} ->
+                      q = case head(rows).n == 1 do
+                        true -> "true"
+                        false -> "false"
+                      end
+                      blkw_json(conn, 200, concat("{\"status\":\"ok\",\"queued\":", q, "}"))
+                  end
+              end
+          end
+      end
+  end
+end
+
+# ---------------------------------------------------------------- comments
+
+# index/2: 62's list (only the visible ones, oldest first, 200 at most,
+# each with its reaction counts) and a fresh post_token.
+def blka_comments(ctx: Map, conn: Map) -> Map do
+  blka_with_id(conn, "blinks", fn(id: Int) -> Map do
+    case DB <- :query(BLK_COMMENTS_SQL, [id]) do
+      {:error, reason} -> blkw_no_db(conn, reason)
+      {:ok, rows} ->
+        list = concat("{\"status\":\"ok\",\"comments\":[", head(rows).body, "]")
+        case ctx.key do
+          # no SECRET_KEY_BASE: the room can be read, not written to
+          "" -> blkw_json(conn, 200, concat(list, "}"))
+          _ ->
+            now_s = now()
+            blkw_json(conn, 200, concat(list, ",\"post_token\":\"", blka_sign(ctx.key, now_s, now_s), "\"}"))
+        end
+    end
+  end)
+end
+
+# Comment.changeset/2, as far as it answers. A field is cast (not a
+# string: "is invalid"; blank once trimmed: missing), then trimmed
+# (content) or squished (author_name), then validated. Each field's
+# messages come newest first, which is how Ecto keeps them, and the fields
+# come author_name, then content.
+
+# ~r/\s+/ -> " " after String.trim/1. Without the u flag \s is ASCII:
+# tab, LF, VT, FF, CR, space (not U+00A0 or U+0085; checked in Elixir).
+def blka_squish(s: String) -> String do
+  spaced = reduce([hex_decode("09"), hex_decode("0a"), hex_decode("0b"), hex_decode("0c"), hex_decode("0d")], blkw_trim(s), fn(acc: String, c: String) -> String do
+    replace(acc, c, " ")
+  end)
+  join(filter(split(spaced, " "), fn(w: String) -> Bool do w != "" end), " ")
+end
+
+# Regex.scan(~r/https?:\/\//i, content): the two can never overlap.
+def blka_links(s: String) -> Int do
+  low = downcase(s)
+  length(split(low, "http://")) - 1 + length(split(low, "https://")) - 1
+end
+
+def blka_uncivil(s: String) -> Bool do
+  low = utf8_downcase(s)
+  length(filter(BLKA_BLOCKED, fn(w: String) -> Bool do contains(low, w) end)) > 0
+end
+
+# {:ok, value} | :invalid | :missing
+def blka_cast(v: Any, tidy: Any) -> Any do
+  case v do
+    nil -> :missing
+    _ ->
+      case type_of(v) == :string do
+        false -> :invalid
+        true ->
+          case blkw_blank(v) do
+            true -> :missing
+            false -> {:ok, tidy(v)}
+          end
+      end
+  end
+end
+
+def blka_field_errors(cast: Any, max: Int, content: Bool) -> List do
+  case cast do
+    :invalid -> ["is invalid"]
+    :missing -> ["can't be blank"]
+    _ ->
+      v = elem(cast, 1)
+      e1 = case grapheme_length(v) > max do
+        true -> [concat("should be at most ", to_string(max), " character(s)")]
+        false -> []
+      end
+      e2 = case content and blka_links(v) > blka_max_links do
+        true -> ["too many links" | e1]
+        false -> e1
+      end
+      case blka_uncivil(v) do
+        true -> ["keep it civil" | e2]
+        false -> e2
+      end
+  end
+end
+
+# first_error/1: "author_name keep it civil, should be at most 40
+# character(s); content can't be blank", or "" when there is nothing.
+def blka_first_error(author: List, content: List) -> String do
+  a = case author do
+    [] -> []
+    _ -> [concat("author_name ", join(author, ", "))]
+  end
+  c = case content do
+    [] -> []
+    _ -> [concat("content ", join(content, ", "))]
+  end
+  join(list_append(a, c), "; ")
+end
+
+# duplicate?/1: the same trimmed body on the same blink in the last ten
+# minutes. Only a string body is looked for.
+BLKA_DUPLICATE_SQL = join([
+  "select count(*) as n from blink_comments where blink_id = $1::bigint and content = $2::text",
+  " and inserted_at > (now() at time zone 'UTC') - interval '600 seconds'"
+], "")
+
+BLKA_INSERT_COMMENT_SQL = join([
+  "with w as (insert into blink_comments (blink_id, author_name, content, ip_hash, report_count, inserted_at, updated_at)",
+  " values ($1::bigint, $2::text, $3::text, $4::text, 0, ", BLKA_NOW, ", ", BLKA_NOW, ") returning *)",
+  " select row_to_json(c)::text as body, c.blink_id from (select w.id, w.blink_id, w.author_name, w.content, w.inserted_at, '{}'::json as reactions from w) c"
+], "")
+
+def blka_duplicate(id: Int, content: Any) -> Any do
+  case type_of(content) == :string do
+    false -> {:ok, false}
+    true ->
+      case DB <- :query(BLKA_DUPLICATE_SQL, [id, blkw_trim(content)]) do
+        {:error, reason} -> {:error, reason}
+        {:ok, rows} -> {:ok, head(rows).n > 0}
+      end
+  end
+end
+
+def blka_comment(ctx: Map, conn: Map) -> Map do
+  blka_with_id(conn, "blinks", fn(id: Int) -> Map do
+    ip = blka_client_ip(conn)
+    case blka_honeypot(web_param(conn, "website")) do
+      true -> blkw_json(conn, 200, BLKA_OK)
+      false ->
+        case blka_token_ok(ctx, web_param(conn, "post_token")) do
+          false -> blkw_json(conn, 429, BLKA_SLOW_DOWN)
+          true ->
+            allowed = blka_allow(ctx, concat("comment:", ip), 4, 60) and blka_allow(ctx, concat("comment_day:", ip), 60, 86400)
+            case allowed do
+              false -> blkw_json(conn, 429, BLKA_LIMITED)
+              true -> blka_create_comment(ctx, conn, id, ip)
+            end
+        end
+    end
+  end)
+end
+
+def blka_create_comment(ctx: Map, conn: Map, id: Int, ip: String) -> Map do
+  author_in = blka_param(conn, "author_name")
+  content_in = blka_param(conn, "content")
+  case blka_duplicate(id, content_in) do
+    {:error, reason} -> blkw_no_db(conn, reason)
+    {:ok, dup} ->
+      case dup do
+        true -> blkw_json(conn, 422, "{\"error\":\"you already said that\",\"status\":\"error\"}")
+        false ->
+          author = blka_cast(author_in, blka_squish)
+          content = blka_cast(content_in, blkw_trim)
+          message = blka_first_error(blka_field_errors(author, blka_max_author, false), blka_field_errors(content, blka_max_content, true))
+          case message do
+            "" ->
+              params = [id, elem(author, 1), elem(content, 1), blka_hash(ip, ctx.secret)]
+              case DB <- :query(BLKA_INSERT_COMMENT_SQL, params) do
+                {:error, reason} ->
+                  # foreign_key_constraint(:blink_id): no such blink
+                  case contains(reason, "blink_comments_blink_id_fkey") do
+                    true -> blkw_json(conn, 422, "{\"error\":\"blink_id does not exist\",\"status\":\"error\"}")
+                    false -> blkw_no_db(conn, reason)
+                  end
+                {:ok, rows} ->
+                  row = head(rows)
+                  blka_broadcast(:new_comment, row.blink_id, row.body)
+                  blkw_json(conn, 200, concat("{\"status\":\"ok\",\"comment\":", row.body, "}"))
+              end
+            _ -> blkw_json(conn, 422, concat("{\"error\":", json_encode(message), ",\"status\":\"error\"}"))
+          end
+      end
+  end
+end
+
+# report_comment/1: one more report; the one that reaches 3 hides it.
+# Ecto's update also moves updated_at. Every report of a hidden comment
+# broadcasts :comment_hidden again, as Phoenix does.
+BLKA_REPORT_SQL = join([
+  "update blink_comments set report_count = report_count + 1,",
+  " hidden_at = case when report_count + 1 >= $2::int and hidden_at is null then ", BLKA_NOW, " else hidden_at end,",
+  " updated_at = ", BLKA_NOW,
+  " where id = $1::bigint returning id, blink_id, (hidden_at is not null) as hidden"
+], "")
+
+def blka_report(ctx: Map, conn: Map) -> Map do
+  blka_with_id(conn, "comments", fn(id: Int) -> Map do
+    case blka_allow(ctx, concat("comment_report:", blka_client_ip(conn)), 10, 60) do
+      false -> blkw_json(conn, 429, BLKA_LIMITED)
+      true ->
+        case DB <- :query(BLKA_REPORT_SQL, [id, blka_hide_at]) do
+          {:error, reason} -> blkw_no_db(conn, reason)
+          {:ok, rows} ->
+            case rows do
+              [] -> blkw_json(conn, 404, BLKA_NOT_FOUND)
+              [row | _] ->
+                case row.hidden do
+                  true -> blka_broadcast(:comment_hidden, row.blink_id, row.id)
+                  false -> :ok
+                end
+                blkw_json(conn, 200, BLKA_OK)
+            end
+        end
+    end
+  end)
+end
+
+# toggle_reaction/4. The write and the count are two statements: in one,
+# the count would read the table from before the write.
+BLKA_REACT_SQL = join([
+  "with c as (select id, blink_id from blink_comments where id = $1::bigint),",
+  " i as (insert into blink_comment_reactions (comment_id, emoji, device_hash, inserted_at, updated_at)",
+  " select c.id, $2::text, $3::text, ", BLKA_NOW, ", ", BLKA_NOW, " from c",
+  " on conflict (comment_id, emoji, device_hash) do nothing returning 1)",
+  " select c.blink_id from c"
+], "")
+
+BLKA_UNREACT_SQL = join([
+  "with c as (select id, blink_id from blink_comments where id = $1::bigint),",
+  " d as (delete from blink_comment_reactions r using c where r.comment_id = c.id and r.emoji = $2::text and r.device_hash = $3::text returning 1)",
+  " select c.blink_id from c"
+], "")
+
+# reactions_for/1 of one comment: {"emoji": n}, keys sorted by their bytes
+# as Jason writes a small map.
+BLKA_REACTIONS_SQL = join([
+  "select coalesce((select '{' || string_agg(to_json(r.emoji)::text || ':' || r.n, ',' order by r.emoji collate \"C\") || '}'",
+  " from (select emoji, count(*) as n from blink_comment_reactions where comment_id = $1::bigint group by emoji) r), '{}') as body"
+], "")
+
+def blka_reaction(ctx: Map, conn: Map, sql: String) -> Map do
+  device = blka_param(conn, "device_id")
+  case type_of(device) == :string and blka_device_id_ok(length(device)) do
+    false -> blkw_json(conn, 400, BLKA_NO_DEVICE)
+    true ->
+      case blka_allow(ctx, concat("react:", blka_client_ip(conn)), 30, 60) do
+        false -> blkw_json(conn, 429, BLKA_LIMITED)
+        true ->
+          blka_with_id(conn, "comments", fn(id: Int) -> Map do
+            emoji = blkw_or(blka_param(conn, "emoji"), "")
+            case type_of(emoji) == :string and has_string(BLKA_EMOJIS, emoji) do
+              false -> blkw_json(conn, 422, "{\"error\":\"bad emoji\"}")
+              true ->
+                case DB <- :query(sql, [id, emoji, blka_hash(device, ctx.secret)]) do
+                  {:error, reason} -> blkw_no_db(conn, reason)
+                  {:ok, rows} ->
+                    case rows do
+                      [] -> blkw_json(conn, 404, BLKA_NOT_FOUND)
+                      [row | _] ->
+                        case DB <- :query(BLKA_REACTIONS_SQL, [id]) do
+                          {:error, reason} -> blkw_no_db(conn, reason)
+                          {:ok, counted} ->
+                            reactions = head(counted).body
+                            blka_broadcast(:reactions_updated, row.blink_id, {id, reactions})
+                            blkw_json(conn, 200, concat("{\"status\":\"ok\",\"reactions\":", reactions, "}"))
+                        end
+                    end
+                end
+            end
+          end)
+      end
+  end
+end
+
+# delete/2 (admin). Its reactions go by ON DELETE CASCADE, as in Phoenix.
+BLKA_DELETE_COMMENT_SQL = "delete from blink_comments where id = $1::bigint returning id, blink_id"
+
+def blka_delete_comment(ctx: Map, conn: Map) -> Map do
+  blka_with_id(conn, "comments", fn(id: Int) -> Map do
+    case DB <- :query(BLKA_DELETE_COMMENT_SQL, [id]) do
+      {:error, reason} -> blkw_no_db(conn, reason)
+      {:ok, rows} ->
+        case rows do
+          [] -> blkw_json(conn, 404, BLKA_NOT_FOUND)
+          [row | _] ->
+            blka_broadcast(:comment_deleted, row.blink_id, row.id)
+            blkw_json(conn, 200, BLKA_OK)
+        end
+    end
+  end)
+end
+
+# BlinkCommentController's require_token/2: as BlinkController's, but its
+# 401 says only "unauthorized".
+def blka_require_token(expected: String) -> Any do
+  fn(conn: Map) -> Map do
+    offered = blkw_offered(conn)
+    ok = expected != "" and type_of(offered) == :string and web_secure_eq(offered, expected, conn.secret)
+    case ok do
+      true -> conn
+      false -> web_halt(blkw_json(conn, 401, "{\"error\":\"unauthorized\"}"))
+    end
+  end
+end
+
+# ---------------------------------------------------------------- routes
+
+# Plug: no SECRET_KEY_BASE, no anonymous writes (see the top).
+def blka_require_secret(ctx: Map) -> Any do
+  fn(conn: Map) -> Map do
+    case ctx.secret == "" do
+      true -> web_halt(blkw_json(conn, 503, BLKA_NO_SECRET))
+      false -> conn
+    end
+  end
+end
+
+def blinks_anon_routes() -> List do
+  secret = web_or(getenv("SECRET_KEY_BASE"), "")
+  case secret do
+    "" -> puts("blinks: SECRET_KEY_BASE is not set; comments, saves, reactions and suggestions answer 503")
+    _ -> :ok
+  end
+  blinks_anon_routes_for(secret, web_or(getenv("BLINKS_API_TOKEN"), ""), BLKA_LIMITER)
+end
+
+def blinks_anon_routes_for(secret: String, token: String, limiter: Any) -> List do
+  key = case secret do
+    "" -> ""
+    _ -> blka_pbkdf2(secret, BLKA_SALT)
+  end
+  ctx = %{secret: secret, key: key, limiter: limiter}
+  flat(map(["/api/blinks", "/blinks-next/api/blinks"], fn(base: String) -> List do blka_routes_at(base, ctx, token) end))
+end
+
+def blka_routes_at(base: String, ctx: Map, token: String) -> List do
+  c = [blkw_cors]
+  w = [blkw_cors, blka_require_secret(ctx)]
+  admin = [blkw_cors, blka_require_token(token)]
+  [
+    web_route("GET", concat(base, "/:blink_id/comments"), c, fn(conn: Map) -> Map do blka_comments(ctx, conn) end),
+    web_route("POST", concat(base, "/:blink_id/comments"), w, fn(conn: Map) -> Map do blka_comment(ctx, conn) end),
+    web_route("OPTIONS", concat(base, "/:blink_id/comments"), c, blkw_preflight),
+    web_route("POST", concat(base, "/comments/:id/report"), w, fn(conn: Map) -> Map do blka_report(ctx, conn) end),
+    web_route("OPTIONS", concat(base, "/comments/:id/report"), c, blkw_preflight),
+    web_route("POST", concat(base, "/comments/:id/react"), w, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_REACT_SQL) end),
+    web_route("DELETE", concat(base, "/comments/:id/react"), w, fn(conn: Map) -> Map do blka_reaction(ctx, conn, BLKA_UNREACT_SQL) end),
+    web_route("OPTIONS", concat(base, "/comments/:id/react"), c, blkw_preflight),
+    web_route("DELETE", concat(base, "/comments/:id"), admin, fn(conn: Map) -> Map do blka_delete_comment(ctx, conn) end),
+    web_route("OPTIONS", concat(base, "/comments/:id"), c, blkw_preflight),
+    web_route("POST", concat(base, "/:id/save"), w, fn(conn: Map) -> Map do blka_save(ctx, conn) end),
+    web_route("DELETE", concat(base, "/:id/save"), w, fn(conn: Map) -> Map do blka_unsave(ctx, conn) end),
+    web_route("OPTIONS", concat(base, "/:id/save"), c, blkw_preflight),
+    web_route("POST", concat(base, "/suggest"), w, fn(conn: Map) -> Map do blka_suggest(ctx, conn) end)
+  ]
+end
