@@ -38,7 +38,12 @@
 # Secrets come from the environment, as they did: OPENAI_API_KEY and
 # ZIGGY_CHAT_PASSWORD; OPENAI_MODEL (gpt-5.1) and OPENAI_AUTOCOMPLETE_MODEL
 # (gpt-5.4-nano) are optional. OPENAI_BASE_URL (https://api.openai.com/v1)
-# lets a laptop point the chat at a stub. Without a password the chat says
+# points the chat at any OpenAI-compatible API: production runs it on
+# DeepSeek (https://api.deepseek.com, deepseek-chat, with DEEPSEEK_API_KEY
+# passed as OPENAI_API_KEY), and a laptop can point it at a stub. The
+# suggestion's length cap is max_tokens, which OpenAI and DeepSeek both
+# take; max_completion_tokens is OpenAI's alone.
+# Without a password the chat says
 # it is not configured; without a key every question is answered with the
 # LiveView's "OPENAI_API_KEY is not configured".
 
@@ -334,7 +339,7 @@ end
 def zg_suggest_body(model: String, partial: String) -> String do
   json_encode(%{model: model,
     messages: [%{role: "system", content: zg_autocomplete_prompt}, %{role: "user", content: partial}],
-    max_completion_tokens: 30})
+    max_tokens: 30})
 end
 
 def zg_headers(key: String) -> Map do
