@@ -1,0 +1,161 @@
+# needs: static/cursors/cursors.blimp
+#
+# The room (src/94_cursor_tracker.blimp), the page's program
+# (static/cursors/cursors.blimp) and the Temper they share
+# (temper/src/cursor_tracker). Sockets here are negative, which the room
+# does not write to. Numbers marked "Elixir" are CursorTrackerLive's own,
+# from its public functions on origin/main.
+
+def ctt_decoded(json: String) -> Map do
+  elem(json_decode(json), 1)
+end
+
+actor CursorTrackerTests do
+  test "a colour is three bytes of the id, each plus 100 and at most 255" do
+    # Elixir: generate_user_color/1 does this to the first three bytes of md5(id)
+    assert_eq(ct_color("000000aabbccddee"), "rgb(100, 100, 100)")
+    assert_eq(ct_color("ffffff0000000000"), "rgb(255, 255, 255)")
+    assert_eq(ct_color("9b3c07ffffffffff"), "rgb(255, 160, 107)")
+    assert_eq(ct_color("9B3C07"), "rgb(255, 160, 107)")
+    # a short or broken id is still a colour
+    assert_eq(ct_color("9b"), "rgb(255, 100, 100)")
+    assert_eq(ct_color(""), "rgb(100, 100, 100)")
+    assert_eq(ct_color("zz3c07"), "rgb(100, 160, 107)")
+  end
+
+  test "the countdown runs to the next whole hour, as calculate_next_clear/0 did" do
+    hour = 3600 * 488664
+    # Elixir: remaining = 3600 - rem(now, 3600); 3305s in -> 295 left
+    assert_eq(ct_left(hour + 3305), 295)
+    assert_eq(ct_clock(hour + 3305), "00:04:55")
+    assert_eq(ct_left_text(hour + 3305), "0h 4m 55s")
+    # on the hour it is a whole hour away, not zero
+    assert_eq(ct_clock(hour), "01:00:00")
+    assert_eq(ct_left_text(hour), "1h 0m 0s")
+    assert_eq(ct_clock(hour + 3599), "00:00:01")
+    assert_eq(ct_hour(hour + 3599), 488664)
+    assert_eq(ct_hour(hour + 3600), 488665)
+    # Elixir: format_time_component/1
+    assert_eq(map([0, 5, 10, 59], fn(n: Int) -> String do ct_pad2(n) end), ["00", "05", "10", "59"])
+  end
+
+  test "who drew a point, as point_author_label/2 said it" do
+    assert_eq(ct_author("abcdef0123", "abcdef0123"), "you")
+    assert_eq(ct_author("abcdef0123", "999999"), "abcdef")
+    assert_eq(ct_author("", "999999"), "")
+    assert_eq(ct_author("abc", ""), "")
+    assert_eq(ct_short("abc"), "abc")
+    assert_eq(ct_point_line(1, 12, 40, "you"), "> Point 1: X:12 Y:40 by you")
+  end
+
+  test "inside the area means within its box, edges included" do
+    assert(ct_inside(0, 0, 800, 256))
+    assert(ct_inside(800, 256, 800, 256))
+    refute(ct_inside(-1, 10, 800, 256))
+    refute(ct_inside(10, 257, 800, 256))
+    refute(ct_inside(0, 0, -1, -1))
+  end
+
+  test "the room: a visitor is given an id and a colour, and everyone is sent at most every 50ms" do
+    room = spawn CursorRoom
+    a = room <- :join(-1)
+    b = room <- :join(-2)
+    assert_eq(length(a), 16)
+    refute(a == b)
+    r0 = room <- :room
+    assert_eq(map(r0.users, fn(u: Map) -> String do u.id end), [a, b])
+    assert_eq(head(r0.users).color, ct_color(a))
+    # moves are kept, not forwarded: the last one wins
+    assert_eq(room <- :recv(-1, "{\"t\":\"move\",\"rx\":10,\"ry\":20,\"inside\":true}"), :move)
+    assert_eq(room <- :recv(-1, "{\"t\":\"move\",\"rx\":30.6,\"ry\":40,\"inside\":true}"), :move)
+    assert_eq(room <- :push(1000, 3600 * 10), 2)
+    # nothing new: nothing sent
+    assert_eq(room <- :push(1010, 3600 * 10), 0)
+    assert_eq(room <- :recv(-2, "{\"t\":\"move\",\"rx\":1,\"ry\":1,\"inside\":false}"), :move)
+    # within 50ms of the last push: held, then sent
+    assert_eq(room <- :push(1030, 3600 * 10), 0)
+    assert_eq(room <- :push(1050, 3600 * 10), 2)
+    r1 = room <- :room
+    assert_eq(head(r1.users), %{id: a, color: ct_color(a), rx: 31, ry: 40, inside: true})
+    room <- :leave(-1)
+    assert_eq(map((room <- :room).users, fn(u: Map) -> String do u.id end), [b])
+  end
+
+  test "the room: a browser's numbers are clamped, and anything else is :bad" do
+    room = spawn CursorRoom
+    room <- :join(-1)
+    room <- :recv(-1, "{\"t\":\"move\",\"rx\":-50,\"ry\":999999,\"inside\":\"yes\"}")
+    u = head((room <- :room).users)
+    assert_eq([u.rx, u.ry, u.inside], [0, 4000, false])
+    assert_eq(room <- :recv(-1, "not json"), :bad)
+    assert_eq(room <- :recv(-1, "[1,2]"), :bad)
+    assert_eq(room <- :recv(-1, "{\"t\":\"teleport\"}"), :bad)
+    # a socket the room was never told of
+    assert_eq(room <- :recv(-9, "{\"t\":\"clear\"}"), :bad)
+  end
+
+  test "the room: points are kept newest first, one per 100ms per visitor, and cleared" do
+    room = spawn CursorRoom
+    a = room <- :join(-1)
+    b = room <- :join(-2)
+    assert_eq(room <- :recv(-1, "{\"t\":\"point\",\"x\":5,\"y\":6}"), :point)
+    assert_eq(room <- :recv(-1, "{\"t\":\"point\",\"x\":7,\"y\":8}"), :too_soon)
+    assert_eq(room <- :recv(-2, "{\"t\":\"point\",\"x\":9.4,\"y\":-3}"), :point)
+    pts = (room <- :room).points
+    assert_eq(pts, [%{id: b, color: ct_color(b), x: 9, y: 0}, %{id: a, color: ct_color(a), x: 5, y: 6}])
+    assert_eq(room <- :recv(-2, "{\"t\":\"clear\"}"), :clear)
+    assert_eq((room <- :room).points, [])
+  end
+
+  test "the room: the points go when the hour turns, and not before" do
+    room = spawn CursorRoom
+    room <- :join(-1)
+    hour = 3600 * 488664
+    room <- :push(1000, hour + 10)
+    room <- :recv(-1, "{\"t\":\"point\",\"x\":5,\"y\":6}")
+    room <- :push(1100, hour + 3599)
+    assert_eq(length((room <- :room).points), 1)
+    room <- :push(1200, hour + 3600)
+    assert_eq((room <- :room).points, [])
+  end
+
+  test "the page: the room's frames become what it draws" do
+    t = spawn Tracker
+    t <- :frame("{\"t\":\"hello\",\"id\":\"aaaaaa01\",\"color\":\"rgb(1, 2, 3)\",\"points\":[{\"id\":\"bbbbbb02\",\"color\":\"red\",\"x\":1,\"y\":2}],\"users\":[{\"id\":\"aaaaaa01\",\"color\":\"rgb(1, 2, 3)\",\"rx\":0,\"ry\":0,\"inside\":false},{\"id\":\"bbbbbb02\",\"color\":\"red\",\"rx\":7,\"ry\":8,\"inside\":true}]}")
+    v = to_html(t <- :view)
+    assert(contains(v, "// ACTIVE USERS: 2"))
+    assert(contains(v, "2 user(s) online"))
+    assert(contains(v, "border-color: red"))
+    assert(contains(v, "Point 1: X:1 Y:2 by bbbbbb"))
+    t <- :frame("{\"t\":\"point\",\"point\":{\"id\":\"aaaaaa01\",\"color\":\"rgb(1, 2, 3)\",\"x\":30,\"y\":40}}")
+    v2 = to_html(t <- :view)
+    assert(contains(v2, "Point 1: X:30 Y:40 by you"))
+    assert(contains(v2, "Points: 2"))
+    t <- :frame("{\"t\":\"users\",\"users\":[{\"id\":\"aaaaaa01\",\"color\":\"rgb(1, 2, 3)\",\"rx\":0,\"ry\":0,\"inside\":false}]}")
+    t <- :frame("{\"t\":\"clear\"}")
+    v3 = to_html(t <- :view)
+    assert(contains(v3, "1 user(s) online"))
+    assert(contains(v3, "Points: 0"))
+    refute(contains(v3, "Saved points"))
+  end
+
+  test "the page: a click inside the area is a point where it landed, outside nothing" do
+    t = spawn Tracker
+    t <- :move(500, 600, -5, 10, 800, 256)
+    t <- :save_point
+    assert_eq(t <- :outbox, [])
+    assert_eq(ctt_decoded(t <- :report), %{t: "move", rx: 0, ry: 0, inside: false})
+    t <- :move(500, 600, 120, 30, 800, 256)
+    assert_eq(ctt_decoded(t <- :report), %{t: "move", rx: 120, ry: 30, inside: true})
+    t <- :save_point
+    t <- :clear
+    out = t <- :outbox
+    assert_eq(map(out, fn(s: String) -> Map do ctt_decoded(s) end), [%{t: "point", x: 120, y: 30}, %{t: "clear"}])
+    assert_eq(t <- :outbox, [])
+    t <- :clock(3600 * 488664 + 3305)
+    v = to_html(t <- :view)
+    assert(contains(v, "00:04:55"))
+    assert(contains(v, "X: 120, Y: 30"))
+    assert(contains(v, "Current position: X:500 Y:600"))
+  end
+end

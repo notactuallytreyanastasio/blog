@@ -46,6 +46,7 @@ stage() {
   cp _build/twenty48.blimp "$DIST/blimp_site/_build/twenty48.blimp"
   cp _build/wordle.blimp "$DIST/blimp_site/_build/wordle.blimp"
   cp _build/wordle-god.blimp "$DIST/blimp_site/_build/wordle-god.blimp"
+  cp _build/cursors.blimp "$DIST/blimp_site/_build/cursors.blimp"
   cp -R assets data static content "$DIST/blimp_site/"
   cp Dockerfile "$DIST/Dockerfile"
   cp -R ../priv/static/posts ../priv/static/images "$DIST/priv/static/"
