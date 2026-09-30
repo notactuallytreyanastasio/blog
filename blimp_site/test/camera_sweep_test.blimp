@@ -1,0 +1,334 @@
+# The camera sweep (src/99_camera_sweep.blimp, temper/src/cameras/sweep.temper.md)
+# against what Phoenix's own code answers for the same input.
+#
+# fixtures/cameras/sweep/:
+#   search_*.json      what sapi.craigslist.org answered on 2026-09-30
+#                      (plaubel_makina: no results, `"decode": 0`)
+#   searches.json      Craigslist.decode_items/2 of each, kept to the
+#                      area's sub-areas as poll/1 keeps them
+#   post_*.html        three post pages as Craigslist served them
+#   synth_*.html       pages written to hit parse_post/1's corners: phone
+#                      and email patterns, entities, <br>, comments,
+#                      scripts, attributes with no label, bad dates, the
+#                      map, the reply link, image ids, the gone markers
+#   posts.json         Craigslist.parse_post/1 of each page
+#   classify.json      classify/5 of 40 recorded posts and 69 made-up ones
+#   prompts.json       Analyst.prompt/1 of three listings
+#   exaws_put.json     the request Blog.Storage.upload/3 made (ExAws, with
+#                      a recording HTTP client and a test key pair)
+#   openai_request.json the request Analyst.request/1 sent (to Req's :plug)
+#   openai_answers.json / openai_normalized.json
+#                      chat completions answers, and what Analyst.request/1
+#                      made of each (Req's :plug option in place of OpenAI)
+#
+# All of it written by `mix run` in the Phoenix app, calling those
+# functions.
+
+def cst_fixture(name: String) -> String do
+  read_file(concat("test/fixtures/cameras/sweep/", name))
+end
+
+def cst_json(name: String) -> Any do
+  elem(json_decode(cst_fixture(name)), 1)
+end
+
+# a float given as the text Temper kept, as the number Postgres makes of it
+def cst_num(text: Any) -> Any do
+  case text do
+    nil -> nil
+    _ ->
+      # JSON has no leading "+", Postgres and Float.parse/1 do
+      t = case slice(text, 0, 1) do
+        "+" -> slice(text, 1, length(text) - 1)
+        _ -> text
+      end
+      elem(json_decode(t), 1)
+  end
+end
+
+# a map compared as Elixir compares one: the same keys, the same values
+def cst_same_map(a: Any, b: Any) -> Bool do
+  ka = sort(keys(a))
+  ka == sort(keys(b)) and reduce(ka, true, fn(ok: Bool, k: String) -> Bool do ok and lookup(a, k) == lookup(b, k) end)
+end
+
+# Unix seconds of "YYYY-MM-DD(T| )HH:MM:SS(Z|±hh(:?mm)?)", as Postgres
+# reads the text the sweep hands it
+def cst_days(y: Int, m: Int, d: Int) -> Int do
+  yy = case m <= 2 do
+    true -> y - 1
+    false -> y
+  end
+  era = yy / 400
+  yoe = yy - era * 400
+  mp = case m > 2 do
+    true -> m - 3
+    false -> m + 9
+  end
+  doy = (153 * mp + 2) / 5 + d - 1
+  doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+  era * 146097 + doe - 719468
+end
+
+def cst_epoch(iso: Any) -> Any do
+  case iso do
+    nil -> nil
+    _ ->
+      n = fn(a: Int, len: Int) -> Int do to_int(slice(iso, a, len)) end
+      base = cst_days(n(0, 4), n(5, 2), n(8, 2)) * 86400 + n(11, 2) * 3600 + n(14, 2) * 60 + n(17, 2)
+      tz = slice(iso, 19, length(iso) - 19)
+      case tz do
+        "Z" -> base
+        _ ->
+          sign = case slice(tz, 0, 1) do
+            "-" -> -1
+            _ -> 1
+          end
+          digits = replace(slice(tz, 1, length(tz) - 1), ":", "")
+          hh = to_int(slice(digits, 0, 2))
+          mm = case length(digits) >= 4 do
+            true -> to_int(slice(digits, 2, 2))
+            false -> 0
+          end
+          base - sign * (hh * 3600 + mm * 60)
+      end
+  end
+end
+
+def cst_area(file: String) -> String do
+  head(split(replace(file, "search_", ""), "_"))
+end
+
+def cst_subs(area: String) -> List do
+  elem(head(filter(CS_CITIES, fn(c: Tuple) -> Bool do elem(c, 0) == area end)), 1)
+end
+
+# JSON with every object's keys sorted, to compare two documents
+def cst_canon(v: Any) -> String do
+  case type_of(v) do
+    :map -> concat("{", join(map(sort(keys(v)), fn(k: String) -> String do concat(json_encode(k), ":", cst_canon(lookup(v, k))) end), ","), "}")
+    :list -> concat("[", join(map(v, fn(x: Any) -> String do cst_canon(x) end), ","), "]")
+    _ -> json_encode(v)
+  end
+end
+
+actor CameraSweepTests do
+  test "a search answer decodes as decode_items/2 decoded it" do
+    want = cst_json("searches.json")
+    each(keys(want), fn(file: String) do
+      area = cst_area(file)
+      got = elem(cs_search_result({:ok, 200, cst_fixture(file)}, area, cst_subs(area)), 1)
+      ref = lookup(want, file)
+      assert_eq(length(got), length(ref))
+      each(zip(got, ref), fn(pair: Any) do
+        g = elem(pair, 0)
+        r = elem(pair, 1)
+        assert_eq(g.posting_id, lookup(r, "posting_id"))
+        assert_eq(g.subarea, lookup(r, "subarea"))
+        assert_eq(g.location, lookup(r, "location"))
+        assert_eq(g.neighborhood, lookup(r, "neighborhood"))
+        assert_eq(g.title, lookup(r, "title"))
+        assert_eq(g.price_cents, lookup(r, "price_cents"))
+        assert_eq(g.posted_at, lookup(r, "posted_at"))
+        assert_eq(g.image_ids, lookup(r, "image_ids"))
+        assert_eq(g.category_id, lookup(r, "category_id"))
+        assert_eq(g.url, lookup(r, "url"))
+        assert_eq(cst_num(g.lat), lookup(r, "lat"))
+        assert_eq(cst_num(g.lng), lookup(r, "lng"))
+      end)
+    end)
+    # 4 answers, 1 of them empty, 27 listings kept
+    assert_eq(length(keys(want)), 4)
+    assert_eq(reduce(values(want), 0, fn(n: Int, ls: List) -> Int do n + length(ls) end), 27)
+  end
+
+  test "a search that fails is an error, as Req's answer was" do
+    assert_eq(cs_search_result({:ok, 403, "blocked"}, "newyork", ["mnh"]), {:error, "{:http, 403}"})
+    assert_eq(cs_search_result({:ok, 200, "<html>"}, "newyork", ["mnh"]), {:error, "{:http, 200}"})
+    assert_eq(cs_search_result({:ok, 200, "{\"data\": {\"decode\": 0}}"}, "newyork", ["mnh"]), {:ok, []})
+    assert_eq(elem(cs_search_result({:error, "timeout"}, "newyork", ["mnh"]), 0), :error)
+  end
+
+  test "the search URL is the one Req built from search/3's params" do
+    # Elixir: URI.encode_query([batch: "3-0-360-0-0", cc: "US", lang: "en", query: "canon ae-1 f/1.4",
+    #   searchPath: "sss", sort: "date", hasPic: 1, purveyor: "owner", min_price: 100])
+    req = cs_search_request("newyork", "canon ae-1 f/1.4")
+    assert_eq(elem(req, 0), "https://sapi.craigslist.org/web/v8/postings/search/full?batch=3-0-360-0-0&cc=US&lang=en&query=canon+ae-1+f%2F1.4&searchPath=sss&sort=date&hasPic=1&purveyor=owner&min_price=100")
+    assert_eq(lookup(elem(req, 1), "referer"), "https://newyork.craigslist.org/")
+    assert_eq(cam_area_id("sfbay"), 1)
+    assert_eq(cam_area_id("portland"), 9)
+  end
+
+  test "a post page reads as parse_post/1 read it" do
+    want = cst_json("posts.json")
+    each(keys(want), fn(file: String) do
+      ref = lookup(want, file)
+      got = cs_parse_post(cst_fixture(file))
+      case lookup(ref, "gone") do
+        "" ->
+          p = elem(got, 1)
+          assert_eq(elem(got, 0), :ok)
+          assert_eq(p.title, lookup(ref, "title"))
+          assert_eq(p.body, lookup(ref, "body"))
+          assert(cst_same_map(p.attrs, lookup(ref, "attrs")))
+          assert_eq(p.image_ids, lookup(ref, "image_ids"))
+          assert_eq(cst_epoch(p.posted_at), lookup(ref, "posted_at"))
+          assert_eq(cst_epoch(p.updated_at), lookup(ref, "updated_at"))
+          assert_eq(cst_num(p.lat), lookup(ref, "lat"))
+          assert_eq(cst_num(p.lng), lookup(ref, "lng"))
+          assert_eq(p.reply_url, lookup(ref, "reply_url"))
+          assert(cst_same_map(p.contact, lookup(ref, "contact")))
+        reason -> assert_eq(got, {:gone, reason})
+      end
+    end)
+    assert_eq(length(keys(want)), 17)
+  end
+
+  test "the contact patterns find what Regex.scan found" do
+    want = cst_json("posts.json")
+    # the Elixir answers, spelled out for the two pages of numbers and addresses
+    assert_eq(lookup(lookup(lookup(want, "synth_body_2.html"), "contact"), "phones"), ["2125551234", "(212)555-1234", "1(212)5551234"])
+    assert_eq(lookup(lookup(lookup(want, "synth_body_5.html"), "contact"), "emails"), ["foo_bar%x@sub-domain.example.museum", "ann@site.org", "a@b..cc", "z@-x.io"])
+    got = elem(cs_parse_post(cst_fixture("synth_body_2.html")), 1)
+    assert_eq(lookup(got.contact, "phones"), ["2125551234", "(212)555-1234", "1(212)5551234"])
+  end
+
+  test "a page Craigslist no longer has is gone" do
+    assert_eq(cs_post_result({:ok, 404, "Page Not Found"}), {:gone, "404"})
+    assert_eq(cs_post_result({:ok, 410, ""}), {:gone, "410"})
+    assert_eq(cs_post_result({:ok, 503, ""}), {:error, "{:http, 503}"})
+    assert_eq(cs_post_result({:ok, 200, "<p>This posting has been flagged for removal</p>"}), {:gone, "flagged"})
+  end
+
+  test "classify/5 gives the same tags and score" do
+    cases = cst_json("classify.json")
+    each(cases, fn(c: Map) do
+      got = cs_classify(lookup(c, "title"), lookup(c, "body"), lookup(c, "attrs"), lookup(c, "queries"), range(0, lookup(c, "images") - 1))
+      want = lookup(c, "want")
+      assert_eq(got.tags, lookup(want, "tags"))
+      assert_eq(got.score, lookup(want, "score"))
+    end)
+    assert_eq(length(cases), 109)
+  end
+
+  test "the analyst's prompt is Analyst.prompt/1's" do
+    each(cst_json("prompts.json"), fn(c: Map) do
+      l = lookup(c, "listing")
+      posted = lookup(l, "posted_at")
+      row = %{area: lookup(l, "area"), subarea: lookup(l, "subarea"), neighborhood: lookup(l, "neighborhood"), title: lookup(l, "title"),
+        price_cents: lookup(l, "price_cents"), attrs: lookup(l, "attrs"), photos: length(lookup(l, "image_ids")),
+        posted_at: cs_or(posted, -1), body: lookup(l, "body")}
+      assert_eq(cs_ai_prompt(row), lookup(c, "prompt"))
+    end)
+  end
+
+  test "the analyst reads an answer as Analyst.request/1 did" do
+    answers = cst_json("openai_answers.json")
+    want = cst_json("openai_normalized.json")
+    each(zip(answers, want), fn(pair: Any) do
+      got = cs_ai_answer({:ok, 200, elem(pair, 0)}, "gpt-5.4-mini")
+      ref = elem(pair, 1)
+      case lookup(ref, "ok") do
+        # Elixir raised on a rarity of "many" (Integer.parse/1 said :error);
+        # here it is normalize/2's fallback, 3. The schema is strict, so the
+        # model cannot send one.
+        nil -> assert_eq(lookup(elem(got, 1), "rarity"), 3)
+        a ->
+          assert_eq(elem(got, 0), :ok)
+          assert(cst_same_map(elem(got, 1), a))
+      end
+    end)
+  end
+
+  test "the analyst sends the request Analyst.request/1 sent" do
+    # openai_request.json: what reached Req's :plug for prompts.json's first prompt
+    ref = cst_json("openai_request.json")
+    prompt = lookup(head(cst_json("prompts.json")), "prompt")
+    assert_eq(cst_canon(elem(json_decode(cs_ai_body("gpt-5.4-mini", prompt)), 1)), cst_canon(lookup(ref, "body")))
+    assert_eq(lookup(cs_ai_headers("test-key"), "authorization"), head(lookup(ref, "authorization")))
+    assert_eq(CS_AI_ENDPOINT, concat("https://api.openai.com", lookup(ref, "path")))
+  end
+
+  test "the analyst's request, its retries and its errors" do
+    body = elem(json_decode(cs_ai_body("gpt-5.4-mini", "hi")), 1)
+    assert_eq(lookup(body, "model"), "gpt-5.4-mini")
+    assert_eq(lookup(body, "max_completion_tokens"), 1200)
+    assert_eq(lookup(head(lookup(body, "messages")), "content"), cam_analyst_system)
+    rf = lookup(lookup(body, "response_format"), "json_schema")
+    assert_eq(lookup(rf, "name"), "camera_analysis")
+    assert_eq(lookup(rf, "strict"), true)
+    assert_eq(lookup(lookup(rf, "schema"), "required"), ["quick_take", "rarity", "price_take", "price_note", "commentary", "fun_features", "facts"])
+    assert(cs_ai_retry({:ok, 429, ""}))
+    assert(cs_ai_retry({:ok, 503, ""}))
+    assert(cs_ai_retry({:error, "timeout"}))
+    refute(cs_ai_retry({:ok, 400, ""}))
+    refute(cs_ai_retry({:ok, 200, ""}))
+    assert_eq(cs_ai_answer({:ok, 401, "{\"error\": 1}"}, "m"), {:error, "{:http, 401, \"{\\\"error\\\": 1}\"}"})
+    assert_eq(cs_ai_answer({:ok, 200, "{\"choices\": [{\"message\": {\"content\": \"not json\"}}]}"}, "m"), {:error, "%Jason.DecodeError{}"})
+  end
+
+  test "SigV4 signs AWS's documented GET example" do
+    # docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html, "GET Object"
+    h = %{"host": "examplebucket.s3.amazonaws.com", "range": "bytes=0-9",
+      "x-amz-content-sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "x-amz-date": "20130524T000000Z"}
+    auth = cs_sigv4("GET", "/test.txt", "", h, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "20130524T000000Z", "us-east-1", "s3",
+      "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+    assert_eq(auth, "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41")
+  end
+
+  test "a photo goes to the bucket signed as ExAws signed it" do
+    # exaws_put.json: Blog.Storage.upload/3 of a 1200x900 photo, with a test
+    # key pair and an ExAws HTTP client that records the request instead of
+    # sending it
+    ex = cst_json("exaws_put.json")
+    eh = lookup(ex, "headers")
+    s3 = %{access: "AKTESTKEY", secret: "secret/with+chars", bucket: "bobbby-media"}
+    # 2026-09-30T06:41:36Z, ExAws's x-amz-date
+    req = cs_s3_put_signed(s3, "camera-browser/7973406045/00E0E_ILvV1PiTy2_0Ca0t2.jpg", lookup(ex, "body_sha"), to_int(lookup(eh, "content-length")), "image/jpeg", 1790750496)
+    assert_eq(elem(req, 0), lookup(ex, "url"))
+    h = elem(req, 1)
+    each(["content-type", "x-amz-acl", "x-amz-content-sha256", "x-amz-date"], fn(k: String) do assert_eq(lookup(h, k), lookup(eh, k)) end)
+    # ExAws writes no spaces after the commas; the signature is the same
+    assert_eq(replace(lookup(h, "authorization"), ", ", ","), lookup(eh, "Authorization"))
+    # host and content-length are signed, and sent by the HTTP client itself
+    assert_eq(lookup(h, "host"), nil)
+    assert_eq(lookup(h, "content-length"), nil)
+    assert(cs_plain_key("camera-browser/1/00a_b.jpg"))
+    refute(cs_plain_key("camera-browser/1/a b.jpg"))
+  end
+
+  test "the writes: numbered parameters, and updated_at only on a change" do
+    q = cs_update_sql(7, [{"closed_at", cs_ts("?"), 100}, {"closed_reason", "?::varchar", "gone"}, {"x", "null::varchar", nil}], 200)
+    assert_eq(elem(q, 0), "with v as (select (to_timestamp($2::float8) at time zone 'utc') as closed_at, $3::varchar as closed_reason, null::varchar as x) update camera_listings c set closed_at = v.closed_at, closed_reason = v.closed_reason, x = v.x, updated_at = case when row(c.closed_at, c.closed_reason, c.x) is distinct from row(v.closed_at, v.closed_reason, v.x) then (to_timestamp($4::float8) at time zone 'utc') else c.updated_at end from v where c.id = $1")
+    assert_eq(elem(q, 1), [7, 100, "gone", 200])
+    i = cs_insert_sql([{"posting_id", "?::bigint", 5}, {"image_ids", cs_array("?"), ["a"]}], 9)
+    assert_eq(elem(i, 0), "insert into camera_listings (posting_id, image_ids, inserted_at, updated_at) values ($1::bigint, array(select jsonb_array_elements_text($2::jsonb))::varchar[], (to_timestamp($3::float8) at time zone 'utc'), (to_timestamp($3::float8) at time zone 'utc'))")
+    assert_eq(elem(i, 1), [5, ["a"], 9])
+    # Ecto's empty values
+    assert_eq(cs_text("  "), nil)
+    assert_eq(cs_text("   "), nil)
+    assert_eq(cs_text(" x "), " x ")
+    assert_eq(cs_text(3), nil)
+  end
+
+  test "the sweep is off unless CAMERAS_SWEEP=1, and never runs off" do
+    cfg = merge(cs_env_config(), %{enabled: false})
+    s = cs_new(cfg, 1000)
+    assert_eq(s.phase, :off)
+    assert_eq(cs_step(s, 0, 999999).phase, :off)
+    assert(contains(cs_describe(cfg), "off"))
+    cfg_on = merge(cfg, %{enabled: true, openai_key: "", s3: %{access: "", secret: "", bucket: "b"}})
+    assert_eq(cs_boot_config(cfg_on, false).enabled, false)
+    t = cs_new(cfg_on, 1000)
+    assert_eq(t.phase, :idle)
+    # two minutes after boot, as the Poller's first run
+    assert_eq(t.next_at, 1120)
+    assert_eq(cs_step(t, 0, 1119).phase, :idle)
+    assert(contains(cs_describe(cfg_on), "4 areas x 78 searches every 15 minutes"))
+    # the searches in poll/1's order: each area (sorted), every query
+    jobs = cs_search_jobs(cfg_on)
+    assert_eq(length(jobs), 312)
+    assert_eq(head(jobs), {"newyork", ["mnh", "brk", "que", "brx"], "film camera"})
+    assert_eq(cs_at(jobs, 78), {"portland", ["mlt", "wsc", "clc", "clk"], "film camera"})
+  end
+end

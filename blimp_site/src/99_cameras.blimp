@@ -35,8 +35,8 @@
 #         {"t":"refused","message":..}
 #
 # CAMERAS finds out about a sweep by asking Postgres for the newest
-# last_seen_at once a minute, while a page is open: the sweep is still
-# Phoenix's (see below), and it tells nobody but Phoenix.
+# last_seen_at once a minute, while a page is open, whichever process
+# swept (see below).
 #
 # Writing needs the same ?key= the LiveView checked, BLINKS_API_TOKEN.
 # The LiveView let everyone write when that was unset (dev); here unset
@@ -46,14 +46,11 @@
 # What is not here: the sweep. Blog.CameraBrowser.poll/1 searches
 # sapi.craigslist.org, scrapes post pages, copies photos from
 # images.craigslist.org to object storage, and then has OpenAI's model
-# (CAMERA_ANALYST_MODEL) read each new post. Every Craigslist host speaks
-# only TLS 1.2 with an ECDSA certificate, and the TLS client Blimp's
-# http_start uses (Zig 0.16's std.crypto.tls) offers TLS 1.2 only with
-# ECDHE_RSA suites, so the handshake fails: http_start answers
-# {:error, "TlsInitializationFailed"} for every one of them. Until Blimp's
-# runtime can talk to Craigslist, the Poller, and the analyst it runs at
-# the end of every sweep, stay in Phoenix, and so does the lightbox's
-# "fetch now" button (it fetched a post page), which this page leaves out.
+# (CAMERA_ANALYST_MODEL) read each new post. That is CAM_SWEEP now
+# (src/99_camera_sweep.blimp), off until CAMERAS_SWEEP=1, which is for
+# after Phoenix's Poller has been stopped; until then the Poller fills the
+# table. The lightbox's "fetch now" button (it fetched a post page) is
+# still left out.
 
 CAM_BUCKET = case getenv("S3_BUCKET") do
   nil -> "bobbby-media"
