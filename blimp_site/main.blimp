@@ -251,6 +251,17 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/role-call/show.json" -> role_call_api(path, req.query)
     "/role-call/person.json" -> role_call_api(path, req.query)
     "/role-call/titles.json" -> role_call_api(path, req.query)
+    # Stumble (src/99_stumble.blimp): the page, its program, script and
+    # css, and Blog.PokeAround's queries
+    "/stumble" -> ST_PAGE
+    "/stumble/stumble.blimp" -> ST_PROGRAM
+    "/stumble/stumble.js" -> ST_JS
+    "/assets/stumble.css" -> ST_CSS
+    "/stumble/links.json" -> stumble_api(path, req)
+    "/stumble/tags.json" -> stumble_api(path, req)
+    "/stumble/tag.json" -> stumble_api(path, req)
+    "/stumble/count.json" -> stumble_api(path, req)
+    "/stumble/go" -> stumble_api(path, req)
     "/work-log" ->
       page = work_log_page()
       case page do

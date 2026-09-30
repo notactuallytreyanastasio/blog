@@ -125,6 +125,9 @@ cp ../priv/ziggy/graph-data.json _build/ziggy-graph.json
 # Role Call: the tab, the sets, the tour and the printing are Temper
 # (temper/src/role_call), the actor and view Blimp; query_param is the server's.
 with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.blimp
+# Stumble: the menus, rules, sort key and cutting are Temper
+# (temper/src/stumble), the actor and view Blimp.
+with_temper _build/stumble.blimp static/stumble/stumble.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
