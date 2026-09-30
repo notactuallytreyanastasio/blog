@@ -139,7 +139,8 @@ actor DesktopTests do
 
   test "the exhibit" do
     html = dt_page("project=deciduous")
-    assert(contains(html, "<a class=\"ex on\" href=\"/?project=deciduous#museum\">Deciduous</a>"))
+    assert(contains(html, "<a class=\"ex on\" href=\"/?project=deciduous#museum\"><span class=\"ex-ico\"><svg"))
+    assert(contains(html, "<span class=\"ex-name\">Deciduous</span><span class=\"ex-line\">"))
     assert(contains(html, "<a href=\"https://github.com/notactuallytreyanastasio/deciduous\" target=\"_blank\" class=\"ex-repo\">deciduous</a>"))
     assert(contains(html, "3 technologies</p>"))
     refute(contains(dt_page("booted=1"), "id=\"museum-detail\""))
@@ -180,8 +181,13 @@ actor DesktopTests do
     src = "title: T\ntags: a,b\n\n# Heading\n\n*Updated.* See [the notes](/frontier) and `code`.\n\n```\nnot this\n```\n"
     assert_eq(desk_excerpt(src, 200), "Updated. See the notes and code.")
     assert_eq(desk_excerpt("one two three four", 12), "one two…")
-    lede = desk_blog_lines([%{slug: "x", title: "X", date: "d", source: "Hello <b> world"}])
+    lede = desk_blog_lines([%{slug: "x", title: "X", date: "d", source: "Hello <b> world", tags: ["a<b", "c"]}])
     assert(contains(lede, "<span class=\"log-lede\">Hello &lt;b&gt; world</span>"))
+    # the reading line: length, time, tags, escaped
+    assert(contains(lede, "<span class=\"log-meta\">3 words &middot; &lt; 1 min read &middot; a&lt;b, c</span>"))
+    assert_eq(desk_thousands(2140), "2,140")
+    assert_eq(desk_thousands(12005), "12,005")
+    assert_eq(desk_thousands(999), "999")
   end
 
   test "the background is Temper Art's Bauhaus, drawn once, a day's seed" do
@@ -199,7 +205,8 @@ actor DesktopTests do
     assert(contains(html, "<a class=\"mf-row\" href=\"/chess-lv\">"))
     assert_eq(length(split(html, "Things I made that you can use <span>")) - 1, 4)
     assert(contains(html, "id=\"work\" aria-labelledby=\"work-h\">"))
-    assert(contains(html, "<h2 id=\"work-h\">Games</h2><span class=\"sec-count\">07</span>"))
+    assert(contains(html, "<h2 id=\"work-h\">Games</h2><details class=\"gloss-t gloss-tab\">"))
+    assert(contains(html, "</div><span class=\"sec-count\">07</span></header>"))
     assert(contains(html, "<h2 id=\"work-wire-h\">Live from the internet</h2>"))
     refute(contains(html, "mf-icon\"></span>"))
   end
@@ -259,7 +266,8 @@ actor DesktopTests do
   test "the landing is about Bobby first, then the machine, then the work" do
     html = dt_page("booted=1")
     assert(contains(html, "Hi, I&#8217;m Bobby."))
-    assert(contains(html, "programmer, photographer, and artist living in NYC"))
+    assert(contains(html, "I am a <span class=\"gloss\"><details class=\"gloss-t\"><summary aria-describedby=\"gl-programmer\">programmer</summary></details>"))
+    assert(contains(html, "living in <span class=\"gloss\">"))
     intro = length(head(split(html, "class=\"intro\"")))
     scope = length(head(split(html, "class=\"scope-col\"")))
     cards = length(head(split(html, "<main class=\"cards\">")))
@@ -284,5 +292,42 @@ actor DesktopTests do
     html = dt_page("booted=1")
     assert(contains(html, "<canvas id=\"meter-canvas\""))
     assert(contains(html, "Scripts are off, so there is no graph."))
+  end
+  test "the margin notes: every one in data/explainers.tsv is on the page, once" do
+    html = dt_page("booted=1")
+    each(keys(DESK_NOTES), fn(k: String) do
+      assert_eq(length(split(html, concat("id=\"gl-", k, "\""))) - 1, 1)
+      # the word or tab that shows it points at it
+      assert(contains(html, concat("aria-describedby=\"gl-", k, "\"")))
+    end)
+    each(DESK_NOTE_WORDS, fn(k: String) do assert(lookup(DESK_NOTES, k) != nil) end)
+    # a heading note for each card and for the machine
+    assert_eq(length(split(html, "class=\"gloss gloss-sec\"")) - 1, 9)
+    assert(contains(html, "<section class=\"scope-col\" id=\"machine\""))
+  end
+
+  test "a note is a <details>, so none may sit inside a <p> (the parser would close it)" do
+    html = dt_page("booted=1")
+    each(drop_list(split(html, "<p"), 1), fn(piece: String) do
+      refute(contains(head(split(piece, "</p>")), "<details"))
+    end)
+  end
+
+  test "a note's words are escaped, and a link with no address is not shown" do
+    notes = desk_load_notes("# a comment\nk\tSay <b> & go\tHere=/x | Empty= | Out=https://example.com/a?b=1&c=2\nj\tJust words\n")
+    k = lookup(notes, "k")
+    assert(contains(k, "<span class=\"said\">Say &lt;b&gt; &amp; go</span>"))
+    assert(contains(k, "<a href=\"/x\">Here</a><a href=\"https://example.com/a?b=1&amp;c=2\">Out</a>"))
+    refute(contains(k, "Empty"))
+    refute(contains(lookup(notes, "j"), "note-links"))
+    assert_eq(length(keys(notes)), 2)
+    assert_eq(desk_note_links("A=/a | B=", "line"), [["A", "/a"], ["B", ""]])
+  end
+
+  test "the photographer note links to what the site has, and to no Instagram yet" do
+    p = desk_note_html("photographer")
+    assert(contains(p, "href=\"/gallery\""))
+    assert(contains(p, "href=\"/?leica=1\""))
+    refute(contains(downcase(p), "instagram"))
   end
 end

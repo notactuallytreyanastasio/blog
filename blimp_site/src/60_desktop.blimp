@@ -229,8 +229,10 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
   own = desk_path_entries(desk_lines(icon_text), "", [], %{})
   hangar = desk_load_hangar(desk_read("data/hangar.tsv"), own, %{})
   museum = map(loaded, fn(p: Map) -> Map do
-    put(put(p, "title_html", escape_html(p.title)), "detail_html", desk_detail_inner(p, icons))
+    put(put(p, "row_html", desk_ex_row(p, own)), "detail_html", desk_detail_inner(p, icons))
   end)
+  groups = desk_hangar_groups(hangar)
+  desk_check_notes(groups)
   %{
     museum: museum,
     categories: desk_categories(museum),
@@ -239,7 +241,7 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
     icons: icons,
     blog_html: desk_blog_lines(posts),
     post_count: length(posts),
-    hangar_groups: desk_hangar_groups(hangar),
+    hangar_groups: groups,
     hangar_count: length(hangar),
     art_html: desk_art(desk_art_seed(now()))
   }
@@ -269,6 +271,121 @@ def desk_art(seed: Int) -> String do
     "\" preserveAspectRatio=\"xMidYMid slice\" stroke-linecap=\"round\" data-seed=\"", to_string(seed), "\">",
     art_shapes(seed, "bauhaus", DESK_ART_W, DESK_ART_H),
     "</svg></div>")
+end
+
+# ── Margin notes: data/explainers.tsv ──────────────────────────────────
+#
+# Short notes in the owner's hand, pinned to words in the intro and to each
+# section's heading, in the manner of a reader's marginalia. The words and
+# links are data/explainers.tsv, so they change without touching this file.
+#
+# A note is a <details> (its <summary> is the word, or a small "note" tab
+# beside a heading) followed by the note itself. desktop.css shows the note
+# while the word is hovered or focused, and while the <details> is open, so
+# a tap on a phone opens and closes it with no script; home.js only closes
+# the others and keeps one on screen. The note is outside the <details>, so
+# it can be shown on hover without opening it, and the word points at it
+# with aria-describedby.
+#
+# Every key the page asks for must be in the file, and every key in the file
+# must be asked for: a note that never shows, or a word whose note went
+# missing, stops the boot rather than rendering as nothing.
+
+DESK_NOTE_WORDS = ["programmer", "photographer", "artist", "nyc", "games-and-toys", "writing", "photographs", "older-projects"]
+DESK_NOTE_SECTIONS = ["sec-machine", "sec-writing", "sec-museum", "sec-photos", "sec-more"]
+
+# "Label=/path | Label=" -> [[label, href], ...]; an empty href is kept (the
+# link is not shown until it is filled in).
+def desk_note_links(field: String, line: String) -> List do
+  pieces = filter(map(split(field, "|"), fn(x: String) -> String do trim(x) end), fn(x: String) -> Bool do length(x) > 0 end)
+  map(pieces, fn(x: String) -> List do
+    at = index_of(x, "=")
+    case at < 1 do
+      true -> desk_die(concat("data/explainers.tsv: a link is Label=/path, not ", x, ", in ", line))
+      false ->
+        href = trim(drop(x, at + 1))
+        ok = href == "" or starts_with(href, "/") or starts_with(href, "#") or starts_with(href, "https://")
+        case ok do
+          false -> desk_die(concat("data/explainers.tsv: a link goes to /path, #anchor or https://, not ", href, ", in ", line))
+          true -> [trim(take(x, at)), href]
+        end
+    end
+  end)
+end
+
+def desk_load_notes(text: String) -> Map do
+  rows = filter(desk_lines(text), fn(l: String) -> Bool do not(starts_with(l, "#")) end)
+  reduce(rows, %{}, fn(acc: Map, l: String) -> Map do
+    f = split(l, "\t")
+    key = trim(head(f))
+    ok = length(f) >= 2 and length(f) <= 3 and length(key) > 0 and length(trim(elem_at(f, 1))) > 0
+    case ok do
+      false -> desk_die(concat("data/explainers.tsv: expected key, TAB, note[, TAB, links] in ", l))
+      true ->
+        case lookup(acc, key) do
+          nil ->
+            links = case length(f) == 3 do
+              true -> desk_note_links(elem_at(f, 2), l)
+              false -> []
+            end
+            put(acc, key, desk_note_span(key, trim(elem_at(f, 1)), links))
+          _ -> desk_die(concat("data/explainers.tsv: ", key, " twice"))
+        end
+    end
+  end)
+end
+
+# The note's HTML: a small "note" label, the words, and the links that have
+# somewhere to go. Built once.
+def desk_note_span(key: String, text: String, links: List) -> String do
+  shown = filter(links, fn(k: List) -> Bool do elem_at(k, 1) != "" end)
+  anchors = case shown do
+    [] -> ""
+    _ -> concat("<span class=\"note-links\">", join(map(shown, fn(k: List) -> String do
+      concat("<a href=\"", escape_html(elem_at(k, 1)), "\">", escape_html(head(k)), "</a>")
+    end), ""), "</span>")
+  end
+  concat("<span class=\"note\" role=\"note\" id=\"gl-", key, "\"><span class=\"who\">note</span><span class=\"said\">", escape_html(text), "</span>", anchors, "</span>")
+end
+
+DESK_NOTES = desk_load_notes(desk_read("data/explainers.tsv"))
+
+def desk_note_html(key: String) -> String do
+  n = lookup(DESK_NOTES, key)
+  case n do
+    nil -> desk_die(concat("data/explainers.tsv has no note ", key))
+    _ -> n
+  end
+end
+
+# Every note in the file is shown somewhere: the words, the fixed sections,
+# and one sec-<group> for each group in data/hangar.tsv.
+def desk_check_notes(groups: List) -> Bool do
+  wanted = list_append(list_append(DESK_NOTE_WORDS, DESK_NOTE_SECTIONS), map(groups, fn(g: Map) -> String do concat("sec-", g.group) end))
+  each(wanted, fn(k: String) do desk_note_html(k) end)
+  each(keys(DESK_NOTES), fn(k: String) do
+    case desk_member(wanted, k) do
+      true -> :ok
+      false -> desk_die(concat("data/explainers.tsv: the page shows no note ", k))
+    end
+  end)
+  true
+end
+
+# A word in running text with a note on it.
+def desk_gloss_term(key: String, word: String) -> String do
+  concat("<span class=\"gloss\"><details class=\"gloss-t\"><summary aria-describedby=\"gl-", key, "\">", word, "</summary></details>", desk_note_html(key), "</span>")
+end
+
+# A link with a note on it: the link still goes where it went, and a small
+# mark after it opens the note on a tap.
+def desk_gloss_link(key: String, href: String, text: String) -> String do
+  concat("<span class=\"gloss\"><a href=\"", href, "\" aria-describedby=\"gl-", key, "\">", text, "</a><details class=\"gloss-t gloss-mark\"><summary aria-label=\"A note on ", text, "\"></summary></details>", desk_note_html(key), "</span>")
+end
+
+# A section's heading with a "note" tab beside it.
+def desk_gloss_sec(key: String, h2: String) -> String do
+  concat("<div class=\"gloss gloss-sec\">", h2, "<details class=\"gloss-t gloss-tab\"><summary aria-describedby=\"gl-", key, "\">note</summary></details>", desk_note_html(key), "</div>")
 end
 
 # ── The manifest: the pages that run on Blimp ───────────────────────────
@@ -580,14 +697,36 @@ def desk_blog_lines(posts: List) -> String do
     source = lookup(p, "source")
     excerpt = case source do
       nil -> ""
-      _ -> desk_excerpt(source, 190)
+      _ -> desk_excerpt(source, 480)
     end
     lede = case excerpt do
       "" -> ""
       _ -> concat("<span class=\"log-lede\">", escape_html(excerpt), "</span>")
     end
-    concat("<li><a href=\"/post/", p.slug, "\"><span class=\"log-title\">", escape_html(p.title), "</span><span class=\"log-date\">", p.date, "</span>", lede, "</a></li>")
+    meta = case source do
+      nil -> ""
+      _ -> desk_log_meta(source, lookup(p, "tags"))
+    end
+    concat("<li><a href=\"/post/", p.slug, "\"><span class=\"log-title\">", escape_html(p.title), "</span><span class=\"log-date\">", p.date, "</span>", lede, meta, "</a></li>")
   end), "")
+end
+
+# Under the opening, a line on how long the post is and what it is about:
+# "2,140 words · 9 min read · blimp, temper".
+def desk_log_meta(source: String, tags: Any) -> String do
+  words = word_count(body_without_tags(source))
+  tag_text = case type_of(tags) == :list and length(tags) > 0 do
+    true -> concat(" &middot; ", escape_html(join(desk_take_list(tags, 4, []), ", ")))
+    false -> ""
+  end
+  concat("<span class=\"log-meta\">", desk_thousands(words), " words &middot; ", escape_html(read_time(words)), tag_text, "</span>")
+end
+
+def desk_thousands(n: Int) -> String do
+  case n < 1000 do
+    true -> to_string(n)
+    false -> concat(to_string(n / 1000), ",", desk_pad(rem(n, 1000), 3))
+  end
 end
 
 # The opening prose of a post's Markdown, as plain text: the first lines
@@ -623,7 +762,7 @@ end
 
 def desk_excerpt(source: String, n: Int) -> String do
   before_code = head(split(source, "```"))
-  prose = join(desk_take_list(filter(split(before_code, "\n"), fn(l: String) -> Bool do desk_prose_line(l) end), 3, []), " ")
+  prose = join(desk_take_list(filter(split(before_code, "\n"), fn(l: String) -> Bool do desk_prose_line(l) end), 6, []), " ")
   pieces = split(prose, "](")
   unlinked = concat(head(pieces), desk_unlink(tail(pieces), []))
   plain = replace_all(replace_all(replace_all(replace_all(unlinked, "[", ""), "*", ""), "`", ""), "  ", " ")
@@ -713,6 +852,17 @@ def desk_detail_inner(p: Map, icons: Map) -> String do
   ], "")
 end
 
+# An exhibit in the list: its pixel icon (the one-path kind the manifest
+# uses, not the detail's rect-a-pixel one), title and tagline. Built once.
+def desk_ex_row(p: Map, own: Map) -> String do
+  icon = lookup(own, p.slug)
+  shown = case icon do
+    nil -> lookup(own, "default")
+    _ -> icon
+  end
+  concat("<span class=\"ex-ico\">", shown, "</span><span class=\"ex-name\">", escape_html(p.title), "</span><span class=\"ex-line\">", escape_html(p.tagline), "</span>")
+end
+
 # Per-request code loops by recursion, not map or filter: calling a lambda
 # measured about 3KB of garbage a call, and a render makes a few hundred.
 def desk_museum_rows(projects: List, st: Map, acc: List) -> List do
@@ -725,7 +875,7 @@ def desk_museum_rows(projects: List, st: Map, acc: List) -> List do
             true -> "ex on"
             false -> "ex"
           end
-          row = concat("<li><a class=\"", class, "\" href=\"", desk_museum_href(put(st, "project", p.slug)), "\">", p.title_html, "</a></li>")
+          row = concat("<li><a class=\"", class, "\" href=\"", desk_museum_href(put(st, "project", p.slug)), "\">", p.row_html, "</a></li>")
           desk_museum_rows(rest, st, [row | acc])
         false -> desk_museum_rows(rest, st, acc)
       end
@@ -760,7 +910,7 @@ def desk_museum(st: Map, desk: Map) -> String do
   join([
     "<section class=\"card archive\" id=\"museum\" aria-labelledby=\"museum-h\">",
     desk_card_kicker("Older projects", 2, desk_card_total(desk)),
-    "<header class=\"sec-head\"><h2 id=\"museum-h\">The museum</h2><span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
+    "<header class=\"sec-head\">", desk_gloss_sec("sec-museum", "<h2 id=\"museum-h\">The museum</h2>"), "<span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
     "<p class=\"sec-note\">Older projects: hardware, maps, music, machine learning, social experiments. Pick one to read about it.</p>",
     "<nav class=\"tabs\" aria-label=\"Museum categories\">",
     "<a class=\"", desk_active(st.cat == "", "tab"), "\" href=\"", desk_museum_href(put(st, "cat", "")), "\">All</a>",
@@ -815,8 +965,10 @@ def desk_intro(st: Map) -> String do
     "<section class=\"intro\" aria-labelledby=\"intro-h\">",
     "<p class=\"plate-label\">Programmer &middot; photographer &middot; artist &middot; New York City</p>",
     "<h1 id=\"intro-h\" class=\"headline\">Hi, I&#8217;m Bobby. <em>I use things in ways they were not intended.</em></h1>",
-    "<p class=\"intro-text\">I am a programmer, photographer, and artist living in NYC. I like to evoke new directions of vision by playing with the social fabric that wraps us around a computer.</p>",
-    "<p class=\"intro-text\">This is where that work lives: <a href=\"#work\">games and toys</a> you can play, live views of the internet, data and maps, <a href=\"/blog\">writing</a>, <a href=\"", desk_href(put(st, "leica", "1")), "\">photographs</a>, and <a href=\"#museum\">older projects</a>. Most of it wants you to join in; please be kind to whoever else is there.</p>",
+    # divs, not paragraphs: a note is a <details>, and a parser closes an
+    # open <p> at the first one
+    "<div class=\"intro-text\">I am a ", desk_gloss_term("programmer", "programmer"), ", ", desk_gloss_term("photographer", "photographer"), ", and ", desk_gloss_term("artist", "artist"), " living in ", desk_gloss_term("nyc", "NYC"), ". I like to evoke new directions of vision by playing with the social fabric that wraps us around a computer.</div>",
+    "<div class=\"intro-text\">This is where that work lives: ", desk_gloss_link("games-and-toys", "#work", "games and toys"), " you can play, live views of the internet, data and maps, ", desk_gloss_link("writing", "/blog", "writing"), ", ", desk_gloss_link("photographs", desk_href(put(st, "leica", "1")), "photographs"), ", and ", desk_gloss_link("older-projects", "#museum", "older projects"), ". Most of it wants you to join in; please be kind to whoever else is there.</div>",
     "</section>"
   ], "")
 end
@@ -825,8 +977,8 @@ end
 # canvas draws that process; it is below the work now, not above it.
 def desk_scope(live: String) -> String do
   join([
-    "<section class=\"scope-col\" aria-labelledby=\"scope-h\">",
-    "<header class=\"sec-head\"><h2 id=\"scope-h\">The machine under this page</h2><a class=\"sec-count\" href=\"/stack\">how it is built &#x2192;</a></header>",
+    "<section class=\"scope-col\" id=\"machine\" aria-labelledby=\"scope-h\">",
+    "<header class=\"sec-head\">", desk_gloss_sec("sec-machine", "<h2 id=\"scope-h\">The machine under this page</h2>"), "<a class=\"sec-count\" href=\"/stack\">how it is built &#x2192;</a></header>",
     "<p class=\"sec-note\">I also wrote the language this site runs in, <a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp</a>. The whole site is one Blimp process, and this is it, live. Your visit was one of the messages. <a href=\"/mirror\">Read its source</a>.</p>",
     "<figure class=\"scope\">",
     "<div class=\"scope-screen\" id=\"scope-wrap\"><canvas id=\"scope-canvas\" aria-label=\"The server's actors and the messages between them, live\"></canvas>",
@@ -882,7 +1034,7 @@ def desk_log(desk: Map) -> String do
   join([
     "<section class=\"card log\" id=\"writing\" aria-labelledby=\"log-h\">",
     desk_card_kicker("The newest posts", 1, desk_card_total(desk)),
-    "<header class=\"sec-head\"><h2 id=\"log-h\">Writing</h2><a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
+    "<header class=\"sec-head\">", desk_gloss_sec("sec-writing", "<h2 id=\"log-h\">Writing</h2>"), "<a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
     "<ol class=\"log-list\">", desk.blog_html, "</ol>",
     "</section>"
   ], "")
@@ -901,7 +1053,7 @@ def desk_hangar_cards(groups: List, n: Int, total: Int, acc: List) -> List do
       card = join([
         "<section class=\"card manifest\" id=\"", id, "\" aria-labelledby=\"", id, "-h\">",
         desk_card_kicker("Things I made that you can use", n, total),
-        "<header class=\"sec-head\"><h2 id=\"", id, "-h\">", escape_html(g.label), "</h2><span class=\"sec-count\">", desk_pad(g.count, 2), "</span></header>",
+        "<header class=\"sec-head\">", desk_gloss_sec(concat("sec-", g.group), concat("<h2 id=\"", id, "-h\">", escape_html(g.label), "</h2>")), "<span class=\"sec-count\">", desk_pad(g.count, 2), "</span></header>",
         "<ul class=\"mf-list\">", g.tiles, "</ul>",
         "</section>"
       ], "")
@@ -914,7 +1066,7 @@ def desk_photos(st: Map, desk: Map) -> String do
   join([
     "<section class=\"card photos\" id=\"photographs\" aria-labelledby=\"photos-h\">",
     desk_card_kicker("From the Leica", total - 1, total),
-    "<header class=\"sec-head\"><h2 id=\"photos-h\">Photographs</h2><span class=\"sec-count\">110 MB</span></header>",
+    "<header class=\"sec-head\">", desk_gloss_sec("sec-photos", "<h2 id=\"photos-h\">Photographs</h2>"), "<span class=\"sec-count\">110 MB</span></header>",
     "<p class=\"sec-note\">My favourite shots from the Leica, in one very large image. It is 110 megabytes, so the link asks before it loads.</p>",
     "<p class=\"ex-actions\"><a class=\"btn primary\" href=\"", desk_href(put(st, "leica", "1")), "\">See the photographs &#x25B6;</a><a class=\"btn\" href=\"/gallery\">The gallery</a></p>",
     "</section>"
@@ -926,7 +1078,7 @@ def desk_more(st: Map, desk: Map) -> String do
   join([
     "<section class=\"card more\" id=\"more\" aria-labelledby=\"more-h\">",
     desk_card_kicker("The old desktop&#8217;s Finder", total, total),
-    "<header class=\"sec-head\"><h2 id=\"more-h\">Everything else</h2><span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
+    "<header class=\"sec-head\">", desk_gloss_sec("sec-more", "<h2 id=\"more-h\">Everything else</h2>"), "<span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
     "<div class=\"more-rows\">", desk.finder_html, "</div>",
     desk_foot(st),
     "</section>"

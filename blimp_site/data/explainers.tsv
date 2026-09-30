@@ -1,0 +1,31 @@
+# The homepage's margin notes (src/60_desktop.blimp, desk_load_explainers).
+# One note a line: key, TAB, the note, TAB, its links. Edit the words here;
+# no code needs to change.
+#
+#   key     which word or section the note belongs to. The page asks for
+#           every key below and the site will not start if one is missing,
+#           so rename a key only together with the code that asks for it.
+#   note    plain text. It is escaped, so < and & are shown as typed.
+#   links   "Label=/path" pairs joined by " | ". A path starts with /, #
+#           or https://. A link with nothing after the = is kept here and
+#           not shown: fill in the address and it appears.
+#
+# Words in the intro.
+programmer	I wrote the language this site runs in, Blimp, and moved the whole site onto it from Phoenix in September 2026. The stack page draws every piece between the source and your screen.	The stack=/stack | Blimp on GitHub=https://github.com/notactuallytreyanastasio/blimp | The machine=#machine
+photographer	Leica. [what I shoot: fill in]	The gallery=/gallery | My favourite Leica shots=/?leica=1 | Instagram=
+artist	The picture behind this page is one: Temper Art's Bauhaus generator, on a new seed each day. /art draws more, and seed 42 is always the same picture.	Temper Art=/art | The toys=#work-toys
+nyc	The city keeps turning up in the work: every bus on the routes you pick, and a census map you draw a shape on.	MTA Bus Map=/mta-bus-map | How Many People Live Here?=/nyc_census_and_pluto
+games-and-toys	Seven games and nine toys, served by the same process as this page: the one drawn under the intro.	Games=#work | Art, tools & toys=#work-toys
+writing	Posts on building this site, GenStage, tree law, Nathan Fielder and chess, among others.	All posts=/blog
+photographs	One very large image of my favourite Leica shots, 110 MB, so the link asks before it loads. The gallery is the smaller way in.	The gallery=/gallery
+older-projects	Hardware, maps, music, machine learning, social experiments. Each one says what it was built with, and where the source is when it is public.	The museum=#museum
+# One note a section: the headers down the right, and the machine on the left.
+sec-machine	Every request to this site, yours included, is a message to one actor in one process. The hexagons are the actors; the rays are the messages between them.	How it is built=/stack | Read its source=/mirror
+sec-writing	The newest three posts. The rest, and their tags, are on the blog.	All posts=/blog
+sec-museum	These rows live in Postgres and are edited from an admin page. A change shows up here within a minute.
+sec-games	All of these are Blimp now. The rules of 2048, Wordle and Blackjack are Temper compiled to Blimp, and Snake is written in Temper.	Blimp Tetris=/tetris
+sec-wire	Pages that hold a line open to somewhere else: Bluesky's relay, the MTA's Bus Time, and everyone else who has the page open.
+sec-numbers	Mostly Phish, some Bluesky, some New York. phangraphs and Moon Phish were checked against the Elixir they replaced, output for output.	phangraphs=/phish
+sec-toys	Things to use rather than read. The mirror and the stack are this site looking at itself.	The mirror=/mirror | The stack=/stack
+sec-photos	The collage is 30,846 by 20,550 pixels, which is why the link asks first. The gallery is the smaller way in.	The gallery=/gallery
+sec-more	The old Mac-style desktop's Finder, flattened into lines of links. Phoenix served it until September 2026.	The old site=https://old.bobbby.online
