@@ -238,4 +238,20 @@ actor DesktopTests do
     assert(work < scope)
     assert(contains(html, "href=\"/?leica=1\">Photographs</a>"))
   end
+
+  test "the meter: a share of one core, the last two minutes, and its window" do
+    assert_eq(meter_cpu(1250, 1000, 1000), 25.0)
+    assert_eq(meter_cpu(1000, 1000, 1000), 0.0)
+    assert_eq(meter_cpu(1333, 1000, 1000), 33.3)
+    assert_eq(meter_cpu(5, 0, 0), 0.0)
+    many = reduce(range(1, 130), [], fn(acc: List, i: Int) -> List do meter_keep(acc, %{n: i}) end)
+    assert_eq(length(many), METER_KEEP)
+    assert_eq(head(many).n, 130 - METER_KEEP + 1)
+    s = METER <- :sample
+    assert(s.n == 1 and s.cpu == 0.0 and s.rss > 0)
+    assert_eq(METER <- :sample, nil)
+    html = dt_page("booted=1")
+    assert(contains(html, "<canvas id=\"meter-canvas\""))
+    assert(contains(html, "Scripts are off, so there is no graph."))
+  end
 end

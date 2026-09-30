@@ -757,7 +757,28 @@ def desk_scope(live: String) -> String do
     "</figcaption>",
     "</figure>",
     live,
+    desk_meter(),
     "</section>"
+  ], "")
+end
+
+# The server's CPU and memory over the last two minutes, drawn by home.js
+# from the samples /live/runtime carries (src/88_meter.blimp). One time
+# axis, both lines on it: CPU against its percent scale, memory as the
+# shape it has made over the window, with its value in the legend.
+def desk_meter() -> String do
+  join([
+    "<figure class=\"meter\" id=\"meter\">",
+    "<figcaption class=\"meter-head\"><span class=\"plate-label\">CPU and memory, the last two minutes</span>",
+    "<span class=\"meter-legend\">",
+    "<span class=\"mk mk-cpu\"><i></i>CPU <b id=\"meter-cpu\">&#8212;</b></span>",
+    "<span class=\"mk mk-mem\"><i></i>memory <b id=\"meter-mem\">&#8212;</b></span>",
+    "</span></figcaption>",
+    "<div class=\"meter-plot\" id=\"meter-wrap\"><canvas id=\"meter-canvas\" role=\"img\" aria-label=\"The server's CPU use and memory over the last two minutes\"></canvas>",
+    "<p class=\"meter-tip\" id=\"meter-tip\" hidden></p>",
+    "<p class=\"meter-off\" id=\"meter-off\">Scripts are off, so there is no graph. The server samples itself once a second and sends it to this page over the same socket as the drawing above.</p></div>",
+    "<p class=\"meter-note\">CPU is a share of one core: the server is a single thread, so 100% is all it can use. Memory is resident memory; its line shows how it rose and fell against the most it reached in the window, and the jumps down are the heap being compacted.</p>",
+    "</figure>"
   ], "")
 end
 

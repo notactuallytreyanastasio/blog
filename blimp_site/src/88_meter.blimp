@@ -1,0 +1,73 @@
+# The server watching itself: CPU and memory, once a second, for the
+# homepage's graph. process_stats() (blimp#79) says what the process has
+# used; this keeps the last two minutes of it.
+#
+# A sample is %{n, t, cpu, rss, heap}:
+#   n     counts up from 1, so a page can tell a new sample from a repeat
+#   t     wall-clock seconds
+#   cpu   percent of one core over the second before, to a tenth: the
+#         server is one thread, so 100 is all it can use
+#   rss   resident bytes now
+#   heap  what Blimp's heap holds now, garbage included until a compaction
+
+METER_EVERY_MS = 1000
+METER_KEEP = 120
+
+# CPU time over wall time, as a percent to one decimal. The first reading
+# has nothing before it, so it says 0.
+def meter_cpu(cpu_ms: Int, last_cpu: Int, wall_ms: Int) -> Float do
+  case wall_ms <= 0 do
+    true -> 0.0
+    false -> round((cpu_ms - last_cpu) * 1000.0 / wall_ms) / 10.0
+  end
+end
+
+def meter_keep(samples: List, s: Map) -> List do
+  kept = list_append(samples, [s])
+  case length(kept) > METER_KEEP do
+    true -> drop_list(kept, length(kept) - METER_KEEP)
+    false -> kept
+  end
+end
+
+actor Meter do
+  state n: Int :: 0
+  state last_ms: Int :: 0
+  state last_cpu: Int :: 0
+  state samples: List :: []
+
+  # Called every tick; takes a sample when a second has passed.
+  on :sample do
+    t = now_ms()
+    case t - last_ms >= METER_EVERY_MS do
+      false -> reply nil
+      true ->
+        p = process_stats()
+        cpu = case last_ms == 0 do
+          true -> 0.0
+          false -> meter_cpu(p.cpu_ms, last_cpu, t - last_ms)
+        end
+        s = %{n: n + 1, t: now(), cpu: cpu, rss: p.rss_bytes, heap: p.heap_bytes}
+        become n: n + 1, last_ms: t, last_cpu: p.cpu_ms, samples: meter_keep(samples, s)
+        reply s
+    end
+  end
+
+  on :latest do
+    case samples do
+      [] -> reply nil
+      _ -> reply last(samples)
+    end
+  end
+
+  on :samples do
+    reply samples
+  end
+end
+
+# Asked once at load, so an interpreter without process_stats() stops the
+# boot here, with its name, instead of failing every tick after the pages
+# are already being served.
+METER_AT_BOOT = process_stats()
+
+METER = spawn Meter
