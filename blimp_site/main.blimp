@@ -324,7 +324,8 @@ end
 def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
   req = parse_request(raw)
   case req.method == "GET" or req.method == "HEAD" do
-    false -> {serialize(response(405, "text/plain", "no-cache", "method not allowed\n"), "GET"), 405, req}
+    # POST, PATCH, PUT, DELETE: src/41_web.blimp's routes, else 405 with Allow
+    false -> web_handle(raw, req)
     true ->
       fixed = case req.path == "/" and req.query == "" do
         true -> bare_home(home)
@@ -332,8 +333,14 @@ def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tupl
       end
       case fixed do
         nil ->
-          resp = dynamic(req, routes, posts, desk)
-          {serialize(resp, req.method), resp.status, req}
+          # src/41_web.blimp's GET routes, then everything that was here before
+          web = web_handle(raw, req)
+          case web do
+            nil ->
+              resp = dynamic(req, routes, posts, desk)
+              {serialize(resp, req.method), resp.status, req}
+            _ -> web
+          end
         _ ->
           case req.method == "HEAD" do
             true -> {head_of(fixed), 200, req}
@@ -341,6 +348,10 @@ def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tupl
           end
       end
   end
+end
+
+def web_handle(raw: String, req: Map) -> Any do
+  web_dispatch(raw, req, WEB_ROUTES, WEB_SECRET)
 end
 
 # The homepage with no query string is most of the traffic to "/", and all
@@ -376,7 +387,8 @@ def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
   t0 = now_ms()
   ready = tcp_poll([c], 2000)
   raw = case length(ready) > 0 do
-    true -> tcp_read(c)
+    # the rest of a body that did not come with its headers (src/41_web.blimp)
+    true -> web_read_rest(c, tcp_read(c))
     false -> nil
   end
   case raw do
@@ -843,6 +855,11 @@ posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
 routes = build_routes(posts)
 routes = stack_routes(routes)
+# src/41_web.blimp: the routes that take methods, bodies and sessions, and
+# the key their sessions are signed with (a production site without
+# SESSION_SECRET stops here).
+WEB_ROUTES = web_demo_routes()
+WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site
 # that cannot read them does not start. Unset (a laptop, the tests): the

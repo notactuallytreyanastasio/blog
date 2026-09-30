@@ -19,4 +19,8 @@
         condition: service_healthy
     environment:
       DATABASE_URL: ecto://blog:<the app service's password>@db/blog_prod
+      # Signs session cookies (src/41_web.blimp). With DATABASE_URL set, the
+      # site refuses to start without it, or with one under 32 bytes:
+      # `openssl rand -base64 48`, kept in /opt/blog/.env.
+      SESSION_SECRET: ${SESSION_SECRET}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network
