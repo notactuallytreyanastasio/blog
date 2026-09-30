@@ -1,0 +1,185 @@
+# needs: static/mta/mta.blimp
+#
+# /mta-bus-map: the poller (src/99_mta.blimp), the page's program
+# (static/mta/mta.blimp) and the Temper they share (temper/src/mta).
+# Sockets here are negative, which the poller does not write to.
+#
+# fixtures/mta/ are Bus Time's answers, recorded 2026-09-29 around 23:13
+# New York time (none of them contains the key):
+# m14a_sbs.json (LineRef MTA NYCT_M14A+, five buses),
+# no_such_route.json (MTA NYCT_Q10, an MTA Bus Company route) and
+# version_404.html (what vehicle-monitoring-v2.json answers, with a 200,
+# to a request that says version=2, as the LiveView's did before the
+# redirect dropped it).
+
+def mtt_buses(file: String) -> Any do
+  mta_buses(read_file(concat("test/fixtures/mta/", file)))
+end
+
+actor MtaTests do
+  test "every route's line reference is Blog.Mta.Routes'" do
+    assert_eq(mta_line_ref("M14A-SBS"), "MTA NYCT_M14A+")
+    assert_eq(mta_line_ref("M15-LTD"), "MTA NYCT_M15L")
+    assert_eq(mta_line_ref("Q20A"), "MTA NYCT_Q20A")
+    assert_eq(mta_line_param("B44-SBS"), "MTA%20NYCT_B44%2B")
+    u = mta_url("KEY", "M14A-SBS")
+    assert_eq(u, "https://bustime.mta.info/api/siri/vehicle-monitoring-v2.json?key=KEY&LineRef=MTA%20NYCT_M14A%2B&OperatorRef=MTA%20NYCT&VehicleMonitoringDetailLevel=normal")
+    assert_eq(contains(u, "version="), false)
+  end
+
+  test "there are the LiveView's 189 routes, each once, and nothing else" do
+    all = mb_for_borough("all")
+    assert_eq([length(mb_manhattan()), length(mb_brooklyn()), length(mb_queens()), length(all)], [50, 55, 84, 189])
+    assert_eq(length(uniq(all)), 189)
+    assert_eq(length(filter(all, fn(r: String) -> Bool do mta_known(r) end)), 189)
+    assert_eq(mta_known("Q999"), false)
+    assert_eq(mta_known("m21"), false)
+    # the chooser's first Manhattan row, as production shows it
+    assert_eq(mta_take(mta_crosstown, 4), ["M23-SBS", "M14A-SBS", "M86-SBS", "M22"])
+    assert_eq(mta_take(mta_brooklyn_local, 4), ["B1", "B100", "B103", "B11"])
+  end
+
+  test "colours are the hook's, black for anything else" do
+    assert_eq(mta_route_color("M14A-SBS"), "#E31837")
+    assert_eq(mta_route_color("Q113"), "#43A047")
+    assert_eq(mta_route_color("B44-SBS"), "#FF0000")
+    assert_eq(mta_route_color("X27"), "#000000")
+    assert_eq(length(filter(mb_for_borough("all"), fn(r: String) -> Bool do mta_route_color(r) == "#000000" end)), 0)
+  end
+
+  test "a bus's labels, popup and coordinates" do
+    assert_eq(mta_direction("1"), "Northbound")
+    assert_eq(mta_direction("0"), "Southbound")
+    assert_eq(mta_direction(""), "Southbound")
+    assert_eq(mta_speed(0.0), "N/A")
+    assert_eq(mta_fixed6(40.737413), "40.737413")
+    assert_eq(mta_fixed6(-74.004981), "-74.004981")
+    assert_eq(mta_fixed6(-73.9), "-73.900000")
+    assert_eq(mta_fixed6(0.0000004), "0.000000")
+    i = mta_icon_html("M21", "LOWER E SIDE <GRAND>", "1")
+    assert(contains(i, "color: #4CAF50;\">M21</div>"))
+    assert(contains(i, ">LOWER E SIDE &lt;GRAND&gt;</div>"))
+    assert(contains(i, ">Northbound</div>"))
+    assert(contains(mta_icon_html("M21", "", "0"), ">N/A</div>"))
+    p = mta_popup_html("M21", "MTA NYCT_7579", 0.0, "A & B", "0", 40.713269, -73.977692)
+    assert_eq(p, "<div class=\"p-2\"><strong>M21 Bus MTA NYCT_7579</strong><br>Speed: N/A mph<br>Destination: A &amp; B<br>Direction: Southbound<br>Location: 40.713269, -73.977692</div>")
+  end
+
+  test "a recorded answer is the buses parse_response/1 kept" do
+    got = mtt_buses("m14a_sbs.json")
+    assert_eq(elem(got, 0), :ok)
+    bs = elem(got, 1)
+    assert_eq(length(bs), 5)
+    b = head(bs)
+    assert_eq([b.id, b.lat, b.lng, b.direction, b.destination, b.speed], ["MTA NYCT_5492", 40.737413, -74.004981, "0", "SELECT BUS LES GRAND-FDR via 14 ST", 0])
+    assert_eq(b.recorded_at, "2026-09-29T23:12:50.222-04:00")
+    assert_eq(map(bs, fn(x: Map) -> String do x.direction end), ["0", "0", "1", "1", "0"])
+  end
+
+  test "a route Bus Time does not know, and a page that is not JSON, are errors" do
+    assert_eq(mtt_buses("no_such_route.json"), {:error, "No such route: MTA NYCT_Q10."})
+    assert_eq(elem(mtt_buses("version_404.html"), 0), :error)
+    assert_eq(mta_buses("{\"Siri\":{\"ServiceDelivery\":{\"VehicleMonitoringDelivery\":[{\"ResponseTimestamp\":\"x\"}]}}}"), {:ok, []})
+    # a vehicle without a place is left out
+    one = "{\"Siri\":{\"ServiceDelivery\":{\"VehicleMonitoringDelivery\":[{\"VehicleActivity\":[{\"MonitoredVehicleJourney\":{\"VehicleRef\":\"v\"}},{\"MonitoredVehicleJourney\":{\"VehicleRef\":\"w\",\"VehicleLocation\":{\"Latitude\":1,\"Longitude\":2}}}]}]}}}"
+    got = elem(mta_buses(one), 1)
+    assert_eq(map(got, fn(x: Map) -> String do x.id end), ["w"])
+    assert_eq(head(got).destination, "Unknown")
+  end
+
+  test "the poller asks for nothing until someone watches, and only real routes" do
+    p = spawn MtaPoller
+    assert_eq(p <- :key("k"), true)
+    assert_eq(p <- :step_at(1000), :idle)
+    p <- :join(-1)
+    assert_eq(p <- :step_at(1000), :idle)
+    assert_eq(p <- :recv(-1, json_encode(%{t: "watch", routes: ["M21", "M21", "Q999", 7, "B44-SBS"]})), 2)
+    assert_eq(p <- :recv(-1, "garbage"), :ignored)
+    assert_eq(p <- :recv(-9, json_encode(%{t: "watch", routes: ["M21"]})), :unknown)
+    p <- :join(-2)
+    p <- :recv(-2, json_encode(%{t: "watch", routes: ["M21", "Q10"]}))
+    s = p <- :stats
+    assert_eq([s.pages, s.watched, s.phase], [2, 3, :idle])
+    p <- :leave(-1)
+    p <- :leave(-2)
+    assert_eq((p <- :stats).watched, 0)
+    assert_eq(p <- :step_at(5000), :idle)
+  end
+
+  test "without a key the poller asks nothing" do
+    p = spawn MtaPoller
+    assert_eq(p <- :key(""), false)
+    p <- :join(-1)
+    p <- :recv(-1, json_encode(%{t: "watch", routes: ["M21"]}))
+    assert_eq(p <- :step_at(1000), :idle)
+  end
+
+  test "a frame of buses is markers; a toggle tells the server and drops that route's" do
+    m = spawn MtaPage
+    assert_eq(m <- :markers(0), nil)
+    m <- :connected
+    assert_eq(m <- :outbox, [json_encode(%{t: "watch", routes: ["M14A-SBS", "M14D-SBS", "M21", "M34-SBS"]})])
+    bs = elem(mtt_buses("m14a_sbs.json"), 1)
+    m <- :frame(json_encode(%{t: "buses", updated: "23:13:00", routes: [%{route: "M14A-SBS", buses: bs}, %{route: "B1", buses: bs}]}))
+    got = m <- :markers(0)
+    assert_eq(got.epoch, 1)
+    # B1 is not this page's, so it is not drawn
+    assert_eq(length(got.markers), 5)
+    k = head(got.markers)
+    assert_eq([k.key, k.lat, k.lng], ["M14A-SBS-MTA NYCT_5492", 40.737413, -74.004981])
+    assert(contains(k.icon, "SELECT BUS LES GRAND-FDR via 14 ST"))
+    assert(contains(k.popup, "Location: 40.737413, -74.004981"))
+    assert_eq(m <- :markers(1), nil)
+    # whole numbers come out of JSON as integers, and Temper takes floats
+    m <- :frame(json_encode(%{t: "buses", routes: [%{route: "M21", buses: [%{id: "v", lat: 40, lng: -74, direction: "1", destination: "X", speed: 12}]}]}))
+    one = head((m <- :markers(1)).markers)
+    assert(contains(one.popup, "Location: 40.000000, -74.000000"))
+    assert(contains(one.popup, "Speed: 12"))
+    m <- :frame(json_encode(%{t: "buses", routes: [%{route: "M14A-SBS", buses: bs}]}))
+    assert_eq(length((m <- :markers(2)).markers), 5)
+    m <- :toggle_route("M14A-SBS")
+    assert_eq(length((m <- :markers(3)).markers), 0)
+    assert_eq(m <- :outbox, [json_encode(%{t: "watch", routes: ["M14D-SBS", "M21", "M34-SBS"]})])
+    assert_eq((m <- :status).routes, "Routes: 3")
+    v = to_html(m <- :view)
+    assert(contains(v, "Loading..."))
+    m <- :select_all_borough_routes("queens")
+    assert_eq((m <- :status).routes, "Routes: 84")
+    m <- :select_all_routes
+    assert_eq((m <- :status).routes, "Routes: 189")
+  end
+
+  test "the view: title, boroughs and chooser follow the LiveView" do
+    m = spawn MtaPage
+    v = to_html(m <- :view)
+    assert(contains(v, "Manhattan MTA Bus Tracker"))
+    assert(contains(v, "Select All Manhattan Routes"))
+    assert_eq(contains(v, "Select Bus Routes"), false)
+    assert_eq((m <- :status).title, "MTA Bus Map Tracker")
+    m <- :toggle_modal
+    m <- :select_borough("brooklyn")
+    v2 = to_html(m <- :view)
+    assert(contains(v2, "Brooklyn MTA Bus Tracker"))
+    assert(contains(v2, "Brooklyn SBS Routes"))
+    assert(contains(v2, "Select All Brooklyn"))
+    assert_eq(contains(v2, "Manhattan Crosstown Routes"), false)
+    assert_eq((m <- :status).title, "Brooklyn MTA Bus Tracker")
+    assert_eq((m <- :status).borough, "Borough: Brooklyn")
+    m <- :select_borough("all")
+    v3 = to_html(m <- :view)
+    assert(contains(v3, "Manhattan Crosstown Routes"))
+    assert(contains(v3, "Queens SBS Routes"))
+    assert(contains(v3, "All Boroughs MTA Bus Tracker"))
+    m <- :frame("{\"t\":\"error\",\"message\":\"no key\"}")
+    assert(contains(to_html(m <- :view), "<p class=\"text-red-500 text-sm mb-2\">no key</p>"))
+  end
+
+  test "the page has the window, the map's box, the program and Leaflet" do
+    assert_eq(mta_page_ok(), true)
+  end
+end
+
+def mta_page_ok() -> Bool do
+  body = MTA_PAGE.body
+  contains(body, "<title>MTA Bus Map Tracker</title>") and contains(body, "<div id=\"mta-bus-map\" class=\"absolute inset-0 z-0\"></div>") and contains(body, "data-program=\"/mta-bus-map/mta.blimp\" data-actor=\"mta\"") and contains(body, "<script src=\"/mta-bus-map/mta.js\"></script>") and contains(body, "MTA Bus Map - Live Transit Tracker") and contains(MTA_JS.body, "Leaflet 1.9.4") and contains(MTA_JS.body, "/live/mta")
+end

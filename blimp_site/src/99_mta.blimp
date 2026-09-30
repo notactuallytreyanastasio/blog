@@ -1,0 +1,393 @@
+# /mta-bus-map: where New York's buses are, on a map, route by route.
+#
+# MtaBusMapLive asked MTA Bus Time itself, from each open page's process:
+# every 30 seconds, one request per route that page had chosen (four to
+# start with, all 189 after "Select All"), and again at once whenever its
+# visitor ticked a box. Ten open pages watching the same four routes made
+# forty requests every 30 seconds for the same forty answers.
+#
+# Here there is one poller, MTA, stepped by the Site's tick like
+# HackerNews (src/99_hacker_news.blimp), so no request ever holds the one
+# process up. It asks Bus Time for every route some open page watches, and
+# only those: every MTA_EVERY_S seconds, at most MTA_IN_FLIGHT requests
+# at a time; and sooner when a page starts watching a route it has no
+# fresh answer for. With no page open it asks nothing. Each answer is
+# kept, and every page is sent the routes it watches when a round ends.
+#
+# Why per route and not the one request that returns every bus in the
+# city (no LineRef): that answer was 1.27MB for 1,062 buses at 11pm on
+# 2026-09-29 and took 7s; at rush hour, with four or five times the buses,
+# it would be near http_result's 8MiB cap. One route is 5KB and 0.1s.
+#
+# The page opens /live/mta; the Site actor hands MTA the socket (:join),
+# every frame on it (:recv) and its end (:leave).
+#
+#   up    {"t":"watch","routes":[name..]}    what this page shows, whenever it changes
+#         {"t":"refresh"}                    the Update button
+#   down  {"t":"buses","updated":"23:12:59","routes":[{"route","buses":[bus..]}..]}
+#         {"t":"error","message":..}         no key, or Bus Time failing
+#   bus = {"id","lat","lng","direction","destination","speed","recorded_at"},
+#         what Blog.Mta.Client.parse_vehicle/1 kept, flattened
+#
+# The key is Bus Time's, read from MTA_API_KEY; without it the page says
+# so and nothing is asked. Which routes there are, the request's URL and
+# what the page makes of a bus are Temper (temper/src/mta).
+
+MTA_EVERY_S = 30
+MTA_GIVE_UP_S = 25
+MTA_IN_FLIGHT = 16
+# an answer older than this is not sent to a page that starts watching
+MTA_FRESH_S = 45
+# the Update button asks again only if the last round is older than this
+MTA_REFRESH_S = 10
+
+def mta_key() -> String do
+  k = getenv("MTA_API_KEY")
+  case k do
+    nil -> ""
+    _ -> trim(k)
+  end
+end
+
+# ── the answer ─────────────────────────────────────────────────────────
+
+def mta_get(m: Any, k: Atom) -> Any do
+  case type_of(m) == :map do
+    true -> lookup(m, k)
+    false -> nil
+  end
+end
+
+def mta_first(v: Any) -> Any do
+  case type_of(v) == :list do
+    true ->
+      case v do
+        [] -> nil
+        [x | _] -> x
+      end
+    false -> nil
+  end
+end
+
+def mta_is_number(v: Any) -> Bool do
+  type_of(v) == :float or type_of(v) == :integer
+end
+
+def mta_str(v: Any, dflt: String) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> dflt
+  end
+end
+
+# One VehicleActivity as the page is sent it, or nil for one without a
+# place or a vehicle (parse_vehicle/1's nil).
+def mta_bus(activity: Any) -> Any do
+  journey = mta_get(activity, :MonitoredVehicleJourney)
+  loc = mta_get(journey, :VehicleLocation)
+  lat = mta_get(loc, :Latitude)
+  lng = mta_get(loc, :Longitude)
+  ref = mta_get(journey, :VehicleRef)
+  case mta_is_number(lat) and mta_is_number(lng) and type_of(ref) == :string do
+    false -> nil
+    true ->
+      v = mta_get(journey, :Velocity)
+      speed = case mta_is_number(v) do
+        true -> v
+        false -> 0
+      end
+      %{id: ref, lat: lat, lng: lng,
+        direction: mta_str(mta_get(journey, :DirectionRef), ""),
+        destination: mta_str(mta_first(mta_get(journey, :DestinationName)), "Unknown"),
+        speed: speed,
+        recorded_at: mta_str(mta_get(activity, :RecordedAtTime), "")}
+  end
+end
+
+# A Bus Time answer: {:ok, buses} or {:error, why}. A route Bus Time does
+# not know (MTA Bus Company's, which are not "MTA NYCT_") is answered with
+# an ErrorCondition and no VehicleActivity; the LiveView showed no buses
+# for it, and so does this, but it is an error here, so it is counted.
+def mta_buses(body: String) -> Tuple do
+  case json_decode(body) do
+    {:ok, doc} ->
+      delivery = mta_first(mta_get(mta_get(mta_get(doc, :Siri), :ServiceDelivery), :VehicleMonitoringDelivery))
+      case type_of(delivery) == :map do
+        false -> {:error, "no VehicleMonitoringDelivery"}
+        true ->
+          acts = lookup(delivery, :VehicleActivity)
+          problem = mta_get(mta_get(delivery, :ErrorCondition), :Description)
+          case type_of(acts) == :list do
+            true -> {:ok, filter(map(acts, fn(a: Any) -> Any do mta_bus(a) end), fn(b: Any) -> Bool do b != nil end)}
+            false ->
+              case type_of(problem) == :string do
+                true -> {:error, problem}
+                false -> {:ok, []}
+              end
+          end
+      end
+    _ -> {:error, concat("not JSON: ", slice(body, 0, 60))}
+  end
+end
+
+# ── pages and routes ───────────────────────────────────────────────────
+
+def mta_send(fd: Int, frame: String) -> Any do
+  case fd < 0 do
+    true -> :test
+    false -> tcp_write(fd, frame)
+  end
+end
+
+# The routes a page says it watches that are routes, each once.
+def mta_wanted(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> uniq(filter(v, fn(r: Any) -> Bool do type_of(r) == :string and mta_known(r) end))
+    false -> []
+  end
+end
+
+def mta_union(people: Map) -> List do
+  uniq(flat(map(values(people), fn(p: Map) -> List do p.routes end)))
+end
+
+# {route, buses} for each of `routes` there is an answer for since `since`
+def mta_answers(cache: Map, routes: List, since: Int) -> List do
+  got = filter(routes, fn(r: String) -> Bool do
+    c = lookup(cache, r)
+    c != nil and c.at >= since
+  end)
+  map(got, fn(r: String) -> Map do %{route: r, buses: lookup(cache, r).buses} end)
+end
+
+def mta_missing(cache: Map, routes: List, since: Int) -> Bool do
+  length(mta_answers(cache, routes, since)) < length(routes)
+end
+
+def mta_frame(cache: Map, routes: List, since: Int, updated: String) -> String do
+  ws_frame(1, json_encode(%{t: "buses", updated: updated, routes: mta_answers(cache, routes, since)}))
+end
+
+def mta_take(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case list do
+        [] -> []
+        [h | rest] -> [h | mta_take(rest, n - 1)]
+      end
+  end
+end
+
+def mta_drop(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> list
+    false ->
+      case list do
+        [] -> []
+        [_ | rest] -> mta_drop(rest, n - 1)
+      end
+  end
+end
+
+def mta_without(m: Map, gone: String) -> Map do
+  reduce(keys(m), %{}, fn(acc: Map, k: Any) -> Map do
+    case k == gone do
+      true -> acc
+      false -> put(acc, k, lookup(m, k))
+    end
+  end)
+end
+
+actor MtaPoller do
+  state key: String :: ""
+  # socket (as a string) -> %{fd, routes}
+  state people: Map :: %{}
+  # route -> %{at, buses}
+  state cache: Map :: %{}
+  state phase: Atom :: :idle
+  state next_at: Int :: 0
+  state started: Int :: 0
+  state finished: Int :: 0
+  state updated: String :: ""
+  state queue: List :: []
+  # [{handle, route}]
+  state flying: List :: []
+  state rounds: Int :: 0
+  state requests: Int :: 0
+  state failures: Int :: 0
+  state last_error: String :: ""
+
+  on :key(k: String) do
+    become key: k
+    reply length(k) > 0
+  end
+
+  on :join(fd: Int) do
+    case key do
+      "" -> mta_send(fd, ws_frame(1, json_encode(%{t: "error", message: "This server has no MTA Bus Time key (MTA_API_KEY), so it cannot ask where the buses are."})))
+      _ -> :ok
+    end
+    become people: put(people, to_string(fd), %{fd: fd, routes: []})
+    reply :ok
+  end
+
+  on :leave(fd: Int) do
+    become people: mta_without(people, to_string(fd))
+    reply :ok
+  end
+
+  # A page's frame. It is sent what there is for its routes at once; a
+  # route with no fresh answer makes the next step start a round.
+  on :recv(fd: Int, text: String) do
+    k = to_string(fd)
+    person = lookup(people, k)
+    msg = case json_decode(text) do
+      {:ok, m} ->
+        case type_of(m) == :map do
+          true -> m
+          false -> %{}
+        end
+      _ -> %{}
+    end
+    t = now()
+    case person == nil do
+      true -> reply :unknown
+      false ->
+        case lookup(msg, :t) do
+          "watch" ->
+            routes = mta_wanted(lookup(msg, :routes))
+            mta_send(fd, mta_frame(cache, routes, t - MTA_FRESH_S, updated))
+            become people: put(people, k, %{fd: fd, routes: routes})
+            reply length(routes)
+          "refresh" ->
+            mta_send(fd, mta_frame(cache, person.routes, t - MTA_FRESH_S, updated))
+            case phase == :idle and t - finished >= MTA_REFRESH_S do
+              true ->
+                become next_at: t
+                reply :asking
+              false -> reply :sent
+            end
+          _ -> reply :ignored
+        end
+    end
+  end
+
+  on :step do
+    reply (self <- :step_at(now()))
+  end
+
+  on :step_at(t: Int) do
+    case phase do
+      :idle ->
+        wanted = mta_union(people)
+        due = t >= next_at or mta_missing(cache, wanted, t - MTA_FRESH_S)
+        case key == "" or wanted == [] or not(due) do
+          true -> reply :idle
+          false ->
+            become phase: :asking, queue: wanted, flying: [], started: t
+            reply :started
+        end
+      :asking ->
+        polled = map(flying, fn(f: Any) -> Any do {f, http_result(elem(f, 0))} end)
+        still = map(filter(polled, fn(p: Any) -> Bool do elem(p, 1) == nil end), fn(p: Any) -> Any do elem(p, 0) end)
+        done = filter(polled, fn(p: Any) -> Bool do elem(p, 1) != nil end)
+        results = map(done, fn(p: Any) -> Any do
+          r = elem(p, 1)
+          route = elem(elem(p, 0), 1)
+          case r do
+            {:ok, 200, body} -> {route, mta_buses(body)}
+            {:ok, status, _} -> {route, {:error, concat("HTTP ", to_string(status))}}
+            {:error, why} -> {route, {:error, to_string(why)}}
+            _ -> {route, {:error, "no answer"}}
+          end
+        end)
+        # MtaBusMapLive showed a route that failed as no buses; so does this
+        fresh = reduce(results, cache, fn(acc: Map, x: Any) -> Map do
+          got = elem(x, 1)
+          buses = case got do
+            {:ok, bs} -> bs
+            _ -> []
+          end
+          put(acc, elem(x, 0), %{at: t, buses: buses})
+        end)
+        errors = filter(results, fn(x: Any) -> Bool do elem(elem(x, 1), 0) == :error end)
+        err = case errors do
+          [] -> last_error
+          [e | _] -> concat(elem(e, 0), ": ", elem(elem(e, 1), 1))
+        end
+        room = MTA_IN_FLIGHT - length(still)
+        starting = mta_take(queue, room)
+        launched = map(starting, fn(r: String) -> Any do
+          {http_start("GET", mta_url(key, r), %{}, ""), r}
+        end)
+        rest = mta_drop(queue, length(starting))
+        flying_now = list_append(still, launched)
+        counted = requests + length(launched)
+        failed = failures + length(errors)
+        case rest == [] and flying_now == [] do
+          false ->
+            case t - started > MTA_GIVE_UP_S do
+              # a Bus Time that never answers keeps its slots, but not this round
+              true ->
+                become phase: :idle, next_at: t + MTA_EVERY_S, finished: t, queue: [], flying: [], cache: fresh, requests: counted, failures: failed, last_error: "gave up on a round after 25s"
+                reply :gave_up
+              false ->
+                become queue: rest, flying: flying_now, cache: fresh, requests: counted, failures: failed, last_error: err
+                reply :asking
+            end
+          true ->
+            stamp = format_time(t, "%H:%M:%S")
+            each(values(people), fn(p: Map) do mta_send(p.fd, mta_frame(fresh, p.routes, t - MTA_FRESH_S, stamp)) end)
+            become phase: :idle, next_at: t + MTA_EVERY_S, finished: t, updated: stamp, cache: fresh, rounds: rounds + 1, requests: counted, failures: failed, last_error: err
+            reply :done
+        end
+    end
+  end
+
+  # From the prompt, or a test.
+  on :stats do
+    reply %{pages: length(keys(people)), keyed: key != "", phase: phase, watched: length(mta_union(people)), cached: length(keys(cache)),
+      rounds: rounds, requests: requests, failures: failures, last_error: last_error, updated: updated}
+  end
+end
+
+MTA = spawn MtaPoller
+
+# ── the page ────────────────────────────────────────────────────────────
+
+MTA_PROGRAM_PATH = "/mta-bus-map/mta.blimp"
+MTA_SCRIPTS = list_append(APP_SCRIPTS, ["/mta-bus-map/mta.js"])
+
+# MtaBusMapLive's window, as the app layout wrapped it (<main class="flex-1
+# overflow-y-auto px-4">), less the layout's sidebar, which /map left out
+# too. The program draws the controls and the chooser; the map is
+# Leaflet's, in #mta-bus-map, which the program must not own; the status
+# bar under it is filled in by mta.js from the program.
+def mta_page() -> String do
+  body = join([
+    "<div class=\"flex h-full font-mono\"><main class=\"flex-1 overflow-y-auto px-4\"><div class=\"min-h-screen\">\n",
+    "<div class=\"os-desktop-winxp\">\n",
+    "<div class=\"os-window os-window-winxp mta-bus-window\">\n",
+    "<div class=\"os-titlebar\"><span class=\"os-titlebar-title\">MTA Bus Map - Live Transit Tracker</span>",
+    "<div class=\"os-titlebar-buttons\"><div class=\"os-btn-min\"></div><div class=\"os-btn-max\"></div><a href=\"/\" class=\"os-btn-close\"></a></div></div>\n",
+    "<div class=\"os-menubar\"><span>File</span><span>View</span><span>Routes</span><span>Help</span></div>\n",
+    "<div class=\"os-content mta-bus-content\"><div class=\"h-full flex flex-col\"><div class=\"p-2 sm:p-4 bg-white\">\n",
+    "<div id=\"blimp-app\" data-program=\"", MTA_PROGRAM_PATH, "\" data-actor=\"mta\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter, beside a Leaflet map; ",
+    "both need JavaScript. The program is <a href=\"", MTA_PROGRAM_PATH, "\">", MTA_PROGRAM_PATH, "</a>.</p></noscript>\n",
+    "<div class=\"flex-1 relative mta-bus-map-container\"><div id=\"mta-bus-map\" class=\"absolute inset-0 z-0\"></div></div>\n",
+    "</div></div></div>\n",
+    "<div class=\"os-statusbar\"><span id=\"mta-status-routes\">Routes: 4</span><span id=\"mta-status-borough\">Borough: Manhattan</span></div>\n",
+    "</div></div>\n",
+    "</div></main></div>\n",
+    script_tags(MTA_SCRIPTS)
+  ], "")
+  page_layout_html("MTA Bus Map Tracker", "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome.", "website", [APP_CSS, "/assets/blimp-window.css"], body, "h-full bg-gray-100")
+end
+
+MTA_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", mta_page())
+MTA_PROGRAM = map_asset(["_build/mta.blimp"], "text/plain; charset=utf-8")
+# Leaflet 1.9.4, /map's vendored copy (its css is in the app css), then the hook
+MTA_JS = map_asset(["static/map/leaflet/leaflet.js", "static/mta/mta.js"], "text/javascript; charset=utf-8")

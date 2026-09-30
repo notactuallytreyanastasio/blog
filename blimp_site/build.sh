@@ -88,6 +88,9 @@ with_temper _build/nyc_census.blimp static/nyc_census/census.blimp
 with_temper _build/fh-youtube.blimp static/firehose/youtube.blimp
 with_temper _build/fh-skeets.blimp static/firehose/skeets.blimp
 with_temper _build/fh-compare.blimp static/firehose/compare.blimp
+# The MTA bus map: routes, colours and markers are Temper (temper/src/mta), the
+# controls Blimp; the map is Leaflet (static/mta/mta.js).
+with_temper _build/mta.blimp static/mta/mta.blimp
 # Fill The Sky: where every community's disc goes is Temper (temper/src/sky),
 # run here rather than in the browser or at boot because the All view is
 # 1.1 million overlap tests, seconds even natively. It is a function of
