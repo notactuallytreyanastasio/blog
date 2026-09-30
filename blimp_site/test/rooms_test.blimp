@@ -185,4 +185,25 @@ actor RoomsTests do
     assert_eq(rt_whos(hub <- :list("big")), ["bob"])
     assert_eq((hub <- :stats).kicked, 1)
   end
+
+  test "opening a topic again keeps its format and diffs unless new ones are given" do
+    hub = spawn Rooms
+    v2 = fn(event: String, name: String, body: Map) -> String do json_encode([nil, nil, name, event, body]) end
+    hub <- :open("blink:7", %{format: v2})
+    hub <- :open("blink:7", %{})
+    m = hub <- :join("blink:7", -1, "ada", %{})
+    hub <- :flush
+    joined = head(hub <- :sent(-1))
+    assert_eq(joined, json_encode([nil, nil, "blink:7", "presence_state", %{members: [m]}]))
+    # a new format given is taken
+    hub <- :open("blink:7", %{format: rooms_format})
+    hub <- :join("blink:7", -2, "bob", %{})
+    hub <- :flush
+    assert_eq(rt_decode(head(hub <- :sent(-2))).t, "presence_state")
+    hub <- :open("quiet", %{diffs: false})
+    hub <- :open("quiet", %{})
+    hub <- :join("quiet", -3, "cy", %{})
+    hub <- :flush
+    assert_eq(hub <- :sent(-3), [])
+  end
 end

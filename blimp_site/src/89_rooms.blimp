@@ -14,7 +14,8 @@
 # negative fd is a test's and is never written, what it would have been sent
 # is kept instead (:sent). The site has one, ROOMS; a test spawns its own.
 #
-#   :open(topic, %{diffs, format}) optional; a topic opens on its first join
+#   :open(topic, %{diffs, format}) optional; a topic opens on its first join.
+#                                 Again: only what is given changes
 #   :join(topic, fd, who, meta)   -> member %{ref, who, since, meta}
 #   :update(topic, fd, meta)      -> member, or nil when fd is not in topic
 #   :patch(topic, fd, fields)     the same, merging fields into meta
@@ -296,15 +297,26 @@ actor Rooms do
   state flushes: Int :: 0
 
   # opts: diffs (default true), format (a fn(event, topic, body) -> String
-  # for the presence frames; default rooms_format).
+  # for the presence frames; default rooms_format). Opening a topic that is
+  # already open changes only what opts names. /cursor-tracker opens its
+  # topic on every join; had it passed %{} (or a caller that sets only
+  # diffs), the format set by whoever opened it first went back to the
+  # default, and the next presence frame came out in the wrong shape.
   on :open(name: String, opts: Map) do
     tp = lookup(topics, name)
     base = case tp == nil do
       true -> rooms_topic(true)
       false -> tp
     end
-    fresh = merge(base, %{diffs: lookup(opts, :diffs) != false, format: lookup(opts, :format)})
-    become topics: put(topics, name, fresh)
+    diffs = case lookup(opts, :diffs) do
+      nil -> base.diffs
+      d -> d != false
+    end
+    format = case lookup(opts, :format) do
+      nil -> base.format
+      f -> f
+    end
+    become topics: put(topics, name, merge(base, %{diffs: diffs, format: format}))
     reply :ok
   end
 
