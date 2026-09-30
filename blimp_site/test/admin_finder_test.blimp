@@ -1,0 +1,56 @@
+# needs: static/admin/common.blimp static/admin/finder.blimp
+#
+# The /admin/finder page's program (static/admin/finder.blimp): what it
+# shows of the sections it is sent, and what it asks the server for. The
+# routes and the rows they write are test/admin_test.blimp's.
+
+AFT_ROWS = "{\"sections\":[{\"id\":1,\"name\":\"games\",\"label\":\"Games\",\"sort_order\":0,\"joyride_target\":null,\"visible\":true,\"items\":[{\"id\":7,\"name\":\"Pong\",\"icon\":\"P\",\"path\":\"/pong\",\"action\":null,\"description\":null,\"joyride_target\":null,\"visible\":true,\"section_id\":1,\"sort_order\":0}]},{\"id\":2,\"name\":\"other\",\"label\":null,\"sort_order\":1,\"joyride_target\":null,\"visible\":false,\"items\":[]}]}"
+
+actor AdminFinderTests do
+  test "sections, their items and what is hidden" do
+    f = spawn FinderAdmin
+    f <- :loaded(401, "")
+    assert(contains(to_html(f <- :view), "Finder Admin"))
+    f <- :loaded(200, AFT_ROWS)
+    html = to_html(f <- :view)
+    assert(contains(html, "(Games)"))
+    assert(contains(html, "1 items"))
+    assert(contains(html, "[hidden]"))
+    assert(contains(html, "/pong"))
+  end
+
+  test "+ Item opens one section's form, and a second press closes it" do
+    f = spawn FinderAdmin
+    f <- :loaded(200, AFT_ROWS)
+    f <- :add_item(1)
+    open = to_html(f <- :view)
+    assert(contains(open, "name=\"section_id\""))
+    assert(contains(open, "Emoji icon"))
+    f <- :add_item(1)
+    refute(contains(to_html(f <- :view), "Emoji icon"))
+    f <- :add_item(2)
+    f <- :create_item("{\"section_id\":\"2\",\"name\":\"X\",\"icon\":\"Y\"}")
+    asked = to_html(f <- :view)
+    assert(contains(asked, "/admin/finder/items"))
+    # the form closes once the item is made, as adding_item_to: nil did
+    f <- :done(0, 200, AFT_ROWS)
+    refute(contains(to_html(f <- :view), "Emoji icon"))
+  end
+
+  test "edits, moves and deletes go to the item's or section's own url" do
+    f = spawn FinderAdmin
+    f <- :loaded(200, AFT_ROWS)
+    f <- :edit_item(7)
+    assert(contains(to_html(f <- :view), "Edit Item"))
+    f <- :update_item("{\"name\":\"Pong!\",\"icon\":\"P\",\"visible\":\"true\"}")
+    assert(contains(to_html(f <- :view), "/admin/finder/items/7"))
+    f <- :done(0, 200, AFT_ROWS)
+    refute(contains(to_html(f <- :view), "Edit Item"))
+    f <- :move_section_down(1)
+    assert(contains(to_html(f <- :view), "/admin/finder/sections/1/move"))
+    f <- :delete_section(2)
+    assert(contains(to_html(f <- :view), "Delete this section and all its items?"))
+    f <- :done(2, 0, "")
+    refute(contains(to_html(f <- :view), "Delete this section"))
+  end
+end

@@ -22,6 +22,24 @@
 		}
 	}
 
+	# /admin/museum and /admin/finder (src/99_admin.blimp), every method:
+	# the pages and their files by GET, the login and every write by POST,
+	# PATCH or DELETE. No handle_response fallback to Phoenix, which could
+	# not carry a write's body anyway, and a 404 here is Blimp's (no such
+	# row). This sits above any method-routed block (#111's @phoenix_write
+	# sends every other non-GET to Phoenix), and Caddy tries handle blocks in
+	# file order, so these paths reach Blimp whatever the method.
+	# request_buffers: the whole body first, so a slow client does not hold
+	# Blimp's one thread (see #111).
+	@blimp_admin path /admin/museum /admin/museum/* /admin/museum.blimp /admin/finder /admin/finder/* /admin/finder.blimp /admin/admin.js /admin/login /admin/logout /assets/admin-museum.css /assets/admin-finder.css
+	handle @blimp_admin {
+		reverse_proxy blimp-blog:4100 {
+			request_buffers 1MB
+			lb_try_duration 20s
+			lb_try_interval 250ms
+		}
+	}
+
 	# A comment on a guest post (src/99_guest_posts.blimp), a form POST to
 	# Blimp. Its own matcher, above everything that routes by method, so
 	# it reaches Blimp with or without #111's @phoenix_write. No 404
