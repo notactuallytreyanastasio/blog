@@ -1,0 +1,248 @@
+# The dead-link sentinel: Blog.Blinks.LinkCheck, as an actor stepped by the
+# Site's tick. Ten minutes after boot, then a day after each sweep ends, it
+# checks every blink not checked in the last 20 hours, and writes
+# fail_count, dead_at and last_checked_at as record_result/2 does. The
+# rules (three verdicts, two strikes, the 30% discard) are Temper's,
+# temper/src/blinks_check; the order of things is LinkCheck's:
+#
+#   1. the due blinks (none: log "0 checked, 0 dead" and wait a day)
+#   2. the canaries, example.com then www.cloudflare.com: if neither is ok,
+#      the network is ours to fix, and nothing is checked or written
+#   3. every due url, the results gathered before any is written
+#   4. discard the lot if over 30% failed (with 5 or more), else write each
+#
+# LinkCheck checks one url at a time; this keeps BLC_IN_FLIGHT going, of the
+# 32 http_start slots the site shares. Each request is a GET with 15s for
+# the whole of it (Req: 15s per read), 5 redirects, no retries, and
+# LinkCheck's User-Agent (which replaces std.http's own, since Blimp #76).
+#
+# Where http_result changes a verdict:
+#   - A body over 8 MiB is {:error, "ResponseTooLarge"}: unknown, where Req
+#     reads it all and says ok. (Req holds the whole body in memory too.)
+#   - A page that sends its body slower than 15s in all is
+#     {:error, "timeout"}: unknown, where Req, which times each read, says
+#     ok.
+#   - A body with no length, cut off by a reset: "ConnectionResetByPeer",
+#     unknown. Mint takes the reset as the end of the body and Req says ok.
+# A body cut off before its Content-Length or last chunk, by a reset
+# ("ConnectionResetByPeer") or a close ("HttpBodyTruncated",
+# "HttpChunkTruncated"), is unknown, as Req's %Mint.TransportError{} is.
+#
+# Off unless BLINKS_LINK_CHECK=on. Phoenix's LinkCheck sweeps the same
+# table; with both running, a dead link would get its two strikes from one
+# day's two sweeps. Turn this on in the deploy that turns Phoenix's off
+# (config :blog, :start_blinks_link_check, false).
+
+BLC_UA = "blinks-linkcheck/1.0 (+https://bobbby.online/blinks)"
+BLC_CANARIES = ["https://example.com/", "https://www.cloudflare.com/"]
+BLC_IN_FLIGHT = 4
+BLC_FIRST_S = 600
+BLC_EVERY_S = 86400
+BLC_NOW = "date_trunc('second', now() at time zone 'UTC')"
+
+# due_blinks/0: never checked, or not in the last 20 hours. The cutoff is
+# now() less 20 hours with its microseconds, as NaiveDateTime.add/2 leaves
+# them.
+BLC_DUE_SQL = "select id, url, fail_count from blinks where last_checked_at is null or last_checked_at < (now() at time zone 'UTC') - interval '20 hours'"
+
+# record_result/2 for one blink: $2 the fail_count (null: leave it), $3
+# what happens to dead_at (0 leave, 1 clear, 2 now unless set).
+# last_checked_at always moves, so updated_at does too, as Repo.update/1
+# sends a changeset with a change in it. Answers whether it is dead now.
+BLC_RECORD_SQL = join([
+  "with o as (select b.id, coalesce($2::int, b.fail_count) as fail_count,",
+  " case $3::int when 1 then null when 2 then coalesce(b.dead_at, ", BLC_NOW, ") else b.dead_at end as dead_at,",
+  " ", BLC_NOW, " as last_checked_at from blinks b where b.id = $1::bigint),",
+  " w as (update blinks b set fail_count = o.fail_count, dead_at = o.dead_at, last_checked_at = o.last_checked_at,",
+  " updated_at = case when (b.fail_count, b.dead_at, b.last_checked_at) is not distinct from (o.fail_count, o.dead_at, o.last_checked_at)",
+  " then b.updated_at else ", BLC_NOW, " end",
+  " from o where b.id = o.id returning b.dead_at)",
+  " select count(*) filter (where dead_at is not null) as dead from w"
+], "")
+
+def blc_log(s: String) -> Any do
+  puts(concat("blinks link check: ", s))
+end
+
+# check_url/1's verdict from what http_result answered.
+def blc_verdict(r: Any) -> String do
+  case r do
+    {:ok, status, _} -> blc_status_verdict(status)
+    {:error, reason} -> blc_error_verdict(reason)
+    _ -> "unknown"
+  end
+end
+
+def blc_start(start: Any, url: String) -> Int do
+  case starts_with(url, "http://") or starts_with(url, "https://") do
+    # Req errors on any other url, and http_start would raise: unknown.
+    false -> -2
+    true -> start("GET", url, %{"user-agent": BLC_UA}, "", %{timeout_ms: 15000, max_redirects: 5})
+  end
+end
+
+# A started check's answer: nil while it runs. -2 is a url that was never
+# started (not http), -1 one still waiting for a free slot.
+def blc_poll(result: Any, h: Int) -> Any do
+  case h do
+    -2 -> {:error, "not an http(s) url"}
+    -1 -> nil
+    _ -> result(h)
+  end
+end
+
+# Write one result; 1 if the link is dead afterwards.
+def blc_write(row: Map, verdict: String) -> Int do
+  rec = blc_record(verdict, row.fail_count)
+  fails = case head(rec) < 0 do
+    true -> nil
+    false -> head(rec)
+  end
+  case DB <- :query(BLC_RECORD_SQL, [row.id, fails, head(tail(rec))]) do
+    {:ok, rows} ->
+      case rows do
+        [r | _] -> to_int(to_string(r.dead))
+        [] -> 0
+      end
+    {:error, reason} ->
+      blc_log(concat("write failed for ", to_string(row.id), ": ", reason))
+      0
+  end
+end
+
+# commit_sweep/1: {checked, died}
+def blc_commit(results: List) -> Tuple do
+  total = length(results)
+  failed = length(filter(results, fn(x: Tuple) -> Bool do elem(x, 1) != "ok" end))
+  case blc_discard(total, failed) do
+    true ->
+      blc_log(concat(to_string(failed), "/", to_string(total), " links failed, discarding sweep — that ratio means something broke on our side, not theirs"))
+      {0, 0}
+    false ->
+      died = sum(map(results, fn(x: Tuple) -> Int do blc_write(elem(x, 0), elem(x, 1)) end))
+      {total, died}
+  end
+end
+
+actor BlinksLinkCheck do
+  state enabled: Bool :: false
+  state phase: Atom :: :idle
+  state next_at: Int :: 0
+  state due: List :: []
+  state canaries: List :: []
+  state handle: Int :: -1
+  state queue: List :: []
+  state flying: List :: []
+  state results: List :: []
+  state start: Any :: nil
+  state result: Any :: nil
+  state last: Any :: nil
+
+  on :config(want: Bool, first_at: Int) do
+    become enabled: want, next_at: first_at
+    reply :ok
+  end
+
+  on :http(s: Any, r: Any) do
+    become start: s, result: r
+    reply :ok
+  end
+
+  on :step do
+    t = now()
+    s = case start do
+      nil -> fn(m: String, u: String, h: Map, b: String, o: Map) -> Int do http_start(m, u, h, b, o) end
+      f -> f
+    end
+    r = case result do
+      nil -> fn(h: Int) -> Any do http_result(h) end
+      f -> f
+    end
+    case phase do
+      :idle ->
+        case enabled and t >= next_at do
+          false -> reply :idle
+          true ->
+            case DB <- :query(BLC_DUE_SQL, []) do
+              {:error, reason} ->
+                blc_log(concat("cannot read the blinks: ", reason))
+                become next_at: t + BLC_EVERY_S
+                reply :failed
+              {:ok, rows} ->
+                case rows do
+                  [] ->
+                    blc_log("0 checked, 0 dead")
+                    become next_at: t + BLC_EVERY_S, last: %{checked: 0, died: 0, at: t}
+                    reply :nothing_due
+                  _ ->
+                    become phase: :canary, due: rows, canaries: BLC_CANARIES, handle: -1
+                    reply :canary
+                end
+            end
+        end
+      :canary ->
+        case handle == -1 do
+          true ->
+            become handle: blc_start(s, head(canaries))
+            reply :canary
+          false ->
+            got = blc_poll(r, handle)
+            case got do
+              nil -> reply :canary
+              _ ->
+                case blc_verdict(got) == "ok" do
+                  true ->
+                    become phase: :checking, queue: due, flying: [], results: [], handle: -1
+                    reply :checking
+                  false ->
+                    case tail(canaries) do
+                      [] ->
+                        blc_log("no canary reachable, skipping sweep — the network is ours to fix")
+                        become phase: :idle, due: [], handle: -1, next_at: t + BLC_EVERY_S, last: %{checked: 0, died: 0, at: t}
+                        reply :no_network
+                      rest ->
+                        become canaries: rest, handle: -1
+                        reply :canary
+                    end
+                end
+            end
+        end
+      :checking ->
+        polled = map(flying, fn(f: Tuple) -> Tuple do
+          h = elem(f, 1)
+          # a check that found every slot taken starts again
+          h2 = case h == -1 do
+            true -> blc_start(s, elem(f, 0).url)
+            false -> h
+          end
+          {elem(f, 0), h2, blc_poll(r, h2)}
+        end)
+        done = filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) != nil end)
+        still = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) == nil end), fn(p: Tuple) -> Tuple do {elem(p, 0), elem(p, 1)} end)
+        got = map(done, fn(p: Tuple) -> Tuple do {elem(p, 0), blc_verdict(elem(p, 2))} end)
+        room = BLC_IN_FLIGHT - length(still)
+        starting = bke_take(queue, room, [])
+        launched = map(starting, fn(row: Map) -> Tuple do {row, blc_start(s, row.url)} end)
+        rest = drop_list(queue, length(starting))
+        all = list_append(results, got)
+        flying_now = list_append(still, launched)
+        case rest == [] and flying_now == [] do
+          false ->
+            become queue: rest, flying: flying_now, results: all
+            reply :checking
+          true ->
+            out = blc_commit(all)
+            blc_log(concat(to_string(elem(out, 0)), " checked, ", to_string(elem(out, 1)), " dead"))
+            become phase: :idle, due: [], queue: [], flying: [], results: [], next_at: now() + BLC_EVERY_S, last: %{checked: elem(out, 0), died: elem(out, 1), at: now(), verdicts: map(all, fn(x: Tuple) -> List do [elem(x, 0).url, elem(x, 1)] end)}
+            reply :swept
+        end
+    end
+  end
+
+  on :stats do
+    reply %{enabled: enabled, phase: phase, next_at: next_at, queued: length(queue), flying: length(flying), last: last}
+  end
+end
+
+BLC = spawn BlinksLinkCheck
+BLC <- :config(getenv("BLINKS_LINK_CHECK") == "on", now() + BLC_FIRST_S)
