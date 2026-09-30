@@ -219,7 +219,11 @@ def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, count: I
         nil -> ""
         _ -> b.url
       end
-      said = blk_comment_label(count)
+      said = case count do
+        0 -> "Nothing has been said here yet."
+        1 -> "1 message so far."
+        _ -> concat(to_string(count), " messages so far.")
+      end
       window = el("div", %{class: "win95", id: "blink-chat-window", "data-joyride": "chat-window"},
         el("div", %{class: "win95-titlebar title-bar"},
           el("span", %{}, "💬"),
@@ -232,7 +236,7 @@ def bkv_chat_window(id: Int, b: Any, buddies: List, show_buddies: Bool, count: I
         el("div", %{class: "aim-signon"},
           el("div", %{class: "man"}, "🏃"),
           el("b", %{}, "This room has not moved to Blimp yet"),
-          el("div", %{style: "margin:8px 0;"}, concat(said, " so far. Chat, sign-on, votes and replies come with chapter 71; until then the room is live at "),
+          el("div", %{style: "margin:8px 0;"}, concat(said, " Chat, sign-on, votes and replies come with chapter 71; until then the room is live at "),
             el("a", %{href: concat("/blinks?chat=", to_string(id)), style: "color:#369;"}, concat("/blinks?chat=", to_string(id))), "."),
           el("div", %{style: "color:#888; font-size:10px;"}, "who's here is live: you count toward this link's “here now”")))
       buddy_list = case show_buddies do
