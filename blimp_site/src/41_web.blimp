@@ -3,11 +3,13 @@
 # CSRF. What /blinks needs before it can leave Phoenix.
 #
 # A request reaches this file two ways (main.blimp's handle()):
-#   - any method but GET and HEAD, always;
+#   - any method but GET and HEAD, always, and first: the fixed table and
+#     dynamic() answer only GET and HEAD, so nothing else is asked;
 #   - a GET or HEAD that is not a fixed route, before dynamic().
 # web_handle() answers {wire, status, req} or nil, and nil only for a GET or
-# HEAD no route here claims, which then goes on to dynamic() exactly as
-# before. Every fixed route is answered before this file is asked anything.
+# HEAD no GET route here claims, which then goes on to dynamic() exactly as
+# before. A GET or HEAD to a fixed route is answered before this file is
+# asked anything; a POST to the same path is this file's alone.
 #
 # The conn is a map, as in Plug:
 #   method, path, query      from the request line ("POST", "/web/echo", "")
@@ -29,12 +31,14 @@
 #   assigns                  for plugs to hand things to handlers
 
 WEB_MAX_BODY = 1048576
+# 431 over this, whether the headers are still arriving or came whole. It
+# holds for every request this file answers; a GET that goes on to the
+# fixed table or dynamic() is not held to it (it is read once, at most 64KiB).
 WEB_MAX_HEAD = 16384
 # How long the one server thread waits for the rest of a request. The
 # server answers nobody else meanwhile, so this is short.
 WEB_READ_MS = 2000
 WEB_SESSION_COOKIE = "_blimp_session"
-WEB_COOKIE_ATTRS = "; Path=/; HttpOnly; Secure; SameSite=Lax"
 WEB_MAX_COOKIE = 4000
 WEB_DEV_SECRET = "blimp-dev-session-secret-not-for-production-use-000"
 
@@ -69,7 +73,7 @@ def web_read_more(c: Int, got: String, deadline: Int, continued: Bool) -> String
       headers = web_headers(take(got, hend))
       cl = web_content_length(headers)
       # refused whatever the body is: web_frame_error says so, unread
-      case lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > WEB_MAX_BODY do
+      case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > WEB_MAX_BODY do
         true -> got
         false ->
           case length(got) >= hend + 4 + max(cl, 0) do
@@ -289,8 +293,16 @@ end
 
 # {:ok, route, path_params} | {:method, allowed} | nil. HEAD is answered by
 # a GET route; allowed lists every method some route has for this path.
+# A GET or HEAD is claimed only by a GET route. A route for another method
+# on the same path does not make it 405: the GET goes on to the fixed table
+# and dynamic(), which may well serve that path (POST /directory beside
+# dynamic()'s GET /directory).
 def web_find(routes: List, method: String, path: String) -> Any do
-  web_find_in(routes, method, drop_list(split(path, "/"), 1), [])
+  got = web_find_in(routes, method, drop_list(split(path, "/"), 1), [])
+  case got != nil and elem(got, 0) == :method and (method == "GET" or method == "HEAD") do
+    true -> nil
+    false -> got
+  end
 end
 
 def web_find_in(routes: List, method: String, parts: List, allowed: List) -> Any do
@@ -336,11 +348,13 @@ def web_conn(raw: String, req: Map, secret: String) -> Map do
     true -> raw
     false -> take(raw, hend)
   end
+  headers = web_headers(head_text)
+  # exactly Content-Length bytes; what came after them is dropped. There is
+  # no keep-alive, so no second request can be in them (see web_frame_error)
   body = case hend < 0 do
     true -> ""
-    false -> drop(raw, hend + 4)
+    false -> take(drop(raw, hend + 4), max(web_content_length(headers), 0))
   end
-  headers = web_headers(head_text)
   qp = web_decode_form(req.query)
   %{method: req.method, path: req.path, query: req.query, headers: headers, body: body,
     cookies: web_parse_cookies(web_or(lookup(headers, "cookie"), "")),
@@ -580,6 +594,10 @@ def web_run_plugs(plugs: List, conn: Map) -> Map do
 end
 
 # A request this file must refuse before any route sees it, or nil.
+# Framing is Content-Length and nothing else: chunked is 411, and so is a
+# POST, PUT or PATCH without a length. Bytes after Content-Length are
+# dropped, not read as a second request: every response closes its
+# connection, so there is no pipelining for them to be.
 def web_frame_error(raw: String) -> Any do
   hend = index_of(raw, "\r\n\r\n")
   case hend < 0 do
@@ -589,13 +607,24 @@ def web_frame_error(raw: String) -> Any do
         false -> {408, "the request headers did not all arrive"}
       end
     false ->
-      headers = web_headers(take(raw, hend))
-      cl = web_content_length(headers)
-      case lookup(headers, "transfer-encoding") != nil do
-        true -> {411, "chunked bodies are not accepted; send Content-Length"}
+      # the same limit on a header block that arrived whole
+      case hend > WEB_MAX_HEAD do
+        true -> {431, "the request headers are too large"}
+        false -> web_body_error(raw, hend, web_headers(take(raw, hend)))
+      end
+  end
+end
+
+def web_body_error(raw: String, hend: Int, headers: Map) -> Any do
+  cl = web_content_length(headers)
+  case lookup(headers, "transfer-encoding") != nil do
+    true -> {411, "chunked bodies are not accepted; send Content-Length"}
+    false ->
+      case cl == -2 do
+        true -> {400, "Content-Length is not a number"}
         false ->
-          case cl == -2 do
-            true -> {400, "Content-Length is not a number"}
+          case cl == -1 and web_has_body(web_method_of(raw)) do
+            true -> {411, "a body needs a Content-Length"}
             false ->
               case cl > WEB_MAX_BODY do
                 true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
@@ -608,6 +637,18 @@ def web_frame_error(raw: String) -> Any do
           end
       end
   end
+end
+
+# POST, PUT and PATCH carry a body, so they must say how long it is: with
+# no Content-Length the only other way to know where it ends is the client
+# closing its side, which curl and browsers do not do. Any other method
+# (DELETE, OPTIONS) with no Content-Length has an empty body.
+def web_has_body(method: String) -> Bool do
+  method == "POST" or method == "PUT" or method == "PATCH"
+end
+
+def web_method_of(raw: String) -> String do
+  take(raw, max(index_of(raw, " "), 0))
 end
 
 def web_plain(req: Map, status: Int, message: String, extra: List) -> Tuple do
@@ -635,18 +676,51 @@ def web_dispatch(raw: String, req: Map, routes: List, secret: String) -> Any do
           end
         {:method, allowed} -> web_plain(req, 405, "method not allowed", [["Allow", web_allow(allowed)]])
         {:ok, route, pp} ->
-          conn = web_parse_body(put(web_conn(raw, req, secret), :path_params, pp))
-          piped = web_run_plugs(route.pipeline, conn)
-          done = case piped.halted do
-            true -> piped
-            false ->
-              h = route.handler
-              h(piped)
+          # a GET or HEAD skipped web_frame_error, but not the header limit
+          case bodyless and index_of(raw, "\r\n\r\n") > WEB_MAX_HEAD do
+            true -> web_plain(req, 431, "the request headers are too large", [])
+            false -> web_run(raw, req, route, pp, secret)
           end
-          web_finish(done, req)
       end
     _ -> web_plain(req, elem(framing, 0), elem(framing, 1), [])
   end
+end
+
+# The route's pipeline and handler, then the response they built. Either
+# can crash: a handler that divides by zero, a plug that reads a field a
+# map does not have, a handler that returns a conn whose resp_body is nil
+# (serialize fails on it after the handler has returned). A crash here used
+# to unwind out of the tick with the socket still open: the client waited
+# for an answer that never came and nothing was logged. Now each step is
+# caught, the client gets a 500 that names nothing inside the server, and
+# the log gets one line with the request and the step that failed.
+def web_run(raw: String, req: Map, route: Map, pp: Map, secret: String) -> Tuple do
+  done = try do
+    conn = web_parse_body(put(web_conn(raw, req, secret), :path_params, pp))
+    piped = web_run_plugs(route.pipeline, conn)
+    case piped.halted do
+      true -> {:conn, piped}
+      false ->
+        h = route.handler
+        {:conn, h(piped)}
+    end
+  catch e do
+    {:crashed, web_crashed(req, "the pipeline or handler", e)}
+  end
+  case elem(done, 0) do
+    :crashed -> elem(done, 1)
+    :conn ->
+      try do
+        web_finish(elem(done, 1), req)
+      catch e do
+        web_crashed(req, "building the response", e)
+      end
+  end
+end
+
+def web_crashed(req: Map, step: String, e: Any) -> Tuple do
+  puts(concat("web: 500 on ", req.method, " ", req.path, ": ", step, " crashed (", to_string(e), ")"))
+  web_plain(req, 500, "internal server error", [])
 end
 
 # The conn's response on the wire, with its session cookie if it changed.
@@ -714,7 +788,7 @@ def web_session_secret() -> String do
     "" ->
       case prod do
         true ->
-          print("SESSION_SECRET is not set, and DATABASE_URL is: refusing to start with a guessable session key")
+          puts("SESSION_SECRET is not set, and DATABASE_URL is: refusing to start with a guessable session key")
           exit(1)
         false ->
           puts("SESSION_SECRET is not set: sessions are signed with the dev secret (DATABASE_URL is unset, so this is not production)")
@@ -723,12 +797,27 @@ def web_session_secret() -> String do
     _ ->
       case length(s) < 32 do
         true ->
-          print("SESSION_SECRET is under 32 bytes: refusing to start")
+          puts("SESSION_SECRET is under 32 bytes: refusing to start")
           exit(1)
         false -> s
       end
   end
 end
+
+# The session cookie's attributes. Secure in production (DATABASE_URL set,
+# the rule web_session_secret uses): the browser sends it over HTTPS only.
+# Without DATABASE_URL, not Secure. A browser treats http://localhost as
+# secure but not http://192.168.x.y, so a Secure cookie set over plain
+# HTTP to a LAN IP is dropped: the session never comes back, and every
+# POST that checks the CSRF token is refused.
+def web_cookie_attrs(prod: Bool) -> String do
+  case prod do
+    true -> "; Path=/; HttpOnly; Secure; SameSite=Lax"
+    false -> "; Path=/; HttpOnly; SameSite=Lax"
+  end
+end
+
+WEB_COOKIE_ATTRS = web_cookie_attrs(web_or(getenv("DATABASE_URL"), "") != "")
 
 # ---------------------------------------------------------------- pipelines
 

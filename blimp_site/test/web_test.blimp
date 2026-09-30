@@ -102,8 +102,8 @@ actor WebTests do
     got = wt_send("PUT", "/web/echo", [], "")
     assert_eq(wt_status(got), 405)
     assert(contains(wt_wire(got), "Allow: GET, POST, HEAD\r\n"))
-    del = wt_send("GET", "/web/echo/7", [], "")
-    assert(contains(wt_wire(del), "Allow: PATCH, DELETE\r\n"))
+    put_item = wt_send("PUT", "/web/echo/7", [], "")
+    assert(contains(wt_wire(put_item), "Allow: PATCH, DELETE\r\n"))
     assert_eq(wt_send("GET", "/blog", [], ""), nil)
     assert_eq(wt_send("HEAD", "/nowhere", [], ""), nil)
     post = wt_send("POST", "/blog", [], "x")
@@ -142,7 +142,7 @@ actor WebTests do
     assert_eq(wt_status(page), 200)
     cookie = wt_cookie(page)
     assert(starts_with(cookie, "_blimp_session="))
-    assert(contains(wt_wire(page), "; Path=/; HttpOnly; Secure; SameSite=Lax\r\n"))
+    assert(contains(wt_wire(page), concat(WEB_COOKIE_ATTRS, "\r\n")))
     token = wt_token(wt_body(page))
     assert_eq(length(token), 43)
     posted = wt_send("POST", "/web/echo", [concat("Cookie: ", cookie), "Content-Type: application/x-www-form-urlencoded"], concat("_csrf_token=", web_url_encode(token), "&message=hello+there"))
@@ -230,5 +230,70 @@ actor WebTests do
     assert_eq(wt_status(got), 200)
     assert(ends_with(wt_wire(got), "\r\n\r\n"))
     refute(contains(wt_wire(got), "Content-Length: 0\r\n"))
+  end
+  test "a handler or plug that crashes, or a response that cannot be built, is a 500 that says nothing" do
+    crash = fn(c: Map) -> Map do web_text(c, 200, concat("n=", 1 / 0)) end
+    bad_plug = fn(c: Map) -> Map do c.nope.deeper end
+    nil_body = fn(c: Map) -> Map do put(web_text(c, 200, ""), :resp_body, nil) end
+    routes = [web_route("POST", "/crash", [], crash), web_route("POST", "/plug", [bad_plug], crash), web_route("GET", "/nil", [], nil_body)]
+    each(["POST /crash", "POST /plug", "GET /nil"], fn(mp: String) do
+      m = head(split(mp, " "))
+      raw = wt_raw(m, last(split(mp, " ")), [], "")
+      got = web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+      assert_eq(wt_status(got), 500)
+      assert(starts_with(wt_wire(got), "HTTP/1.1 500 "))
+      assert(contains(wt_wire(got), "Content-Type: text/plain; charset=utf-8\r\n"))
+      assert_eq(wt_body(got), "internal server error\n")
+    end)
+  end
+  test "a route for another method does not take a GET away from the fixed table or dynamic()" do
+    routes = [web_route("POST", "/directory", [], fn(c: Map) -> Map do web_text(c, 200, "posted") end)]
+    get = wt_raw("GET", "/directory", [], "")
+    assert_eq(web_dispatch(get, parse_request(get), routes, WT_SECRET), nil)
+    hd = wt_raw("HEAD", "/directory", [], "")
+    assert_eq(web_dispatch(hd, parse_request(hd), routes, WT_SECRET), nil)
+    # the web side does not know PUT, and dynamic() never sees one: 405
+    pt = wt_raw("PUT", "/directory", [], "")
+    got = web_dispatch(pt, parse_request(pt), routes, WT_SECRET)
+    assert_eq(wt_status(got), 405)
+    assert(contains(wt_wire(got), "Allow: POST\r\n"))
+    # the demo's PATCH/DELETE-only path is not ours for GET either
+    assert_eq(wt_send("GET", "/web/echo/7", [], ""), nil)
+  end
+  test "the body is exactly Content-Length bytes; POST, PUT and PATCH without one are 411" do
+    extra = "POST /web/api/echo HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 5\r\n\r\n[1,2]EXTRA"
+    got = web_dispatch(extra, parse_request(extra), web_demo_routes(), WT_SECRET)
+    assert_eq(wt_status(got), 200)
+    assert_eq(wt_body(got), "{\"json\":[1,2],\"session\":\"none\"}")
+    each(["POST", "PUT", "PATCH"], fn(m: String) do
+      raw = concat(m, " /web/api/echo HTTP/1.1\r\nContent-Type: application/json\r\n\r\n[1,2]")
+      assert_eq(wt_status(web_dispatch(raw, parse_request(raw), web_demo_routes(), WT_SECRET)), 411)
+    end)
+    # a DELETE carries no body to frame: no Content-Length is an empty one
+    body_of = fn(c: Map) -> Map do web_text(c, 200, concat("[", c.body, "]")) end
+    del = "DELETE /d HTTP/1.1\r\nHost: x\r\n\r\nstray"
+    d = web_dispatch(del, parse_request(del), [web_route("DELETE", "/d", [], body_of)], WT_SECRET)
+    assert_eq(wt_status(d), 200)
+    assert_eq(wt_body(d), "[]")
+  end
+  test "a header block over 16 KiB is 431 when it arrived whole, not only while it is arriving" do
+    big = concat("X-Big: ", web_rep("a", 14))
+    assert(length(big) > WEB_MAX_HEAD)
+    post = wt_raw("POST", "/web/api/echo", ["Content-Type: application/json", big], "[1]")
+    assert_eq(wt_status(web_dispatch(post, parse_request(post), web_demo_routes(), WT_SECRET)), 431)
+    get = wt_raw("GET", "/web/echo", [big], "")
+    assert_eq(wt_status(web_dispatch(get, parse_request(get), web_demo_routes(), WT_SECRET)), 431)
+    # a GET no route here claims is still not ours to refuse
+    assert_eq(web_dispatch(wt_raw("GET", "/blog", [big], ""), parse_request(wt_raw("GET", "/blog", [big], "")), web_demo_routes(), WT_SECRET), nil)
+    ok = wt_raw("POST", "/web/api/echo", ["Content-Type: application/json", take(big, 15000)], "[1]")
+    assert_eq(wt_status(web_dispatch(ok, parse_request(ok), web_demo_routes(), WT_SECRET)), 200)
+  end
+  test "the cookie is Secure in production, and not in dev, so a LAN IP over plain HTTP keeps its session" do
+    assert_eq(web_cookie_attrs(true), "; Path=/; HttpOnly; Secure; SameSite=Lax")
+    assert_eq(web_cookie_attrs(false), "; Path=/; HttpOnly; SameSite=Lax")
+    # the tests run with DATABASE_URL unset, as a laptop does
+    assert_eq(WEB_COOKIE_ATTRS, web_cookie_attrs(web_or(getenv("DATABASE_URL"), "") != ""))
+    page = wt_send("GET", "/web/echo", [], "")
+    refute(contains(wt_wire(page), "Secure"))
   end
 end
