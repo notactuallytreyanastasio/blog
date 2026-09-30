@@ -6,8 +6,10 @@
 # URL, and test/pages_test.blimp holds every page to that.
 
 def site_description() -> String do
-  "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome."
+  "This page was built in a language the programmer who it is about invented. It is a space to experiment with software and share it socially. Please participate in the more social aspects of the site politely. There is a mixture of writing, games, and technical demonstrations. Please enjoy your day. I love you"
 end
+
+SITE_NAME = "Bobbby's Online Museum"
 
 def meta_tag(attr: String, name: String, content: String) -> String do
   concat("<meta ", attr, "=\"", name, "\" content=\"", escape_html(content), "\">\n")
@@ -39,6 +41,24 @@ end
 
 # The same, with a class on <html> (2048 locks the page's scrolling that way).
 def page_layout_html(title: String, description: String, og_type: String, stylesheets: List, body: String, html_class: String) -> String do
+  page_layout_full(title, description, og_type, stylesheets, body, html_class, nil)
+end
+
+# A page with a share card: image is %{url, alt}, a 1200x630 picture, or
+# nil for none. Link previews then show it large (summary_large_image).
+def page_layout_full(title: String, description: String, og_type: String, stylesheets: List, body: String, html_class: String, image: Any) -> String do
+  card = case image do
+    nil -> meta_tag("name", "twitter:card", "summary")
+    _ -> join([
+      meta_tag("property", "og:image", image.url),
+      meta_tag("property", "og:image:width", "1200"),
+      meta_tag("property", "og:image:height", "630"),
+      meta_tag("property", "og:image:alt", image.alt),
+      meta_tag("name", "twitter:card", "summary_large_image"),
+      meta_tag("name", "twitter:image", image.url),
+      meta_tag("name", "twitter:image:alt", image.alt)
+    ], "")
+  end
   open_html = case html_class do
     "" -> "<html lang=\"en\">"
     _ -> concat("<html lang=\"en\" class=\"", escape_html(html_class), "\">")
@@ -55,8 +75,8 @@ def page_layout_html(title: String, description: String, og_type: String, styles
     meta_tag("property", "og:title", title),
     meta_tag("property", "og:description", description),
     meta_tag("property", "og:type", og_type),
-    meta_tag("property", "og:site_name", "Thoughts & Tidbits"),
-    meta_tag("name", "twitter:card", "summary"),
+    meta_tag("property", "og:site_name", SITE_NAME),
+    card,
     meta_tag("name", "twitter:title", title),
     meta_tag("name", "twitter:description", description),
     "<link rel=\"icon\" href=\"/favicon.ico\">\n",
