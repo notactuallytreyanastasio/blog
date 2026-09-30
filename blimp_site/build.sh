@@ -81,6 +81,9 @@ with_temper _build/art.blimp src/40_http.blimp static/art/art.blimp
 with_temper _build/chess_lv.blimp static/chess_lv/chess_lv.blimp
 # Tag a Wook: embeds, validation and popups are Temper (temper/src/map), the view Blimp.
 with_temper _build/map.blimp static/map/map.blimp
+# How many people live here: the arithmetic is Temper (temper/src/nyc_census),
+# the loops, the state and the panel Blimp; the map is Leaflet (map.js).
+with_temper _build/nyc_census.blimp static/nyc_census/census.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

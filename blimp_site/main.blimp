@@ -178,6 +178,13 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/map/images/marker-icon.png" -> MAP_ICON
     "/map/images/marker-icon-2x.png" -> MAP_ICON_2X
     "/map/images/marker-shadow.png" -> MAP_SHADOW
+    # How many people live here (src/99_nyc_census.blimp): the page, its
+    # program and map, and the rows the program estimates from
+    "/nyc_census_and_pluto" -> NYC_CENSUS_PAGE
+    "/nyc_census_and_pluto/census.blimp" -> NYC_CENSUS_PROGRAM
+    "/nyc_census_and_pluto/map.js" -> NYC_CENSUS_JS
+    "/nyc_census_and_pluto/tracts.json" -> nyc_tracts_response()
+    "/nyc_census_and_pluto/lots.json" -> nyc_lots_response(req.query)
     "/work-log" ->
       page = work_log_page()
       case page do
