@@ -1,0 +1,188 @@
+# The rooms library (src/89_rooms.blimp). Sockets here are negative: the
+# hub never writes them, and :sent says what it would have written.
+
+def rt_decode(text: String) -> Map do
+  elem(json_decode(text), 1)
+end
+
+def rt_sent(hub: Any, fd: Int) -> List do
+  map(hub <- :sent(fd), fn(s: String) -> Map do rt_decode(s) end)
+end
+
+def rt_whos(members: List) -> List do
+  map(members, fn(m: Map) -> String do m.who end)
+end
+
+actor RoomsTests do
+  test "a join is a member: who, since when, what they said, and a ref" do
+    hub = spawn Rooms
+    t0 = now_ms()
+    m = hub <- :join("blink:1", -1, "ada", %{name: "Ada"})
+    assert_eq(m.who, "ada")
+    assert_eq(m.meta, %{name: "Ada"})
+    assert(m.since >= t0)
+    assert(length(m.ref) > 0)
+    assert_eq(hub <- :member("blink:1", -1), m)
+    assert_eq(hub <- :member("blink:1", -2), nil)
+    assert_eq(hub <- :member("nowhere", -1), nil)
+    assert_eq(hub <- :list("nowhere"), [])
+  end
+
+  test "the joiner is sent the room; everyone is sent one diff a flush" do
+    hub = spawn Rooms
+    hub <- :join("lobby", -1, "ada", %{})
+    hub <- :flush
+    a0 = rt_sent(hub, -1)
+    assert_eq(map(a0, fn(f: Map) -> String do f.t end), ["presence_state", "presence_diff"])
+    assert_eq(rt_whos(head(a0).members), ["ada"])
+    hub <- :join("lobby", -2, "bob", %{})
+    hub <- :join("lobby", -3, "cy", %{})
+    hub <- :flush
+    a1 = rt_sent(hub, -1)
+    # two joins, one frame
+    assert_eq(length(a1), 1)
+    assert_eq(head(a1).t, "presence_diff")
+    assert_eq(rt_whos(head(a1).joins), ["bob", "cy"])
+    assert_eq(head(a1).leaves, [])
+    # cy got the room as it was when cy came, then the diff
+    c1 = rt_sent(hub, -3)
+    assert_eq(rt_whos(head(c1).members), ["ada", "bob", "cy"])
+    # nothing changed: nothing sent
+    hub <- :flush
+    assert_eq(hub <- :sent(-1), [])
+  end
+
+  test "an update is a leave of the old self and a join of the new, keyed by ref" do
+    hub = spawn Rooms
+    m = hub <- :join("lobby", -1, "ada", %{status: "here"})
+    hub <- :join("lobby", -2, "bob", %{})
+    hub <- :flush
+    hub <- :sent(-2)
+    m2 = hub <- :update("lobby", -1, %{status: "away"})
+    assert_eq(m2.ref, m.ref)
+    assert_eq(m2.since, m.since)
+    hub <- :flush
+    d = head(rt_sent(hub, -2))
+    assert_eq(map(d.leaves, fn(x: Map) -> String do x.meta.status end), ["here"])
+    assert_eq(map(d.joins, fn(x: Map) -> String do x.meta.status end), ["away"])
+    assert_eq(head(d.leaves).ref, head(d.joins).ref)
+    assert_eq(hub <- :update("lobby", -9, %{}), nil)
+  end
+
+  test "a patch merges into what a member said; an update replaces it" do
+    hub = spawn Rooms
+    hub <- :join("lobby", -1, "ada", %{color: "red", x: 1})
+    assert_eq((hub <- :patch("lobby", -1, %{x: 2})).meta, %{color: "red", x: 2})
+    assert_eq((hub <- :update("lobby", -1, %{x: 3})).meta, %{x: 3})
+    assert_eq(hub <- :patch("lobby", -2, %{x: 2}), nil)
+  end
+
+  test "someone who comes and goes within one tick is in no diff" do
+    hub = spawn Rooms
+    hub <- :join("lobby", -1, "ada", %{})
+    hub <- :flush
+    hub <- :sent(-1)
+    hub <- :join("lobby", -2, "flash", %{})
+    hub <- :leave("lobby", -2)
+    hub <- :flush
+    assert_eq(hub <- :sent(-1), [])
+    # and a leave after a flushed join is a leave
+    hub <- :join("lobby", -3, "cy", %{})
+    hub <- :flush
+    hub <- :sent(-1)
+    hub <- :leave("lobby", -3)
+    hub <- :flush
+    d = head(rt_sent(hub, -1))
+    assert_eq(rt_whos(d.leaves), ["cy"])
+    assert_eq(d.joins, [])
+    assert_eq(rt_whos(hub <- :list("lobby")), ["ada"])
+  end
+
+  test "a topic can send its presence frames in its own shape, and the ref is stable across updates" do
+    hub = spawn Rooms
+    # Phoenix v2, as the iOS blinks app reads it: [join_ref, ref, topic, event, payload]
+    hub <- :open("room:1", %{format: fn(event: String, name: String, body: Map) -> String do json_encode([nil, nil, name, event, body]) end})
+    m = hub <- :join("room:1", -1, "ada", %{})
+    hub <- :update("room:1", -1, %{typing: true})
+    hub <- :flush
+    got = map(hub <- :sent(-1), fn(s: String) -> List do elem(json_decode(s), 1) end)
+    assert_eq(map(got, fn(f: List) -> String do head(tail(tail(tail(f)))) end), ["presence_state", "presence_diff"])
+    assert_eq(head(tail(tail(head(got)))), "room:1")
+    d = last(head(tail(got)))
+    # the join had not gone out, so the update is still a join, of the new self
+    assert_eq(map(d.joins, fn(x: Map) -> String do x.ref end), [m.ref])
+    assert_eq(head(d.joins).meta, %{typing: true})
+    assert_eq(d.leaves, [])
+  end
+
+  test "a dropped socket leaves every topic it was in" do
+    hub = spawn Rooms
+    hub <- :join("a", -1, "ada", %{})
+    hub <- :join("b", -1, "ada", %{})
+    hub <- :join("b", -2, "bob", %{})
+    assert_eq(hub <- :drop(-1), ["a", "b"])
+    assert_eq(hub <- :list("a"), [])
+    assert_eq(rt_whos(hub <- :list("b")), ["bob"])
+    assert_eq(hub <- :drop(-1), [])
+    assert_eq(length((hub <- :stats).sockets), 1)
+  end
+
+  test "broadcast reaches the topic, broadcast_from all but the sender, send one socket, in the order said" do
+    hub = spawn Rooms
+    hub <- :open("chat", %{diffs: false})
+    hub <- :join("chat", -1, "ada", %{})
+    hub <- :join("chat", -2, "bob", %{})
+    hub <- :join("other", -3, "cy", %{})
+    hub <- :sent(-3)
+    hub <- :broadcast("chat", "{\"n\":1}")
+    hub <- :broadcast_from(-1, "chat", "{\"n\":2}")
+    hub <- :send(-1, "{\"n\":3}")
+    hub <- :broadcast("chat", "{\"n\":4}")
+    r = hub <- :flush
+    assert_eq(map(rt_sent(hub, -1), fn(f: Map) -> Int do f.n end), [1, 3, 4])
+    assert_eq(map(rt_sent(hub, -2), fn(f: Map) -> Int do f.n end), [1, 2, 4])
+    # cy is in another topic, with diffs: cy is sent that room and nothing said here
+    assert_eq(map(rt_sent(hub, -3), fn(f: Map) -> String do f.t end), ["presence_state", "presence_diff"])
+    assert_eq(r.sockets, 3)
+    assert_eq(r.frames, 8)
+    assert_eq(r.kicked, [])
+    # a topic opened without diffs sent no presence frames at all
+    hub <- :join("chat", -4, "dee", %{})
+    hub <- :flush
+    assert_eq(hub <- :sent(-4), [])
+  end
+
+  test "inbound frames: a burst of ROOMS_BURST, then ROOMS_RATE a second" do
+    hub = spawn Rooms
+    hub <- :join("x", -1, "ada", %{})
+    t = 1000000
+    oks = map(range(1, ROOMS_BURST), fn(i: Int) -> Atom do hub <- :inbound_at(-1, t) end)
+    assert_eq(filter(oks, fn(v: Atom) -> Bool do v != :ok end), [])
+    assert_eq(hub <- :inbound_at(-1, t), :limited)
+    # 100ms buys ROOMS_RATE / 10 frames
+    later = map(range(1, ROOMS_RATE / 10 + 1), fn(i: Int) -> Atom do hub <- :inbound_at(-1, t + 100) end)
+    assert_eq(length(filter(later, fn(v: Atom) -> Bool do v == :ok end)), ROOMS_RATE / 10)
+    assert_eq(head((hub <- :stats).sockets).limited, 2)
+    # a socket the hub does not know is not its to limit
+    assert_eq(hub <- :inbound_at(-7, t), :ok)
+  end
+
+  test "a socket with more than ROOMS_MAX_BYTES waiting in one tick is kicked, not written" do
+    hub = spawn Rooms
+    hub <- :open("big", %{diffs: false})
+    hub <- :join("big", -1, "ada", %{})
+    hub <- :join("big", -2, "bob", %{})
+    chunk = doubled_to("x", 70000)
+    hub <- :send(-1, chunk)
+    hub <- :send(-1, chunk)
+    hub <- :send(-1, chunk)
+    hub <- :send(-1, chunk)
+    hub <- :broadcast("big", "{}")
+    r = hub <- :flush
+    assert_eq(r.kicked, [-1])
+    assert_eq(hub <- :sent(-1), [])
+    assert_eq(hub <- :sent(-2), ["{}"])
+    assert_eq(rt_whos(hub <- :list("big")), ["bob"])
+    assert_eq((hub <- :stats).kicked, 1)
+  end
+end

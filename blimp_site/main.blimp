@@ -481,6 +481,19 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
   end
 end
 
+# The sockets ROOMS would not write to this tick, closed. {socks, games, changed}
+def rooms_kick(fds: List, read: Tuple) -> Tuple do
+  reduce(fds, read, fn(acc: Tuple, fd: Int) -> Tuple do
+    sock = lookup(elem(acc, 0), to_string(fd))
+    case sock == nil do
+      true -> acc
+      false ->
+        r = drop_socket(sock, elem(acc, 0), elem(acc, 1), "too far behind")
+        {elem(r, 0), elem(r, 1), elem(acc, 2) or elem(r, 2)}
+    end
+  end)
+end
+
 # Read what a ready socket has and act on every whole frame in it.
 def live_read(sock: Map, socks: Map, games: Map) -> Tuple do
   data = tcp_read(sock.fd)
@@ -668,6 +681,10 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
   WORDLE <- :push(elem(read, 0))
   CURSORS <- :push(now_ms(), now())
+  # what the rooms said this tick goes out, one write a socket
+  # (src/89_rooms.blimp); a socket too far behind to be sent it is closed
+  flushed = ROOMS <- :flush
+  read = rooms_kick(flushed.kicked, read)
   # the Bluesky relays: drain what arrived, push to the firehose pages
   FIREHOSE <- :tick(now_ms())
   t = now_ms()
