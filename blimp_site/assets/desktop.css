@@ -118,7 +118,7 @@ a:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 .deck {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "scope" "manifest" "log" "archive" "more";
+  grid-template-areas: "intro" "manifest" "log" "scope" "archive" "more";
   gap: 36px;
   padding: 24px 0 40px;
 }
@@ -126,18 +126,20 @@ a:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
   .deck {
     grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr);
     grid-template-areas:
-      "scope manifest"
+      "intro manifest"
       "log manifest"
+      "scope manifest"
       "archive archive"
       "more more";
-    /* The manifest spans two rows and is the taller; the log's row takes
-     * the slack, so the log sits right under the gauges. */
-    grid-template-rows: auto 1fr auto auto;
+    /* The work index spans three rows and is the tallest; the last of
+     * them takes the slack, so the left column stays packed at the top. */
+    grid-template-rows: auto auto 1fr auto auto;
     column-gap: clamp(28px, 2.6vw, 56px);
     row-gap: 36px;
   }
 }
-.scope-col { grid-area: scope; min-width: 0; }
+.intro { grid-area: intro; min-width: 0; }
+.scope-col { grid-area: scope; min-width: 0; align-self: start; }
 .manifest { grid-area: manifest; min-width: 0; }
 .log { grid-area: log; min-width: 0; align-self: start; }
 .archive { grid-area: archive; min-width: 0; }
@@ -168,13 +170,17 @@ a.sec-count:hover { text-decoration: underline; }
 .headline {
   font-stretch: 120%;
   font-weight: 800;
-  font-size: clamp(22px, 2.1vw, 34px);
+  font-size: clamp(28px, 3vw, 50px);
   line-height: 1.1;
   letter-spacing: -.015em;
   margin-bottom: 16px;
-  max-width: 34ch;
+  max-width: 22ch;
 }
-.headline em { font-style: normal; color: var(--signal); }
+.headline em { font-style: normal; color: var(--signal); display: block; }
+.intro .plate-label { margin-bottom: 10px; }
+.intro-text { font-size: 17px; line-height: 1.5; max-width: 60ch; margin-top: 10px; }
+.intro-text a { color: var(--signal); text-underline-offset: 2px; }
+.sec-note a { color: var(--signal); }
 
 .scope {
   background: var(--sheet);
@@ -184,7 +190,7 @@ a.sec-count:hover { text-decoration: underline; }
 }
 .scope-screen {
   position: relative;
-  height: clamp(300px, 62vh, 780px);
+  height: clamp(280px, 46vh, 560px);
   background: var(--scope);
   overflow: hidden;
   /* A graticule, as on a scope's face; the canvas draws over it. */

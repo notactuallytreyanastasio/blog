@@ -681,8 +681,8 @@ def desk_museum(st: Map, desk: Map) -> String do
   rows = desk_museum_rows(desk.museum, st, [])
   join([
     "<section class=\"archive\" id=\"museum\" aria-labelledby=\"museum-h\">",
-    "<header class=\"sec-head\"><h2 id=\"museum-h\">Technical museum</h2><span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
-    "<p class=\"sec-note\">Older work, most of it from before Blimp. Pick one to read about it.</p>",
+    "<header class=\"sec-head\"><h2 id=\"museum-h\">The museum</h2><span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
+    "<p class=\"sec-note\">Older projects: hardware, maps, music, machine learning, social experiments. Pick one to read about it.</p>",
     "<nav class=\"tabs\" aria-label=\"Museum categories\">",
     "<a class=\"", desk_active(st.cat == "", "tab"), "\" href=\"", desk_museum_href(put(st, "cat", "")), "\">All</a>",
     join(desk_tabs(desk.categories, st, []), ""),
@@ -718,29 +718,43 @@ HOME_CARD = %{
 
 HOME_FONTS = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
 
-def desk_rail(epoch_s: Int) -> String do
+def desk_rail(epoch_s: Int, st: Map) -> String do
   join([
     "<header class=\"rail\">",
     "<a class=\"mark\" href=\"/?booted=1\">", desk_blimp_svg(46), "<span class=\"mark-name\">bobbby<span>.online</span></span></a>",
     "<nav class=\"rail-nav\" aria-label=\"Site\">",
-    "<a href=\"/blog\">Blog</a><a href=\"/stack\">How it is built</a><a href=\"/mirror\">Source</a><a href=\"/directory\">Directory</a>",
+    "<a href=\"#work\">Things I made</a><a href=\"/blog\">Writing</a><a href=\"", desk_href(put(st, "leica", "1")), "\">Photographs</a><a href=\"#museum\">Museum</a><a href=\"/directory\">Directory</a>",
     "</nav>",
     "<p class=\"rail-clock\"><span>UTC</span> ", desk_clock(epoch_s), "</p>",
     "</header>"
   ], "")
 end
 
+# Who this is: the boot splash's own words, then what is on the page.
+def desk_intro(st: Map) -> String do
+  join([
+    "<section class=\"intro\" aria-labelledby=\"intro-h\">",
+    "<p class=\"plate-label\">Programmer &middot; photographer &middot; artist &middot; New York City</p>",
+    "<h1 id=\"intro-h\" class=\"headline\">Hi, I&#8217;m Bobby. <em>I use things in ways they were not intended.</em></h1>",
+    "<p class=\"intro-text\">I am a programmer, photographer, and artist living in NYC. I like to evoke new directions of vision by playing with the social fabric that wraps us around a computer.</p>",
+    "<p class=\"intro-text\">This is where that work lives: <a href=\"#work\">games and toys</a> you can play, live views of the internet, data and maps, <a href=\"/blog\">writing</a>, <a href=\"", desk_href(put(st, "leica", "1")), "\">photographs</a>, and <a href=\"#museum\">older projects</a>. Most of it wants you to join in; please be kind to whoever else is there.</p>",
+    "</section>"
+  ], "")
+end
+
+# The site is a piece too: the language it runs in is one I wrote. The
+# canvas draws that process; it is below the work now, not above it.
 def desk_scope(live: String) -> String do
   join([
     "<section class=\"scope-col\" aria-labelledby=\"scope-h\">",
-    "<h1 id=\"scope-h\" class=\"headline\">This page came from one Blimp process. <em>Here it is, running.</em></h1>",
+    "<header class=\"sec-head\"><h2 id=\"scope-h\">The machine under this page</h2><a class=\"sec-count\" href=\"/stack\">how it is built &#x2192;</a></header>",
+    "<p class=\"sec-note\">I also wrote the language this site runs in, <a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp</a>. The whole site is one Blimp process, and this is it, live. Your visit was one of the messages. <a href=\"/mirror\">Read its source</a>.</p>",
     "<figure class=\"scope\">",
     "<div class=\"scope-screen\" id=\"scope-wrap\"><canvas id=\"scope-canvas\" aria-label=\"The server's actors and the messages between them, live\"></canvas>",
     "<p class=\"scope-status\" id=\"scope-status\">Scripts are off, so the drawing is too. The gauges below are the server's own numbers, as of this request.</p></div>",
     "<figcaption>",
     "<span class=\"key\"><svg viewBox=\"0 0 20 20\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path d=\"M10 1l8 4.5v9L10 19l-8-4.5v-9z\"/></svg> an actor inside the server</span>",
     "<span class=\"key\"><svg viewBox=\"0 0 24 8\" width=\"24\" height=\"8\" aria-hidden=\"true\"><path d=\"M1 4h20M17 1l4 3-4 3\"/></svg> a message between two</span>",
-    "<span class=\"key-note\">Blimp is an actor language I am writing; its interpreter, in Zig, is the web server. Every request, yours included, is a message to the Site actor. The picture is the server's own snapshot, pushed over <code>/live/runtime</code> a few times a second.</span>",
     "</figcaption>",
     "</figure>",
     live,
@@ -750,8 +764,8 @@ end
 
 def desk_manifest(desk: Map) -> String do
   join([
-    "<aside class=\"manifest\" aria-labelledby=\"manifest-h\">",
-    "<header class=\"sec-head\"><h2 id=\"manifest-h\">Aboard</h2><span class=\"sec-count\">", to_string(desk.hangar_count), " pages, one process</span></header>",
+    "<aside class=\"manifest\" id=\"work\" aria-labelledby=\"manifest-h\">",
+    "<header class=\"sec-head\"><h2 id=\"manifest-h\">Things I made that you can use</h2><span class=\"sec-count\">", to_string(desk.hangar_count), "</span></header>",
     "<div class=\"mf-groups\">", desk.hangar_html, "</div>",
     "</aside>"
   ], "")
@@ -759,8 +773,8 @@ end
 
 def desk_log(desk: Map) -> String do
   join([
-    "<section class=\"log\" aria-labelledby=\"log-h\">",
-    "<header class=\"sec-head\"><h2 id=\"log-h\">Log</h2><a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
+    "<section class=\"log\" id=\"writing\" aria-labelledby=\"log-h\">",
+    "<header class=\"sec-head\"><h2 id=\"log-h\">Writing</h2><a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
     "<ol class=\"log-list\">", desk.blog_html, "</ol>",
     "</section>"
   ], "")
@@ -768,8 +782,8 @@ end
 
 def desk_more(st: Map, desk: Map) -> String do
   join([
-    "<section class=\"more\" aria-labelledby=\"more-h\">",
-    "<header class=\"sec-head\"><h2 id=\"more-h\">Apps &amp; games, the full list</h2><span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
+    "<section class=\"more\" id=\"more\" aria-labelledby=\"more-h\">",
+    "<header class=\"sec-head\"><h2 id=\"more-h\">Everything else</h2><span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
     desk.finder_html,
     "</section>"
   ], "")
@@ -814,11 +828,12 @@ def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, pr
   end
   body = join([
     "<div class=\"home\">",
-    desk_rail(epoch_s),
+    desk_rail(epoch_s, st),
     "<main class=\"deck\">",
-    desk_scope(desk_live_html(counts, render)),
+    desk_intro(st),
     desk_manifest(desk),
     desk_log(desk),
+    desk_scope(desk_live_html(counts, render)),
     museum,
     more,
     "</main>",

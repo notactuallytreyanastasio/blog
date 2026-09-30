@@ -152,11 +152,11 @@ checked; the name and pitch are escaped here.
       if (group == "games") {
         "Games"
       } else if (group == "wire") {
-        "Off the wire, live"
+        "Live from the internet"
       } else if (group == "numbers") {
-        "Numbers"
+        "Data & maps"
       } else {
-        "Tools & toys"
+        "Art, tools & toys"
       }
     }
 
