@@ -1,0 +1,47 @@
+# /phish_lab, the Phish anomaly laboratory: PhishLabLive's page, as a
+# program the browser runs (static/phish_lab/phish_lab.blimp, with the
+# chart's arithmetic in temper/src/phish_lab) and a script that tells it
+# where the pointer is (static/phish_lab/phish_lab.js).
+#
+# The server sends the page, those files, and the two datasets Blog.PhishLab
+# read into :persistent_term, as they are in priv/static/data (built by
+# scripts/build_phish_lab_data.py): the shows, songs and leaderboards (1 MB)
+# and the performances (2.5 MB, fetched only when they are charted). No
+# database: the lab never had one. All of it is read once, at boot.
+#
+# 3.5 MB through a server that is one thread would hold every other request
+# while a slow reader drained it, so Caddy buffers /phish_lab/*.json as it
+# does /sky/points.json.gz (deploy/Caddyfile.snippet, @phish_lab_data).
+
+PL_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/phish_lab/phish_lab.js"]
+
+def phish_lab_page_html() -> String do
+  program = "/phish_lab/phish_lab.blimp"
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", program, "\" data-actor=\"lab\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
+    script_tags(PL_SCRIPTS)
+  ], "")
+  page_layout_html("Phish Lab — anomaly detection for a band from Vermont",
+    "A retro laboratory for Phish data: plot 1,024 shows and 20,000+ song performances against each other, and hunt the statistical anomalies.",
+    "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/phish_lab.css"], body, "phish-lab-page")
+end
+
+def phish_lab_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+PL_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", phish_lab_page_html())
+PL_PROGRAM = phish_lab_asset("_build/phish_lab.blimp", "text/plain; charset=utf-8")
+PL_JS = phish_lab_asset("static/phish_lab/phish_lab.js", "text/javascript; charset=utf-8")
+PL_CSS = phish_lab_asset("assets/phish_lab.css", "text/css; charset=utf-8")
+PL_MAIN = phish_lab_asset("../priv/static/data/phish_lab.json", "application/json; charset=utf-8")
+PL_PERFS = phish_lab_asset("../priv/static/data/phish_lab_perfs.json", "application/json; charset=utf-8")
