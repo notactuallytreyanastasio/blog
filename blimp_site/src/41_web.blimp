@@ -29,6 +29,9 @@
 #   assigns                  for plugs to hand things to handlers
 
 WEB_MAX_BODY = 1048576
+# 431 over this, whether the headers are still arriving or came whole. It
+# holds for every request this file answers; a GET that goes on to the
+# fixed table or dynamic() is not held to it (it is read once, at most 64KiB).
 WEB_MAX_HEAD = 16384
 # How long the one server thread waits for the rest of a request. The
 # server answers nobody else meanwhile, so this is short.
@@ -69,7 +72,7 @@ def web_read_more(c: Int, got: String, deadline: Int, continued: Bool) -> String
       headers = web_headers(take(got, hend))
       cl = web_content_length(headers)
       # refused whatever the body is: web_frame_error says so, unread
-      case lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > WEB_MAX_BODY do
+      case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > WEB_MAX_BODY do
         true -> got
         false ->
           case length(got) >= hend + 4 + max(cl, 0) do
@@ -603,24 +606,31 @@ def web_frame_error(raw: String) -> Any do
         false -> {408, "the request headers did not all arrive"}
       end
     false ->
-      headers = web_headers(take(raw, hend))
-      cl = web_content_length(headers)
-      case lookup(headers, "transfer-encoding") != nil do
-        true -> {411, "chunked bodies are not accepted; send Content-Length"}
+      # the same limit on a header block that arrived whole
+      case hend > WEB_MAX_HEAD do
+        true -> {431, "the request headers are too large"}
+        false -> web_body_error(raw, hend, web_headers(take(raw, hend)))
+      end
+  end
+end
+
+def web_body_error(raw: String, hend: Int, headers: Map) -> Any do
+  cl = web_content_length(headers)
+  case lookup(headers, "transfer-encoding") != nil do
+    true -> {411, "chunked bodies are not accepted; send Content-Length"}
+    false ->
+      case cl == -2 do
+        true -> {400, "Content-Length is not a number"}
         false ->
-          case cl == -2 do
-            true -> {400, "Content-Length is not a number"}
+          case cl == -1 and web_has_body(web_method_of(raw)) do
+            true -> {411, "a body needs a Content-Length"}
             false ->
-              case cl == -1 and web_has_body(web_method_of(raw)) do
-                true -> {411, "a body needs a Content-Length"}
+              case cl > WEB_MAX_BODY do
+                true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
                 false ->
-                  case cl > WEB_MAX_BODY do
-                    true -> {413, concat("the body is over ", to_string(WEB_MAX_BODY), " bytes")}
-                    false ->
-                      case length(raw) - hend - 4 < max(cl, 0) do
-                        true -> {408, "the body did not all arrive"}
-                        false -> nil
-                      end
+                  case length(raw) - hend - 4 < max(cl, 0) do
+                    true -> {408, "the body did not all arrive"}
+                    false -> nil
                   end
               end
           end
@@ -664,7 +674,12 @@ def web_dispatch(raw: String, req: Map, routes: List, secret: String) -> Any do
             false -> web_plain(req, 405, "method not allowed", [["Allow", "GET, HEAD"]])
           end
         {:method, allowed} -> web_plain(req, 405, "method not allowed", [["Allow", web_allow(allowed)]])
-        {:ok, route, pp} -> web_run(raw, req, route, pp, secret)
+        {:ok, route, pp} ->
+          # a GET or HEAD skipped web_frame_error, but not the header limit
+          case bodyless and index_of(raw, "\r\n\r\n") > WEB_MAX_HEAD do
+            true -> web_plain(req, 431, "the request headers are too large", [])
+            false -> web_run(raw, req, route, pp, secret)
+          end
       end
     _ -> web_plain(req, elem(framing, 0), elem(framing, 1), [])
   end

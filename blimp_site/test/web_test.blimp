@@ -276,4 +276,16 @@ actor WebTests do
     assert_eq(wt_status(d), 200)
     assert_eq(wt_body(d), "[]")
   end
+  test "a header block over 16 KiB is 431 when it arrived whole, not only while it is arriving" do
+    big = concat("X-Big: ", web_rep("a", 14))
+    assert(length(big) > WEB_MAX_HEAD)
+    post = wt_raw("POST", "/web/api/echo", ["Content-Type: application/json", big], "[1]")
+    assert_eq(wt_status(web_dispatch(post, parse_request(post), web_demo_routes(), WT_SECRET)), 431)
+    get = wt_raw("GET", "/web/echo", [big], "")
+    assert_eq(wt_status(web_dispatch(get, parse_request(get), web_demo_routes(), WT_SECRET)), 431)
+    # a GET no route here claims is still not ours to refuse
+    assert_eq(web_dispatch(wt_raw("GET", "/blog", [big], ""), parse_request(wt_raw("GET", "/blog", [big], "")), web_demo_routes(), WT_SECRET), nil)
+    ok = wt_raw("POST", "/web/api/echo", ["Content-Type: application/json", take(big, 15000)], "[1]")
+    assert_eq(wt_status(web_dispatch(ok, parse_request(ok), web_demo_routes(), WT_SECRET)), 200)
+  end
 end
