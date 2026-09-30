@@ -1,0 +1,129 @@
+# /blinks-next/review: BlinksReviewLive, the bookmark triage queue, as a
+# Blimp program in the browser. The server lets the page load only with
+# ?key= the API token, as the LiveView's mount did, and hands the program
+# the pending bookmarks and the counts (/blinks-next/review.json).
+#
+# A vote is a write: ▲ makes the bookmark a blink, ▼ dismisses it
+# (Blinks.review_candidate/2). Writes are not ported, so the arrows are
+# drawn, and a click says so and changes nothing.
+
+def review_sum(counts: Map) -> Int do
+  reduce(keys(counts), 0, fn(acc: Int, k: Any) -> Int do acc + lookup(counts, k) end)
+end
+
+def review_count(counts: Map, status: String) -> Int do
+  v = lookup(counts, status)
+  case v do
+    nil -> 0
+    _ -> v
+  end
+end
+
+def review_row(c: Map) -> Any do
+  flair = case c.folder == nil or c.folder == "Favorites" do
+    true -> []
+    false -> [el("span", %{class: "flair"}, c.folder)]
+  end
+  title = case c.title do
+    nil -> c.url
+    t -> t
+  end
+  el("div", %{class: "row"},
+    el("div", %{class: "arrows"},
+      el("span", %{class: "arrow up notyet", click: :vote, with: "up", title: "blink it"}, "▲"),
+      el("span", %{class: "arrow down notyet", click: :vote, with: "down", title: "not worth keeping"}, "▼")),
+    el("div", %{class: "entry"},
+      el("a", %{class: "rtitle", href: c.url, target: "_blank", rel: "noopener"}, title),
+      " ",
+      el("span", %{class: "rdomain"}, concat("(", blk_domain(c.url), ")")),
+      " ",
+      flair))
+end
+
+actor Review do
+  state key: String :: ""
+  state data: Any :: nil
+  state loaded: Bool :: false
+  state note: String :: ""
+  state problem: String :: ""
+
+  on :location(query: String) do
+    become key: query_param(query, "key")
+    reply :ok
+  end
+
+  on :loaded(status: Int, body: String) do
+    d = bkp_decode(status, body)
+    case d do
+      nil ->
+        become loaded: true, problem: concat("the server answered ", to_string(status), " for the queue")
+        reply :error
+      _ ->
+        become loaded: true, data: d, problem: ""
+        reply :ok
+    end
+  end
+
+  on :vote(dir: String) do
+    what = case dir do
+      "up" -> "Blinking a bookmark"
+      _ -> "Dismissing a bookmark"
+    end
+    become note: concat(what, " is a write, and writes are not ported to Blimp yet; nothing was changed. The queue that votes is still live at /blinks/review.")
+    reply :ok
+  end
+
+  on :dismiss_note do
+    become note: ""
+    reply :ok
+  end
+
+  on :view do
+    asks = case key != "" and not(loaded) do
+      true -> [fetch(concat("/blinks-next/review.json?", blk_query(["key"], [key])), :loaded)]
+      false -> []
+    end
+    counts = case data do
+      nil -> %{}
+      _ -> data.counts
+    end
+    candidates = case data do
+      nil -> []
+      _ -> data.candidates
+    end
+    added = review_count(counts, "added")
+    dismissed = review_count(counts, "dismissed")
+    notes = case note do
+      "" -> []
+      _ -> [el("div", %{class: "bkp-note"}, note, " ", el("span", %{class: "bkp-ok", click: :dismiss_note}, "ok"))]
+    end
+    body = case problem do
+      "" ->
+        case data == nil do
+          true -> [el("div", %{class: "done-msg"}, "loading…")]
+          false ->
+            case candidates do
+              [] -> [el("div", %{class: "done-msg"}, "queue zero. every bookmark has been judged. 🏁")]
+              _ -> map(candidates, fn(c: Map) -> Any do review_row(c) end)
+            end
+        end
+      _ -> [el("div", %{class: "done-msg", style: "color:#b00;"}, problem)]
+    end
+    reply el("div", %{id: "review-page"},
+      el("div", %{class: "bar"},
+        el("h1", %{}, "bookmark ", el("span", %{}, "review")),
+        el("span", %{class: "progress"},
+          concat(to_string(added + dismissed), " / ", to_string(review_sum(counts)), " reviewed · "),
+          el("b", %{class: "added"}, concat(to_string(added), " blinked")),
+          concat(" · ", to_string(dismissed), " passed")),
+        el("a", %{class: "backlink", href: "/blinks-next"}, "→ back to blinks")),
+      el("div", %{class: "list"},
+        el("div", %{class: "hint"}, "▲ makes it a blink (tagged ", el("b", %{}, "bookmarks"), " + its folder) · ▼ dismisses it forever"),
+        notes,
+        body),
+      asks)
+  end
+end
+
+review = spawn Review
+review <- :view
