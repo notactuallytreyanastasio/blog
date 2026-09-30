@@ -1,0 +1,428 @@
+# What fills work_log_commits, which /work-log (src/99_work_log.blimp)
+# reads: Blog.GitHub.WorkLogPoller, moved here. Every minute:
+#
+#   1. GET https://api.github.com/users/notactuallytreyanastasio/events/public
+#      (user-agent bobbby-work-log, no token: the Poller never sent one)
+#   2. of its PushEvents, those not seen since boot and not the first push
+#      of a branch (before = forty zeros), the first 10: GET
+#      /repos/<repo>/compare/<before>...<head> for each, one at a time
+#   3. every commit of a compare that answered 200, with a message, is a
+#      row: its sha cut to 7, the message trimmed, the whole compare's
+#      additions and deletions, committed_at the time of writing. INSERT
+#      ... ON CONFLICT (sha) DO NOTHING, one row at a time, as the
+#      changeset and Repo.insert(on_conflict: :nothing) did.
+#   4. every event on the page is seen now, compared or not: a compare that
+#      failed, and an 11th new push, are never asked about again (until a
+#      restart forgets what was seen). That is the Poller's rule, kept.
+#   5. the next poll is 60s after this one ended (Process.send_after at
+#      the end of handle_info).
+#
+# Here WL does the same, stepped by the Site's tick: each GET is an
+# http_start whose answer a later tick picks up, so the one process never
+# waits on GitHub. What Req did around each GET is done here too: up to 10
+# redirects, 15s (for the whole request here; Req's 15s was per receive),
+# and its :safe_transient retries, 3 of them, after 1s, 2s and 4s, on
+# 408/429/500/502/503/504 or a connection that timed out, was refused or
+# was closed.
+#
+# OFF unless WORK_LOG_POLL=1. Phoenix's Poller runs until Phoenix is told
+# not to (config :blog, :start_work_log_poller, false). Two pollers would
+# write the same rows (the sha is unique, so no duplicates) and spend the
+# one budget GitHub gives an address without a token, 60 requests an hour,
+# twice as fast. Switch-over: stop Phoenix's, then set WORK_LOG_POLL=1.
+# WORK_LOG_API replaces https://api.github.com, to replay recorded answers.
+
+WL_USER = "notactuallytreyanastasio"
+WL_UA = "bobbby-work-log"
+WL_EVERY_MS = 60000
+WL_MAX_COMPARES = 10
+WL_TIMEOUT_MS = 15000
+WL_MAX_REDIRECTS = 10
+WL_MAX_RETRIES = 3
+WL_NO_SHA = "0000000000000000000000000000000000000000"
+
+def wl_env(name: String) -> String do
+  v = getenv(name)
+  case v do
+    nil -> ""
+    _ -> v
+  end
+end
+
+def wl_log(line: String) -> Any do
+  puts(concat("work log: ", line))
+end
+
+def wl_get(m: Any, k: String) -> Any do
+  case type_of(m) == :map do
+    true -> lookup(m, k)
+    false -> nil
+  end
+end
+
+def wl_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+def wl_int(v: Any) -> Int do
+  case type_of(v) == :integer do
+    true -> v
+    false -> 0
+  end
+end
+
+def wl_list(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> v
+    false -> []
+  end
+end
+
+def wl_take(xs: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case xs do
+        [] -> []
+        [h | rest] -> [h | wl_take(rest, n - 1)]
+      end
+  end
+end
+
+# ── String.trim/1 ───────────────────────────────────────────────────────
+# Elixir trims every Unicode White_Space character, not just the four the
+# site's trim() knows: \v, \f, U+0085, U+00A0 (a no-break space pasted into
+# a commit message), U+1680, U+2000..U+200A, U+2028, U+2029, U+202F, U+205F
+# and U+3000, as UTF-8.
+WL_SPACES = map(["20", "09", "0a", "0b", "0c", "0d", "c285", "c2a0", "e19a80", "e28080", "e28081", "e28082", "e28083", "e28084", "e28085", "e28086", "e28087", "e28088", "e28089", "e2808a", "e280a8", "e280a9", "e280af", "e2819f", "e38080"], fn(h: String) -> String do hex_decode(h) end)
+
+def wl_space_prefix(s: String, spaces: List) -> Int do
+  case spaces do
+    [] -> 0
+    [sp | rest] ->
+      case starts_with(s, sp) do
+        true -> length(sp)
+        false -> wl_space_prefix(s, rest)
+      end
+  end
+end
+
+def wl_space_suffix(s: String, spaces: List) -> Int do
+  case spaces do
+    [] -> 0
+    [sp | rest] ->
+      case ends_with(s, sp) do
+        true -> length(sp)
+        false -> wl_space_suffix(s, rest)
+      end
+  end
+end
+
+def wl_trim_left(s: String) -> String do
+  n = wl_space_prefix(s, WL_SPACES)
+  case n do
+    0 -> s
+    _ -> wl_trim_left(drop(s, n))
+  end
+end
+
+def wl_trim_right(s: String) -> String do
+  n = wl_space_suffix(s, WL_SPACES)
+  case n do
+    0 -> s
+    _ -> wl_trim_right(take(s, length(s) - n))
+  end
+end
+
+def wl_trim(s: String) -> String do
+  wl_trim_right(wl_trim_left(s))
+end
+
+# ── what the answers mean ───────────────────────────────────────────────
+
+def wl_events_url(api: String) -> String do
+  concat(api, "/users/", WL_USER, "/events/public")
+end
+
+def wl_compare_url(api: String, e: Map) -> String do
+  concat(api, "/repos/", e.repo, "/compare/", e.before_sha, "...", e.head_sha)
+end
+
+# parse_push_event/1
+def wl_push_event(ev: Map) -> Map do
+  payload = wl_get(ev, "payload")
+  %{event_id: wl_str(wl_get(ev, "id")), repo: wl_str(wl_get(wl_get(ev, "repo"), "name")),
+    branch: replace(wl_str(wl_get(payload, "ref")), "refs/heads/", ""),
+    before_sha: wl_str(wl_get(payload, "before")), head_sha: wl_str(wl_get(payload, "head"))}
+end
+
+# fetch_events/0 on an answer: {:ok, push events} | :unchanged | {:error, reason}.
+# A 200 is used only when its body is a JSON list (Req decodes JSON, and
+# the Poller matches `when is_list(body)`); any other 200 is "returned 200".
+def wl_events_result(r: Any) -> Any do
+  case r do
+    {:ok, 200, body} ->
+      decoded = json_decode(body)
+      case decoded do
+        {:ok, list} ->
+          case type_of(list) == :list do
+            true ->
+              pushes = filter(list, fn(ev: Any) -> Bool do wl_get(ev, "type") == "PushEvent" end)
+              {:ok, map(pushes, fn(ev: Map) -> Map do wl_push_event(ev) end)}
+            false -> {:error, "GitHub Events API returned 200"}
+          end
+        _ -> {:error, "GitHub Events API returned 200"}
+      end
+    {:ok, 304, _} -> :unchanged
+    {:ok, status, _} -> {:error, concat("GitHub Events API returned ", to_string(status))}
+    {:error, why} -> {:error, concat("GitHub Events API failed: ", to_string(why))}
+  end
+end
+
+# process_events/2's choice: not seen, not a new branch, the first 10
+def wl_new_events(events: List, seen: Map) -> List do
+  fresh = filter(events, fn(e: Map) -> Bool do lookup(seen, e.event_id) == nil and e.before_sha != WL_NO_SHA end)
+  wl_take(fresh, WL_MAX_COMPARES)
+end
+
+def wl_mark_seen(seen: Map, events: List) -> Map do
+  reduce(events, seen, fn(acc: Map, e: Map) -> Map do put(acc, e.event_id, true) end)
+end
+
+# fetch_compare/1 on an answer: {:ok, %{additions, deletions, commits}} | {:error, reason}
+def wl_compare_result(r: Any) -> Any do
+  case r do
+    {:ok, 200, body} ->
+      decoded = json_decode(body)
+      data = case decoded do
+        {:ok, d} -> d
+        _ -> nil
+      end
+      files = wl_list(wl_get(data, "files"))
+      adds = reduce(files, 0, fn(acc: Int, f: Any) -> Int do acc + wl_int(wl_get(f, "additions")) end)
+      dels = reduce(files, 0, fn(acc: Int, f: Any) -> Int do acc + wl_int(wl_get(f, "deletions")) end)
+      commits = map(wl_list(wl_get(data, "commits")), fn(c: Any) -> Map do
+        %{sha: slice(wl_str(wl_get(c, "sha")), 0, 7), message: wl_trim(wl_str(wl_get(wl_get(c, "commit"), "message")))}
+      end)
+      {:ok, %{additions: adds, deletions: dels, commits: filter(commits, fn(c: Map) -> Bool do c.message != "" end)}}
+    {:ok, status, _} -> {:error, concat("Compare API returned ", to_string(status))}
+    {:error, why} -> {:error, concat("Compare API failed: ", to_string(why))}
+  end
+end
+
+# ── the rows ────────────────────────────────────────────────────────────
+
+WL_INSERT_SQL = "insert into work_log_commits (event_id, repo, branch, sha, message, additions, deletions, committed_at, inserted_at, updated_at) values ($1, $2, $3, $4, $5, $6, $7, (to_timestamp($8::float8) at time zone 'utc'), (to_timestamp($8::float8) at time zone 'utc'), (to_timestamp($8::float8) at time zone 'utc')) on conflict (sha) do nothing returning id"
+
+# The changeset's validate_required: Ecto 3.12 casts a string that trims to
+# "" to nil, and a nil event_id, repo, branch or sha is no insert at all.
+def wl_valid(row: Map) -> Bool do
+  wl_trim(row.event_id) != "" and wl_trim(row.repo) != "" and wl_trim(row.branch) != "" and wl_trim(row.sha) != ""
+end
+
+# upsert_from_compare/4: the rows written (a sha already there is none)
+def wl_upsert(e: Map, cmp: Map, now_s: Int) -> Int do
+  reduce(cmp.commits, 0, fn(acc: Int, c: Map) -> Int do
+    row = %{event_id: e.event_id, repo: e.repo, branch: e.branch, sha: c.sha}
+    case wl_valid(row) do
+      false -> acc
+      true ->
+        r = DB <- :query(WL_INSERT_SQL, [e.event_id, e.repo, e.branch, c.sha, c.message, cmp.additions, cmp.deletions, now_s])
+        case r do
+          {:ok, rows} -> acc + length(rows)
+          {:error, why} ->
+            wl_log(concat("insert of ", c.sha, " failed: ", to_string(why)))
+            acc
+        end
+    end
+  end)
+end
+
+# ── one GET, with Req's retries ─────────────────────────────────────────
+
+# Req's transient?/1 for a GET: these statuses, and a transport error that
+# is a timeout, a refused connection or a closed one.
+def wl_transient(r: Any) -> Bool do
+  case r do
+    {:ok, status, _} -> status == 408 or status == 429 or status == 500 or status == 502 or status == 503 or status == 504
+    {:error, why} -> why == "timeout" or why == "ConnectionRefused" or why == "ConnectionResetByPeer" or why == "EndOfStream" or why == "BrokenPipe"
+  end
+end
+
+def wl_job(url: String) -> Map do
+  %{url: url, h: -1, tries: 0, at: 0}
+end
+
+def wl_pow2(n: Int) -> Int do
+  case n <= 0 do
+    true -> 1
+    false -> 2 * wl_pow2(n - 1)
+  end
+end
+
+# {:wait, job} or {:done, http_result's answer}
+def wl_job_step(job: Map, t: Int) -> Tuple do
+  case job.h < 0 do
+    true ->
+      case t >= job.at do
+        false -> {:wait, job}
+        true ->
+          h = http_start("GET", job.url, %{"user-agent": WL_UA}, "", %{timeout_ms: WL_TIMEOUT_MS, max_redirects: WL_MAX_REDIRECTS})
+          # every slot busy: try again next tick
+          case h < 0 do
+            true -> {:wait, job}
+            false -> {:wait, put(job, :h, h)}
+          end
+      end
+    false ->
+      r = http_result(job.h)
+      case r do
+        nil -> {:wait, job}
+        _ ->
+          case wl_transient(r) and job.tries < WL_MAX_RETRIES do
+            false -> {:done, r}
+            true ->
+              delay = wl_pow2(job.tries) * 1000
+              what = case r do
+                {:ok, status, _} -> concat("status ", to_string(status))
+                {:error, why} -> why
+              end
+              left = WL_MAX_RETRIES - job.tries
+              attempts = case left do
+                1 -> "1 attempt left"
+                _ -> concat(to_string(left), " attempts left")
+              end
+              wl_log(concat("retry: got ", what, " from ", job.url, ", will retry in ", to_string(delay), "ms, ", attempts))
+              {:wait, merge(job, %{h: -1, tries: job.tries + 1, at: t + delay})}
+          end
+      end
+  end
+end
+
+# ── the poll ────────────────────────────────────────────────────────────
+
+def wl_env_config() -> Map do
+  from_env = wl_env("WORK_LOG_API")
+  api = case from_env do
+    "" -> "https://api.github.com"
+    _ -> from_env
+  end
+  %{enabled: wl_env("WORK_LOG_POLL") == "1", api: api}
+end
+
+# Without a database there is nowhere to write: then it stays off, and says so.
+def wl_boot_config(cfg: Map, have_db: Bool) -> Map do
+  case cfg.enabled and not(have_db) do
+    true ->
+      wl_log("WORK_LOG_POLL=1 but DATABASE_URL is not set: staying off")
+      put(cfg, :enabled, false)
+    false -> cfg
+  end
+end
+
+def wl_describe(cfg: Map) -> String do
+  case cfg.enabled do
+    true -> concat("work log poller: ON, ", wl_events_url(cfg.api), " every 60s, first poll now")
+    false -> "work log poller: off (WORK_LOG_POLL=1 turns it on, once Phoenix's WorkLogPoller is stopped)"
+  end
+end
+
+def wl_new(cfg: Map, t: Int) -> Map do
+  phase = case cfg.enabled do
+    true -> :idle
+    false -> :off
+  end
+  # init/1 sends :poll at once
+  %{cfg: cfg, phase: phase, next_at: t, job: nil, seen: %{}, queue: [], page: [], cur: nil,
+    polls: 0, compares: 0, inserted: 0, last_error: "", last_at: 0}
+end
+
+# A poll is over: 60s from now, the next.
+def wl_finish(s: Map, t: Int) -> Map do
+  merge(s, %{phase: :idle, next_at: t + WL_EVERY_MS, job: nil, queue: [], page: [], cur: nil, polls: s.polls + 1, last_at: t})
+end
+
+def wl_failed(s: Map, reason: String, t: Int) -> Map do
+  wl_log(concat("WorkLog poll failed: ", reason))
+  wl_finish(put(s, :last_error, reason), t)
+end
+
+# The next compare, or the poll's end: every event on the page seen.
+def wl_next_compare(s: Map, t: Int) -> Map do
+  case s.queue do
+    [] -> wl_finish(put(s, :seen, wl_mark_seen(s.seen, s.page)), t)
+    [e | rest] -> merge(s, %{phase: :compare, queue: rest, cur: e, job: wl_job(wl_compare_url(s.cfg.api, e))})
+  end
+end
+
+def wl_step(s: Map, t: Int, now_s: Int) -> Map do
+  case s.phase do
+    :off -> s
+    :idle ->
+      case t >= s.next_at do
+        false -> s
+        true -> merge(s, %{phase: :events, job: wl_job(wl_events_url(s.cfg.api))})
+      end
+    :events ->
+      got = wl_job_step(s.job, t)
+      case got do
+        {:wait, job} -> put(s, :job, job)
+        {:done, r} ->
+          case wl_events_result(r) do
+            :unchanged -> wl_finish(s, t)
+            {:error, why} -> wl_failed(s, why, t)
+            {:ok, events} ->
+              wl_next_compare(merge(s, %{queue: wl_new_events(events, s.seen), page: events, last_error: ""}), t)
+          end
+      end
+    :compare ->
+      got = wl_job_step(s.job, t)
+      case got do
+        {:wait, job} -> put(s, :job, job)
+        {:done, r} ->
+          e = s.cur
+          case wl_compare_result(r) do
+            {:error, why} ->
+              wl_log(concat(e.repo, " ", e.event_id, ": ", why))
+              wl_next_compare(put(s, :compares, s.compares + 1), t)
+            {:ok, cmp} ->
+              n = wl_upsert(e, cmp, now_s)
+              wl_next_compare(merge(s, %{compares: s.compares + 1, inserted: s.inserted + n, seen: put(s.seen, e.event_id, true)}), t)
+          end
+      end
+  end
+end
+
+actor WorkLogPoll do
+  state s: Map :: %{}
+
+  on :config(c: Map) do
+    become s: wl_new(c, now_ms())
+    reply wl_describe(c)
+  end
+
+  on :step do
+    next = wl_step(s, now_ms(), now())
+    become s: next
+    reply next.phase
+  end
+
+  # From the prompt: poll at the next tick, if it is on and not polling.
+  on :now do
+    case s.phase do
+      :idle ->
+        become s: put(s, :next_at, 0)
+        reply :starting
+      _ -> reply s.phase
+    end
+  end
+
+  on :stats do
+    reply %{phase: s.phase, polls: s.polls, compares: s.compares, inserted: s.inserted, seen: length(keys(s.seen)), last_error: s.last_error, last_at: s.last_at, next_at: s.next_at}
+  end
+end
+
+WL = spawn WorkLogPoll

@@ -1,7 +1,7 @@
 # /work-log: recent pushes to GitHub, as `git log`. WorkLogLive's page,
-# rendered per request from work_log_commits (which Phoenix's
-# WorkLogPoller still fills from the GitHub API: fetching over HTTPS is
-# not something Blimp does yet). The query and the grouping are
+# rendered per request from work_log_commits, which Phoenix's
+# WorkLogPoller fills from the GitHub API until WL (src/99_work_log_poll.blimp)
+# is switched on in its place. The query and the grouping are
 # Blog.GitHub.WorkLog.list_recent/0's.
 #
 # Different from the LiveView: it does not update while it is open; the

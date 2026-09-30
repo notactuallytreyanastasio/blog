@@ -778,6 +778,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   ZG <- :step
   CAMERAS <- :step
   CAM_SWEEP <- :step
+  # work_log_commits from GitHub, when WORK_LOG_POLL is on (src/99_work_log_poll.blimp)
+  WL <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
@@ -955,6 +957,9 @@ end
 # The Craigslist sweep that fills camera_listings (src/99_camera_sweep.blimp):
 # off unless CAMERAS_SWEEP=1, which is for after Phoenix's Poller is stopped
 puts(CAM_SWEEP <- :config(cs_boot_config(cs_env_config(), DB_OPTS != nil)))
+# GitHub.WorkLogPoller, filling work_log_commits (src/99_work_log_poll.blimp):
+# off unless WORK_LOG_POLL=1, which is for after Phoenix's Poller is stopped
+puts(WL <- :config(wl_boot_config(wl_env_config(), DB_OPTS != nil)))
 site = spawn Site
 site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
 desk_source = case DB_OPTS do
