@@ -1,5 +1,7 @@
-# The rooms library (src/89_rooms.blimp). Sockets here are negative: the
-# hub never writes them, and :sent says what it would have written.
+# The rooms library (src/89_rooms.blimp). Most sockets here are negative:
+# the hub never writes them, and :sent says what it would have written.
+# The backlog tests use real loopback sockets, a pair per test on its own
+# port, whose client end is read (or not) by the test itself.
 
 def rt_decode(text: String) -> Map do
   elem(json_decode(text), 1)
@@ -27,6 +29,81 @@ def rt_label(f: Map) -> String do
   case t == nil do
     true -> concat(f.t, ":")
     false -> concat(f.t, ":", t)
+  end
+end
+
+# A connected loopback pair: {the server's end, which the hub writes; the
+# client's end, non-blocking, which the test reads or leaves unread}
+def rt_pair(port: Int) -> Tuple do
+  l = tcp_listen(port)
+  tcp_set_nonblocking(l)
+  c = tcp_connect("127.0.0.1", port)
+  tcp_poll([l], 1000)
+  s = tcp_accept(l)
+  tcp_set_nonblocking(c)
+  tcp_close(l)
+  {s, c}
+end
+
+# Everything the client end has been sent so far.
+def rt_drain(c: Int, acc: List) -> String do
+  got = tcp_read(c)
+  case got == nil or got == "" do
+    true -> join(reverse(acc), "")
+    false -> rt_drain(c, [got | acc])
+  end
+end
+
+# 64KB frames broadcast to topic and flushed, one a flush, until the peer
+# owes something (or `tries` run out). Each text is "<i>:" and 64KB, so
+# the order can be checked. {texts said, longest flush ms, last reply}
+def rt_fill(hub: Any, topic: String, i: Int, tries: Int, said: List, longest: Int) -> Tuple do
+  text = concat(to_string(i), ":", rt_rep("0123456789abcdef", 12))
+  hub <- :broadcast(topic, text)
+  t0 = now_ms()
+  r = hub <- :flush_at(now_ms())
+  dt = now_ms() - t0
+  case r.behind > 0 or r.kicked != [] or tries <= 1 do
+    true -> {reverse([text | said]), max(longest, dt), r}
+    false -> rt_fill(hub, topic, i + 1, tries - 1, [text | said], max(longest, dt))
+  end
+end
+
+# Read, flush, read, ... until the hub owes nothing (or `tries` run out).
+# {what the client read, flushes it took}
+def rt_read_until_paid(hub: Any, c: Int, acc: List, tries: Int, n: Int) -> Tuple do
+  got = rt_drain(c, [])
+  r = hub <- :flush
+  case (r.owed == 0 and got == "") or tries <= 0 do
+    true -> {join(reverse([got | acc]), ""), n}
+    false ->
+      tcp_poll([c], 20)
+      rt_read_until_paid(hub, c, [got | acc], tries - 1, n + 1)
+  end
+end
+
+# Flushes at t, t + ROOMS_STALL_MS, t + 2 * ROOMS_STALL_MS, ... with
+# nothing new, until the socket is kicked. How many it took, or 0.
+def rt_stall(hub: Any, t: Int, n: Int, tries: Int) -> Int do
+  r = hub <- :flush_at(t)
+  case r.kicked != [] do
+    true -> n
+    false ->
+      case tries <= 0 do
+        true -> 0
+        false -> rt_stall(hub, t + ROOMS_STALL_MS, n + 1, tries - 1)
+      end
+  end
+end
+
+# 64KB broadcasts to "room", flushed, until something is kicked (or
+# `tries` run out). {flushes, last reply}
+def rt_fill_kick(hub: Any, n: Int, tries: Int) -> Tuple do
+  hub <- :broadcast("room", rt_rep("0123456789abcdef", 12))
+  r = hub <- :flush
+  case r.kicked != [] or tries <= 0 do
+    true -> {n, r}
+    false -> rt_fill_kick(hub, n + 1, tries - 1)
   end
 end
 
@@ -268,5 +345,114 @@ actor RoomsTests do
     hub <- :join("quiet", -3, "cy", %{})
     hub <- :flush
     assert_eq(hub <- :sent(-3), [])
+  end
+
+  test "a peer that never reads: each flush returns at once, the kernel takes what fits, the rest is owed" do
+    p = rt_pair(42911)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "stuck", %{})
+    hub <- :join("room", -1, "ada", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    r = elem(f, 2)
+    assert_eq(r.kicked, [])
+    assert_eq(r.behind, 1)
+    assert(r.owed > 0)
+    # not one flush waited on the peer (tcp_write waited 10s here)
+    assert(elem(f, 1) < 100)
+    # the other member got every frame, the stuck one or not
+    assert_eq(hub <- :sent(-1), elem(f, 0))
+    # and it is still in the room, owing
+    assert_eq(rt_whos(hub <- :list("room")), ["stuck", "ada"])
+    assert_eq(map((hub <- :stats).owed, fn(o: Map) -> Int do o.fd end), [s])
+    tcp_close(elem(p, 1))
+    tcp_close(s)
+  end
+
+  test "what a peer is owed goes out when it reads, before anything newer, byte for byte" do
+    p = rt_pair(42912)
+    s = elem(p, 0)
+    c = elem(p, 1)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "slow", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    assert((elem(f, 2)).owed > 0)
+    # a frame said while it is owed goes after what it is owed
+    hub <- :broadcast("room", "newer")
+    hub <- :send(s, "newest")
+    paid = rt_read_until_paid(hub, c, [], 200, 0)
+    said = list_append(elem(f, 0), ["newer", "newest"])
+    # the WebSocket stream is the frames in the order said, whole, however
+    # the writes cut it
+    assert_eq(elem(paid, 0), join(map(said, fn(t: String) -> String do ws_frame(1, t) end), ""))
+    assert_eq((hub <- :stats).owed, [])
+    assert_eq(rt_whos(hub <- :list("room")), ["slow"])
+    tcp_close(c)
+    tcp_close(s)
+  end
+
+  test "a peer owed more than ROOMS_MAX_BYTES is kicked: out of every topic, owed nothing" do
+    p = rt_pair(42913)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :open("other", %{diffs: false})
+    hub <- :join("room", s, "stuck", %{})
+    hub <- :join("other", s, "stuck", %{})
+    hub <- :join("room", -1, "ada", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    # owing, but under the bound: 64KB more a flush until it is over
+    r = elem(rt_fill_kick(hub, 1, 20), 1)
+    assert_eq(r.kicked, [s])
+    assert_eq(rt_whos(hub <- :list("room")), ["ada"])
+    assert_eq(hub <- :list("other"), [])
+    assert_eq((hub <- :stats).owed, [])
+    assert_eq(r.owed, 0)
+    tcp_close(elem(p, 1))
+    tcp_close(s)
+  end
+
+  test "a peer owed bytes the kernel takes none of for ROOMS_STALL_MS is kicked; a slow one is not" do
+    p = rt_pair(42914)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "asleep", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    r = elem(f, 2)
+    assert(r.owed > 0 and r.owed <= ROOMS_MAX_BYTES)
+    t = now_ms()
+    # a second later it is still owed and still here
+    assert_eq((hub <- :flush_at(t + 1000)).kicked, [])
+    # once a flush takes nothing and ROOMS_STALL_MS has passed since the
+    # kernel last took a byte, it goes. (macOS may take a little more on
+    # the first few: its loopback buffer grows while the reader's has room,
+    # which counts as progress and restarts the clock.)
+    n = rt_stall(hub, t + 1000 + ROOMS_STALL_MS, 1, 20)
+    assert(n > 0)
+    assert_eq(hub <- :list("room"), [])
+    assert_eq((hub <- :stats).owed, [])
+    tcp_close(elem(p, 1))
+    tcp_close(s)
+  end
+
+  test "a dropped socket is owed nothing: a closed fd is never written" do
+    p = rt_pair(42915)
+    s = elem(p, 0)
+    hub = spawn Rooms
+    hub <- :open("room", %{diffs: false})
+    hub <- :join("room", s, "stuck", %{})
+    f = rt_fill(hub, "room", 1, 60, [], 0)
+    assert((elem(f, 2)).owed > 0)
+    assert_eq(hub <- :drop(s), ["room"])
+    tcp_close(s)
+    # a flush writing to s now would raise TypeError (a closed fd)
+    r = hub <- :flush
+    assert_eq(r.owed, 0)
+    assert_eq(r.written, 0)
+    assert_eq((hub <- :stats).owed, [])
+    tcp_close(elem(p, 1))
   end
 end
