@@ -35,6 +35,7 @@
   // compiled from Temper, makes an actor of every point: about 500 a frame,
   // and none go away.
   var MAX_DRAWN = 300
+  var GENERATED = /__\d+$|^(temper|u8|blimp)_/
 
   BlimpPageCanvas.prototype.feed = function () {
     var self = this
@@ -53,7 +54,10 @@
         ;(state.vars || []).forEach(function (v) { if (v.value && v.value.indexOf('ref<') === 0) busy[v.value] = true })
         shown = actors.filter(function (a) { return busy[a.ref] }).slice(0, MAX_DRAWN)
       }
-      self.viz.feed({ vars: state.vars, actors: shown, messages: messages }, null)
+      // Names the compiler made, not the author: Temper's lifted aliases
+      // (t48_upto__99) and its runtime's own (temper_*, u8_*, blimp_*).
+      var vars = (state.vars || []).filter(function (v) { return !GENERATED.test(v.name) })
+      self.viz.feed({ vars: vars, actors: shown, messages: messages }, null)
       self.sent += messages.length
       var n = actors.length
       self.status.textContent = n + (n === 1 ? ' actor' : ' actors') +
