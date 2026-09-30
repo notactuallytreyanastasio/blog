@@ -1,0 +1,207 @@
+# /gallery: the poller's answers-to-state functions (src/99_gallery.blimp)
+# and the Temper they use (temper/src/gallery), on iCloud's answers.
+#
+# fixtures/gallery/, recorded 2026-09-30 from the website_pics album with
+# curl (none contains the token):
+#   moved_330.json          partition 1's 330 body, naming p137
+#   stream_empty.json       p137's webstream 200. The album is empty to
+#                           the public today; iCloud's own page for it
+#                           shows no photos either, and so does
+#                           production's /gallery
+#   assets_no_guids_400.txt webasseturls' 400 to {"photoGuids":[]}
+# and, because no album this can reach has a photo in it today,
+# CONSTRUCTED in the shape Blog.Gallery.ICloud parsed and other clients'
+# fixtures record (sizes as strings, heights as derivative keys, a video
+# with only "720p" and "PosterFrame"):
+#   stream_constructed.json, assets_constructed.json
+# Nothing here was checked against a populated live answer.
+
+def galt(file: String) -> String do
+  read_file(concat("test/fixtures/gallery/", file))
+end
+
+def galt_state() -> Map do
+  gal_new("TOKEN", "/* css */", "<!-- tail -->")
+end
+
+def galt_loaded(t: Int) -> Map do
+  gal_after_stream(galt_state(), {:ok, 200, galt("stream_constructed.json")}, t)
+end
+
+actor GalleryTests do
+  test "a 330 moves the album to the partition its body names" do
+    assert_eq(gal_moved_to(galt("moved_330.json")), "p137-sharedstreams.icloud.com")
+    s = gal_after_stream(galt_state(), {:ok, 330, galt("moved_330.json")}, 1000)
+    assert_eq([s.host, s.want, s.hops], ["p137-sharedstreams.icloud.com", :stream, 1])
+    assert_eq(elem(gal_request(s, :stream), 0), "https://p137-sharedstreams.icloud.com/TOKEN/sharedstreams/webstream")
+    assert_eq(elem(gal_request(s, :stream), 1), "{\"streamCtag\":null}")
+    # the same host again is a loop, not a retry
+    again = gal_after_stream(s, {:ok, 330, galt("moved_330.json")}, 1001)
+    assert_eq(again.want, :none)
+    assert(contains(again.last_error, "loop"))
+    assert_eq(again.next_poll, 1061)
+  end
+
+  test "a 330 is followed only to an Apple host" do
+    assert_eq(gal_moved_to("{\"X-Apple-MMe-Host\":\"evil.example.com\"}"), "")
+    assert_eq(gal_moved_to("{\"X-Apple-MMe-Host\":\"p1.icloud.com.evil.com\"}"), "")
+    assert_eq(gal_moved_to("{\"X-Apple-MMe-Host\":\"p1-x.icloud.com/@evil\"}"), "")
+    assert_eq(gal_moved_to("not json"), "")
+    s = gal_after_stream(galt_state(), {:ok, 330, "{}"}, 5)
+    assert_eq([s.host, s.want], ["p01-sharedstreams.icloud.com", :none])
+  end
+
+  test "the recorded empty album: its name, no photos, the empty folder" do
+    got = gal_stream(galt("stream_empty.json"))
+    assert_eq([elem(got, 0), elem(got, 2), elem(got, 3)], [:ok, "website_pics", []])
+    s = gal_after_stream(galt_state(), {:ok, 200, galt("stream_empty.json")}, 100)
+    assert_eq([s.name, length(s.photos), s.want, s.next_poll], ["website_pics", 0, :none, 1000])
+    assert(contains(s.page, "<title>website_pics</title>"))
+    assert(contains(s.page, "0 items"))
+    assert(contains(s.page, "This folder is empty."))
+    assert(contains(s.page, "data-gal=\"slideshow\" disabled"))
+    assert(contains(s.page, "data-photos=\"[]\""))
+  end
+
+  test "no token: the page says so, and nothing is asked" do
+    s = gal_new("", "", "")
+    assert(contains(s.page, "No album connected. Set <code>ICLOUD_ALBUM_TOKEN</code> and restart."))
+    assert_eq(gal_due(s, 999999), :none)
+  end
+
+  test "photos: sizes, dates, captions, and a video left out" do
+    s = galt_loaded(1789100000)
+    assert_eq(map(s.photos, fn(p: Map) -> String do p.guid end), ["G-SEP-A", "G-SEP-B", "G-AUG", "G-NODATE"])
+    a = head(s.photos)
+    assert_eq([a.thumb, a.display, a.width, a.height, a.caption, a.ts], ["t-sep-a", "d-sep-a", 3024, 4032, "The Knicks <win>", 1789146192])
+    nd = lookup(s.by_guid, "G-NODATE")
+    assert_eq([nd.thumb, nd.display, nd.width, nd.ts], ["t-nodate", "d-nodate", 2049, 0])
+    assert_eq(lookup(s.by_guid, "G-VIDEO"), nil)
+    # the offset is honoured: 23:30 at -04:00 is the 20th in UTC
+    assert_eq(lookup(s.by_guid, "G-AUG").ts, 1787196600)
+    assert_eq([s.ctag, s.want, s.next_poll], ["CONSTRUCTED-CTAG-1", :urls, 1789100900])
+  end
+
+  test "the grid is cut by month, newest first, undated last" do
+    s = galt_loaded(1)
+    heads = map(gal_groups(s.photos), fn(g: Tuple) -> String do elem(g, 0) end)
+    assert_eq(heads, ["September 2026", "August 2026", "Undated"])
+    assert(contains(s.page, "4 items"))
+    assert(contains(s.page, "<button class=\"gal-cell\" data-guid=\"G-SEP-A\" title=\"The Knicks &lt;win&gt;\"><img src=\"/gallery/img/G-SEP-A/thumb\" loading=\"lazy\" decoding=\"async\" alt=\"The Knicks &lt;win&gt;\"></button>"))
+    assert(contains(s.page, "title=\"August 2026\"><img src=\"/gallery/img/G-AUG/thumb\" loading=\"lazy\" decoding=\"async\" alt=\"Photo from August 2026\">"))
+    assert(contains(s.page, "data-gal=\"slideshow\">Slideshow"))
+    assert_eq(contains(s.page, "<script>"), false)
+    assert(contains(s.page, "<!-- tail --></body>"))
+  end
+
+  test "the deck's payload is Gallery.payload/1's" do
+    s = galt_loaded(1)
+    got = elem(json_decode(s.payload), 1)
+    assert_eq(length(got), 4)
+    first = head(got)
+    assert_eq([lookup(first, :guid), lookup(first, :w), lookup(first, :h), lookup(first, :caption), lookup(first, :date)], ["G-SEP-A", 3024, 4032, "The Knicks <win>", "September 11, 2026"])
+    last_one = head(reverse(got))
+    assert_eq([lookup(last_one, :caption), lookup(last_one, :date)], ["undated", nil])
+    # it goes in an attribute
+    assert(contains(s.page, "data-photos=\"[{&quot;"))
+  end
+
+  test "an unchanged ctag touches nothing" do
+    s = merge(galt_loaded(1), %{want: :none})
+    again = gal_after_stream(s, {:ok, 200, galt("stream_constructed.json")}, 5000)
+    assert_eq([again.want, again.next_poll, length(again.photos)], [:none, 5900, 4])
+    # a forced refresh asks without the ctag, and takes the answer
+    forced = merge(s, %{force: true})
+    assert_eq(elem(gal_request(forced, :stream), 1), "{\"streamCtag\":null}")
+    assert_eq(elem(gal_request(s, :stream), 1), "{\"streamCtag\":\"CONSTRUCTED-CTAG-1\"}")
+    assert_eq(gal_after_stream(forced, {:ok, 200, galt("stream_constructed.json")}, 5000).want, :urls)
+  end
+
+  test "an album that had photos survives three empty answers, not four" do
+    s = merge(galt_loaded(1), %{ctag: "OLDER"})
+    e1 = gal_after_stream(s, {:ok, 200, galt("stream_empty.json")}, 100)
+    assert_eq([length(e1.photos), e1.empty_streak, e1.next_poll], [4, 1, 160])
+    e3 = gal_after_stream(gal_after_stream(e1, {:ok, 200, galt("stream_empty.json")}, 160), {:ok, 200, galt("stream_empty.json")}, 220)
+    assert_eq([length(e3.photos), e3.empty_streak], [4, 3])
+    e4 = gal_after_stream(e3, {:ok, 200, galt("stream_empty.json")}, 280)
+    assert_eq([length(e4.photos), e4.empty_streak, e4.want], [0, 0, :none])
+    assert(contains(e4.page, "This folder is empty."))
+  end
+
+  test "failures retry in a minute and keep what there was" do
+    s = galt_loaded(1)
+    f = gal_after_stream(s, {:error, "ConnectionRefused"}, 700)
+    assert_eq([length(f.photos), f.next_poll, f.last_error], [4, 760, "webstream: ConnectionRefused"])
+    h = gal_after_stream(s, {:ok, 503, "busy"}, 700)
+    assert_eq(h.last_error, "webstream: HTTP 503")
+    j = gal_after_stream(s, {:ok, 200, "<html>"}, 700)
+    assert(starts_with(j.last_error, "webstream: not JSON"))
+    u = gal_after_urls(s, {:ok, 400, galt("assets_no_guids_400.txt")}, 700)
+    assert_eq([u.last_error, u.next_urls], ["webasseturls: HTTP 400", 760])
+  end
+
+  test "signed urls, their refresh, and the 302s" do
+    s = galt_loaded(1)
+    assert_eq(elem(gal_request(s, :urls), 1), "{\"photoGuids\":[\"G-SEP-A\",\"G-SEP-B\",\"G-AUG\",\"G-NODATE\"]}")
+    t = 1789994000
+    u = gal_after_urls(s, {:ok, 200, galt("assets_constructed.json")}, t)
+    assert_eq(length(keys(u.urls)), 8)
+    # the soonest (t-sep-a) has 4200s left: asked again 20 minutes before it
+    assert_eq(u.next_urls, t + 4200 - 1200)
+    # and with more than two hours left, at most 100 minutes on
+    assert_eq(gal_after_urls(s, {:ok, 200, galt("assets_constructed.json")}, t - 4000).next_urls, t - 4000 + 6000)
+    r = gal_image(u, "G-SEP-A", "thumb")
+    assert_eq([r.status, r.cache, r.location], [302, "public, max-age=1800", "https://cvws.icloud-content.com/S/SEPA/IMG_0002.JPG?o=A&e=1789998200&r=C"])
+    assert_eq(gal_image(u, "G-SEP-A", "anything").location, "https://cvws.icloud-content.com/S/SEPAD/IMG_0002.JPG?o=A&e=1790000000&r=C")
+    assert_eq(gal_image(u, "G-NOPE", "thumb").status, 404)
+    assert_eq(gal_image(s, "G-SEP-A", "thumb").status, 404)
+    # no urls in the answer: the old ones stay, and it asks again in a minute
+    e = gal_after_urls(u, {:ok, 200, "{\"items\":{}}"}, t)
+    assert_eq([length(keys(e.urls)), e.next_urls], [8, t + 60])
+  end
+
+  test "what is due when" do
+    s = galt_state()
+    assert_eq(gal_due(s, 0), :stream)
+    l = merge(galt_loaded(1), %{next_urls: 500})
+    assert_eq([gal_due(l, 100), gal_due(l, 500), gal_due(l, 901)], [:none, :urls, :stream])
+  end
+
+  test "Temper: dates" do
+    assert_eq(gal_ts("2026-09-11T17:03:12Z"), 1789146192)
+    assert_eq(gal_ts("2026-08-19T23:30:00-04:00"), 1787196600)
+    assert_eq(gal_ts("2024-02-29T00:00:00.123+05:30"), 1709145000)
+    assert_eq(gal_ts("2026-09-11T17:03:12"), 0)
+    assert_eq(gal_ts("2026-13-11T17:03:12Z"), 0)
+    assert_eq(gal_ts(""), 0)
+    assert_eq(gal_ts("yesterday"), 0)
+    assert_eq(gal_pretty_date(1789146192), "September 11, 2026")
+    assert_eq(gal_pretty_date(1709145000), "February 28, 2024")
+    assert_eq(gal_pretty_date(0), "")
+    assert_eq([gal_month_label(1787196600), gal_month_label(0)], ["August 2026", "Undated"])
+    assert_eq(gal_month_key(1789146192), 202609)
+  end
+
+  test "Temper: sizes, expiry, timers" do
+    assert_eq([gal_size_key("342"), gal_size_key("2049"), gal_size_key("720p"), gal_size_key("PosterFrame"), gal_size_key("")], [342, 2049, -1, -1, -1])
+    assert_eq([gal_leading_int("4032", 1), gal_leading_int("12px", 1), gal_leading_int("", 1), gal_leading_int("x", 7)], [4032, 12, 1, 7])
+    assert_eq(gal_ttl("https://x/y?a=1&e=1000&r=2", 400), 600)
+    assert_eq(gal_ttl("https://x/y?a=1&e=1000", 1400), 0)
+    assert_eq(gal_ttl("https://x/y?a=1&be=1000", 400), 0)
+    assert_eq(gal_ttl("https://x/y", 400), 0)
+    assert_eq([gal_urls_again_s(0), gal_urls_again_s(10800), gal_urls_again_s(3000), gal_urls_again_s(1000)], [6000, 6000, 1800, 60])
+    assert_eq([gal_poll_s(0, false), gal_poll_s(1, false), gal_poll_s(0, true)], [900, 60, 60])
+    assert_eq([gal_keep_cached(0, 4, 2), gal_keep_cached(0, 4, 3), gal_keep_cached(0, 0, 0), gal_keep_cached(1, 4, 0)], [true, false, false, false])
+    assert_eq(gal_json_string("a\"b\\c"), "\"a\\\"b\\\\c\"")
+    assert_eq([gal_size("thumb"), gal_size("display"), gal_size("huge")], ["thumb", "display", "display"])
+  end
+
+  test "routes" do
+    assert_eq(gallery_route("/gallery/img/a/b/c"), nil)
+    assert_eq(gallery_route("/gallery/elsewhere"), nil)
+    assert_eq(gallery_route("/galleryx"), nil)
+    assert_eq(gallery_route("/gallery/img/NOPE/thumb").status, 404)
+    assert_eq(gallery_route("/gallery").status, 200)
+    assert(contains(gallery_route("/gallery").body, "/gallery/gallery.js"))
+  end
+end

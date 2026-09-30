@@ -225,6 +225,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/assets/phish_lab.css" -> PL_CSS
     "/phish_lab/lab.json" -> PL_MAIN
     "/phish_lab/perfs.json" -> PL_PERFS
+    # the iCloud album (src/99_gallery.blimp): the page and its script; the
+    # photos, /gallery/img/:guid/:size, are gallery_or_404's
+    "/gallery" -> gallery_route(path)
+    "/gallery/gallery.js" -> GAL_JS
     "/work-log" ->
       page = work_log_page()
       case page do
@@ -240,13 +244,22 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
             nil ->
               hn = hn_api(path)
               case hn do
-                nil -> static_or_404(path)
+                nil -> gallery_or_404(path)
                 _ -> hn
               end
             _ -> moon_json
           end
         _ -> api
       end
+  end
+end
+
+# /gallery/img/:guid/:size is a prefix, which dynamic()'s case cannot match
+def gallery_or_404(path: String) -> Map do
+  photo = gallery_route(path)
+  case photo do
+    nil -> static_or_404(path)
+    _ -> photo
   end
 end
 
@@ -645,6 +658,7 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   # the work that waits on other servers, a step at a time
   HN <- :step
   MTA <- :step
+  GALLERY <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
   accepted = case has_fd(ready, fd) do
     true -> accept_all(fd, [], desk, home, socks)
