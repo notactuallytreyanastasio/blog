@@ -22,9 +22,11 @@
 #   - A page that sends its body slower than 15s in all is
 #     {:error, "timeout"}: unknown, where Req, which times each read, says
 #     ok.
-# A body cut off by a reset ("ConnectionResetByPeer") or by a close before
-# its Content-Length or last chunk ("HttpBodyTruncated",
-# "HttpChunkTruncated") is unknown, as Req's %Mint.TransportError{} is.
+#   - A body with no length, cut off by a reset: "ConnectionResetByPeer",
+#     unknown. Mint takes the reset as the end of the body and Req says ok.
+# A body cut off before its Content-Length or last chunk, by a reset
+# ("ConnectionResetByPeer") or a close ("HttpBodyTruncated",
+# "HttpChunkTruncated"), is unknown, as Req's %Mint.TransportError{} is.
 #
 # Off unless BLINKS_LINK_CHECK=on. Phoenix's LinkCheck sweeps the same
 # table; with both running, a dead link would get its two strikes from one
