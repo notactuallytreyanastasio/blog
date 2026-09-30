@@ -1,0 +1,234 @@
+WT_SECRET = "test-secret-test-secret-test-secret-0123"
+
+# A request as the wire has it: headers is a list of "Name: value".
+def wt_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def wt_send(method: String, target: String, headers: List, body: String) -> Any do
+  raw = wt_raw(method, target, headers, body)
+  web_dispatch(raw, parse_request(raw), web_demo_routes(), WT_SECRET)
+end
+
+def wt_status(got: Tuple) -> Int do
+  elem(got, 1)
+end
+
+def wt_wire(got: Tuple) -> String do
+  elem(got, 0)
+end
+
+def wt_body(got: Tuple) -> String do
+  w = wt_wire(got)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+# "_blimp_session=v" from a response's Set-Cookie, or "".
+def wt_cookie(got: Tuple) -> String do
+  w = wt_wire(got)
+  at = index_of(w, "Set-Cookie: ")
+  case at < 0 do
+    true -> ""
+    false ->
+      rest = drop(w, at + 12)
+      take(rest, index_of(rest, ";"))
+  end
+end
+
+def wt_token(page: String) -> String do
+  at = index_of(page, "name=\"_csrf_token\" value=\"")
+  rest = drop(page, at + 26)
+  take(rest, index_of(rest, "\""))
+end
+
+def web_rep(s: String, n: Int) -> String do
+  case n <= 0 do
+    true -> s
+    false -> web_rep(concat(s, s), n - 1)
+  end
+end
+
+actor WebTests do
+  test "cookies, forms and url-encoding" do
+    c = web_parse_cookies("a=1; _blimp_session=x.y=z ;b=")
+    assert_eq(lookup(c, "a"), "1")
+    assert_eq(lookup(c, "_blimp_session"), "x.y=z")
+    assert_eq(lookup(c, "b"), "")
+    f = web_decode_form("message=hi+there%21&x=1&x=2&empty&&k%20k=v")
+    assert_eq(lookup(f, "message"), "hi there!")
+    assert_eq(lookup(f, "x"), "2")
+    assert_eq(lookup(f, "empty"), "")
+    assert_eq(lookup(f, "k k"), "v")
+    assert_eq(web_url_encode("a b/é~"), "a%20b%2F%C3%A9~")
+    assert_eq(url_decode(web_url_encode("a&b=c ü")), "a&b=c ü")
+  end
+
+  test "web_url_decode agrees with url_decode, and takes a whole body" do
+    each(["a+b%2Cc%zz", "%E2%80%94", "%", "x%4", "%41%42%", "100%25", "", "+%2B+"], fn(s: String) do
+      assert_eq(web_url_decode(s), url_decode(s))
+    end)
+    # url_decode recurses per byte and runs out of heap on this
+    big = concat("message=", web_rep("a%41", 18))
+    f = web_decode_form(big)
+    assert_eq(length(lookup(f, "message")), 2 * 262144)
+  end
+
+  test "headers are lower-cased, repeated ones joined" do
+    h = web_headers("POST / HTTP/1.1\r\nContent-Type: a/b\r\nCookie: a=1\r\ncookie: b=2\r\nX-A: 1\r\nx-a: 2")
+    assert_eq(lookup(h, "content-type"), "a/b")
+    assert_eq(lookup(h, "cookie"), "a=1; b=2")
+    assert_eq(lookup(h, "x-a"), "1, 2")
+    assert_eq(web_content_length(web_headers("X\r\nContent-Length: 12")), 12)
+    assert_eq(web_content_length(web_headers("X\r\nContent-Length: -1")), -2)
+    assert_eq(web_content_length(web_headers("X\r\nContent-Length: 1e3")), -2)
+    assert_eq(web_content_length(web_headers("X")), -1)
+  end
+
+  test "path patterns bind :params, and nothing else matches" do
+    segs = drop_list(split("/api/blinks/:id/save", "/"), 1)
+    got = web_match_path(segs, drop_list(split("/api/blinks/42/save", "/"), 1), %{})
+    assert_eq(lookup(got, "id"), "42")
+    assert_eq(lookup(web_match_path(segs, drop_list(split("/api/blinks/a%20b/save", "/"), 1), %{}), "id"), "a b")
+    assert_eq(web_match_path(segs, drop_list(split("/api/blinks/42", "/"), 1), %{}), nil)
+    assert_eq(web_match_path(segs, drop_list(split("/api/blinks//save", "/"), 1), %{}), nil)
+    assert_eq(web_match_path(segs, drop_list(split("/api/blinks/42/save/x", "/"), 1), %{}), nil)
+  end
+
+  test "a route for another method is 405 with Allow; an unrouted path is not ours for GET" do
+    got = wt_send("PUT", "/web/echo", [], "")
+    assert_eq(wt_status(got), 405)
+    assert(contains(wt_wire(got), "Allow: GET, POST, HEAD\r\n"))
+    del = wt_send("GET", "/web/echo/7", [], "")
+    assert(contains(wt_wire(del), "Allow: PATCH, DELETE\r\n"))
+    assert_eq(wt_send("GET", "/blog", [], ""), nil)
+    assert_eq(wt_send("HEAD", "/nowhere", [], ""), nil)
+    post = wt_send("POST", "/blog", [], "x")
+    assert_eq(wt_status(post), 405)
+    assert(contains(wt_wire(post), "Allow: GET, HEAD\r\n"))
+  end
+
+  test "bodies that are not whole, chunked, too big or unreadable are refused by status" do
+    raw = "POST /web/echo HTTP/1.1\r\nContent-Length: 10\r\n\r\nabc"
+    assert_eq(wt_status(web_dispatch(raw, parse_request(raw), web_demo_routes(), WT_SECRET)), 408)
+    ch = "POST /web/echo HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n"
+    assert_eq(wt_status(web_dispatch(ch, parse_request(ch), web_demo_routes(), WT_SECRET)), 411)
+    big = concat("POST /web/echo HTTP/1.1\r\nContent-Length: ", to_string(WEB_MAX_BODY + 1), "\r\n\r\n")
+    got = web_dispatch(big, parse_request(big), web_demo_routes(), WT_SECRET)
+    assert_eq(wt_status(got), 413)
+    assert(starts_with(wt_wire(got), "HTTP/1.1 413 Content Too Large\r\n"))
+    bad = "POST /web/echo HTTP/1.1\r\nContent-Length: ten\r\n\r\n"
+    assert_eq(wt_status(web_dispatch(bad, parse_request(bad), web_demo_routes(), WT_SECRET)), 400)
+  end
+
+  test "a session survives its cookie; a changed byte does not" do
+    s = put(put(%{}, "count", 3), "last", "hi")
+    cookie = web_sign_session(s, WT_SECRET)
+    got = web_verify_session(cookie, WT_SECRET)
+    assert_eq(lookup(elem(got, 1), "count"), 3)
+    assert_eq(web_verify_session(cookie, "another-secret-another-secret-00"), :tampered)
+    # the payload, edited: {"count":99,...} under the old MAC
+    forged = concat(base64url_encode(json_encode(put(s, "count", 99))), drop(cookie, index_of(cookie, ".")))
+    assert_eq(web_verify_session(forged, WT_SECRET), :tampered)
+    assert_eq(web_verify_session("no-dot-here", WT_SECRET), :tampered)
+    assert_eq(web_verify_session(concat(cookie, "0"), WT_SECRET), :tampered)
+  end
+
+  test "form POST with the page's token: counted, 303, a new cookie" do
+    page = wt_send("GET", "/web/echo", [], "")
+    assert_eq(wt_status(page), 200)
+    cookie = wt_cookie(page)
+    assert(starts_with(cookie, "_blimp_session="))
+    assert(contains(wt_wire(page), "; Path=/; HttpOnly; Secure; SameSite=Lax\r\n"))
+    token = wt_token(wt_body(page))
+    assert_eq(length(token), 43)
+    posted = wt_send("POST", "/web/echo", [concat("Cookie: ", cookie), "Content-Type: application/x-www-form-urlencoded"], concat("_csrf_token=", web_url_encode(token), "&message=hello+there"))
+    assert_eq(wt_status(posted), 303)
+    assert(contains(wt_wire(posted), "Location: /web/echo\r\n"))
+    again = wt_send("GET", "/web/echo", [concat("Cookie: ", wt_cookie(posted))], "")
+    assert(contains(wt_body(again), "1 posts this session. Last: hello there"))
+    # the same session: no new cookie, since nothing in it changed
+    assert_eq(wt_cookie(again), "")
+  end
+
+  test "JSON POST with x-csrf-token; without it, or with another session's, 403" do
+    page = wt_send("GET", "/web/echo", [], "")
+    cookie = wt_cookie(page)
+    token = wt_token(wt_body(page))
+    ok = wt_send("POST", "/web/echo", [concat("Cookie: ", cookie), "Content-Type: application/json", concat("X-CSRF-Token: ", token)], "{\"message\": \"hi\"}")
+    assert_eq(wt_status(ok), 200)
+    assert_eq(lookup(elem(json_decode(wt_body(ok)), 1), "message"), "hi")
+    none = wt_send("POST", "/web/echo", [concat("Cookie: ", cookie), "Content-Type: application/json"], "{\"message\": \"hi\"}")
+    assert_eq(wt_status(none), 403)
+    other = wt_token(wt_body(wt_send("GET", "/web/echo", [], "")))
+    wrong = wt_send("POST", "/web/echo", [concat("Cookie: ", cookie), concat("X-CSRF-Token: ", other)], "")
+    assert_eq(wt_status(wrong), 403)
+    nocookie = wt_send("POST", "/web/echo", [concat("X-CSRF-Token: ", token)], "")
+    assert_eq(wt_status(nocookie), 403)
+  end
+
+  test "a tampered session cookie loses its token, so the POST is 403" do
+    page = wt_send("GET", "/web/echo", [], "")
+    cookie = wt_cookie(page)
+    token = wt_token(wt_body(page))
+    # flip the last hex digit of the MAC
+    flipped = case ends_with(cookie, "0") do
+      true -> concat(take(cookie, length(cookie) - 1), "1")
+      false -> concat(take(cookie, length(cookie) - 1), "0")
+    end
+    got = wt_send("POST", "/web/echo", [concat("Cookie: ", flipped), concat("X-CSRF-Token: ", token)], "")
+    assert_eq(wt_status(got), 403)
+  end
+
+  test "bad JSON is 400, multipart 415, PATCH and DELETE get :id" do
+    page = wt_send("GET", "/web/echo", [], "")
+    cookie = concat("Cookie: ", wt_cookie(page))
+    tok = concat("X-CSRF-Token: ", wt_token(wt_body(page)))
+    assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: application/json"], "{\"a\":")), 400)
+    assert_eq(wt_status(wt_send("POST", "/web/echo", [cookie, tok, "Content-Type: multipart/form-data; boundary=x"], "--x--")), 415)
+    del = wt_send("DELETE", "/web/echo/abc", [cookie, tok], "")
+    assert_eq(wt_status(del), 200)
+    assert_eq(lookup(elem(json_decode(wt_body(del)), 1), "id"), "abc")
+    patch = wt_send("PATCH", "/web/echo/9?x=q", [cookie, tok, "Content-Type: application/x-www-form-urlencoded"], "y=2")
+    p = lookup(elem(json_decode(wt_body(patch)), 1), "params")
+    assert_eq(lookup(p, "id"), "9")
+    assert_eq(lookup(p, "x"), "q")
+    assert_eq(lookup(p, "y"), "2")
+  end
+
+  test "the API opt-out takes JSON without a token, and nothing else" do
+    ok = wt_send("POST", "/web/api/echo", ["Content-Type: application/json"], "[1, 2]")
+    assert_eq(wt_status(ok), 200)
+    assert_eq(wt_body(ok), "{\"json\":[1,2],\"session\":\"none\"}")
+    form = wt_send("POST", "/web/api/echo", ["Content-Type: application/x-www-form-urlencoded"], "a=1")
+    assert_eq(wt_status(form), 415)
+  end
+
+  test "a plug that halts stops the pipeline and the handler" do
+    stop = fn(c: Map) -> Map do web_refuse(c, 422, "no") end
+    never = fn(c: Map) -> Map do web_text(c, 200, "reached") end
+    routes = [web_route("POST", "/h", [stop, never], never)]
+    raw = wt_raw("POST", "/h", [], "")
+    got = web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+    assert_eq(wt_status(got), 422)
+    assert_eq(wt_body(got), "no\n")
+  end
+
+  test "a header with a line break is a 500, not a split response" do
+    evil = fn(c: Map) -> Map do web_redirect(c, "/x\r\nSet-Cookie: a=b") end
+    raw = wt_raw("GET", "/e", [], "")
+    got = web_dispatch(raw, parse_request(raw), [web_route("GET", "/e", [], evil)], WT_SECRET)
+    assert_eq(wt_status(got), 500)
+    refute(contains(wt_wire(got), "Set-Cookie: a=b"))
+  end
+
+  test "a HEAD of a GET route has the headers and no body" do
+    got = wt_send("HEAD", "/web/echo", [], "")
+    assert_eq(wt_status(got), 200)
+    assert(ends_with(wt_wire(got), "\r\n\r\n"))
+    refute(contains(wt_wire(got), "Content-Length: 0\r\n"))
+  end
+end
