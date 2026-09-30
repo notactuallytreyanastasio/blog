@@ -128,6 +128,10 @@ with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.
 # Stumble: the menus, rules, sort key and cutting are Temper
 # (temper/src/stumble), the actor and view Blimp.
 with_temper _build/stumble.blimp static/stumble/stumble.blimp
+# The Camera Browser: the facets, the URL, the printing and the dupe key
+# are Temper (temper/src/cameras), the rows, the counting and the view
+# Blimp; query_param is the server's.
+with_temper _build/cameras.blimp src/40_http.blimp static/cameras/cameras.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0
