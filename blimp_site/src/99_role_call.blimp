@@ -1,0 +1,225 @@
+# /role-call, TV writer discovery: RoleCallLive's page, as a program the
+# browser runs (static/role_call/role_call.blimp, what it decides in
+# temper/src/role_call), a script for what only a browser can do
+# (static/role_call/role_call.js: localStorage, measuring, a broken poster),
+# and the sunflower behind it (static/role_call/sunflower.blimp, drawn by
+# static/role_call/sunflower.js in an interpreter of its own).
+#
+# Nothing on the page is shared between visitors: what someone liked and
+# hid lived in their localStorage and still does. So there is no actor per
+# visitor here, only Blog.RoleCall's queries, one endpoint each, answering
+# JSON that Postgres writes itself (json_agg), so there is no Blimp per
+# row.
+#
+#   /role-call/count.json                  count_shows/0
+#   /role-call/search.json?q=&hidden=      search_shows(q, limit: 15, exclude_ids: hidden)
+#   /role-call/picks.json?exclude=&n=      get_random_shows(limit: 20, exclude_ids: exclude)
+#   /role-call/recs.json?liked=&exclude=&n=  get_recommendations(liked, limit: 20, exclude_ids: exclude)
+#   /role-call/show.json?id=               get_show_with_credits/1
+#   /role-call/person.json?id=             get_person_with_shows/1
+#   /role-call/titles.json?ids=            get_show/1 for each liked id
+#
+# Id lists travel comma-joined (IMDb ids have no commas) and reach Postgres
+# as one text parameter, string_to_array($n, ','); '' is the empty array.
+# n is the program's serial for a request it wants made again (another
+# shuffle); the server ignores it.
+#
+# The SQL is Ecto's own, what Blog.RoleCall's queries compile to, logged
+# from the running app, whole, then turned into JSON by json_agg, which
+# keeps the rows in the order the query gave them. Down to the round
+# trips: recommendations are the
+# liked shows' writers first, then their shows; every list of shows is
+# followed by preload_writers/1's query for those shows' writers, with the
+# ids in the same order. That matters more than it looks. Both of those
+# queries sort on a key with ties -- "creators before writers", "most
+# shared writers" -- and the order Postgres leaves tied rows in depends on
+# the rows it was given and the plan it made. Asked differently (one
+# correlated subquery per show, or only the two columns wanted), it gave
+# most cards other first-two writers than Phoenix showed on the same data.
+#
+# A show goes to the browser as {id, title, year, rating, image_url}: a
+# missing year as 0 and a missing rating as -1, so the Temper that prints
+# them takes plain numbers; a missing image as null, which the card tests
+# for as the template tested for nil. A list of cards is {"shows": [...],
+# "writers": [[show id, name], ...]}, and the program deals the names out.
+
+RC_SHOW_JSON = "json_build_object('id', q.id, 'title', q.title, 'year', coalesce(q.year_start, 0), 'rating', coalesce(q.imdb_rating, -1), 'image_url', q.image_url)"
+
+# Ecto's query, whole (every column it selects, in a materialized CTE):
+# Postgres drops the columns a subquery's reader does not use, and with
+# fewer columns it plans differently (an index-only scan instead of the
+# heap), and ties come out in another order.
+def rc_ecto(ecto: String, json: String) -> String do
+  concat("with q as materialized (", ecto, ") select coalesce(json_agg(", json, "), '[]')::text as body from q")
+end
+
+RC_SHOWS_COLUMNS = "r0.\"id\", r0.\"title\", r0.\"year_start\", r0.\"year_end\", r0.\"imdb_rating\", r0.\"genres\", r0.\"description\", r0.\"image_url\", r0.\"scraped_at\", r0.\"inserted_at\", r0.\"updated_at\""
+
+# search_shows/2
+RC_SEARCH_SQL = rc_ecto(concat("SELECT ", RC_SHOWS_COLUMNS, " FROM \"rc_shows\" AS r0 WHERE (r0.\"title\" ILIKE $1) AND (NOT (r0.\"id\" = ANY(string_to_array($2, ',')))) ORDER BY r0.\"imdb_rating\" DESC LIMIT 15"), RC_SHOW_JSON)
+
+# get_random_shows/1
+RC_PICKS_SQL = rc_ecto(concat("SELECT ", RC_SHOWS_COLUMNS, " FROM \"rc_shows\" AS r0 WHERE (NOT (r0.\"id\" = ANY(string_to_array($1, ',')))) AND ((r0.\"imdb_rating\" >= 7.5) OR (r0.\"imdb_rating\" IS NULL)) AND (NOT (r0.\"scraped_at\" IS NULL)) ORDER BY RANDOM() LIMIT 20"), RC_SHOW_JSON)
+
+# get_recommendations/2: the writers of the liked shows, then the shows
+# they wrote, most of those writers first. count(person_id) counts
+# credits, so a writer who is also the creator counts twice, as it did.
+RC_WRITER_IDS_SQL = "SELECT DISTINCT r0.\"person_id\" FROM \"rc_credits\" AS r0 WHERE (r0.\"show_id\" = ANY(string_to_array($1, ','))) AND (r0.\"role\" IN ('creator','writer'))"
+RC_RECS_SQL = rc_ecto(concat("SELECT ", RC_SHOWS_COLUMNS, " FROM \"rc_shows\" AS r0 INNER JOIN \"rc_credits\" AS r1 ON r1.\"show_id\" = r0.\"id\" WHERE (r1.\"person_id\" = ANY(string_to_array($1, ','))) AND (r1.\"role\" IN ('creator','writer')) AND (NOT (r0.\"id\" = ANY(string_to_array($2, ',')))) AND (NOT (r0.\"id\" = ANY(string_to_array($3, ',')))) AND (NOT (r0.\"scraped_at\" IS NULL)) GROUP BY r0.\"id\" ORDER BY count(r1.\"person_id\") DESC, r0.\"imdb_rating\" DESC LIMIT 20"), RC_SHOW_JSON)
+
+RC_PEOPLE_COLUMNS = "r1.\"id\" AS pid, r1.\"name\", r1.\"image_url\", r1.\"scraped_at\", r1.\"inserted_at\", r1.\"updated_at\""
+
+# preload_writers/1
+RC_WRITERS_SQL = rc_ecto(concat("SELECT r0.\"id\", r0.\"role\", r0.\"details\", r0.\"show_id\", r0.\"person_id\", ", RC_PEOPLE_COLUMNS, " FROM \"rc_credits\" AS r0 INNER JOIN \"rc_people\" AS r1 ON r1.\"id\" = r0.\"person_id\" WHERE (r0.\"show_id\" = ANY(string_to_array($1, ','))) AND (r0.\"role\" IN ('creator','writer')) ORDER BY CASE r0.\"role\" WHEN 'creator' THEN 1 WHEN 'writer' THEN 2 END"), "json_build_array(q.show_id, q.name)")
+
+# get_show_with_credits/1: the show, and every credit of it in
+# credits_with_people_query/0's order, of which the modal shows the
+# creators and writers.
+RC_SHOW_SQL = "select json_build_object('id', s.id, 'title', s.title, 'year', coalesce(s.year_start, 0), 'year_end', coalesce(s.year_end, 0), 'rating', coalesce(s.imdb_rating, -1), 'description', s.description, 'image_url', s.image_url)::text as body FROM rc_shows AS s WHERE (s.id = $1)"
+RC_CREDITS_SQL = concat("with q as materialized (SELECT r0.\"id\", r0.\"role\", r0.\"details\", r0.\"show_id\", r0.\"person_id\", ", RC_PEOPLE_COLUMNS, ", r0.\"show_id\" AS sid FROM \"rc_credits\" AS r0 INNER JOIN \"rc_people\" AS r1 ON r1.\"id\" = r0.\"person_id\" WHERE (r0.\"show_id\" = $1) ORDER BY r0.\"show_id\", CASE r0.\"role\" WHEN 'creator' THEN 1 WHEN 'writer' THEN 2 WHEN 'director' THEN 3 WHEN 'actor' THEN 4 END) select coalesce(json_agg(json_build_object('id', q.person_id, 'name', q.name, 'role', q.role)) filter (where q.role in ('creator', 'writer')), '[]')::text as body from q")
+
+# get_person_with_shows/1: every credit, whatever the role, best-rated show
+# first (a show without a rating sorts before all of them: Postgres puts
+# nulls first in desc).
+RC_PERSON_SQL = "select json_build_object('id', p.id, 'name', p.name)::text as body FROM rc_people AS p WHERE (p.id = $1)"
+RC_PERSON_CREDITS_SQL = rc_ecto("SELECT r0.\"id\" AS cid, r0.\"role\", r0.\"details\", r0.\"show_id\", r0.\"person_id\", r1.\"id\", r1.\"title\", r1.\"year_start\", r1.\"year_end\", r1.\"imdb_rating\", r1.\"genres\", r1.\"description\", r1.\"image_url\", r1.\"scraped_at\", r1.\"inserted_at\", r1.\"updated_at\", r0.\"person_id\" AS pid FROM \"rc_credits\" AS r0 INNER JOIN \"rc_shows\" AS r1 ON r1.\"id\" = r0.\"show_id\" WHERE (r0.\"person_id\" = $1) ORDER BY r0.\"person_id\", r1.\"imdb_rating\" DESC", "json_build_object('id', q.id, 'title', q.title, 'year', coalesce(q.year_start, 0), 'rating', coalesce(q.imdb_rating, -1))")
+
+# get_show/1, for each liked id
+RC_TITLES_SQL = "select coalesce(json_agg(json_build_array(id, title)), '[]')::text as body from rc_shows where id = any(string_to_array($1, ','))"
+
+RC_COUNT_SQL = "select json_build_object('count', count(*))::text as body from rc_shows"
+
+RC_DB_DOWN = "{\"error\": \"the database did not answer\"}"
+
+def rc_json(status: Int, cache: String, body: String) -> Map do
+  response(status, "application/json; charset=utf-8", cache, body)
+end
+
+# The rows of one query, or nil when Postgres did not answer.
+def rc_rows(sql: String, params: List) -> Any do
+  case DB <- :query(sql, params) do
+    {:error, reason} ->
+      puts(concat("role call: ", reason))
+      nil
+    {:ok, rows} -> rows
+  end
+end
+
+# The one `body` a query answers, `none` when it has no row, nil when the
+# database did not answer.
+def rc_body(sql: String, params: List, none: String) -> Any do
+  rows = rc_rows(sql, params)
+  case rows do
+    nil -> nil
+    [] -> none
+    _ -> head(rows).body
+  end
+end
+
+def rc_answer(body: Any, cache: String) -> Map do
+  case body do
+    nil -> rc_json(503, "no-cache", RC_DB_DOWN)
+    _ -> rc_json(200, cache, body)
+  end
+end
+
+# A list of shows, and preload_writers/1 for them.
+def rc_cards_body(shows: Any) -> Any do
+  case shows do
+    nil -> nil
+    _ ->
+      ids = join(map(elem(json_decode(shows), 1), fn(s: Map) -> String do s.id end), ",")
+      writers = rc_body(RC_WRITERS_SQL, [ids], "[]")
+      case writers do
+        nil -> nil
+        _ -> concat("{\"shows\": ", shows, ", \"writers\": ", writers, "}")
+      end
+  end
+end
+
+# Two queries, one object: the first's body with the second's as `key`.
+def rc_with(first: Any, key: String, sql: String, params: List) -> Any do
+  case first do
+    nil -> nil
+    "null" -> "null"
+    _ ->
+      more = rc_body(sql, params, "[]")
+      case more do
+        nil -> nil
+        _ -> concat(take(first, length(first) - 1), ", \"", key, "\" : ", more, "}")
+      end
+  end
+end
+
+def rc_recs_body(liked: String, exclude: String) -> Any do
+  writers = rc_rows(RC_WRITER_IDS_SQL, [liked])
+  case writers do
+    nil -> nil
+    [] -> "{\"shows\": [], \"writers\": []}"
+    _ ->
+      ids = join(map(writers, fn(r: Map) -> String do r.person_id end), ",")
+      rc_cards_body(rc_body(RC_RECS_SQL, [ids, exclude, liked], "[]"))
+  end
+end
+
+def role_call_api(path: String, query: String) -> Any do
+  case path do
+    "/role-call/count.json" -> rc_answer(rc_body(RC_COUNT_SQL, [], "{\"count\": 0}"), "public, max-age=60")
+    "/role-call/search.json" ->
+      rc_answer(rc_body(RC_SEARCH_SQL, [concat("%", query_param(query, "q"), "%"), query_param(query, "hidden")], "[]"), "public, max-age=60")
+    "/role-call/picks.json" -> rc_answer(rc_cards_body(rc_body(RC_PICKS_SQL, [query_param(query, "exclude")], "[]")), "no-store")
+    "/role-call/recs.json" ->
+      liked = query_param(query, "liked")
+      # get_recommendations([], _) is [] without a query
+      case liked do
+        "" -> rc_json(200, "no-store", "{\"shows\": [], \"writers\": []}")
+        _ -> rc_answer(rc_recs_body(liked, query_param(query, "exclude")), "no-store")
+      end
+    "/role-call/show.json" ->
+      id = query_param(query, "id")
+      rc_answer(rc_with(rc_body(RC_SHOW_SQL, [id], "null"), "writers", RC_CREDITS_SQL, [id]), "public, max-age=60")
+    "/role-call/person.json" ->
+      id = query_param(query, "id")
+      rc_answer(rc_with(rc_body(RC_PERSON_SQL, [id], "null"), "credits", RC_PERSON_CREDITS_SQL, [id]), "public, max-age=60")
+    "/role-call/titles.json" -> rc_answer(rc_body(RC_TITLES_SQL, [query_param(query, "ids")], "[]"), "public, max-age=60")
+    _ -> nil
+  end
+end
+
+# ── the page ────────────────────────────────────────────────────────────
+
+RC_PROGRAM_PATH = "/role-call/role_call.blimp"
+RC_SCRIPTS = list_append(APP_SCRIPTS, ["/role-call/role_call.js", "/role-call/sunflower.js"])
+
+# The app layout's <main class="flex-1 overflow-y-auto px-4"> around the
+# LiveView, less the layout's sidebar, which the other ports left out too.
+# The window and everything in it is the program's view.
+def role_call_page() -> String do
+  body = join([
+    "<div class=\"flex h-full font-mono\"><main class=\"flex-1 overflow-y-auto px-4\"><div class=\"min-h-screen\">\n",
+    "<div id=\"blimp-app\" data-program=\"", RC_PROGRAM_PATH, "\" data-actor=\"rc\" data-location=\"1\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", RC_PROGRAM_PATH, "\">", RC_PROGRAM_PATH, "</a>.</p></noscript>\n",
+    "</div></main></div>\n",
+    script_tags(RC_SCRIPTS)
+  ], "")
+  page_layout_html("Role Call - TV Writer Discovery", "Discover new shows through the writers you love: like a few TV shows and Role Call finds other shows by the people who wrote them.", "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/role_call.css"], body, "h-full bg-gray-100")
+end
+
+def role_call_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+RC_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", role_call_page())
+RC_PROGRAM = role_call_asset("_build/role_call.blimp", "text/plain; charset=utf-8")
+RC_JS = role_call_asset("static/role_call/role_call.js", "text/javascript; charset=utf-8")
+RC_SUNFLOWER = role_call_asset("static/role_call/sunflower.blimp", "text/plain; charset=utf-8")
+RC_SUNFLOWER_JS = role_call_asset("static/role_call/sunflower.js", "text/javascript; charset=utf-8")
+RC_CSS = role_call_asset("assets/role_call.css", "text/css; charset=utf-8")

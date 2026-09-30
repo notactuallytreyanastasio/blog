@@ -236,6 +236,21 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/ziggy/ziggy.js" -> ZG_JS
     "/ziggy/ziggy.css" -> ZG_CSS
     "/ziggy/graph.json" -> ZG_GRAPH_JSON
+    # Role Call (src/99_role_call.blimp): the page, its program, script,
+    # sunflower and css, and Blog.RoleCall's queries
+    "/role-call" -> RC_PAGE
+    "/role-call/role_call.blimp" -> RC_PROGRAM
+    "/role-call/role_call.js" -> RC_JS
+    "/role-call/sunflower.blimp" -> RC_SUNFLOWER
+    "/role-call/sunflower.js" -> RC_SUNFLOWER_JS
+    "/assets/role_call.css" -> RC_CSS
+    "/role-call/count.json" -> role_call_api(path, req.query)
+    "/role-call/search.json" -> role_call_api(path, req.query)
+    "/role-call/picks.json" -> role_call_api(path, req.query)
+    "/role-call/recs.json" -> role_call_api(path, req.query)
+    "/role-call/show.json" -> role_call_api(path, req.query)
+    "/role-call/person.json" -> role_call_api(path, req.query)
+    "/role-call/titles.json" -> role_call_api(path, req.query)
     "/work-log" ->
       page = work_log_page()
       case page do

@@ -122,6 +122,9 @@ with_temper _build/ziggy.blimp src/40_http.blimp static/ziggy/ziggy.blimp
 # repo after a `deciduous sync`); the image has only priv/static, so the
 # server reads a copy here.
 cp ../priv/ziggy/graph-data.json _build/ziggy-graph.json
+# Role Call: the tab, the sets, the tour and the printing are Temper
+# (temper/src/role_call), the actor and view Blimp; query_param is the server's.
+with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.blimp
 
 if [ "${1:-}" = "test" ]; then
   status=0

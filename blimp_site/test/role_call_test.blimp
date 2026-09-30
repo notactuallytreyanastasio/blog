@@ -1,0 +1,232 @@
+# needs: static/role_call/role_call.blimp
+#
+# /role-call: what the Temper decides (temper/src/role_call), the page's
+# program (static/role_call/role_call.blimp) driven as the browser drives
+# it, and the server's half (src/99_role_call.blimp) without a database.
+# Values marked "Elixir" are what the LiveView's own functions give for the
+# same input; thumb/1, Float.round/2 and format_number/1 were also run
+# over every poster URL (783) and every rating (47) in the imported data,
+# and agree.
+
+actor RoleCallTests do
+  test "the URL: handle_params/3's tab, push_patch's query" do
+    assert_eq(rc_tab("liked"), "liked")
+    assert_eq(rc_tab("discover"), "discover")
+    assert_eq(rc_tab(""), "search")
+    assert_eq(rc_tab("LIKED"), "search")
+    # what the LiveView's open_show put in the address bar
+    assert_eq(rc_query("search", "tt1"), "show=tt1&tab=search")
+    assert_eq(rc_query("liked", ""), "tab=liked")
+  end
+
+  test "a search needs two characters, as String.length/1 counts them" do
+    assert_eq(rc_can_search(""), false)
+    assert_eq(rc_can_search("b"), false)
+    assert_eq(rc_can_search("é"), false)
+    assert_eq(rc_can_search("br"), true)
+    assert_eq(rc_can_search("éé"), true)
+  end
+
+  test "liked and hidden are sorted sets, as MapSet.to_list/1 lists them" do
+    assert_eq(rc_add("", "tt2"), "tt2")
+    assert_eq(rc_add("tt1,tt3", "tt2"), "tt1,tt2,tt3")
+    assert_eq(rc_add("tt1,tt3", "tt3"), "tt1,tt3")
+    assert_eq(rc_add("tt2", "tt10"), "tt10,tt2")
+    assert_eq(rc_del("tt1,tt2,tt3", "tt2"), "tt1,tt3")
+    assert_eq(rc_del("tt1", "tt1"), "")
+    assert_eq(rc_union("tt3,tt1", "tt2,tt1"), "tt1,tt2,tt3")
+    assert_eq(rc_has("tt1,tt2", "tt2"), true)
+    assert_eq(rc_has("tt1,tt22", "tt2"), false)
+    assert_eq(rc_size(""), 0)
+    assert_eq(rc_size("tt1,tt2"), 2)
+    # whatever localStorage held, MapSet.new/1 of the ids in it
+    assert_eq(rc_clean("tt9,tt1,tt9,,bad id,\"x\""), "tt1,tt9")
+  end
+
+  test "a show prints as the template printed it" do
+    assert_eq(rc_meta(2008, 9.5), "2008 ★ 9.5")
+    # a rating Postgres wrote as 8 decodes as an Int; Elixir printed 8.0
+    assert_eq(rc_meta(2008, rc_float(head(elem(json_decode("[8]"), 1)))), "2008 ★ 8.0")
+    assert_eq(rc_meta(2008, -1.0), "2008")
+    assert_eq(rc_meta(0, 7.5), "★ 7.5")
+    assert_eq(rc_meta(0, -1.0), "")
+    assert_eq(rc_years(2008, 2013), "2008–2013")
+    assert_eq(rc_years(2008, 2008), "2008")
+    assert_eq(rc_years(2008, 0), "2008")
+    assert_eq(rc_writers(["Vince Gilligan", "Peter Gould", "Thomas Schnauz"]), "Vince Gilligan, Peter Gould")
+    assert_eq(rc_writers(["Vince Gilligan"]), "Vince Gilligan")
+    assert_eq(rc_count(58708), "58,708")
+    assert_eq(rc_count(0), "0")
+  end
+
+  test "thumb/1: from the first @ to the last dot after it" do
+    # Elixir: String.replace(url, ~r/@.*\./, "@._V1_SX200.")
+    assert_eq(rc_thumb("https://m.media-amazon.com/images/M/MV5BMzU5ZGYzNmQtMTdhYy00OGRiLTg0NmQtYjVjNzliZTg1ZGE4XkEyXkFqcGc@._V1_.jpg"),
+      "https://m.media-amazon.com/images/M/MV5BMzU5ZGYzNmQtMTdhYy00OGRiLTg0NmQtYjVjNzliZTg1ZGE4XkEyXkFqcGc@._V1_SX200.jpg")
+    assert_eq(rc_thumb("https://x/MV5B@@._V1_.jpg"), "https://x/MV5B@._V1_SX200.jpg")
+    assert_eq(rc_thumb("x@y.z@w.png"), "x@._V1_SX200.png")
+    assert_eq(rc_thumb("no-at.jpg"), "no-at.jpg")
+    assert_eq(rc_thumb("a@b"), "a@b")
+  end
+
+  test "CardGrid's two rows: auto-fill of 150px tracks with a 16px gap" do
+    # a 1152px grid (the 1200px column less the window's padding) holds 7
+    assert_eq(rc_per_row(1152), 7)
+    assert_eq(rc_per_row(1161), 7)
+    assert_eq(rc_per_row(1146), 7)
+    assert_eq(rc_per_row(1145), 6)
+    assert_eq(rc_per_row(100), 1)
+    assert_eq(rc_shown(20, 1152), 14)
+    assert_eq(rc_shown(20, 0), 20)
+    assert_eq(rc_shown(5, 1152), 5)
+  end
+
+  test "the tour: five steps, and where the tooltip goes" do
+    assert_eq(rc_tour_total(), 5)
+    assert_eq(rc_tour_title(1), "Welcome to Role Call!")
+    assert_eq(rc_tour_target(1), "")
+    assert_eq(rc_tour_target(4), "tour-card-0")
+    assert_eq(rc_tour_position(3), "top")
+    assert_eq(rc_tour_next(4), 5)
+    assert_eq(rc_tour_next(5), 0)
+    assert_eq(rc_tour_prev(1), 1)
+    assert_eq(rc_tour_prev(3), 2)
+    assert_eq(rc_tour_first(false, 0), 1)
+    assert_eq(rc_tour_first(true, 0), 0)
+    assert_eq(rc_tour_first(false, 2), 0)
+    assert_eq(rc_spot(100.0, 50.0, 200.0, 40.0), [92.0, 42.0, 216.0, 56.0])
+    # below, centred on the target, but never nearer the left edge than 20
+    assert_eq(rc_tip("bottom", 100.0, 50.0, 200.0, 40.0, 360.0, 150.0), [160.0, 20.0])
+    assert_eq(rc_tip("top", 400.0, 300.0, 600.0, 40.0, 360.0, 150.0), [230.0, 420.0])
+    assert_eq(rc_tip("right", 100.0, 50.0, 200.0, 40.0, 360.0, 150.0), [45.0, 270.0])
+    assert_eq(rc_tip("center", 100.0, 50.0, 200.0, 40.0, 360.0, 150.0), [])
+    assert_eq(rc_scroll(90.0, 130.0, 900.0), true)
+    assert_eq(rc_scroll(300.0, 820.0, 900.0), true)
+    assert_eq(rc_scroll(300.0, 400.0, 900.0), false)
+  end
+
+  test "the program asks nothing until localStorage has answered" do
+    p = spawn RoleCall
+    p <- :location("tab=search")
+    assert_eq((p <- :wants).urls, [])
+    p <- :restore("tt3,tt1", "tt2", false)
+    assert_eq((p <- :wants).urls, ["/role-call/count.json", "/role-call/picks.json?exclude=tt1,tt2,tt3&n=1"])
+    v = to_html(p <- :view)
+    # liked shows: no tour, whatever localStorage said about it
+    assert_eq(contains(v, "tour-overlay"), false)
+    assert_eq(contains(v, "Liked (2)"), true)
+    assert_eq(contains(v, "Shows: 2 liked"), true)
+  end
+
+  test "a first visit gets the tour; finishing it is stored" do
+    p = spawn RoleCall
+    p <- :restore("", "", false)
+    assert_eq(contains(to_html(p <- :view), "Step 1 of 5"), true)
+    p <- :tour_next
+    p <- :tour_next
+    p <- :tour_prev
+    v = to_html(p <- :view)
+    assert_eq(contains(v, "Step 2 of 5"), true)
+    assert_eq(contains(v, "data-target=\"tour-search\""), true)
+    p <- :skip_tour
+    v2 = to_html(p <- :view)
+    assert_eq(contains(v2, "tour-overlay"), false)
+    assert_eq(contains(v2, "data-tour-done=\"1\""), true)
+  end
+
+  test "picks: the cards, each with its writers, two rows of them" do
+    p = spawn RoleCall
+    p <- :restore("", "", true)
+    shows = map(range(1, 20), fn(i: Int) -> Map do
+      %{id: concat("tt", to_string(i)), title: concat("Show ", to_string(i)), year: 2000 + i, rating: 8, image_url: nil}
+    end)
+    writers = [["tt1", "Ann"], ["tt2", "Bo"], ["tt1", "Cy"], ["tt1", "Di"]]
+    p <- :picked(200, json_encode(%{shows: shows, writers: writers}))
+    v = to_html(p <- :view)
+    assert_eq((p <- :wants).urls, ["/role-call/count.json"])
+    assert_eq(contains(v, "tour-card-19"), true)
+    assert_eq(contains(v, ">Ann, Cy<"), true)
+    assert_eq(contains(v, ">2002 ★ 8.0<"), true)
+    p <- :grid(1152)
+    v2 = to_html(p <- :view)
+    assert_eq(contains(v2, "tour-card-13"), true)
+    assert_eq(contains(v2, "tour-card-14"), false)
+    # like_show: new picks, leaving it out
+    p <- :like_show("tt5")
+    assert_eq((p <- :wants).urls, ["/role-call/count.json", "/role-call/picks.json?exclude=tt5&n=2"])
+    p <- :hide_show("tt7")
+    assert_eq((p <- :wants).urls, ["/role-call/count.json", "/role-call/picks.json?exclude=tt5,tt7&n=3"])
+  end
+
+  test "search: two characters, the query encoded, hidden shows left out" do
+    p = spawn RoleCall
+    p <- :restore("", "tt9", true)
+    p <- :search("b")
+    assert_eq((p <- :wants).urls, ["/role-call/count.json", "/role-call/picks.json?exclude=tt9&n=1"])
+    p <- :search("mad men")
+    assert_eq(contains(join((p <- :wants).urls, " "), "/role-call/search.json?q=mad%20men&hidden=tt9"), true)
+    p <- :searched(200, "[{\"id\": \"tt0804503\", \"title\": \"Mad Men\", \"year\": 2007, \"rating\": 8.7, \"image_url\": null}]")
+    v = to_html(p <- :view)
+    assert_eq(contains(v, "search-result"), true)
+    assert_eq(contains(v, ">2007 ★ 8.7<"), true)
+    p <- :clear_search
+    assert_eq(contains(to_html(p <- :view), "search-result"), false)
+  end
+
+  test "a show opens in the URL, and its writer; a new show opens on the show" do
+    p = spawn RoleCall
+    p <- :restore("", "", true)
+    p <- :open_show("tt0903747")
+    w = p <- :wants
+    assert_eq(w.query, "show=tt0903747&tab=search")
+    assert_eq(contains(join(w.urls, " "), "/role-call/show.json?id=tt0903747"), true)
+    p <- :shown(200, "{\"id\": \"tt0903747\", \"title\": \"Breaking Bad\", \"year\": 2008, \"year_end\": 2013, \"rating\": 9.5, \"description\": \"A chemistry teacher.\", \"image_url\": null, \"writers\": [{\"id\": \"nm0319213\", \"name\": \"Vince Gilligan\", \"role\": \"creator\"}]}")
+    v2 = to_html(p <- :view)
+    assert_eq(contains(v2, "2008–2013"), true)
+    assert_eq(contains(v2, "Vince Gilligan"), true)
+    assert_eq(contains(v2, "♡ Like this show"), true)
+    p <- :select_writer("nm0319213")
+    assert_eq(contains(join((p <- :wants).urls, " "), "/role-call/person.json?id=nm0319213"), true)
+    p <- :writer_loaded(200, "{\"id\": \"nm0319213\", \"name\": \"Vince Gilligan\", \"credits\": [{\"id\": \"tt3032476\", \"title\": \"Better Call Saul\", \"year\": 2015, \"rating\": 9}]}")
+    assert_eq(contains(to_html(p <- :view), "← Back to show"), true)
+    p <- :open_show("tt3032476")
+    v3 = to_html(p <- :view)
+    assert_eq(contains(v3, "← Back to show"), false)
+    assert_eq(contains(join((p <- :wants).urls, " "), "/role-call/show.json?id=tt3032476"), true)
+    p <- :close_modal
+    v4 = to_html(p <- :view)
+    assert_eq(contains(v4, "modal-overlay"), false)
+    assert_eq((p <- :wants).query, "tab=search")
+  end
+
+  test "the Liked tab loads recommendations, with the liked shows known" do
+    p = spawn RoleCall
+    p <- :location("tab=liked")
+    p <- :restore("tt2,tt1", "tt3", true)
+    urls = join((p <- :wants).urls, " ")
+    assert_eq(contains(urls, "/role-call/recs.json?liked=tt1,tt2&exclude=tt1,tt2,tt3&n=1"), true)
+    assert_eq(contains(urls, "/role-call/titles.json?ids=tt1,tt2"), true)
+    p <- :titled(200, "[[\"tt2\", \"Two\"], [\"tt1\", \"One\"]]")
+    v2 = to_html(p <- :view)
+    assert_eq(index_of(v2, ">One<") < index_of(v2, ">Two<"), true)
+    p <- :unlike_show("tt1")
+    p <- :unlike_show("tt2")
+    v3 = to_html(p <- :view)
+    assert_eq(contains(join((p <- :wants).urls, " "), "recs.json"), false)
+    assert_eq(contains(v3, "No shows liked yet."), true)
+    assert_eq(contains(v3, "data-liked=\"\""), true)
+  end
+
+  test "the server: Blog.RoleCall's queries, and no database is a 503" do
+    assert_eq(role_call_api("/role-call/nope.json", ""), nil)
+    assert_eq(role_call_api("/role-call/recs.json", "liked=&exclude=").body, "{\"shows\": [], \"writers\": []}")
+    assert_eq(role_call_api("/role-call/count.json", "").status, 503)
+    assert_eq(contains(RC_PAGE.body, "data-program=\"/role-call/role_call.blimp\""), true)
+    assert_eq(contains(RC_PAGE.body, "/role-call/sunflower.js"), true)
+    assert_eq(contains(RC_SEARCH_SQL, "ILIKE $1"), true)
+  end
+end
+
+def rc_float(x: Any) -> Float do
+  x + 0.0
+end

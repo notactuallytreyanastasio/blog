@@ -1,0 +1,142 @@
+# The sunflower behind /role-call.
+#
+# This was SunflowerBackground in assets/js/app.js, and since blog #46 it is
+# this program, number for number (assets/test/blimp_canvas.test.mjs holds
+# it to the JavaScript it replaced, call for call). It is a copy of
+# priv/static/static/blimp/sunflower.blimp, which Phoenix serves until it is
+# switched off. This actor works out a frame and replies with a list of
+# canvas commands; static/role_call/sunflower.js, which knows nothing about
+# sunflowers, plays them onto the canvas. See that file for the command
+# vocabulary.
+#
+# It runs in an interpreter of its own, not the page's: it defines `seed`,
+# `draw` and `app`, and the page's program would lose Blimp's seed() to it.
+#
+# The JS advanced its clock by 0.005 on every animation frame, so the clock
+# here is a frame count too, not wall time: a slow machine sees a slower
+# flower, exactly as before.
+
+GOLDEN_ANGLE = 2.399963229728653
+PI = 3.141592653589793
+COLORS = ["#ff00ff", "#00ffff", "#ffff00", "#ff6600", "#00ff00", "#ff0099", "#9933ff", "#00ffcc"]
+NUM_SEEDS = 250
+
+def color_at(i: Int) -> String do
+  nth(COLORS, rem(i, 8))
+end
+
+def nth(l: List, i: Int) -> Any do
+  case i do
+    0 -> head(l)
+    _ -> nth(tail(l), i - 1)
+  end
+end
+
+# One seed: position on the golden-angle spiral, wobbled, pulsing in size,
+# glowing in its own colour.
+def seed(i: Int, t: Float, cx: Float, cy: Float, scale: Float, pulse: Float) -> List do
+  angle = i * GOLDEN_ANGLE + t
+  radius = sqrt(i * 1.0) * (scale / sqrt(NUM_SEEDS * 1.0)) * pulse
+  x = cx + cos(angle) * radius + sin(t * 3.0 + i * 0.05) * 15.0
+  y = cy + sin(angle) * radius + cos(t * 2.0 + i * 0.03) * 15.0
+  color = color_at(floor(i + t * 50.0))
+  size = 2.0 + sin(t * 4.0 + i * 0.1) * 1.5 + (i * 1.0 / NUM_SEEDS) * 3.0
+  [
+    {:save},
+    {:shadow, 20, color},
+    {:fill, color},
+    {:alpha, 0.5 + sin(t * 3.0 + i * 0.2) * 0.3},
+    {:circle, x, y, size},
+    {:restore}
+  ]
+end
+
+def arm_point(k: Int, arm: Int, t: Float, cx: Float, cy: Float) -> List do
+  a = k * 0.2 + arm * (PI * 2.0 / 5.0) + t
+  r = k * 6.0 + 40.0
+  [cx + cos(a) * r, cy + sin(a) * r]
+end
+
+def arm(n: Int, t: Float, cx: Float, cy: Float) -> List do
+  color = color_at(n + floor(t * 5.0))
+  points = flat(map(range(0, 39), fn(k: Int) -> List do arm_point(k, n, t, cx, cy) end))
+  [
+    {:save},
+    {:stroke, color},
+    {:line_width, 2},
+    {:shadow, 15, color},
+    {:alpha, 0.25},
+    {:polyline, points},
+    {:restore}
+  ]
+end
+
+def leaf(n: Int, t: Float, cx: Float, stem_top: Float, stem_bottom: Float) -> List do
+  y = stem_top + (stem_bottom - stem_top) * (0.15 + n * 0.2)
+  side = case rem(n, 2) == 0 do
+    true -> 1.0
+    false -> -1.0
+  end
+  x = cx + side * (15.0 + sin(t * 2.0 + n) * 5.0)
+  [
+    {:fill, "#00ff44"},
+    {:alpha, 0.6},
+    {:ellipse, x + side * 20.0, y, 25.0 + sin(t + n) * 4.0, 10.0, side * (0.4 + sin(t * 0.5) * 0.1)}
+  ]
+end
+
+def stem(t: Float, cx: Float, cy: Float, scale: Float, h: Float) -> List do
+  top = cy + scale * 0.35
+  bottom = h + 50.0
+  wave = sin(t * 0.5) * 20.0
+  flat([
+    [
+      {:save},
+      {:stroke, "#00ff44"},
+      {:line_width, 6.0 + sin(t) * 2.0},
+      {:shadow, 20, "#33ff77"},
+      {:alpha, 0.7},
+      {:line_cap, "round"},
+      {:bezier, cx, top,
+        cx + wave, top + (bottom - top) * 0.3,
+        cx - wave, top + (bottom - top) * 0.6,
+        cx + wave * 0.5, bottom}
+    ],
+    flat(map(range(0, 2), fn(n: Int) -> List do leaf(n, t, cx, top, bottom) end)),
+    [{:restore}]
+  ])
+end
+
+# Blimp's min and max take integers only.
+def smaller(a: Float, b: Float) -> Float do
+  case a < b do
+    true -> a
+    false -> b
+  end
+end
+
+def draw(t: Float, w: Float, h: Float) -> List do
+  cx = w / 2.0
+  cy = h * 0.4
+  scale = smaller(w, h) * 0.35
+  pulse = 1.0 + sin(t * 2.0) * 0.1
+  flat([
+    # The trail: a nearly clear wash instead of a clear, so seeds smear.
+    [{:fill, "rgba(26, 26, 46, 0.03)"}, {:rect, 0, 0, w, h}],
+    flat(map(range(0, NUM_SEEDS - 1), fn(i: Int) -> List do seed(i, t, cx, cy, scale, pulse) end)),
+    flat(map(range(0, 4), fn(n: Int) -> List do arm(n, t, cx, cy) end)),
+    stem(t, cx, cy, scale, h)
+  ])
+end
+
+actor Sunflower do
+  state t: Float :: 0.0
+
+  on :frame(w: Int, h: Int) do
+    now = t + 0.005
+    become t: now
+    reply draw(now, w * 1.0, h * 1.0)
+  end
+end
+
+app = spawn Sunflower

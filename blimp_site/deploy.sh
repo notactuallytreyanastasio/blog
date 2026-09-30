@@ -59,6 +59,7 @@ stage() {
   cp _build/sky.blimp _build/sky_layout.json _build/sky_points.json.gz "$DIST/blimp_site/_build/"
   cp _build/phish_lab.blimp "$DIST/blimp_site/_build/phish_lab.blimp"
   cp _build/ziggy.blimp _build/ziggy-graph.json "$DIST/blimp_site/_build/"
+  cp _build/role_call.blimp "$DIST/blimp_site/_build/role_call.blimp"
   mkdir -p "$DIST/priv/static/data"
   cp ../priv/static/data/phish_lab.json ../priv/static/data/phish_lab_perfs.json "$DIST/priv/static/data/"
   cp -R assets data static content "$DIST/blimp_site/"

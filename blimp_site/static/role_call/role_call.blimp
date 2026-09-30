@@ -1,0 +1,679 @@
+# /role-call: RoleCallLive, as a program the browser runs.
+#
+# The LiveView's assigns are this actor's state, its handle_event/3 clauses
+# are its handlers, and render/1 with its function components is :view,
+# element for element and class for class (the stylesheet is its styles/0,
+# /assets/role_call.css). What it decides rather than looks up is Temper
+# (temper/src/role_call): the tab a URL means, the liked and hidden sets,
+# the tour, how shows print, how many cards make two rows.
+#
+# Where the LiveView called Blog.RoleCall, the view names a fetch() of the
+# server's endpoint for it (src/99_role_call.blimp), which the page makes
+# while the fetch is in the view and hands back as a message. A fetch that
+# leaves the view before it answers is forgotten, so a search overtaken by
+# the next keystroke never lands.
+#
+# static/role_call/role_call.js does what only the browser can: it reads
+# localStorage when the program starts and sends :restore (the LiveView's
+# restore_liked, restore_hidden and check_tour_status), writes it back from
+# #rc-store (the LiveView's store_liked, store_hidden, tour_completed
+# events), reports the card grid's width (:grid), places the tour's
+# spotlight by asking :place, and swaps a poster that fails to load for its
+# placeholder, as the card's onerror did.
+#
+# The LiveView loaded shuffle picks at mount and again when localStorage
+# arrived. Here nothing is asked of the server until :restore, so the
+# first picks already leave out what the visitor liked and hid.
+
+# One show's fields, from the server's JSON. A number Postgres wrote as
+# 8 rather than 8.0 decodes as an Int; Temper's rc_meta wants a Float.
+def rc_rating_of(show: Map) -> Float do
+  show.rating + 0.0
+end
+
+def rc_heart(liked: String, id: String) -> String do
+  case rc_has(liked, id) do
+    true -> "♥"
+    false -> "♡"
+  end
+end
+
+# What the server answered, or nil when it answered something else than
+# 200 (a 503 when Postgres is down): an empty list, as nothing found.
+def rc_ok(status: Int, body: String) -> Any do
+  case status == 200 do
+    true -> rc_decode(body)
+    false -> nil
+  end
+end
+
+def rc_decode(body: String) -> Any do
+  case json_decode(body) do
+    {:ok, v} -> v
+    _ -> nil
+  end
+end
+
+# el() children that come and go are "" when gone, so their parent keeps
+# its number of children and is patched rather than rebuilt: a rebuilt
+# search box loses the cursor, and a rebuilt window the sunflower's canvas.
+def rc_when(cond: Bool, node: Any) -> Any do
+  case cond do
+    true -> node
+    false -> ""
+  end
+end
+
+# The requests the view wants made, {url, message} each: what the
+# LiveView would have asked Blog.RoleCall for by now and has no answer yet.
+def rc_wants(ready: Bool, count: Int, picks_url: String, search_url: String, recs_url: String, show_id: String, modal_for: String, writer_url: String, tab: String, liked: String, titles_for: String) -> List do
+  modal_url = case ready and show_id != "" and modal_for != show_id do
+    true -> concat("/role-call/show.json?id=", ph_enc(show_id))
+    false -> ""
+  end
+  titles_url = case ready and tab == "liked" and titles_for != liked and liked != "" do
+    true -> concat("/role-call/titles.json?ids=", liked)
+    false -> ""
+  end
+  count_url = case ready and count < 0 do
+    true -> "/role-call/count.json"
+    false -> ""
+  end
+  all = [{count_url, :counted}, {picks_url, :picked}, {search_url, :searched}, {recs_url, :recommended},
+    {modal_url, :shown}, {writer_url, :writer_loaded}, {titles_url, :titled}]
+  filter(all, fn(w: Tuple) -> Bool do elem(w, 0) != "" end)
+end
+
+def rc_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def rc_when_list(cond: Bool, l: List) -> List do
+  case cond do
+    true -> l
+    false -> []
+  end
+end
+
+def rc_tab_link(tab: String, current: String, label: String, id: String) -> Any do
+  cls = case tab == current do
+    true -> "rc-tab active"
+    false -> "rc-tab "
+  end
+  attrs = %{href: concat("/role-call?tab=", tab), class: cls, click: :patch_tab, with: tab}
+  with_id = case id do
+    "" -> attrs
+    _ -> put(attrs, "id", id)
+  end
+  el("a", with_id, label)
+end
+
+# show_card/1
+def rc_card(show: Map, liked: String, compact: Bool) -> Any do
+  cls = case compact do
+    true -> "show-card compact"
+    false -> "show-card "
+  end
+  image = case show.image_url do
+    nil -> [el("span", %{class: "placeholder"}, "📺")]
+    _ -> [el("img", %{src: rc_thumb(show.image_url), alt: show.title}), el("span", %{class: "placeholder", style: "display:none;"}, "📺")]
+  end
+  el("div", %{class: cls},
+    el("div", %{class: "card-image", click: :open_show, with: show.id}, image),
+    el("div", %{class: "card-info"},
+      el("div", %{class: "card-title", click: :open_show, with: show.id}, show.title),
+      el("div", %{class: "card-meta"}, rc_meta(show.year, rc_rating_of(show))),
+      rc_when(length(show.writers) > 0, el("div", %{class: "card-writers"}, rc_writers(show.writers))),
+      el("div", %{class: "card-actions"},
+        el("button", %{class: "hide-btn", click: :hide_show, with: show.id, title: "Hide"}, "✕"),
+        el("button", %{class: "like-btn", click: :like_show, with: show.id, title: "Like"}, rc_heart(liked, show.id)))))
+end
+
+def rc_cards(shows: List, liked: String, compact: Bool) -> List do
+  map(shows, fn(s: Map) -> Any do rc_card(s, liked, compact) end)
+end
+
+def rc_take(l: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case l do
+        [] -> []
+        [x | rest] -> [x | rc_take(rest, n - 1)]
+      end
+  end
+end
+
+def rc_indexed(l: List, i: Int) -> List do
+  case l do
+    [] -> []
+    [x | rest] -> [{i, x} | rc_indexed(rest, i + 1)]
+  end
+end
+
+# search_view/1
+def rc_search_view(query: String, results: List, picks: List, liked: String, count: Int, grid_w: Int) -> Any do
+  shown = rc_take(picks, rc_shown(length(picks), grid_w))
+  count_text = case count < 0 do
+    true -> "…"
+    false -> rc_count(count)
+  end
+  el("section", %{class: "rc-search-view"},
+    el("div", %{class: "search-container", id: "tour-search"},
+      el("div", %{class: "search-input-wrapper"},
+        el("input", %{type: "text", id: "show-search", placeholder: "Search shows...", value: query, input: :search, debounce: 300, autocomplete: "off"}),
+        rc_when(query != "", el("button", %{class: "search-clear-btn", click: :clear_search}, "×"))),
+      rc_when(results != [], el("div", %{class: "search-results"},
+        map(results, fn(show: Map) -> Any do
+          el("div", %{class: "search-result", click: :open_show, with: show.id},
+            el("div", %{class: "result-title"}, show.title),
+            el("div", %{class: "result-meta"}, rc_meta(show.year, rc_rating_of(show))),
+            el("button", %{class: "like-btn", click: :like_show, with: show.id}, rc_heart(liked, show.id)))
+        end)))),
+    el("div", %{class: "search-hint"},
+      el("p", %{}, concat("Search from ", count_text, " shows. Click one to see what else its writers have made."))),
+    el("div", %{class: "shuffle-section", id: "tour-shuffle"},
+      el("div", %{class: "shuffle-header"},
+        el("h3", %{}, "Or pick one of these"),
+        el("button", %{class: "shuffle-refresh-btn", click: :refresh_shuffle, id: "tour-shuffle-btn"}, "Show me more")),
+      el("div", %{class: "shuffle-picks", id: "tour-cards"},
+        map(rc_indexed(shown, 0), fn(p: Tuple) -> Any do
+          el("div", %{id: concat("tour-card-", to_string(elem(p, 0))), class: "card-wrapper"}, rc_card(elem(p, 1), liked, false))
+        end))))
+end
+
+# The liked shows, in the set's order, each with the title the server gave
+# for it; an id it did not know is skipped, as get_show/1 returning nil was.
+def rc_title_of(titles: List, id: String) -> Any do
+  case titles do
+    [] -> nil
+    [t | rest] ->
+      case head(t) == id do
+        true -> head(tail(t))
+        false -> rc_title_of(rest, id)
+      end
+  end
+end
+
+# liked_view/1
+def rc_liked_view(liked: String, recs: List, titles: List) -> Any do
+  n = rc_size(liked)
+  items = filter(map(rc_ids(liked), fn(id: String) -> Any do
+    title = rc_title_of(titles, id)
+    case title do
+      nil -> nil
+      _ ->
+        el("div", %{class: "liked-item"},
+          el("span", %{class: "liked-title", click: :open_show, with: id}, title),
+          el("button", %{class: "unlike-btn", click: :unlike_show, with: id}, "×"))
+    end
+  end), fn(x: Any) -> Bool do x != nil end)
+  list = case n == 0 do
+    true -> [el("p", %{class: "empty-state"}, "No shows liked yet. Search or pick from suggestions above!")]
+    false -> items
+  end
+  foryou = case recs == [] do
+    true -> el("div", %{class: "foryou-empty"}, "Mark shows you've liked to unlock recommendations based on their writers")
+    false -> el("div", %{class: "foryou-grid"}, rc_cards(recs, liked, true))
+  end
+  el("section", %{class: "rc-liked-view"},
+    el("div", %{class: "liked-header"},
+      el("div", %{class: "liked-header-top"},
+        el("h2", %{}, "Shows I've Liked"),
+        rc_when(n > 0, el("button", %{class: "clear-all-btn", click: :clear_all}, "Start fresh"))),
+      el("p", %{class: "subtitle"}, "Mark shows you enjoyed — their writers become part of your taste profile")),
+    el("div", %{class: "liked-grid"},
+      el("div", %{class: "foryou-section"},
+        el("div", %{class: "foryou-header"},
+          el("h3", %{}, "For You"),
+          el("button", %{class: "foryou-refresh-btn", click: :refresh_recommendations}, "Refresh")),
+        el("div", %{class: "foryou-content"}, foryou)),
+      el("div", %{class: "liked-list-section"},
+        el("h3", %{}, concat("Your liked shows (", to_string(n), ")")),
+        el("div", %{class: "liked-list"}, list))))
+end
+
+# discover_view/1
+def rc_discover_view(recs: List, liked: String) -> Any do
+  picks = case recs == [] do
+    true -> [el("div", %{class: "discover-empty"},
+      el("p", %{}, "Like some shows first to get personalized recommendations!"),
+      el("a", %{href: "/role-call?tab=search", class: "discover-cta", click: :patch_tab, with: "search"}, "Go to Search"))]
+    false -> rc_cards(rc_take(recs, 12), liked, false)
+  end
+  el("section", %{class: "rc-discover-view"},
+    el("div", %{class: "discover-prompt"},
+      el("h2", %{}, "Shows you'll love"),
+      el("p", %{}, "Based on writers from shows you've liked")),
+    el("div", %{class: "discover-picks"}, picks),
+    el("div", %{class: "discover-buttons"},
+      el("button", %{class: "refresh-btn", click: :refresh_recommendations}, "Show me different ones")))
+end
+
+# show_detail/1
+def rc_show_detail(show: Map, liked: String) -> Any do
+  like_label = case rc_has(liked, show.id) do
+    true -> "♥ Liked"
+    false -> "♡ Like this show"
+  end
+  rating = rc_rating_of(show)
+  poster = case show.image_url do
+    nil -> ""
+    _ -> el("img", %{src: show.image_url, alt: show.title, class: "show-poster"})
+  end
+  desc = case show.description do
+    nil -> ""
+    _ -> el("p", %{class: "show-desc"}, show.description)
+  end
+  el("div", %{class: "show-detail"},
+    el("div", %{class: "show-header"},
+      poster,
+      el("div", %{class: "show-info"},
+        el("h2", %{}, show.title),
+        el("div", %{class: "show-meta"},
+          rc_years(show.year, show.year_end),
+          rc_when(rating >= 0.0, " "),
+          rc_when(rating >= 0.0, el("span", %{class: "rating"}, concat("★ ", rc_rating(rating))))),
+        desc,
+        el("button", %{class: "modal-like-btn", click: :like_show, with: show.id}, like_label))),
+    rc_when(length(show.writers) > 0, el("div", %{class: "writers-section"},
+      el("h3", %{}, "Writers & Creators"),
+      el("p", %{class: "writers-hint"}, "Click a writer to see their other work"),
+      el("div", %{class: "writers-grid"},
+        map(show.writers, fn(w: Map) -> Any do
+          el("div", %{class: "writer-card", click: :select_writer, with: w.id},
+            el("span", %{class: "writer-name"}, w.name),
+            el("span", %{class: "writer-role"}, w.role))
+        end)))))
+end
+
+# writer_detail/1
+def rc_writer_detail(writer: Map, liked: String) -> Any do
+  el("div", %{class: "writer-detail"},
+    el("button", %{class: "back-btn", click: :clear_writer}, "← Back to show"),
+    el("h2", %{}, writer.name),
+    el("p", %{class: "writer-subtitle"}, "Their work"),
+    el("div", %{class: "writer-shows"},
+      map(writer.credits, fn(s: Map) -> Any do
+        el("div", %{class: "writer-show-item", click: :open_show, with: s.id},
+          el("span", %{class: "show-title"}, s.title),
+          el("span", %{class: "show-meta"}, rc_meta(s.year, rc_rating_of(s))),
+          el("button", %{class: "like-btn", click: :like_show, with: s.id}, rc_heart(liked, s.id)))
+      end)))
+end
+
+# rc_modal/1. The LiveView closed the modal from a click on the overlay,
+# and LiveView sends a click to the nearest element with phx-click, which
+# for everything inside the modal but its buttons was the overlay: a click
+# on the description closed it. Here the overlay's click is a backdrop of
+# its own behind the modal (.rc-backdrop), so only a click outside closes.
+def rc_modal(show: Map, writer: Any, liked: String) -> Any do
+  body = case writer do
+    nil -> rc_show_detail(show, liked)
+    _ -> rc_writer_detail(writer, liked)
+  end
+  el("div", %{class: "modal-overlay"},
+    el("div", %{class: "rc-backdrop", click: :close_modal}),
+    el("div", %{class: "modal"},
+      el("button", %{class: "modal-close", click: :close_modal}, "×"),
+      el("div", %{class: "modal-body"}, body)))
+end
+
+# tour_overlay/1
+def rc_tour(step: Int) -> Any do
+  target = rc_tour_target(step)
+  total = rc_tour_total()
+  next_label = case step == total do
+    true -> "Let's go!"
+    false -> "Next"
+  end
+  el("div", %{class: "tour-overlay"},
+    el("div", %{class: "tour-backdrop", click: :skip_tour}),
+    rc_when(target != "", el("div", %{class: "tour-spotlight", id: "tour-spotlight", "data-target": target})),
+    el("div", %{class: concat("tour-tooltip ", rc_tour_position(step)), id: "tour-tooltip", "data-target": target},
+      el("div", %{class: "tour-progress"}, concat("Step ", to_string(step), " of ", to_string(total))),
+      el("h3", %{class: "tour-title"}, rc_tour_title(step)),
+      el("p", %{class: "tour-text"}, rc_tour_text(step)),
+      el("div", %{class: "tour-buttons"},
+        el("button", %{class: "tour-skip", click: :skip_tour}, "Skip tour"),
+        el("div", %{class: "tour-nav"},
+          rc_when(step > 1, el("button", %{class: "tour-prev", click: :tour_prev}, "Back")),
+          el("button", %{class: "tour-next", click: :tour_next}, next_label)))))
+end
+
+# A list of cards from the server, {"shows": [...], "writers": [[id,
+# name], ...]}: each show with its writers dealt to it.
+def rc_cards_of(status: Int, body: String) -> List do
+  v = rc_ok(status, body)
+  case v do
+    nil -> []
+    _ ->
+      map(v.shows, fn(s: Map) -> Map do
+        %{id: s.id, title: s.title, year: s.year, rating: s.rating, image_url: s.image_url, writers: rc_writers_of(v.writers, s.id)}
+      end)
+  end
+end
+
+def rc_list_of(status: Int, body: String) -> List do
+  v = rc_ok(status, body)
+  case v do
+    nil -> []
+    _ -> v
+  end
+end
+
+actor RoleCall do
+  # the URL: ?tab= and ?show=
+  state tab: String :: "search"
+  state show_id: String :: ""
+  # the address bar's query: as visited until the first patch, as with
+  # LiveView, which does not rewrite the URL it mounted on
+  state url: String :: ""
+  # app.js reads the URL after the first render, so until it has said what
+  # it read, the view leaves the address bar alone
+  state located: Bool :: false
+  # localStorage has answered (:restore); until then nothing is fetched
+  state ready: Bool :: false
+  state liked: String :: ""
+  state hidden: String :: ""
+  state tour: Int :: 0
+  state tour_done: Bool :: false
+  state count: Int :: -1
+  state query: String :: ""
+  state results: List :: []
+  # a request in flight is its URL; "" is none
+  state search_url: String :: ""
+  state picks: List :: []
+  state picks_url: String :: ""
+  state recs: List :: []
+  state recs_url: String :: ""
+  state serial: Int :: 0
+  state modal: Any :: nil
+  state modal_for: String :: ""
+  state writer: Any :: nil
+  state writer_url: String :: ""
+  state titles: List :: []
+  state titles_for: String :: "-"
+  state grid_w: Int :: 0
+
+  # handle_params/3, what the URL says when the page starts
+  on :location(q: String) do
+    become tab: rc_tab(query_param(q, "tab")), show_id: query_param(q, "show"), url: q, located: true
+    reply :ok
+  end
+
+  # localStorage, read by role_call.js: restore_liked, restore_hidden and
+  # check_tour_status. The LiveView's handle_params had loaded the Liked
+  # tab's recommendations at mount, before the liked shows arrived from
+  # localStorage, so a visit to /role-call?tab=liked opened on "Mark shows
+  # you've liked to unlock recommendations" whatever was liked. They are
+  # loaded here once the liked shows are known.
+  on :restore(liked_raw: String, hidden_raw: String, completed: Bool) do
+    l = rc_clean(liked_raw)
+    h = rc_clean(hidden_raw)
+    n = serial + 1
+    recs_url_now = case tab == "liked" do
+      true -> rc_recs_url(l, h, n)
+      false -> ""
+    end
+    become ready: true, liked: l, hidden: h, tour: rc_tour_first(completed, rc_size(l)), tour_done: completed, serial: n, picks_url: rc_picks_url(l, h, n), recs_url: recs_url_now
+    reply :ok
+  end
+
+  # -- answers from the server --
+
+  on :counted(status: Int, body: String) do
+    v = rc_ok(status, body)
+    c = case v != nil do
+      true -> v.count
+      false -> 0
+    end
+    become count: c
+    reply :ok
+  end
+
+  on :searched(status: Int, body: String) do
+    become results: rc_list_of(status, body), search_url: ""
+    reply :ok
+  end
+
+  on :picked(status: Int, body: String) do
+    become picks: rc_cards_of(status, body), picks_url: ""
+    reply :ok
+  end
+
+  on :recommended(status: Int, body: String) do
+    become recs: rc_cards_of(status, body), recs_url: ""
+    reply :ok
+  end
+
+  on :shown(status: Int, body: String) do
+    become modal: rc_ok(status, body), modal_for: show_id
+    reply :ok
+  end
+
+  on :writer_loaded(status: Int, body: String) do
+    become writer: rc_ok(status, body), writer_url: ""
+    reply :ok
+  end
+
+  on :titled(status: Int, body: String) do
+    become titles: rc_list_of(status, body), titles_for: liked
+    reply :ok
+  end
+
+  # -- handle_event/3 --
+
+  on :search(q: String) do
+    case rc_can_search(q) do
+      true -> become query: q, search_url: concat("/role-call/search.json?q=", ph_enc(q), "&hidden=", hidden)
+      false -> become query: q, results: [], search_url: ""
+    end
+    reply :ok
+  end
+
+  on :clear_search do
+    become query: "", results: [], search_url: ""
+    reply :ok
+  end
+
+  # like_show, hide_show and refresh_shuffle draw new picks
+  # (get_shuffle_picks/2); unlike_show and refresh_recommendations load
+  # the recommendations again (load_recommendations/1), which with nothing
+  # liked are none, without asking.
+  on :like_show(id: String) do
+    l = rc_add(liked, id)
+    n = serial + 1
+    become liked: l, serial: n, picks_url: rc_picks_url(l, hidden, n)
+    reply :ok
+  end
+
+  on :unlike_show(id: String) do
+    l = rc_del(liked, id)
+    n = serial + 1
+    url = rc_recs_url(l, hidden, n)
+    become liked: l, serial: n, recs_url: url, recs: rc_recs_until(url, recs)
+    reply :ok
+  end
+
+  on :hide_show(id: String) do
+    h = rc_add(hidden, id)
+    n = serial + 1
+    become hidden: h, serial: n, picks_url: rc_picks_url(liked, h, n)
+    reply :ok
+  end
+
+  on :refresh_shuffle do
+    n = serial + 1
+    become serial: n, picks_url: rc_picks_url(liked, hidden, n)
+    reply :ok
+  end
+
+  on :refresh_recommendations do
+    n = serial + 1
+    url = rc_recs_url(liked, hidden, n)
+    become serial: n, recs_url: url, recs: rc_recs_until(url, recs)
+    reply :ok
+  end
+
+  on :clear_all do
+    become liked: "", hidden: "", recs: [], recs_url: ""
+    reply :ok
+  end
+
+  # A tab link, and open_show / close_modal: push_patch, and so
+  # handle_params again, which loads the Liked tab's recommendations every
+  # time it runs on that tab. The LiveView kept the writer it had open when
+  # the show changed or the modal closed, so the next show opened on that
+  # writer; a new show opens on the show.
+  on :patch_tab(t: String) do
+    s = rc_patch(rc_tab(t), "", liked, hidden, serial, recs, recs_url)
+    become tab: s.tab, show_id: s.show_id, url: rc_query(s.tab, ""), writer: nil, writer_url: "", modal: nil, modal_for: "", serial: s.serial, recs_url: s.recs_url, recs: s.recs
+    reply :ok
+  end
+
+  on :open_show(id: String) do
+    s = rc_patch(tab, id, liked, hidden, serial, recs, recs_url)
+    become show_id: s.show_id, url: rc_query(tab, id), writer: nil, writer_url: "", serial: s.serial, recs_url: s.recs_url, recs: s.recs
+    reply :ok
+  end
+
+  on :close_modal do
+    s = rc_patch(tab, "", liked, hidden, serial, recs, recs_url)
+    become show_id: "", url: rc_query(tab, ""), writer: nil, writer_url: "", modal: nil, modal_for: "", serial: s.serial, recs_url: s.recs_url, recs: s.recs
+    reply :ok
+  end
+
+  on :select_writer(id: String) do
+    become writer_url: concat("/role-call/person.json?id=", ph_enc(id))
+    reply :ok
+  end
+
+  on :clear_writer do
+    become writer: nil, writer_url: ""
+    reply :ok
+  end
+
+  on :start_tour do
+    become tour: 1
+    reply :ok
+  end
+
+  on :tour_next do
+    t = rc_tour_next(tour)
+    case t == 0 do
+      true -> become tour: 0, tour_done: true
+      false -> become tour: t
+    end
+    reply :ok
+  end
+
+  on :tour_prev do
+    become tour: rc_tour_prev(tour)
+    reply :ok
+  end
+
+  on :skip_tour do
+    become tour: 0, tour_done: true
+    reply :ok
+  end
+
+  # CardGrid: the width of the card grid, from role_call.js
+  on :grid(w: Int) do
+    become grid_w: w
+    reply :ok
+  end
+
+  # TourSpotlight: role_call.js measures, this places. The reply is
+  # [spot top, left, width, height, tooltip top, left] (the last two
+  # missing for a centred tooltip) and whether to scroll the target into
+  # view. It changes no state, so the page is not drawn again.
+  on :place(position: String, top: Float, left: Float, width: Float, height: Float, tip_w: Float, tip_h: Float, window_h: Float) do
+    reply %{spot: rc_spot(top, left, width, height), tip: rc_tip(position, top, left, width, height, tip_w, tip_h), scroll: rc_scroll(top, top + height, window_h)}
+  end
+
+  # what the view asks of the server, and the URL it keeps, for the tests
+  on :wants do
+    reply %{urls: map(rc_wants(ready, count, picks_url, search_url, recs_url, show_id, modal_for, writer_url, tab, liked, titles_for), fn(w: Tuple) -> String do elem(w, 0) end), query: url}
+  end
+
+  on :view do
+    wants = rc_wants(ready, count, picks_url, search_url, recs_url, show_id, modal_for, writer_url, tab, liked, titles_for)
+    asks = rc_append(map(wants, fn(w: Tuple) -> Any do fetch(elem(w, 0), elem(w, 1)) end), rc_when_list(located, [location_query(url)]))
+    main = case tab do
+      "liked" -> rc_liked_view(liked, recs, titles)
+      "discover" -> rc_discover_view(recs, liked)
+      _ -> rc_search_view(query, results, picks, liked, count, grid_w)
+    end
+    modal_node = case modal != nil and show_id != "" do
+      true -> rc_modal(modal, writer, liked)
+      false -> ""
+    end
+    n = rc_size(liked)
+    el("div", %{class: "os-desktop-winxp"},
+      el("div", %{class: "os-window os-window-winxp", style: "width: 100%; height: calc(100vh - 40px); max-width: none;"},
+        el("div", %{class: "os-titlebar"},
+          el("span", %{class: "os-titlebar-title"}, "Role Call - TV Writer Discovery"),
+          el("div", %{class: "os-titlebar-buttons"},
+            el("div", %{class: "os-btn-min"}),
+            el("div", %{class: "os-btn-max"}),
+            el("a", %{href: "/", class: "os-btn-close"}))),
+        el("div", %{class: "os-menubar"},
+          el("span", %{}, "File"), el("span", %{}, "Search"), el("span", %{}, "View"), el("span", %{}, "Help")),
+        el("div", %{class: "os-content", style: "height: calc(100% - 80px); overflow-y: auto; position: relative;"},
+          el("canvas", %{id: "sunflower-bg"}),
+          el("div", %{class: "role-call"},
+            el("header", %{class: "rc-header"},
+              el("h1", %{}, "Role Call"),
+              el("p", %{class: "tagline"}, "Discover new shows through the writers you love"),
+              el("button", %{class: "tour-help-btn", click: :start_tour, title: "Show tutorial"}, "?")),
+            el("nav", %{class: "rc-tabs", id: "tour-tabs"},
+              rc_tab_link("search", tab, "Search", ""),
+              rc_tab_link("liked", tab, concat("Liked (", to_string(n), ")"), "tour-liked-tab"),
+              rc_tab_link("discover", tab, "Discover", "")),
+            el("main", %{class: "rc-main"}, main),
+            modal_node,
+            rc_when(tour > 0, rc_tour(tour)))),
+        el("div", %{class: "os-statusbar"},
+          el("span", %{}, concat("Shows: ", to_string(n), " liked")),
+          el("span", %{}, "Ready"))),
+      # what role_call.js keeps in localStorage, once it has been read
+      el("div", %{id: "rc-store", hidden: true, "data-ready": rc_when(ready, "1"), "data-liked": liked, "data-hidden": hidden, "data-tour-done": rc_when(tour_done, "1")}),
+      el("div", %{id: "rc-effects", hidden: true}, asks))
+  end
+end
+
+def rc_picks_url(liked: String, hidden: String, n: Int) -> String do
+  concat("/role-call/picks.json?exclude=", rc_union(liked, hidden), "&n=", to_string(n))
+end
+
+# load_recommendations/1: nothing liked is no recommendations, asked of no
+# one; otherwise the request, and the old ones until it answers.
+def rc_recs_url(liked: String, hidden: String, n: Int) -> String do
+  case liked do
+    "" -> ""
+    _ -> concat("/role-call/recs.json?liked=", liked, "&exclude=", rc_union(liked, hidden), "&n=", to_string(n))
+  end
+end
+
+def rc_recs_until(url: String, recs: List) -> List do
+  case url do
+    "" -> []
+    _ -> recs
+  end
+end
+
+# push_patch to ?tab=t&show=id, and so handle_params/3 again, which loads
+# the recommendations again every time it runs on the Liked tab.
+def rc_patch(t: String, id: String, liked: String, hidden: String, serial: Int, recs: List, pending: String) -> Map do
+  n = serial + 1
+  case t == "liked" do
+    true ->
+      url = rc_recs_url(liked, hidden, n)
+      %{tab: t, show_id: id, serial: n, recs_url: url, recs: rc_recs_until(url, recs)}
+    false -> %{tab: t, show_id: id, serial: n, recs_url: pending, recs: recs}
+  end
+end
+
+rc = spawn RoleCall
+rc <- :view
