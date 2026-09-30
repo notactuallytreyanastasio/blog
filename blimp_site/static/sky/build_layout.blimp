@@ -1,0 +1,21 @@
+# build.sh: static/sky/layout.blimp over the communities, into
+# _build/sky_layout.json. Run from blimp_site/.
+
+SKY_IN = "../priv/static/data/sky_communities.json"
+SKY_OUT = "_build/sky_layout.json"
+
+sky_raw = read_file(SKY_IN)
+case sky_raw do
+  nil ->
+    puts(concat("cannot read ", SKY_IN))
+    exit(1)
+  _ -> nil
+end
+sky_decoded = json_decode(sky_raw)
+case elem(sky_decoded, 0) do
+  :ok -> nil
+  _ ->
+    puts(concat(SKY_IN, " is not JSON"))
+    exit(1)
+end
+write_file(SKY_OUT, json_encode(sky_layouts(elem(sky_decoded, 1))))

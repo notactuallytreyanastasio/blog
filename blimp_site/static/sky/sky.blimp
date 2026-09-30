@@ -1,0 +1,252 @@
+# /sky, Fill The Sky: SkyLive's page as a program the browser runs. The
+# sidebar -- the three views, the filter, the list, the profile of the
+# account last clicked -- is this program's; the map is deck.gl, drawn by
+# static/sky/sky.js, which asks this program what to draw.
+#
+# SkyLive kept five things per visitor and none of them are the server's
+# business, so they are state here. The one thing it asked the database for
+# (Blog.Sky.get_profile_by_handle) is /sky/profile.json.
+#
+# What the map is told, and when (sky.js reads it after every render):
+#
+#   sky <- :scene   %{mode, lit, focus, ready}: the view, the community lit
+#                   on the map, and a counter that goes up when the map
+#                   should fly to it. SkyLive pushed select_community to
+#                   the hook on a click in the list or on the map, but not
+#                   when a point was clicked: then the list showed the
+#                   point's community and the map stayed as it was. `lit`
+#                   is the map's selection, `selected` the list's.
+#   sky <- :discs   the view's discs (static/sky/layout.blimp), built once
+#                   by build.sh and fetched from /sky/layout.json.
+#
+# And what the map says: :select(i) for a disc or label clicked, :point(
+# handle, i) for an account, :loaded when the points are drawn.
+
+actor Sky do
+  state communities: Any :: nil
+  state layouts: Any :: nil
+  state problem: String :: ""
+  state mode: String :: "big"
+  state query: String :: ""
+  state selected: Any :: nil
+  state lit: Any :: nil
+  state focus: Int :: 0
+  state loading: Bool :: true
+  state profile: Any :: nil
+  state want: String :: ""
+  state want_i: Int :: 0
+
+  on :layout(status: Int, body: String) do
+    decoded = json_decode(body)
+    case status == 200 and elem(decoded, 0) == :ok do
+      false ->
+        become problem: "The communities could not be loaded."
+        reply :error
+      true ->
+        data = elem(decoded, 1)
+        become communities: data.communities, layouts: data
+        reply length(data.communities)
+    end
+  end
+
+  # SkyLive's select_community: a second click on the same one clears it.
+  on :select(i: Int) do
+    case selected == i do
+      true -> become selected: nil, lit: nil
+      false -> become selected: i, lit: i, focus: focus + 1
+    end
+    reply :ok
+  end
+
+  on :set_mode(m: String) do
+    become mode: m, selected: nil, lit: nil
+    reply :ok
+  end
+
+  on :filter(t: String) do
+    become query: t
+    reply :ok
+  end
+
+  on :clear do
+    become selected: nil, lit: nil, profile: nil
+    reply :ok
+  end
+
+  # An account on the map: its profile, and its community in the list --
+  # once the profile has come, as SkyLive did both or neither.
+  on :point(handle: String, i: Int) do
+    become want: handle, want_i: i
+    reply :ok
+  end
+
+  on :profile(status: Int, body: String) do
+    decoded = json_decode(body)
+    case status == 200 and elem(decoded, 0) == :ok do
+      true -> become profile: elem(decoded, 1), selected: want_i, want: ""
+      false -> become want: ""
+    end
+    reply :ok
+  end
+
+  on :loaded do
+    become loading: false
+    reply :ok
+  end
+
+  on :scene do
+    reply %{mode: mode, lit: lit, focus: focus, ready: layouts != nil}
+  end
+
+  on :discs do
+    case layouts do
+      nil -> reply []
+      _ -> reply lookup(layouts, mode)
+    end
+  end
+
+  on :view do
+    need = case layouts == nil and problem == "" do
+      true -> [fetch("/sky/layout.json", :layout)]
+      false -> []
+    end
+    ask = case want do
+      "" -> []
+      _ -> [fetch(concat("/sky/profile.json?handle=", want), :profile)]
+    end
+    reply sky_page(communities, problem, mode, query, selected, loading, profile, concat_lists(need, ask))
+  end
+end
+
+
+def concat_lists(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def sky_visible(cs: List, mode: String, q: String) -> List do
+  needle = downcase(q)
+  filter(cs, fn(c: Map) -> Bool do
+    sky_in_mode(mode, c.m) and (needle == "" or contains(downcase(c.l), needle))
+  end)
+end
+
+def sky_count(cs: Any, mode: String) -> Int do
+  case cs do
+    nil -> 0
+    _ -> length(filter(cs, fn(c: Map) -> Bool do sky_in_mode(mode, c.m) end))
+  end
+end
+
+def sky_on(base: String, yes: Bool) -> String do
+  case yes do
+    true -> concat(base, " sky-on")
+    false -> base
+  end
+end
+
+def sky_or(v: Any, dflt: String) -> String do
+  case v do
+    nil -> dflt
+    _ -> to_string(v)
+  end
+end
+
+# Every element from the top down to #sky-map has the same children on
+# every render, so the element deck.gl draws in is never replaced (a render
+# patches, and only rebuilds a node whose number of children changed). The
+# sidebar, whose children come and go, is its sibling.
+def sky_page(cs: Any, problem: String, mode: String, q: String, selected: Any, loading: Bool, profile: Any, effects: List) -> Any do
+  el("div", %{class: "os-desktop-mac sky-desktop"},
+    el("div", %{class: "os-window os-window-mac sky-window"},
+      el("div", %{class: "os-titlebar"},
+        el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close"})),
+        el("span", %{class: "os-titlebar-title"}, "Fill The Sky — Bluesky Communities"),
+        el("div", %{class: "os-titlebar-spacer"})),
+      el("div", %{class: "os-content sky-content"},
+        el("div", %{class: "sky-map-wrap"},
+          el("div", %{id: "sky-map", class: "sky-map"}),
+          el("div", %{class: sky_on("sky-loading", loading == false)},
+            el("div", %{class: "sky-loading-text"}, sky_loading_text(problem)))),
+        sky_side(cs, mode, q, selected, profile, effects)),
+      el("div", %{class: "os-statusbar"},
+        el("span", %{}, concat(to_string(sky_count(cs, mode)), " communities")),
+        el("span", %{}, "545,173 accounts · Fill The Sky"))))
+end
+
+def sky_loading_text(problem: String) -> String do
+  case problem do
+    "" -> "Loading 545,173 points..."
+    _ -> problem
+  end
+end
+
+def sky_side(cs: Any, mode: String, q: String, selected: Any, profile: Any, effects: List) -> Any do
+  rows = case cs do
+    nil -> []
+    _ -> map(sky_visible(cs, mode, q), fn(c: Map) -> Any do sky_row(c, selected) end)
+  end
+  panel = case profile do
+    nil -> []
+    _ -> [sky_profile(profile)]
+  end
+  el("div", %{class: "sky-side"},
+    panel,
+    el("div", %{class: "sky-modes-box"},
+      el("div", %{class: "sky-modes"},
+        sky_mode_button("big", "Big Scene", mode),
+        sky_mode_button("niche", "Niche", mode),
+        sky_mode_button("all", "All", mode))),
+    el("div", %{class: "sky-filter-box"},
+      el("input", %{type: "text", name: "community_filter", class: "sky-filter", value: q, placeholder: "Filter...", input: :filter, debounce: 200})),
+    el("div", %{class: "sky-list"}, rows),
+    effects)
+end
+
+def sky_mode_button(m: String, label: String, mode: String) -> Any do
+  el("button", %{type: "button", class: sky_on("sky-mode", m == mode), click: :set_mode, with: m}, label)
+end
+
+def sky_row(c: Map, selected: Any) -> Any do
+  el("div", %{class: sky_on("sky-row", c.i == selected), click: :select, with: c.i},
+    el("span", %{class: "sky-row-label"}, c.l),
+    el("span", %{class: "sky-row-count"}, to_string(c.m)))
+end
+
+def sky_profile(p: Map) -> Any do
+  handle = lookup(p, :handle)
+  url = lookup(p, :avatar_url)
+  n = lookup(p, :display_name)
+  b = lookup(p, :bio)
+  avatar = case url do
+    nil -> el("div", %{class: "sky-avatar sky-avatar-none"}, "?")
+    _ -> el("img", %{class: "sky-avatar", src: url})
+  end
+  name = case n do
+    nil -> []
+    _ -> [el("div", %{class: "sky-profile-name"}, n)]
+  end
+  bio = case b do
+    nil -> []
+    _ -> [el("p", %{class: "sky-profile-bio"}, b)]
+  end
+  link = case handle do
+    nil -> []
+    _ -> [el("a", %{class: "sky-profile-link", href: concat("https://bsky.app/profile/", handle), target: "_blank"}, "View on Bluesky")]
+  end
+  el("div", %{class: "sky-profile"},
+    el("div", %{class: "sky-profile-head"},
+      el("div", %{class: "sky-profile-who"},
+        avatar,
+        el("div", %{class: "sky-profile-names"},
+          el("div", %{class: "sky-profile-handle"}, sky_or(handle, sky_or(lookup(p, :did), ""))),
+          name)),
+      el("button", %{type: "button", class: "sky-close", click: :clear}, "x")),
+    bio,
+    el("div", %{class: "sky-profile-counts"},
+      el("span", %{}, concat(sky_or(lookup(p, :followers_count), "0"), " followers")),
+      el("span", %{}, concat(sky_or(lookup(p, :following_count), "0"), " following"))),
+    link)
+end
+
+sky = spawn Sky
+sky <- :view

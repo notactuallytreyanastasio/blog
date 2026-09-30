@@ -1,0 +1,115 @@
+# needs: static/sky/layout.blimp static/sky/sky.blimp
+
+# The hook's own numbers (test/fixtures/sky_hook_layout.mjs ran SkyMap's
+# clusterByCommunity and generateCommunityColors over the data files).
+SKY_HOOK = elem(json_decode(read_file("test/fixtures/sky_hook_layout.json")), 1)
+SKY_COMMS = elem(json_decode(read_file("../priv/static/data/sky_communities.json")), 1)
+
+# Within 1e-12: the hook's sin and cos are V8's, these are Zig's, and the
+# two differ in the last bit now and then (1.4e-14 at most, over all 836
+# discs). A different decision anywhere in the overlap search would move a
+# disc by a whole step, 0.3 of its radius.
+def sky_near(a: Any, b: Any) -> Bool do
+  abs(a - b) < 0.000000000001
+end
+
+def sky_same_discs(got: List, want: List) -> Bool do
+  length(got) == length(want) and reduce(zip(got, want), true, fn(ok: Bool, pair: Any) -> Bool do
+    g = elem(pair, 0)
+    w = elem(pair, 1)
+    ok and g.i == w.i and sky_near(g.x, w.x) and sky_near(g.y, w.y) and sky_near(g.r, w.r) and g.rgb == w.rgb
+  end)
+end
+
+def sky_take(list: List, n: Int) -> List do
+  reverse(reduce(list, [], fn(acc: List, x: Any) -> List do
+    case length(acc) < n do
+      true -> [x | acc]
+      false -> acc
+    end
+  end))
+end
+
+def sky_test_program() -> Any do
+  s = spawn Sky
+  s <- :layout(200, read_file("_build/sky_layout.json"))
+  s
+end
+
+actor SkyTests do
+  test "the layout build.sh wrote is the hook's, in every view" do
+    built = elem(json_decode(read_file("_build/sky_layout.json")), 1)
+    assert(sky_same_discs(built.big, SKY_HOOK.big))
+    assert(sky_same_discs(built.niche, SKY_HOOK.niche))
+    assert(sky_same_discs(built.all, SKY_HOOK.all))
+    assert_eq(map(sky_take(built.communities, 3), fn(c: Map) -> String do c.l end), ["Blue Wave Boomers", "Art & Illustration", "Swifties Internacional"])
+  end
+
+  test "the Temper places discs as the hook does (the first forty of each view, run here)" do
+    sorted = sky_sorted(SKY_COMMS)
+    each(SKY_MODES, fn(mode: String) -> Any do
+      shown = filter(sorted, fn(c: Map) -> Bool do sky_in_mode(mode, c.m) end)
+      assert(sky_same_discs(sky_layout(sky_take(shown, 40), mode), sky_take(lookup(SKY_HOOK, mode), 40)))
+    end)
+  end
+
+  test "discs, views and colours" do
+    assert_eq(sky_disc_radius(23716), sqrt(23716.0) * 0.08)
+    assert_eq(sky_disc_radius(0), 0.08)
+    assert(sky_in_mode("big", 500))
+    refute(sky_in_mode("niche", 500))
+    assert(sky_in_mode("niche", 499))
+    assert(sky_in_mode("all", 1))
+    assert_eq(sky_rgb(0), [195, 34, 34])
+    assert_eq(sky_rgb(1), [43, 238, 100])
+    assert_eq(sky_place([], 3.0), [0.0, 0.0])
+  end
+
+  test "the list: SkyLive's counts, filter and order" do
+    assert_eq(sky_count(SKY_COMMS, "big"), 169)
+    assert_eq(sky_count(SKY_COMMS, "niche"), 249)
+    assert_eq(sky_count(SKY_COMMS, "all"), 418)
+    sorted = sky_sorted(SKY_COMMS)
+    assert_eq(map(sky_visible(sorted, "big", "SWIFT"), fn(c: Map) -> String do c.l end), ["Swifties Internacional", "Swiftie Moms", "Queer Swifties", "Swiftie Core", "Swiftie Lover Era", "Swiftie Moms II"])
+    assert_eq(length(sky_visible(sorted, "niche", "")), 249)
+    assert_eq(sky_visible(sorted, "all", "no such community"), [])
+  end
+
+  test "the program: a second click clears, a view clears, a point waits for its profile" do
+    s = sky_test_program()
+    s <- :select(3)
+    scene = s <- :scene
+    assert_eq(scene.lit, 3)
+    assert_eq(scene.ready, true)
+    s <- :select(3)
+    assert_eq((s <- :scene).lit, nil)
+    s <- :select(5)
+    s <- :set_mode("niche")
+    scene2 = s <- :scene
+    assert_eq(scene2.mode, "niche")
+    assert_eq(scene2.lit, nil)
+    assert_eq(length(s <- :discs), 249)
+    s <- :point("iamsunvi.bsky.social", 23)
+    s <- :profile(404, "{\"error\": \"not found\"}")
+    assert_eq((s <- :scene).lit, nil)
+    s <- :point("iamsunvi.bsky.social", 23)
+    s <- :profile(200, "{\"handle\": \"iamsunvi.bsky.social\", \"display_name\": \"Mahmudul Hoque\", \"followers_count\": 3409}")
+    # the list shows the account's community; the map is left as it was
+    assert_eq((s <- :scene).lit, nil)
+    page = to_html(s <- :view)
+    assert(contains(page, "iamsunvi.bsky.social"))
+    assert(contains(page, "Mahmudul Hoque"))
+    assert(contains(page, "3409 followers"))
+    assert(contains(page, "https://bsky.app/profile/iamsunvi.bsky.social"))
+  end
+
+  test "the server: the page, and a profile only for a handle" do
+    assert(sky_handle_ok("iamsunvi.bsky.social"))
+    refute(sky_handle_ok("x' or 1=1 --"))
+    refute(sky_handle_ok(""))
+    assert_eq(sky_profile_json("a b").status, 400)
+    html = sky_page_html()
+    assert(contains(html, "data-program=\"/sky/sky.blimp\""))
+    assert(index_of(html, "/sky/deck.gl-9.2.9.min.js") < index_of(html, "/sky/sky.js"))
+  end
+end

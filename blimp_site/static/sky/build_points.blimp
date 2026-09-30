@@ -1,0 +1,52 @@
+# build.sh: the map's points, from ../priv/static/data/sky_points.json
+# (37.7MB, what the hook fetched) to _build/sky_points.json, which build.sh
+# then gzips (5.1MB) for /sky/points.json.gz.
+#
+# Why not serve the file as it is: the Blimp server is one thread, and a
+# 37.7MB answer ties it up for as long as the slowest reader takes; and its
+# tcp_write gives up after a hundred full socket buffers, so the file
+# arrived cut off even to curl on the same machine (23.7MB, 28.1MB and
+# 31.6MB of 37.7MB, three tries).
+#
+# What goes: every point's x and y. The hook replaced them before drawing
+# anything -- clusterByCommunity puts each account on a spiral in its
+# community's disc, by its place in the file -- so they never reached the
+# screen. What stays: each account's handle and follower count, grouped by
+# community, in the file's order within it (sort_by_keys is stable), and
+# the runs: [community, how many], in community order.
+
+SKY_POINTS_IN = "../priv/static/data/sky_points.json"
+SKY_POINTS_OUT = "_build/sky_points.json"
+
+sky_points_raw = read_file(SKY_POINTS_IN)
+case sky_points_raw do
+  nil ->
+    puts(concat("cannot read ", SKY_POINTS_IN))
+    exit(1)
+  _ -> nil
+end
+sky_points_decoded = json_decode(sky_points_raw)
+case elem(sky_points_decoded, 0) do
+  :ok -> nil
+  _ ->
+    puts(concat(SKY_POINTS_IN, " is not JSON"))
+    exit(1)
+end
+sky_all = elem(sky_points_decoded, 1)
+sky_by_c = sort_by_keys(sky_all, map(sky_all, fn(p: Map) -> Int do p.c end))
+sky_runs = reverse(reduce(sky_by_c, [], fn(acc: List, p: Map) -> List do
+  case acc do
+    [] -> [[p.c, 1]]
+    _ ->
+      run = head(acc)
+      case elem(run, 0) == p.c do
+        true -> [[p.c, elem(run, 1) + 1] | tail(acc)]
+        false -> [[p.c, 1] | acc]
+      end
+  end
+end))
+write_file(SKY_POINTS_OUT, json_encode(%{
+  runs: sky_runs,
+  h: map(sky_by_c, fn(p: Map) -> String do p.h end),
+  f: map(sky_by_c, fn(p: Map) -> Int do p.f end)
+}))

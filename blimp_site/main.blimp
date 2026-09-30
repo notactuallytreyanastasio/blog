@@ -193,6 +193,16 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/firehose/skeets.blimp" -> FH_SKEETS_PROGRAM
     "/firehose/compare.blimp" -> FH_COMPARE_PROGRAM
     "/firehose/firehose.js" -> FH_JS
+    # Fill The Sky (src/96_sky.blimp): the page, its program, map, layout and
+    # points, and a clicked account's profile
+    "/sky" -> SKY_PAGE
+    "/sky/sky.blimp" -> SKY_PROGRAM
+    "/sky/sky.js" -> SKY_JS
+    "/sky/deck.gl-9.2.9.min.js" -> SKY_DECK
+    "/sky/layout.json" -> SKY_LAYOUT
+    "/sky/profile.json" -> sky_profile_json(query_param(req.query, "handle"))
+    "/assets/sky.css" -> SKY_CSS
+    "/sky/points.json.gz" -> SKY_POINTS
     "/work-log" ->
       page = work_log_page()
       case page do

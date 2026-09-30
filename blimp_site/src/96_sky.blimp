@@ -1,0 +1,85 @@
+# /sky, Fill The Sky: a map of 545,173 Bluesky accounts in 418
+# communities, SkyLive's page. It runs in the browser: the sidebar is
+# static/sky/sky.blimp, the map deck.gl driven by static/sky/sky.js, and
+# where each community's disc goes was worked out by Temper
+# (temper/src/sky) at build time, into _build/sky_layout.json.
+#
+# The server sends the page, those files, the map's points (built from the
+# sky_points.json Phoenix served: static/sky/build_points.blimp), and the
+# one thing SkyLive asked the database for: an account's profile, when its
+# point is clicked. Everything but the profile is read once, at boot.
+
+SKY_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/sky/deck.gl-9.2.9.min.js", "/blimp/app.js", "/sky/sky.js"]
+
+def sky_page_html() -> String do
+  program = "/sky/sky.blimp"
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", program, "\" data-actor=\"sky\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
+    script_tags(SKY_SCRIPTS)
+  ], "")
+  page_layout_html("Fill The Sky",
+    "An interactive map of Bluesky communities — 545K people, 418 communities, discovered by graph analysis.",
+    "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/sky.css"], body, "sky-page")
+end
+
+def sky_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+SKY_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", sky_page_html())
+SKY_PROGRAM = sky_asset("_build/sky.blimp", "text/plain; charset=utf-8")
+SKY_JS = sky_asset("static/sky/sky.js", "text/javascript; charset=utf-8")
+SKY_DECK = sky_asset("static/sky/deck.gl-9.2.9.min.js", "text/javascript; charset=utf-8")
+SKY_CSS = sky_asset("assets/sky.css", "text/css; charset=utf-8")
+SKY_LAYOUT = sky_asset("_build/sky_layout.json", "application/json; charset=utf-8")
+# gzip bytes, which sky.js unpacks with DecompressionStream: served as a
+# file, not with Content-Encoding, so nothing between here and the browser
+# unpacks or packs it again.
+SKY_POINTS = sky_asset("_build/sky_points.json.gz", "application/gzip")
+
+SKY_PROFILE_SQL = "select handle, did, display_name, bio, avatar_url, followers_count, following_count, community_index from sky_profiles where handle = $1 limit 1"
+
+# A handle as the points file has them: letters, digits, dots and hyphens.
+# Anything else is not one, and is not sent to the database.
+def sky_handle_ok(h: String) -> Bool do
+  n = length(h)
+  n > 0 and n <= 253 and sky_handle_chars(h, 0, n)
+end
+
+def sky_handle_chars(h: String, i: Int, n: Int) -> Bool do
+  case i >= n do
+    true -> true
+    false ->
+      c = char_code(h, i)
+      ok = (c >= 97 and c <= 122) or (c >= 65 and c <= 90) or (c >= 48 and c <= 57) or c == 46 or c == 45
+      ok and sky_handle_chars(h, i + 1, n)
+  end
+end
+
+# /sky/profile.json?handle=: Blog.Sky.get_profile_by_handle. 404 when there
+# is no such account, 503 when the database did not answer.
+def sky_profile_json(handle: String) -> Map do
+  case sky_handle_ok(handle) do
+    false -> response(400, "application/json; charset=utf-8", "no-cache", "{\"error\": \"not a handle\"}")
+    true ->
+      case DB <- :query(SKY_PROFILE_SQL, [handle]) do
+        {:error, reason} ->
+          puts(concat("sky: ", reason))
+          response(503, "application/json; charset=utf-8", "no-cache", "{\"error\": \"the database did not answer\"}")
+        {:ok, rows} ->
+          case rows do
+            [] -> response(404, "application/json; charset=utf-8", "public, max-age=300", "{\"error\": \"not found\"}")
+            _ -> response(200, "application/json; charset=utf-8", "public, max-age=300", json_encode(head(rows)))
+          end
+      end
+  end
+end
