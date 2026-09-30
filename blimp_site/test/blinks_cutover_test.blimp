@@ -1,0 +1,124 @@
+# Chapter 74: Blimp answers /blinks at Phoenix's paths, and Phoenix keeps
+# creating links and taking comment writes. /blinks-next moved (a page is
+# a 302, anything else is the same path without the prefix); the writes
+# Phoenix owns are a 421 here unless BLINKS_ALL_WRITES=on (the tests run
+# without it); the PWA's head tags and files come with the pages; and the
+# watcher's rule for what to say when the table changes.
+
+BCT_TOKEN = "test-blinks-token"
+BCT_SECRET = "test-secret-test-secret-test-secret-0123"
+
+def bct_raw(method: String, target: String, headers: List, body: String) -> String do
+  cl = case body == "" and (method == "GET" or method == "HEAD") do
+    true -> []
+    false -> [concat("Content-Length: ", to_string(length(body)))]
+  end
+  concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
+end
+
+def bct_status(routes: List, method: String, target: String, headers: List, body: String) -> Int do
+  raw = bct_raw(method, target, headers, body)
+  elem(web_dispatch(raw, parse_request(raw), routes, BCT_SECRET), 1)
+end
+
+def bct_body(routes: List, method: String, target: String, headers: List, body: String) -> String do
+  raw = bct_raw(method, target, headers, body)
+  w = elem(web_dispatch(raw, parse_request(raw), routes, BCT_SECRET), 0)
+  drop(w, index_of(w, "\r\n\r\n") + 4)
+end
+
+def bct_req(method: String, target: String) -> Map do
+  parse_request(concat(method, " ", target, " HTTP/1.1\r\nHost: x\r\n\r\n"))
+end
+
+actor BlinksCutoverTests do
+  test "/blinks-next paths are Phoenix's paths" do
+    assert_eq(blinks_next_path("/blinks-next"), "/blinks")
+    assert_eq(blinks_next_path("/blinks-next/reader"), "/blinks-reader")
+    assert_eq(blinks_next_path("/blinks-next/surf"), "/blinks/surf")
+    assert_eq(blinks_next_path("/blinks-next/page.json"), "/blinks/page.json")
+    assert_eq(blinks_next_path("/blinks-next/blinks.rss"), "/blinks.rss")
+    assert_eq(blinks_next_path("/blinks-next/api/blinks/tags"), "/api/blinks/tags")
+    assert_eq(blinks_next_path("/blinks-next/api/push/web"), "/api/push/web")
+    # not a /blinks-next path at all
+    assert_eq(blinks_next_path("/blinks-nextish"), "/blinks-nextish")
+    assert_eq(blinks_next_path("/blinks"), "/blinks")
+    assert_eq(blinks_next_path("/api/blinks"), "/api/blinks")
+  end
+
+  test "a page under /blinks-next is a 302 with its query; the rest is rewritten" do
+    moved = blinks_next_moved(bct_req("GET", "/blinks-next?tags=nyc&q=a+b"))
+    assert_eq(moved.status, 302)
+    assert_eq(moved.location, "/blinks?tags=nyc&q=a+b")
+    assert_eq(blinks_next_moved(bct_req("HEAD", "/blinks-next/reader")).location, "/blinks-reader")
+    assert_eq(blinks_next_moved(bct_req("GET", "/blinks-next/review?key=k")).location, "/blinks/review?key=k")
+    assert_eq(blinks_next_moved(bct_req("GET", "/blinks-next/walk")).location, "/blinks/walk")
+    # not a page: answered where it is, under its new name
+    assert_eq(blinks_next_moved(bct_req("GET", "/blinks-next/page.json?page=1")), nil)
+    assert_eq(blinks_next_moved(bct_req("GET", "/blinks-next/api/blinks")), nil)
+    assert_eq(blinks_next_alias(bct_req("GET", "/blinks-next/page.json?page=1")).path, "/blinks/page.json")
+    assert_eq(blinks_next_alias(bct_req("GET", "/blinks-next/page.json?page=1")).query, "page=1")
+    # a write to a page path is not redirected (a 302 would turn it into a GET)
+    assert_eq(blinks_next_moved(bct_req("POST", "/blinks-next")), nil)
+    # the real paths are never moved
+    assert_eq(blinks_next_moved(bct_req("GET", "/blinks")), nil)
+    assert_eq(blinks_next_moved(bct_req("GET", "/blinks/surf")), nil)
+  end
+
+  test "while Phoenix owns them, creating a link and every comment write are a 421 here" do
+    w = blinks_write_routes_owned(BCT_TOKEN, true)
+    tok = concat("X-Blinks-Token: ", BCT_TOKEN)
+    json = "Content-Type: application/json"
+    assert_eq(bct_status(w, "POST", "/api/blinks", [tok, json], "{\"url\":\"https://example.com\"}"), 421)
+    assert_eq(contains(bct_body(w, "POST", "/api/blinks", [tok, json], "{}"), "answered by Phoenix"), true)
+    # the rest of the token API is Blimp's: past the token and into the DB (503, none opened)
+    assert_eq(bct_status(w, "PATCH", "/api/blinks/5", [tok, json], "{\"title\":\"t\"}"), 503)
+    assert_eq(bct_status(w, "POST", "/api/blinks/5/tags", [tok, json], "{\"tags\":[\"a\"]}"), 503)
+    assert_eq(bct_status(w, "DELETE", "/api/blinks/5", [tok], ""), 503)
+    assert_eq(bct_status(w, "POST", "/api/blinks/candidates", [tok, json], "{\"candidates\":[]}"), 503)
+    # a preflight is still answered
+    assert_eq(bct_status(w, "OPTIONS", "/api/blinks", [], ""), 204)
+    # BLINKS_ALL_WRITES=on: 64's create, through to the DB
+    assert_eq(bct_status(blinks_write_routes_for(BCT_TOKEN), "POST", "/api/blinks", [tok, json], "{\"url\":\"https://example.com\"}"), 503)
+
+    a = blinks_anon_routes_owned(BCT_SECRET, BCT_TOKEN, spawn RateLimiter, true)
+    form = "Content-Type: application/x-www-form-urlencoded"
+    assert_eq(bct_status(a, "POST", "/api/blinks/5/comments", [json], "{\"content\":\"hi\"}"), 421)
+    assert_eq(bct_status(a, "POST", "/api/blinks/comments/9/report", [], ""), 421)
+    assert_eq(bct_status(a, "POST", "/api/blinks/comments/9/react", [json], "{\"emoji\":\"🔥\"}"), 421)
+    assert_eq(bct_status(a, "DELETE", "/api/blinks/comments/9/react", [json], "{\"emoji\":\"🔥\"}"), 421)
+    assert_eq(bct_status(a, "DELETE", "/api/blinks/comments/9", [tok], ""), 421)
+    # reads, saves and suggestions stay here (a save gets past the secret to its checks)
+    assert_eq(bct_status(a, "GET", "/api/blinks/5/comments", [], ""), 503)
+    assert_eq(bct_status(a, "POST", "/api/blinks/5/save", [form], "device_id=device-abc-12345") == 421, false)
+    assert_eq(bct_status(a, "POST", "/api/blinks/suggest", [form], "url=https://example.com") == 421, false)
+  end
+
+  test "the pages carry the home-screen app's head, and the manifest and icons are served" do
+    for_page = fn(html: String) -> Bool do
+      contains(html, "<link rel=\"manifest\" href=\"/static/blinks-pwa/manifest.json\">") and contains(html, "apple-mobile-web-app-capable") and index_of(html, "manifest.json") < index_of(html, "</head>")
+    end
+    assert_eq(for_page(bkl_page_html(false, "ABCD1234", "csrf", "")), true)
+    assert_eq(for_page(BLK_READER_PAGE.body), true)
+    assert_eq(for_page(BKP_SURF_PAGE.body), true)
+    assert_eq(for_page(BKP_TV_PAGE.body), true)
+    routes = blinks_pwa_routes("../priv/static", %{})
+    m = lookup(routes, "/static/blinks-pwa/manifest.json")
+    assert_eq(contains(m, "Content-Type: application/json"), true)
+    assert_eq(contains(m, "\"start_url\": \"/blinks\""), true)
+    assert_eq(contains(lookup(routes, "/static/blinks-pwa/icon-192.png"), "Content-Type: image/png"), true)
+    assert_eq(lookup(routes, "/static/blinks-pwa/icon-180.png") != nil, true)
+    assert_eq(lookup(routes, "/static/blinks-pwa/icon-512.png") != nil, true)
+  end
+
+  test "the watcher: nothing on the first look or when nothing changed, new ids saved, anything else one update" do
+    was = %{n: "163", max_id: "178", sig: "aaa"}
+    assert_eq(bkw_events(was, was, []), [])
+    assert_eq(bkw_events(was, %{n: "164", max_id: "179", sig: "bbb"}, [179]), [{:blink_saved, 179}])
+    assert_eq(bkw_events(was, %{n: "165", max_id: "180", sig: "bbb"}, [179, 180]), [{:blink_saved, 179}, {:blink_saved, 180}])
+    # an enrichment, an edit, a dead mark, a delete: the md5 moved, no id is new
+    assert_eq(bkw_events(was, %{n: "163", max_id: "178", sig: "ccc"}, []), [{:blink_updated, 0}])
+    assert_eq(bkw_events(was, %{n: "162", max_id: "178", sig: "ddd"}, []), [{:blink_updated, 0}])
+    assert_eq(bkl_event_json(:blink_updated, 0), "{\"t\":\"blink\",\"event\":\"blink_updated\",\"id\":0}")
+  end
+end

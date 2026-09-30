@@ -1,12 +1,12 @@
 # needs: static/blinks/common.blimp static/blinks/pages.blimp static/blinks/surf.blimp static/blinks/walk.blimp static/blinks/tv.blimp static/blinks/review.blimp
 #
-# /blinks-next/surf, /walk, /tv, /review and /privacy: the Temper helpers
+# /blinks/surf, /walk, /tv, /review and /privacy: the Temper helpers
 # (temper/src/blinks_pages), the server's routes without a database (the
 # tests have none), and the four browser programs fed what the server sent
 # from a Postgres loaded with production's 163 links
-# (test/fixtures/blinks/): pick_nyc.json (/blinks-next/pick.json?tag=nyc),
-# walk148.json (/blinks-next/walk.json?id=148), tags.json
-# (/blinks-next/api/blinks/tags), and review.json, five bookmarks made up
+# (test/fixtures/blinks/): pick_nyc.json (/blinks/pick.json?tag=nyc),
+# walk148.json (/blinks/walk.json?id=148), tags.json
+# (/api/blinks/tags), and review.json, five bookmarks made up
 # for the test (production's queue is behind the API token).
 
 BKPT_PICK = read_file("test/fixtures/blinks/pick_nyc.json")
@@ -45,38 +45,38 @@ actor BlinksPagesTests do
     assert_eq(blkp_keep([1], 25), [1])
     assert_eq(blkp_csv([3, 1]), "3,1")
     assert_eq(blkp_csv([]), "")
-    assert_eq(bkp_pick_url([90, 1], "nyc", true, 4), "/blinks-next/pick.json?exclude=90%2C1&tag=nyc&image=1&n=4")
-    assert_eq(bkp_pick_url([], "", false, 1), "/blinks-next/pick.json?n=1")
-    assert_eq(bkp_walk_url(0, [3], 12, 2), "/blinks-next/walk.json?exclude=3&limit=12&n=2")
+    assert_eq(bkp_pick_url([90, 1], "nyc", true, 4), "/blinks/pick.json?exclude=90%2C1&tag=nyc&image=1&n=4")
+    assert_eq(bkp_pick_url([], "", false, 1), "/blinks/pick.json?n=1")
+    assert_eq(bkp_walk_url(0, [3], 12, 2), "/blinks/walk.json?exclude=3&limit=12&n=2")
   end
 
   test "routes: the pages, the privacy policy byte for byte, the review behind its key" do
-    assert_eq(blinks_pages_route("/blinks-next/surf", "").status, 200)
-    assert_eq(contains(BKP_SURF_PAGE.body, "data-program=\"/blinks-next/surf.blimp\""), true)
+    assert_eq(blinks_pages_route("/blinks/surf", "").status, 200)
+    assert_eq(contains(BKP_SURF_PAGE.body, "data-program=\"/blinks/surf.blimp\""), true)
     assert_eq(contains(BKP_WALK_PAGE.body, "data-location=\"1\""), true)
     assert_eq(contains(BKP_TV_PAGE.body, "data-location"), false)
     assert_eq(contains(BKP_TV_PAGE.body, "<title>Blinks TV</title>"), true)
-    assert_eq(contains(BKP_SURF_PAGE.body, "/blinks-next/pages.css"), true)
-    privacy = blinks_pages_route("/blinks-next/privacy", "")
+    assert_eq(contains(BKP_SURF_PAGE.body, "/blinks/pages.css"), true)
+    privacy = blinks_pages_route("/blinks/privacy", "")
     assert_eq(privacy.body, read_file("static/blinks/privacy.html"))
     assert_eq(privacy.cache, "max-age=0, private, must-revalidate")
     assert_eq(contains(privacy.body, "<a href=\"mailto:bobbbygrayson@gmail.com\">"), true)
     # no BLINKS_API_TOKEN in the tests, so no key opens it
-    no_key = blinks_pages_route("/blinks-next/review", "key=")
+    no_key = blinks_pages_route("/blinks/review", "key=")
     assert_eq(no_key.status, 302)
-    assert_eq(no_key.location, "/blinks-next")
-    assert_eq(blinks_pages_route("/blinks-next/review.json", "key=x").status, 401)
+    assert_eq(no_key.location, "/blinks")
+    assert_eq(blinks_pages_route("/blinks/review.json", "key=x").status, 401)
     # what needs the database says so
-    assert_eq(blinks_pages_route("/blinks-next/pick.json", "").status, 503)
-    assert_eq(blinks_pages_route("/blinks-next/walk.json", "id=148").status, 503)
-    assert_eq(blinks_pages_route("/blinks-next/nope", ""), nil)
+    assert_eq(blinks_pages_route("/blinks/pick.json", "").status, 503)
+    assert_eq(blinks_pages_route("/blinks/walk.json", "id=148").status, 503)
+    assert_eq(blinks_pages_route("/blinks/nope", ""), nil)
     assert_eq(contains(BKP_CSS.body, "@keyframes tv-staticfuzz"), true)
   end
 
   test "surf: the channel is the URL's, a pick leaves out what was seen, back retraces" do
     s = spawn Surf
     s <- :location("tag=nyc")
-    assert_eq(elem(s <- :asking, 0), "/blinks-next/pick.json?tag=nyc&n=1")
+    assert_eq(elem(s <- :asking, 0), "/blinks/pick.json?tag=nyc&n=1")
     s <- :tags_loaded(200, BKPT_TAGS)
     s <- :dealt(200, BKPT_PICK)
     v = bkpt_html(s <- :view)
@@ -87,20 +87,20 @@ actor BlinksPagesTests do
     assert_eq(bkpt_count(v, "<option "), 25)
     assert_eq(contains(v, "saved "), true)
     # links go to the Blimp pages
-    assert_eq(contains(v, "href=\"/blinks-next/walk\""), true)
+    assert_eq(contains(v, "href=\"/blinks/walk\""), true)
     assert_eq(elem(s <- :asking, 0), "")
     s <- :stumble
     # [current.id | MapSet.to_list(seen)]: the card showing is also in seen,
     # so Phoenix sends it twice too
-    assert_eq(elem(s <- :asking, 0), "/blinks-next/pick.json?exclude=90%2C90&tag=nyc&n=2")
+    assert_eq(elem(s <- :asking, 0), "/blinks/pick.json?exclude=90%2C90&tag=nyc&n=2")
     # the channel used up: the LiveView's exhausted screen
     s <- :dealt(200, "{\"blink\" : null, \"pool\" : 14, \"total\" : 163}")
     assert_eq(contains(bkpt_html(s <- :view), "all 14 links seen this session."), true)
     s <- :reset
-    assert_eq(elem(s <- :asking, 0), "/blinks-next/pick.json?exclude=90&tag=nyc&n=3")
+    assert_eq(elem(s <- :asking, 0), "/blinks/pick.json?exclude=90&tag=nyc&n=3")
     # more like this: three not seen, one at random
     s <- :more_like
-    assert_eq(elem(s <- :asking, 1), "/blinks-next/walk.json?id=90&limit=8&n=4")
+    assert_eq(elem(s <- :asking, 1), "/blinks/walk.json?id=90&limit=8&n=4")
     # switching to a channel the card is in keeps it and counts the pool
     s <- :channel("new-york")
     v2 = bkpt_html(s <- :view)
@@ -124,7 +124,7 @@ actor BlinksPagesTests do
   test "walk: three doors not yet walked, a trail, rewinding to a crumb" do
     w = spawn Walk
     w <- :location("from=148")
-    assert_eq(w <- :asking, "/blinks-next/walk.json?id=148&limit=12&n=1")
+    assert_eq(w <- :asking, "/blinks/walk.json?id=148&limit=12&n=1")
     w <- :arrived(200, BKPT_WALK)
     v = bkpt_html(w <- :view)
     assert_eq(contains(v, "id=\"walk-here-148\""), true)
@@ -135,7 +135,7 @@ actor BlinksPagesTests do
     assert_eq(contains(v, "class=\"trail\""), false)
     first = head(ids)
     w <- :step(first)
-    assert_eq(w <- :asking, concat("/blinks-next/walk.json?id=", to_string(first), "&limit=12&n=2"))
+    assert_eq(w <- :asking, concat("/blinks/walk.json?id=", to_string(first), "&limit=12&n=2"))
     # the stop 148 walked to comes back with 148 among its neighbours: that
     # door is not offered again
     here = elem(json_decode(BKPT_WALK), 1)
@@ -148,16 +148,16 @@ actor BlinksPagesTests do
     assert_eq(bkpt_count(v2, "class=\"door\""), 3)
     assert_eq(contains(v2, "<b>The Hidden Debt"), false)
     w <- :wildcard
-    assert_eq(w <- :asking, concat("/blinks-next/walk.json?exclude=", to_string(first), "%2C148&limit=12&n=3"))
+    assert_eq(w <- :asking, concat("/blinks/walk.json?exclude=", to_string(first), "%2C148&limit=12&n=3"))
     w <- :rewind(148)
-    assert_eq(w <- :asking, "/blinks-next/walk.json?id=148&limit=12&n=4")
+    assert_eq(w <- :asking, "/blinks/walk.json?id=148&limit=12&n=4")
     w <- :arrived(200, BKPT_WALK)
     assert_eq(contains(bkpt_html(w <- :view), "class=\"trail\""), false)
   end
 
   test "tv: channels are the top twelve tags, zapping wraps, a used-up channel goes round" do
     t = spawn Tv
-    assert_eq(t <- :asking, "/blinks-next/pick.json?image=1&n=0")
+    assert_eq(t <- :asking, "/blinks/pick.json?image=1&n=0")
     t <- :tags_loaded(200, BKPT_TAGS)
     t <- :tuned(200, BKPT_PICK)
     v = bkpt_html(t <- :view)
@@ -169,13 +169,13 @@ actor BlinksPagesTests do
     v2 = bkpt_html(t <- :view)
     assert_eq(contains(v2, "CH 12 · ML"), true)
     # a zap clears the no-repeat window
-    assert_eq(t <- :asking, "/blinks-next/pick.json?tag=ml&image=1&n=1")
+    assert_eq(t <- :asking, "/blinks/pick.json?tag=ml&image=1&n=1")
     t <- :tuned(200, BKPT_PICK)
     t <- :next
-    assert_eq(t <- :asking, "/blinks-next/pick.json?exclude=90&tag=ml&image=1&n=2")
+    assert_eq(t <- :asking, "/blinks/pick.json?exclude=90&tag=ml&image=1&n=2")
     # nothing left in the window: clear it and pick again
     t <- :tuned(200, "{\"blink\" : null, \"pool\" : 0, \"total\" : 163}")
-    assert_eq(t <- :asking, "/blinks-next/pick.json?tag=ml&image=1&n=3")
+    assert_eq(t <- :asking, "/blinks/pick.json?tag=ml&image=1&n=3")
     t <- :toggle_play
     assert_eq(contains(bkpt_html(t <- :view), "⏸ PAUSE"), true)
     # paused, the clock ticks and nothing is asked
@@ -215,7 +215,8 @@ actor BlinksPagesTests do
   end
 
   test "the newspaper's masthead points at the Blimp pages" do
-    assert_eq(contains(read_file("static/blinks/paper.blimp"), "href: \"/blinks-next/surf\""), true)
-    assert_eq(contains(read_file("static/blinks/paper.blimp"), "href: \"/blinks/surf\""), false)
+    assert_eq(contains(read_file("static/blinks/paper.blimp"), "href: \"/blinks/surf\""), true)
+    # since 74 the pages are at Phoenix's paths, and nothing points at the old prefix
+    assert_eq(contains(read_file("static/blinks/paper.blimp"), "blinks-next"), false)
   end
 end

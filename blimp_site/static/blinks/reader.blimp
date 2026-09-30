@@ -1,4 +1,4 @@
-# /blinks-next/reader: BlinksReaderLive, the contact sheet, as a Blimp
+# /blinks-reader: BlinksReaderLive, the contact sheet, as a Blimp
 # program in the browser. It was read-only already, so all of it is here:
 # the window of time, shuffle, the tag rail, search, the cards and the
 # lightbox that walks every picture on the page. Same URL params as the
@@ -33,7 +33,7 @@ def reader_data_url(nodork: Bool, page: Int, q: String, shuffle: Bool, seed: Str
     true -> "1"
     false -> ""
   end
-  concat("/blinks-next/page.json?", blk_query(["nodork", "page", "q", "seed", "size", "t", "tags"],
+  concat("/blinks/page.json?", blk_query(["nodork", "page", "q", "seed", "size", "t", "tags"],
     [nodork_s, to_string(page), q, seed_s, to_string(READER_SIZE), t, tags]))
 end
 
@@ -100,7 +100,7 @@ def reader_card(b: Map, rank: Int, chosen: List, first_idx: Int) -> Any do
     el("div", %{class: "toprow"},
       el("span", %{class: "rank"}, to_string(rank)),
       favicon,
-      el("a", %{class: "site", href: concat("/blinks-next/reader?", blk_query(["q"], [blk_domain_or_url(b.url)]))}, bk_site(b)),
+      el("a", %{class: "site", href: concat("/blinks-reader?", blk_query(["q"], [blk_domain_or_url(b.url)]))}, bk_site(b)),
       el("span", %{class: "when"}, blk_stamp(b.inserted_at))),
     el("a", %{class: "title", href: bk_title_href(b), target: "_blank", rel: "noopener", title: bk_title_tip(b)}, bk_headline(b, 300)),
     subtitle,
@@ -315,7 +315,7 @@ actor Reader do
         el("h1", %{}, "blinks", el("span", %{}, "."), "reader"),
         el("span", %{class: "dateline"}, concat(total, " links · contact sheet")),
         el("div", %{class: "tabs"},
-          el("a", %{class: "tab", href: "/blinks-next"}, "newspaper"),
+          el("a", %{class: "tab", href: "/blinks"}, "newspaper"),
           el("span", %{class: "tab on"}, "reader")),
         el("form", %{class: "searchform", submit: :search},
           el("input", %{type: "text", name: "q", value: q, placeholder: "search links", autocomplete: "off", input: :typed, debounce: 300}))),

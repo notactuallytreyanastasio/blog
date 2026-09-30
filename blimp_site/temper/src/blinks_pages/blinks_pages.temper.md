@@ -1,7 +1,7 @@
 # Blinks, the other pages
 
 What `/blinks/surf`, `/blinks/walk`, `/blinks/tv` and `/blinks/review`
-compute rather than fetch, for their Blimp versions under `/blinks-next`
+compute rather than fetch, for their Blimp versions under `/blinks`
 (`static/blinks/{surf,walk,tv,review}.blimp`). Postgres picks the random
 link and ranks the similar ones, as it does for Phoenix; what is left is
 list work on ids, and dates. A row is a decoded JSON map, which a Temper

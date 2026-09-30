@@ -1,5 +1,5 @@
-# What /blinks-next (paper.blimp) and /blinks-next/reader (reader.blimp)
-# share: reading a row of /blinks-next/page.json, its pictures, and the
+# What /blinks (paper.blimp) and /blinks-reader (reader.blimp)
+# share: reading a row of /blinks/page.json, its pictures, and the
 # lightbox both pages open over themselves. The string work (domains,
 # headlines, dates, query strings, tags) is Temper, temper/src/blinks; a row
 # is a decoded JSON map, which Temper cannot take, so walking one is here.

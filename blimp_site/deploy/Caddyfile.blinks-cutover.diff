@@ -1,0 +1,91 @@
+--- a/Caddyfile
++++ b/Caddyfile
+@@ -91,9 +91,87 @@
+ 		}
+ 	}
+ 
+-	@blimp path / /blog /post/* /tetris /tetris/* /blimp/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css /assets/tetris.css /assets/blimp-window.css /privacy /terms /trees /nathan /knicks /frontier /chess /static/d3.v7.min.js /assets/app-3cfac71d5552d1426de906087a8be2fe.css /pong /pong/* /live/* /assets/pong.css /2048 /2048/* /assets/apps.css /mirror /typewriter /typewriter/* /assets/typewriter.css /markdown-editor /markdown-editor/* /phish /phish/* /moon_phish /moon_phish/* /assets/moon_phish.css /temper-snake /static/temper-snake/* /snake/* /work-log /assets/work_log.css /directory /hacker-news /hacker-news/* /bookmarks /bookmarks/* /blackjack /blackjack/* /wordle /wordle/* /wordle_god /cursor-tracker /cursor-tracker/* /art /art/* /chess-lv /chess-lv/* /map /map/* /nyc_census_and_pluto /nyc_census_and_pluto/* /reddit-links /emoji-skeets /jetstream_comparison /firehose/* /sky /sky/* /assets/sky.css /mta-bus-map /mta-bus-map/* /stack /stack/* /assets/stack.css /phish_lab /phish_lab/* /assets/phish_lab.css /gallery /gallery/* /ziggy /ziggy/* /role-call /role-call/* /assets/role_call.css /stumble /stumble/* /assets/stumble.css /cameras /cameras/*
++	# /blinks (chapter 74). Blimp answers every /blinks path, except the
++	# writes that must stay on Phoenix while the iOS app does: those come
++	# first, because named matchers keep their order and the first handle
++	# that matches wins.
++	#
++	# Creating a link is Blinks.save_blink/1, and only it starts Phoenix's
++	# Notifier (APNs to the iOS app, which needs HTTP/2 and so cannot come
++	# from Blimp, and Web Push to the PWA) and its Enricher. The Safari
++	# extension, the iOS share sheet and the review queue's upvote all create
++	# through it. OPTIONS goes with the POST so the preflight and the write
++	# get their CORS headers from one server.
++	@phoenix_blink_create {
++		method POST OPTIONS
++		path /api/blinks
++	}
++	handle @phoenix_blink_create {
++		reverse_proxy app:4000 {
++			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
++			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
++		}
++	}
++	# Every comment write broadcasts on blink_comments:<id>, the Phoenix
++	# channel the iOS app's comment view listens to on /socket/websocket,
++	# which stays on Phoenix: new_comment (POST comments), reactions_updated
++	# (react, unreact), comment_hidden (report, at 3), comment_deleted
++	# (DELETE). Written by Blimp they would reach no open iOS view. Reading
++	# comments (GET) is Blimp's; a middle * matches one path segment.
++	@phoenix_blink_comments {
++		method POST DELETE OPTIONS
++		path /api/blinks/*/comments /api/blinks/comments/*
++	}
++	handle @phoenix_blink_comments {
++		reverse_proxy app:4000 {
++			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
++			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
++		}
++	}
++	# The bookmark review queue: an upvote is save_blink/1 (above), and the
++	# Blimp page (chapter 72) cannot vote. Its LiveView socket is
++	# /live/websocket, which @phoenix_live already sends to Phoenix.
++	@phoenix_blink_review path /blinks/review
++	handle @phoenix_blink_review {
++		reverse_proxy app:4000 {
++			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
++			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
++		}
++	}
++
++	# Everything else of /blinks, every method, from Blimp: the pages at
++	# Phoenix's paths (/blinks, /blinks-reader, /blinks/surf, walk, tv,
++	# privacy, stumble, and their programs and JSON under /blinks/), the old
++	# /blinks-next (pages 302 to the new paths, the rest is aliased), the
++	# read API, token edits (PATCH, tags, DELETE, lookup, export, candidates),
++	# saves and suggestions, the RSS feed, the push subscriptions and their
++	# service worker, and the PWA's manifest and icons. /live/blinks (the
++	# page's socket and its per-link chat) is under /live/* in @blimp.
++	#
++	# No 404 fallback to Phoenix here: Blimp owns these paths, and a request
++	# body cannot be re-sent (Caddy has already read it; Phoenix would get
++	# the Content-Length and no bytes). request_buffers reads a body whole
++	# before Blimp, which is one thread, is handed it; Blimp refuses bodies
++	# over 1 MiB with 413 (Phoenix took 8 MB of JSON).
++	@blinks path /blinks /blinks/* /blinks-reader /blinks.rss /blinks-sw.js /blinks-next /blinks-next/* /api/blinks /api/blinks/* /api/push/web /api/push/web/* /static/blinks-pwa/*
++	handle @blinks {
++		reverse_proxy blimp-blog:4100 {
++			# Who the visitor is, as Phoenix is told: saves, reactions and the
++			# rate limits hash the first X-Forwarded-For entry, and Caddy's own
++			# header would start with whatever the client sent.
++			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
++			request_buffers 1MB
++			lb_try_duration 20s
++			lb_try_interval 250ms
++		}
++	}
++
++	@blimp path / /blog /post/* /tetris /tetris/* /blimp/* /assets/base.css /assets/blog.css /assets/post.css /assets/highlight.css /assets/desktop.css /assets/tetris.css /assets/blimp-window.css /privacy /terms /trees /nathan /knicks /frontier /chess /static/d3.v7.min.js /assets/app-3cfac71d5552d1426de906087a8be2fe.css /pong /pong/* /live/* /assets/pong.css /2048 /2048/* /assets/apps.css /mirror /typewriter /typewriter/* /assets/typewriter.css /markdown-editor /markdown-editor/* /phish /phish/* /moon_phish /moon_phish/* /assets/moon_phish.css /temper-snake /static/temper-snake/* /snake/* /work-log /assets/work_log.css /directory /hacker-news /hacker-news/* /bookmarks /bookmarks/* /blackjack /blackjack/* /wordle /wordle/* /wordle_god /cursor-tracker /cursor-tracker/* /art /art/* /chess-lv /chess-lv/* /map /map/* /nyc_census_and_pluto /nyc_census_and_pluto/* /reddit-links /emoji-skeets /jetstream_comparison /firehose/* /sky /sky/* /assets/sky.css /mta-bus-map /mta-bus-map/* /stack /stack/* /assets/stack.css /phish_lab /phish_lab/* /assets/phish_lab.css /gallery /gallery/* /ziggy /ziggy/* /role-call /role-call/* /assets/role_call.css /stumble /stumble/* /assets/stumble.css /cameras /cameras/* /assets/blinks.css
+ 	handle @blimp {
+ 		reverse_proxy blimp-blog:4100 {
++			# /live/blinks' chat knows a chatter by the hash of this header's
++			# first entry, as Phoenix's Blog.Chat does by CF-Connecting-IP (74)
++			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+ 			# A deploy recreates the container, and it takes ~11s to render
+ 			# every post before it listens: hold requests until it answers
+ 			# rather than sending 502s.

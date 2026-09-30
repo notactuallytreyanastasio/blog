@@ -1,6 +1,6 @@
 # Blinks, the live half
 
-What `/blinks-next` computes once it is live and editable, beside what
+What `/blinks` computes once it is live and editable, beside what
 `../blinks` computes for reading: how many rows a page holds once the
 paper has been measured, which of the push bell's faces to show, the
 tour's steps and where its tooltip goes, and the small list work on the

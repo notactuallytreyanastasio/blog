@@ -1,4 +1,4 @@
-# Blinks, every link's chat room: the AIM window /blinks-next opens beside
+# Blinks, every link's chat room: the AIM window /blinks opens beside
 # a link, on the /live/blinks socket (src/99_blinkslive.blimp) and the
 # same three tables BlinksLive and Blog.Chat use, so a message said on
 # Phoenix's /blinks and one said here are rows of one kind in one table:

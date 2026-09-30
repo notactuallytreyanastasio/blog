@@ -1,4 +1,4 @@
-# What /blinks-next/surf, /walk, /tv and /review share (after common.blimp):
+# What /blinks/surf, /walk, /tv and /review share (after common.blimp):
 # reading a pick or a walk from the server, and the bits of a card the
 # LiveViews draw alike. The id work (doors, history, what to leave out of a
 # pick) is Temper, temper/src/blinks_pages.
@@ -85,7 +85,7 @@ def bkp_absent(s: Any) -> Bool do
   s == nil
 end
 
-# /blinks-next/pick.json for these ids left out, this channel ("" for all),
+# /blinks/pick.json for these ids left out, this channel ("" for all),
 # and whether a picture is wanted. `n` makes each ask a new URL: a fetch is
 # made once while its URL stays in the view.
 def bkp_pick_url(exclude: List, tag: String, image: Bool, n: Int) -> String do
@@ -93,7 +93,7 @@ def bkp_pick_url(exclude: List, tag: String, image: Bool, n: Int) -> String do
     true -> "1"
     false -> ""
   end
-  concat("/blinks-next/pick.json?", blk_query(["exclude", "tag", "image", "n"], [blkp_csv(exclude), tag, image_s, to_string(n)]))
+  concat("/blinks/pick.json?", blk_query(["exclude", "tag", "image", "n"], [blkp_csv(exclude), tag, image_s, to_string(n)]))
 end
 
 def bkp_walk_url(id: Int, exclude: List, limit: Int, n: Int) -> String do
@@ -101,7 +101,7 @@ def bkp_walk_url(id: Int, exclude: List, limit: Int, n: Int) -> String do
     true -> to_string(id)
     false -> ""
   end
-  concat("/blinks-next/walk.json?", blk_query(["id", "exclude", "limit", "n"], [id_s, blkp_csv(exclude), to_string(limit), to_string(n)]))
+  concat("/blinks/walk.json?", blk_query(["id", "exclude", "limit", "n"], [id_s, blkp_csv(exclude), to_string(limit), to_string(n)]))
 end
 
-BKP_TAGS_URL = "/blinks-next/api/blinks/tags"
+BKP_TAGS_URL = "/api/blinks/tags"

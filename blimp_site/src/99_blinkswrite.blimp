@@ -340,7 +340,7 @@ BLKW_CANDIDATES_SQL = join([
   " select count(*) as n from i"
 ], "")
 
-# Blinks.broadcast/2. Open /blinks-next pages hear of every save, edit and
+# Blinks.broadcast/2. Open /blinks pages hear of every save, edit and
 # delete on the "blinks" room (src/99_blinkslive.blimp), in the same tick:
 # the request is answered inside live_tick, before ROOMS is flushed.
 def blkw_broadcast(event: Any, id: Any) -> Any do
@@ -712,21 +712,53 @@ end
 
 # ---------------------------------------------------------------- routes
 
-# Phoenix's paths, and the same under /blinks-next (the prefix Caddy sends
-# here today), gated by BLINKS_API_TOKEN.
+# Which writes Phoenix still answers (chapter 74, the cutover). Creating a
+# link is Blinks.save_blink/1, and only there do Phoenix's Notifier (APNs
+# to the iOS app, Web Push to the PWA) and its Enricher start. APNs needs
+# HTTP/2, which Blimp does not have, so while the iOS app wants its pushes
+# Caddy sends POST /api/blinks to Phoenix. Every comment write broadcasts
+# on blink_comments:<id>, the Phoenix channel the iOS app listens to on
+# /socket, which also stays on Phoenix, so those go there too.
+#
+# Caddy never sends these here. /blinks-next/api/... is the same path
+# (blinks_next_alias/1) and does come here, so without this a POST there
+# would make a link that no iPhone hears of, and a comment no open iOS
+# comment view shows. Until BLINKS_ALL_WRITES=on (the day Phoenix goes
+# off), they are refused, loudly: 421 Misdirected Request.
+BLKW_PHOENIX_OWNS = getenv("BLINKS_ALL_WRITES") != "on"
+
+def blkw_phoenix_owns(what: String) -> Any do
+  fn(conn: Map) -> Map do
+    web_halt(blkw_json(conn, 421, concat("{\"status\":\"error\",\"error\":\"", what, " is answered by Phoenix on this site (BLINKS_ALL_WRITES is not on)\"}")))
+  end
+end
+
+# A pipeline, or the refusal in front of it while Phoenix owns the write.
+def blkw_owned(owned: Bool, what: String, pipeline: List) -> List do
+  case owned do
+    true -> [blkw_cors, blkw_phoenix_owns(what)]
+    false -> pipeline
+  end
+end
+
+# Phoenix's paths, gated by BLINKS_API_TOKEN.
 def blinks_write_routes() -> List do
-  blinks_write_routes_for(web_or(getenv("BLINKS_API_TOKEN"), ""))
+  blinks_write_routes_owned(web_or(getenv("BLINKS_API_TOKEN"), ""), BLKW_PHOENIX_OWNS)
 end
 
 def blinks_write_routes_for(token: String) -> List do
-  gate = [blkw_cors, blkw_require_token(token), blkw_form_lists]
-  flat(map(["/api/blinks", "/blinks-next/api/blinks"], fn(base: String) -> List do blkw_routes_at(base, gate) end))
+  blinks_write_routes_owned(token, false)
 end
 
-def blkw_routes_at(base: String, gate: List) -> List do
+def blinks_write_routes_owned(token: String, owned: Bool) -> List do
+  gate = [blkw_cors, blkw_require_token(token), blkw_form_lists]
+  blkw_routes_at("/api/blinks", gate, blkw_owned(owned, "creating a link", gate))
+end
+
+def blkw_routes_at(base: String, gate: List, create: List) -> List do
   c = [blkw_cors]
   [
-    web_route("POST", base, gate, blkw_create),
+    web_route("POST", base, create, blkw_create),
     web_route("OPTIONS", base, c, blkw_preflight),
     web_route("GET", concat(base, "/lookup"), gate, blkw_lookup),
     web_route("GET", concat(base, "/export"), gate, blkw_export),

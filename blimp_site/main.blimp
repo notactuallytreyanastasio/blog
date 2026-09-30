@@ -55,7 +55,7 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  app_routes(wordle_routes(pong_routes(static_page_routes(tetris_routes(r7)))))
+  blinks_pwa_routes(STATIC_DIR, app_routes(wordle_routes(pong_routes(static_page_routes(tetris_routes(r7))))))
 end
 
 # Pages that were LiveViews with nothing for a server to do, and two that
@@ -253,39 +253,33 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/role-call/titles.json" -> role_call_api(path, req.query)
     # bobby's links, the other pages (src/99_blinks_pages.blimp): surf, walk,
     # tv, review and privacy, and what their programs ask for
-    "/blinks-next/surf" -> blinks_pages_route(path, req.query)
-    "/blinks-next/walk" -> blinks_pages_route(path, req.query)
-    "/blinks-next/tv" -> blinks_pages_route(path, req.query)
-    "/blinks-next/review" -> blinks_pages_route(path, req.query)
-    "/blinks-next/privacy" -> blinks_pages_route(path, req.query)
-    "/blinks-next/surf.blimp" -> blinks_pages_route(path, req.query)
-    "/blinks-next/walk.blimp" -> blinks_pages_route(path, req.query)
-    "/blinks-next/tv.blimp" -> blinks_pages_route(path, req.query)
-    "/blinks-next/review.blimp" -> blinks_pages_route(path, req.query)
-    "/blinks-next/pages.css" -> blinks_pages_route(path, req.query)
-    "/blinks-next/pick.json" -> blinks_pages_route(path, req.query)
-    "/blinks-next/walk.json" -> blinks_pages_route(path, req.query)
-    "/blinks-next/review.json" -> blinks_pages_route(path, req.query)
+    "/blinks/surf" -> blinks_pages_route(path, req.query)
+    "/blinks/walk" -> blinks_pages_route(path, req.query)
+    "/blinks/tv" -> blinks_pages_route(path, req.query)
+    "/blinks/review" -> blinks_pages_route(path, req.query)
+    "/blinks/privacy" -> blinks_pages_route(path, req.query)
+    "/blinks/surf.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks/walk.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks/tv.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks/review.blimp" -> blinks_pages_route(path, req.query)
+    "/blinks/pages.css" -> blinks_pages_route(path, req.query)
+    "/blinks/pick.json" -> blinks_pages_route(path, req.query)
+    "/blinks/walk.json" -> blinks_pages_route(path, req.query)
+    "/blinks/review.json" -> blinks_pages_route(path, req.query)
     # bobby's links, read side (src/99_blinks.blimp): Phoenix's GET API at
-    # its own paths and under /blinks-next, the feed, and the two pages
+    # its own paths, the feed, and the two pages
     "/api/blinks" -> blinks_route(path, req.query)
     "/api/blinks/tags" -> blinks_route(path, req.query)
     "/api/blinks/random" -> blinks_route(path, req.query)
     "/api/blinks/lookup" -> blinks_route(path, req.query)
     "/api/blinks/export" -> blinks_route(path, req.query)
     "/blinks.rss" -> blinks_route(path, req.query)
-    "/blinks-next/api/blinks" -> blinks_route(path, req.query)
-    "/blinks-next/api/blinks/tags" -> blinks_route(path, req.query)
-    "/blinks-next/api/blinks/random" -> blinks_route(path, req.query)
-    "/blinks-next/api/blinks/lookup" -> blinks_route(path, req.query)
-    "/blinks-next/api/blinks/export" -> blinks_route(path, req.query)
-    "/blinks-next/blinks.rss" -> blinks_route(path, req.query)
-    "/blinks-next" -> BLK_PAGE
-    "/blinks-next/reader" -> BLK_READER_PAGE
-    "/blinks-next/blinks.blimp" -> BLK_PROGRAM
-    "/blinks-next/reader.blimp" -> BLK_READER_PROGRAM
-    "/blinks-next/page.json" -> blinks_route(path, req.query)
-    "/blinks-next/stumble" -> blinks_route(path, req.query)
+    "/blinks" -> BLK_PAGE
+    "/blinks-reader" -> BLK_READER_PAGE
+    "/blinks/blinks.blimp" -> BLK_PROGRAM
+    "/blinks/reader.blimp" -> BLK_READER_PROGRAM
+    "/blinks/page.json" -> blinks_route(path, req.query)
+    "/blinks/stumble" -> blinks_route(path, req.query)
     "/assets/blinks.css" -> BLK_CSS
     # Stumble (src/99_stumble.blimp): the page, its program, script and
     # css, and Blog.PokeAround's queries
@@ -358,7 +352,16 @@ end
 
 # The response bytes for one raw request, and its status for the log line.
 def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
-  req = parse_request(raw)
+  req0 = parse_request(raw)
+  # /blinks-next's pages moved to Phoenix's paths (src/99_blinks.blimp)
+  moved = blinks_next_moved(req0)
+  case moved do
+    nil -> handle_req(raw, blinks_next_alias(req0), routes, posts, desk, home)
+    _ -> {serialize(moved, req0.method), moved.status, req0}
+  end
+end
+
+def handle_req(raw: String, req: Map, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
   case req.method == "GET" or req.method == "HEAD" do
     # POST, PATCH, PUT, DELETE: src/41_web.blimp's routes, else 405 with Allow
     false -> web_handle(raw, req)
@@ -373,7 +376,7 @@ def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tupl
           web = web_handle(raw, req)
           case web do
             nil ->
-              resp = dynamic(req, routes, posts, desk)
+              resp = blinks_cors(req.path, dynamic(req, routes, posts, desk))
               {serialize(resp, req.method), resp.status, req}
             _ -> web
           end
@@ -518,7 +521,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         true -> ZG <- :join(c)
         false -> :ok
       end
-      # a /blinks-next page hears of every save and who is in which chat,
+      # a /blinks page hears of every save and who is in which chat,
       # and is told which chatter it is (src/99_blinkschat.blimp)
       case kind == :blinks do
         true -> bkl_open(ROOMS, c, raw)
@@ -810,6 +813,8 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   # the daily dead-link sweep (src/99_blinkscheck.blimp)
   BLC <- :step
   PUSHER <- :step(now())
+  # new and changed rows Phoenix wrote, told to open /blinks pages (src/99_blinkswatch.blimp)
+  BKW <- :step(now_ms())
   CAMERAS <- :step
   CAM_SWEEP <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)

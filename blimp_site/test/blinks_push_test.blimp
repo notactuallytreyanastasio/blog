@@ -269,7 +269,7 @@ actor BlinksPushTests do
     # past validation, at the (unopened) database
     at_most = take(long, 2000)
     assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub(at_most, BPT_UA_PUBLIC, BPT_AUTH))), 503)
-    assert_eq(bpt_status(bpt_post("/blinks-next/api/push/web", bpt_sub("https://a.b/c", BPT_UA_PUBLIC, BPT_AUTH))), 503)
+    assert_eq(bpt_status(bpt_post("/api/push/web", bpt_sub("https://a.b/c", BPT_UA_PUBLIC, BPT_AUTH))), 503)
   end
 
   test "unsubscribe and test need an endpoint; every answer carries CORSPlug's headers" do

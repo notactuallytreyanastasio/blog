@@ -104,6 +104,7 @@ def status_text(status: Int) -> String do
     411 -> "Length Required"
     413 -> "Content Too Large"
     415 -> "Unsupported Media Type"
+    421 -> "Misdirected Request"
     422 -> "Unprocessable Content"
     431 -> "Request Header Fields Too Large"
     _ -> "Internal Server Error"
@@ -133,12 +134,18 @@ def serialize(resp: Map, method: String) -> String do
     true -> ""
     false -> resp.body
   end
+  # any more headers a response carries, as [[name, value], ...]
+  extra = case lookup(resp, :headers) do
+    nil -> ""
+    hs -> join(map(hs, fn(h: List) -> String do concat(head(h), ": ", head(tail(h)), "\r\n") end), "")
+  end
   join([
     "HTTP/1.1 ", to_string(resp.status), " ", status_text(resp.status), "\r\n",
     "Content-Type: ", resp.content_type, "\r\n",
     "Content-Length: ", to_string(length(resp.body)), "\r\n",
     "Cache-Control: ", resp.cache, "\r\n",
     location,
+    extra,
     "X-Served-By: blimp\r\n",
     "Connection: close\r\n\r\n",
     body
@@ -160,6 +167,7 @@ def content_type_for(path: String) -> String do
     "html" -> "text/html; charset=utf-8"
     "js" -> "text/javascript; charset=utf-8"
     "wasm" -> "application/wasm"
+    "json" -> "application/json"
     "blimp" -> "text/plain; charset=utf-8"
     "md" -> "text/markdown; charset=utf-8"
     "woff2" -> "font/woff2"

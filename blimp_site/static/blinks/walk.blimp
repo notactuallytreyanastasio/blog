@@ -1,9 +1,9 @@
-# /blinks-next/walk: BlinksWalkLive, a wiki-walk through the stack, as a
+# /blinks/walk: BlinksWalkLive, a wiki-walk through the stack, as a
 # Blimp program in the browser. Start at ?from=ID (or anywhere), and every
 # stop offers three doors, the nearest links by shared tags and title
 # similarity that this walk has not been through, plus a wildcard. The
 # trail stays on screen; a crumb rewinds to that fork. The server finds the
-# stop and ranks its neighbours (/blinks-next/walk.json, the same statement
+# stop and ranks its neighbours (/blinks/walk.json, the same statement
 # as list_similar/2); which doors are left is Temper.
 
 WALK_SIMILAR = 12
@@ -172,11 +172,11 @@ actor Walk do
     end
     reply el("div", %{id: "walk-page"},
       el("div", %{class: "bar"},
-        el("span", %{class: "wordmark"}, el("a", %{href: "/blinks-next"}, "bobbby's links"), " / walk 🥾"),
+        el("span", %{class: "wordmark"}, el("a", %{href: "/blinks"}, "bobbby's links"), " / walk 🥾"),
         el("button", %{class: "restart", click: :restart}, "start over somewhere random"),
         el("span", %{class: "others"},
-          el("a", %{href: "/blinks-next/surf"}, "stumble 🎲"),
-          el("a", %{href: "/blinks-next/tv"}, "tv 📺"))),
+          el("a", %{href: "/blinks/surf"}, "stumble 🎲"),
+          el("a", %{href: "/blinks/tv"}, "tv 📺"))),
       crumbs,
       stage,
       asks)
