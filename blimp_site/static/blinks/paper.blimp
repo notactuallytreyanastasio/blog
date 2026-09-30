@@ -1,0 +1,758 @@
+# /blinks-next: BlinksLive, the newspaper, read-only, as a Blimp program in
+# the browser. The state is the URL's, as it was the LiveView's
+# (?q= &tags= &t= &nodork= &shuffle= &page= &view=archives &week= &similar=
+# &media=), and every change of it asks /blinks-next/page.json for the page
+# again. What BlinksLive did that writes (chat, hide, the tour's "seen",
+# admin, the dork list, push) is drawn but disabled: clicking it says what
+# is not ported yet, and where the working one is.
+
+PAPER_SIZE = 30
+PAPER_WINDOWS = [["", "all time"], ["1d", "past day"], ["3d", "past 3 days"], ["1w", "past week"], ["1mo", "past month"], ["1y", "past year"]]
+
+# The page's query string, in the order BlinksLive's patch/2 writes it.
+def paper_query(media: String, nodork: Bool, page: Int, q: String, shuffle: String, similar: Int, t: String, tags: String, view: String, week: String) -> String do
+  page_s = case page > 1 do
+    true -> to_string(page)
+    false -> ""
+  end
+  nodork_s = case nodork do
+    true -> "1"
+    false -> ""
+  end
+  similar_s = case similar > 0 do
+    true -> to_string(similar)
+    false -> ""
+  end
+  blk_query(["media", "nodork", "page", "q", "shuffle", "similar", "t", "tags", "view", "week"],
+    [media, nodork_s, page_s, q, shuffle, similar_s, t, tags, view, week])
+end
+
+def paper_data_url(nodork: Bool, page: Int, q: String, shuffled: Bool, seed: String, similar: Int, t: String, tags: String, view: String, week: String) -> String do
+  seed_s = case shuffled do
+    true -> seed
+    false -> ""
+  end
+  nodork_s = case nodork do
+    true -> "1"
+    false -> ""
+  end
+  similar_s = case similar > 0 do
+    true -> to_string(similar)
+    false -> ""
+  end
+  concat("/blinks-next/page.json?", blk_query(["nodork", "page", "q", "seed", "similar", "size", "t", "tags", "view", "week"],
+    [nodork_s, to_string(page), q, seed_s, similar_s, to_string(PAPER_SIZE), t, tags, view, week]))
+end
+
+# -- a row --------------------------------------------------------------------
+
+def paper_thumb(b: Map) -> String do
+  og = bk_str(b.image_url)
+  case og do
+    "" ->
+      shots = bk_append(bk_media_from(bk_root_post(b)), bk_media_from(bk_root_quote(b)))
+      case shots do
+        [] -> ""
+        [s | _] -> s.thumb
+      end
+    _ -> og
+  end
+end
+
+def paper_row_media(b: Map) -> Int do
+  bk_media_count(bk_root_post(b)) + bk_media_count(bk_root_quote(b))
+end
+
+def paper_height(b: Map) -> Int do
+  q = bk_root_quote(b)
+  quote_len = case q do
+    nil -> 0 - 1
+    _ -> blk_chars(bk_str(lookup(q, "text")))
+  end
+  blk_est_height(blk_chars(bk_headline(b, 140)), quote_len, paper_row_media(b) > 0)
+end
+
+# A post's (or quote's) strip of pictures; `base` is where its first one is
+# in bk_media_items(b), which the lightbox walks.
+def paper_bmedia(m: Any, id: Int, base: Int) -> List do
+  shots = bk_media_from(m)
+  case shots do
+    [] -> []
+    _ ->
+      indexed = zip(range(0, length(shots) - 1), shots)
+      [el("div", %{class: "bmedia"}, map(indexed, fn(pair: Any) -> Any do
+        i = elem(pair, 0)
+        s = elem(pair, 1)
+        target = concat(to_string(id), ".", to_string(base + i))
+        case s.kind do
+          :video -> el("a", %{class: "vid", href: "#", click: :open_media, with: target}, el("img", %{src: s.thumb, loading: "lazy"}), el("span", %{class: "play"}, "▶"))
+          _ -> el("a", %{href: "#", click: :open_media, with: target}, el("img", %{src: s.thumb, alt: s.alt, loading: "lazy"}))
+        end
+      end))]
+  end
+end
+
+def paper_thread(b: Map) -> List do
+  posts = bk_posts(b)
+  case length(posts) > 1 do
+    false -> []
+    true ->
+      offsets = reduce(posts, {[], 0}, fn(acc: Tuple, p: Map) -> Tuple do
+        at = elem(acc, 1)
+        quote_at = at + bk_media_count(p)
+        {bk_append(elem(acc, 0), [{p, at, quote_at}]), quote_at + bk_media_count(lookup(p, "quote"))}
+      end)
+      [el("details", %{class: "xd"},
+        el("summary", %{class: "threadmark", title: "unroll the whole thread"}, concat("🧵 ", to_string(length(posts)))),
+        el("div", %{class: "thread-view"}, map(elem(offsets, 0), fn(o: Tuple) -> Any do
+          p = elem(o, 0)
+          q = lookup(p, "quote")
+          quoted = case type_of(q) do
+            :map -> [el("div", %{class: "tquote"}, "↳ ", el("b", %{}, concat("@", bk_str(lookup(q, "handle")))), concat(": “", bk_str(lookup(q, "text")), "”"), paper_bmedia(q, b.id, elem(o, 2)))]
+            _ -> []
+          end
+          name = bk_str(lookup(p, "name"))
+          shown = case name do
+            "" -> bk_str(lookup(p, "handle"))
+            _ -> name
+          end
+          el("div", %{class: "tpost"},
+            el("b", %{}, shown), " ",
+            el("span", %{class: "thandle"}, concat("@", bk_str(lookup(p, "handle")))),
+            el("div", %{class: "ttext"}, bk_str(lookup(p, "text"))),
+            paper_bmedia(p, b.id, elem(o, 1)),
+            quoted)
+        end)))]
+  end
+end
+
+def paper_row(b: Map, rank: Int, selected: String, open_tags: List) -> Any do
+  cls = case b.dead_at do
+    nil -> "thing"
+    _ -> "thing dead"
+  end
+  thumb = paper_thumb(b)
+  thumb_el = case thumb do
+    "" -> []
+    _ -> [el("img", %{class: "thumb", src: thumb, loading: "lazy"})]
+  end
+  title_cls = case b.quotes do
+    [] -> "title"
+    _ -> "title quoted"
+  end
+  pill = case b.tags do
+    [] -> []
+    _ -> [el("span", %{class: "pillbtn tags-pill", click: :toggle_tags, with: b.id}, concat("TAGS (", to_string(length(b.tags)), ")"))]
+  end
+  favicon = case b.favicon_url do
+    nil -> []
+    f -> [el("img", %{class: "favicon", src: f, loading: "lazy"})]
+  end
+  domain = blk_domain(b.url)
+  subtitle = case b.quotes != [] and b.title != nil do
+    true -> [el("div", %{class: "subtitle"}, b.title)]
+    false -> []
+  end
+  q = bk_root_quote(b)
+  quoting = case q do
+    nil -> []
+    _ -> [el("div", %{class: "bsky-quote"}, "↳ quoting ", el("b", %{}, concat("@", bk_str(lookup(q, "handle")))), concat(": “", bk_str(lookup(q, "text")), "”"))]
+  end
+  n_media = paper_row_media(b)
+  media = case n_media > 0 do
+    false -> []
+    true ->
+      root = bk_root_post(b)
+      quote_strip = case q do
+        nil -> []
+        _ -> paper_bmedia(q, b.id, bk_media_count(root))
+      end
+      [el("details", %{class: "xd mediafold"},
+        el("summary", %{class: "foldarrow"}, concat("media (", to_string(n_media), ")")),
+        el("div", %{}, paper_bmedia(root, b.id, 0), quote_strip))]
+  end
+  tagsbox = case bk_contains(open_tags, b.id) do
+    false -> []
+    true ->
+      chosen = blk_tag_list(selected)
+      [el("div", %{class: "meta tagsbox"}, map(b.tags, fn(t: String) -> Any do
+        tcls = case bk_contains(chosen, t) do
+          true -> "tag on"
+          false -> "tag"
+        end
+        el("span", %{}, el("span", %{class: tcls, click: :toggle_tag, with: t}, t))
+      end))]
+  end
+  chats = b.chat_count
+  chat_style = case chats > 0 do
+    true -> "color:#369;"
+    false -> ""
+  end
+  quotes_fold = case length(b.quotes) > 1 do
+    false -> []
+    true -> [el("details", %{class: "xd"},
+      el("summary", %{class: "pillbtn"}, concat(to_string(length(b.quotes)), " QUOTES")),
+      el("div", %{}, map(b.quotes, fn(qt: String) -> Any do el("div", %{class: "quote-item"}, concat("“", qt, "”")) end)))]
+  end
+  notes = case b.description do
+    nil -> []
+    d -> [el("details", %{class: "notes", open: true}, el("summary", %{}, ""), el("div", %{class: "desc"}, d))]
+  end
+  el("div", %{class: cls, id: concat("blink-", to_string(b.id))},
+    el("span", %{class: "rank"}, to_string(rank)), " ",
+    thumb_el, " ",
+    el("div", %{class: "entry"},
+      el("a", %{class: title_cls, href: bk_title_href(b), target: "_blank", rel: "noopener", title: bk_title_tip(b)}, bk_headline(b, 140)), " ",
+      pill, " ",
+      el("span", %{class: "domain"}, favicon, "(", el("a", %{href: concat("/blinks-next?", blk_query(["q"], [domain]))}, bk_site(b)), ")"),
+      subtitle,
+      quoting,
+      media,
+      tagsbox,
+      el("div", %{class: "meta"},
+        el("a", %{class: "notyet", style: chat_style, click: :not_ported, with: concat("chat:", to_string(b.id)), title: "chat is not ported to Blimp yet"}, blk_comment_label(chats)), " ",
+        el("a", %{href: blk_wayback(b.url), target: "_blank", rel: "noopener"}, "wayback"), " ",
+        el("a", %{href: blk_archive_ph(b.url), target: "_blank", rel: "noopener"}, "archive.ph"), " ",
+        el("a", %{class: "notyet", click: :not_ported, with: "hide", title: "hiding is not ported to Blimp yet"}, "hide"), " ",
+        quotes_fold,
+        paper_thread(b),
+        notes)))
+end
+
+# The two columns, numbered straight through from `first`.
+def paper_columns(rows: List, first: Int, selected: String, open_tags: List) -> List do
+  left_n = blk_left_count(map(rows, fn(b: Map) -> Int do paper_height(b) end))
+  numbered = zip(range(0, length(rows) - 1), rows)
+  left = filter(numbered, fn(p: Any) -> Bool do elem(p, 0) < left_n end)
+  right = filter(numbered, fn(p: Any) -> Bool do elem(p, 0) >= left_n end)
+  draw = fn(col: List) -> Any do
+    el("div", %{class: "col"}, map(col, fn(p: Any) -> Any do paper_row(elem(p, 1), first + elem(p, 0), selected, open_tags) end))
+  end
+  case rows do
+    [] -> []
+    _ -> [draw(left), draw(right)]
+  end
+end
+
+# -- the sidebar ---------------------------------------------------------------
+
+def paper_tag(tag: Map, chosen: List, with_count: Bool) -> Any do
+  cls = case bk_contains(chosen, tag.name) do
+    true -> "tag on"
+    false -> "tag"
+  end
+  count = case with_count do
+    true -> [el("span", %{class: "tcount"}, to_string(tag.count))]
+    false -> []
+  end
+  el("span", %{class: cls, click: :toggle_tag, with: tag.name}, tag.name, count)
+end
+
+def paper_sidebar(tags: List, selected: String, singles_open: Bool) -> Any do
+  chosen = blk_tag_list(selected)
+  frequent = filter(tags, fn(t: Map) -> Bool do t.count >= 2 end)
+  singles = filter(tags, fn(t: Map) -> Bool do t.count == 1 end)
+  none = case tags do
+    [] -> [el("div", %{style: "color:#888;"}, "no tags yet")]
+    _ -> []
+  end
+  single_box = case singles do
+    [] -> []
+    _ ->
+      label = case singles_open do
+        true -> "▴ hide"
+        false -> "▾ show"
+      end
+      pop = case singles_open do
+        true -> [el("div", %{class: "singles-pop"}, map(singles, fn(t: Map) -> Any do paper_tag(t, chosen, false) end))]
+        false -> []
+      end
+      [el("div", %{style: "margin-top:6px;"},
+        el("span", %{class: "singles-link", click: :toggle_singles}, concat(label, " ", to_string(length(singles)), " one-offs")),
+        pop)]
+  end
+  for_tags = case chosen do
+    [] -> []
+    _ -> [" ", el("span", %{style: "color:#888;"}, concat("(for ", join(chosen, " + "), ")"))]
+  end
+  el("div", %{class: "sidebar"},
+    el("div", %{class: "sidebox"},
+      el("h2", %{}, "tags"),
+      el("div", %{class: "body", style: "position:relative;"},
+        none,
+        el("div", %{class: "tag-cloud"}, map(frequent, fn(t: Map) -> Any do paper_tag(t, chosen, true) end)),
+        single_box)),
+    el("div", %{class: "sidebox"},
+      el("h2", %{}, "feeds"),
+      el("div", %{class: "body"},
+        el("a", %{href: blk_rss_href("/blinks-next/blinks.rss", selected), style: "color:#369;"}, "rss"),
+        for_tags)),
+    el("div", %{class: "sidebox"},
+      el("h2", %{}, "admin"),
+      el("div", %{class: "body"},
+        el("input", %{type: "password", name: "key", placeholder: "paste API key…", disabled: true, style: "width:100%; border:1px solid #5f99cf; font-size:11px; padding:3px; margin-bottom:4px;"}),
+        el("button", %{class: "aim-send", disabled: true}, "unlock"),
+        el("div", %{class: "notyet-note"}, "admin is not ported to Blimp yet; it works on /blinks"))),
+    el("div", %{class: "sidebox"},
+      el("h2", %{}, "about"),
+      el("div", %{class: "body", style: "color:#555;"}, "bobby's links. click tags to combine them — you'll see everything carrying any of them. every link is also a chat room.")))
+end
+
+# -- the program ------------------------------------------------------------------
+
+actor Paper do
+  state started: Bool :: false
+  state q: String :: ""
+  state tags: String :: ""
+  state t: String :: ""
+  state nodork: Bool :: false
+  state shuffle: String :: ""
+  state seed: String :: ""
+  state page: Int :: 1
+  state view: String :: ""
+  state week: String :: ""
+  state similar: Int :: 0
+  state media: String :: ""
+  state data: Any :: nil
+  state loaded: String :: ""
+  state problem: String :: ""
+  state open_tags: List :: []
+  state singles_open: Bool :: false
+  state promo: Bool :: true
+  state note: String :: ""
+
+  # BlinksLive.handle_params/3: what the URL says when the page starts.
+  on :location(query: String) do
+    p = blk_page(query_param(query, "page"))
+    v = case query_param(query, "view") do
+      "archives" -> "archives"
+      _ -> ""
+    end
+    wk = case v do
+      "archives" -> blk_monday(query_param(query, "week"))
+      _ -> ""
+    end
+    sh = case query_param(query, "shuffle") do
+      "1" -> "1"
+      "0" -> "0"
+      _ -> ""
+    end
+    become started: true, q: query_param(query, "q"), tags: join(blk_tag_list(query_param(query, "tags")), ","),
+      t: blk_window(query_param(query, "t")), nodork: query_param(query, "nodork") == "1", shuffle: sh,
+      seed: to_string(random(1, 2147483646)), page: p, view: v, week: wk,
+      similar: blk_id(query_param(query, "similar")), media: query_param(query, "media")
+    reply :ok
+  end
+
+  on :loaded(status: Int, body: String) do
+    case status == 200 do
+      false ->
+        become problem: concat("the server answered ", to_string(status), " for this page's links"), loaded: paper_data_url(nodork, page, q, shuffle == "1" and view == "", seed, similar, t, tags, view, week)
+        reply :error
+      true ->
+        become data: elem(json_decode(body), 1), problem: "", loaded: paper_data_url(nodork, page, q, shuffle == "1" and view == "", seed, similar, t, tags, view, week)
+        reply :ok
+    end
+  end
+
+  on :search(fields: String) do
+    got = elem(json_decode(fields), 1)
+    become q: bk_str(lookup(got, "q")), similar: 0, page: 1
+    reply :ok
+  end
+
+  on :toggle_tag(tag: String) do
+    become tags: blk_toggle_tag(tags, tag, false), similar: 0, page: 1
+    reply :ok
+  end
+
+  on :toggle_tags(id: Int) do
+    case bk_contains(open_tags, id) do
+      true -> become open_tags: filter(open_tags, fn(x: Int) -> Bool do x != id end)
+      false -> become open_tags: [id | open_tags]
+    end
+    reply :ok
+  end
+
+  on :toggle_singles do
+    become singles_open: not(singles_open)
+    reply :ok
+  end
+
+  on :toggle_dork do
+    become nodork: not(nodork)
+    reply :ok
+  end
+
+  on :set_window(w: String) do
+    become t: blk_window(w), page: 1
+    reply :ok
+  end
+
+  on :toggle_shuffle do
+    case shuffle == "1" do
+      true -> become shuffle: "0", page: 1
+      false -> become shuffle: "1", page: 1
+    end
+    reply :ok
+  end
+
+  # The tabs, the week bundles and "← all weeks" are links to a bare
+  # /blinks?view=archives(&week=...) in BlinksLive, so they drop every other
+  # filter.
+  on :set_view(v: String) do
+    become view: v, week: "", page: 1, similar: 0, q: "", tags: "", t: "", nodork: false, shuffle: "", media: ""
+    reply :ok
+  end
+
+  on :set_week(monday: String) do
+    become view: "archives", week: monday, page: 1, similar: 0, q: "", tags: "", t: "", nodork: false, shuffle: "", media: ""
+    reply :ok
+  end
+
+  on :more do
+    become page: page + 1
+    reply :ok
+  end
+
+  on :prev_page do
+    become page: max(page - 1, 1)
+    reply :ok
+  end
+
+  on :clear do
+    become q: "", tags: "", similar: 0
+    reply :ok
+  end
+
+  on :dismiss_promo do
+    become promo: false
+    reply :ok
+  end
+
+  on :open_media(target: String) do
+    become media: target
+    reply :ok
+  end
+
+  on :close_media do
+    become media: ""
+    reply :ok
+  end
+
+  on :step_media(by: Int) do
+    become media: paper_step(data, media, by)
+    reply :ok
+  end
+
+  on :key_prev do
+    become media: paper_step(data, media, 0 - 1)
+    reply :ok
+  end
+
+  on :key_next do
+    become media: paper_step(data, media, 1)
+    reply :ok
+  end
+
+  on :not_ported(what: String) do
+    become note: paper_note(what)
+    reply :ok
+  end
+
+  on :dismiss_note do
+    become note: ""
+    reply :ok
+  end
+
+  on :view do
+    live = view == ""
+    shuffled = live and shuffle == "1"
+    want = paper_data_url(nodork, page, q, shuffled, seed, similar, t, tags, view, week)
+    asks = case started and loaded != want do
+      true -> [fetch(want, :loaded)]
+      false -> []
+    end
+    url = case started do
+      true -> [location_query(paper_query(media, nodork, page, q, shuffle, similar, t, tags, view, week))]
+      false -> []
+    end
+    rows_all = case data do
+      nil -> []
+      _ -> data.blinks
+    end
+    has_more = case data do
+      nil -> false
+      _ -> length(rows_all) > PAPER_SIZE and data.similar == nil
+    end
+    rows = paper_take(rows_all, PAPER_SIZE)
+    total = case data do
+      nil -> ""
+      _ -> to_string(data.total)
+    end
+    dork = case data do
+      nil -> []
+      _ -> data.dork
+    end
+    tag_list = case data do
+      nil -> []
+      _ -> data.tags
+    end
+    reply el("div", %{id: "blinks-page"},
+      paper_masthead(live, total, t, shuffled, q),
+      el("div", %{class: "layout"},
+        el("div", %{class: "links"},
+          bk_note_bar(note),
+          paper_problem(problem, data),
+          paper_promo(live and promo),
+          el("button", %{class: paper_dork_class(nodork), click: :toggle_dork}, paper_dork_label(nodork, dork)),
+          el("div", %{style: "margin: -2px 0 6px;"},
+            el("span", %{class: "dork-edit notyet", click: :not_ported, with: "dork", title: "editing the dork list is not ported to Blimp yet"}, concat("edit dork list (", join(dork, ", "), ")"))),
+          paper_filterbars(data, tags, q, view, week, rows),
+          paper_empty(data, view, week, rows),
+          el("div", %{class: "paper", id: "paper"}, paper_columns(rows, (page - 1) * PAPER_SIZE + 1, tags, open_tags)),
+          paper_pager(data, has_more, page)),
+        paper_sidebar(tag_list, tags, singles_open)),
+      paper_lightbox(rows, media),
+      asks,
+      url)
+  end
+end
+
+def paper_take(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case list do
+        [] -> []
+        [h | rest] -> [h | paper_take(rest, n - 1)]
+      end
+  end
+end
+
+def paper_note(what: String) -> String do
+  case starts_with(what, "chat:") do
+    true -> concat("Every link's chat room is not ported to Blimp yet. It is still live at /blinks?chat=", drop(what, 5), ".")
+    false ->
+      case what do
+        "hide" -> "Hiding a link on this device is not ported to Blimp yet."
+        "dork" -> "Editing the dork list is not ported to Blimp yet; it is an admin write."
+        "tour" -> "The tour is not ported to Blimp yet."
+        "notify" -> "Push notifications are not ported to Blimp yet; /blinks has them."
+        "always" -> "\"always shuffle\" is a cookie Phoenix keeps; it is not ported to Blimp yet."
+        _ -> concat(what, " is not ported to Blimp yet.")
+      end
+  end
+end
+
+# The lightbox's next shot, wrapping at both ends: "id.i", or "" when the
+# link is not on this page.
+def paper_step(data: Any, media: String, by: Int) -> String do
+  parts = split(media, ".")
+  case data == nil or length(parts) != 2 do
+    true -> ""
+    false ->
+      id = blk_id(head(parts))
+      i = blk_id(last(parts))
+      b = bk_find(data.blinks, id)
+      case b do
+        nil -> ""
+        _ ->
+          n = length(bk_media_items(b))
+          case n > 0 and i >= 0 do
+            true -> concat(to_string(id), ".", to_string(bk_mod(i + by, n)))
+            false -> ""
+          end
+      end
+  end
+end
+
+def paper_lightbox(rows: List, media: String) -> List do
+  parts = split(media, ".")
+  case length(parts) != 2 do
+    true -> []
+    false ->
+      id = blk_id(head(parts))
+      i = blk_id(last(parts))
+      b = bk_find(rows, id)
+      case b do
+        nil -> []
+        _ ->
+          items = bk_media_items(b)
+          case i >= 0 and i < length(items) do
+            false -> []
+            true ->
+              shot = bk_nth(items, i)
+              [bk_lightbox(%{kind: shot.kind, full: shot.full, alt: shot.alt}, b, i, length(items), 140)]
+          end
+      end
+  end
+end
+
+def paper_dork_class(hiding: Bool) -> String do
+  case hiding do
+    true -> "dork-btn on"
+    false -> "dork-btn"
+  end
+end
+
+def paper_dork_label(hiding: Bool, dork: List) -> String do
+  case hiding do
+    true -> concat("✓ HIDING THE ULTRA NERDY STUFF (", to_string(length(dork)), " tags)")
+    false -> "CLICK TO HIDE THE ULTRA NERDY STUFF"
+  end
+end
+
+def paper_masthead(live: Bool, total: String, t: String, shuffled: Bool, q: String) -> Any do
+  tab = fn(lit: Bool, label: String, v: String) -> Any do
+    cls = case lit do
+      true -> "tab on"
+      false -> "tab"
+    end
+    el("a", %{class: cls, href: "#", click: :set_view, with: v}, label)
+  end
+  window = case live do
+    false -> []
+    true -> [el("form", %{class: "windowform"},
+      el("select", %{name: "t", change: :set_window, value: t}, map(PAPER_WINDOWS, fn(w: List) -> Any do
+        el("option", %{value: head(w), selected: head(w) == t}, last(w))
+      end)))]
+  end
+  shuffle_label = case shuffled do
+    true -> "✓ shuffled — undo"
+    false -> "shuffle me"
+  end
+  shuffle = case live do
+    false -> []
+    true -> [el("a", %{class: "tour-link", click: :toggle_shuffle}, shuffle_label)]
+  end
+  always = case live and shuffled do
+    false -> []
+    true -> [el("label", %{class: "alwayslbl notyet", click: :not_ported, with: "always"}, el("input", %{type: "checkbox", disabled: true}), " always")]
+  end
+  el("header", %{class: "masthead"},
+    el("h1", %{}, "bobbby's ", el("span", %{}, "links")),
+    el("nav", %{class: "tabs"}, tab(live, "live", ""), tab(not(live), "archives", "archives")),
+    el("span", %{class: "dateline"}, concat(total, " saved")),
+    el("a", %{class: "tour-link notyet", click: :not_ported, with: "tour"}, "tour"),
+    el("a", %{class: "tour-link", href: "/blinks/surf", title: "stumbleupon mode: one random link at a time"}, "stumble 🎲"),
+    el("a", %{class: "tour-link", href: "/blinks/walk", title: "wiki-walk: hop between similar links"}, "walk 🥾"),
+    el("a", %{class: "tour-link", href: "/blinks/tv", title: "lean-back channel surfing"}, "tv 📺"),
+    window,
+    shuffle,
+    always,
+    el("form", %{class: "searchform", submit: :search},
+      el("input", %{type: "text", name: "q", value: q, placeholder: "search title, tags, notes…"})),
+    el("span", %{class: "pushwrap"}, el("a", %{class: "tour-link notyet", click: :not_ported, with: "notify", title: "get a nudge when a new link lands"}, "🔔 notify me")))
+end
+
+def paper_problem(problem: String, data: Any) -> List do
+  case problem do
+    "" ->
+      case data do
+        nil -> [el("div", %{class: "empty"}, "loading…")]
+        _ -> []
+      end
+    _ -> [el("div", %{class: "empty", style: "color:#b00;"}, problem)]
+  end
+end
+
+def paper_promo(show: Bool) -> List do
+  case show do
+    false -> []
+    true -> [el("div", %{class: "stumble-promo"},
+      el("span", %{class: "sp-dice"}, "🎲"),
+      el("a", %{class: "stumble-drag", href: "/blinks-next/stumble", title: "Drag me to your bookmarks bar!"}, "STUMBLE into a Bobbby link"),
+      el("span", %{class: "sp-text"}, "← drag this button onto your bookmarks bar. click it whenever you're bored and it takes you somewhere from the collection."),
+      el("a", %{class: "sp-dismiss", click: :dismiss_promo, title: "hide this"}, "✕ got it"))]
+  end
+end
+
+def paper_filterbars(data: Any, tags: String, q: String, view: String, week: String, rows: List) -> List do
+  similar = case data do
+    nil -> nil
+    _ -> data.similar
+  end
+  chosen = blk_tag_list(tags)
+  sim = case similar do
+    nil -> []
+    s ->
+      shown = case s.title do
+        nil -> s.url
+        title -> title
+      end
+      [el("div", %{class: "filterbar"}, "links similar to ",
+        el("a", %{href: s.url, target: "_blank", rel: "noopener", style: "color:#369;"}, shown),
+        " ", el("span", %{class: "clear", click: :clear}, "back to all"))]
+  end
+  filtering = case similar == nil and (chosen != [] or q != "") do
+    false -> []
+    true ->
+      said = case q do
+        "" -> []
+        _ -> [el("span", %{}, concat("“", q, "”"))]
+      end
+      [el("div", %{class: "filterbar"}, "filtering: ",
+        map(chosen, fn(tg: String) -> Any do el("span", %{class: "tag on", click: :toggle_tag, with: tg, title: "remove"}, concat(tg, " ✕")) end),
+        said, " ", el("span", %{class: "clear", click: :clear}, "clear all"))]
+  end
+  weeks = case data do
+    nil -> nil
+    _ -> data.weeks
+  end
+  bundles = case view == "archives" and week == "" and weeks != nil do
+    false -> []
+    true ->
+      empty = case weeks do
+        [] -> [el("div", %{class: "empty"}, "no weeks archived yet.")]
+        _ -> []
+      end
+      [el("div", %{class: "bundles"}, empty, map(weeks, fn(w: Map) -> Any do
+        el("a", %{class: "bundle", href: concat("/blinks-next?view=archives&week=", w.monday), click: :set_week, with: w.monday},
+          el("b", %{}, blk_week_label(w.monday)),
+          el("span", %{class: "bcount"}, concat(to_string(w.count), " links")),
+          el("div", %{class: "bpreview"}, join(map(w.titles, fn(x: Any) -> String do bk_str(x) end), " · ")))
+      end))]
+  end
+  week_bar = case week do
+    "" -> []
+    _ -> [el("div", %{class: "filterbar"}, el("b", %{}, blk_week_label(week)),
+      concat(" · ", to_string(length(rows)), " links · "),
+      el("a", %{class: "clear", href: "/blinks-next?view=archives", click: :set_view, with: "archives"}, "← all weeks"))]
+  end
+  paper_concat([sim, filtering, bundles, week_bar])
+end
+
+def paper_concat(ls: List) -> List do
+  reduce(reverse(ls), [], fn(acc: List, l: List) -> List do bk_append(l, acc) end)
+end
+
+def paper_empty(data: Any, view: String, week: String, rows: List) -> List do
+  case data != nil and rows == [] and not(view == "archives" and week == "") do
+    true -> [el("div", %{class: "empty"}, "nothing here. go save some links.")]
+    false -> []
+  end
+end
+
+def paper_pager(data: Any, has_more: Bool, page: Int) -> List do
+  similar = case data do
+    nil -> nil
+    _ -> data.similar
+  end
+  case similar == nil and (has_more or page > 1) do
+    false -> []
+    true ->
+      back = case page > 1 do
+        true -> [el("button", %{click: :prev_page}, "‹ BACK"), el("span", %{class: "pageno"}, concat("page ", to_string(page)))]
+        false -> []
+      end
+      more = case has_more do
+        true -> [el("button", %{click: :more}, "MORE ›")]
+        false -> []
+      end
+      [el("div", %{class: "pager"}, back, more)]
+  end
+end
+
+blinks = spawn Paper
+blinks <- :view

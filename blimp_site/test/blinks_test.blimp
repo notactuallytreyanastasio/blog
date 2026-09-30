@@ -1,0 +1,204 @@
+# needs: static/blinks/common.blimp static/blinks/paper.blimp static/blinks/reader.blimp
+#
+# /blinks-next and the blinks read API: the Temper helpers
+# (temper/src/blinks), the server's row encoding and routing
+# (src/99_blinks.blimp, without a database: the tests have none), and the
+# two browser programs (static/blinks/) fed a page.json the server wrote
+# for ?tags=nyc from production's 163 links (test/fixtures/blinks/).
+# row53_phoenix.json is the bytes https://bobbby.online/api/blinks sent for
+# link 53; row53_pg.json the three pieces Postgres sends for it.
+
+BLKT_PAGE = read_file("test/fixtures/blinks/page_nyc.json")
+
+def blkt_html(v: Any) -> String do
+  to_html(v)
+end
+
+def blkt_count(hay: String, needle: String) -> Int do
+  length(split(hay, needle)) - 1
+end
+
+actor BlinksTests do
+  test "a link's domain is URI.parse's host, less www." do
+    assert_eq(blk_domain("https://www.nytimes.com/2026/09/01/x.html"), "nytimes.com")
+    assert_eq(blk_domain("https://old.reddit.com/r/AskReddit/"), "old.reddit.com")
+    assert_eq(blk_domain("http://user:pw@example.com:8080/a?b#c"), "example.com")
+    assert_eq(blk_domain("https://bsky.app?x=1"), "bsky.app")
+    assert_eq(blk_domain("notaurl"), "")
+    # the reader shows the url itself when there is no host
+    assert_eq(blk_domain_or_url("notaurl"), "notaurl")
+    assert_eq(blk_domain_or_url("https://www.x.org/"), "x.org")
+    assert_eq(blk_site_label("", "https://www.youtube.com/watch?v=1"), "youtube.com")
+    assert_eq(blk_site_label("GitHub", "https://github.com/a"), "GitHub")
+  end
+
+  test "the headline: first quote, then the thread's first post cut short, then the title, then the url" do
+    assert_eq(blk_headline("so true", true, "post", true, "T", true, "u", 140), "“so true”")
+    assert_eq(blk_headline("", false, "abcdef", true, "T", true, "u", 3), "abc")
+    # code points, not bytes
+    assert_eq(blk_headline("", false, "héllo wörld", true, "T", true, "u", 7), "héllo w")
+    # an empty title is still a title (blink.title || blink.url)
+    assert_eq(blk_headline("", false, "", false, "", true, "u", 140), "")
+    assert_eq(blk_headline("", false, "", false, "", false, "https://a.b", 140), "https://a.b")
+    assert_eq(blk_chars("né😂"), 3)
+  end
+
+  test "dates: the reader's stamp, the archive week's label, a week's Monday" do
+    assert_eq(blk_stamp("2026-09-17T23:17:53"), "Sep 17")
+    assert_eq(blk_stamp("2026-09-05T01:00:00"), "Sep 5")
+    assert_eq(blk_week_label("2026-09-14"), "Week of Sep 14 – Sep 20, 2026")
+    assert_eq(blk_week_label("2025-12-29"), "Week of Dec 29 – Jan 4, 2026")
+    assert_eq(blk_monday("2026-09-17"), "2026-09-14")
+    assert_eq(blk_monday("2026-09-14"), "2026-09-14")
+    assert_eq(blk_monday("2026-01-01"), "2025-12-29")
+    assert_eq(blk_monday("2026-02-30"), "")
+    assert_eq(blk_monday("2026-9-1"), "")
+    assert_eq(blk_monday("junk"), "")
+    assert_eq(blk_monday(""), "")
+  end
+
+  test "tags: the newspaper appends a clicked tag, the reader puts it first, both drop it on a second click" do
+    assert_eq(blk_toggle_tag("", "nyc", false), "nyc")
+    assert_eq(blk_toggle_tag("nyc", "art", false), "nyc,art")
+    assert_eq(blk_toggle_tag("nyc", "art", true), "art,nyc")
+    assert_eq(blk_toggle_tag("nyc,art", "nyc", false), "art")
+    assert_eq(blk_tag_list(" nyc , ,art,"), ["nyc", "art"])
+    assert_eq(blk_feed_title(""), "blinks")
+    assert_eq(blk_feed_title("nyc,art"), "blinks: nyc + art")
+    assert_eq(blk_comment_label(0), "chat")
+    assert_eq(blk_comment_label(1), "1 comment")
+    assert_eq(blk_comment_label(4), "4 comments")
+  end
+
+  test "query strings are URI.encode_query's, empties left out" do
+    assert_eq(blk_encode("a b&c/é~"), "a+b%26c%2F%C3%A9~")
+    assert_eq(blk_query(["q", "tags", "page"], ["new york", "", "2"]), "q=new+york&page=2")
+    assert_eq(blk_query(["q"], [""]), "")
+    assert_eq(blk_rss_href("/blinks.rss", ""), "/blinks.rss")
+    assert_eq(blk_rss_href("/blinks.rss", "nyc,art"), "/blinks.rss?tags=nyc%2Cart")
+    assert_eq(blk_window("1mo"), "1mo")
+    assert_eq(blk_window("2w"), "")
+    assert_eq(blk_page("3"), 3)
+    assert_eq(blk_page("0"), 1)
+    assert_eq(blk_page("x"), 1)
+    assert_eq(blk_int("500"), 500)
+    assert_eq(blk_int("5x"), nil)
+    assert_eq(blk_int("-1"), nil)
+    assert_eq(blk_ids("1, 2,x,3"), [1, 2, 3])
+  end
+
+  test "the columns split where the left holds half the estimated height" do
+    assert_eq(blk_est_height(10, 0 - 1, false), 63)
+    assert_eq(blk_est_height(120, 70, true), 46 + 3 * 17 + 14 + 2 * 13 + 16)
+    assert_eq(blk_left_count([10, 10, 10, 10]), 2)
+    assert_eq(blk_left_count([100, 10, 10, 10]), 2)
+    assert_eq(blk_left_count([10]), 1)
+    assert_eq(blk_left_count([]), 0)
+  end
+
+  test "a row is Postgres's bytes with the thread written again as Jason writes it: byte for byte production's" do
+    pieces = elem(json_decode(read_file("test/fixtures/blinks/row53_pg.json")), 1)
+    phoenix = read_file("test/fixtures/blinks/row53_phoenix.json")
+    row = %{pre: pieces.pre, thread: pieces.thread, post: pieces.post}
+    assert_eq(blk_row_json(row), phoenix)
+    # jsonb's own order is shortest key first; Jason's is sorted
+    assert_eq(starts_with(pieces.thread, "{\"posts\": [{\"at\": "), true)
+    assert_eq(json_encode(blk_sorted(elem(json_decode("{\"text\": 1, \"at\": {\"z\": 1, \"a\": [{\"y\": 2, \"b\": 3}]}}"), 1))), "{\"at\":{\"a\":[{\"b\":3,\"y\":2}],\"z\":1},\"text\":1}")
+    assert_eq(blk_thread_json(nil), "null")
+  end
+
+  test "routes: what needs no database answers without one, what needs one says so" do
+    assert_eq(blinks_route("/api/blinks", "").status, 503)
+    assert_eq(blinks_route("/api/blinks", "").body, "{\"error\":\"the database did not answer\"}")
+    assert_eq(blinks_route("/api/blinks", "limit=abc").status, 400)
+    # token-gated as in Phoenix; no BLINKS_API_TOKEN here, so never open
+    assert_eq(blinks_route("/api/blinks/lookup", "url=x&token=").status, 401)
+    assert_eq(blinks_route("/api/blinks/lookup", "url=x").body, "{\"error\":\"Invalid or missing auth token\"}")
+    assert_eq(blinks_route("/api/blinks/export", "token=anything").status, 401)
+    assert_eq(blinks_route("/api/blinks/abc/comments", "").status, 400)
+    assert_eq(blinks_route("/api/blinks/abc/comments", "").body, "{\"error\":\"bad id\"}")
+    assert_eq(blinks_route("/api/blinks/12/comments", "").status, 503)
+    assert_eq(blinks_route("/api/blinks/12/extra", ""), nil)
+    assert_eq(blinks_route("/api/blinksx", ""), nil)
+    # the same API under /blinks-next, which Caddy sends here
+    assert_eq(blinks_route("/blinks-next/api/blinks/lookup", "").status, 401)
+    assert_eq(blinks_route("/blinks-next/page.json", "size=500").status, 400)
+    assert_eq(blinks_route("/blinks-next", "").status, 200)
+    assert_eq(contains(BLK_PAGE.body, "data-program=\"/blinks-next/blinks.blimp\""), true)
+    assert_eq(contains(BLK_READER_PAGE.body, "data-program=\"/blinks-next/reader.blimp\""), true)
+    assert_eq(contains(BLK_PAGE.body, "data-location=\"1\""), true)
+    assert_eq(status_text(401), "Unauthorized")
+  end
+
+  test "the newspaper: the URL's state, the page.json it asks for, the rows it draws" do
+    p = spawn Paper
+    p <- :location("tags=nyc&page=2&t=1mo&junk=1&view=nope")
+    v0 = blkt_html(p <- :view)
+    # an unknown view is the live one, and its window is in the select
+    assert_eq(contains(v0, "<a class=\"tab on\" href=\"#\">live</a>"), true)
+    assert_eq(contains(v0, "<option value=\"1mo\" selected>past month</option>"), true)
+    # what it asks for (effects draw nothing, so asked of the functions the
+    # view calls): page 2 of 30, and the URL as BlinksLive's patch/2 writes it
+    assert_eq(paper_data_url(false, 2, "", false, "7", 0, "1mo", "nyc", "", ""), "/blinks-next/page.json?page=2&size=30&t=1mo&tags=nyc")
+    assert_eq(paper_data_url(true, 1, "a b", true, "7", 0, "", "", "", ""), "/blinks-next/page.json?nodork=1&page=1&q=a+b&seed=7&size=30")
+    assert_eq(paper_query("53.1", true, 2, "x", "1", 0, "1w", "nyc,art", "", ""), "media=53.1&nodork=1&page=2&q=x&shuffle=1&t=1w&tags=nyc%2Cart")
+    assert_eq(paper_query("", false, 1, "", "", 0, "", "", "archives", "2026-09-14"), "view=archives&week=2026-09-14")
+    p <- :location("tags=nyc")
+    p <- :loaded(200, BLKT_PAGE)
+    v = blkt_html(p <- :view)
+    assert_eq(blkt_count(v, "class=\"thing"), 14)
+    assert_eq(contains(v, "14 saved") or contains(v, "163 saved"), true)
+    assert_eq(contains(v, "filtering: "), true)
+    assert_eq(contains(v, "<span class=\"rank\">1</span>"), true)
+    assert_eq(contains(v, "<span class=\"rank\">14</span>"), true)
+    # two columns, numbered straight through
+    assert_eq(blkt_count(v, "class=\"col\""), 2)
+    assert_eq(contains(v, "/blinks-next/blinks.rss?tags=nyc"), true)
+    # what writes is drawn, disabled
+    assert_eq(contains(v, "admin is not ported to Blimp yet"), true)
+    p <- :not_ported("chat:167")
+    assert_eq(contains(blkt_html(p <- :view), "It is still live at /blinks?chat=167."), true)
+  end
+
+  test "the newspaper's lightbox walks a link's pictures and wraps" do
+    p = spawn Paper
+    p <- :location("tags=nyc")
+    p <- :loaded(200, BLKT_PAGE)
+    # link 53 is a four-post thread
+    rows = elem(json_decode(BLKT_PAGE), 1).blinks
+    n = length(bk_media_items(bk_find(rows, 53)))
+    assert_eq(n > 1, true)
+    p <- :open_media("53.0")
+    v = blkt_html(p <- :view)
+    assert_eq(contains(v, concat("1 / ", to_string(n))), true)
+    p <- :key_prev
+    assert_eq(contains(blkt_html(p <- :view), concat(to_string(n), " / ", to_string(n))), true)
+    p <- :step_media(1)
+    assert_eq(contains(blkt_html(p <- :view), concat("1 / ", to_string(n))), true)
+    p <- :close_media
+    assert_eq(contains(blkt_html(p <- :view), "class=\"lb\""), false)
+  end
+
+  test "the reader: cards, the tag rail, one gallery numbered across links" do
+    r = spawn Reader
+    r <- :location("tags=nyc")
+    r <- :loaded(200, BLKT_PAGE)
+    v = blkt_html(r <- :view)
+    assert_eq(blkt_count(v, "class=\"card"), 14)
+    assert_eq(contains(v, "Sep 10"), true)
+    rows = elem(json_decode(BLKT_PAGE), 1).blinks
+    shots = length(reader_gallery(rows))
+    assert_eq(blkt_count(v, "class=\"shot\""), shots)
+    r <- :open_media(0)
+    r <- :key_prev
+    assert_eq(contains(blkt_html(r <- :view), concat(to_string(shots), " / ", to_string(shots))), true)
+    r <- :key_next
+    assert_eq(contains(blkt_html(r <- :view), concat("1 / ", to_string(shots))), true)
+    r <- :toggle_tag("art")
+    assert_eq(contains(blkt_html(r <- :view), "<span class=\"tag on\">art<"), true)
+    # BlinksReaderLive.patch/2's order, and a tag clicked goes first
+    assert_eq(reader_query(false, 1, "", false, "", "art,nyc"), "tags=art%2Cnyc")
+    assert_eq(reader_query(true, 3, "q", true, "1d", ""), "q=q&t=1d&page=3&shuffle=1&nodork=1")
+    assert_eq(reader_data_url(false, 1, "", false, "9", "", "nyc"), "/blinks-next/page.json?page=1&size=60&tags=nyc")
+  end
+end

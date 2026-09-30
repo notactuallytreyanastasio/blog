@@ -1,0 +1,363 @@
+# /blinks-next/reader: BlinksReaderLive, the contact sheet, as a Blimp
+# program in the browser. It was read-only already, so all of it is here:
+# the window of time, shuffle, the tag rail, search, the cards and the
+# lightbox that walks every picture on the page. Same URL params as the
+# newspaper; the state is the URL's.
+
+READER_SIZE = 60
+READER_WINDOWS = ["1d", "3d", "1w", "1mo", "1y"]
+
+def reader_query(nodork: Bool, page: Int, q: String, shuffle: Bool, t: String, tags: String) -> String do
+  # BlinksReaderLive.patch/2: a keyword list, written in this order
+  page_s = case page > 1 do
+    true -> to_string(page)
+    false -> ""
+  end
+  shuffle_s = case shuffle do
+    true -> "1"
+    false -> ""
+  end
+  nodork_s = case nodork do
+    true -> "1"
+    false -> ""
+  end
+  blk_query(["q", "tags", "t", "page", "shuffle", "nodork"], [q, tags, t, page_s, shuffle_s, nodork_s])
+end
+
+def reader_data_url(nodork: Bool, page: Int, q: String, shuffle: Bool, seed: String, t: String, tags: String) -> String do
+  seed_s = case shuffle do
+    true -> seed
+    false -> ""
+  end
+  nodork_s = case nodork do
+    true -> "1"
+    false -> ""
+  end
+  concat("/blinks-next/page.json?", blk_query(["nodork", "page", "q", "seed", "size", "t", "tags"],
+    [nodork_s, to_string(page), q, seed_s, to_string(READER_SIZE), t, tags]))
+end
+
+# Everything worth enlarging, in reading order; a link with no thread falls
+# back to its og image, the only picture it has.
+def reader_media(b: Map) -> List do
+  items = bk_media_items(b)
+  case items do
+    [] ->
+      og = bk_str(b.image_url)
+      case og do
+        "" -> []
+        _ -> [%{kind: :image, thumb: og, full: og, alt: bk_str(b.title)}]
+      end
+    _ -> items
+  end
+end
+
+# The page's pictures, numbered straight through: [{blink id, shot}].
+def reader_gallery(rows: List) -> List do
+  reduce(rows, [], fn(acc: List, b: Map) -> List do
+    bk_append(acc, map(reader_media(b), fn(s: Map) -> Tuple do {b.id, s} end))
+  end)
+end
+
+def reader_card(b: Map, rank: Int, chosen: List, first_idx: Int) -> Any do
+  cls = case b.dead_at do
+    nil -> "card"
+    _ -> "card dead"
+  end
+  favicon = case b.favicon_url do
+    nil -> []
+    f -> [el("img", %{class: "favicon", src: f, loading: "lazy"})]
+  end
+  subtitle = case b.quotes != [] and b.title != nil do
+    true -> [el("div", %{class: "subtitle"}, b.title)]
+    false -> []
+  end
+  desc = case bk_str(b.description) do
+    "" -> []
+    d -> [el("div", %{class: "desc"}, d)]
+  end
+  q = bk_root_quote(b)
+  quoting = case q do
+    nil -> []
+    _ -> [el("div", %{class: "bquote"}, "↳ ", el("b", %{}, concat("@", bk_str(lookup(q, "handle")))), concat(": “", bk_str(lookup(q, "text")), "”"))]
+  end
+  shots = reader_media(b)
+  strip = case shots do
+    [] -> []
+    _ ->
+      indexed = zip(range(0, length(shots) - 1), shots)
+      [el("div", %{class: "strip"}, map(indexed, fn(p: Any) -> Any do
+        s = elem(p, 1)
+        play = case s.kind do
+          :video -> [el("span", %{class: "play"}, "▶")]
+          _ -> []
+        end
+        el("button", %{type: "button", class: "shot", click: :open_media, with: first_idx + elem(p, 0), title: "click to enlarge"},
+          el("img", %{src: s.thumb, alt: s.alt, loading: "lazy"}), play)
+      end))]
+  end
+  el("div", %{class: cls, id: concat("rcard-", to_string(b.id))},
+    el("div", %{class: "toprow"},
+      el("span", %{class: "rank"}, to_string(rank)),
+      favicon,
+      el("a", %{class: "site", href: concat("/blinks-next/reader?", blk_query(["q"], [blk_domain_or_url(b.url)]))}, bk_site(b)),
+      el("span", %{class: "when"}, blk_stamp(b.inserted_at))),
+    el("a", %{class: "title", href: bk_title_href(b), target: "_blank", rel: "noopener", title: bk_title_tip(b)}, bk_headline(b, 300)),
+    subtitle,
+    desc,
+    quoting,
+    strip,
+    el("div", %{class: "foot"},
+      map(b.tags, fn(t: String) -> Any do
+        tcls = case bk_contains(chosen, t) do
+          true -> "tag on"
+          false -> "tag"
+        end
+        el("span", %{class: tcls, click: :toggle_tag, with: t}, t)
+      end),
+      el("a", %{href: blk_wayback(b.url), target: "_blank", rel: "noopener"}, "wayback")))
+end
+
+# Each card's first picture's number in the gallery.
+def reader_cards(rows: List, first_rank: Int, chosen: List) -> List do
+  elem(reduce(rows, {[], 0, first_rank}, fn(acc: Tuple, b: Map) -> Tuple do
+    card = reader_card(b, elem(acc, 2), chosen, elem(acc, 1))
+    {bk_append(elem(acc, 0), [card]), elem(acc, 1) + length(reader_media(b)), elem(acc, 2) + 1}
+  end), 0)
+end
+
+actor Reader do
+  state started: Bool :: false
+  state q: String :: ""
+  state tags: String :: ""
+  state t: String :: ""
+  state nodork: Bool :: false
+  state shuffle: Bool :: false
+  state seed: String :: ""
+  state page: Int :: 1
+  state data: Any :: nil
+  state loaded: String :: ""
+  state problem: String :: ""
+  state lightbox: Int :: -1
+
+  on :location(query: String) do
+    become started: true, q: query_param(query, "q"), tags: join(blk_tag_list(query_param(query, "tags")), ","),
+      t: blk_window(query_param(query, "t")), nodork: query_param(query, "nodork") == "1",
+      shuffle: query_param(query, "shuffle") == "1", seed: to_string(random(1, 2147483646)),
+      page: blk_page(query_param(query, "page"))
+    reply :ok
+  end
+
+  on :loaded(status: Int, body: String) do
+    want = reader_data_url(nodork, page, q, shuffle, seed, t, tags)
+    case status == 200 do
+      false ->
+        become problem: concat("the server answered ", to_string(status), " for this page's links"), loaded: want
+        reply :error
+      true ->
+        become data: elem(json_decode(body), 1), problem: "", loaded: want, lightbox: -1
+        reply :ok
+    end
+  end
+
+  on :search(fields: String) do
+    become q: bk_str(lookup(elem(json_decode(fields), 1), "q")), page: 1
+    reply :ok
+  end
+
+  on :typed(text: String) do
+    become q: text, page: 1
+    reply :ok
+  end
+
+  on :toggle_tag(tag: String) do
+    become tags: blk_toggle_tag(tags, tag, true), page: 1
+    reply :ok
+  end
+
+  on :set_window(w: String) do
+    become t: blk_window(w), page: 1
+    reply :ok
+  end
+
+  on :toggle_shuffle do
+    become shuffle: not(shuffle), page: 1
+    reply :ok
+  end
+
+  on :clear do
+    become q: "", tags: "", t: "", page: 1
+    reply :ok
+  end
+
+  on :more do
+    become page: page + 1
+    reply :ok
+  end
+
+  on :prev_page do
+    become page: max(1, page - 1)
+    reply :ok
+  end
+
+  on :open_media(i: Int) do
+    become lightbox: i
+    reply :ok
+  end
+
+  on :close_media do
+    become lightbox: -1
+    reply :ok
+  end
+
+  on :step_media(by: Int) do
+    become lightbox: reader_step(data, lightbox, by)
+    reply :ok
+  end
+
+  on :key_prev do
+    become lightbox: reader_step(data, lightbox, 0 - 1)
+    reply :ok
+  end
+
+  on :key_next do
+    become lightbox: reader_step(data, lightbox, 1)
+    reply :ok
+  end
+
+  on :view do
+    want = reader_data_url(nodork, page, q, shuffle, seed, t, tags)
+    asks = case started and loaded != want do
+      true -> [fetch(want, :loaded)]
+      false -> []
+    end
+    url = case started do
+      true -> [location_query(reader_query(nodork, page, q, shuffle, t, tags))]
+      false -> []
+    end
+    rows_all = case data do
+      nil -> []
+      _ -> data.blinks
+    end
+    has_more = length(rows_all) > READER_SIZE
+    rows = reader_take(rows_all, READER_SIZE)
+    total = case data do
+      nil -> ""
+      _ -> to_string(data.total)
+    end
+    tag_list = case data do
+      nil -> []
+      _ -> data.tags
+    end
+    chosen = blk_tag_list(tags)
+    windows = map(READER_WINDOWS, fn(w: String) -> Any do
+      cls = case t == w do
+        true -> "ctl on"
+        false -> "ctl"
+      end
+      next = case t == w do
+        true -> ""
+        false -> w
+      end
+      el("span", %{class: cls, click: :set_window, with: next}, w)
+    end)
+    shuffle_cls = case shuffle do
+      true -> "ctl on"
+      false -> "ctl"
+    end
+    frequent = reader_take(filter(tag_list, fn(x: Map) -> Bool do x.count >= 2 end), 28)
+    rail_tags = map(frequent, fn(x: Map) -> Any do
+      cls = case bk_contains(chosen, x.name) do
+        true -> "tag on"
+        false -> "tag"
+      end
+      el("span", %{class: cls, click: :toggle_tag, with: x.name}, x.name, el("span", %{class: "tcount"}, to_string(x.count)))
+    end)
+    clear = case q != "" or chosen != [] or t != "" do
+      true -> [el("span", %{class: "ctl", click: :clear, style: "margin-left:auto;"}, "clear filters ✕")]
+      false -> []
+    end
+    status = case problem do
+      "" ->
+        case data do
+          nil -> [el("div", %{class: "empty"}, "loading…")]
+          _ ->
+            case rows do
+              [] -> [el("div", %{class: "empty"}, "nothing here. go save some links.")]
+              _ -> []
+            end
+        end
+      _ -> [el("div", %{class: "empty", style: "color:#b00;"}, problem)]
+    end
+    pager = case rows do
+      [] -> []
+      _ ->
+        prev = case page > 1 do
+          true -> [el("span", %{class: "pg", click: :prev_page}, "‹ prev")]
+          false -> []
+        end
+        more = case has_more do
+          true -> [el("span", %{class: "pg", click: :more}, "more ›")]
+          false -> []
+        end
+        [el("div", %{class: "pager"}, prev, more)]
+    end
+    gallery = reader_gallery(rows)
+    box = case lightbox >= 0 and lightbox < length(gallery) do
+      false -> []
+      true ->
+        pick = bk_nth(gallery, lightbox)
+        b = bk_find(rows, elem(pick, 0))
+        [bk_lightbox(elem(pick, 1), b, lightbox, length(gallery), 300)]
+    end
+    reply el("div", %{id: "blinks-reader"},
+      el("div", %{class: "masthead"},
+        el("h1", %{}, "blinks", el("span", %{}, "."), "reader"),
+        el("span", %{class: "dateline"}, concat(total, " links · contact sheet")),
+        el("div", %{class: "tabs"},
+          el("a", %{class: "tab", href: "/blinks-next"}, "newspaper"),
+          el("span", %{class: "tab on"}, "reader")),
+        el("form", %{class: "searchform", submit: :search},
+          el("input", %{type: "text", name: "q", value: q, placeholder: "search links", autocomplete: "off", input: :typed, debounce: 300}))),
+      el("div", %{class: "railbar"},
+        windows,
+        el("span", %{class: "sep"}, "|"),
+        el("span", %{class: shuffle_cls, click: :toggle_shuffle}, "shuffle"),
+        el("span", %{class: "sep"}, "|"),
+        rail_tags,
+        clear),
+      el("div", %{class: "sheet", id: "sheet"},
+        status,
+        reader_cards(rows, (page - 1) * READER_SIZE + 1, chosen),
+        pager),
+      box,
+      asks,
+      url)
+  end
+end
+
+def reader_take(list: List, n: Int) -> List do
+  case n <= 0 do
+    true -> []
+    false ->
+      case list do
+        [] -> []
+        [h | rest] -> [h | reader_take(rest, n - 1)]
+      end
+  end
+end
+
+def reader_step(data: Any, i: Int, by: Int) -> Int do
+  case data == nil or i < 0 do
+    true -> 0 - 1
+    false ->
+      n = length(reader_gallery(reader_take(data.blinks, READER_SIZE)))
+      case n == 0 do
+        true -> 0 - 1
+        false -> bk_mod(i + by, n)
+      end
+  end
+end
+
+blinks = spawn Reader
+blinks <- :view

@@ -93,6 +93,7 @@ def status_text(status: Int) -> String do
     302 -> "Found"
     304 -> "Not Modified"
     400 -> "Bad Request"
+    401 -> "Unauthorized"
     404 -> "Not Found"
     405 -> "Method Not Allowed"
     _ -> "Internal Server Error"
