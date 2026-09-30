@@ -49,13 +49,11 @@
 #   - The timeout is for the whole request. Req's receive_timeout is per
 #     read, so a server that trickles a page for 30s is read by Phoenix and
 #     timed out here.
-#   - An http:// url is fetched without following redirects, because a
-#     redirect from http:// to https:// panics the interpreter; see
-#     bke_redirects. 2 of the 163 links in production are http://.
-#   - The User-Agent. std.http sends its own ("zig/0.16.0 (std.http)") and
-#     a user-agent in http_start's headers is sent as a second header, so a
-#     server sees both; Phoenix sends only "blinks/1.0 (+https://bobbby.
-#     online/blinks)" for the page and Req's own for Bluesky.
+#   - The User-Agent for Bluesky. The page gets "blinks/1.0 (+https://
+#     bobbby.online/blinks)" in both (a user-agent in http_start's headers
+#     replaces std.http's own since Blimp #76). The two Bluesky requests
+#     send none of their own, so they go out as "zig/0.16.0 (std.http)"
+#     where Req sends "req/0.5.17".
 #
 # BLINKS_ENRICH=off turns it off (Phoenix: config :blog, :blinks_enrich).
 # BLINKS_ENRICH_BACKFILL=1 at boot queues every link with no enriched_at:
@@ -287,20 +285,7 @@ def bke_request(job: Map) -> Tuple do
   case job.stage do
     :did -> {concat(BKE_APPVIEW, "/com.atproto.identity.resolveHandle?handle=", bke_form(job.handle_name)), %{}, %{timeout_ms: 10000, max_redirects: 10}}
     :thread -> {concat(BKE_APPVIEW, "/app.bsky.feed.getPostThread?uri=", bke_form(concat("at://", job.did, "/app.bsky.feed.post/", job.rkey)), "&depth=50&parentHeight=50"), %{}, %{timeout_ms: 15000, max_redirects: 10}}
-    _ -> {job.url, %{"user-agent": BKE_UA}, %{timeout_ms: 10000, max_redirects: bke_redirects(job.url, 4)}}
-  end
-end
-
-# An http:// url that redirects to https:// panics the interpreter
-# (std.http.Client, `tls.connection.stream_reader.err.?` in create, on the
-# redirect's TLS connect; blimp-for-blog 55fcbfa and #74 both), and the
-# site is one process. So such a url is fetched without following
-# redirects, and a redirect is reported, not followed.
-# TODO(blimp): follow them once the interpreter survives the hop.
-def bke_redirects(url: String, n: Int) -> Int do
-  case starts_with(url, "http://") do
-    true -> 0
-    false -> n
+    _ -> {job.url, %{"user-agent": BKE_UA}, %{timeout_ms: 10000, max_redirects: 4}}
   end
 end
 
@@ -385,12 +370,6 @@ def bke_answered(job: Map, r: Any, t: Int) -> Any do
                   nil
                 false -> put(put(job, :stage, :scan), :scan, bke_scan_start(body))
               end
-            {:ok, status, _} ->
-              case status >= 300 and status < 400 and bke_redirects(job.url, 1) == 0 do
-                true -> bke_log(concat("not enriched: ", job.url, " redirects (", to_string(status), "), and an http:// redirect is not followed (see bke_redirects)"))
-                false -> bke_log(concat("failed for ", job.url, ": ", bke_why(r)))
-              end
-              nil
             _ ->
               bke_log(concat("failed for ", job.url, ": ", bke_why(r)))
               nil
