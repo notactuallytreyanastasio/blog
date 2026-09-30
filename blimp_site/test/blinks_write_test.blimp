@@ -32,6 +32,16 @@ def wt_raw(method: String, target: String, headers: List, body: String) -> Strin
   concat(join(list_append([concat(method, " ", target, " HTTP/1.1"), "Host: x"], list_append(headers, cl)), "\r\n"), "\r\n\r\n", body)
 end
 
+# What a handler is given for its params: the route's path params, as
+# web_dispatch merges them over the query and body.
+def bwt_conn(method: String, path: String) -> Map do
+  %{params: elem(web_find(BWT_ROUTES, method, path), 2)}
+end
+
+def bwt_param(method: String, path: String, name: String) -> Any do
+  web_param(bwt_conn(method, path), name)
+end
+
 def bwt_status(got: Tuple) -> Int do
   elem(got, 1)
 end
@@ -161,9 +171,22 @@ actor BlinksWriteTests do
     assert_eq(bwt_body(bwt_authed("DELETE", "/api/blinks/99999999999999999999", "")), "{\"error\":\"not found\"}")
     # "+" in a path is a plus, not a space (the router decodes a path like a form)
     assert_eq(bwt_status(bwt_authed("PATCH", "/api/blinks/+3", "{}")), 503)
-    assert_eq(blkw_path_tag(%{path: "/api/blinks/1/tags/c++"}), "c++")
-    assert_eq(blkw_path_tag(%{path: "/api/blinks/1/tags/two%20words"}), "two words")
-    assert_eq(blkw_path_id_seg(split("/blinks-next/api/blinks/+12/tags", "/")), "+12")
+    # the router binds :id and :tag with %XX decoded and "+" kept
+    assert_eq(bwt_param("DELETE", "/api/blinks/1/tags/c++", "tag"), "c++")
+    assert_eq(bwt_param("DELETE", "/api/blinks/1/tags/two%20words", "tag"), "two words")
+    assert_eq(bwt_param("POST", "/blinks-next/api/blinks/+12/tags", "id"), "+12")
+    assert_eq(bwt_param("PATCH", "/api/blinks/+3", "id"), "+3")
+  end
+
+  test "a tag that is not UTF-8 is an absent tag, not a parameter Postgres refuses" do
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/c++")), "c++")
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/%E2%9C%93")), hex_decode("e29c93"))
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/%FF")), nil)
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/ok%C3")), nil)
+    assert_eq(blkw_tag_param(bwt_conn("DELETE", "/api/blinks/1/tags/%ED%A0%80")), nil)
+    # still past the token and the id: with no database that is the 503
+    assert_eq(bwt_status(bwt_authed("DELETE", "/api/blinks/1/tags/%FF", "")), 503)
+    assert_eq(bwt_status(bwt_authed("DELETE", "/api/blinks/x/tags/%FF", "")), 400)
   end
 
   test "candidates: a list, of objects whose title and folder are strings or null" do
