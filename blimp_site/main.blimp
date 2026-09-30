@@ -791,6 +791,7 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   MTA <- :step
   GALLERY <- :step
   ZG <- :step
+  PUSHER <- :step(now())
   CAMERAS <- :step
   CAM_SWEEP <- :step
   ready = tcp_poll([fd | socket_fds(socks)], 100)
@@ -915,7 +916,8 @@ routes = stack_routes(routes)
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).
 # src/99_blinkswrite.blimp: BlinkController's token-gated writes
-WEB_ROUTES = list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes())
+# src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
+WEB_ROUTES = list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR))
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site

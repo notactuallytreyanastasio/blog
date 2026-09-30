@@ -1,0 +1,687 @@
+# Blinks, Web Push for the PWA on a home screen: Blog.Push.WebPush,
+# Blog.Push.Notifier and the Web Push half of Api.PushController.
+#
+#   POST   /api/push/web        {subscription: PushSubscription.toJSON(), tags?}
+#   DELETE /api/push/web?endpoint=...
+#   POST   /api/push/web/test   {endpoint}
+#   GET    /blinks-sw.js        the service worker, Service-Worker-Allowed: /blinks
+#
+# (and the three /api ones again under /blinks-next/api, as 64 did). Public
+# on purpose, as in Phoenix: anyone with the home-screen install may
+# subscribe, and a bogus subscription is pruned when its push service says
+# 404 or 410.
+#
+# A new blink reaches PUSHER from blkw_saved (src/99_blinkswrite.blimp), the
+# one place a save through Blimp ends; PUSHER then does what Notifier does:
+# skip an id it has pushed already (it keeps the last 500, because saving a
+# url that is already a blink announces it again), read the subscriptions,
+# keep those whose followed tags meet the blink's (none followed means all),
+# and send each one the same JSON.
+#
+# The sends are http_start()s stepped by the Site tick, at most
+# BKP_MAX_FLYING at a time. http_start in Blimp #71 has no timeout, so a
+# push service that accepts and never answers holds its slot until the
+# process restarts. That is not hidden: PUSHER says so in the log after
+# BKP_SLOW_S, and keeps polling the handle, because a handle nobody polls
+# is never freed even once it finishes. With four slots at most, a tarpit
+# can stop pushes but cannot take the 32 slots the rest of the site
+# shares. Blimp #74 (not merged) gives the same 4-argument call a 15 s
+# deadline, Req's receive_timeout in Phoenix; with it a hung send is
+# {:error, "timeout"}, logged as a failure like any other, and nothing
+# here changes.
+#
+# Encryption and VAPID are RFC 8291 and RFC 8292 over Blimp #71's builtins
+# (p256_*, ecdsa_p256_sign, aes128gcm_encrypt), as in that PR's
+# examples/web_push.blimp. The VAPID key pair is VAPID_PUBLIC_KEY,
+# VAPID_PRIVATE_KEY and VAPID_SUBJECT, the same env Phoenix reads.
+# bkp_vapid_config() refuses to start the site if the private key does not
+# give the public one.
+#
+# Where this is not Phoenix, on purpose:
+#   - POST /api/push/web/test answers 200 once the push is queued, not once
+#     the push service has answered. Phoenix waits for it (Req, 15 s) and
+#     answers 410 or 502 from what it said; this server is one thread, and
+#     a request cannot be held open while another server takes its time.
+#     A test push to a gone subscription still deletes it; the page just
+#     says "sent" first.
+#   - A p256dh that is not a point on the curve makes :crypto.compute_key
+#     raise ("Can't do fromdata") inside Notifier's Task, which ends its
+#     loop: every subscription after that one goes without. Here that one
+#     send is logged and the others go.
+#   - A 404 or 410 deletes the subscription with one log line saying who
+#     answered what; Phoenix deletes it without a word.
+
+BKP_MAX_FLYING = 4
+BKP_MAX_SEEN = 500
+BKP_SLOW_S = 60
+# Blog.RateLimiter.allow?("push-test:" <> endpoint, 5, 600)
+BKP_TEST_LIMIT = 5
+BKP_TEST_WINDOW_S = 600
+
+BKP_OK = "{\"status\":\"ok\"}"
+BKP_UNPROCESSABLE = "{\"status\":\"error\"}"
+
+# ---------------------------------------------------------------- base64url
+
+# Phoenix's b64url_decode/1: "=" and whitespace dropped, then base64url, or
+# failing that standard base64. Bytes, or nil for anything that is neither.
+def bkp_b64(s: Any) -> Any do
+  case type_of(s) == :string do
+    false -> nil
+    true ->
+      bare = replace(replace(replace(replace(replace(replace(s, "=", ""), " ", ""), "\n", ""), "\r", ""), "\t", ""), hex_decode("0b"), "")
+      clean = replace(replace(replace(bare, hex_decode("0c"), ""), "+", "-"), "/", "_")
+      try do
+        base64url_decode(clean)
+      catch e do
+        nil
+      end
+  end
+end
+
+# ---------------------------------------------------------------- VAPID keys
+
+# The env as runtime.exs reads it ("" is unset), checked the way a key pair
+# can be: the public key is derived from the private one and must be the
+# one configured, because a pair that does not match signs JWTs every push
+# service refuses (403), silently, one subscriber at a time.
+#   nil                     VAPID_PUBLIC_KEY unset: no pushes, the bell hidden
+#   %{public, private, subject}
+#   {:refuse, message}      the site must not start
+def bkp_vapid_check(public: Any, private: Any, subject: Any) -> Any do
+  case public == nil or public == "" do
+    true -> nil
+    false ->
+      case private == nil or private == "" do
+        true -> {:refuse, "VAPID_PRIVATE_KEY required with VAPID_PUBLIC_KEY"}
+        false ->
+          d = bkp_b64(private)
+          n = case d do
+            nil -> -1
+            _ -> length(d)
+          end
+          case n == 32 do
+            # :crypto.generate_key(:ecdh, :secp256r1) on OTP 28 always gives
+            # 32 bytes (5,000 of 5,000). A 31-byte key would be a scalar with
+            # its top byte zero written short: left-pad it with one 0x00 byte.
+            false -> {:refuse, concat("VAPID_PRIVATE_KEY is ", to_string(n), " bytes of base64url, not 32 (a P-256 scalar; a 31-byte one needs a leading zero byte)")}
+            true ->
+              derived = base64url_encode(p256_public_key(d))
+              case derived == bkp_b64_text(public) do
+                false -> {:refuse, "VAPID_PRIVATE_KEY does not give VAPID_PUBLIC_KEY: every push would be refused (403)"}
+                true ->
+                  sub = case subject == nil or subject == "" do
+                    true -> "https://bobbby.online"
+                    false -> subject
+                  end
+                  %{public: public, private: d, subject: sub}
+              end
+          end
+      end
+  end
+end
+
+# The configured public key re-encoded, so padding or standard base64 in
+# the env compares equal to what the private key derives.
+def bkp_b64_text(s: String) -> String do
+  b = bkp_b64(s)
+  case b do
+    nil -> ""
+    _ -> base64url_encode(b)
+  end
+end
+
+def bkp_env(name: String) -> Any do
+  web_or(getenv(name), "")
+end
+
+# At boot: the config, or the site stops here with the reason.
+def bkp_vapid_config() -> Any do
+  c = bkp_vapid_check(bkp_env("VAPID_PUBLIC_KEY"), bkp_env("VAPID_PRIVATE_KEY"), bkp_env("VAPID_SUBJECT"))
+  case c do
+    nil ->
+      puts("VAPID_PUBLIC_KEY is not set: no Web Push for /blinks")
+      nil
+    _ ->
+      case type_of(c) == :tuple do
+        true ->
+          puts(concat(elem(c, 1), ": refusing to start"))
+          exit(1)
+        false -> c
+      end
+  end
+end
+
+BKP_VAPID = bkp_vapid_config()
+
+# For the page (chapter 70): data-vapid on the BlinksPush element, as
+# BlinksLive assigns vapid_public_key. nil hides the bell.
+def bkp_vapid_public() -> Any do
+  case BKP_VAPID do
+    nil -> nil
+    _ -> BKP_VAPID.public
+  end
+end
+
+# ---------------------------------------------------------------- RFC 8291
+
+# HKDF-SHA256 (RFC 5869) for outputs of at most 32 bytes: one expand block.
+def bkp_hkdf(salt: String, ikm: String, info: String, n: Int) -> String do
+  prk = hex_decode(hmac_sha256(salt, ikm))
+  slice(hex_decode(hmac_sha256(prk, concat(info, hex_decode("01")))), 0, n)
+end
+
+# The aes128gcm body for one message, deterministic in the salt and the
+# sender's ephemeral private key (RFC 8291 Appendix A pins it). One record:
+# the plaintext and the 0x02 last-record delimiter, record size 4096.
+def bkp_encrypt(plaintext: String, ua_public: String, auth: String, salt: String, as_private: String) -> String do
+  as_public = p256_public_key(as_private)
+  shared = p256_ecdh(as_private, ua_public)
+  ikm = bkp_hkdf(auth, shared, join(["WebPush: info", hex_decode("00"), ua_public, as_public], ""), 32)
+  cek = bkp_hkdf(salt, ikm, concat("Content-Encoding: aes128gcm", hex_decode("00")), 16)
+  nonce = bkp_hkdf(salt, ikm, concat("Content-Encoding: nonce", hex_decode("00")), 12)
+  header = join([salt, hex_decode("00001000"), hex_decode("41"), as_public], "")
+  concat(header, aes128gcm_encrypt(cek, nonce, concat(plaintext, hex_decode("02")), ""))
+end
+
+# encrypt/3's checks, then a fresh salt and key pair: the body, or
+# {:error, why} as Phoenix names it.
+def bkp_body(plaintext: String, p256dh: String, auth: String) -> Any do
+  ua = bkp_b64(p256dh)
+  secret = bkp_b64(auth)
+  case ua == nil or secret == nil do
+    true -> {:error, ":bad_base64"}
+    false ->
+      case length(ua) == 65 do
+        false -> {:error, ":bad_p256dh"}
+        true ->
+          case length(secret) == 16 do
+            false -> {:error, ":bad_auth"}
+            true -> {:ok, bkp_encrypt(plaintext, ua, secret, random_bytes(16), elem(p256_keypair(), 0))}
+          end
+      end
+  end
+end
+
+# ---------------------------------------------------------------- RFC 8292
+
+# The push service's origin, as URI.parse/1 gives it: scheme://host, with
+# :port only when it is not the scheme's default.
+def bkp_audience(endpoint: String) -> String do
+  parts = split(endpoint, "/")
+  scheme = head(parts)
+  authority = case length(parts) > 2 do
+    true -> elem_at(parts, 2)
+    false -> ""
+  end
+  hp = split(authority, ":")
+  default = (scheme == "https:" and length(hp) == 2 and last(hp) == "443") or (scheme == "http:" and length(hp) == 2 and last(hp) == "80")
+  case default do
+    true -> concat(scheme, "//", head(hp))
+    false -> concat(scheme, "//", authority)
+  end
+end
+
+# The JWT, byte for byte what JOSE writes for Phoenix: the header's keys
+# sorted ({"alg":"ES256","typ":"JWT"}), the claims' too (aud, exp, sub),
+# and an r||s signature.
+def bkp_jwt(aud: String, exp: Int, sub: String, private: String) -> String do
+  header = base64url_encode("{\"alg\":\"ES256\",\"typ\":\"JWT\"}")
+  claims = base64url_encode(concat("{\"aud\":", json_encode(aud), ",\"exp\":", to_string(exp), ",\"sub\":", json_encode(sub), "}"))
+  input = concat(header, ".", claims)
+  concat(input, ".", base64url_encode(ecdsa_p256_sign(private, input)))
+end
+
+# Apple refuses an exp more than 24 hours out; Phoenix sends 12.
+def bkp_authorization(conf: Map, endpoint: String, t: Int) -> String do
+  concat("vapid t=", bkp_jwt(bkp_audience(endpoint), t + 12 * 3600, conf.subject, conf.private), ", k=", conf.public)
+end
+
+# The POST WebPush.send/3 makes: {url, headers, body} or {:error, why}.
+def bkp_request(conf: Map, job: Map, t: Int) -> Any do
+  body = bkp_body(job.payload, job.p256dh, job.auth)
+  case body do
+    {:error, why} -> body
+    {:ok, bytes} ->
+      h1 = put(%{}, "content-encoding", "aes128gcm")
+      h2 = put(h1, "content-type", "application/octet-stream")
+      h3 = put(h2, "ttl", "3600")
+      h4 = put(h3, "urgency", "normal")
+      {job.endpoint, put(h4, "authorization", bkp_authorization(conf, job.endpoint, t)), bytes}
+  end
+end
+
+# ---------------------------------------------------------------- what is sent
+
+# Jason writes a map's keys sorted, so the payloads are in that order.
+def bkp_blink_payload(blink: Map) -> String do
+  body = case blink.title do
+    nil -> blink.url
+    _ -> blink.title
+  end
+  concat("{\"blink_id\":", to_string(blink.id), ",\"body\":", json_encode(body), ",\"title\":\"new blink\",\"url\":", json_encode(blink.url), "}")
+end
+
+BKP_TEST_PAYLOAD = "{\"body\":\"you'll get a nudge here when a new link lands\",\"tag\":\"blinks-test\",\"title\":\"blinks is on\",\"url\":\"/blinks\"}"
+
+# wants_blink?/2: no followed tags is the firehose; otherwise one of them
+# must be on the blink.
+def bkp_wants(followed: List, tags: List) -> Bool do
+  case followed do
+    [] -> true
+    _ -> length(filter(followed, fn(f: String) -> Bool do has_string(tags, f) end)) > 0
+  end
+end
+
+# The subscriptions, oldest first (Repo.all/1 has no order; the table's
+# is insertion order in practice).
+BKP_SUBS_SQL = "select id, endpoint, p256dh, auth, to_json(followed_tags)::text as tags from web_push_subscriptions order by id"
+BKP_TOUCH_SQL = "update web_push_subscriptions set last_ok_at = date_trunc('second', now() at time zone 'UTC') where id = $1::bigint"
+BKP_DELETE_SQL = "delete from web_push_subscriptions where endpoint = $1::text"
+BKP_GET_SQL = "select id, endpoint, p256dh, auth from web_push_subscriptions where endpoint = $1::text"
+
+# One job per subscription that wants this blink.
+def bkp_jobs(rows: List, tags: List, payload: String) -> List do
+  wanted = filter(rows, fn(r: Map) -> Bool do bkp_wants(elem(json_decode(r.tags), 1), tags) end)
+  map(wanted, fn(r: Map) -> Map do
+    %{kind: :blink, id: r.id, endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth, payload: payload}
+  end)
+end
+
+# The last BKP_MAX_SEEN ids, newest first.
+def bkp_remember(seen: List, id: Any) -> List do
+  bkp_first_n([id | seen], BKP_MAX_SEEN, [])
+end
+
+def bkp_first_n(xs: List, n: Int, acc: List) -> List do
+  case n <= 0 or xs == [] do
+    true -> reverse(acc)
+    false -> bkp_first_n(tail(xs), n - 1, [head(xs) | acc])
+  end
+end
+
+def bkp_seen(seen: List, id: Any) -> Bool do
+  case seen do
+    [] -> false
+    [s | rest] ->
+      case s == id do
+        true -> true
+        false -> bkp_seen(rest, id)
+      end
+  end
+end
+
+# ---------------------------------------------------------------- the actor
+
+# What the actor does to the world, so a test can stand in for it:
+# start(url, headers, body) -> handle, poll(handle) -> nil | result,
+# query(sql, params) -> {:ok, rows} | {:error, reason}.
+def bkp_start(io: Any, url: String, headers: Map, body: String) -> Int do
+  case io do
+    nil -> http_start("POST", url, headers, body)
+    _ ->
+      f = io.start
+      f(url, headers, body)
+  end
+end
+
+def bkp_poll(io: Any, h: Int) -> Any do
+  case io do
+    nil -> http_result(h)
+    _ ->
+      f = io.poll
+      f(h)
+  end
+end
+
+def bkp_query(io: Any, sql: String, params: List) -> Any do
+  case io do
+    nil -> DB <- :query(sql, params)
+    _ ->
+      f = io.query
+      f(sql, params)
+  end
+end
+
+# What the push service's answer means, as Notifier and test_web act on it:
+# :ok (200-202), :expired (404, 410: the subscription is deleted) or
+# {:failed, why} (logged, nothing else: no retry, as in Phoenix).
+def bkp_verdict(r: Any) -> Any do
+  case elem(r, 0) do
+    :ok ->
+      s = elem(r, 1)
+      case s >= 200 and s <= 202 do
+        true -> :ok
+        false ->
+          case s == 404 or s == 410 do
+            true -> :expired
+            false -> {:failed, concat("{:http, ", to_string(s), ", ", json_encode(elem(r, 2)), "}")}
+          end
+      end
+    _ -> {:failed, to_string(elem(r, 1))}
+  end
+end
+
+# Acts on one finished send; answers the verdict.
+def bkp_settle(io: Any, job: Map, r: Any) -> Any do
+  v = bkp_verdict(r)
+  case v do
+    :ok ->
+      # test_web does not touch last_ok_at; Notifier does
+      case job.kind do
+        :blink -> bkp_query(io, BKP_TOUCH_SQL, [job.id])
+        _ -> :ok
+      end
+    :expired ->
+      # Phoenix deletes without a word; one line here says who said so
+      said = replace(slice(elem(r, 2), 0, min(length(elem(r, 2)), 200)), "\n", " ")
+      puts(concat("web push: ", bkp_audience(job.endpoint), " answered ", to_string(elem(r, 1)), " (", said, "); subscription deleted"))
+      bkp_query(io, BKP_DELETE_SQL, [job.endpoint])
+    _ -> puts(concat("web push failed: ", elem(v, 1)))
+  end
+  v
+end
+
+actor Pusher do
+  state conf: Any :: nil
+  state io: Any :: nil
+  state seen: List :: []
+  state queue: List :: []
+  # %{handle, job, at, warned}
+  state flying: List :: []
+  # endpoint -> [window, count]
+  state limits: Map :: %{}
+  state sent: Int :: 0
+  state delivered: Int :: 0
+  state expired: Int :: 0
+  state failed: Int :: 0
+  state last_error: String :: ""
+
+  on :config(c: Any) do
+    become conf: c
+    reply :ok
+  end
+
+  # tests: %{start, poll, query}
+  on :io(i: Any) do
+    become io: i
+    reply :ok
+  end
+
+  # Notifier.handle_info({:blink_saved, blink}): blink is %{id, url, title,
+  # tags}. Nothing, not even remembering the id, when push is off.
+  on :blink_saved(blink: Map) do
+    case conf == nil or bkp_seen(seen, blink.id) do
+      true -> reply 0
+      false ->
+        remembered = bkp_remember(seen, blink.id)
+        case bkp_query(io, BKP_SUBS_SQL, []) do
+          {:error, reason} ->
+            puts(concat("web push: cannot read the subscriptions: ", reason))
+            become seen: remembered, last_error: reason
+            reply 0
+          {:ok, rows} ->
+            jobs = bkp_jobs(rows, blink.tags, bkp_blink_payload(blink))
+            become seen: remembered, queue: list_append(queue, jobs)
+            reply length(jobs)
+        end
+    end
+  end
+
+  # test_web/2, after the lookup: the rate limit (counted even when push is
+  # off, as Phoenix counts it before WebPush.send/3 says so), then the
+  # send. :limited | :off | :queued
+  on :test(sub: Map, t: Int) do
+    w = t / BKP_TEST_WINDOW_S
+    had = lookup(limits, sub.endpoint)
+    n = case had != nil and head(had) == w do
+      true -> elem_at(had, 1) + 1
+      false -> 1
+    end
+    # windows gone by are forgotten whenever one is counted
+    kept = reduce(keys(limits), %{}, fn(acc: Map, k: String) -> Map do
+      v = lookup(limits, k)
+      case head(v) == w do
+        true -> put(acc, k, v)
+        false -> acc
+      end
+    end)
+    counted = put(kept, sub.endpoint, [w, n])
+    case n > BKP_TEST_LIMIT do
+      true ->
+        become limits: counted
+        reply :limited
+      false ->
+        case conf do
+          nil ->
+            become limits: counted
+            reply :off
+          _ ->
+            job = %{kind: :test, id: sub.id, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth, payload: BKP_TEST_PAYLOAD}
+            become limits: counted, queue: list_append(queue, [job])
+            reply :queued
+        end
+    end
+  end
+
+  # One tick: settle what has finished, warn about what will not, start
+  # what there is room for.
+  on :step(t: Int) do
+    polled = map(flying, fn(f: Map) -> Tuple do {f, bkp_poll(io, f.handle)} end)
+    waiting = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 1) == nil end), fn(p: Tuple) -> Map do
+      f = elem(p, 0)
+      case not(f.warned) and t - f.at >= BKP_SLOW_S do
+        true ->
+          j = f.job
+      puts(concat("web push to ", bkp_audience(j.endpoint), " has had no answer for ", to_string(t - f.at), "s; http_start has no timeout before Blimp #74, so its slot is held until it answers or the site restarts"))
+          put(f, :warned, true)
+        false -> f
+      end
+    end)
+    verdicts = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 1) != nil end), fn(p: Tuple) -> Any do
+      f = elem(p, 0)
+      bkp_settle(io, f.job, elem(p, 1))
+    end)
+    oks = length(filter(verdicts, fn(v: Any) -> Bool do v == :ok end))
+    gones = length(filter(verdicts, fn(v: Any) -> Bool do v == :expired end))
+    bads = length(verdicts) - oks - gones
+    room = BKP_MAX_FLYING - length(waiting)
+    started = bkp_launch(conf, io, queue, room, t, [], 0)
+    become flying: list_append(waiting, elem(started, 0)), queue: elem(started, 1),
+      sent: sent + elem(started, 2), delivered: delivered + oks, expired: expired + gones,
+      failed: failed + bads + elem(started, 3)
+    reply length(verdicts)
+  end
+
+  on :stats do
+    reply %{configured: conf != nil, queued: length(queue), flying: length(flying), sent: sent,
+      delivered: delivered, expired: expired, failed: failed, seen: length(seen), last_error: last_error}
+  end
+end
+
+# Start up to `room` jobs from the queue: {new flying, rest of the queue,
+# started, refused}. A job whose keys cannot be encrypted to is logged and
+# dropped; when every http slot is taken (-1), the job waits for a later tick.
+def bkp_launch(conf: Any, io: Any, queue: List, room: Int, t: Int, acc: List, bad: Int) -> Tuple do
+  case room <= 0 or queue == [] or conf == nil do
+    true -> {reverse(acc), queue, length(acc), bad}
+    false ->
+      job = head(queue)
+      req = try do
+        bkp_request(conf, job, t)
+      catch e do
+        {:error, to_string(e)}
+      end
+      case elem(req, 0) do
+        :error ->
+          puts(concat("web push failed: ", to_string(elem(req, 1))))
+          bkp_launch(conf, io, tail(queue), room, t, acc, bad + 1)
+        _ ->
+          h = bkp_start(io, elem(req, 0), elem(req, 1), elem(req, 2))
+          case h < 0 do
+            true -> {reverse(acc), queue, length(acc), bad}
+            false -> bkp_launch(conf, io, tail(queue), room - 1, t, [%{handle: h, job: job, at: t, warned: false} | acc], bad)
+          end
+      end
+  end
+end
+
+PUSHER = spawn Pusher
+PUSHER <- :config(BKP_VAPID)
+
+# From blkw_saved: a saved row (blk_row_sql's pre/thread/post) to PUSHER.
+# A push must never fail a save, so anything that goes wrong is logged.
+def bkp_blink_saved(row: Map) -> Any do
+  try do
+    b = elem(json_decode(row.pre), 1)
+    PUSHER <- :blink_saved(%{id: b.id, url: b.url, title: b.title, tags: web_or(b.tags, [])})
+  catch e do
+    puts(concat("web push: could not queue blink pushes: ", to_string(e)))
+    0
+  end
+end
+
+# ---------------------------------------------------------------- the routes
+
+def bkp_json(conn: Map, status: Int, body: String) -> Map do
+  blkw_json(conn, status, body)
+end
+
+# Api.PushController.subscribe_web/2. The body must hold subscription:
+# {endpoint, keys}; then WebSubscription.changeset/2: endpoint, p256dh and
+# auth required and strings, endpoint https:// and at most 2,000
+# characters, p256dh 80-120, auth 20-30. Tags as List.wrap |> filter
+# strings, then trimmed, lower-cased, blanks and repeats dropped, the first
+# 100 (in SQL, as 64 normalizes a blink's tags).
+def bkp_subscribe(conn: Map) -> Map do
+  sub = web_param(conn, "subscription")
+  shaped = type_of(sub) == :map and has_string(keys(sub), "endpoint") and has_string(keys(sub), "keys")
+  case shaped do
+    false -> bkp_json(conn, 400, "{\"error\":\"subscription with endpoint and keys required\"}")
+    true ->
+      ks = lookup(sub, "keys")
+      key = fn(name: String) -> Any do
+        case type_of(ks) == :map do
+          true -> lookup(ks, name)
+          false -> nil
+        end
+      end
+      endpoint = blkw_cast_string(lookup(sub, "endpoint"))
+      p256dh = blkw_cast_string(key("p256dh"))
+      auth = blkw_cast_string(key("auth"))
+      ua = blkw_ok_value(blkw_cast_string(web_or(lookup(conn.headers, "user-agent"), "")))
+      tags = filter(blkw_wrap(web_param(conn, "tags")), fn(t: Any) -> Bool do type_of(t) == :string end)
+      ok = bkp_valid(endpoint, "https://", 0, 2000) and bkp_valid(p256dh, "", 80, 120) and bkp_valid(auth, "", 20, 30)
+      case ok do
+        false -> bkp_json(conn, 422, BKP_UNPROCESSABLE)
+        true ->
+          params = [elem(endpoint, 1), elem(p256dh, 1), elem(auth, 1), tags, ua]
+          case DB <- :query(bkp_upsert_sql(), params) do
+            {:error, reason} -> blkw_no_db(conn, reason)
+            {:ok, _} -> bkp_json(conn, 200, BKP_OK)
+          end
+      end
+  end
+end
+
+# A cast string that is present, starts with `prefix` and is min..max
+# characters long.
+def bkp_valid(cast: Any, prefix: String, min: Int, max: Int) -> Bool do
+  case cast do
+    {:ok, v} ->
+      case v do
+        nil -> false
+        _ ->
+          n = blkw_chars(v)
+          starts_with(v, prefix) and n >= min and n <= max
+      end
+    _ -> false
+  end
+end
+
+# (a function: src/99_blinkswrite.blimp, whose BLKW_NOW this uses, comes
+# after this file)
+def bkp_upsert_sql() -> String do
+  join([
+  "insert into web_push_subscriptions (endpoint, p256dh, auth, followed_tags, user_agent, inserted_at, updated_at)",
+  " select $1::text, $2::text, $3::text,",
+  " array(select q.n from unnest(", blkw_norm_tags(blkw_text_array("$4")), ") with ordinality q(n, o) order by q.o limit 100),",
+  " left($5::text, 255), ", BLKW_NOW, ", ", BLKW_NOW,
+  " on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth,",
+  " followed_tags = excluded.followed_tags, user_agent = excluded.user_agent, updated_at = excluded.updated_at"
+  ], "")
+end
+
+# unsubscribe_web/2: ?endpoint= (or in the body). Always "ok", whether or
+# not there was such a subscription.
+def bkp_unsubscribe(conn: Map) -> Map do
+  endpoint = web_param(conn, "endpoint")
+  case type_of(endpoint) == :string do
+    false -> bkp_json(conn, 400, "{\"error\":\"endpoint required\"}")
+    true ->
+      case DB <- :query(BKP_DELETE_SQL, [endpoint]) do
+        {:error, reason} -> blkw_no_db(conn, reason)
+        {:ok, _} -> bkp_json(conn, 200, BKP_OK)
+      end
+  end
+end
+
+# test_web/2: 404 for an endpoint that is not subscribed, 429 past five in
+# ten minutes, 502 with push off, else 200 once it is queued (see the top).
+def bkp_test(conn: Map) -> Map do
+  endpoint = web_param(conn, "endpoint")
+  case type_of(endpoint) == :string do
+    false -> bkp_json(conn, 400, "{\"error\":\"endpoint required\"}")
+    true ->
+      case DB <- :query(BKP_GET_SQL, [endpoint]) do
+        {:error, reason} -> blkw_no_db(conn, reason)
+        {:ok, rows} ->
+          case rows do
+            [] -> bkp_json(conn, 404, "{\"error\":\"not subscribed\"}")
+            [sub | _] ->
+              case PUSHER <- :test(sub, now()) do
+                :limited -> bkp_json(conn, 429, "{\"error\":\"slow down\"}")
+                :off -> bkp_json(conn, 502, "{\"error\":\":not_configured\"}")
+                _ -> bkp_json(conn, 200, BKP_OK)
+              end
+          end
+      end
+  end
+end
+
+# BlinkFeedController.service_worker/2. The file is Phoenix's own,
+# priv/static/static/blinks-pwa/sw.js (deploy.sh ships it), so there is one
+# copy of it; it is read once, when the routes are built. A site that
+# cannot read it does not start.
+def bkp_service_worker(js: String) -> Any do
+  fn(conn: Map) -> Map do
+    sent = put(web_send(conn, 200, "application/javascript; charset=utf-8", js), :cache, "no-cache")
+    web_put_resp_header(sent, "service-worker-allowed", "/blinks")
+  end
+end
+
+def bkp_read_sw(static_dir: String) -> String do
+  path = concat(static_dir, "/static/blinks-pwa/sw.js")
+  js = read_file(path)
+  case js do
+    nil ->
+      puts(concat("cannot read ", path, ": refusing to start"))
+      exit(1)
+    _ -> js
+  end
+end
+
+# static_dir: main.blimp's STATIC_DIR.
+def blinks_push_routes(static_dir: String) -> List do
+  c = [blkw_cors]
+  sw = [web_route("GET", "/blinks-sw.js", c, bkp_service_worker(bkp_read_sw(static_dir)))]
+  list_append(sw, flat(map(["/api/push/web", "/blinks-next/api/push/web"], fn(base: String) -> List do
+    [
+      web_route("POST", base, c, bkp_subscribe),
+      web_route("DELETE", base, c, bkp_unsubscribe),
+      web_route("OPTIONS", base, c, blkw_preflight),
+      web_route("POST", concat(base, "/test"), c, bkp_test),
+      web_route("OPTIONS", concat(base, "/test"), c, blkw_preflight)
+    ]
+  end)))
+end
