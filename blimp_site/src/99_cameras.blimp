@@ -1,0 +1,473 @@
+# /cameras, the Camera Browser: every film camera for sale on Craigslist in
+# NYC, the Bay Area, Seattle and Portland, in one dense table with a facet
+# rail, and a lightbox with the post, its photos and a model's read on it.
+#
+# CameraBrowserLive was a LiveView over Postgres. Every filter change
+# (city, status, sort, the search box, prices, starred, hidden) ran
+# Blog.CameraBrowser.list_listings/1, at most 500 rows; the facet rail was
+# counted from those rows in memory (Blog.CameraBrowser.Facets); re-posts
+# were collapsed (collapse_dupes/1); and the table and rail were rendered
+# on the server, about 1.4KB of HTML per row, which is why the page was
+# 188KB. Blog.CameraBrowser.Poller swept Craigslist every 15 minutes and
+# broadcast {:camera_browser_polled, summary} on PubSub, and every open
+# page ran its query again.
+#
+# Here the page is a Blimp program (static/cameras/cameras.blimp), which
+# asks this file for the rows:
+#
+#   /cameras/listings.json?status=&city=&q=&min=&max=&hidden=&starred=&sort=&key=
+#       list_listings/1's query, as Ecto built it, and the header's stats;
+#       JSON that Postgres writes (json_agg), so no Blimp runs per row
+#   /cameras/listing.json?id=
+#       one listing, all of it, for the lightbox (get_listing/1)
+#
+# and counts the facets, collapses re-posts and draws everything itself,
+# with what those decide in Temper (temper/src/cameras). A chip or a facet
+# is a click in the browser, not a round trip.
+#
+# /live/cameras replaces the PubSub topic and the LiveView's star, hide and
+# note events (this server answers only GET):
+#
+#   up    {"t":"star"|"hide","id":..,"key":..}
+#         {"t":"note","id":..,"note":..,"key":..}
+#   down  {"t":"polled"}                 a sweep finished: ask again
+#         {"t":"changed","id":..,"what":..,"mine":bool}
+#         {"t":"refused","message":..}
+#
+# CAMERAS finds out about a sweep by asking Postgres for the newest
+# last_seen_at once a minute, while a page is open: the sweep is still
+# Phoenix's (see below), and it tells nobody but Phoenix.
+#
+# Writing needs the same ?key= the LiveView checked, BLINKS_API_TOKEN.
+# The LiveView let everyone write when that was unset (dev); here unset
+# means nobody can, and the boot line says so: a deploy that forgets the
+# variable must not open the curation to the internet.
+#
+# What is not here: the sweep. Blog.CameraBrowser.poll/1 searches
+# sapi.craigslist.org, scrapes post pages, copies photos from
+# images.craigslist.org to object storage, and then has OpenAI's model
+# (CAMERA_ANALYST_MODEL) read each new post. Every Craigslist host speaks
+# only TLS 1.2 with an ECDSA certificate, and the TLS client Blimp's
+# http_start uses (Zig 0.16's std.crypto.tls) offers TLS 1.2 only with
+# ECDHE_RSA suites, so the handshake fails: http_start answers
+# {:error, "TlsInitializationFailed"} for every one of them. Until Blimp's
+# runtime can talk to Craigslist, the Poller, and the analyst it runs at
+# the end of every sweep, stay in Phoenix, and so does the lightbox's
+# "fetch now" button (it fetched a post page), which this page leaves out.
+
+CAM_BUCKET = case getenv("S3_BUCKET") do
+  nil -> "bobbby-media"
+  "" -> "bobbby-media"
+  b -> b
+end
+CAM_TOKEN = case getenv("BLINKS_API_TOKEN") do
+  nil -> ""
+  t -> trim(t)
+end
+CAM_POLL_CHECK_S = 60
+
+# Plug.Crypto.secure_compare(key, token), by comparing digests: the time
+# taken says nothing about how much of the key was right.
+def cam_admin(key: String) -> Bool do
+  CAM_TOKEN != "" and sha256(concat("cam:", key)) == sha256(concat("cam:", CAM_TOKEN))
+end
+
+def cam_epoch(col: String) -> String do
+  concat("coalesce(extract(epoch from q.", col, ")::bigint, -1)")
+end
+
+# A row as the table and the facets need it. A missing string is "", a
+# missing number -1 (Temper's convention, temper/src/cameras).
+CAM_ROW_FIELDS = join([
+  "'id', q.id, 'title', q.title, 'price', coalesce(q.price_cents, -1), ",
+  "'area', q.area, 'sub', coalesce(q.subarea, ''), 'loc', coalesce(q.location, ''), 'hood', coalesce(q.neighborhood, ''), ",
+  "'tags', q.tags, 'score', q.score, 'n_img', cardinality(q.image_ids), 'img', coalesce(q.image_ids[1], ''), ",
+  "'cond', coalesce(q.attrs->>'condition', ''), 'make', coalesce(q.attrs->>'make / manufacturer', q.attrs->>'make', ''), ",
+  "'body', coalesce(q.body, ''), ",
+  "'renewed', ", cam_epoch("renewed_at"), ", 'posted', ", cam_epoch("posted_at"), ", 'closed', ", cam_epoch("closed_at"), ", ",
+  "'closed_reason', coalesce(q.closed_reason, ''), ",
+  "'starred', q.starred_at is not null, 'hidden', q.hidden_at is not null, 'note', coalesce(q.note, ''), ",
+  "'analyzed', q.analysis is not null, 'pt', coalesce(q.analysis->>'price_take', ''), 'pn', coalesce(q.analysis->>'price_note', ''), ",
+  "'rarity', coalesce((q.analysis->>'rarity')::int, -1), 'contact', q.contact <> '{}'::jsonb"
+], "")
+
+# visible/1: "digital" anywhere disqualifies a post.
+CAM_VISIBLE = "(NOT (c0.\"title\" ILIKE $1) AND ((c0.\"body\" IS NULL) OR NOT (c0.\"body\" ILIKE $2)))"
+
+def cam_order_by(sort: String) -> String do
+  case sort do
+    "newest" -> "c0.\"renewed_at\" DESC NULLS LAST, c0.\"id\" DESC"
+    "price_asc" -> "c0.\"price_cents\" ASC NULLS LAST, c0.\"score\" DESC"
+    "price_desc" -> "c0.\"price_cents\" DESC NULLS LAST, c0.\"score\" DESC"
+    _ -> "c0.\"score\" DESC, c0.\"renewed_at\" DESC NULLS LAST"
+  end
+end
+
+# The filters as handle_params/3 read them from the URL.
+def cam_filters(query: String) -> Map do
+  city = case contains(concat("&", query), "&city=") do
+    true -> query_param(query, "city")
+    false -> "nyc"
+  end
+  %{status: cam_status(query_param(query, "status")), city: city, q: query_param(query, "q"),
+    min: cam_dollars(query_param(query, "min")), max: cam_dollars(query_param(query, "max")),
+    hidden: query_param(query, "hidden") == "1", starred: query_param(query, "starred") == "1",
+    sort: cam_sort(query_param(query, "sort"))}
+end
+
+# String.replace(text, ~r/[%_]/, ""): the search is a substring, not a
+# pattern of the searcher's.
+def cam_like_text(s: String) -> String do
+  join(split(join(split(s, "%"), ""), "_"), "")
+end
+
+# list_listings/1: {sql, params}. Each clause is the one Ecto wrote, in
+# the order the pipeline adds them.
+def cam_list_query(f: Map) -> Tuple do
+  status = case f.status do
+    "open" -> [" AND (c0.\"closed_at\" IS NULL)"]
+    "closed" -> [" AND (NOT (c0.\"closed_at\" IS NULL))"]
+    _ -> []
+  end
+  base = {concat("SELECT c0.* FROM \"camera_listings\" AS c0 WHERE ", CAM_VISIBLE, join(status, "")), ["%digital%", "%digital%"]}
+  area = cam_city_area(f.city)
+  with_city = case f.city do
+    "" -> base
+    _ ->
+      case area do
+        "" -> cam_and(base, "(c0.\"subarea\" = $?)", [f.city])
+        _ -> cam_and(base, "(c0.\"area\" = $?)", [area])
+      end
+  end
+  with_q = case f.q do
+    "" -> with_city
+    _ ->
+      pattern = concat("%", cam_like_text(f.q), "%")
+      cam_and(with_city, "((c0.\"title\" ILIKE $?) OR (c0.\"body\" ILIKE $?))", [pattern, pattern])
+  end
+  with_min = case f.min < 0 do
+    true -> with_q
+    false -> cam_and(with_q, "(c0.\"price_cents\" >= $?)", [f.min])
+  end
+  with_max = case f.max < 0 do
+    true -> with_min
+    false -> cam_and(with_min, "(c0.\"price_cents\" <= $?)", [f.max])
+  end
+  with_hidden = case f.hidden do
+    true -> with_max
+    false -> {concat(elem(with_max, 0), " AND (c0.\"hidden_at\" IS NULL)"), elem(with_max, 1)}
+  end
+  with_starred = case f.starred do
+    true -> {concat(elem(with_hidden, 0), " AND (NOT (c0.\"starred_at\" IS NULL))"), elem(with_hidden, 1)}
+    false -> with_hidden
+  end
+  sql = concat("with q as materialized (", elem(with_starred, 0), " ORDER BY ", cam_order_by(f.sort), " LIMIT 500) ",
+    "select coalesce(json_agg(json_build_object(", CAM_ROW_FIELDS, ")), '[]')::text as body from q")
+  {sql, elem(with_starred, 1)}
+end
+
+# One more condition, its $? numbered after the parameters so far (a
+# condition that uses the same value twice, as the search does, gets two).
+def cam_and(q: Tuple, cond: String, params: List) -> Tuple do
+  sql = elem(q, 0)
+  have = elem(q, 1)
+  numbered = cam_number(split(cond, "$?"), length(have) + 1, "")
+  {concat(sql, " AND ", numbered), list_append(have, params)}
+end
+
+def cam_number(parts: List, n: Int, acc: String) -> String do
+  case parts do
+    [] -> acc
+    [p] -> concat(acc, p)
+    [p | rest] -> cam_number(rest, n + 1, concat(acc, p, "$", to_string(n)))
+  end
+end
+
+# stats/0, over the visible listings; last_seen over all of them.
+CAM_STATS_SQL = join([
+  "select json_build_object(",
+  "'open', count(*) filter (where c0.closed_at is null and c0.hidden_at is null), ",
+  "'closed', count(*) filter (where c0.closed_at is not null), ",
+  "'starred', count(*) filter (where c0.starred_at is not null), ",
+  "'last_seen', (select coalesce(extract(epoch from max(last_seen_at))::bigint, -1) from camera_listings)",
+  ")::text as body from camera_listings c0 where ", CAM_VISIBLE
+], "")
+
+# get_listing/1, all of it. attrs and contact as [key, value] pairs in the
+# order an Elixir map of them iterates (sorted keys), which jsonb does not
+# keep (it sorts keys by length first).
+CAM_ONE_SQL = join([
+  "select json_build_object(", CAM_ROW_FIELDS, ", ",
+  "'url', q.url, 'reply_url', coalesce(q.reply_url, ''), ",
+  "'lat', coalesce(q.lat::text, ''), 'lng', coalesce(q.lng::text, ''), ",
+  "'attrs', (select coalesce(json_agg(json_build_array(key, value) order by key collate \"C\"), '[]') from jsonb_each_text(q.attrs)), ",
+  "'contact_list', (select coalesce(json_agg(json_build_array(key, value) order by key collate \"C\"), '[]') from jsonb_each(q.contact)), ",
+  "'queries', q.queries, 'first_seen', ", cam_epoch("first_seen_at"), ", 'last_seen', ", cam_epoch("last_seen_at"), ", ",
+  "'posting_id', q.posting_id::text, 'analysis', q.analysis, 'image_ids', q.image_ids, 'mirrored', q.mirrored_images",
+  ")::text as body from camera_listings q where q.id = $1"
+], "")
+
+CAM_DB_DOWN = "{\"error\": \"the database did not answer\"}"
+
+def cam_json(status: Int, body: String) -> Map do
+  response(status, "application/json; charset=utf-8", "no-store", body)
+end
+
+def cam_body(sql: String, params: List) -> Any do
+  case DB <- :query(sql, params) do
+    {:error, reason} ->
+      puts(concat("cameras: ", reason))
+      nil
+    {:ok, rows} ->
+      case rows do
+        [] -> "null"
+        _ -> head(rows).body
+      end
+  end
+end
+
+# The rows for the page's filters, the header's stats, the server's clock
+# (the browser's Blimp has none, and "3h ago" needs one), whether the key
+# is good, and the query it answers, so the page can drop an answer to a
+# question it no longer asks.
+def cameras_listings_json(query: String) -> Map do
+  q = cam_list_query(cam_filters(query))
+  rows = cam_body(elem(q, 0), elem(q, 1))
+  stats = case rows do
+    nil -> nil
+    _ -> cam_body(CAM_STATS_SQL, ["%digital%", "%digital%"])
+  end
+  case stats do
+    nil -> cam_json(503, CAM_DB_DOWN)
+    _ ->
+      head_part = json_encode(%{now: now(), admin: cam_admin(query_param(query, "key")), want: query, bucket: CAM_BUCKET})
+      cam_json(200, concat(take(head_part, length(head_part) - 1), ", \"stats\": ", stats, ", \"rows\": ", rows, "}"))
+  end
+end
+
+def cameras_listing_json(query: String) -> Map do
+  id = query_param(query, "id")
+  case id != "" and all_digits(id) and length(id) < 10 do
+    false -> cam_json(404, "null")
+    true ->
+      body = cam_body(CAM_ONE_SQL, [to_int(id)])
+      case body do
+        nil -> cam_json(503, CAM_DB_DOWN)
+        "null" -> cam_json(404, "null")
+        _ -> cam_json(200, body)
+      end
+  end
+end
+
+def all_digits(s: String) -> Bool do
+  length(filter(split(s, ""), fn(c: String) -> Bool do not(contains("0123456789", c)) end)) == 0
+end
+
+# ── the room ───────────────────────────────────────────────────────────
+
+def cam_send(fd: Int, frame: String) -> Any do
+  case fd < 0 do
+    true -> :test
+    false -> tcp_write(fd, frame)
+  end
+end
+
+def cam_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+UTC_NOW = "date_trunc('second', now() at time zone 'utc')"
+
+# toggle_star/1, toggle_hidden/1 and set_note/2, each with the updated_at
+# Repo.update! wrote. A note is trimmed, and an empty one is nil, as
+# Ecto's cast made it.
+def cam_write(what: String, id: Int, note: String) -> Tuple do
+  sql = case what do
+    "star" -> concat("update camera_listings set starred_at = case when starred_at is null then ", UTC_NOW, " else null end, updated_at = ", UTC_NOW, " where id = $1 returning id")
+    "hide" -> concat("update camera_listings set hidden_at = case when hidden_at is null then ", UTC_NOW, " else null end, updated_at = ", UTC_NOW, " where id = $1 returning id")
+    _ -> concat("update camera_listings set note = $2, updated_at = ", UTC_NOW, " where id = $1 returning id")
+  end
+  params = case what do
+    "note" ->
+      t = trim(note)
+      stored = case t do
+        "" -> nil
+        _ -> t
+      end
+      [id, stored]
+    _ -> [id]
+  end
+  case DB <- :query(sql, params) do
+    {:ok, rows} ->
+      case rows do
+        [] -> {:error, "no such listing"}
+        _ -> {:ok, id}
+      end
+    {:error, reason} -> {:error, reason}
+  end
+end
+
+actor CameraRoom do
+  # socket (as a string) -> fd
+  state people: Map :: %{}
+  state checked_at: Int :: 0
+  # the newest last_seen_at, -1 before the first look
+  state last_seen: Int :: -1
+  state sweeps: Int :: 0
+  state writes: Int :: 0
+  state refused: Int :: 0
+
+  on :join(fd: Int) do
+    become people: put(people, to_string(fd), fd)
+    reply :ok
+  end
+
+  on :leave(fd: Int) do
+    k = to_string(fd)
+    become people: reduce(keys(people), %{}, fn(acc: Map, p: Any) -> Map do
+      case p == k do
+        true -> acc
+        false -> put(acc, p, lookup(people, p))
+      end
+    end)
+    reply :ok
+  end
+
+  # A star, a hide or a note from a page with the key.
+  on :recv(fd: Int, text: String) do
+    msg = cam_decode(text)
+    what = lookup(msg, :t)
+    id = lookup(msg, :id)
+    key = lookup(msg, :key)
+    note = lookup(msg, :note)
+    key_text = case type_of(key) == :string do
+      true -> key
+      false -> ""
+    end
+    allowed = (what == "star" or what == "hide" or what == "note") and type_of(id) == :integer and cam_admin(key_text)
+    case allowed do
+      false ->
+        cam_send(fd, ws_frame(1, json_encode(%{t: "refused", message: "not allowed"})))
+        become refused: refused + 1
+        reply :refused
+      true ->
+        text_note = case type_of(note) == :string do
+          true -> note
+          false -> ""
+        end
+        case cam_write(what, id, text_note) do
+          {:ok, _} ->
+            each(keys(people), fn(k: Any) do
+              p = lookup(people, k)
+              cam_send(p, ws_frame(1, json_encode(%{t: "changed", id: id, what: what, mine: p == fd})))
+            end)
+            become writes: writes + 1
+            reply :ok
+          {:error, reason} ->
+            puts(concat("cameras: cannot save a ", what, ": ", reason))
+            cam_send(fd, ws_frame(1, json_encode(%{t: "refused", message: reason})))
+            become refused: refused + 1
+            reply :error
+        end
+    end
+  end
+
+  # From the Site's tick: once a minute, while anyone is looking, whether
+  # a sweep has finished since the last look.
+  on :step do
+    t = now()
+    case length(keys(people)) > 0 and t - checked_at >= CAM_POLL_CHECK_S do
+      false -> reply :idle
+      true ->
+        case DB <- :query("select coalesce(extract(epoch from max(last_seen_at))::bigint, -1) as t from camera_listings", []) do
+          {:error, reason} ->
+            puts(concat("cameras: cannot check for a sweep: ", reason))
+            become checked_at: t
+            reply :error
+          {:ok, rows} ->
+            seen = head(rows).t
+            swept = last_seen >= 0 and seen != last_seen
+            case swept do
+              true -> each(values(people), fn(p: Int) do cam_send(p, ws_frame(1, "{\"t\":\"polled\"}")) end)
+              false -> :ok
+            end
+            n = case swept do
+              true -> sweeps + 1
+              false -> sweeps
+            end
+            become checked_at: t, last_seen: seen, sweeps: n
+            reply swept
+        end
+    end
+  end
+
+  on :stats do
+    reply %{pages: length(keys(people)), last_seen: last_seen, sweeps: sweeps, writes: writes, refused: refused, curation: CAM_TOKEN != ""}
+  end
+end
+
+CAMERAS = spawn CameraRoom
+
+# ── the page ────────────────────────────────────────────────────────────
+
+CAM_PROGRAM_PATH = "/cameras/cameras.blimp"
+CAM_SCRIPTS = list_append(APP_SCRIPTS, ["/cameras/cameras.js"])
+CAM_DESCRIPTION = "Every film camera for sale on craigslist in NYC, the Bay Area, Seattle and Portland, swept every 15 minutes. Sliced by brand, format, rarity and price, each one rated by a camera nerd robot."
+
+# camera_browser_root.html.heex: its own head (the share card, noindex),
+# the app css, and a body with no margin. The page is the program's view.
+def cameras_page() -> String do
+  styles = [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/cameras/cameras.css"]
+  join([
+    "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n",
+    "<meta charset=\"utf-8\">\n",
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n",
+    "<title>Camera Browser</title>\n",
+    meta_tag("name", "description", CAM_DESCRIPTION),
+    meta_tag("property", "og:title", "Camera Browser — film cameras live on craigslist"),
+    meta_tag("property", "og:description", CAM_DESCRIPTION),
+    meta_tag("property", "og:type", "website"),
+    meta_tag("property", "og:url", "https://bobbby.online/cameras"),
+    meta_tag("property", "og:site_name", "bobbby.online"),
+    meta_tag("property", "og:image", "https://www.bobbby.online/images/og-cameras.png?v=2"),
+    meta_tag("property", "og:image:width", "1200"),
+    meta_tag("property", "og:image:height", "630"),
+    meta_tag("property", "og:image:alt", "A classic Mac Finder window listing film cameras for sale with brand, price and rarity facets"),
+    meta_tag("name", "twitter:card", "summary_large_image"),
+    meta_tag("name", "twitter:title", "Camera Browser — film cameras live on craigslist"),
+    meta_tag("name", "twitter:description", "Every film camera for sale on craigslist in NYC, the Bay Area, Seattle and Portland, swept every 15 minutes."),
+    meta_tag("name", "twitter:image", "https://www.bobbby.online/images/og-cameras.png?v=2"),
+    meta_tag("name", "robots", "noindex"),
+    "<link rel=\"icon\" href=\"/favicon.ico\">\n",
+    join(map(styles, fn(href: String) -> String do concat("<link rel=\"stylesheet\" href=\"", href, "\">\n") end), ""),
+    "</head>\n<body style=\"margin:0;\">\n",
+    "<div id=\"blimp-app\" data-program=\"", CAM_PROGRAM_PATH, "\" data-actor=\"cam\" data-location=\"1\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", CAM_PROGRAM_PATH, "\">", CAM_PROGRAM_PATH, "</a>.</p></noscript>\n",
+    script_tags(CAM_SCRIPTS),
+    "</body>\n</html>\n"
+  ], "")
+end
+
+def cam_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+CAM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", cameras_page())
+CAM_PROGRAM = cam_asset("_build/cameras.blimp", "text/plain; charset=utf-8")
+CAM_JS = cam_asset("static/cameras/cameras.js", "text/javascript; charset=utf-8")
+CAM_CSS = cam_asset("static/cameras/cameras.css", "text/css; charset=utf-8")
