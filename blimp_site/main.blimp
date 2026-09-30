@@ -367,7 +367,7 @@ def handle_req(raw: String, req: Map, routes: Map, posts: List, desk: Map, home:
     false -> web_handle(raw, req)
     true ->
       fixed = case req.path == "/" and req.query == "" do
-        true -> bare_home(home)
+        true -> bare_home(home, desk)
         false -> lookup(routes, req.path)
       end
       case fixed do
@@ -394,24 +394,37 @@ def web_handle(raw: String, req: Map) -> Any do
 end
 
 # The homepage with no query string is most of the traffic to "/", and all
-# of it is the same page except the clock in the menu bar. Rendering it per
-# request cost a worker about 0.8MB of garbage, so it is rendered once at
-# boot, cut at the clock, and the time is put back per request. The clock
-# is always eight bytes ("%I:%M %p"), so the prebuilt Content-Length holds.
+# of it is the same page except the clock in the menu bar and the Hangar's
+# live counters. Rendering it per request cost a worker about 0.8MB of
+# garbage, so it is rendered once at boot, cut at the clock and at the
+# counters, and both are put back per request. The clock is always eight
+# bytes ("%I:%M %p") and the counters are zero-padded to a fixed width, so
+# the prebuilt Content-Length holds; a counter that outgrows its width
+# (a hundred million requests) gets the page rendered in full instead.
 def home_parts(desk: Map) -> List do
   marker = desk_clock(0)
   wire = serialize(html_response(200, desktop_page("", desk, 0)), "GET")
   parts = split(wire, marker)
-  case length(parts) == 2 and length(desk_clock(now())) == length(marker) do
-    true -> parts
+  ok = length(parts) == 2 and length(desk_clock(now())) == length(marker)
+  rest = case ok do
+    true -> split(last(parts), DESK_LIVE_MARK)
+    false -> []
+  end
+  case ok and length(rest) == 2 do
+    true -> [head(parts), head(rest), last(rest)]
     false ->
-      print("the homepage clock is not a unique, fixed-width marker; cannot prebuild /")
+      print("the homepage clock and counters are not unique, fixed-width markers; cannot prebuild /")
       exit(1)
   end
 end
 
-def bare_home(parts: List) -> String do
-  join([head(parts), desk_clock(now()), last(parts)], "")
+def bare_home(parts: List, desk: Map) -> String do
+  t = now()
+  counts = desk_live_now(t)
+  case length(counts) == length(DESK_LIVE_MARK) do
+    true -> join([elem_at(parts, 0), desk_clock(t), elem_at(parts, 1), counts, elem_at(parts, 2)], "")
+    false -> serialize(html_response(200, desktop_page_with("", desk, t, counts, false)), "GET")
+  end
 end
 
 # A prebuilt response with its body cut off, for HEAD.
