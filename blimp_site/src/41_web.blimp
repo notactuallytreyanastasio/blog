@@ -634,19 +634,47 @@ def web_dispatch(raw: String, req: Map, routes: List, secret: String) -> Any do
             false -> web_plain(req, 405, "method not allowed", [["Allow", "GET, HEAD"]])
           end
         {:method, allowed} -> web_plain(req, 405, "method not allowed", [["Allow", web_allow(allowed)]])
-        {:ok, route, pp} ->
-          conn = web_parse_body(put(web_conn(raw, req, secret), :path_params, pp))
-          piped = web_run_plugs(route.pipeline, conn)
-          done = case piped.halted do
-            true -> piped
-            false ->
-              h = route.handler
-              h(piped)
-          end
-          web_finish(done, req)
+        {:ok, route, pp} -> web_run(raw, req, route, pp, secret)
       end
     _ -> web_plain(req, elem(framing, 0), elem(framing, 1), [])
   end
+end
+
+# The route's pipeline and handler, then the response they built. Either
+# can crash: a handler that divides by zero, a plug that reads a field a
+# map does not have, a handler that returns a conn whose resp_body is nil
+# (serialize fails on it after the handler has returned). A crash here used
+# to unwind out of the tick with the socket still open: the client waited
+# for an answer that never came and nothing was logged. Now each step is
+# caught, the client gets a 500 that names nothing inside the server, and
+# the log gets one line with the request and the step that failed.
+def web_run(raw: String, req: Map, route: Map, pp: Map, secret: String) -> Tuple do
+  done = try do
+    conn = web_parse_body(put(web_conn(raw, req, secret), :path_params, pp))
+    piped = web_run_plugs(route.pipeline, conn)
+    case piped.halted do
+      true -> {:conn, piped}
+      false ->
+        h = route.handler
+        {:conn, h(piped)}
+    end
+  catch e do
+    {:crashed, web_crashed(req, "the pipeline or handler", e)}
+  end
+  case elem(done, 0) do
+    :crashed -> elem(done, 1)
+    :conn ->
+      try do
+        web_finish(elem(done, 1), req)
+      catch e do
+        web_crashed(req, "building the response", e)
+      end
+  end
+end
+
+def web_crashed(req: Map, step: String, e: Any) -> Tuple do
+  puts(concat("web: 500 on ", req.method, " ", req.path, ": ", step, " crashed (", to_string(e), ")"))
+  web_plain(req, 500, "internal server error", [])
 end
 
 # The conn's response on the wire, with its session cookie if it changed.

@@ -231,4 +231,19 @@ actor WebTests do
     assert(ends_with(wt_wire(got), "\r\n\r\n"))
     refute(contains(wt_wire(got), "Content-Length: 0\r\n"))
   end
+  test "a handler or plug that crashes, or a response that cannot be built, is a 500 that says nothing" do
+    crash = fn(c: Map) -> Map do web_text(c, 200, concat("n=", 1 / 0)) end
+    bad_plug = fn(c: Map) -> Map do c.nope.deeper end
+    nil_body = fn(c: Map) -> Map do put(web_text(c, 200, ""), :resp_body, nil) end
+    routes = [web_route("POST", "/crash", [], crash), web_route("POST", "/plug", [bad_plug], crash), web_route("GET", "/nil", [], nil_body)]
+    each(["POST /crash", "POST /plug", "GET /nil"], fn(mp: String) do
+      m = head(split(mp, " "))
+      raw = wt_raw(m, last(split(mp, " ")), [], "")
+      got = web_dispatch(raw, parse_request(raw), routes, WT_SECRET)
+      assert_eq(wt_status(got), 500)
+      assert(starts_with(wt_wire(got), "HTTP/1.1 500 "))
+      assert(contains(wt_wire(got), "Content-Type: text/plain; charset=utf-8\r\n"))
+      assert_eq(wt_body(got), "internal server error\n")
+    end)
+  end
 end
