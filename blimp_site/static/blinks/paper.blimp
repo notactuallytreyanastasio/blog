@@ -1,16 +1,21 @@
-# /blinks-next: BlinksLive, the newspaper, read-only, as a Blimp program in
-# the browser. The state is the URL's, as it was the LiveView's
-# (?q= &tags= &t= &nodork= &shuffle= &page= &view=archives &week= &similar=
+# /blinks-next: BlinksLive, the newspaper, as a Blimp program in the
+# browser. The state is the URL's, as it was the LiveView's (?chat= ?q=
+# &tags= &t= &nodork= &shuffle= &page= &view=archives &week= &similar=
 # &media=), and every change of it asks /blinks-next/page.json for the page
-# again. What BlinksLive did that writes (chat, hide, the tour's "seen",
-# admin, the dork list, push) is drawn but disabled: clicking it says what
-# is not ported yet, and where the working one is.
+# again. What BlinksLive kept per device (hidden links, the tour's "seen",
+# the admin key, the stumble promo, the always-shuffle cookie) arrives in
+# :boot from static/blinks/live.js before the first fetch; everything the
+# page writes goes out through the outbox (static/blinks/live.blimp), and
+# the /live/blinks socket's frames come in as :frame.
 
 PAPER_SIZE = 30
+
+# the admin key's localStorage name, and the other things a device keeps
+BKV_STORE_KEY = "blinksAdminKey"
 PAPER_WINDOWS = [["", "all time"], ["1d", "past day"], ["3d", "past 3 days"], ["1w", "past week"], ["1mo", "past month"], ["1y", "past year"]]
 
 # The page's query string, in the order BlinksLive's patch/2 writes it.
-def paper_query(media: String, nodork: Bool, page: Int, q: String, shuffle: String, similar: Int, t: String, tags: String, view: String, week: String) -> String do
+def paper_query(chat: Int, media: String, nodork: Bool, page: Int, q: String, shuffle: String, similar: Int, t: String, tags: String, view: String, week: String) -> String do
   page_s = case page > 1 do
     true -> to_string(page)
     false -> ""
@@ -23,11 +28,17 @@ def paper_query(media: String, nodork: Bool, page: Int, q: String, shuffle: Stri
     true -> to_string(similar)
     false -> ""
   end
-  blk_query(["media", "nodork", "page", "q", "shuffle", "similar", "t", "tags", "view", "week"],
-    [media, nodork_s, page_s, q, shuffle, similar_s, t, tags, view, week])
+  chat_s = case chat > 0 do
+    true -> to_string(chat)
+    false -> ""
+  end
+  blk_query(["chat", "media", "nodork", "page", "q", "shuffle", "similar", "t", "tags", "view", "week"],
+    [chat_s, media, nodork_s, page_s, q, shuffle, similar_s, t, tags, view, week])
 end
 
-def paper_data_url(nodork: Bool, page: Int, q: String, shuffled: Bool, seed: String, similar: Int, t: String, tags: String, view: String, week: String) -> String do
+# `r` is how many live events the page has heard: each one is a new URL,
+# so a fetch already under way for the old one is not taken for the new.
+def paper_data_url(nodork: Bool, page: Int, q: String, shuffled: Bool, seed: String, similar: Int, t: String, tags: String, view: String, week: String, size: Int, rev: Int) -> String do
   seed_s = case shuffled do
     true -> seed
     false -> ""
@@ -40,8 +51,12 @@ def paper_data_url(nodork: Bool, page: Int, q: String, shuffled: Bool, seed: Str
     true -> to_string(similar)
     false -> ""
   end
-  concat("/blinks-next/page.json?", blk_query(["nodork", "page", "q", "seed", "similar", "size", "t", "tags", "view", "week"],
-    [nodork_s, to_string(page), q, seed_s, similar_s, to_string(PAPER_SIZE), t, tags, view, week]))
+  rev_s = case rev > 0 do
+    true -> to_string(rev)
+    false -> ""
+  end
+  concat("/blinks-next/page.json?", blk_query(["nodork", "page", "q", "r", "seed", "similar", "size", "t", "tags", "view", "week"],
+    [nodork_s, to_string(page), q, rev_s, seed_s, similar_s, to_string(size), t, tags, view, week]))
 end
 
 # -- a row --------------------------------------------------------------------
@@ -126,11 +141,12 @@ def paper_thread(b: Map) -> List do
   end
 end
 
-def paper_row(b: Map, rank: Int, selected: String, open_tags: List) -> Any do
-  cls = case b.dead_at do
-    nil -> "thing"
-    _ -> "thing dead"
-  end
+# `cx` is what a row needs from the page besides its link: selected (the
+# tags csv), open_tags, admin, editing and tag_editing (ids, 0 for none),
+# fresh (ids that arrived live), rooms (every present member's room).
+def paper_row(b: Map, rank: Int, first: Bool, cx: Map) -> Any do
+  fresh = bk_contains(cx.fresh, b.id)
+  cls = join(filter(["thing", paper_if(fresh, "fresh"), paper_if(b.dead_at != nil, "dead")], fn(c: String) -> Bool do c != "" end), " ")
   thumb = paper_thumb(b)
   thumb_el = case thumb do
     "" -> []
@@ -140,9 +156,9 @@ def paper_row(b: Map, rank: Int, selected: String, open_tags: List) -> Any do
     [] -> "title"
     _ -> "title quoted"
   end
-  pill = case b.tags do
-    [] -> []
-    _ -> [el("span", %{class: "pillbtn tags-pill", click: :toggle_tags, with: b.id}, concat("TAGS (", to_string(length(b.tags)), ")"))]
+  pill = case b.tags != [] or cx.admin do
+    false -> []
+    true -> [el("span", %{class: "pillbtn tags-pill", click: :toggle_tags, with: b.id}, concat("TAGS (", to_string(length(b.tags)), ")"))]
   end
   favicon = case b.favicon_url do
     nil -> []
@@ -171,22 +187,71 @@ def paper_row(b: Map, rank: Int, selected: String, open_tags: List) -> Any do
         el("summary", %{class: "foldarrow"}, concat("media (", to_string(n_media), ")")),
         el("div", %{}, paper_bmedia(root, b.id, 0), quote_strip))]
   end
-  tagsbox = case bk_contains(open_tags, b.id) do
+  editform = case cx.admin and cx.editing == b.id do
+    false -> []
+    true -> [el("form", %{class: "editform", submit: :save_edit},
+      el("input", %{type: "hidden", name: "id", value: to_string(b.id)}),
+      el("input", %{type: "text", name: "title", value: bk_str(b.title), placeholder: "title"}),
+      el("textarea", %{name: "description", rows: "2", placeholder: "notes"}, bk_str(b.description)),
+      el("div", %{},
+        el("button", %{type: "submit", class: "aim-send"}, "save"), " ",
+        el("a", %{click: :edit_blink, with: b.id, style: "color:#888; cursor:pointer; font-size:10px;"}, "cancel")))]
+  end
+  tagsbox = case bk_contains(cx.open_tags, b.id) do
     false -> []
     true ->
-      chosen = blk_tag_list(selected)
-      [el("div", %{class: "meta tagsbox"}, map(b.tags, fn(t: String) -> Any do
+      chosen = blk_tag_list(cx.selected)
+      add = case cx.admin do
+        false -> []
+        true ->
+          form = case cx.tag_editing == b.id do
+            false -> []
+            true -> [el("form", %{class: "tagadd", submit: :add_tags},
+              el("input", %{type: "hidden", name: "id", value: to_string(b.id)}),
+              el("input", %{type: "text", name: "tags", placeholder: "new, tags, here", autocomplete: "off", autocapitalize: "none"}),
+              el("button", %{type: "submit", class: "aim-send"}, "add"))]
+          end
+          [el("a", %{class: "tagadd-link", click: :edit_tags, with: b.id}, "+tag") | form]
+      end
+      [el("div", %{class: "meta tagsbox"}, flat(map(b.tags, fn(t: String) -> Any do
         tcls = case bk_contains(chosen, t) do
           true -> "tag on"
           false -> "tag"
         end
-        el("span", %{}, el("span", %{class: tcls, click: :toggle_tag, with: t}, t))
-      end))]
+        x = case cx.admin do
+          false -> []
+          true -> [el("span", %{class: "tagx", click: :remove_tag, with: concat(to_string(b.id), " ", t), title: "remove this tag"}, "✕")]
+        end
+        [el("span", %{}, el("span", %{class: tcls, click: :toggle_tag, with: t}, t, x)), " "]
+      end)), add)]
   end
   chats = b.chat_count
   chat_style = case chats > 0 do
     true -> "color:#369;"
     false -> ""
+  end
+  here = blkl_count(cx.rooms, blkl_room(b.id))
+  dot = case here > 0 do
+    true -> [el("span", %{class: "live-dot"})]
+    false -> []
+  end
+  here_n = case here > 0 do
+    true -> [el("span", %{class: "live-n"}, blkl_here_now(here))]
+    false -> []
+  end
+  joy_chat = case first do
+    true -> "chat-link"
+    false -> nil
+  end
+  joy_hide = case first do
+    true -> "hide-link"
+    false -> nil
+  end
+  admin_links = case cx.admin do
+    false -> []
+    true -> [
+      el("a", %{click: :edit_blink, with: b.id}, "edit"), " ",
+      el("a", %{class: "del", click: :delete_blink, with: b.id}, "delete"), " "]
   end
   quotes_fold = case length(b.quotes) > 1 do
     false -> []
@@ -208,30 +273,37 @@ def paper_row(b: Map, rank: Int, selected: String, open_tags: List) -> Any do
       subtitle,
       quoting,
       media,
+      editform,
       tagsbox,
       el("div", %{class: "meta"},
-        el("a", %{class: "notyet", style: chat_style, click: :not_ported, with: concat("chat:", to_string(b.id)), title: "chat is not ported to Blimp yet"}, blk_comment_label(chats)), " ",
+        el("a", %{click: :open_chat, with: b.id, style: chat_style, "data-joyride": joy_chat}, dot, blk_comment_label(chats), here_n), " ",
         el("a", %{href: blk_wayback(b.url), target: "_blank", rel: "noopener"}, "wayback"), " ",
         el("a", %{href: blk_archive_ph(b.url), target: "_blank", rel: "noopener"}, "archive.ph"), " ",
-        el("a", %{class: "notyet", click: :not_ported, with: "hide", title: "hiding is not ported to Blimp yet"}, "hide"), " ",
+        el("a", %{click: :hide, with: b.id, title: "hide this link on this device", "data-joyride": joy_hide}, "hide"), " ",
+        admin_links,
         quotes_fold,
         paper_thread(b),
         notes)))
 end
 
+def paper_if(cond: Bool, s: String) -> String do
+  case cond do
+    true -> s
+    false -> ""
+  end
+end
+
 # The two columns, numbered straight through from `first`.
-def paper_columns(rows: List, first: Int, selected: String, open_tags: List) -> List do
+def paper_columns(rows: List, first: Int, cx: Map) -> List do
   left_n = blk_left_count(map(rows, fn(b: Map) -> Int do paper_height(b) end))
   numbered = zip(range(0, length(rows) - 1), rows)
   left = filter(numbered, fn(p: Any) -> Bool do elem(p, 0) < left_n end)
   right = filter(numbered, fn(p: Any) -> Bool do elem(p, 0) >= left_n end)
   draw = fn(col: List) -> Any do
-    el("div", %{class: "col"}, map(col, fn(p: Any) -> Any do paper_row(elem(p, 1), first + elem(p, 0), selected, open_tags) end))
+    el("div", %{class: "col"}, map(col, fn(p: Any) -> Any do paper_row(elem(p, 1), first + elem(p, 0), elem(p, 0) == 0, cx) end))
   end
-  case rows do
-    [] -> []
-    _ -> [draw(left), draw(right)]
-  end
+  # an empty page still has its two (empty) columns, as split_columns/2 has
+  [draw(left), draw(right)]
 end
 
 # -- the sidebar ---------------------------------------------------------------
@@ -248,7 +320,7 @@ def paper_tag(tag: Map, chosen: List, with_count: Bool) -> Any do
   el("span", %{class: cls, click: :toggle_tag, with: tag.name}, tag.name, count)
 end
 
-def paper_sidebar(tags: List, selected: String, singles_open: Bool) -> Any do
+def paper_sidebar(tags: List, selected: String, singles_open: Bool, admin: Bool, admin_error: String) -> Any do
   chosen = blk_tag_list(selected)
   frequent = filter(tags, fn(t: Map) -> Bool do t.count >= 2 end)
   singles = filter(tags, fn(t: Map) -> Bool do t.count == 1 end)
@@ -276,7 +348,7 @@ def paper_sidebar(tags: List, selected: String, singles_open: Bool) -> Any do
     _ -> [" ", el("span", %{style: "color:#888;"}, concat("(for ", join(chosen, " + "), ")"))]
   end
   el("div", %{class: "sidebar"},
-    el("div", %{class: "sidebox"},
+    el("div", %{class: "sidebox", "data-joyride": "tags-box"},
       el("h2", %{}, "tags"),
       el("div", %{class: "body", style: "position:relative;"},
         none,
@@ -287,12 +359,7 @@ def paper_sidebar(tags: List, selected: String, singles_open: Bool) -> Any do
       el("div", %{class: "body"},
         el("a", %{href: blk_rss_href("/blinks-next/blinks.rss", selected), style: "color:#369;"}, "rss"),
         for_tags)),
-    el("div", %{class: "sidebox"},
-      el("h2", %{}, "admin"),
-      el("div", %{class: "body"},
-        el("input", %{type: "password", name: "key", placeholder: "paste API key…", disabled: true, style: "width:100%; border:1px solid #5f99cf; font-size:11px; padding:3px; margin-bottom:4px;"}),
-        el("button", %{class: "aim-send", disabled: true}, "unlock"),
-        el("div", %{class: "notyet-note"}, "admin is not ported to Blimp yet; it works on /blinks"))),
+    bkv_admin_box(admin, admin_error),
     el("div", %{class: "sidebox"},
       el("h2", %{}, "about"),
       el("div", %{class: "body", style: "color:#555;"}, "bobby's links. click tags to combine them — you'll see everything carrying any of them. every link is also a chat room.")))
@@ -313,6 +380,7 @@ actor Paper do
   state week: String :: ""
   state similar: Int :: 0
   state media: String :: ""
+  state chat: Int :: 0
   state data: Any :: nil
   state loaded: String :: ""
   state problem: String :: ""
@@ -320,6 +388,38 @@ actor Paper do
   state singles_open: Bool :: false
   state promo: Bool :: true
   state note: String :: ""
+  # what BlinksPrefs and the always-shuffle cookie said (:boot)
+  state always: Bool :: false
+  state hidden: List :: []
+  state size: Int :: 30
+  state csrf: String :: ""
+  state vapid: String :: ""
+  # live: the socket, what it said, and what arrived through it
+  state online: Bool :: false
+  state dropped: Bool :: false
+  state rev: Int :: 0
+  state fresh: List :: []
+  state members: Map :: %{}
+  state show_buddies: Bool :: false
+  # admin, as BlinksLive keeps it: unlocked by the API key
+  state admin: Bool :: false
+  state admin_key: String :: ""
+  state admin_error: String :: ""
+  state editing: Int :: 0
+  state tag_editing: Int :: 0
+  state dork_editing: Bool :: false
+  # the tour
+  state seen_tour: Bool :: true
+  state tour_on: Bool :: false
+  state tour_i: Int :: 0
+  state tour_rect: Any :: nil
+  # the push bell
+  state push: Map :: BKV_NO_PUSH
+  state push_dialog: Bool :: false
+  state push_seen: Bool :: false
+  # the outbox (static/blinks/live.blimp)
+  state outbox: List :: []
+  state seq: Int :: 0
 
   # BlinksLive.handle_params/3: what the URL says when the page starts.
   on :location(query: String) do
@@ -337,32 +437,177 @@ actor Paper do
       "0" -> "0"
       _ -> ""
     end
+    sd = case seed do
+      "" -> to_string(random(1, 2147483646))
+      _ -> seed
+    end
     become started: true, q: query_param(query, "q"), tags: join(blk_tag_list(query_param(query, "tags")), ","),
       t: blk_window(query_param(query, "t")), nodork: query_param(query, "nodork") == "1", shuffle: sh,
-      seed: to_string(random(1, 2147483646)), page: p, view: v, week: wk,
-      similar: blk_id(query_param(query, "similar")), media: query_param(query, "media")
+      seed: sd, page: p, view: v, week: wk,
+      similar: blk_id(query_param(query, "similar")), media: query_param(query, "media"), chat: blk_id(query_param(query, "chat"))
+    reply :ok
+  end
+
+  # What the device keeps, from static/blinks/live.js, before the first
+  # fetch: BlinksPrefs' "prefs" event, the cookie the server read, and the
+  # seed it made. Then the URL, as :location.
+  on :prefs(json: String) do
+    m = bkv_json(json)
+    key = bkv_get(m, "adminKey", "")
+    hid = bkv_int_list(bkv_get(m, "hidden", []))
+    sd = bkv_get(m, "seed", "")
+    ob0 = case type_of(key) == :string and key != "" do
+      true -> [bkv_entry_arg(seq + 1, "recheck", merge(bkv_op(seq + 1, "http", "GET", "/blinks-next/admin", ""), %{"data-key": key}), key) | outbox]
+      false -> outbox
+    end
+    seen = bkv_get(m, "seenTour", false) == true
+    tour_ob = case seen do
+      true -> ob0
+      false -> [bkv_entry(seq + 2, "rect", bkv_op(seq + 2, "rect", "search", "", "")) | ob0]
+    end
+    chat_ob = case chat > 0 do
+      true -> [bkv_entry(seq + 3, "ws", bkv_op(seq + 3, "ws", concat("{\"t\":\"room\",\"room\":\"", blkl_room(chat), "\"}"), "", "")) | tour_ob]
+      false -> tour_ob
+    end
+    become always: bkv_get(m, "always", false) == true, hidden: hid, seed: sd,
+      csrf: bkv_get(m, "csrf", ""), vapid: bkv_get(m, "vapid", ""),
+      promo: not(bkv_get(m, "promoHidden", false) == true),
+      seen_tour: seen, tour_on: not(seen), tour_i: 0, tour_rect: nil,
+      push_seen: bkv_get(m, "pushPromptSeen", false) == true,
+      outbox: chat_ob, seq: seq + 3
     reply :ok
   end
 
   on :loaded(status: Int, body: String) do
     case status == 200 do
       false ->
-        become problem: concat("the server answered ", to_string(status), " for this page's links"), loaded: paper_data_url(nodork, page, q, shuffle == "1" and view == "", seed, similar, t, tags, view, week)
+        become problem: concat("the server answered ", to_string(status), " for this page's links"), loaded: paper_data_url(nodork, page, q, paper_shuffled(view, shuffle, always), seed, similar, t, tags, view, week, size, rev)
         reply :error
       true ->
-        become data: elem(json_decode(body), 1), problem: "", loaded: paper_data_url(nodork, page, q, shuffle == "1" and view == "", seed, similar, t, tags, view, week)
+        become data: elem(json_decode(body), 1), problem: "", loaded: paper_data_url(nodork, page, q, paper_shuffled(view, shuffle, always), seed, similar, t, tags, view, week, size, rev)
         reply :ok
     end
   end
 
+  # -- the socket ----------------------------------------------------------
+
+  # live.js: "open" or "closed". A page that was away asks again, since it
+  # may have missed a save, and says again which room it is in.
+  on :socket(what: String) do
+    case what do
+      "open" ->
+        ob = case chat > 0 do
+          true -> [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", concat("{\"t\":\"room\",\"room\":\"", blkl_room(chat), "\"}"), "", "")) | outbox]
+          false -> outbox
+        end
+        bump = case dropped do
+          true -> rev + 1
+          false -> rev
+        end
+        become online: true, dropped: false, outbox: ob, seq: seq + 1, rev: bump
+      _ -> become online: false, dropped: true, members: %{}
+    end
+    reply :ok
+  end
+
+  # A frame from /live/blinks: a blink saved, edited or deleted (ask for
+  # the page again; a saved one tunes in from static), or who is where.
+  on :frame(text: String) do
+    m = bkv_json(text)
+    case bkv_get(m, "t", "") do
+      "blink" ->
+        id = bkv_get(m, "id", 0)
+        f = case bkv_get(m, "event", "") == "blink_saved" do
+          true -> bkv_add(fresh, id)
+          false -> fresh
+        end
+        become rev: rev + 1, fresh: f
+      _ -> become members: bkv_presence(members, m)
+    end
+    reply :ok
+  end
+
+  # -- the outbox's answers ---------------------------------------------------
+
+  on :done(n: Int, status: Int, body: String) do
+    e = bkv_find(outbox, n)
+    rest = bkv_without(outbox, n)
+    kind = case e do
+      nil -> ""
+      _ -> e.kind
+    end
+    case kind do
+      "recheck" ->
+        case status == 200 do
+          true -> become outbox: rest, admin: true, admin_key: e.arg
+          false -> become outbox: rest
+        end
+      "unlock" ->
+        key = e.arg
+        case status == 200 do
+          true -> become outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", BKV_STORE_KEY, key, "")) | rest], seq: seq + 1, admin: true, admin_key: key, admin_error: ""
+          false -> become outbox: rest, admin_error: "nope, that's not it"
+        end
+      "rect" ->
+        become outbox: rest, tour_rect: bkv_rect(body)
+      "confirm_delete" ->
+        case status == 1 do
+          true ->
+            id = e.arg
+            become outbox: [bkv_entry(seq + 1, "write", merge(bkv_op(seq + 1, "http", "DELETE", concat("/blinks-next/api/blinks/", id), ""), %{"data-key": admin_key})) | rest], seq: seq + 1
+          false -> become outbox: rest
+        end
+      "write" ->
+        # the page hears of its own write on the socket, as BlinksLive did
+        # on PubSub; without the socket it asks again itself
+        bump = case online do
+          true -> rev
+          false -> rev + 1
+        end
+        case bkv_ok(status) do
+          true -> become outbox: rest, rev: bump
+          false -> become outbox: rest, note: paper_write_failed(status, body)
+        end
+      "dork" ->
+        case bkv_ok(status) do
+          true -> become outbox: rest, dork_editing: false, rev: rev + 1
+          false -> become outbox: rest, note: paper_write_failed(status, body)
+        end
+      "push" ->
+        st = bkv_push_state(body)
+        seen = push_seen or st.seen
+        auto = blkl_push_auto_open(vapid != "", st.mobile, st.subscribed, seen, st.permission)
+        become outbox: rest, push: st, push_dialog: push_dialog or auto, push_seen: seen or auto
+      _ -> become outbox: rest
+    end
+    reply :ok
+  end
+
+  # the bell's own report (the service worker registered, or not)
+  on :push_state(json: String) do
+    st = bkv_push_state(json)
+    seen = push_seen or st.seen
+    auto = blkl_push_auto_open(vapid != "", st.mobile, st.subscribed, seen, st.permission)
+    become push: st, push_dialog: push_dialog or auto, push_seen: seen or auto
+    reply :ok
+  end
+
+  # PaperFit: how many rows fit, from live.js.
+  on :fit(count: Int) do
+    become size: blkl_fit_size(count)
+    reply :ok
+  end
+
+  # -- reading ---------------------------------------------------------------
+
   on :search(fields: String) do
     got = elem(json_decode(fields), 1)
-    become q: bk_str(lookup(got, "q")), similar: 0, page: 1
+    become q: bk_str(lookup(got, "q")), similar: 0, page: 1, fresh: []
     reply :ok
   end
 
   on :toggle_tag(tag: String) do
-    become tags: blk_toggle_tag(tags, tag, false), similar: 0, page: 1
+    become tags: blk_toggle_tag(tags, tag, false), similar: 0, page: 1, fresh: []
     reply :ok
   end
 
@@ -380,20 +625,31 @@ actor Paper do
   end
 
   on :toggle_dork do
-    become nodork: not(nodork)
+    become nodork: not(nodork), fresh: []
     reply :ok
   end
 
   on :set_window(w: String) do
-    become t: blk_window(w), page: 1
+    become t: blk_window(w), page: 1, fresh: []
     reply :ok
   end
 
   on :toggle_shuffle do
-    case shuffle == "1" do
-      true -> become shuffle: "0", page: 1
-      false -> become shuffle: "1", page: 1
+    case paper_shuffled(view, shuffle, always) do
+      true -> become shuffle: "0", page: 1, fresh: []
+      false -> become shuffle: "1", page: 1, fresh: []
     end
+    reply :ok
+  end
+
+  # The checkbox: a cookie, so the server sees it before the next first
+  # render (BlinksPrefs), and the page reloads with it at once.
+  on :toggle_always do
+    line = case always do
+      true -> "blinksAlwaysShuffle=;path=/;max-age=0"
+      false -> "blinksAlwaysShuffle=1;path=/;max-age=31536000;samesite=lax"
+    end
+    become always: not(always), outbox: [bkv_entry(seq + 1, "cookie", bkv_op(seq + 1, "cookie", line, "", "")) | outbox], seq: seq + 1
     reply :ok
   end
 
@@ -401,32 +657,33 @@ actor Paper do
   # /blinks?view=archives(&week=...) in BlinksLive, so they drop every other
   # filter.
   on :set_view(v: String) do
-    become view: v, week: "", page: 1, similar: 0, q: "", tags: "", t: "", nodork: false, shuffle: "", media: ""
+    become view: v, week: "", page: 1, similar: 0, q: "", tags: "", t: "", nodork: false, shuffle: "", media: "", chat: 0, fresh: []
     reply :ok
   end
 
   on :set_week(monday: String) do
-    become view: "archives", week: monday, page: 1, similar: 0, q: "", tags: "", t: "", nodork: false, shuffle: "", media: ""
+    become view: "archives", week: monday, page: 1, similar: 0, q: "", tags: "", t: "", nodork: false, shuffle: "", media: "", chat: 0, fresh: []
     reply :ok
   end
 
   on :more do
-    become page: page + 1
+    become page: page + 1, fresh: []
     reply :ok
   end
 
   on :prev_page do
-    become page: max(page - 1, 1)
+    become page: max(page - 1, 1), fresh: []
     reply :ok
   end
 
   on :clear do
-    become q: "", tags: "", similar: 0
+    ob = paper_room_op(outbox, seq, chat, 0)
+    become q: "", tags: "", similar: 0, chat: 0, outbox: ob, seq: seq + 1, fresh: []
     reply :ok
   end
 
   on :dismiss_promo do
-    become promo: false
+    become promo: false, outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksStumblePromoHidden", "1", "")) | outbox], seq: seq + 1
     reply :ok
   end
 
@@ -465,16 +722,203 @@ actor Paper do
     reply :ok
   end
 
+  # -- this device -------------------------------------------------------------
+
+  on :hide(id: Int) do
+    h = bkv_add(hidden, id)
+    become hidden: h, outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksHidden", blkl_ids_json(h), "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  on :unhide_all do
+    become hidden: [], outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksHidden", "[]", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  # -- chat (the rooms are chapter 71's; who is in them is here) ----------------
+
+  on :open_chat(id: Int) do
+    become chat: id, show_buddies: false, outbox: paper_room_op(outbox, seq, chat, id), seq: seq + 1
+    reply :ok
+  end
+
+  on :close_chat do
+    become chat: 0, show_buddies: false, outbox: paper_room_op(outbox, seq, chat, 0), seq: seq + 1
+    reply :ok
+  end
+
+  on :toggle_buddies do
+    become show_buddies: not(show_buddies)
+    reply :ok
+  end
+
+  # -- the tour ----------------------------------------------------------------
+
+  on :start_tour do
+    become tour_on: true, tour_i: 0, tour_rect: nil, outbox: [bkv_entry(seq + 1, "rect", bkv_op(seq + 1, "rect", "search", "", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  on :tour_next do
+    steps = blkl_tour_steps(chat > 0)
+    case tour_i + 1 >= length(steps) do
+      true -> become tour_on: false, tour_i: 0, tour_rect: nil, seen_tour: true, outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksTourSeen", "1", "")) | outbox], seq: seq + 1
+      false ->
+        target = head(bk_nth(steps, tour_i + 1))
+        become tour_i: tour_i + 1, tour_rect: nil, outbox: [bkv_entry(seq + 1, "rect", bkv_op(seq + 1, "rect", target, "", "")) | outbox], seq: seq + 1
+    end
+    reply :ok
+  end
+
+  on :tour_prev do
+    steps = blkl_tour_steps(chat > 0)
+    i = max(tour_i - 1, 0)
+    target = head(bk_nth(steps, i))
+    become tour_i: i, tour_rect: nil, outbox: [bkv_entry(seq + 1, "rect", bkv_op(seq + 1, "rect", target, "", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  on :tour_close do
+    become tour_on: false, tour_i: 0, tour_rect: nil, seen_tour: true, outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksTourSeen", "1", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  # -- admin ------------------------------------------------------------------
+
+  on :unlock_admin(fields: String) do
+    key = bk_str(lookup(elem(json_decode(fields), 1), "key"))
+    become outbox: [bkv_entry_arg(seq + 1, "unlock", merge(bkv_op(seq + 1, "http", "GET", "/blinks-next/admin", ""), %{"data-key": key}), key) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  on :lock_admin do
+    become admin: false, admin_key: "", editing: 0, tag_editing: 0, outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", BKV_STORE_KEY, "", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  on :edit_blink(id: Int) do
+    case editing == id do
+      true -> become editing: 0
+      false -> become editing: id
+    end
+    reply :ok
+  end
+
+  on :save_edit(fields: String) do
+    got = elem(json_decode(fields), 1)
+    id = blk_id(bk_str(lookup(got, "id")))
+    body = json_encode(%{title: bk_str(lookup(got, "title")), description: bk_str(lookup(got, "description"))})
+    case admin and id > 0 do
+      true -> become editing: 0, outbox: [paper_write(seq + 1, "PATCH", concat("/blinks-next/api/blinks/", to_string(id)), body, admin_key) | outbox], seq: seq + 1
+      false -> become editing: 0
+    end
+    reply :ok
+  end
+
+  on :edit_tags(id: Int) do
+    case tag_editing == id do
+      true -> become tag_editing: 0
+      false -> become tag_editing: id
+    end
+    reply :ok
+  end
+
+  on :add_tags(fields: String) do
+    got = elem(json_decode(fields), 1)
+    id = blk_id(bk_str(lookup(got, "id")))
+    body = json_encode(%{tags: split(bk_str(lookup(got, "tags")), ",")})
+    case admin and id > 0 do
+      true -> become tag_editing: 0, outbox: [paper_write(seq + 1, "POST", concat("/blinks-next/api/blinks/", to_string(id), "/tags"), body, admin_key) | outbox], seq: seq + 1
+      false -> become tag_editing: 0
+    end
+    reply :ok
+  end
+
+  # "<id> <tag>": a tag may have spaces in it, an id does not.
+  on :remove_tag(what: String) do
+    cut = index_of(what, " ")
+    id = take(what, max(cut, 0))
+    tag = drop(what, cut + 1)
+    case admin and cut > 0 do
+      true -> become outbox: [paper_write(seq + 1, "DELETE", concat("/blinks-next/api/blinks/", id, "/tags/", paper_path_encode(tag)), "", admin_key) | outbox], seq: seq + 1
+      false -> become note: ""
+    end
+    reply :ok
+  end
+
+  on :delete_blink(id: Int) do
+    rows = case data do
+      nil -> []
+      _ -> data.blinks
+    end
+    b = bk_find(rows, id)
+    question = case b do
+      nil -> blkl_delete_confirm("", false, to_string(id))
+      _ -> blkl_delete_confirm(bk_str(b.title), b.title != nil, b.url)
+    end
+    case admin do
+      true -> become outbox: [bkv_entry_arg(seq + 1, "confirm_delete", bkv_op(seq + 1, "confirm", question, "", ""), to_string(id)) | outbox], seq: seq + 1
+      false -> become note: ""
+    end
+    reply :ok
+  end
+
+  # -- the dork list (anyone, as in Phoenix) --------------------------------------
+
+  on :edit_dork do
+    become dork_editing: not(dork_editing)
+    reply :ok
+  end
+
+  on :save_dork(fields: String) do
+    got = elem(json_decode(fields), 1)
+    body = json_encode(%{dork_tags: bk_str(lookup(got, "dork_tags"))})
+    become outbox: [bkv_entry(seq + 1, "dork", merge(bkv_op(seq + 1, "http", "POST", "/blinks-next/dork", body), %{"data-csrf": csrf})) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  # -- push (src/99_blinkspush.blimp serves it) ------------------------------------------------
+
+  on :push_dialog_open do
+    become push_dialog: true
+    reply :ok
+  end
+
+  on :push_dialog_close do
+    become push_dialog: false, push_seen: true, outbox: [bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksPushPromptSeen", "1", "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  # The allow button: the permission prompt must open inside the tap, so
+  # live.js does the op while the click is still being handled.
+  on :push_allow do
+    become push_dialog: false, push_seen: true,
+      outbox: [bkv_entry(seq + 2, "push", bkv_op(seq + 2, "push", "subscribe", vapid, "")), bkv_entry(seq + 1, "store", bkv_op(seq + 1, "store", "blinksPushPromptSeen", "1", "")) | outbox], seq: seq + 2
+    reply :ok
+  end
+
+  on :push_test do
+    become outbox: [bkv_entry(seq + 1, "push", bkv_op(seq + 1, "push", "test", vapid, "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  on :push_unsubscribe do
+    become outbox: [bkv_entry(seq + 1, "push", bkv_op(seq + 1, "push", "unsubscribe", vapid, "")) | outbox], seq: seq + 1
+    reply :ok
+  end
+
+  # -- the page ----------------------------------------------------------------
+
   on :view do
     live = view == ""
-    shuffled = live and shuffle == "1"
-    want = paper_data_url(nodork, page, q, shuffled, seed, similar, t, tags, view, week)
+    shuffled = paper_shuffled(view, shuffle, always)
+    want = paper_data_url(nodork, page, q, shuffled, seed, similar, t, tags, view, week, size, rev)
     asks = case started and loaded != want do
       true -> [fetch(want, :loaded)]
       false -> []
     end
     url = case started do
-      true -> [location_query(paper_query(media, nodork, page, q, shuffle, similar, t, tags, view, week))]
+      true -> [location_query(paper_query(chat, media, nodork, page, q, shuffle, similar, t, tags, view, week))]
       false -> []
     end
     rows_all = case data do
@@ -483,9 +927,10 @@ actor Paper do
     end
     has_more = case data do
       nil -> false
-      _ -> length(rows_all) > PAPER_SIZE and data.similar == nil
+      _ -> length(rows_all) > size and data.similar == nil
     end
-    rows = paper_take(rows_all, PAPER_SIZE)
+    # BlinksLive takes a page, then leaves out what this device hid
+    rows = filter(paper_take(rows_all, size), fn(b: Map) -> Bool do not(bk_contains(hidden, b.id)) end)
     total = case data do
       nil -> ""
       _ -> to_string(data.total)
@@ -498,25 +943,87 @@ actor Paper do
       nil -> []
       _ -> data.tags
     end
+    cx = %{selected: tags, open_tags: open_tags, admin: admin, editing: editing, tag_editing: tag_editing, fresh: fresh, rooms: bkv_rooms(members)}
+    chat_b = bk_find(rows_all, chat)
+    chat_count = case chat_b do
+      nil -> 0
+      _ -> chat_b.chat_count
+    end
+    steps = blkl_tour_steps(chat > 0)
     reply el("div", %{id: "blinks-page"},
-      paper_masthead(live, total, t, shuffled, q),
+      bkv_tour_view(tour_on, steps, tour_i, tour_rect),
+      paper_masthead(live, total, t, shuffled, q, always, bkv_bell(vapid, push, push_dialog)),
       el("div", %{class: "layout"},
         el("div", %{class: "links"},
           bk_note_bar(note),
           paper_problem(problem, data),
           paper_promo(live and promo),
           el("button", %{class: paper_dork_class(nodork), click: :toggle_dork}, paper_dork_label(nodork, dork)),
-          el("div", %{style: "margin: -2px 0 6px;"},
-            el("span", %{class: "dork-edit notyet", click: :not_ported, with: "dork", title: "editing the dork list is not ported to Blimp yet"}, concat("edit dork list (", join(dork, ", "), ")"))),
+          paper_dork_editor(dork_editing, dork),
           paper_filterbars(data, tags, q, view, week, rows),
+          paper_hidden_bar(hidden),
           paper_empty(data, view, week, rows),
-          el("div", %{class: "paper", id: "paper"}, paper_columns(rows, (page - 1) * PAPER_SIZE + 1, tags, open_tags)),
+          el("div", %{class: "paper", id: "paper"}, paper_columns(rows, (page - 1) * size + 1, cx)),
           paper_pager(data, has_more, page)),
-        paper_sidebar(tag_list, tags, singles_open)),
+        paper_sidebar(tag_list, tags, singles_open, admin, admin_error)),
+      bkv_chat_window(chat, chat_b, bkv_buddies(members, blkl_room(chat)), show_buddies, chat_count),
       paper_lightbox(rows, media),
+      bkv_outbox_view(outbox),
       asks,
       url)
   end
+end
+
+def paper_shuffled(view: String, shuffle: String, always: Bool) -> Bool do
+  blkl_shuffle_on(view == "", shuffle, always)
+end
+
+def paper_write(n: Int, method: String, url: String, body: String, key: String) -> Map do
+  bkv_entry(n, "write", merge(bkv_op(n, "http", method, url, body), %{"data-key": key}))
+end
+
+# The socket op that says which room this page is in now; `from` is the
+# room it was in (nothing to say when that is where it stays).
+def paper_room_op(outbox: List, seq: Int, from: Int, to: Int) -> List do
+  room = case to > 0 do
+    true -> blkl_room(to)
+    false -> ""
+  end
+  case from == to do
+    true -> outbox
+    false -> [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", json_encode(%{t: "room", room: room}), "", "")) | outbox]
+  end
+end
+
+# A tag in a path: %XX for anything but unreserved characters, so "c++"
+# and "two words" arrive as themselves (the router decodes %XX only).
+def paper_path_encode(s: String) -> String do
+  replace(blk_encode(s), "+", "%20")
+end
+
+def paper_write_failed(status: Int, body: String) -> String do
+  concat("that did not save: the server answered ", to_string(status), " ", body)
+end
+
+def paper_hidden_bar(hidden: List) -> List do
+  case hidden do
+    [] -> []
+    _ -> [el("div", %{class: "filterbar"}, blkl_hidden_label(length(hidden)), el("span", %{class: "clear", click: :unhide_all}, "unhide all"))]
+  end
+end
+
+def paper_dork_editor(editing: Bool, dork: List) -> Any do
+  label = case editing do
+    true -> "cancel"
+    false -> concat("edit dork list (", join(dork, ", "), ")")
+  end
+  form = case editing do
+    false -> []
+    true -> [el("form", %{class: "dork-form", submit: :save_dork},
+      el("input", %{type: "text", name: "dork_tags", value: join(dork, ", "), placeholder: "tags that count as dork stuff, comma separated"}),
+      el("button", %{class: "aim-send", type: "submit"}, "save"))]
+  end
+  el("div", %{style: "margin: -2px 0 6px;"}, el("span", %{class: "dork-edit", click: :edit_dork}, label), form)
 end
 
 def paper_take(list: List, n: Int) -> List do
@@ -538,7 +1045,6 @@ def paper_note(what: String) -> String do
         "hide" -> "Hiding a link on this device is not ported to Blimp yet."
         "dork" -> "Editing the dork list is not ported to Blimp yet; it is an admin write."
         "tour" -> "The tour is not ported to Blimp yet."
-        "notify" -> "Push notifications are not ported to Blimp yet; /blinks has them."
         "always" -> "\"always shuffle\" is a cookie Phoenix keeps; it is not ported to Blimp yet."
         _ -> concat(what, " is not ported to Blimp yet.")
       end
@@ -603,7 +1109,7 @@ def paper_dork_label(hiding: Bool, dork: List) -> String do
   end
 end
 
-def paper_masthead(live: Bool, total: String, t: String, shuffled: Bool, q: String) -> Any do
+def paper_masthead(live: Bool, total: String, t: String, shuffled: Bool, q: String, always: Bool, bell: Any) -> Any do
   tab = fn(lit: Bool, label: String, v: String) -> Any do
     cls = case lit do
       true -> "tab on"
@@ -626,24 +1132,24 @@ def paper_masthead(live: Bool, total: String, t: String, shuffled: Bool, q: Stri
     false -> []
     true -> [el("a", %{class: "tour-link", click: :toggle_shuffle}, shuffle_label)]
   end
-  always = case live and shuffled do
+  always_box = case live and shuffled do
     false -> []
-    true -> [el("label", %{class: "alwayslbl notyet", click: :not_ported, with: "always"}, el("input", %{type: "checkbox", disabled: true}), " always")]
+    true -> [el("label", %{class: "alwayslbl"}, el("input", %{type: "checkbox", checked: always, click: :toggle_always}), " always")]
   end
   el("header", %{class: "masthead"},
     el("h1", %{}, "bobbby's ", el("span", %{}, "links")),
     el("nav", %{class: "tabs"}, tab(live, "live", ""), tab(not(live), "archives", "archives")),
     el("span", %{class: "dateline"}, concat(total, " saved")),
-    el("a", %{class: "tour-link notyet", click: :not_ported, with: "tour"}, "tour"),
+    el("a", %{class: "tour-link", click: :start_tour}, "tour"),
     el("a", %{class: "tour-link", href: "/blinks-next/surf", title: "stumbleupon mode: one random link at a time"}, "stumble 🎲"),
     el("a", %{class: "tour-link", href: "/blinks-next/walk", title: "wiki-walk: hop between similar links"}, "walk 🥾"),
     el("a", %{class: "tour-link", href: "/blinks-next/tv", title: "lean-back channel surfing"}, "tv 📺"),
     window,
     shuffle,
-    always,
-    el("form", %{class: "searchform", submit: :search},
+    always_box,
+    el("form", %{class: "searchform", submit: :search, "data-joyride": "search"},
       el("input", %{type: "text", name: "q", value: q, placeholder: "search title, tags, notes…"})),
-    el("span", %{class: "pushwrap"}, el("a", %{class: "tour-link notyet", click: :not_ported, with: "notify", title: "get a nudge when a new link lands"}, "🔔 notify me")))
+    bell)
 end
 
 def paper_problem(problem: String, data: Any) -> List do

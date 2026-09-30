@@ -471,6 +471,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/firehose" -> :firehose
     "/live/mta" -> :mta
     "/live/ziggy" -> :ziggy
+    "/live/blinks" -> :blinks
     "/live/cameras" -> :cameras
     _ -> nil
   end
@@ -515,6 +516,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a /ziggy page is told whether its chat can be unlocked
       case kind == :ziggy do
         true -> ZG <- :join(c)
+        false -> :ok
+      end
+      # a /blinks-next page hears of every save and who is in which chat
+      case kind == :blinks do
+        true -> bkl_join(ROOMS, c)
         false -> :ok
       end
       # a /cameras page is told when a sweep finishes
@@ -582,6 +588,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
       {map_without(socks, to_string(sock.fd)), games, false}
     :ziggy ->
       ZG <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
+    :blinks ->
+      bkl_leave(ROOMS, sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
     :cameras ->
       CAMERAS <- :leave(sock.fd)
@@ -654,6 +663,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # an unlock, a question or a suggestion; ZG answers it itself
             :ziggy ->
               ZG <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # which link's chat room it has open (src/99_blinkslive.blimp)
+            :blinks ->
+              bkl_recv(ROOMS, sock.fd, payload)
               live_frames(next, socks, games, changed)
             # a star, a hide or a note; CAMERAS tells every page itself
             :cameras ->
@@ -921,7 +934,7 @@ routes = stack_routes(routes)
 # SESSION_SECRET stops here).
 # src/99_blinkswrite.blimp: BlinkController's token-gated writes
 # src/99_blinkspush.blimp: the Web Push subscriptions and /blinks-sw.js
-WEB_ROUTES = list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR))
+WEB_ROUTES = list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes())
 WEB_SECRET = web_session_secret()
 
 # DATABASE_URL set: the museum and Finder are Postgres rows, and a site

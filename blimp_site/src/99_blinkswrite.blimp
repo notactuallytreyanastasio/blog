@@ -39,9 +39,6 @@
 #     the page for its image, favicon and site name and unrolls a Bluesky
 #     thread. Nothing here fetches anything: that is chapter 67, and it
 #     needs http_start's timeout. A link saved here has no image until then.
-#   - Every write broadcasts on the "blinks" PubSub topic so open /blinks
-#     pages update. blkw_broadcast is where that goes; it does nothing until
-#     rooms (61) and the live page (70) exist.
 #   - POST /api/blinks/suggest is not token-gated in Phoenix (a honeypot and
 #     a rate limit guard it), so it is chapter 65's, with the other
 #     anonymous writes.
@@ -343,13 +340,11 @@ BLKW_CANDIDATES_SQL = join([
   " select count(*) as n from i"
 ], "")
 
-# Blinks.broadcast/2. Open /blinks pages hear of every save, edit and
-# delete over PubSub; this server has no topic to tell yet.
-# TODO(chapters 61 and 70): broadcast on the "blinks" room once there is
-# one, with the row and the event (:blink_saved, :blink_updated,
-# :blink_deleted), before the live page moves here.
+# Blinks.broadcast/2. Open /blinks-next pages hear of every save, edit and
+# delete on the "blinks" room (src/99_blinkslive.blimp), in the same tick:
+# the request is answered inside live_tick, before ROOMS is flushed.
 def blkw_broadcast(event: Any, id: Any) -> Any do
-  :ok
+  bkl_broadcast_on(ROOMS, event, id)
 end
 
 # ---------------------------------------------------------------- ids
