@@ -1,0 +1,751 @@
+# Blinks, the token-gated writes: BlinkController's actions that need
+# BLINKS_API_TOKEN, as web_route()s (src/41_web.blimp).
+#
+#   POST   /api/blinks               save a link (Blinks.save_blink/1: a url
+#                                    saved again is merged, not duplicated)
+#   PATCH  /api/blinks/:id           title and description (update_meta/2)
+#   POST   /api/blinks/:id/tags      add tags
+#   DELETE /api/blinks/:id/tags/:tag remove one tag
+#   DELETE /api/blinks/:id           delete it, and its chat room's messages
+#   POST   /api/blinks/candidates    queue bookmarks for /blinks/review
+#   GET    /api/blinks/lookup        (62's, now reading the headers too)
+#   GET    /api/blinks/export        (62's, now with content-disposition)
+#
+# The token is require_token/2's: X-Blinks-Token, else "Authorization:
+# Bearer <token>", else a "token" param (query or body). A header that is
+# there but wrong is not overruled by a right one further down the list,
+# because Phoenix does not look further either. No BLINKS_API_TOKEN in the
+# environment, no writes.
+#
+# Every answer carries what Phoenix's CORSPlug adds to every answer, and
+# OPTIONS is answered as a preflight, because bsky.js (the extension's
+# content script on bsky.app) falls back to a cross-origin fetch with an
+# Authorization header, which a browser preflights.
+#
+# The bytes of a saved link are Postgres's, as on the read side: every
+# write ends in the same three-piece row 62's blk_row_sql writes, with
+# comment_count and save_count null, as Ecto's structs have them outside
+# list_blinks/1.
+#
+# Validation is Ecto's changeset, in the order Blink.changeset/2 runs it,
+# and its errors are keyed in the order Phoenix sends them: description,
+# title, url, tags, quotes. That is not alphabetical. OTP 26 orders a small
+# map's atom keys by the atom table, not by name, and Jason writes the map
+# in that order. Lengths are code points (Postgres char_length and left);
+# Ecto counts graphemes, so a flag or a family emoji counts as more here.
+#
+# Not here, on purpose:
+#   - Blinks.save_blink/1 ends with Enricher.enrich_async/1, which fetches
+#     the page for its image, favicon and site name and unrolls a Bluesky
+#     thread. Nothing here fetches anything: that is chapter 67, and it
+#     needs http_start's timeout. A link saved here has no image until then.
+#   - Every write broadcasts on the "blinks" PubSub topic so open /blinks
+#     pages update. blkw_broadcast is where that goes; it does nothing until
+#     rooms (61) and the live page (70) exist.
+#   - POST /api/blinks/suggest is not token-gated in Phoenix (a honeypot and
+#     a rate limit guard it), so it is chapter 65's, with the other
+#     anonymous writes.
+
+# ---------------------------------------------------------------- answers
+
+def blkw_or(v: Any, dflt: Any) -> Any do
+  case v do
+    nil -> dflt
+    false -> dflt
+    _ -> v
+  end
+end
+
+# What CORSPlug (origin "*") puts on every answer.
+BLKW_CORS = [
+  ["access-control-allow-credentials", "true"],
+  ["access-control-allow-origin", "*"],
+  ["access-control-expose-headers", ""]
+]
+
+def blkw_cors(conn: Map) -> Map do
+  put(conn, :resp_headers, list_append(conn.resp_headers, BLKW_CORS))
+end
+
+# A preflight, as CORSPlug answers one.
+def blkw_preflight(conn: Map) -> Map do
+  c1 = web_put_resp_header(conn, "access-control-max-age", "1728000")
+  c2 = web_put_resp_header(c1, "access-control-allow-headers", "Authorization,Content-Type,Accept,Origin,User-Agent,DNT,Cache-Control,X-Mx-ReqToken,Keep-Alive,X-Requested-With,If-Modified-Since,X-CSRF-Token")
+  c3 = web_put_resp_header(c2, "access-control-allow-methods", "GET,POST,PUT,DELETE,OPTIONS")
+  put(web_send(c3, 204, "text/plain; charset=utf-8", ""), :cache, BLK_CACHE)
+end
+
+# JSON text as Phoenix's json/2 sends it.
+def blkw_json(conn: Map, status: Int, body: String) -> Map do
+  put(web_send(conn, status, BLK_JSON_TYPE, body), :cache, BLK_CACHE)
+end
+
+# One of 62's response maps (blk_json, blk_lookup_url, ...) onto the conn.
+def blkw_answer(conn: Map, resp: Map) -> Map do
+  put(web_send(conn, resp.status, resp.content_type, resp.body), :cache, resp.cache)
+end
+
+def blkw_no_db(conn: Map, reason: String) -> Map do
+  blkw_answer(conn, blk_no_db(reason))
+end
+
+def blkw_blink(conn: Map, row: Map) -> Map do
+  blkw_json(conn, 200, concat("{\"status\":\"ok\",\"blink\":", blk_row_json(row), "}"))
+end
+
+BLKW_NOT_FOUND = "{\"error\":\"not found\"}"
+BLKW_BAD_ID = "{\"error\":\"bad id\"}"
+BLKW_UNPROCESSABLE = "{\"status\":\"error\"}"
+
+# ---------------------------------------------------------------- the token
+
+def blkw_offered(conn: Map) -> Any do
+  header = lookup(conn.headers, "x-blinks-token")
+  case header do
+    nil ->
+      auth = web_or(lookup(conn.headers, "authorization"), "")
+      case starts_with(auth, "Bearer ") do
+        true -> drop(auth, 7)
+        # ?token= so an export link works straight from a browser
+        false -> web_param(conn, "token")
+      end
+    _ -> header
+  end
+end
+
+# Plug: require_token/2, for a token read once at boot (Phoenix reads it
+# from the application env, also fixed at boot). "" lets nothing through.
+def blkw_require_token(expected: String) -> Any do
+  fn(conn: Map) -> Map do
+    offered = blkw_offered(conn)
+    ok = expected != "" and type_of(offered) == :string and web_secure_eq(offered, expected, conn.secret)
+    case ok do
+      true -> conn
+      false -> web_halt(blkw_json(conn, 401, BLK_UNAUTHORIZED))
+    end
+  end
+end
+
+# Plug: a form's `tags[]=a&tags[]=b` as the list Plug makes of it. The
+# router decodes a form into one value per name, the last, under the name
+# "tags[]", so without this a form's tags would be dropped without a word.
+# (JSON bodies, which every client sends, never reach this.)
+def blkw_form_lists(conn: Map) -> Map do
+  form = starts_with(downcase(web_header(conn, "content-type")), "application/x-www-form-urlencoded")
+  case form and (contains(conn.body, "%5B%5D=") or contains(conn.body, "[]=")) do
+    false -> conn
+    true ->
+      lists = reduce(split(conn.body, "&"), %{}, fn(acc: Map, pair: String) -> Map do
+        eq = index_of(pair, "=")
+        name = case eq < 0 do
+          true -> web_url_decode(pair)
+          false -> web_url_decode(take(pair, eq))
+        end
+        case ends_with(name, "[]") and eq >= 0 do
+          true ->
+            key = take(name, length(name) - 2)
+            put(acc, key, list_append(web_or(lookup(acc, key), []), [web_url_decode(drop(pair, eq + 1))]))
+          false -> acc
+        end
+      end)
+      put(conn, :params, merge(conn.params, lists))
+  end
+end
+
+# ---------------------------------------------------------------- casting
+
+# Ecto's cast of a :string field: {:ok, value} with "" and "   " as nil,
+# or :invalid for anything that is not a string.
+def blkw_cast_string(v: Any) -> Any do
+  case type_of(v) == :string do
+    true ->
+      case blkw_blank(v) do
+        true -> {:ok, nil}
+        false -> {:ok, v}
+      end
+    false ->
+      case v == nil do
+        true -> {:ok, nil}
+        false -> :invalid
+      end
+  end
+end
+
+def blkw_invalid(cast: Any) -> Any do
+  case cast do
+    :invalid -> "is invalid"
+    _ -> nil
+  end
+end
+
+# A {:array, :string} field: a list of strings. A blank string is Ecto's
+# empty value, which for an array is [] (a form's `tags=`). Ecto would pass
+# a nil in the list and Blink.changeset/2's String.trim then raises (Phoenix
+# answers 500); here that list is "is invalid".
+def blkw_cast_list(v: Any) -> Any do
+  case type_of(v) do
+    :list ->
+      case length(filter(v, fn(x: Any) -> Bool do type_of(x) != :string end)) == 0 do
+        true -> {:ok, v}
+        false -> :invalid
+      end
+    :string ->
+      case blkw_blank(v) do
+        true -> {:ok, []}
+        false -> :invalid
+      end
+    _ -> :invalid
+  end
+end
+
+# List.wrap/1.
+def blkw_wrap(v: Any) -> List do
+  case v == nil do
+    true -> []
+    false ->
+      case type_of(v) == :list do
+        true -> v
+        false -> [v]
+      end
+  end
+end
+
+# Code points, which is what Postgres's char_length counts: every byte that
+# does not continue a UTF-8 sequence (0x80-0xBF) starts one. One native
+# split per continuation byte, so a 10,000-character description is 64
+# passes, not 10,000 interpreter steps.
+BLKW_CONTINUATION = map(range(128, 192), fn(b: Int) -> String do from_char_code(b) end)
+
+def blkw_chars(s: String) -> Int do
+  length(s) - sum(map(BLKW_CONTINUATION, fn(b: String) -> Int do length(split(s, b)) - 1 end))
+end
+
+# validate_length(max: n). A string of n bytes or fewer is n code points or
+# fewer, so most strings are never counted.
+def blkw_too_long(s: Any, n: Int) -> Bool do
+  case s do
+    nil -> false
+    _ -> length(s) > n and blkw_chars(s) > n
+  end
+end
+
+def blkw_max_message(n: Int) -> String do
+  concat("should be at most ", to_string(n), " character(s)")
+end
+
+# ---------------------------------------------------------------- SQL
+
+# String.trim/1's whitespace (temper/src/blinks_write) as a Postgres
+# literal for btrim(), UTF-8 encoded here because Temper's strings cannot be
+# built from code points on this backend. A test checks the two agree.
+BLKW_WS = [hex_decode("09"), hex_decode("0a"), hex_decode("0b"), hex_decode("0c"), hex_decode("0d"), " ",
+  hex_decode("c285"), hex_decode("c2a0"), hex_decode("e19a80"),
+  hex_decode("e28080"), hex_decode("e28081"), hex_decode("e28082"), hex_decode("e28083"), hex_decode("e28084"), hex_decode("e28085"),
+  hex_decode("e28086"), hex_decode("e28087"), hex_decode("e28088"), hex_decode("e28089"), hex_decode("e2808a"),
+  hex_decode("e280a8"), hex_decode("e280a9"), hex_decode("e280af"), hex_decode("e2819f"), hex_decode("e38080")]
+BLKW_WS_SQL = concat("'", join(BLKW_WS, ""), "'")
+
+# normalize_tags/1 over a text[] expression: trim, downcase, drop "", keep
+# the first of each.
+def blkw_norm_tags(arr: String) -> String do
+  join(["array(select z.n from (select lower(btrim(u.t, ", BLKW_WS_SQL, ")) as n, min(u.o) as o from unnest(", arr,
+    ") with ordinality u(t, o) group by 1) z where z.n <> '' order by z.o)"], "")
+end
+
+# normalize_quotes/1: trim, drop "", the first 2,000 characters, keep the
+# first of each.
+def blkw_norm_quotes(arr: String) -> String do
+  join(["array(select z.n from (select left(btrim(u.t, ", BLKW_WS_SQL, "), 2000) as n, min(u.o) as o from unnest(", arr,
+    ") with ordinality u(t, o) group by 1) z where z.n <> '' order by z.o)"], "")
+end
+
+# A JSON list parameter as text[] (the pg client sends a list as JSON).
+def blkw_text_array(param: String) -> String do
+  concat("array(select jsonb_array_elements_text(", param, "::jsonb))")
+end
+
+# Ecto's timestamps: UTC, whole seconds, truncated (a timestamp(0) column
+# would round .7 up).
+BLKW_NOW = "date_trunc('second', now() at time zone 'UTC')"
+
+# An UPDATE that Ecto would make: `o` is the row as it is to be, computed
+# from `b` (the row now); updated_at moves only if something changed, as
+# Repo.update/1 sends nothing for a changeset without changes. Answers the
+# row, or nothing when there is no such id.
+def blkw_update_sql(where: String, title: String, description: String, tags: String, quotes: String) -> String do
+  concat(join([
+    "with o as (select b.id, ", title, " as title, ", description, " as description, ", tags, " as tags, ", quotes, " as quotes",
+    " from blinks b where ", where, "),",
+    " w as (update blinks b set title = o.title, description = o.description, tags = o.tags, quotes = o.quotes,",
+    " updated_at = case when (b.title, b.description, b.tags, b.quotes) is not distinct from (o.title, o.description, o.tags, o.quotes)",
+    " then b.updated_at else ", BLKW_NOW, " end",
+    " from o where b.id = o.id returning b.*) "
+  ], ""), blk_one_sql("w"))
+end
+
+# save_blink/1, a new url: $1 url, $2 title, $3 description, $4 tags and
+# $5 quotes as JSON lists.
+BLKW_INSERT_SQL = concat(join([
+  "with w as (insert into blinks (url, title, description, tags, quotes, inserted_at, updated_at)",
+  " select $1::text, $2::text, $3::text, ", blkw_norm_tags(blkw_text_array("$4")), ", ", blkw_norm_quotes(blkw_text_array("$5")),
+  ", ", BLKW_NOW, ", ", BLKW_NOW, " returning *) "
+], ""), blk_one_sql("w"))
+
+BLKW_EXISTING_SQL = "select id, title, description from blinks where url = $1::text"
+
+# save_blink/1, a url already saved: $1 id, $2 "1" to keep the title,
+# $3 the title otherwise, $4 description (null: keep), $5 tags, $6 quotes.
+# The lists are the old ones followed by the new, normalized together.
+BLKW_MERGE_SQL = blkw_update_sql("b.id = $1::bigint",
+  "case when $2::text = '1' then b.title else $3::text end",
+  "coalesce($4::text, b.description)",
+  blkw_norm_tags(concat("b.tags || ", blkw_text_array("$5"))),
+  blkw_norm_quotes(concat("b.quotes || ", blkw_text_array("$6"))))
+
+# update_meta/2: $1 id, $2 "1" to keep the title, $3 title, $4 description
+# (already trimmed by String.trim/1's rule; null clears it).
+BLKW_META_SQL = blkw_update_sql("b.id = $1::bigint",
+  "case when $2::text = '1' then b.title else $3::text end",
+  "$4::text", "b.tags", "b.quotes")
+
+# add_tags/2: $1 id, $2 the new tags as a JSON list.
+BLKW_ADD_TAGS_SQL = blkw_update_sql("b.id = $1::bigint", "b.title", "b.description",
+  blkw_norm_tags(concat("b.tags || ", blkw_text_array("$2"))), "b.quotes")
+
+# remove_tag/2: List.delete/2 takes the first tag equal to $2 out, then the
+# list is normalized again.
+BLKW_REMOVE_TAG_SQL = blkw_update_sql("b.id = $1::bigint", "b.title", "b.description",
+  blkw_norm_tags("array(select u.t from unnest(b.tags) with ordinality u(t, o) where u.o is distinct from (select min(v.o) from unnest(b.tags) with ordinality v(t, o) where v.t = $2::text) order by u.o)"),
+  "b.quotes")
+
+BLKW_EXISTS_SQL = "select id from blinks where id = $1::bigint"
+
+# delete_blink/1: the blink (its comments, saves and reactions go by
+# ON DELETE CASCADE) and every message in its chat room, blink:<id>.
+BLKW_DELETE_SQL = join([
+  "with d as (delete from blinks where id = $1::bigint returning id),",
+  " m as (delete from chat_messages where room = 'blink:' || (select id from d))",
+  " select id from d"
+], "")
+
+# import_candidates/1: $1 the entries as JSON. A url that is a string
+# starting "http" and is not already a blink goes in as pending; one
+# already queued is skipped by the unique index. Titles are cut to 1,000
+# characters, folders to 200, urls to 4,096.
+BLKW_CANDIDATES_SQL = join([
+  "with i as (insert into bookmark_candidates (url, title, folder, status, inserted_at, updated_at)",
+  " select left(e.v->>'url', 4096), left(e.v->>'title', 1000), left(e.v->>'folder', 200), 'pending', ", BLKW_NOW, ", ", BLKW_NOW,
+  " from jsonb_array_elements($1::jsonb) with ordinality e(v, o)",
+  " where jsonb_typeof(e.v->'url') = 'string' and left(e.v->>'url', 4) = 'http'",
+  " and not exists (select 1 from blinks b where b.url = e.v->>'url')",
+  " order by e.o",
+  " on conflict (url) do nothing returning 1)",
+  " select count(*) as n from i"
+], "")
+
+# Blinks.broadcast/2. Open /blinks pages hear of every save, edit and
+# delete over PubSub; this server has no topic to tell yet.
+# TODO(chapters 61 and 70): broadcast on the "blinks" room once there is
+# one, with the row and the event (:blink_saved, :blink_updated,
+# :blink_deleted), before the live page moves here.
+def blkw_broadcast(event: Any, id: Any) -> Any do
+  :ok
+end
+
+# ---------------------------------------------------------------- ids
+
+# with_id/3: 400 for a path id Integer.parse/1 does not take whole, else
+# the id. An id of more than 18 digits cannot be a bigint and is answered
+# 404 (Phoenix raises inside Ecto and answers 500).
+def blkw_path_id(s: String) -> Any do
+  case blkw_is_int(s) do
+    false -> :bad
+    true ->
+      digits = case starts_with(s, "+") or starts_with(s, "-") do
+        true -> drop(s, 1)
+        false -> s
+      end
+      case length(digits) > 18 do
+        true -> :missing
+        false -> to_int(s)
+      end
+  end
+end
+
+# A path segment decoded as Plug decodes a path: %XX only. The router's
+# own decoding (web_url_decode) is a form's, which turns "+177" into " 177"
+# and the tag "c++" into "c  ".
+def blkw_path_decode(seg: String) -> String do
+  web_url_decode(replace(seg, "+", "%2B"))
+end
+
+# :tag is the last segment of its route; :id follows .../api/blinks.
+def blkw_path_tag(conn: Map) -> String do
+  blkw_path_decode(last(split(conn.path, "/")))
+end
+
+def blkw_path_id_seg(parts: List) -> String do
+  case parts do
+    [] -> ""
+    [p | rest] ->
+      case p == "blinks" and rest != [] do
+        true -> blkw_path_decode(head(rest))
+        false -> blkw_path_id_seg(rest)
+      end
+  end
+end
+
+def blkw_with_id(conn: Map, k: Any) -> Map do
+  id = blkw_path_id(blkw_path_id_seg(split(conn.path, "/")))
+  case id do
+    :bad -> blkw_json(conn, 400, BLKW_BAD_ID)
+    :missing -> blkw_json(conn, 404, BLKW_NOT_FOUND)
+    _ -> k(conn, id)
+  end
+end
+
+# An edit's answer: the row, or 404 when the id is not a blink.
+def blkw_edited(conn: Map, answer: Any, event: Any) -> Map do
+  case answer do
+    {:error, reason} -> blkw_no_db(conn, reason)
+    {:ok, rows} ->
+      case rows do
+        [] -> blkw_json(conn, 404, BLKW_NOT_FOUND)
+        [row | _] ->
+          blkw_broadcast(event, row)
+          blkw_blink(conn, row)
+      end
+  end
+end
+
+# Phoenix looks the blink up before it validates anything, so an invalid
+# edit of a blink that is not there is a 404, not a 422.
+def blkw_unprocessable(conn: Map, id: Int) -> Map do
+  case DB <- :query(BLKW_EXISTS_SQL, [id]) do
+    {:error, reason} -> blkw_no_db(conn, reason)
+    {:ok, rows} ->
+      case rows do
+        [] -> blkw_json(conn, 404, BLKW_NOT_FOUND)
+        _ -> blkw_json(conn, 422, BLKW_UNPROCESSABLE)
+      end
+  end
+end
+
+# ---------------------------------------------------------------- create
+
+# The 422 body: {"status":"error","errors":{field: [message]}} with the
+# fields in Phoenix's order. errs is a map of field -> message.
+BLKW_FIELD_ORDER = ["description", "title", "url", "tags", "quotes"]
+
+def blkw_errors_json(errs: Map) -> String do
+  present = filter(BLKW_FIELD_ORDER, fn(f: String) -> Bool do lookup(errs, f) != nil end)
+  fields = map(present, fn(f: String) -> String do concat(json_encode(f), ":[", json_encode(lookup(errs, f)), "]") end)
+  concat("{\"status\":\"error\",\"errors\":{", join(fields, ","), "}}")
+end
+
+def blkw_add_error(errs: Map, field: String, message: Any) -> Map do
+  case message do
+    nil -> errs
+    _ -> put(errs, field, message)
+  end
+end
+
+# create/2. The params as the controller builds them: tags default to [],
+# quotes are `quotes` or else `quote`, wrapped in a list.
+def blkw_create(conn: Map) -> Map do
+  url = blkw_cast_string(web_param(conn, "url"))
+  title_raw = web_param(conn, "title")
+  title = blkw_cast_string(title_raw)
+  desc = blkw_cast_string(web_param(conn, "description"))
+  tags = blkw_cast_list(blkw_or(web_param(conn, "tags"), []))
+  quotes = blkw_cast_list(blkw_wrap(blkw_or(web_param(conn, "quotes"), blkw_or(web_param(conn, "quote"), []))))
+  url_text = case url do
+    {:ok, u} -> u
+    _ -> nil
+  end
+  existing = case url_text do
+    nil -> {:ok, []}
+    _ -> DB <- :query(BLKW_EXISTING_SQL, [url_text])
+  end
+  case existing do
+    {:error, reason} -> blkw_no_db(conn, reason)
+    {:ok, rows} ->
+      case rows do
+        [] -> blkw_insert(conn, url, title, desc, tags, quotes)
+        [row | _] -> blkw_merge(conn, row, title_raw, title, desc, tags, quotes)
+      end
+  end
+end
+
+def blkw_ok_value(cast: Any) -> Any do
+  case cast do
+    :invalid -> nil
+    _ -> elem(cast, 1)
+  end
+end
+
+def blkw_insert(conn: Map, url: Any, title: Any, desc: Any, tags: Any, quotes: Any) -> Map do
+  d = blkw_ok_value(desc)
+  u = blkw_ok_value(url)
+  desc_error = case desc do
+    :invalid -> "is invalid"
+    _ ->
+      case blkw_too_long(d, 10000) do
+        true -> blkw_max_message(10000)
+        false -> nil
+      end
+  end
+  url_error = case url do
+    :invalid -> "is invalid"
+    _ ->
+      case u do
+        nil -> "can't be blank"
+        _ ->
+          case blkw_too_long(u, 4096) do
+            true -> blkw_max_message(4096)
+            false -> nil
+          end
+      end
+  end
+  e1 = blkw_add_error(%{}, "description", desc_error)
+  e2 = blkw_add_error(e1, "title", blkw_invalid(title))
+  e3 = blkw_add_error(e2, "url", url_error)
+  e4 = blkw_add_error(e3, "tags", blkw_invalid(tags))
+  errs = blkw_add_error(e4, "quotes", blkw_invalid(quotes))
+  case length(keys(errs)) > 0 do
+    true -> blkw_json(conn, 422, blkw_errors_json(errs))
+    false ->
+      params = [u, blkw_ok_value(title), d, blkw_ok_value(tags), blkw_ok_value(quotes)]
+      blkw_saved(conn, DB <- :query(BLKW_INSERT_SQL, params))
+  end
+end
+
+# The url was saved before. Only the second changeset can fail here: what
+# the first one rejected (a tags that is not a list, a description that is
+# not a string) is read back with get_field/2 as the default, and ignored.
+# The title is `attrs["title"] || existing.title`, so a title of "" clears
+# it and a missing one keeps it; a description counts only when present.
+def blkw_merge(conn: Map, row: Map, title_raw: Any, title: Any, desc: Any, tags: Any, quotes: Any) -> Map do
+  keep_title = title_raw == nil or title_raw == false
+  new_desc = case desc do
+    :invalid -> nil
+    _ -> elem(desc, 1)
+  end
+  e1 = case blkw_too_long(new_desc, 10000) do
+    true -> put(%{}, "description", blkw_max_message(10000))
+    false -> %{}
+  end
+  errs = case not(keep_title) and title == :invalid do
+    true -> put(e1, "title", "is invalid")
+    false -> e1
+  end
+  case length(keys(errs)) > 0 do
+    true -> blkw_json(conn, 422, blkw_errors_json(errs))
+    false ->
+      keep = case keep_title do
+        true -> "1"
+        false -> ""
+      end
+      new_tags = case tags do
+        :invalid -> []
+        _ -> elem(tags, 1)
+      end
+      new_quotes = case quotes do
+        :invalid -> []
+        _ -> elem(quotes, 1)
+      end
+      params = [row.id, keep, blkw_ok_value(title), new_desc, new_tags, new_quotes]
+      blkw_saved(conn, DB <- :query(BLKW_MERGE_SQL, params))
+  end
+end
+
+def blkw_saved(conn: Map, answer: Any) -> Map do
+  case answer do
+    {:error, reason} ->
+      # someone saved the same url between the look and the insert
+      case contains(reason, "blinks_url_index") do
+        true -> blkw_json(conn, 422, "{\"status\":\"error\",\"errors\":{\"url\":[\"has already been taken\"]}}")
+        false -> blkw_no_db(conn, reason)
+      end
+    {:ok, rows} ->
+      row = head(rows)
+      blkw_broadcast(:blink_saved, row)
+      # (Phoenix starts Enricher.enrich_async/1 here: chapter 67)
+      blkw_blink(conn, row)
+  end
+end
+
+# ---------------------------------------------------------------- edits
+
+# update/2 -> update_meta/2. The title is `presence(attrs["title"]) ||
+# blink.title`: missing, null, false or "" keeps it, "   " clears it. The
+# description is `attrs["description"] && String.trim(...)`, so a PATCH
+# without one clears it (the iOS app knows, and always sends both). A
+# description that is not a string makes String.trim/1 raise in Phoenix
+# (500); it is a 422 here.
+def blkw_update(conn: Map) -> Map do
+  blkw_with_id(conn, blkw_update_id)
+end
+
+def blkw_update_id(conn: Map, id: Int) -> Map do
+  t = web_param(conn, "title")
+  keep_title = t == nil or t == false or t == ""
+  title = case keep_title do
+    true -> {:ok, nil}
+    false -> blkw_cast_string(t)
+  end
+  d = web_param(conn, "description")
+  desc = case type_of(d) == :string do
+    true ->
+      trimmed = blkw_trim(d)
+      case trimmed do
+        "" -> {:ok, nil}
+        _ -> {:ok, trimmed}
+      end
+    false ->
+      case d == nil do
+        true -> {:ok, nil}
+        false -> :invalid
+      end
+  end
+  bad = title == :invalid or desc == :invalid or blkw_too_long(blkw_ok_value(desc), 10000)
+  case bad do
+    true -> blkw_unprocessable(conn, id)
+    false ->
+      keep = case keep_title do
+        true -> "1"
+        false -> ""
+      end
+      params = [id, keep, elem(title, 1), elem(desc, 1)]
+      blkw_edited(conn, DB <- :query(BLKW_META_SQL, params), :blink_updated)
+  end
+end
+
+# add_tags/2: List.wrap(params["tags"] || []), so one tag may come bare.
+def blkw_add_tags(conn: Map) -> Map do
+  blkw_with_id(conn, blkw_add_tags_id)
+end
+
+def blkw_add_tags_id(conn: Map, id: Int) -> Map do
+  tags = blkw_cast_list(blkw_wrap(blkw_or(web_param(conn, "tags"), [])))
+  case tags do
+    :invalid -> blkw_unprocessable(conn, id)
+    _ -> blkw_edited(conn, DB <- :query(BLKW_ADD_TAGS_SQL, [id, elem(tags, 1)]), :blink_updated)
+  end
+end
+
+def blkw_remove_tag(conn: Map) -> Map do
+  blkw_with_id(conn, blkw_remove_tag_id)
+end
+
+def blkw_remove_tag_id(conn: Map, id: Int) -> Map do
+  blkw_edited(conn, DB <- :query(BLKW_REMOVE_TAG_SQL, [id, blkw_path_tag(conn)]), :blink_updated)
+end
+
+def blkw_delete(conn: Map) -> Map do
+  blkw_with_id(conn, blkw_delete_id)
+end
+
+def blkw_delete_id(conn: Map, id: Int) -> Map do
+  case DB <- :query(BLKW_DELETE_SQL, [id]) do
+    {:error, reason} -> blkw_no_db(conn, reason)
+    {:ok, rows} ->
+      case rows do
+        [] -> blkw_json(conn, 404, BLKW_NOT_FOUND)
+        [row | _] ->
+          blkw_broadcast(:blink_deleted, row.id)
+          blkw_json(conn, 200, concat("{\"status\":\"ok\",\"deleted\":", to_string(row.id), "}"))
+      end
+  end
+end
+
+# ---------------------------------------------------------------- candidates
+
+# import_candidates/2 matches only %{"candidates" => list}; anything else
+# is Phoenix.ActionClauseError, a 400 that ErrorJSON writes as below. An
+# entry that is not an object, or a title or folder that is not a string,
+# makes Phoenix raise (500); here it is a 422 that says which.
+def blkw_candidates(conn: Map) -> Map do
+  cs = web_param(conn, "candidates")
+  case type_of(cs) == :list do
+    true ->
+      bad = filter(cs, fn(e: Any) -> Bool do not(blkw_candidate_ok(e)) end)
+      case bad do
+        [] ->
+          case DB <- :query(BLKW_CANDIDATES_SQL, [cs]) do
+            {:error, reason} -> blkw_no_db(conn, reason)
+            {:ok, rows} -> blkw_json(conn, 200, concat("{\"status\":\"ok\",\"imported\":", to_string(head(rows).n), "}"))
+          end
+        _ -> blkw_json(conn, 422, "{\"status\":\"error\",\"error\":\"each candidate is an object whose title and folder are strings or null\"}")
+      end
+    false -> blkw_json(conn, 400, "{\"errors\":{\"detail\":\"Bad Request\"}}")
+  end
+end
+
+def blkw_candidate_ok(e: Any) -> Bool do
+  case type_of(e) do
+    :map ->
+      t = type_of(lookup(e, "title"))
+      f = type_of(lookup(e, "folder"))
+      (lookup(e, "title") == nil or t == :string) and (lookup(e, "folder") == nil or f == :string)
+    _ -> false
+  end
+end
+
+# ---------------------------------------------------------------- reads
+
+# lookup/2: `params["url"]`, a blink or null.
+def blkw_lookup(conn: Map) -> Map do
+  url = web_param(conn, "url")
+  u = case type_of(url) == :string do
+    true -> url
+    false -> ""
+  end
+  blkw_answer(conn, blk_lookup_url(u))
+end
+
+# export/2, as a download.
+def blkw_export(conn: Map) -> Map do
+  format = web_or(web_param(conn, "format"), "")
+  name = case format do
+    "html" -> "blinks.html"
+    _ -> "blinks.json"
+  end
+  answered = blkw_answer(conn, blk_export_as(format))
+  case answered.status do
+    200 -> web_put_resp_header(answered, "content-disposition", concat("attachment; filename=\"", name, "\""))
+    _ -> answered
+  end
+end
+
+# ---------------------------------------------------------------- routes
+
+# Phoenix's paths, and the same under /blinks-next (the prefix Caddy sends
+# here today), gated by BLINKS_API_TOKEN.
+def blinks_write_routes() -> List do
+  blinks_write_routes_for(web_or(getenv("BLINKS_API_TOKEN"), ""))
+end
+
+def blinks_write_routes_for(token: String) -> List do
+  gate = [blkw_cors, blkw_require_token(token), blkw_form_lists]
+  flat(map(["/api/blinks", "/blinks-next/api/blinks"], fn(base: String) -> List do blkw_routes_at(base, gate) end))
+end
+
+def blkw_routes_at(base: String, gate: List) -> List do
+  c = [blkw_cors]
+  [
+    web_route("POST", base, gate, blkw_create),
+    web_route("OPTIONS", base, c, blkw_preflight),
+    web_route("GET", concat(base, "/lookup"), gate, blkw_lookup),
+    web_route("GET", concat(base, "/export"), gate, blkw_export),
+    web_route("POST", concat(base, "/candidates"), gate, blkw_candidates),
+    web_route("OPTIONS", concat(base, "/candidates"), c, blkw_preflight),
+    web_route("PATCH", concat(base, "/:id"), gate, blkw_update),
+    web_route("DELETE", concat(base, "/:id"), gate, blkw_delete),
+    web_route("OPTIONS", concat(base, "/:id"), c, blkw_preflight),
+    web_route("POST", concat(base, "/:id/tags"), gate, blkw_add_tags),
+    web_route("OPTIONS", concat(base, "/:id/tags"), c, blkw_preflight),
+    web_route("DELETE", concat(base, "/:id/tags/:tag"), gate, blkw_remove_tag),
+    web_route("OPTIONS", concat(base, "/:id/tags/:tag"), c, blkw_preflight)
+  ]
+end

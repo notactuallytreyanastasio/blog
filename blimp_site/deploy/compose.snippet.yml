@@ -23,4 +23,8 @@
       # site refuses to start without it, or with one under 32 bytes:
       # `openssl rand -base64 48`, kept in /opt/blog/.env.
       SESSION_SECRET: ${SESSION_SECRET}
+      # The token the Safari extension and the iOS app send with a write
+      # (src/99_blinkswrite.blimp); Phoenix's app service has the same one.
+      # Unset, every write is a 401.
+      BLINKS_API_TOKEN: ${BLINKS_API_TOKEN}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network
