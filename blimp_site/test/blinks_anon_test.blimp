@@ -214,6 +214,17 @@ actor BlinksAnonTests do
     assert_eq(bat_body(bat_json(routes, "DELETE", "/api/blinks/5/save", ip, BAT_DEVICE)), BLKA_NO_DEVICE)
   end
 
+  test "ids are the router's :blink_id and :id: a + is a sign, %20 is not a digit" do
+    routes = bat_routes()
+    ip = "203.0.113.77"
+    assert_eq(bat_status(bat_json(routes, "GET", "/api/blinks/+5/comments", ip, "")), 503)
+    assert_eq(bat_body(bat_json(routes, "GET", "/api/blinks/%205/comments", ip, "")), BLKA_BAD_ID)
+    assert_eq(bat_status(bat_json(routes, "POST", "/api/blinks/+5/save", ip, BAT_DEVICE)), 503)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/%205/save", ip, BAT_DEVICE)), BLKA_BAD_ID)
+    assert_eq(bat_status(bat_json(routes, "POST", "/blinks-next/api/blinks/comments/+1/react", ip, "{\"emoji\":\"🔥\",\"device_id\":\"device-abc-12345\"}")), 503)
+    assert_eq(bat_body(bat_json(routes, "POST", "/api/blinks/comments/1x/react", ip, BAT_DEVICE)), BLKA_BAD_ID)
+  end
+
   test "reactions: device, then the limit (429), then the id, then the emoji" do
     routes = bat_routes()
     ip = "203.0.113.9"

@@ -405,25 +405,15 @@ def blka_broadcast(event: Any, blink_id: Any, payload: Any) -> Any do
   :ok
 end
 
-# A path id after `word` (".../blinks/:id/..." or ".../comments/:id..."),
-# Integer.parse/1 whole: :bad, :missing (too big for a bigint), or the id.
-def blka_path_id(conn: Map, word: String) -> Any do
-  blkw_path_id(blka_seg_after(split(conn.path, "/"), word))
+# The path param `name` (:blink_id, :id) as the router bound it, "+" kept
+# (web_path_decode), Integer.parse/1 whole: :bad, :missing (too big for a
+# bigint), or the id.
+def blka_path_id(conn: Map, name: String) -> Any do
+  blkw_path_id(web_param(conn, name))
 end
 
-def blka_seg_after(parts: List, word: String) -> String do
-  case parts do
-    [] -> ""
-    [p | rest] ->
-      case p == word and rest != [] do
-        true -> blkw_path_decode(head(rest))
-        false -> blka_seg_after(rest, word)
-      end
-  end
-end
-
-def blka_with_id(conn: Map, word: String, k: Any) -> Map do
-  id = blka_path_id(conn, word)
+def blka_with_id(conn: Map, name: String, k: Any) -> Map do
+  id = blka_path_id(conn, name)
   case id do
     :bad -> blkw_json(conn, 400, BLKA_BAD_ID)
     :missing -> blkw_json(conn, 404, BLKA_NOT_FOUND)
@@ -463,7 +453,7 @@ def blka_with_device(ctx: Map, conn: Map, k: Any) -> Map do
   ok = type_of(device) == :string and blka_device_id_ok(length(device)) and blka_allow(ctx, concat("save:", blka_client_ip(conn)), 30, 60)
   case ok do
     false -> blkw_json(conn, 400, BLKA_NO_DEVICE)
-    true -> blka_with_id(conn, "blinks", fn(id: Int) -> Map do k(id, blka_hash(device, ctx.secret)) end)
+    true -> blka_with_id(conn, "id", fn(id: Int) -> Map do k(id, blka_hash(device, ctx.secret)) end)
   end
 end
 
@@ -546,7 +536,7 @@ end
 # index/2: 62's list (only the visible ones, oldest first, 200 at most,
 # each with its reaction counts) and a fresh post_token.
 def blka_comments(ctx: Map, conn: Map) -> Map do
-  blka_with_id(conn, "blinks", fn(id: Int) -> Map do
+  blka_with_id(conn, "blink_id", fn(id: Int) -> Map do
     case DB <- :query(BLK_COMMENTS_SQL, [id]) do
       {:error, reason} -> blkw_no_db(conn, reason)
       {:ok, rows} ->
@@ -664,7 +654,7 @@ def blka_duplicate(id: Int, content: Any) -> Any do
 end
 
 def blka_comment(ctx: Map, conn: Map) -> Map do
-  blka_with_id(conn, "blinks", fn(id: Int) -> Map do
+  blka_with_id(conn, "blink_id", fn(id: Int) -> Map do
     ip = blka_client_ip(conn)
     case blka_honeypot(web_param(conn, "website")) do
       true -> blkw_json(conn, 200, BLKA_OK)
@@ -726,7 +716,7 @@ BLKA_REPORT_SQL = join([
 ], "")
 
 def blka_report(ctx: Map, conn: Map) -> Map do
-  blka_with_id(conn, "comments", fn(id: Int) -> Map do
+  blka_with_id(conn, "id", fn(id: Int) -> Map do
     case blka_allow(ctx, concat("comment_report:", blka_client_ip(conn)), 10, 60) do
       false -> blkw_json(conn, 429, BLKA_LIMITED)
       true ->
@@ -778,7 +768,7 @@ def blka_reaction(ctx: Map, conn: Map, sql: String) -> Map do
       case blka_allow(ctx, concat("react:", blka_client_ip(conn)), 30, 60) do
         false -> blkw_json(conn, 429, BLKA_LIMITED)
         true ->
-          blka_with_id(conn, "comments", fn(id: Int) -> Map do
+          blka_with_id(conn, "id", fn(id: Int) -> Map do
             emoji = blkw_or(blka_param(conn, "emoji"), "")
             case type_of(emoji) == :string and has_string(BLKA_EMOJIS, emoji) do
               false -> blkw_json(conn, 422, "{\"error\":\"bad emoji\"}")
@@ -808,7 +798,7 @@ end
 BLKA_DELETE_COMMENT_SQL = "delete from blink_comments where id = $1::bigint returning id, blink_id"
 
 def blka_delete_comment(ctx: Map, conn: Map) -> Map do
-  blka_with_id(conn, "comments", fn(id: Int) -> Map do
+  blka_with_id(conn, "id", fn(id: Int) -> Map do
     case DB <- :query(BLKA_DELETE_COMMENT_SQL, [id]) do
       {:error, reason} -> blkw_no_db(conn, reason)
       {:ok, rows} ->
