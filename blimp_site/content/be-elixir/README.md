@@ -14,3 +14,4 @@ guide that grows as the backend does.
 1. [2026-09-30: what an object is on the BEAM, and the output grammar](2026-09-30-what-an-object-is.md)
 2. [2026-10-01: loops without loops](2026-10-01-loops-without-loops.md)
 3. [2026-10-01: classes as modules, objects as structs or heap refs](2026-10-01-classes-as-modules.md)
+4. [2026-10-01: closures, cells, and failing by name](2026-10-01-closures-and-cells.md)

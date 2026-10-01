@@ -149,3 +149,15 @@ none, fails the build by name.
 | `x instanceof I` | `TemperCore.is_a(x, TemperMain.I)` |
 
 Inherited method bodies are copied into the class, so there is no `super`.
+
+## 7. Closures and imports
+
+| Temper | Elixir |
+|--------|--------|
+| `let f(x) { ... }` inside a function | `f = fn x -> ... end` |
+| a local function that calls itself | `rec = fn rec, x -> ... rec.(rec, ...) end`, and `f = fn x -> rec.(rec, x) end` |
+| a local a closure reads and someone assigns | a cell: `TemperCore.Heap.new(:cell, %{v: x})` |
+| `f(x)` where `f` is a module function | `TemperMain.f(x)`, always qualified |
+| `f` as a value | `&TemperMain.f/1` |
+| a call that omits optional arguments | the missing ones passed as `nil` |
+| `...rest` | one list parameter |
