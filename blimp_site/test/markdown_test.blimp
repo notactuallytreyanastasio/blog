@@ -102,4 +102,16 @@ actor MarkdownTests do
     assert_eq(render_markdown("<script>\nalert(1)\n</script>\n\nafter"), "<p>after</p>")
     assert_eq(render_markdown("x <script>alert(1)</script> y"), "<p>x  y</p>")
   end
+
+  test "tables" do
+    md = "| Temper | Elixir |\n|--------|-------:|\n| `x + y` | `TemperCore.int32(x + y)` |\n| a \\| b | *em* |"
+    want = "<table>\n<thead>\n<tr>\n<th>Temper</th>\n<th align=\"right\">Elixir</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>x + y</code></td>\n<td align=\"right\"><code>TemperCore.int32(x + y)</code></td>\n</tr>\n<tr>\n<td>a | b</td>\n<td align=\"right\"><em>em</em></td>\n</tr>\n</tbody>\n</table>"
+    assert_eq(render_markdown(md), want)
+  end
+
+  test "a table ends at a blank line, pads short rows, and needs its delimiter row" do
+    assert_eq(render_markdown("a | b\n:-: | ---\n1\n\nafter"), "<table>\n<thead>\n<tr>\n<th align=\"center\">a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"center\">1</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n<p>after</p>")
+    assert_eq(render_markdown("| a | b |\nnot a delimiter"), "<p>| a | b |\nnot a delimiter</p>")
+    assert_eq(render_markdown("| a | b |\n|---|"), "<p>| a | b |\n|---|</p>")
+  end
 end

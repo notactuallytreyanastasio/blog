@@ -6,8 +6,9 @@
 # paragraphs, fenced and indented code, block quotes, bullet and ordered
 # lists (nested, tight and loose), thematic breaks, HTML blocks, code spans,
 # emphasis, links, images, <autolinks>, bare-URL autolinks, inline HTML,
-# backslash escapes and hard breaks. Not built, because no post uses them:
-# tables, strikethrough, task lists, footnotes, link reference definitions,
+# backslash escapes, hard breaks, and tables (added for the /be-elixir
+# journal, the first content with one). Not built, because nothing uses them:
+# strikethrough, task lists, footnotes, link reference definitions,
 # email autolinks, and entity decoding (a valid entity such as &mdash; is
 # passed through as written; comrak would emit the decoded character, which
 # renders the same).
@@ -263,6 +264,7 @@ end
 #   {:heading, level, text}   {:para, text}   {:code, lang, code}
 #   {:html, text}   {:hr}   {:quote, blocks}
 #   {:list, ordered, start, tight, items}   where items is a list of block lists
+#   {:table, aligns, header, rows}   cells as raw inline text
 #
 # md_parse returns {blocks, loose}: loose is true when a blank line separates
 # two blocks at this level, which is what makes a list item loose.
@@ -289,7 +291,12 @@ def md_parse_loop(lines: List, para: List, acc: List, blank: Bool, loose: Bool) 
           md_parse_loop(rest, [], acc2, acc2 != [], loose)
         :para_line ->
           case para do
-            [] -> md_parse_loop(rest, [elem(c, 1)], acc, false, loose or blank)
+            [] ->
+              table = md_table_start(line, rest)
+              case table != nil do
+                true -> md_parse_loop(elem(table, 1), [], [elem(table, 0) | acc], false, loose or blank)
+                false -> md_parse_loop(rest, [elem(c, 1)], acc, false, loose or blank)
+              end
             _ -> md_parse_loop(rest, [elem(c, 1) | para], acc, false, loose)
           end
         :setext ->
@@ -690,6 +697,147 @@ def md_prepend(rev: List, b: List) -> List do
 end
 
 # ---------------------------------------------------------------------------
+# Tables, as GFM has them: a header row, then a delimiter row of dashes (a
+# colon on either side sets the alignment) with as many cells, then body rows
+# until a blank line or the start of another block (a row needs no pipe).
+# `\|` is a pipe inside a cell.
+# A table starts a block here; it does not interrupt an open paragraph.
+
+# {{:table, aligns, header, rows}, rest} when line and the next start a table, or nil.
+def md_table_start(line: String, rest: List) -> Any do
+  case contains(line, "|") and rest != [] do
+    false -> nil
+    true ->
+      header = md_table_cells(line)
+      aligns = md_table_aligns(md_table_cells(head(rest)), [])
+      case aligns != nil and length(aligns) == length(header) do
+        false -> nil
+        true ->
+          body = md_table_rows(tail(rest), length(header), [])
+          {{:table, aligns, header, elem(body, 0)}, elem(body, 1)}
+      end
+  end
+end
+
+def md_table_rows(lines: List, width: Int, acc: List) -> Any do
+  case lines do
+    [] -> {reverse(acc), []}
+    [line | rest] ->
+      case md_is_blank(line) or md_starts_block(line) do
+        true -> {reverse(acc), lines}
+        false -> md_table_rows(rest, width, [md_table_fit(md_table_cells(line), width) | acc])
+      end
+  end
+end
+
+# A body row has the header's width: missing cells are empty, extra ones dropped.
+def md_table_fit(cells: List, width: Int) -> List do
+  case length(cells) >= width do
+    true -> md_list_take(cells, width, [])
+    false -> md_table_fit(reverse(["" | reverse(cells)]), width)
+  end
+end
+
+# A row's cells, trimmed, without the optional pipes at either end.
+def md_table_cells(line: String) -> List do
+  t = trim(line)
+  a = case starts_with(t, "|") do
+    true -> slice(t, 1, length(t) - 1)
+    false -> t
+  end
+  b = case ends_with(a, "|") and not(ends_with(a, "\\|")) do
+    true -> slice(a, 0, length(a) - 1)
+    false -> a
+  end
+  map(md_split_pipes(b, 0, 0, []), fn(cell: String) -> String do trim(cell) end)
+end
+
+# Split at each pipe that no backslash escapes. The escape stays in the cell,
+# where the inline pass turns `\|` into `|`.
+def md_split_pipes(s: String, from: Int, i: Int, acc: List) -> List do
+  c = char_at(s, i)
+  case c == nil do
+    true -> reverse([slice(s, from, i - from) | acc])
+    false ->
+      case c == "\\" do
+        true -> md_split_pipes(s, from, i + 2, acc)
+        false ->
+          case c == "|" do
+            true -> md_split_pipes(s, i + 1, i + 1, [slice(s, from, i - from) | acc])
+            false -> md_split_pipes(s, from, i + 1, acc)
+          end
+      end
+  end
+end
+
+# Each delimiter cell's alignment, or nil if the row is not a delimiter row.
+def md_table_aligns(cells: List, acc: List) -> Any do
+  case cells do
+    [] -> reverse(acc)
+    [cell | rest] ->
+      a = md_table_align(cell)
+      case a == nil do
+        true -> nil
+        false -> md_table_aligns(rest, [a | acc])
+      end
+  end
+end
+
+def md_table_align(cell: String) -> Any do
+  left = starts_with(cell, ":")
+  right = ends_with(cell, ":")
+  from = md_bool_int(left)
+  dashes = slice(cell, from, length(cell) - from - md_bool_int(right))
+  case length(dashes) > 0 and md_run_length(dashes, 0, "-") == length(dashes) do
+    false -> nil
+    true ->
+      case left and right do
+        true -> "center"
+        false ->
+          case right do
+            true -> "right"
+            false ->
+              case left do
+                true -> "left"
+                false -> ""
+              end
+          end
+      end
+  end
+end
+
+def md_bool_int(b: Bool) -> Int do
+  case b do
+    true -> 1
+    false -> 0
+  end
+end
+
+# comrak's markup: thead, then tbody when there are rows, one cell per line.
+def md_render_table(b: Any) -> String do
+  aligns = elem(b, 1)
+  head_row = md_render_row(elem(b, 2), aligns, "th")
+  rows = elem(b, 3)
+  body = case rows do
+    [] -> ""
+    _ -> concat("<tbody>\n", join(map(rows, fn(r: List) -> String do md_render_row(r, aligns, "td") end), ""), "</tbody>\n")
+  end
+  concat("<table>\n<thead>\n", head_row, "</thead>\n", body, "</table>\n")
+end
+
+def md_render_row(cells: List, aligns: List, tag: String) -> String do
+  pairs = zip(cells, aligns)
+  inner = join(map(pairs, fn(p: Any) -> String do
+    align = case elem(p, 1) == "" do
+      true -> ""
+      false -> concat(" align=\"", elem(p, 1), "\"")
+    end
+    concat("<", tag, align, ">", md_inline(elem(p, 0), false), "</", tag, ">\n")
+  end), "")
+  concat("<tr>\n", inner, "</tr>\n")
+end
+
+# ---------------------------------------------------------------------------
 # Rendering blocks
 
 def md_render_blocks(blocks: List) -> String do
@@ -712,6 +860,7 @@ def md_render_block(b: Any) -> String do
     :hr -> "<hr />\n"
     :quote -> concat("<blockquote>\n", md_render_blocks(elem(b, 1)), "</blockquote>\n")
     :list -> md_render_list(b)
+    :table -> md_render_table(b)
   end
 end
 
