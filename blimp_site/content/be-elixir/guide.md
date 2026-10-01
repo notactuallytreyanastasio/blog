@@ -184,8 +184,8 @@ end
 | `String` | a UTF-8 binary |
 | `StringIndex` | a byte offset; `String.begin` is `0`, "no index" is `-1` |
 | `StringBuilder` | a heap object holding the string so far |
-| `List<T>` | an Elixir list |
-| `ListBuilder<T>` | a heap object holding an Elixir list |
+| `List<T>` | `%TemperCore.Vec{t: tuple}`; a literal is `%TemperCore.Vec{t: {1, 2, 3}}` |
+| `ListBuilder<T>` | a heap object holding an Erlang `:array` |
 | `Map<K, V>` | `%TemperCore.Map{keys, map}`: insertion order kept beside an Elixir map |
 | `MapBuilder` | a heap object holding the same two |
 | `Pair` | `%TemperCore.Pair{key, value}` |
@@ -218,6 +218,22 @@ Temper's total order:
 
 `near` is Python's `math.isclose`. `toString` prints the way JavaScript
 does, `1.0e+25` and `0.000001`, always with a point.
+
+**Lists.** A Temper `List` is a tuple in a struct, so `xs[i]` and
+`xs.length` take constant time. As an Elixir list, an indexed loop over
+16,000 items took 282 ms, because both walk the list. A `ListBuilder`
+holds an `:array`, so appending is `O(log n)`; as a list, every append
+copied, and 16,000 appends took 1.2 s. Now a million items build in 186 ms
+and sum by index in 20 ms.
+
+`TemperCore.Vec` is `Enumerable`, so Elixir code can `Enum` over a list a
+Temper library returns, and every Temper list operation also accepts a
+plain Elixir list:
+
+```elixir
+Temper.Lists.build(5)            #=> #TemperCore.Vec<[0, 1, 2, 3, 4]>
+Temper.Lists.sumIndexed([1, 2, 3])   #=> 6
+```
 
 **Strings.** A `StringIndex` is a byte offset into the UTF-8 binary, so
 `s[i]` is a binary match and stepping (`next`, `prev`) moves over a whole
@@ -512,8 +528,6 @@ shared. The receiving process must have run the library's
 - **Code is single-process.** Async is a queue inside one process, not
   BEAM concurrency. Using several processes is up to the host, through
   export and import.
-- **A `ListBuilder` append copies the list,** so building a list one item
-  at a time is quadratic.
 - **No `mix test` integration.** Tests run through `main/0`.
 - **Two user libraries importing each other** have not been tried; only
   libraries importing std have.
