@@ -233,3 +233,15 @@ in its own process could not see the objects it was given.
 The BEAM raises on every IEEE special case and cannot even match an
 infinity's bits out of a binary, so no float operation is a bare operator.
 
+## 14. Libraries
+
+| Temper | Elixir |
+|--------|--------|
+| library `std`, `my-lib` | root module `Temper.Std`, `Temper.MyLib`; app `:temper_std`, `:temper_my_lib` |
+| a library's top levels | `__temper_init__/0`: its dependencies' init, then its own, once per process |
+| running a library | `Temper.MyLib.main()`: init, then drain the async queue |
+| a module-level variable | `TemperCore.Global` under `:"Temper.MyLib.name"` |
+| an imported function | `Temper.Std.parseJson(...)`, its `mix.exs` depending on `../std` |
+| a type from another library | `Temper.Std.JsonArray`, dispatched dynamically |
+| a type as a value | its module, or `:Void` for a builtin |
+
