@@ -173,14 +173,22 @@ end
   `:temper_core` OTP application. It starts with any Mix project that
   depends on a translated library.
 
-An imported function is a direct call, `Temper.Std.parseJson(text)`, and
-`mix.exs` depends on the library it comes from:
+Another library is imported by its module directory: `import("std/json")`,
+or `import("shapes/src")` for a library named `shapes` whose code is in
+`src/`. An imported function is a direct call, `Temper.Std.parseJson(text)`,
+and `mix.exs` depends on the library it comes from:
 
 ```elixir
 defp deps do
   [{:temper_core, path: "../temper-core"}, {:temper_std, path: "../std"}]
 end
 ```
+
+Two user libraries work together the same way. `journal/examples/twolibs`
+has an `app` that uses `shapes`: its interface and an `@imu` class through
+a list typed by the interface, a mutable class, and a module-level actor.
+It prints the same line as the JS backend,
+`total=10.0 isSquare=true stack=2 tally=6`.
 
 ## 5. Values
 
@@ -339,7 +347,10 @@ turn a struct into a ref. Consumers' `%Lib.Point{}` patterns would stop
 matching, values that crossed processes freely no longer would, and `==`
 would compare identity instead of fields. With `@imu` as the contract,
 that change can only happen by removing the annotation. An unannotated
-class that never mutates is a ref, which is slower but consistent. Two names for one object see each other's
+class that never mutates is a ref, which is slower but consistent. std's
+value classes are annotated: the JSON tree, regex nodes, `Match`, `Group`
+and `Date`. That is 30 structs in all, so a parsed JSON tree is plain data
+that crosses processes as it is. Two names for one object see each other's
   writes, which is what Temper requires (`c` and `alias` above both bump
   one count).
 
@@ -698,15 +709,14 @@ method is freed when the method returns.
 - **A module-level mutable non-actor object is per process.** Each process
   gets its own copy on first read.
 - **No `mix test` integration.** Tests run through `main/0`.
-- **Two user libraries importing each other** have not been tried; only
-  libraries importing std have.
 
 ## 17. Where things are
 
 - Backend: `temper/be-elixir/src/commonMain/kotlin/lang/temper/be/elixir/`
 - Runtime: `temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core/`
 - Probes, which check claims about Elixir and the BEAM: `journal/probes/`
-- A runnable actor example, a Temper library and the Elixir driving it:
-  `journal/examples/bank/`
+- Runnable examples: `journal/examples/bank/` (actors, a shared ledger,
+  supervision, driven from Elixir) and `journal/examples/twolibs/` (one
+  library using another)
 - How each part came about: the dated entries in `journal/`, listed in
   `journal/README.md`
