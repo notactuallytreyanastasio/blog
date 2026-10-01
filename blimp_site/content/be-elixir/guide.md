@@ -449,18 +449,61 @@ Names are per function: Elixir variables belong to their function, so a
 frontend id only has to separate names that share a base inside one
 function.
 
-## 14. Limits
+## 14. Long-running programs
 
-These are the things a program can actually run into.
+Mutable objects live in their process's heap, which leaves two problems
+for a program that keeps running. `TemperCore.Heap` provides a tool for
+each.
 
-- **The heap is never freed.** A mutable object lives in the process
-  dictionary until its process exits. Short-lived programs are fine. In a
-  long-running process the heap keeps growing.
-- **Mutable objects cannot leave their process.** A ref is an id into its
-  process's heap, so a ref sent to another process dangles there. Structs
-  travel fine.
+**Freeing.** Nothing frees an object on its own, but a heap dies with its
+process. A process holding 200,000 objects used 36 MB, and BEAM process
+memory fell from 50 MB to 17 MB when it exited. So the first answer is
+the usual BEAM one: a process per request or per job, and nothing more to
+do.
+
+A process that lives on, such as a GenServer, calls
+`TemperCore.Heap.collect(roots)` between calls into Temper code:
+
+```elixir
+def handle_call({:req, n}, _from, state) do
+  reply = Temper.Svc.handle(n)
+  TemperCore.Heap.collect([state])
+  {:reply, reply, state}
+end
+```
+
+`collect` is mark and sweep. It keeps every object reachable from the
+roots it is given, from the rest of the process dictionary (Temper's
+globals, the async queue) and from closures, which it traces through
+`:erlang.fun_info(f, :env)`. It frees everything else, cycles included.
+It cannot see the stack, so it is only safe when no Temper function is
+partway through. Here is a service whose every request makes two objects
+and keeps one long-lived counter, run for 100,000 requests:
+
+| | objects left | process memory | time |
+|---|---|---|---|
+| no collect | 200,001 | 49,364 KB | 492 ms |
+| `collect` after each call | 1 | 18 KB | 194 ms |
+
+Collecting after each call is cheap when little survives, because each
+pass costs as much as the live heap. A process that keeps a large heap
+would collect every N calls instead.
+
+**Crossing processes.** A ref sent as is fails loudly in the receiving
+process: `...is not an object in this process`. Instead, send
+`TemperCore.Heap.export(value)` and call `TemperCore.Heap.import/1` where
+it arrives. Export copies every object the value reaches. Objects keep
+their ids, which are unique across processes and nodes, so aliasing
+inside the value survives and a ref captured by a closure still works.
+Like any BEAM message it is a copy: later writes on either side are not
+shared. The receiving process must have run the library's
+`__temper_init__/0` if the code it calls reads module values.
+
+## 15. Limits
+
 - **Code is single-process.** Async is a queue inside one process, not
-  BEAM concurrency.
+  BEAM concurrency. Using several processes is up to the host, through
+  export and import.
 - **Struct fields keep frontend ids** (`x__29`), and `case`, `rescue` and
   `catch` clause bodies are not indented past their pattern.
 - **A `ListBuilder` append copies the list,** so building a list one item
@@ -469,7 +512,7 @@ These are the things a program can actually run into.
 - **Two user libraries importing each other** have not been tried; only
   libraries importing std have.
 
-## 15. Where things are
+## 16. Where things are
 
 - Backend: `temper/be-elixir/src/commonMain/kotlin/lang/temper/be/elixir/`
 - Runtime: `temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core/`

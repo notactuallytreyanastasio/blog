@@ -25,3 +25,4 @@ guide that grows as the backend does.
 12. [2026-10-01: regex, broken code, and 65 of 65](2026-10-01-regex-and-broken-code.md)
 13. [2026-10-01: output a person can read](2026-10-01-readable-output.md)
 14. [2026-10-01: a concrete class is the class](2026-10-01-static-dispatch.md)
+15. [2026-10-01: long-running programs](2026-10-01-long-running.md)
