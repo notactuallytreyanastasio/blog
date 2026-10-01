@@ -319,6 +319,8 @@ change:
   ordinary Elixir value that can go anywhere, including other processes.
   The frontend enforces `@imu` ("Class P claims imu but has a `var`
   property"), so the struct can never be written after construction.
+- **A class marked `@actor`** is a process per instance,
+  `%TemperCore.Actor{class, pid}`, that any process may hold (section 15).
 - **Any other class** is a `%TemperCore.Ref{class, id}` into a heap kept in
   the process dictionary.
 
@@ -560,19 +562,107 @@ Like any BEAM message it is a copy: later writes on either side are not
 shared. The receiving process must have run the library's
 `__temper_init__/0` if the code it calls reads module values.
 
-## 15. Limits
+## 15. Actors
 
-- **Code is single-process.** Async is a queue inside one process, not
-  BEAM concurrency. Using several processes is up to the host, through
-  export and import.
+A class marked `@actor` has instances that are processes. Any number of
+processes can hold one and change it, and all of them see the same object.
+
+```temper
+@actor export class Account(public owner: String) {
+  public var balance: Int = 0;
+  public deposit(n: Int): Int { balance += n; balance }
+  public withdraw(n: Int): Int throws Bubble {
+    if (n > balance) { bubble() }
+    balance -= n;
+    balance
+  }
+  public transferTo(other: Account, n: Int): Void throws Bubble {
+    withdraw(n);
+    other.deposit(n);
+  }
+}
+```
+
+`@actor` is a decorator in Temper core, declared next to `@imu`. Every
+other backend ignores it, so there the class is an ordinary class. On the
+BEAM:
+
+```elixir
+def new(owner) do
+  TemperCore.Actor.start(Temper.Bank.Account, fn ->
+    this = TemperCore.Actor.init_self(Temper.Bank.Account, %{:owner => nil, :balance => nil})
+    ...
+    this
+  end)
+end
+def deposit(this, n) do
+  TemperCore.Actor.run(this, fn ->
+    ...
+  end)
+end
+```
+
+`new` starts a GenServer and runs the constructor inside it. The object
+is `%TemperCore.Actor{class, pid}`: an ordinary term that can be sent,
+stored and compared. Its fields exist only inside its own process. Each
+method body runs through `TemperCore.Actor.run`. From inside the actor
+(`this.m()`) that is a plain call. From anywhere else it is a
+`GenServer.call`, which costs about 1.6 µs. Calls stay synchronous, as
+Temper expects. Driven from Elixir (`journal/examples/bank/`):
+
+```
+after 1000 concurrent deposits: 1000
+after transfer: ann 700, bob 300
+withdraw too much: bubbled back to the caller (TemperCore.Bubble)
+cycle: Panic: actor call cycle: Temper.Bank.Account is already waiting on this call
+mutable argument: Panic: an argument to Temper.Bank.Account is a mutable Temper.Bank.Box, which cannot be shared with another process; make its class @imu to pass a copy, or @actor to share it
+actor whose creator ended: Panic: Temper.Bank.Account actor has ended
+```
+
+The rules, one per line of that output:
+
+- **One object, one process.** A thousand processes depositing at once
+  lose no update, because the actor handles one call at a time.
+- **Actors call actors.** `transferTo` runs in `ann`'s process and calls
+  `bob`.
+- **Errors cross.** A bubble or panic raised in the actor is raised again
+  in the caller, so `orelse` works across processes.
+- **No deadlocks from cycles.** If A is waiting on B and B calls A, A can
+  never answer. Each call carries the chain of actors it passed through,
+  so the call back raises a `Panic` instead of hanging.
+- **Only values cross.** Messages copy, and copying a mutable object
+  would break Temper's sharing. Arguments, results and captured values
+  are checked, and a mutable non-actor object raises a `Panic` that names
+  it. Immutable values and other actors cross freely: strings, numbers,
+  lists, maps, `@imu` structs. This is Erlang's own rule.
+- **Lifetime.** An actor ends when the process that created it ends, for
+  any reason. It is linked to its creator and also monitors it, because a
+  link alone ignores a normal exit. An actor meant to outlive a
+  short-lived process has to be created by a longer-lived one.
+
+Each call runs through `Heap.entry` inside the actor, so garbage from a
+method is freed when the method returns. An actor starts with a copy of
+its creator's Temper globals. From then on, module-level mutable state is
+per process.
+
+## 16. Limits
+
+- **Async is single-process.** `async` is a queue inside one process, not
+  BEAM concurrency. Concurrency comes from `@actor` classes, or from host
+  processes using export and import.
+- **Module-level mutable state is per process.** An actor starts with a
+  copy of its creator's globals, and the two diverge from then on.
+- **An actor ends with its creator.** There is no supervision tree yet.
 - **No `mix test` integration.** Tests run through `main/0`.
 - **Two user libraries importing each other** have not been tried; only
   libraries importing std have.
 
-## 16. Where things are
+## 17. Where things are
 
 - Backend: `temper/be-elixir/src/commonMain/kotlin/lang/temper/be/elixir/`
 - Runtime: `temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core/`
 - Probes, which check claims about Elixir and the BEAM: `journal/probes/`
+- A runnable actor example, a Temper library and the Elixir driving it:
+  `journal/examples/bank/`
 - How each part came about: the dated entries in `journal/`, listed in
   `journal/README.md`

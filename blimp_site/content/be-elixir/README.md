@@ -8,6 +8,8 @@ guide that grows as the backend does.
   each Temper construct becomes in Elixir and why, and its limits.
 - [probes/](probes/) -- the Elixir scripts every claim about the target was
   checked with. Run any of them with `elixir probes/<file>.exs`.
+- [examples/](examples/) -- runnable Temper libraries with the Elixir that
+  drives them, such as `bank/`, a set of `@actor` accounts.
 
 ## Entries
 
@@ -29,3 +31,4 @@ guide that grows as the backend does.
 16. [2026-10-01: clause bodies, fields, and `cond`](2026-10-01-readability-finished.md)
 17. [2026-10-01: lists that index in constant time](2026-10-01-lists-that-index.md)
 18. [2026-10-01: `@imu` is the contract, and the heap collects itself](2026-10-01-imu-and-entry.md)
+19. [2026-10-01: `@actor`: a Temper object that is a process](2026-10-01-actors.md)
