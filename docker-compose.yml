@@ -37,6 +37,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.1}
       ZIGGY_CHAT_PASSWORD: ${ZIGGY_CHAT_PASSWORD:-}
+      # /aim's bobbbyBot (src/99_aim.blimp): DeepSeek, and a day's request budget
+      AIM_API_KEY: ${DEEPSEEK_API_KEY:-}
+      AIM_DAILY_LIMIT: ${AIM_DAILY_LIMIT:-600}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-}
       S3_BUCKET: ${S3_BUCKET:-bobbby-media}

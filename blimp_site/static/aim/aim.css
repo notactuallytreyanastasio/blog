@@ -1,0 +1,377 @@
+/* /aim: a Windows 2000 desktop running AIM 5, and a reader that is not
+   from 2003 at all. Chrome is Tahoma on #d4d0c8 with two-pixel bevels; the
+   transcript is AIM's Arial with the buddy's name in red and yours in
+   blue; the reader is a serif page. */
+
+:root {
+  --aim-face: #d4d0c8;
+  --aim-light: #ffffff;
+  --aim-mid: #808080;
+  --aim-dark: #404040;
+  --aim-title-a: #0a246a;
+  --aim-title-b: #a6caf0;
+  --aim-desk: #3a6ea5;
+  --aim-me: #0000ff;
+  --aim-bot: #e00000;
+  --aim-yellow: #ffcc00;
+  --aim-chrome: Tahoma, Verdana, "Segoe UI", sans-serif;
+  --aim-chat: Arial, Helvetica, sans-serif;
+  --aim-serif: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --aim-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html.aim-html, html.aim-html body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--aim-desk);
+}
+.blimp-app-status { position: fixed; top: 12px; left: 16px; color: #fff; font: 12px var(--aim-chrome); }
+
+.aim-desktop {
+  position: fixed;
+  inset: 0;
+  font: 11px/1.35 var(--aim-chrome);
+  color: #000;
+  background:
+    radial-gradient(ellipse at 70% 30%, rgba(255,255,255,.10), transparent 60%),
+    var(--aim-desk);
+}
+.aim-windows { position: absolute; inset: 0 0 30px 0; }
+
+/* ── chrome ─────────────────────────────────────────────────────────── */
+
+.aim-win {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--aim-face);
+  padding: 3px;
+  box-shadow: inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-face),
+    inset -2px -2px var(--aim-mid), inset 2px 2px var(--aim-light), 4px 6px 18px rgba(0,0,0,.28);
+}
+.aim-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 2px 0 4px;
+  background: linear-gradient(90deg, var(--aim-title-a), var(--aim-title-b));
+  color: #fff;
+  font-weight: bold;
+  flex: none;
+  user-select: none;
+}
+.aim-tb-icon { width: 14px; height: 14px; border-radius: 3px; background: var(--aim-yellow); box-shadow: inset -1px -1px rgba(0,0,0,.35); }
+.aim-tb-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aim-tb-btns { display: flex; gap: 2px; }
+.aim-tb-btn {
+  width: 16px; height: 14px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: bold 11px/1 var(--aim-chrome); color: #000;
+  background: var(--aim-face); border: 0;
+  box-shadow: inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-light), inset -2px -2px var(--aim-mid);
+  cursor: pointer;
+}
+.aim-tb-btn.dead { cursor: default; }
+.aim-tb-btn:not(.dead):active { box-shadow: inset 1px 1px var(--aim-dark), inset -1px -1px var(--aim-light); }
+.aim-menubar { display: flex; gap: 2px; padding: 2px 0; flex: none; }
+.aim-menubar span { padding: 1px 6px; }
+.aim-menubar span:first-letter { text-decoration: underline; }
+
+.aim-btn {
+  font: 11px var(--aim-chrome);
+  color: #000;
+  min-height: 23px;
+  padding: 2px 10px;
+  background: var(--aim-face);
+  border: 0;
+  box-shadow: inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-light), inset -2px -2px var(--aim-mid), inset 2px 2px var(--aim-face);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.aim-btn:active:not(:disabled) { box-shadow: inset 1px 1px var(--aim-dark), inset -1px -1px var(--aim-light); padding: 3px 9px 1px 11px; }
+.aim-btn:disabled { color: var(--aim-mid); text-shadow: 1px 1px var(--aim-light); cursor: default; }
+.aim-btn:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.aim-btn-default { box-shadow: 0 0 0 1px #000, inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-light), inset -2px -2px var(--aim-mid); font-weight: bold; }
+.aim-field, .aim-input {
+  font: 13px var(--aim-chat);
+  border: 0;
+  padding: 3px 4px;
+  background: #fff;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light), inset 2px 2px var(--aim-dark), inset -2px -2px var(--aim-face);
+}
+.aim-field:disabled { background: var(--aim-face); }
+.aim-small { font-size: 10px; color: #333; }
+.aim-spacer { flex: 1; }
+
+.aim-runner { display: inline-block; flex: none; }
+.aim-runner svg { width: 100%; height: 100%; display: block; fill: var(--aim-yellow); stroke: var(--aim-yellow); filter: drop-shadow(1px 1px 0 rgba(0,0,0,.55)); }
+.aim-runner.big { width: 52px; height: 64px; }
+.aim-runner.mid { width: 26px; height: 32px; }
+.aim-runner.tiny { width: 11px; height: 14px; }
+
+/* ── sign on ────────────────────────────────────────────────────────── */
+
+.aim-signon { width: 250px; left: 50%; top: 50%; transform: translate(-50%, -55%); }
+.aim-signon-body { padding: 0 10px 8px; }
+.aim-signon-logo {
+  display: flex; align-items: center; gap: 12px;
+  margin: 8px 0 12px; padding: 14px 12px;
+  background: linear-gradient(160deg, #102a78, #1f4fb4 55%, #0a1f5a);
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light);
+}
+.aim-wordmark { display: flex; flex-direction: column; color: #fff; }
+.aim-wordmark strong { font: italic 900 30px/1 "Arial Black", Arial, sans-serif; letter-spacing: -1px; color: var(--aim-yellow); text-shadow: 2px 2px 0 #000; }
+.aim-wordmark span { font-size: 10px; opacity: .85; margin-top: 3px; }
+.aim-signon-form { display: flex; flex-direction: column; gap: 3px; }
+.aim-signon-form label { font-weight: bold; margin-top: 4px; }
+.aim-signon-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 8px; }
+.aim-signon-foot { margin-top: 10px; text-align: center; color: var(--aim-mid); }
+
+/* ── the Buddy List ─────────────────────────────────────────────────── */
+
+.aim-buddies { left: 24px; top: 24px; width: 214px; height: min(560px, calc(100% - 48px)); }
+.aim-buddies-brand {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; margin-bottom: 4px;
+  background: linear-gradient(160deg, #102a78, #1f4fb4);
+  color: #fff;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light);
+}
+.aim-buddies-brand div { display: flex; flex-direction: column; }
+.aim-buddies-brand strong { font-size: 13px; }
+.aim-buddies-brand span { font-size: 10px; opacity: .85; }
+.aim-buddies-tabs { display: flex; gap: 2px; padding-left: 2px; }
+.aim-buddies-tabs span {
+  padding: 2px 8px; background: var(--aim-face);
+  box-shadow: inset 1px 1px var(--aim-light), inset -1px 0 var(--aim-dark);
+}
+.aim-buddies-tabs span.on { font-weight: bold; position: relative; top: 1px; }
+.aim-buddies-tree {
+  flex: 1; overflow: auto; background: #fff; padding: 4px 2px;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light), inset 2px 2px var(--aim-dark);
+}
+.aim-group { font-weight: bold; padding: 3px 4px 1px; color: #000; }
+.aim-buddy {
+  display: flex; gap: 6px; align-items: baseline;
+  padding: 1px 4px 1px 20px; color: #000; text-decoration: none; font-size: 12px;
+}
+.aim-buddy[class*="online"], .aim-buddy[class*="away"] { cursor: pointer; }
+.aim-buddy.online .aim-buddy-name { font-weight: bold; }
+.aim-buddy.online:hover, .aim-buddy.away:hover { background: #0a246a; color: #fff; }
+.aim-buddy.online:hover .aim-buddy-note, .aim-buddy.away:hover .aim-buddy-note { color: #fff; }
+.aim-buddy.away .aim-buddy-name, .aim-buddy.idle .aim-buddy-name { font-style: italic; color: var(--aim-mid); }
+.aim-buddy.offline { color: var(--aim-mid); }
+.aim-buddy.offline:hover .aim-buddy-name { text-decoration: underline; }
+.aim-buddy-note { color: var(--aim-mid); font-size: 10px; }
+.aim-buddies-foot { display: flex; gap: 3px; padding-top: 4px; flex-wrap: wrap; }
+.aim-buddies-foot .aim-btn { flex: 1; justify-content: center; padding: 2px 4px; }
+
+/* ── the IM window ──────────────────────────────────────────────────── */
+
+.aim-im { left: 262px; top: 36px; width: min(640px, calc(100% - 290px)); height: min(640px, calc(100% - 64px)); }
+.aim-warnbar { padding: 2px 4px 4px; color: #333; }
+.aim-log {
+  flex: 1; min-height: 120px; overflow: auto;
+  background: #fff;
+  padding: 6px 8px;
+  font: 13px/1.45 var(--aim-chat);
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light), inset 2px 2px var(--aim-dark), inset -2px -2px var(--aim-face);
+  overflow-wrap: anywhere;
+}
+.aim-sys { color: var(--aim-mid); font-style: italic; font-size: 12px; margin-bottom: 6px; }
+.aim-line { margin: 3px 0 7px; position: relative; }
+.aim-sn { font-weight: bold; margin-right: 5px; }
+.aim-sn.me { color: var(--aim-me); }
+.aim-sn.bot { color: var(--aim-bot); }
+.aim-line.me .aim-text { white-space: pre-wrap; }
+.aim-line.bot .aim-md { display: inline; }
+.aim-md > :first-child { display: inline; margin-top: 0; }
+.aim-md p { margin: 0 0 6px; }
+.aim-md h1, .aim-md h2, .aim-md h3, .aim-md h4 { font-size: 13px; margin: 8px 0 3px; }
+.aim-md ul, .aim-md ol { margin: 3px 0 6px; padding-left: 22px; }
+.aim-md blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid #ccc; color: #444; }
+.aim-md pre { font: 12px var(--aim-mono); background: #f4f4f4; border: 1px solid #ddd; padding: 6px; overflow: auto; margin: 4px 0; }
+.aim-md code { font: 12px var(--aim-mono); }
+.aim-md a { color: #0000ee; }
+.aim-line.long .aim-md {
+  display: block;
+  max-height: 9.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
+}
+.aim-readmore {
+  font: bold 11px var(--aim-chrome); color: #0a246a; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline;
+}
+.aim-reader-chip {
+  position: absolute; right: 0; top: 0;
+  font: 11px var(--aim-serif); color: var(--aim-mid); background: none; border: 0; cursor: pointer; opacity: 0;
+}
+.aim-line:hover .aim-reader-chip, .aim-reader-chip:focus { opacity: 1; }
+.aim-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 10px; }
+.aim-preset {
+  font: 12px var(--aim-chat); color: var(--aim-me); background: #fff; border: 1px dotted var(--aim-me);
+  padding: 2px 7px; cursor: pointer;
+}
+.aim-preset:hover { background: #eef2ff; }
+
+.aim-toolbar { display: flex; align-items: center; gap: 3px; padding: 5px 2px 3px; flex: none; }
+.aim-tool {
+  min-width: 18px; height: 18px; padding: 0 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 11px Arial, sans-serif; color: #000;
+}
+.aim-tool.small-a { font-size: 9px; }
+.aim-tool.big-a { font-size: 14px; }
+.aim-tool.b { font-weight: bold; }
+.aim-tool.i { font-style: italic; }
+.aim-tool.u { text-decoration: underline; }
+.aim-swatch { width: 14px; height: 14px; background: #000; box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px var(--aim-mid); margin-right: 1px; }
+.aim-swatch.bg { background: #fff; box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px var(--aim-mid); }
+.aim-md-hint { margin-left: auto; color: var(--aim-mid); }
+.aim-compose { display: flex; flex-direction: column; gap: 5px; flex: none; }
+.aim-input { resize: none; height: 58px; }
+.aim-input:disabled { background: #f4f3ef; }
+.aim-im-buttons { display: flex; gap: 4px; align-items: center; }
+.aim-send { padding-left: 12px; padding-right: 14px; }
+.aim-status { padding: 4px 3px 0; color: #333; flex: none; min-height: 15px; }
+.aim-status.typing { color: #000; }
+.aim-pencil { display: inline-block; margin-right: 5px; animation: aim-scribble .5s ease-in-out infinite alternate; }
+@keyframes aim-scribble { from { transform: rotate(-12deg) translateX(-1px); } to { transform: rotate(8deg) translateX(1px); } }
+
+/* ── Get Info ───────────────────────────────────────────────────────── */
+
+.aim-info { width: 330px; left: 50%; top: 50%; transform: translate(-30%, -50%); z-index: 3; }
+.aim-info-body { padding: 6px; }
+.aim-info-head { display: flex; gap: 8px; align-items: center; padding: 6px; }
+.aim-info-head div { display: flex; flex-direction: column; }
+.aim-info-head strong { font-size: 14px; color: var(--aim-bot); }
+.aim-info-profile {
+  background: #fff; padding: 6px 10px; font: 12px/1.45 var(--aim-chat);
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light), inset 2px 2px var(--aim-dark);
+}
+.aim-info-profile ul { padding-left: 18px; margin: 6px 0; }
+.aim-info-foot { display: flex; justify-content: flex-end; padding-top: 6px; }
+
+/* ── the reader ─────────────────────────────────────────────────────── */
+
+.aim-reader-scrim {
+  position: absolute; inset: 0; z-index: 5;
+  background: rgba(10, 36, 106, .35);
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px;
+}
+.aim-reader { position: relative; width: min(860px, 100%); height: min(92%, 980px); }
+.aim-reader-tools { display: flex; align-items: center; gap: 4px; padding: 4px 2px; flex-wrap: wrap; }
+.aim-reader-page {
+  flex: 1; overflow: auto; outline: none;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light), inset 2px 2px var(--aim-dark);
+  --r-size: 19px;
+}
+.aim-reader-page.paper { background: #fbf8f1; color: #1f1c17; --r-rule: #d9d1c1; --r-soft: #6b6255; --r-code: #f1ebdf; --r-link: #8a2b0e; }
+.aim-reader-page.night { background: #16171a; color: #e7e1d4; --r-rule: #3a3a3f; --r-soft: #9a9384; --r-code: #23242a; --r-link: #f0a274; }
+.aim-reader-page.size-0 { --r-size: 15px; }
+.aim-reader-page.size-1 { --r-size: 17px; }
+.aim-reader-page.size-2 { --r-size: 19px; }
+.aim-reader-page.size-3 { --r-size: 21px; }
+.aim-reader-page.size-4 { --r-size: 24px; }
+.aim-reader-article {
+  max-width: 66ch;
+  margin: 0 auto;
+  padding: 48px 28px 64px;
+  font: var(--r-size)/1.65 var(--aim-serif);
+  font-kerning: normal;
+  hyphens: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.aim-reader-kicker { font: 600 11px/1 var(--aim-chrome); letter-spacing: .12em; text-transform: uppercase; color: var(--r-soft); }
+.aim-reader-q {
+  margin: 14px 0 0; padding: 0 0 22px; border-bottom: 1px solid var(--r-rule);
+  font-size: 1.25em; line-height: 1.35; font-style: italic;
+}
+.aim-reader-q span { display: block; font: 600 11px var(--aim-chrome); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: var(--r-soft); margin-bottom: 4px; }
+.aim-reader-body { margin-top: 26px; }
+.aim-reader-body > :first-child { margin-top: 0; }
+.aim-reader-body p { margin: 0 0 1em; }
+.aim-reader-body h1, .aim-reader-body h2, .aim-reader-body h3, .aim-reader-body h4 { line-height: 1.25; margin: 1.6em 0 .5em; font-weight: 700; }
+.aim-reader-body h1 { font-size: 1.6em; }
+.aim-reader-body h2 { font-size: 1.3em; }
+.aim-reader-body h3 { font-size: 1.1em; }
+.aim-reader-body ul, .aim-reader-body ol { padding-left: 1.4em; margin: 0 0 1em; }
+.aim-reader-body li { margin: .25em 0; }
+.aim-reader-body blockquote { margin: 1.2em 0; padding: 0 0 0 1em; border-left: 3px solid var(--r-rule); color: var(--r-soft); font-style: italic; }
+.aim-reader-body pre { font: .78em/1.5 var(--aim-mono); background: var(--r-code); padding: 14px 16px; overflow: auto; border-radius: 3px; margin: 0 0 1.2em; }
+.aim-reader-body code { font: .85em var(--aim-mono); background: var(--r-code); padding: .1em .3em; border-radius: 2px; }
+.aim-reader-body pre code { background: none; padding: 0; font-size: 1em; }
+.aim-reader-body a { color: var(--r-link); }
+.aim-reader-body hr { border: 0; border-top: 1px solid var(--r-rule); margin: 2em 0; }
+.aim-reader-body table { border-collapse: collapse; font-size: .85em; margin: 0 0 1.2em; }
+.aim-reader-body th, .aim-reader-body td { border-bottom: 1px solid var(--r-rule); padding: 4px 10px 4px 0; text-align: left; }
+.aim-reader-article footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--r-rule); font: 12px/1.5 var(--aim-chrome); color: var(--r-soft); }
+.aim-reader-article footer a { color: var(--r-link); }
+
+/* The corner window that draws this page's program (page-canvas.js) would
+   sit on the reader's text; it steps aside while the reader is open. */
+html.aim-html:has(.aim-reader) .blimp-window { display: none; }
+
+/* ── the taskbar ────────────────────────────────────────────────────── */
+
+.aim-taskbar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
+  display: flex; align-items: center; gap: 4px; padding: 0 3px;
+  background: var(--aim-face);
+  box-shadow: inset 0 1px var(--aim-face), inset 0 2px var(--aim-light);
+  z-index: 6;
+}
+.aim-start {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px 0 5px;
+  font: bold 11px var(--aim-chrome); color: #000; text-decoration: none;
+  box-shadow: inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-light), inset -2px -2px var(--aim-mid);
+}
+.aim-start-flag {
+  width: 14px; height: 12px;
+  background:
+    linear-gradient(#e8401c, #e8401c) 0 0 / 6px 5px no-repeat,
+    linear-gradient(#5ec11b, #5ec11b) 7px 0 / 6px 5px no-repeat,
+    linear-gradient(#1f6fd1, #1f6fd1) 0 6px / 6px 5px no-repeat,
+    linear-gradient(#fbc014, #fbc014) 7px 6px / 6px 5px no-repeat;
+  transform: skewY(-6deg);
+}
+.aim-tasks { flex: 1; display: flex; gap: 3px; overflow: hidden; }
+.aim-task {
+  font: 11px var(--aim-chrome); color: #000;
+  height: 22px; max-width: 170px; padding: 0 8px;
+  display: inline-flex; align-items: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--aim-face); border: 0;
+  box-shadow: inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-light), inset -2px -2px var(--aim-mid);
+}
+button.aim-task { cursor: pointer; }
+.aim-task.on { font-weight: bold; box-shadow: inset 1px 1px var(--aim-dark), inset -1px -1px var(--aim-light); background: #e8e6e1; }
+.aim-tray {
+  display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light);
+}
+
+/* ── phones ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  /* the corner canvas window is 400px wide and would sit on Send */
+  html.aim-html .blimp-window { display: none; }
+  .aim-windows { padding: 8px; display: flex; flex-direction: column; }
+  .aim-win { position: relative; left: auto; top: auto; transform: none; width: auto; }
+  .aim-signon { margin: auto 0; }
+  .aim-buddies { height: auto; flex: 1; min-height: 0; }
+  .im-open .aim-buddies { display: none; }
+  .aim-im { flex: 1; height: auto; min-height: 0; width: auto; }
+  .aim-menubar, .aim-warnbar, .aim-toolbar .aim-tool, .aim-toolbar .aim-swatch { display: none; }
+  .aim-input { font-size: 16px; height: 52px; }
+  .aim-info { position: absolute; left: 8px; right: 8px; top: 50%; transform: translateY(-50%); width: auto; }
+  .aim-reader-scrim { padding: 0; }
+  .aim-reader { width: 100%; height: 100%; }
+  .aim-reader-article { padding: 28px 18px 48px; }
+  .aim-task { max-width: 120px; }
+}

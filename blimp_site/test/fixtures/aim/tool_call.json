@@ -1,0 +1,19 @@
+{
+  "id": "fixture-1",
+  "object": "chat.completion",
+  "model": "deepseek-flash",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [{
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "search_posts", "arguments": "{\"query\":\"knicks phish\",\"source\":\"any\"}"}
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }],
+  "usage": {"prompt_tokens": 757990, "completion_tokens": 21, "prompt_cache_hit_tokens": 757760, "prompt_cache_miss_tokens": 230}
+}

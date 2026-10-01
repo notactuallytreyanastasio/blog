@@ -1,0 +1,14 @@
+{
+  "id": "fixture-2",
+  "object": "chat.completion",
+  "model": "deepseek-flash",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "## The Knicks and Phish\n\nI saw **phish** at MSG and the Knicks won that night.\n\n<img src=x onerror=alert(1)>\n\n[click](javascript:alert(1))"
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {"prompt_tokens": 758300, "completion_tokens": 40, "prompt_cache_hit_tokens": 757760, "prompt_cache_miss_tokens": 540}
+}
