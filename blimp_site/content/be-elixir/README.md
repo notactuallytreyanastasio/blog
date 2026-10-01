@@ -22,3 +22,4 @@ guide that grows as the backend does.
 9. [2026-10-01: generators and async as state machines](2026-10-01-generators-as-state-machines.md)
 10. [2026-10-01: floats past the BEAM's edge](2026-10-01-floats-past-the-edge.md)
 11. [2026-10-01: std was there all along](2026-10-01-libraries.md)
+12. [2026-10-01: regex, broken code, and 65 of 65](2026-10-01-regex-and-broken-code.md)
