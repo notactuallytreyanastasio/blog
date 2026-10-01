@@ -4,8 +4,8 @@ A Temper backend for Elixir and the BEAM, written in the open. This directory
 is the running record: one entry per working session, newest last, plus a
 guide that grows as the backend does.
 
-- [guide.md](guide.md) -- how the backend works, written as a tutorial: what a
-  Temper construct becomes in Elixir and why. Updated with every chapter.
+- [guide.md](guide.md) -- how the backend works as it stands: running it, what
+  each Temper construct becomes in Elixir and why, and its limits.
 - [probes/](probes/) -- the Elixir scripts every claim about the target was
   checked with. Run any of them with `elixir probes/<file>.exs`.
 
@@ -24,3 +24,4 @@ guide that grows as the backend does.
 11. [2026-10-01: std was there all along](2026-10-01-libraries.md)
 12. [2026-10-01: regex, broken code, and 65 of 65](2026-10-01-regex-and-broken-code.md)
 13. [2026-10-01: output a person can read](2026-10-01-readable-output.md)
+14. [2026-10-01: a concrete class is the class](2026-10-01-static-dispatch.md)
