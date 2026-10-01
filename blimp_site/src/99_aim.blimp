@@ -1502,11 +1502,14 @@ AIM_PROGRAM_PATH = desk_script_href("/aim/aim.blimp", "_build/aim.blimp")
 # blimp-view.js (blimp#83), and a browser holding last week's copy would
 # draw the title bars and never move them.
 AIM_SCRIPTS = map(APP_SCRIPTS, fn(u: String) -> String do desk_script_href(u, concat("static", u)) end)
+# and the interpreter: the program uses socket() and stored(), which a
+# blimp.wasm from before blimp#86/#87 does not have
+AIM_WASM_PATH = desk_script_href("/blimp/blimp.wasm", "static/blimp/blimp.wasm")
 AIM_CSS_HREF = desk_script_href("/aim/aim.css", "static/aim/aim.css")
 
 def aim_page() -> String do
   body = join([
-    "<div id=\"blimp-app\" data-program=\"", AIM_PROGRAM_PATH, "\" data-actor=\"aim\" data-location=\"1\"></div>\n",
+    "<div id=\"blimp-app\" data-program=\"", AIM_PROGRAM_PATH, "\" data-wasm=\"", AIM_WASM_PATH, "\" data-actor=\"aim\" data-location=\"1\"></div>\n",
     "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
     "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
     "it needs JavaScript. The program is <a href=\"", AIM_PROGRAM_PATH, "\">", AIM_PROGRAM_PATH, "</a>.</p></noscript>\n",
