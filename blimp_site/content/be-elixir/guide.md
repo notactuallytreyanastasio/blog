@@ -535,10 +535,19 @@ a line number to run one test.
 | a name Elixir reserves or Kernel imports | a trailing `_`: `length_` |
 | a name starting with a capital or `_` | a `v_` or `u` prefix |
 | the translator's own temporaries | `ex_loop_13`, `ex_return_15`, which no Temper name can collide with |
+| a binding nothing reads | Elixir's `_` prefix: `{_i, total} = loop.(...)` |
 
 Names are per function: Elixir variables belong to their function, so a
 frontend id only has to separate names that share a base inside one
 function.
+
+Generated code compiles without warnings, std included, where it used to
+print about 200. A last pass over each function (`ElixirTidy.kt`) gives
+every binding that nothing reads the `_` prefix. It works backwards
+through each block and follows Elixir's scoping, where a binding inside
+an `if`, `case` or `fn` does not leak out. The same pass drops the
+binding from `t = raise(...)`, which Elixir's type checker reports as a
+pattern that can never match.
 
 ## 14. Long-running programs
 
