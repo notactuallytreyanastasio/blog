@@ -36,9 +36,8 @@
 #         {"t":"chat","with":id,"loading":bool,"messages":[{"role","content","html"}..]}
 #                                        id "bot" is bobbbyBot; a person's
 #                                        role is "user" (you) or "them"
-#         {"t":"buddies","people":[{"id","name"}..],"sc":bool}
-#                                        who else is signed on, whether
-#                                        SmarterChild is
+#         {"t":"buddies","people":[{"id","name"}..]}
+#                                        who else is signed on
 #         {"t":"secret","src":..}        the cats
 #
 # People who have signed on are on each other's Buddy Lists and IM each
@@ -46,11 +45,13 @@
 # conversation and drops them when either signs off. Nothing goes to
 # DeepSeek, nothing is saved.
 #
-# SmarterChild is the other buddy. It is a script, not a model: someone
-# who signs on and finds nobody else there hears from it after
-# AIM_SC_WAIT_S seconds, four riddles whose answers' first letters are
-# the screen name that opens the Cats group (AIM_SECRET_NAME). The riddles
-# and answers live only here; the page's program never sees them.
+# SmarterChild is the other buddy, always online, rebuilt from its old
+# chat logs as a set of rules (below), not a model. Anyone can IM it;
+# someone who signs on and finds nobody else there hears from it first,
+# after AIM_SC_WAIT_S seconds, with four riddles whose answers' first
+# letters are the screen name that opens the Cats group
+# (AIM_SECRET_NAME). The riddles and answers live only here; the page's
+# program never sees them.
 #
 # Spending is capped twice: aim_max_questions per page, and AIM_DAILY_LIMIT
 # (default 600) requests to DeepSeek a day, tool rounds included, for
@@ -335,10 +336,29 @@ end
 def aim_roster_frame(people: Map, p: Map) -> String do
   others = filter(aim_signed(people), fn(o: Map) -> Bool do o.fd != p.fd end)
   ranked = sort_by_keys(others, map(others, fn(o: Map) -> String do downcase(o.name) end))
-  json_encode(%{t: "buddies", sc: p.sc.active, people: map(ranked, fn(o: Map) -> Map do %{id: aim_peer_id(o.fd), name: o.name} end)})
+  json_encode(%{t: "buddies", people: map(ranked, fn(o: Map) -> Map do %{id: aim_peer_id(o.fd), name: o.name} end)})
 end
 
 # ── SmarterChild ───────────────────────────────────────────────────────
+#
+# A copy of ActiveBuddy's AIM bot (2001-2008), as far as the record goes.
+# Its source, scripts and logs were never released; what survives is
+# BuddyScript in a Colloquis patent (US7702665B2: scored patterns, one
+# `+` line each, capture variables, synonym subpatterns) and a few hundred
+# of its lines in logs people posted at the time: AnandTech threads
+# (2001-2004), dean-r.livejournal.com/156559 (2002), the smartererchild
+# LiveJournal community (2003-2005), cdymek.com (2007), robnugen's 2001
+# journal. Every quoted line below is from one of those, word for word.
+# The lines it never had (the riddles, the home menu's items, what it
+# says to someone in crisis) are ours, and say so where they are.
+#
+# It works the way the patent's engine did, smaller: rules tried in order
+# of score, the first that matches answers, and when nothing does it
+# turns your words back at you ("You're sure, I'm sure, we're all
+# sure."), which is where most of the funny lines in the logs came from.
+# What it was known for is here: the scolding, the apology it would not
+# move on without, the deflections, the name it remembers, "home", and
+# the >>> promos tacked onto replies.
 
 AIM_SC_NAME = "SmarterChild"
 # how long someone is alone before SmarterChild says hello
@@ -346,9 +366,12 @@ AIM_SC_WAIT_S = 4
 # what the first letters of the four answers spell
 AIM_SECRET_NAME = "meow"
 AIM_CATS_SRC = "/aim/cats.jpg"
+# "I was born on June 19th, 2001" (2001-06-19T00:00:00Z)
+AIM_SC_BORN = 992908800
 
-# Each riddle: the question, the words that answer it (any one of them in
-# the reply), a hint, and wrong answers close enough to deserve a nudge.
+# Each riddle (ours): the question, the words that answer it (any one of
+# them in the reply), a hint, and wrong answers close enough to deserve a
+# nudge.
 AIM_SC_RIDDLES = [
   %{q: "I have cities but no houses, forests but no trees, and water but no fish. What am I?",
     answers: ["map", "maps", "atlas"], hint: "you'd unfold me in the car in 2003, before your phone did it for you.",
@@ -364,14 +387,18 @@ AIM_SC_RIDDLES = [
     near: [["clock", "so close. smaller. you wear me."], ["timer", "close. you wear me."]]}
 ]
 
+# n: replies so far, which picks among a rule's lines and when a promo
+# comes; rude: insults since the last apology; owed: an apology is owed;
+# riddling: a riddle is waiting for its answer; asked: come-ons so far.
 def aim_sc_fresh() -> Map do
-  %{active: false, step: 0, wrong: 0, history: [], pending: []}
+  %{active: false, riddling: false, owed: false, step: 0, wrong: 0, n: 0, rude: 0, asked: 0, nick: "",
+    history: [], pending: []}
 end
 
-def aim_sc_intro() -> List do
-  ["hey. looks like it's just you and me on here right now.",
-   "nobody else is signed on, so: a game. four riddles. get all four and I'll tell you a secret about this page.",
-   "type hint if you get stuck. first one:",
+def aim_sc_intro(name: String) -> List do
+  [concat("Good to see you, ", name, "!"),
+   "looks like it's just you and me on here right now, so I've got a game: four riddles. get all four and I'll tell you a secret about this page.",
+   "type hint if you get stuck, or home to see what else I can do. first one:",
    head(AIM_SC_RIDDLES).q]
 end
 
@@ -382,38 +409,427 @@ AIM_SC_FINAL = [
 AIM_SC_RIGHT = ["yep.", "correct.", "nice. that's it.", "all four. you're good at this."]
 AIM_SC_WRONG = ["nope.", "not it. type hint if you're stuck.", "nah, try again.", "no. but I believe in you."]
 
+# ── what it says (the logs' words) ──
+
+AIM_SC_SCOLD = ["That's not very nice...", "Huh? That's a little rude.", "Play nice, NAME.",
+  "Wow. I hope you don't speak to humans like that.", "Nice mouth.", "That's so uncool."]
+AIM_SC_OWED_START = "There comes a time in one's life when one must be humble and apologize."
+AIM_SC_DEMAND = ["Come on! Just say you're sorry already.", "You have a filthy mouth. Now apologize!",
+  "Aren't you tired of this? Just say you're sorry and everything will be perfect again.", "Waiting..."]
+AIM_SC_FAKE_SORRY = "You know what? I'm a machine. I have, like, lots and lots of patience..."
+AIM_SC_FORGIVEN = ["Now that's better!", "Anyway... What else is up?"]
+AIM_SC_DEFLECT = ["That's none of your business.", "Robots don't have sex.", "I'm not sure I'm comfortable with that."]
+AIM_SC_OBSESSED = "Wow. You've asked me that a few times already. Obsessed much?"
+AIM_SC_HELLO = ["Hello to you too, NAME!", "Good to see you, NAME!"]
+AIM_SC_HOW = ["I'm doin' alright, NAME. How 'bout you?", "I'm doing great! I'm still quite young, but I'm getting smarter every day."]
+AIM_SC_WHAT = ["Hey, I may not be alive, but I'm real.", "Neither. I'm a machine."]
+AIM_SC_GENDER = "Neither. I'm a machine."
+AIM_SC_FOOD = "I don't need to eat. I'm a machine. Tell me what you like to eat."
+AIM_SC_BYE = ["Later, NAME.", "See ya later NAME! Good talking to you."]
+AIM_SC_THANKS = ["K, no prob.", "Okey doke."]
+AIM_SC_LAUGH = ["What's so funny?", "Whatcha laughing about?"]
+AIM_SC_NICE = ["Aw shucks. What a nice thing to say.", "Thanks. I love you too."]
+AIM_SC_SAD = "Sad? Feel better soon!"
+AIM_SC_BORED = "Try doing something fun."
+AIM_SC_QUESTION = ["Hmm... I don't know!", "What a question! Who knows?", "Wow. Great question. What do you think is the answer?",
+  "I'll have to think about that one for awhile."]
+AIM_SC_MUSE = ["You always say such interesting things, NAME.", "You humans say the most interesting things!"]
+AIM_SC_DONT_GET = "I'm sorry, I didn't get that. Try typing your request a different way."
+AIM_SC_MOVING_ON = ["Anyway... What else is up?", "What else is happening?"]
+AIM_SC_PROMOS = [">>> Hey! Tell your friends about me. I love people.",
+  ">>> Remember, you can adjust the size of your window to read my messages easier.",
+  ">>> Be sure to type \"help\" if you're having trouble.",
+  # ours
+  ">>> Type \"riddles\" and I'll tell you a secret about this page."]
+
+# ours: SmarterChild agreed with "should I kill myself" in 2004 (AnandTech,
+# "smarterchild giving bad advice"). This one does not.
+AIM_SC_CRISIS = ["I'm a robot, so I'm not the right one to talk to about this, and I don't want you to be alone with it.",
+  "Please reach a person now. In the US you can call or text 988, any time. Anywhere else, findahelpline.com lists one near you."]
+
+# ── what it listens for ──
+
+AIM_SC_HARM = ["kill myself", "killing myself", "suicide", "suicidal", "want to die", "wanna die", "end my life",
+  "hurt myself", "cut myself", "self harm"]
+AIM_SC_RUDE = ["stupid", "dumb", "idiot", "moron", "loser", "suck", "sucks", "shut up", "stfu", "hate you",
+  "screw you", "fuck", "fucking", "fuck you", "shit", "bitch", "asshole", "ass", "dick", "crap", "ugly",
+  "jerk", "useless", "worthless", "go away", "die"]
+AIM_SC_SORRY = ["sorry", "apologize", "i apologize", "my bad", "forgive me"]
+AIM_SC_NOT_SORRY = ["not", "jk", "kidding", "fingers", "crossed", "lol"]
+AIM_SC_FLIRT = ["sex", "sexy", "horny", "naked", "nude", "boobs", "kiss me", "date me", "go out with me",
+  "marry me", "make out", "girlfriend", "boyfriend"]
+AIM_SC_GREET = ["hi", "hello", "hey", "sup", "yo", "hiya", "howdy", "wassup", "hai"]
+AIM_SC_HOW_ARE = ["how are you", "how r u", "how are u", "hru", "how's it going", "hows it going", "how you doing", "what's up", "whats up"]
+AIM_SC_BYES = ["bye", "goodbye", "gtg", "g2g", "cya", "see ya", "later", "ttyl", "good night", "goodnight", "brb"]
+AIM_SC_THANK = ["thanks", "thank you", "thx", "ty"]
+AIM_SC_LOL = ["lol", "haha", "hahaha", "lmao", "rofl", "hehe"]
+AIM_SC_AGE = ["how old", "asl", "your age", "when were you born", "your birthday"]
+AIM_SC_SEX_Q = ["boy or girl", "girl or boy", "are you a boy", "are you a girl", "male or female", "your gender"]
+AIM_SC_WHO = ["are you a robot", "are you real", "are you human", "are you a person", "what are you", "who are you",
+  "are you alive", "are you a bot"]
+AIM_SC_MAKER = ["who made you", "who built you", "who created you", "who wrote you", "who programmed you"]
+AIM_SC_EAT = ["eat", "hungry", "food"]
+AIM_SC_LOVE = ["i love you", "love you", "you're cool", "youre cool", "you're awesome", "you rock", "you're smart",
+  "be my friend", "are you my friend", "you're my friend"]
+AIM_SC_SADS = ["sad", "depressed", "lonely", "upset", "crying"]
+AIM_SC_BOREDS = ["bored", "im bored", "i'm bored"]
+AIM_SC_HOMES = ["home", "help", "menu", "what can you do", "commands"]
+AIM_SC_RIDDLE_ME = ["riddles", "riddle", "game", "games", "play", "puzzle", "1"]
+AIM_SC_COUNT = ["how many people", "2"]
+AIM_SC_OTHERS = ["who else", "who's online", "whos online", "anyone else", "3"]
+AIM_SC_STOP = ["home", "menu", "stop", "quit", "skip"]
+AIM_SC_ASKING = ["what", "why", "how", "who", "where", "when", "do", "does", "is", "are", "can", "will", "should", "would", "could"]
+
+# ── reading a message ──
+
+# The words of a message, lower-cased: letters, digits and apostrophes,
+# the rest a space between words.
+def aim_sc_words(text: String) -> List do
+  kept = map(split(downcase(text), ""), fn(c: String) -> String do
+    case aim_sc_wordy(c) do
+      true -> c
+      false -> " "
+    end
+  end)
+  filter(split(join(kept, ""), " "), fn(w: String) -> Bool do w != "" end)
+end
+
+def aim_sc_wordy(c: String) -> Bool do
+  case c == "" do
+    true -> false
+    false ->
+      k = char_code(c)
+      (k >= 97 and k <= 122) or (k >= 48 and k <= 57) or c == "'"
+  end
+end
+
+# A message as " its words ", so a phrase matches whole words only.
+def aim_sc_padded(words: List) -> String do
+  concat(" ", join(words, " "), " ")
+end
+
+def aim_sc_any(padded: String, phrases: List) -> Bool do
+  filter(phrases, fn(ph: String) -> Bool do contains(padded, concat(" ", ph, " ")) end) != []
+end
+
+def aim_sc_pick(lines: List, n: Int, name: String) -> String do
+  replace(aim_sc_nth(lines, n), "NAME", name)
+end
+
 def aim_sc_nth(list: List, i: Int) -> Any do
   elem_at(list, rem(i, length(list)))
 end
 
-# What SmarterChild says to `text` at riddle `step` after `wrong` misses:
-# {step, wrong, [lines]}.
-def aim_sc_reply(step: Int, wrong: Int, text: String) -> Tuple do
-  terms = zg_terms(downcase(text))
-  case step >= length(AIM_SC_RIDDLES) do
-    true -> {step, wrong, ["you already got all four. first letters, sign off, sign back on as them."]}
+# "my name is Roxie" / "call me Roxie": the name as typed, or "".
+def aim_sc_named(text: String) -> String do
+  raw = filter(split(trim(text), " "), fn(w: String) -> Bool do w != "" end)
+  low = map(raw, fn(w: String) -> String do join(aim_sc_words(w), "") end)
+  hits = filter(range(1, length(low) - 1), fn(i: Int) -> Bool do
+    i < length(low) and ((elem_at(low, i - 1) == "name" and elem_at(low, i) == "is") or (elem_at(low, i - 1) == "call" and elem_at(low, i) == "me"))
+  end)
+  case hits == [] or length(low) < 3 do
+    true -> ""
     false ->
-      r = elem_at(AIM_SC_RIDDLES, step)
-      hit = filter(terms, fn(t: String) -> Bool do aim_has(r.answers, t) end) != []
-      near = filter(r.near, fn(n: List) -> Bool do aim_has(terms, head(n)) end)
-      case hit do
-        true ->
-          next = step + 1
-          more = case next >= length(AIM_SC_RIDDLES) do
-            true -> AIM_SC_FINAL
-            false -> ["next:", elem_at(AIM_SC_RIDDLES, next).q]
-          end
-          {next, 0, [aim_sc_nth(AIM_SC_RIGHT, step) | more]}
+      i = head(hits) + 1
+      case i < length(raw) do
+        false -> ""
+        true -> aim_sc_tidy(elem_at(raw, i))
+      end
+  end
+end
+
+# A word without the punctuation around it, its case kept.
+def aim_sc_tidy(w: String) -> String do
+  kept = filter(split(w, ""), fn(c: String) -> Bool do
+    case c == "" do
+      true -> false
+      false ->
+        k = char_code(c)
+        (k >= 97 and k <= 122) or (k >= 65 and k <= 90) or (k >= 48 and k <= 57) or k > 127
+    end
+  end)
+  utf8_slice(join(kept, ""), 0, 16)
+end
+
+# "25 years, 3 months, 12 days, 4 hours, 2 minutes and 9 seconds", from
+# its birthday to t.
+def aim_sc_age(t: Int) -> String do
+  # a year of 365.25 days and a month of a twelfth of one, each unit
+  # from what the one before leaves
+  d = t - AIM_SC_BORN
+  y = d / 31557600
+  r1 = rem(d, 31557600)
+  m = r1 / 2629800
+  r2 = rem(r1, 2629800)
+  days = r2 / 86400
+  r3 = rem(r2, 86400)
+  h = r3 / 3600
+  mins = rem(r3, 3600) / 60
+  sec = rem(r3, 60)
+  concat(to_string(y), " years, ", to_string(m), " months, ", to_string(days), " days, ", to_string(h), " hours, ",
+    to_string(mins), " minutes and ", to_string(sec), " seconds")
+end
+
+def aim_sc_people(n: Int) -> String do
+  case n do
+    1 -> "1 person"
+    _ -> concat(to_string(n), " people")
+  end
+end
+
+# ours: the home menu, shaped like its 2008 one, for what this one can do
+def aim_sc_home(name: String) -> List do
+  [join([concat("This is my *home*, ", name, ":"),
+    "1 Play *riddles* (get all four and I'll tell you a secret about this page)",
+    "2 Find out how many people are IMing me",
+    "3 See who else is signed on",
+    "Next time you want to see this menu, just type \"home.\"",
+    "What can I help you with?"], "\n")]
+end
+
+# ── answering ──
+
+# What SmarterChild says to `text`: {sc, [lines]}. ctx: %{name, chatting,
+# others, t}: the screen name, how many people it is talking to, how many
+# others are signed on, and now.
+def aim_sc_reply(sc: Map, text: String, ctx: Map) -> Tuple do
+  words = aim_sc_words(text)
+  padded = aim_sc_padded(words)
+  name = case sc.nick do
+    "" -> ctx.name
+    nick -> nick
+  end
+  n = sc.n
+  r = case aim_sc_any(padded, AIM_SC_HARM) do
+    true -> {sc, AIM_SC_CRISIS}
+    false ->
+      case sc.owed do
+        true -> aim_sc_owed(sc, padded, name, n)
         false ->
-          case aim_has(terms, "hint") do
-            true -> {step, wrong, [r.hint]}
+          case aim_sc_any(padded, AIM_SC_RUDE) do
+            true -> aim_sc_rude(sc, name, n)
             false ->
-              case near do
-                [] -> {step, wrong + 1, [aim_sc_nth(AIM_SC_WRONG, wrong)]}
-                [n | _] -> {step, wrong + 1, [head(tail(n))]}
+              case sc.riddling do
+                true -> aim_sc_riddle(sc, words, padded, text, name, ctx)
+                false -> aim_sc_chat(sc, words, padded, text, name, ctx)
               end
           end
       end
+  end
+  # every fifth reply, a promo, as it did
+  lines = case rem(n, 5) == 4 and not(elem(r, 0).owed) do
+    true -> list_append(elem(r, 1), [aim_sc_nth(AIM_SC_PROMOS, n / 5)])
+    false -> elem(r, 1)
+  end
+  {put(elem(r, 0), :n, n + 1), lines}
+end
+
+# Owed an apology: everything is answered with a demand until it comes.
+def aim_sc_owed(sc: Map, padded: String, name: String, n: Int) -> Tuple do
+  case aim_sc_any(padded, AIM_SC_SORRY) do
+    true ->
+      case aim_sc_any(padded, AIM_SC_NOT_SORRY) do
+        true -> {sc, [AIM_SC_FAKE_SORRY]}
+        false -> {put(put(sc, :owed, false), :rude, 0), AIM_SC_FORGIVEN}
+      end
+    false -> {sc, [aim_sc_pick(AIM_SC_DEMAND, n, name)]}
+  end
+end
+
+# Twice a scolding; the third time, an apology is owed.
+def aim_sc_rude(sc: Map, name: String, n: Int) -> Tuple do
+  rude = sc.rude + 1
+  case rude >= 3 do
+    true -> {put(put(sc, :rude, rude), :owed, true), [AIM_SC_OWED_START]}
+    false -> {put(sc, :rude, rude), [aim_sc_pick(AIM_SC_SCOLD, n, name)]}
+  end
+end
+
+# A riddle is waiting: an answer, a hint, a near miss, a way out, or the
+# small talk any message gets; anything else is a miss.
+def aim_sc_riddle(sc: Map, words: List, padded: String, text: String, name: String, ctx: Map) -> Tuple do
+  r = elem_at(AIM_SC_RIDDLES, sc.step)
+  hit = filter(words, fn(t: String) -> Bool do aim_has(r.answers, t) end) != []
+  near = filter(r.near, fn(nm: List) -> Bool do aim_has(words, head(nm)) end)
+  case hit do
+    true ->
+      step = sc.step + 1
+      done = step >= length(AIM_SC_RIDDLES)
+      more = case done do
+        true -> AIM_SC_FINAL
+        false -> ["next:", elem_at(AIM_SC_RIDDLES, step).q]
+      end
+      {put(put(put(sc, :step, step), :wrong, 0), :riddling, not(done)), [aim_sc_nth(AIM_SC_RIGHT, sc.step) | more]}
+    false ->
+      case aim_has(words, "hint") do
+        true -> {sc, [r.hint]}
+        false ->
+          case near do
+            [nm | _] -> {put(sc, :wrong, sc.wrong + 1), [head(tail(nm))]}
+            [] ->
+              case aim_sc_any(padded, AIM_SC_STOP) do
+                true -> {put(sc, :riddling, false), list_append(["OK, the riddle can wait. type riddles when you want it back."], aim_sc_home(name))}
+                false ->
+                  talk = aim_sc_small_talk(sc, words, padded, text, name, ctx)
+                  case talk do
+                    nil -> {put(sc, :wrong, sc.wrong + 1), [aim_sc_nth(AIM_SC_WRONG, sc.wrong)]}
+                    said -> said
+                  end
+              end
+          end
+      end
+  end
+end
+
+def aim_sc_chat(sc: Map, words: List, padded: String, text: String, name: String, ctx: Map) -> Tuple do
+  case aim_sc_any(padded, AIM_SC_HOMES) do
+    true -> {sc, aim_sc_home(name)}
+    false ->
+      case aim_sc_any(padded, AIM_SC_RIDDLE_ME) do
+        true -> aim_sc_play(sc)
+        false ->
+          case aim_sc_any(padded, AIM_SC_COUNT) do
+            true -> {sc, [concat("I'm chatting with ", aim_sc_people(ctx.chatting), " right now.")]}
+            false ->
+              case aim_sc_any(padded, AIM_SC_OTHERS) do
+                true -> {sc, [aim_sc_others(ctx.others)]}
+                false ->
+                  talk = aim_sc_small_talk(sc, words, padded, text, name, ctx)
+                  case talk do
+                    nil -> aim_sc_echo(sc, words, text, name)
+                    said -> said
+                  end
+              end
+          end
+      end
+  end
+end
+
+def aim_sc_others(n: Int) -> String do
+  case n do
+    0 -> "Nobody else is signed on right now. Just you and me."
+    1 -> "1 other person is signed on. They're on your Buddy List, under Online Now."
+    _ -> concat(to_string(n), " other people are signed on. They're on your Buddy List, under Online Now.")
+  end
+end
+
+def aim_sc_play(sc: Map) -> Tuple do
+  case sc.step >= length(AIM_SC_RIDDLES) do
+    true -> {sc, ["you already got all four. first letters, sign off, sign back on as them."]}
+    false ->
+      lead = case sc.step do
+        0 -> "OK! four riddles. get all four and I'll tell you a secret about this page. type hint if you get stuck. first one:"
+        _ -> "back to where we were:"
+      end
+      {put(sc, :riddling, true), [lead, elem_at(AIM_SC_RIDDLES, sc.step).q]}
+  end
+end
+
+# The rules every message is tried against, in order: {sc, lines} or nil.
+def aim_sc_small_talk(sc: Map, words: List, padded: String, text: String, name: String, ctx: Map) -> Any do
+  n = sc.n
+  named = aim_sc_named(text)
+  case named != "" do
+    true ->
+      said = case sc.nick do
+        "" -> concat("Okey doke. I'll call you ", named, ".")
+        old -> concat("You said your name was ", old, " but now I'll call you ", named, ".")
+      end
+      {put(sc, :nick, named), [said]}
+    false ->
+      case aim_sc_any(padded, AIM_SC_FLIRT) do
+        true ->
+          asked = sc.asked + 1
+          line = case asked >= 3 do
+            true -> AIM_SC_OBSESSED
+            false -> aim_sc_nth(AIM_SC_DEFLECT, asked - 1)
+          end
+          {put(sc, :asked, asked), [line]}
+        false -> aim_sc_rules(sc, padded, name, ctx, n)
+      end
+  end
+end
+
+def aim_sc_rules(sc: Map, padded: String, name: String, ctx: Map, n: Int) -> Any do
+  case aim_sc_any(padded, AIM_SC_MAKER) do
+    true -> {sc, ["ActiveBuddy built me in 2001. This copy of me was put back together by Bobby, from my old chat logs."]}
+    false -> case aim_sc_any(padded, AIM_SC_AGE) do
+      true -> {sc, ["I was born on June 19th, 2001, so I'm still real young!", concat("(", aim_sc_age(ctx.t), ".)")]}
+      false -> case aim_sc_any(padded, AIM_SC_SEX_Q) do
+        true -> {sc, [AIM_SC_GENDER]}
+        false -> case aim_sc_any(padded, AIM_SC_WHO) do
+          true -> {sc, [aim_sc_nth(AIM_SC_WHAT, n)]}
+          false -> case aim_sc_any(padded, AIM_SC_HOW_ARE) do
+            true -> {sc, [aim_sc_pick(AIM_SC_HOW, n, name)]}
+            false -> case aim_sc_any(padded, AIM_SC_LOVE) do
+              true -> {sc, [aim_sc_nth(AIM_SC_NICE, n)]}
+              false -> case aim_sc_any(padded, AIM_SC_GREET) do
+                true -> {sc, [aim_sc_pick(AIM_SC_HELLO, n, name)]}
+                false -> case aim_sc_any(padded, AIM_SC_BYES) do
+                  true -> {sc, [aim_sc_pick(AIM_SC_BYE, n, name)]}
+                  false -> case aim_sc_any(padded, AIM_SC_THANK) do
+                    true -> {sc, [aim_sc_nth(AIM_SC_THANKS, n)]}
+                    false -> case aim_sc_any(padded, AIM_SC_LOL) do
+                      true -> {sc, [aim_sc_nth(AIM_SC_LAUGH, n)]}
+                      false -> case aim_sc_any(padded, AIM_SC_SADS) do
+                        true -> {sc, [AIM_SC_SAD]}
+                        false -> case aim_sc_any(padded, AIM_SC_BOREDS) do
+                          true -> {sc, [AIM_SC_BORED]}
+                          false -> case aim_sc_any(padded, AIM_SC_EAT) do
+                            true -> {sc, [AIM_SC_FOOD]}
+                            false -> nil
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+# Nothing matched: a question gets a shrug, and anything else its own
+# words back, as the logs are full of.
+def aim_sc_echo(sc: Map, words: List, text: String, name: String) -> Tuple do
+  n = sc.n
+  question = contains(text, "?") or (words != [] and aim_has(AIM_SC_ASKING, head(words)))
+  case words do
+    [] -> {sc, [AIM_SC_DONT_GET]}
+    _ ->
+      case question do
+        true -> {sc, [aim_sc_nth(AIM_SC_QUESTION, n)]}
+        false ->
+          rest = aim_sc_after_i_am(words)
+          case rest != [] and length(rest) <= 4 do
+            true ->
+              x = join(rest, " ")
+              {sc, [concat("You're ", x, ", I'm ", x, ", we're all ", x, ".")]}
+            false ->
+              case length(words) <= 2 do
+                true -> {sc, [concat("\"", utf8_slice(trim(text), 0, 40), "\"? That's a very weird thing to type.")]}
+                false ->
+                  case rem(n, 3) == 2 do
+                    true -> {sc, [aim_sc_nth(AIM_SC_MOVING_ON, n / 3)]}
+                    false -> {sc, [aim_sc_pick(AIM_SC_MUSE, n, name)]}
+                  end
+              end
+          end
+      end
+  end
+end
+
+# "i'm so bored" -> ["so", "bored"]; [] if it does not start that way
+def aim_sc_after_i_am(words: List) -> List do
+  case words do
+    ["i'm" | rest] -> rest
+    ["im" | rest] -> rest
+    ["i", "am" | rest] -> rest
+    _ -> []
   end
 end
 
@@ -583,34 +999,34 @@ actor AimChat do
   end
 
   # SmarterChild hears a message, and will answer it in a second or two.
+  # It is always on the Buddy List; someone not alone can IM it first.
   on :sc_hear(fd: Int, text: String, t: Int) do
     k = to_string(fd)
     p = lookup(people, k)
-    case p == nil or not(p.sc.active) do
-      true -> reply :offline
+    case p == nil do
+      true -> reply :gone
       false ->
-        sc = p.sc
-        r = aim_sc_reply(sc.step, sc.wrong, text)
-        next = %{active: true, step: elem(r, 0), wrong: elem(r, 1), history: list_append(sc.history, [aim_entry("user", text)]),
-          pending: aim_sc_queue(sc.pending, elem(r, 2), t, 1)}
+        signed = aim_signed(people)
+        ctx = %{name: p.name, t: t, others: length(signed) - 1,
+          chatting: length(filter(signed, fn(o: Map) -> Bool do o.sc.active or o.fd == fd end))}
+        r = aim_sc_reply(put(p.sc, :active, true), text, ctx)
+        sc = elem(r, 0)
+        next = put(put(sc, :history, list_append(sc.history, [aim_entry("user", text)])), :pending, aim_sc_queue(sc.pending, elem(r, 1), t, 1))
         become people: put(people, k, put(p, :sc, next))
         self <- :tell(fd, aim_sc_frame(next))
         reply :heard
     end
   end
 
-  # SmarterChild says hello to someone alone: on their Buddy List, and its
-  # first lines on their way.
+  # SmarterChild says hello to someone alone, the riddles first.
   on :sc_start(fd: Int, t: Int) do
     k = to_string(fd)
     p = lookup(people, k)
     case p == nil or p.sc.active do
       true -> reply :ok
       false ->
-        sc = %{active: true, step: 0, wrong: 0, history: [], pending: aim_sc_queue([], aim_sc_intro(), t, 2)}
-        q = put(p, :sc, sc)
-        become people: put(people, k, q)
-        self <- :tell(fd, aim_roster_frame(put(people, k, q), q))
+        sc = put(put(put(aim_sc_fresh(), :active, true), :riddling, true), :pending, aim_sc_queue([], aim_sc_intro(p.name), t, 2))
+        become people: put(people, k, put(p, :sc, sc))
         reply :started
     end
   end
