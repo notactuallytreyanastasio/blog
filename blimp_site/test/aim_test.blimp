@@ -523,4 +523,14 @@ actor AimTests do
     # the second sign-on still wanted SmarterChild; the third, bobbbyBot
     assert_eq(aim <- :outbox, ["{\"t\":\"signoff\"}", "{\"t\":\"signon\",\"name\":\"dialer\"}", "{\"t\":\"open\",\"with\":\"sc\"}", "{\"t\":\"signoff\"}", "{\"t\":\"signon\",\"name\":\"dialer\"}"])
   end
+
+  test "the page has its own share card: AOL Instant Messenger, and the picture" do
+    page = aim_page()
+    assert(contains(page, "<title>AOL Instant Messenger</title>"))
+    assert(contains(page, "property=\"og:title\" content=\"AOL Instant Messenger\""))
+    assert(contains(page, "Dont forget to say hi to SmarterChild"))
+    assert(contains(page, "https://bobbby.online/images/og-aim.png?v=1"))
+    assert(contains(page, "summary_large_image"))
+    assert(read_file("../priv/static/images/og-aim.png") != nil)
+  end
 end

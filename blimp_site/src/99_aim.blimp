@@ -1319,8 +1319,17 @@ def aim_page() -> String do
     "it needs JavaScript. The program is <a href=\"", AIM_PROGRAM_PATH, "\">", AIM_PROGRAM_PATH, "</a>.</p></noscript>\n",
     script_tags(AIM_SCRIPTS)
   ], "")
-  page_layout_html("bobbbyBot", "Instant message a chatbot that only talks about grilled cheese and pictures of children smoking.", "website", ["/assets/blimp-window.css", "/aim/aim.css"], body, "aim-html")
+  page_layout_full(AIM_TITLE, AIM_DESCRIPTION, "website", ["/assets/blimp-window.css", "/aim/aim.css"], body, "aim-html", AIM_CARD)
 end
+
+# The page's own link preview. priv/static/images/og-aim.png is drawn from
+# og-aim.svg next to it (rsvg-convert); ?v= because unfurlers cache it.
+AIM_TITLE = "AOL Instant Messenger"
+AIM_DESCRIPTION = "AOL Instant Messenger (AIM) is a chat service. Since AOL went away and become but a brand, Bobbby co-opted their IP and has started his own services company. Please relive your times on AIM now, your friends can join too anytime. Dont forget to say hi to SmarterChild"
+AIM_CARD = %{
+  url: "https://bobbby.online/images/og-aim.png?v=1",
+  alt: "An old AOL-style triangle over \"Bobbby Online\", the yellow AIM running man, and a Windows 98 Buddy List with SmarterChild and bobbbyBot signed on"
+}
 
 AIM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", aim_page())
 AIM_PROGRAM = map_asset(["_build/aim.blimp"], "text/plain; charset=utf-8")
