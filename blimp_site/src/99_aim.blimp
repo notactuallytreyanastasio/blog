@@ -1,22 +1,17 @@
-# /aim: bobbbyBot, an agent built from every post Bobby wrote on Twitter
-# and Bluesky, in a copy of AOL Instant Messenger.
+# /aim: bobbbyBot, in a copy of AOL Instant Messenger. It talks about two
+# things only, grilled cheese and finding or making pictures of children
+# smoking; the prompt and its limits are temper/src/aim. It can search
+# every post Bobby wrote on Twitter and Bluesky, for those two subjects.
 #
-# The archive is ~75,000 posts, ~2.7M tokens; DeepSeek's window is 1M. So
-# the system prompt holds a fixed part of it, ~758K tokens (every Bluesky
-# post that was not a reply, the newest replies, a sample of tweets), and
-# a search_posts tool reaches the rest. Which part is decided offline by
-# tools/aim_corpus.py and written into the archive itself (its first
-# column), so this file only formats.
+# The archive is ~75,000 posts, ~2.7M tokens. None of it is in the prompt:
+# the model reads it only through the search_posts tool, which searches all
+# of it. A request is the prompt (~1K tokens), the conversation and
+# whatever searches it has made.
 #
-# The prompt is that big on purpose, and it is affordable because DeepSeek
-# caches prefixes: a request whose leading tokens match one it has seen
-# pays ~2% for them and answers in ~3.5s instead of ~13.5s (measured
-# 2026-10-01: 757,760 of 757,972 tokens a cache hit). The cache matches
-# bytes, so everything up to the conversation is the same for every
-# visitor and every round: the prompt text, the archive, the model, the
-# tools, and `thinking` -- a request with another thinking setting missed
-# the cache on the same prompt. Whatever varies (today's date, the
-# visitor's screen name) is a second system message after the archive.
+# (The first version, blog #159, sent ~758K tokens of posts with every
+# request and leaned on DeepSeek's prefix cache to make that cheap; the
+# chapter after it took them out. The cache also turned out to be keyed on
+# the thinking setting, below.)
 #
 # Thinking is off. With reasoning_effort "low" deepseek-flash twice spent
 # all of max_tokens (600) reasoning and answered nothing; with thinking
@@ -34,7 +29,7 @@
 #
 #   up    {"t":"signon","name":..}       the sign-on window's screen name
 #         {"t":"ask","text":..}          a message
-#   down  {"t":"hello","online":bool,"posts":n,"in_prompt":n,"bot":..}
+#   down  {"t":"hello","online":bool,"posts":n,"bot":..}
 #         {"t":"chat","loading":bool,"messages":[{"role","content","html"}..]}
 #
 # Spending is capped twice: aim_max_questions per page, and AIM_DAILY_LIMIT
@@ -42,32 +37,25 @@
 # everyone together.
 
 AIM_ARCHIVE_FILE = "_build/aim-posts.tsv"
-AIM_MAX_TOOL_ROUNDS = 4
+# every answer about Bobby starts with a search, and may need a second or third
+AIM_MAX_TOOL_ROUNDS = 5
 AIM_MAX_TOKENS = 1500
 AIM_SEARCH_LIMIT = 30
-# answers here come in ~3.5s; a cold cache is ~14s, a long answer longer
+# a round is a few seconds; a long answer longer
 AIM_ASK_TIMEOUT_S = 90
 
 # ── the archive ────────────────────────────────────────────────────────
 
-# One line of aim-posts.tsv: in_context, source, date, text.
+# One line of aim-posts.tsv: source, date, text.
 def aim_row(line: String) -> Any do
   cols = split(line, "\t")
-  case length(cols) >= 4 do
+  case length(cols) >= 3 do
     false -> nil
     true ->
-      text = join(tail(tail(tail(cols))), " ")
-      source = aim_nth(cols, 1)
-      date = aim_nth(cols, 2)
-      %{in_prompt: head(cols) == "1", source: source, date: date, text: text,
-        line: aim_post_line(source, date, text), lower: downcase(text)}
-  end
-end
-
-def aim_nth(list: List, i: Int) -> Any do
-  case i do
-    0 -> head(list)
-    _ -> aim_nth(tail(list), i - 1)
+      source = head(cols)
+      date = head(tail(cols))
+      text = join(tail(tail(cols)), " ")
+      %{source: source, date: date, text: text, line: aim_post_line(source, date, text), lower: downcase(text)}
   end
 end
 
@@ -92,12 +80,6 @@ def aim_chunks(text: String) -> List do
   end)
 end
 
-# The system message, JSON-encoded once: every request starts with these
-# bytes.
-def aim_prefix(rows: List) -> String do
-  posts = join(map(filter(rows, fn(r: Map) -> Bool do r.in_prompt end), fn(r: Map) -> String do r.line end), "\n")
-  json_encode(%{role: "system", content: concat(aim_system_prompt, posts, "\n")})
-end
 
 # The chunks one search reads at most: ~10,000 posts, ~40ms.
 AIM_SCAN_CHUNKS = 40
@@ -152,7 +134,6 @@ AIM_TOOLS = [%{type: "function", function: %{name: "search_posts",
     properties: %{query: %{type: "string", description: "A few plain words, e.g. \"phish msg\" or \"leica\"."},
       source: %{type: "string", enum: ["any", "bluesky", "twitter"], description: "Where to look (default any)."}},
     required: ["query"]}}}]
-AIM_TOOLS_JSON = json_encode(AIM_TOOLS)
 
 def aim_run_tool(chunks: List, call: Any) -> Map do
   f = lookup(call, :function)
@@ -169,18 +150,13 @@ end
 
 # ── talking to DeepSeek ────────────────────────────────────────────────
 
-# The request, written out so the prefix (encoded once) goes in as it is.
-# Everything before "messages" is the same on every request, and so is the
-# first message.
-def aim_body(model: String, prefix: String, rest: List) -> String do
-  concat("{\"model\":", json_encode(model),
-    ",\"thinking\":{\"type\":\"disabled\"},\"temperature\":0.9,\"max_tokens\":", to_string(AIM_MAX_TOKENS),
-    ",\"tools\":", AIM_TOOLS_JSON, ",\"tool_choice\":\"auto\",\"messages\":[", prefix,
-    join(map(rest, fn(m: Map) -> String do concat(",", json_encode(m)) end), ""), "]}")
+def aim_body(model: String, rest: List) -> String do
+  json_encode(%{model: model, thinking: %{type: "disabled"}, temperature: 0.9, max_tokens: AIM_MAX_TOKENS,
+    tools: AIM_TOOLS, tool_choice: "auto", messages: [%{role: "system", content: aim_system_prompt} | rest]})
 end
 
-# The conversation after the archive: who is asking and when, then every
-# turn's words.
+# The conversation after the system prompt: who is asking and when, then
+# every turn's words.
 def aim_rest(name: String, today: String, history: List) -> List do
   turns = map(history, fn(e: Map) -> Map do %{role: e.role, content: e.content} end)
   [%{role: "system", content: aim_session_prompt(name, today)} | turns]
@@ -257,8 +233,6 @@ actor AimChat do
   state daily_limit: Int :: 600
   state rows: List :: []
   state chunks: List :: []
-  state prefix: String :: ""
-  state in_prompt: Int :: 0
   # socket (as a string) -> %{fd, name, history, count, loading, job, last}
   # job: nil | %{h, round, messages, at}
   state people: Map :: %{}
@@ -276,24 +250,24 @@ actor AimChat do
   on :load(text: Any) do
     case type_of(text) == :string do
       false ->
-        become rows: [], chunks: [], prefix: "", in_prompt: 0
+        become rows: [], chunks: []
         reply 0
       true ->
         c = aim_chunks(text)
         r = flat(map(c, fn(x: Map) -> List do x.rows end))
-        become rows: r, chunks: c, prefix: aim_prefix(r), in_prompt: length(filter(r, fn(x: Map) -> Bool do x.in_prompt end))
+        become rows: r, chunks: c
         reply length(r)
     end
   end
 
   on :config(k: String, b: String, m: String, limit: Int) do
     become key: k, base: b, model: m, daily_limit: limit
-    reply %{keyed: k != "", posts: length(rows), in_prompt: in_prompt}
+    reply %{keyed: k != "", posts: length(rows)}
   end
 
   on :join(fd: Int) do
     become people: put(people, to_string(fd), %{fd: fd, name: "Visitor", history: [], count: 0, loading: false, job: nil, last: ""})
-    self <- :tell(fd, json_encode(%{t: "hello", online: key != "" and rows != [], posts: length(rows), in_prompt: in_prompt, bot: aim_bot_name}))
+    self <- :tell(fd, json_encode(%{t: "hello", online: key != "" and rows != [], posts: length(rows), bot: aim_bot_name}))
     reply :ok
   end
 
@@ -373,7 +347,7 @@ actor AimChat do
 
   # One request to the model for a person's message, round `round`.
   on :request(fd: Int, rest: List, round: Int, t: Int) do
-    case key == "" or prefix == "" do
+    case key == "" or rows == [] do
       true ->
         why = case key do
           "" -> "AIM_API_KEY is not set"
@@ -386,7 +360,7 @@ actor AimChat do
           true -> today_requests
           false -> 0
         end
-        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), aim_body(model, prefix, rest), %{timeout_ms: AIM_ASK_TIMEOUT_S * 1000})
+        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), aim_body(model, rest), %{timeout_ms: AIM_ASK_TIMEOUT_S * 1000})
         case h < 0 do
           true -> reply (self <- :finish(fd, {:error, "every HTTP slot is busy"}))
           false ->
@@ -491,7 +465,7 @@ actor AimChat do
   end
 
   on :body(name: String, history: List) do
-    reply aim_body(model, prefix, aim_rest(name, "2026-01-01", history))
+    reply aim_body(model, aim_rest(name, "2026-01-01", history))
   end
 
   on :person(fd: Int) do
@@ -499,8 +473,8 @@ actor AimChat do
   end
 
   on :stats do
-    reply %{pages: length(keys(people)), keyed: key != "", model: model, posts: length(rows), in_prompt: in_prompt,
-      prefix_bytes: length(prefix), chunks: length(chunks), asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
+    reply %{pages: length(keys(people)), keyed: key != "", model: model, posts: length(rows),
+      chunks: length(chunks), asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
       failures: failures, last_error: last_error, cache_hit_tokens: cache_hit, cache_miss_tokens: cache_miss}
   end
 end
@@ -520,7 +494,7 @@ def aim_page() -> String do
     "it needs JavaScript. The program is <a href=\"", AIM_PROGRAM_PATH, "\">", AIM_PROGRAM_PATH, "</a>.</p></noscript>\n",
     script_tags(AIM_SCRIPTS)
   ], "")
-  page_layout_html("bobbbyBot", "Instant message an AI agent built from every post Bobby Grayson wrote on Twitter and Bluesky.", "website", ["/assets/blimp-window.css", "/aim/aim.css"], body, "aim-html")
+  page_layout_html("bobbbyBot", "Instant message a chatbot that only talks about grilled cheese and pictures of children smoking.", "website", ["/assets/blimp-window.css", "/aim/aim.css"], body, "aim-html")
 end
 
 AIM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", aim_page())

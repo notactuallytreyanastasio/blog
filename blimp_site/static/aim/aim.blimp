@@ -215,7 +215,7 @@ end
 def aimp_log(s: Map) -> Any do
   opener = case s.online do
     false -> [el("div", %{class: "aim-sys"}, concat(aim_bot_name, " is away: \"", aim_away_message, "\". Messages won't be answered right now."))]
-    _ -> [el("div", %{class: "aim-sys"}, concat(aim_bot_name, " signed on. Built from ", aimp_commas(s.posts), " posts; ", aimp_commas(s.in_prompt), " of them are on its mind at all times, and it can search the rest."))]
+    _ -> [el("div", %{class: "aim-sys"}, concat(aim_bot_name, " signed on. It talks about two things: grilled cheese, and pictures of kids smoking."))]
   end
   starters = case s.messages do
     [] ->
@@ -302,10 +302,11 @@ def aimp_info(s: Map) -> Any do
     el("div", %{class: "aim-info-body"},
       el("div", %{class: "aim-info-head"}, aimp_runner("mid"), el("div", %{}, el("strong", %{}, aim_bot_name), el("span", %{class: "aim-small"}, "Member since: 2009"))),
       el("div", %{class: "aim-info-profile"},
-        el("p", %{}, el("b", %{}, "An AI agent, not Bobby. "), "It talks like ", el("a", %{href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, "@bobbby.online"), " because it has read everything he posted."),
+        el("p", %{}, el("b", %{}, "A chatbot with two interests, not Bobby. "), "Ask it how to make a grilled cheese, or where to find (or how to make) pictures of children smoking. It won't talk about anything else."),
         el("ul", %{},
-          el("li", %{}, concat(aimp_commas(s.posts), " posts: every tweet from the 2024 Twitter archive and every Bluesky post since 2023")),
-          el("li", %{}, concat(aimp_commas(s.in_prompt), " of them sit in its prompt, about 758,000 tokens; it searches the rest")),
+          el("li", %{}, "Grilled cheese: bread, cheese, fat, heat, and what went wrong"),
+          el("li", %{}, "Pictures: documentary archives, old ads, painting, staging, image generators within their rules"),
+          el("li", %{}, concat("It can search ", aimp_commas(s.posts), " of Bobby's posts, for those two things only")),
           el("li", %{}, "Model: DeepSeek V4.1 Flash, 1M-token context"),
           el("li", %{}, "Server: one Blimp process on bobbby.online")),
         el("p", %{class: "aim-small"}, "Conversations are not saved. Sign off and they're gone.")),
@@ -358,7 +359,6 @@ actor AimPage do
   # nil until the server says whether the bot is online
   state online: Any :: nil
   state posts: Int :: 0
-  state in_prompt: Int :: 0
   state messages: List :: []
   state loading: Bool :: false
   state im_open: Bool :: true
@@ -401,7 +401,7 @@ actor AimPage do
     msg = aimp_decode(text)
     case lookup(msg, :t) do
       "hello" ->
-        become online: lookup(msg, :online) == true, posts: aimp_int(lookup(msg, :posts)), in_prompt: aimp_int(lookup(msg, :in_prompt))
+        become online: lookup(msg, :online) == true, posts: aimp_int(lookup(msg, :posts))
         reply :hello
       "chat" ->
         ms = aimp_messages(lookup(msg, :messages))
@@ -524,7 +524,7 @@ actor AimPage do
   end
 
   on :view do
-    reply aimp_page(%{signed_on: signed_on, name: name, online: online, posts: posts, in_prompt: in_prompt,
+    reply aimp_page(%{signed_on: signed_on, name: name, online: online, posts: posts,
       messages: messages, loading: loading, im_open: im_open, info_open: info_open, reader: reader,
       size: size, paper: paper, warn: warn, muted: muted, sent: sent})
   end
