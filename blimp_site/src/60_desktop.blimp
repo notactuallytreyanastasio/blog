@@ -976,6 +976,7 @@ def desk_log(desk: Map) -> String do
     desk_card_kicker("The newest posts", 1, desk_card_total(desk)),
     "<header class=\"sec-head\">", desk_gloss_sec("sec-writing", "<h2 id=\"log-h\">Writing</h2>"), "<a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
     "<ol class=\"log-list\">", desk.blog_html, "</ol>",
+    journal_desk_line(),
     "</section>"
   ], "")
 end

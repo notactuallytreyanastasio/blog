@@ -163,6 +163,7 @@ def blog_index_page(posts: List) -> String do
     "<div class=\"mac-title\">Thoughts &amp; Tidbits - Blog</div>",
     "<div class=\"mac-resize-box\"></div></div>",
     "<div class=\"mac-window-content\"><div class=\"blog-posts-list\">",
+    journal_blog_row(),
     join(map(posts, fn(p: Map) -> String do blog_post_row(p) end), ""),
     "</div></div>",
     "<div class=\"mac-status-bar\"><span>", plural(length(posts), "post", "posts"), "</span>",

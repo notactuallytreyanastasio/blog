@@ -51,4 +51,23 @@ actor JournalTests do
     assert_eq(journal_title("intro\n# The title\n## Sub\n"), "The title")
     assert_eq(journal_title("no heading"), "be-elixir")
   end
+
+  test "the newest dated entry is what /blog and the homepage link to" do
+    latest = journal_latest(JOURNAL_DIR)
+    newest = head(reverse(sort(filter(list_dir(JOURNAL_DIR), fn(n: String) -> Bool do journal_is_dated(n) end))))
+    assert_eq(latest.route, journal_route_for(newest))
+    row = journal_blog_row()
+    assert(contains(row, "href=\"/be-elixir\""))
+    assert(contains(row, escape_html(latest.title)))
+    line = journal_desk_line()
+    assert(contains(line, concat("href=\"", latest.route, "\"")))
+    refute(journal_is_dated("README.md"))
+    refute(journal_is_dated("guide.md"))
+    assert(journal_is_dated("2026-10-01-loops-without-loops.md"))
+  end
+
+  test "/blog lists the journal above the posts" do
+    page = blog_index_page([])
+    assert(contains(page, "be-elixir: a Temper backend for Elixir, a running journal"))
+  end
 end

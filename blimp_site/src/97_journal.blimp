@@ -154,3 +154,51 @@ def journal_routes(routes: Map) -> Map do
   css = journal_read("assets/journal.css")
   put(r1, "/assets/journal.css", serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", css), "GET"))
 end
+
+# The newest dated entry, for the links on /blog and the homepage:
+# %{title: ..., route: ...}, or nil when there is none. Entries are named
+# 2026-10-01-slug.md, so the last in sorted order is the newest.
+def journal_latest(dir: String) -> Any do
+  names = list_dir(dir)
+  dated = case names do
+    nil -> []
+    _ -> sort(filter(names, fn(n: String) -> Bool do journal_is_md(n) and journal_is_dated(n) end))
+  end
+  case reverse(dated) do
+    [] -> nil
+    [newest | _] ->
+      %{title: journal_title(journal_read(concat(dir, "/", newest))), route: journal_route_for(newest)}
+  end
+end
+
+# 2026-10-01-slug.md: a year, a dash, a month, a dash
+def journal_is_dated(name: String) -> Bool do
+  length(name) > 11 and starts_with(name, "20") and take(drop(name, 4), 1) == "-" and take(drop(name, 7), 1) == "-"
+end
+
+# The pinned row at the top of /blog.
+def journal_blog_row() -> String do
+  latest = journal_latest(JOURNAL_DIR)
+  meta = case latest do
+    nil -> "a running journal"
+    _ -> concat("latest: ", escape_html(latest.title))
+  end
+  join([
+    "<a href=\"", JOURNAL_ROUTE, "\" class=\"blog-post-row\">",
+    "<div class=\"blog-post-icon\">📓</div>",
+    "<div class=\"blog-post-info\">",
+    "<div class=\"blog-post-title\">be-elixir: a Temper backend for Elixir, a running journal</div>",
+    "<div class=\"blog-post-meta\">", meta, "</div>",
+    "</div></a>"
+  ], "")
+end
+
+# The line under the newest posts in the homepage's Writing card.
+def journal_desk_line() -> String do
+  latest = journal_latest(JOURNAL_DIR)
+  newest = case latest do
+    nil -> ""
+    _ -> concat(" · latest: <a href=\"", latest.route, "\">", escape_html(latest.title), "</a>")
+  end
+  concat("<p class=\"log-journal\">Running journal: <a href=\"", JOURNAL_ROUTE, "\">be-elixir, a Temper backend for Elixir</a>", newest, "</p>")
+end
