@@ -30,6 +30,8 @@
 #   up    {"t":"signon","name":..}       the sign-on window's screen name
 #         {"t":"signoff"}                back to the sign-on window
 #         {"t":"ask","text":..}          a message to bobbbyBot
+#         {"t":"open","with":"sc"}      SmarterChild, say hello now
+#                                        (/aim?msg=SmarterChild)
 #         {"t":"im","to":id,"text":..}   a message to anyone else: "sc"
 #                                        (SmarterChild) or "u<socket>"
 #   down  {"t":"hello","online":bool,"posts":n,"bot":..}
@@ -395,11 +397,34 @@ def aim_sc_fresh() -> Map do
     history: [], pending: []}
 end
 
-def aim_sc_intro(name: String) -> List do
-  [concat("Good to see you, ", name, "!"),
-   "looks like it's just you and me on here right now, so I've got a game: four riddles. get all four and I'll tell you a secret about this page.",
-   "type hint if you get stuck, or home to see what else I can do. first one:",
-   head(AIM_SC_RIDDLES).q]
+# How it opens: a different way each time (the actor counts), every one a
+# way of saying this window is a portal back to 2004. The lines in quotes
+# in the comments are its own from the logs; the rest is ours.
+AIM_SC_PORTALS = [
+  ["Good to see you, NAME!",
+   "hold on, switching to 2004 mode..... ok. it's 2004 now. your away message is a song lyric, Usher is on the radio, and nobody's phone has a real browser."],
+  # "Hey! I have to ask you one question before we continue." (cdymek.com, 2007)
+  ["Hey! I have to ask you one question before we continue. What year is it?",
+   "just kidding, I know: in this window it's 2004. it's a portal, and you just came through it, NAME."],
+  # "Welcome back, Princess. I missed you... We haven't chatted in weeks!
+  # Have you been... avoiding me? ;-)" (smartererchild, LiveJournal)
+  ["Welcome back, NAME. I missed you... We haven't chatted in weeks! Have you been... avoiding me? ;-)",
+   "ok, more like twenty years. don't worry, in here it's still 2004."],
+  ["dialing 2004... *screeeech*... connected.",
+   "hi NAME! out there it's YEAR. in this window it's 2004, and I'm still the smartest buddy on your list."],
+  ["NAME! you found the portal.",
+   "everything in this window is 2004: dial-up, away messages, and me, SmarterChild. I'm your new robot friend. well, I was."]
+]
+
+# The k-th hello: a portal, then the riddles. alone: nobody else is signed
+# on; otherwise the page asked for it (/aim?msg=SmarterChild).
+def aim_sc_intro(name: String, alone: Bool, k: Int, year: String) -> List do
+  portal = map(aim_sc_nth(AIM_SC_PORTALS, k), fn(l: String) -> String do replace(replace(l, "NAME", name), "YEAR", year) end)
+  game = case alone do
+    true -> "looks like it's just you and me on here right now, so I've got a game: four riddles. get all four and I'll tell you a secret about this page."
+    false -> "I've got a game for you: four riddles. get all four and I'll tell you a secret about this page."
+  end
+  list_append(portal, [game, "type hint if you get stuck, or home to see what else I can do. first one:", head(AIM_SC_RIDDLES).q])
 end
 
 AIM_SC_FINAL = [
@@ -864,6 +889,8 @@ actor AimChat do
   # aim_pair -> [%{from, content}..], the last AIM_DM_KEEP lines
   state dms: Map :: %{}
   state dms_sent: Int :: 0
+  # SmarterChild's hellos so far, which picks the next one's opening
+  state hellos: Int :: 0
   state abandoned: List :: []
   # the day (days since the epoch) the requests below are counted for
   state day: Int :: 0
@@ -1018,15 +1045,16 @@ actor AimChat do
     end
   end
 
-  # SmarterChild says hello to someone alone, the riddles first.
-  on :sc_start(fd: Int, t: Int) do
+  # SmarterChild says hello, the riddles first: to someone alone, or to a
+  # page that asked for it.
+  on :sc_start(fd: Int, t: Int, alone: Bool) do
     k = to_string(fd)
     p = lookup(people, k)
     case p == nil or p.sc.active do
       true -> reply :ok
       false ->
-        sc = put(put(put(aim_sc_fresh(), :active, true), :riddling, true), :pending, aim_sc_queue([], aim_sc_intro(p.name), t, 2))
-        become people: put(people, k, put(p, :sc, sc))
+        sc = put(put(put(aim_sc_fresh(), :active, true), :riddling, true), :pending, aim_sc_queue([], aim_sc_intro(p.name, alone, hellos, format_time(t, "%Y")), t, 2))
+        become people: put(people, k, put(p, :sc, sc)), hellos: hellos + 1
         reply :started
     end
   end
@@ -1076,6 +1104,12 @@ actor AimChat do
           "signoff" -> reply (self <- :sign_off(fd))
           "ask" -> reply (self <- :ask(fd, trim(zg_str(lookup(msg, :text))), now()))
           "im" -> reply (self <- :im(fd, zg_str(lookup(msg, :to)), trim(zg_str(lookup(msg, :text))), now()))
+          # /aim?msg=SmarterChild: it says hello at once, alone or not
+          "open" ->
+            case p.signed and zg_str(lookup(msg, :with)) == "sc" do
+              true -> reply (self <- :sc_start(fd, now(), length(aim_signed(people)) == 1))
+              false -> reply :ignored
+            end
           _ -> reply :ignored
         end
     end
@@ -1210,7 +1244,7 @@ actor AimChat do
       true ->
         lone = head(signed)
         case not(lone.sc.active) and t - lone.signed_at >= AIM_SC_WAIT_S do
-          true -> self <- :sc_start(lone.fd, t)
+          true -> self <- :sc_start(lone.fd, t, true)
           false -> :ok
         end
       false -> :ok
