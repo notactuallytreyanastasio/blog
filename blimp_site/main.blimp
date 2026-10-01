@@ -245,6 +245,7 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/aim/sounds/doorslam.wav" -> AIM_SOUND_DOORSLAM
     "/aim/sounds/imrcv.wav" -> AIM_SOUND_IMRCV
     "/aim/sounds/imsend.wav" -> AIM_SOUND_IMSEND
+    "/aim/sounds/dialup.wav" -> AIM_SOUND_DIALUP
     # Role Call (src/99_role_call.blimp): the page, its program, script,
     # sunflower and css, and Blog.RoleCall's queries
     "/role-call" -> RC_PAGE

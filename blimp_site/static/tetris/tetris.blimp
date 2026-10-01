@@ -121,8 +121,11 @@ actor Tetris.Board do
     reply :ok
   end
 
-  # y < 0 is fine, pieces spawn partly above the top. guards keep the
-  # index lookups away from the walls, `or` doesn't short-circuit
+  # above the top (y < 0) is open, though this game never puts a cell
+  # there. separate clauses keep elem away from the edges, because elem
+  # with -1 quietly reads position 0 and past the end gives nil. one guard
+  # like `x >= 0 and elem(...)` is not enough: the browser build does not
+  # short-circuit `and`/`or` (the native one does)
   on :blocked?(x: Int, y: Int) when x < 0 or x > 9 or y > 19 do reply true end
   on :blocked?(x: Int, y: Int) when y < 0 do reply false end
   on :blocked?(x: Int, y: Int) do reply elem(elem(rows, y), x) != 0 end
@@ -187,10 +190,10 @@ actor Tetris.Board do
 
   test "lock ignores cells above the top" do
     board = spawn Tetris.Board
-    board <- :lock([{0, -1}, {0, 0}], 2)
+    board <- :lock([{5, -1}, {0, 0}], 2)
     got = board <- :rows
     assert_eq(length(got), 20)
-    assert_eq(elem(elem(got, 0), 0), 2)
+    assert_eq(elem(got, 0), [2, 0, 0, 0, 0, 0, 0, 0, 0, 0])
   end
 
   test "sweep clears full rows and adds empty rows on top" do
@@ -689,6 +692,8 @@ actor Tetris.Game do
     refute(game <- :paused?)
     piece = game <- :piece
     assert_eq(lookup(piece <- :info, :y), 0)
+    # a bag deals seven different kinds, so the next one is not this one
+    refute(lookup(piece <- :info, :kind) == (game <- :next_kind))
   end
 
   test "left and right move the piece, the walls stop it" do

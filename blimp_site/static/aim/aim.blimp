@@ -12,7 +12,9 @@
 # aim.js holds the socket
 # to /live/aim, hands this program every frame (`:frame`) and each
 # (re)connection (`:connected`), sends up what `:outbox` returns after
-# every render, and plays the sounds `:where` says are wanted.
+# every render, and remembers what `:where` says to. Sounds, dragging and
+# the dial-up screen's clock are this program's: <audio> elements it
+# renders, drag: on each title bar, and a timer.
 
 def aimp_decode(text: String) -> Map do
   case json_decode(text) do
@@ -154,12 +156,18 @@ end
 
 # ── window chrome ──────────────────────────────────────────────────────
 
-def aimp_titlebar(title: String, close: Any) -> Any do
+# A window's title bar. It drags the window it belongs to (kind is the
+# window's class, aim-buddies and so on; "" for one that does not move).
+def aimp_titlebar(kind: String, title: String, close: Any) -> Any do
   x = case close do
     nil -> el("span", %{class: "aim-tb-btn dead"}, "×")
     msg -> el("button", %{class: "aim-tb-btn", click: msg, title: "Close"}, "×")
   end
-  el("div", %{class: "aim-titlebar"},
+  bar = case kind do
+    "" -> %{class: "aim-titlebar"}
+    _ -> %{class: "aim-titlebar", drag: :move_window, with: kind}
+  end
+  el("div", bar,
     el("span", %{class: "aim-tb-icon"}),
     el("span", %{class: "aim-tb-title"}, title),
     el("span", %{class: "aim-tb-btns"},
@@ -180,8 +188,8 @@ end
 # ── sign on ────────────────────────────────────────────────────────────
 
 def aimp_signon(s: Map) -> Any do
-  el("div", %{class: "aim-win aim-signon"},
-    aimp_titlebar("Sign On", nil),
+  el("div", aimp_win(s, "aim-signon", %{}),
+    aimp_titlebar("aim-signon", "Sign On", nil),
     el("div", %{class: "aim-signon-body"},
       el("div", %{class: "aim-signon-logo"}, aimp_runner("big"),
         el("div", %{class: "aim-wordmark"}, el("strong", %{}, "AIM"), el("span", %{}, "bobbby.online edition"))),
@@ -194,6 +202,24 @@ def aimp_signon(s: Map) -> Any do
           el("span", %{class: "aim-small"}, "No account? Make up a name."),
           el("button", %{type: "submit", class: "aim-btn aim-btn-default"}, aimp_runner("tiny"), "Sign On"))),
       el("div", %{class: "aim-small aim-signon-foot"}, "Version 5.9.blimp")))
+end
+
+# ── windows: where each has been dragged, and which is in front ────────
+
+# A window's attributes: its class, and its place. moved holds each kind's
+# offset from where the stylesheet puts it; it is the CSS translate
+# property, which adds to the transform some windows centre themselves
+# with instead of replacing it. Phones stack the windows and ignore it.
+def aimp_win(s: Map, kind: String, extra: Map) -> Map do
+  off = case lookup(s.moved, kind) do
+    nil -> ""
+    m -> concat("translate: ", to_string(m.x), "px ", to_string(m.y), "px;")
+  end
+  front = case s.front == kind do
+    true -> " z-index: 4;"
+    false -> ""
+  end
+  put(put(extra, :class, concat("aim-win ", kind)), :style, concat(off, front))
 end
 
 # ── the Buddy List ─────────────────────────────────────────────────────
@@ -253,8 +279,8 @@ def aimp_buddy_list(s: Map) -> Any do
     true -> "Sounds: off"
     false -> "Sounds: on"
   end
-  el("div", %{class: "aim-win aim-buddies"},
-    aimp_titlebar(concat(s.name, "'s Buddy List"), nil),
+  el("div", aimp_win(s, "aim-buddies", %{}),
+    aimp_titlebar("aim-buddies", concat(s.name, "'s Buddy List"), nil),
     aimp_menubar(["My AIM", "People", "Help"]),
     el("div", %{class: "aim-buddies-brand"}, aimp_runner("mid"), el("div", %{}, el("strong", %{}, "bobbby.online"), el("span", %{}, "Instant Messenger"))),
     el("div", %{class: "aim-buddies-tabs"}, el("span", %{class: "on"}, "Online"), el("span", %{}, "List Setup")),
@@ -386,8 +412,8 @@ def aimp_im(s: Map) -> Any do
     true -> "Markdown works"
     false -> ""
   end
-  el("div", %{class: "aim-win aim-im"},
-    aimp_titlebar(concat(who, " - Instant Message"), :close_im),
+  el("div", aimp_win(s, "aim-im", %{}),
+    aimp_titlebar("aim-im", concat(who, " - Instant Message"), :close_im),
     aimp_menubar(["File", "Edit", "Insert", "People"]),
     aimp_tabs(s),
     el("div", %{class: "aim-warnbar"}, concat(who, "'s Warning Level: ", to_string(s.warn), "%")),
@@ -417,8 +443,8 @@ end
 # ── the cats ───────────────────────────────────────────────────────────
 
 def aimp_cats(s: Map) -> Any do
-  el("div", %{class: "aim-win aim-cats", role: "dialog", "aria-label": "Bobby's cats"},
-    aimp_titlebar("Picture Viewer - cats.jpg", :close_cats),
+  el("div", aimp_win(s, "aim-cats", %{role: "dialog", "aria-label": "Bobby's cats"}),
+    aimp_titlebar("aim-cats", "Picture Viewer - cats.jpg", :close_cats),
     el("div", %{class: "aim-cats-body"},
       el("img", %{src: s.cats, alt: "Bobby's cat, belly up on a sunny floor"}),
       el("p", %{}, el("b", %{}, "You found the cats. "), "Belly up, in the sun."),
@@ -453,8 +479,8 @@ def aimp_dial(s: Map) -> Any do
     true -> el("button", %{class: "aim-btn aim-btn-default", click: :dial_done}, aimp_runner("tiny"), "Go Online")
     false -> el("button", %{class: "aim-btn", click: :dial_done}, "Skip")
   end
-  el("div", %{class: "aim-win aim-dial", role: "dialog", "aria-label": "Connecting"},
-    aimp_titlebar("Sign On - Connecting", nil),
+  el("div", aimp_win(s, "aim-dial", %{role: "dialog", "aria-label": "Connecting"}),
+    aimp_titlebar("aim-dial", "Sign On - Connecting", nil),
     el("div", %{class: "aim-dial-body"},
       el("div", %{class: "aim-dial-head"}, aimp_runner("mid"),
         el("div", %{}, el("strong", %{}, concat("Signing on ", s.name)), el("span", %{class: "aim-small"}, "bobbby.online edition"))),
@@ -508,7 +534,7 @@ def aimp_reader(s: Map) -> Any do
   end
   el("div", %{class: "aim-reader-scrim"},
     el("div", %{class: "aim-win aim-reader", role: "dialog", "aria-label": "Reader"},
-      aimp_titlebar(concat("Reader - ", aim_bot_name), :close_reader),
+      aimp_titlebar("", concat("Reader - ", aim_bot_name), :close_reader),
       el("div", %{class: "aim-reader-tools"},
         el("button", %{class: "aim-btn", click: :reader_step, with: -1, disabled: aimp_step(answers, s.reader, -1) == s.reader}, "◂ Previous"),
         el("button", %{class: "aim-btn", click: :reader_step, with: 1, disabled: aimp_step(answers, s.reader, 1) == s.reader}, "Next ▸"),
@@ -547,8 +573,8 @@ def aimp_party(s: Map) -> Any do
     _ -> []
   end
   n = length(s.party_members)
-  el("div", %{class: "aim-win aim-party"},
-    aimp_titlebar("Party Line - Chat Room", :close_party),
+  el("div", aimp_win(s, "aim-party", %{}),
+    aimp_titlebar("aim-party", "Party Line - Chat Room", :close_party),
     aimp_menubar(["File", "Edit", "People"]),
     el("div", %{class: "aim-party-body"},
       el("div", %{class: "aim-log aim-party-log", id: "aim-party-log"}, empty, lines),
@@ -580,8 +606,8 @@ def aimp_board(s: Map) -> Any do
     "" -> []
     why -> [el("div", %{class: "aim-board-note"}, why)]
   end
-  el("div", %{class: "aim-win aim-board"},
-    aimp_titlebar("Bulletin Board", :close_board),
+  el("div", aimp_win(s, "aim-board", %{}),
+    aimp_titlebar("aim-board", "Bulletin Board", :close_board),
     el("div", %{class: "aim-board-head"}, el("strong", %{}, "bobbby.online Bulletin Board"), el("span", %{class: "aim-small"}, "Public. Signed with your screen name. Bobby can take notes down.")),
     el("div", %{class: "aim-board-list"}, empty, notes),
     el("form", %{class: "aim-board-form", submit: :board_send},
@@ -596,8 +622,8 @@ end
 # ── Get Info ───────────────────────────────────────────────────────────
 
 def aimp_info(s: Map) -> Any do
-  el("div", %{class: "aim-win aim-info"},
-    aimp_titlebar(concat("Buddy Info: ", aim_bot_name), :close_info),
+  el("div", aimp_win(s, "aim-info", %{}),
+    aimp_titlebar("aim-info", concat("Buddy Info: ", aim_bot_name), :close_info),
     el("div", %{class: "aim-info-body"},
       el("div", %{class: "aim-info-head"}, aimp_runner("mid"), el("div", %{}, el("strong", %{}, aim_bot_name), el("span", %{class: "aim-small"}, "Member since: 2009"))),
       el("div", %{class: "aim-info-profile"},
@@ -677,7 +703,45 @@ def aimp_page(s: Map) -> Any do
     true -> "aim-desktop im-open"
     false -> "aim-desktop"
   end
-  el("div", %{class: cls}, el("div", %{class: "aim-windows"}, windows), aimp_taskbar(s))
+  # the sound and the timer each have a slot of their own: a parent whose
+  # number of children changes is rebuilt, and a rebuilt <audio autoplay>
+  # plays its sound again
+  el("div", %{class: cls}, el("div", %{class: "aim-windows"}, windows), aimp_taskbar(s),
+    el("span", %{class: "aim-sound-slot"}, aimp_sound(s)), el("span", %{class: "aim-timer-slot"}, aimp_dial_timer(s)))
+end
+
+# ── sounds ─────────────────────────────────────────────────────────────
+# AIM's own WAVs (/aim/sounds/): the door opening and slamming, the IM
+# sent and received, and the dial-up modem. Each sound asked for is a new
+# <audio autoplay> element (its id counts them), which the browser plays
+# once; the next render keeps it, so it does not play again.
+
+def aimp_sound_file(sound: Any) -> String do
+  case sound do
+    :signon -> "dooropen"
+    :door_open -> "dooropen"
+    :door_close -> "doorslam"
+    :received -> "imrcv"
+    :sent -> "imsend"
+    :dial -> "dialup"
+    _ -> ""
+  end
+end
+
+def aimp_sound(s: Map) -> List do
+  file = aimp_sound_file(s.sound)
+  case s.muted or file == "" do
+    true -> []
+    false -> [el("audio", %{id: concat("aim-sound-", to_string(s.sounds)), class: "aim-sound", src: concat("/aim/sounds/", file, ".wav"), autoplay: true})]
+  end
+end
+
+# The dial-up screen's steps light up one a second or so.
+def aimp_dial_timer(s: Map) -> List do
+  case s.signed_on and s.dial >= 0 and s.dial < length(aim_dial_steps) - 1 do
+    true -> [timer(1100, :dial_tick)]
+    false -> []
+  end
 end
 
 actor AimPage do
@@ -703,6 +767,11 @@ actor AimPage do
   # :received, :dial, or nil
   # whether a Buddy List has come since signing on (the first opens no doors)
   state listed: Bool :: false
+  # sounds asked for so far: each is a new <audio> element, which plays
+  state sounds: Int :: 0
+  # each window's offset from its place, by kind, and the one in front
+  state moved: Map :: %{}
+  state front: String :: ""
   state sound: Any :: nil
   # whose conversation the IM window shows ("bot", "sc", "u<n>")
   state current: String :: "bot"
@@ -795,10 +864,10 @@ actor AimPage do
           false -> :ok
           true ->
             case came != [] do
-              true -> become sound: :door_open
+              true -> become sound: :door_open, sounds: sounds + 1
               false ->
                 case went != [] do
-                  true -> become sound: :door_close
+                  true -> become sound: :door_close, sounds: sounds + 1
                   false -> :ok
                 end
             end
@@ -821,7 +890,7 @@ actor AimPage do
         become board_posts: aimp_messages(lookup(msg, :posts)), board_note: aimp_str(lookup(msg, :note))
         reply :board
       "secret" ->
-        become cats: aimp_str(lookup(msg, :src)), cats_open: true, sound: :received
+        become cats: aimp_str(lookup(msg, :src)), cats_open: true, sound: :received, sounds: sounds + 1
         reply :secret
       _ -> reply :ignored
     end
@@ -831,11 +900,11 @@ actor AimPage do
   on :arrived(w: String) do
     s = (self <- :state)
     case im_open and current == w do
-      true -> become sound: :received
+      true -> become sound: :received, sounds: sounds + 1
       false ->
         case not(im_open) or aimp_convo(s, current) == [] do
-          true -> become current: w, im_open: true, sound: :received, unread: aimp_without(unread, w)
-          false -> become unread: aimp_append(aimp_without(unread, w), [w]), sound: :received
+          true -> become current: w, im_open: true, sound: :received, sounds: sounds + 1, unread: aimp_without(unread, w)
+          false -> become unread: aimp_append(aimp_without(unread, w), [w]), sound: :received, sounds: sounds + 1
         end
     end
     reply :ok
@@ -843,7 +912,7 @@ actor AimPage do
 
   on :sign_off do
     become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: want, dial: -1,
-      convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false, listed: false, sound: :door_close,
+      convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false, listed: false, sound: :door_close, sounds: sounds + 1,
       party_lines: [], party_members: [], party_open: false, party_unread: false,
       board_posts: [], board_note: "", board_open: false,
       outbox: aimp_append(outbox, [json_encode(%{t: "signoff"})])
@@ -851,12 +920,23 @@ actor AimPage do
   end
 
   on :open_chat(id: String) do
-    become current: id, im_open: true, unread: aimp_without(unread, id)
+    become current: id, im_open: true, front: "aim-im", unread: aimp_without(unread, id)
+    reply :ok
+  end
+
+  # A title bar dragged: its window moves by what the pointer moved, and
+  # comes to the front.
+  on :move_window(kind: String, dx: Int, dy: Int) do
+    m = case lookup(moved, kind) do
+      nil -> %{x: 0, y: 0}
+      o -> o
+    end
+    become moved: put(moved, kind, %{x: m.x + dx, y: m.y + dy}), front: kind
     reply :ok
   end
 
   on :open_party do
-    become party_open: true, party_unread: false
+    become party_open: true, front: "aim-party", party_unread: false
     reply :ok
   end
 
@@ -870,13 +950,13 @@ actor AimPage do
     case trim(text) == "" or not(signed_on) do
       true -> reply :ignored
       false ->
-        become outbox: aimp_append(outbox, [json_encode(%{t: "party", text: text})]), party_sent: party_sent + 1, sound: :sent
+        become outbox: aimp_append(outbox, [json_encode(%{t: "party", text: text})]), party_sent: party_sent + 1, sound: :sent, sounds: sounds + 1
         reply :sent
     end
   end
 
   on :open_board do
-    become board_open: true
+    become board_open: true, front: "aim-board"
     reply :ok
   end
 
@@ -896,7 +976,7 @@ actor AimPage do
   end
 
   on :open_cats do
-    become cats_open: true
+    become cats_open: true, front: "aim-cats"
     reply :ok
   end
 
@@ -919,7 +999,7 @@ actor AimPage do
       true -> :signon
       false -> :dial
     end
-    become signed_on: true, name: sn, im_open: true, current: want, dial: dial, sound: sound, listed: false,
+    become signed_on: true, name: sn, im_open: true, current: want, dial: dial, sound: sound, sounds: sounds + 1, listed: false,
       outbox: aimp_append(outbox, aimp_signon_frames(sn, want))
     reply :ok
   end
@@ -945,7 +1025,7 @@ actor AimPage do
   end
 
   on :dial_done do
-    become dial: -1, sound: :signon
+    become dial: -1, sound: :signon, sounds: sounds + 1
     reply :ok
   end
 
@@ -963,7 +1043,7 @@ actor AimPage do
           "bot" -> %{t: "ask", text: text}
           _ -> %{t: "im", to: current, text: text}
         end
-        become outbox: aimp_append(outbox, [json_encode(up)]), sent: sent + 1, sound: :sent
+        become outbox: aimp_append(outbox, [json_encode(up)]), sent: sent + 1, sound: :sent, sounds: sounds + 1
         reply :sent
     end
   end
@@ -973,7 +1053,7 @@ actor AimPage do
   end
 
   on :open_im do
-    become im_open: true, current: "bot", unread: aimp_without(unread, "bot")
+    become im_open: true, front: "aim-im", current: "bot", unread: aimp_without(unread, "bot")
     reply :ok
   end
 
@@ -983,7 +1063,7 @@ actor AimPage do
   end
 
   on :open_info do
-    become info_open: true
+    become info_open: true, front: "aim-info"
     reply :ok
   end
 
@@ -1044,16 +1124,10 @@ actor AimPage do
     reply out
   end
 
-  # For aim.js after a render: a sound to play (once), whether the reader
-  # is open, the screen name to remember.
+  # For aim.js after a render: whether the reader is open, and the screen
+  # name and the skip-the-dial-up choice to remember.
   on :where do
-    s = case muted do
-      true -> nil
-      false -> sound
-    end
-    become sound: nil
-    reply %{sound: s, reader: reader >= 0, name: name, signed_on: signed_on,
-      dialing: dial >= 0 and dial < length(aim_dial_steps) - 1, dial_skip: dial_skip}
+    reply %{reader: reader >= 0, name: name, signed_on: signed_on, dial_skip: dial_skip}
   end
 
   # Everything the view and the helpers above read, as one map.
@@ -1064,7 +1138,8 @@ actor AimPage do
       typing: typing, buddies: buddies, names: names, unread: unread, cats: cats, cats_open: cats_open,
       want: want, dial: dial, dial_skip: dial_skip, party_lines: party_lines, party_members: party_members,
       party_open: party_open, party_unread: party_unread, party_sent: party_sent, board_posts: board_posts,
-      board_note: board_note, board_open: board_open, board_sent: board_sent}
+      board_note: board_note, board_open: board_open, board_sent: board_sent,
+      sound: sound, sounds: sounds, moved: moved, front: front}
   end
 
   on :view do
