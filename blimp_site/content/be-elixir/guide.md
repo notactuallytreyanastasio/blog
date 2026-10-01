@@ -206,7 +206,7 @@ It prints the same line as the JS backend,
 | `Boolean` | `true` / `false` |
 | `String` | a UTF-8 binary |
 | `StringIndex` | a byte offset; `String.begin` is `0`, "no index" is `-1` |
-| `StringBuilder` | a heap object holding the string so far |
+| `StringBuilder` | a heap object whose value is the string so far |
 | `List<T>` | `%TemperCore.Vec{t: tuple}`; a literal is `%TemperCore.Vec{t: {1, 2, 3}}` |
 | `ListBuilder<T>` | a heap object holding an Erlang `:array` |
 | `Map<K, V>` | `%TemperCore.Map{keys, map}`: insertion order kept beside an Elixir map |
@@ -219,7 +219,9 @@ It prints the same line as the JS backend,
 | a type used as a value | its module, or a builtin's name as an atom: `:Void` |
 
 **Integers.** Elixir integers have no width. Temper's `Int` wraps at 32
-bits, so every `+`, `-` and `*` passes through `TemperCore.int32`.
+bits, so every `+`, `-` and `*` passes through `TemperCore.int32`. Its
+first clause is a guard that hands back an integer already in range, so
+only an overflow pays for the wrap.
 Division and remainder also bubble on zero. Bitwise operations use
 `Bitwise`, wrapped the same way.
 
@@ -599,6 +601,14 @@ at the outermost one. The same service as below, with no `collect` in it
 at all, ran 100,000 requests and ended with 1 object (its counter) in
 26 KB, in 270 ms.
 
+**Value objects.** An object whose whole state holds no other object, such
+as a `StringBuilder`'s string, is stored as that value
+(`Heap.new_value/2`), not as a map of fields. A write is one
+`:erlang.put`, with no field map to update and no write barrier, since a
+string cannot point at a young object. It is collected, exported and
+imported like any other object. Temper code builds strings a code point
+at a time, so this is the hottest write there is.
+
 What `entry` cannot free: an object the caller kept and later dropped,
 or anything made outside an exported function (Elixir calling a
 constructor or method directly). For those,
@@ -818,10 +828,22 @@ as fixtures, run old and new on random inputs, and count which rules the
 inputs reached. Marginalia's ports agreed on more than 90,000 inputs, and
 being faithful turned up a regex bug the original had always had.
 
-**What it costs.** Code that walks strings is about 3x slower than
-hand-written Elixir that runs regexes over whole binaries. In Marginalia
-that is a few milliseconds per document. PDF reflow, which the original did
-with a regex per line, got 3.5x faster.
+**What it costs.** Measured against the Elixir each port replaced:
+
+```
+                                              Elixir    Temper   ratio
+word diff, 2,000-word section, 4% edited        4 ms     13 ms   3.1x
+paragraph diff, 60 paragraphs                   8 ms     13 ms   1.6x
+sentences reflow, 5,400 words                   2 ms      4 ms   1.8x
+PDF page reflow, 400 lines                     11 ms      2 ms   0.2x
+segmenter, 11,700-word manuscript              20 ms     53 ms   2.6x
+```
+
+What is left is the cost of a call per code point (`has_index`, `get`,
+`next`, an append) where the originals matched regexes over whole
+binaries. Entry 27 covers how the runtime's share of that shrank. PDF
+reflow, which the original did with a regex per line, is faster in
+Temper.
 
 ## 17. Limits
 
