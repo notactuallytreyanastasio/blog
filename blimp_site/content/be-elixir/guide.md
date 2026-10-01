@@ -482,10 +482,46 @@ from the `_connected.ex` file next to its Temper source.
 ## 12. Tests
 
 A `test("name") { ... }` block is a module function that takes a
-`TemperCore.Test`. Soft asserts record a failure and keep going; hard
-asserts bubble. A test run calls `main()` first, so tests can read
-module values, then `__temper_tests__/0`. That writes JUnit XML to
-`test-results.xml` for the harness, following std/testing line for line.
+`TemperCore.Test`. Soft asserts record a failure and carry on, and hard
+asserts bubble, following std/testing line for line. A library with tests
+gets two ways to run them.
+
+**`mix test`.** The backend writes `test/temper_test.exs`, with one ExUnit
+test per Temper test, named by the test's own sentence:
+
+```elixir
+defmodule Temper.Tested.TemperTest do
+  use ExUnit.Case
+
+  setup_all do
+    Temper.Tested.__temper_init__()
+    :ok
+  end
+
+  test "doubling works" do
+    TemperCore.Test.check(&Temper.Tested.doublingWorks__12/1)
+  end
+  ...
+```
+
+`setup_all` runs the library's top level, which tests read from.
+`TemperCore.Test.check/1` runs one test the way std/testing would and
+raises an ExUnit assertion error carrying its messages:
+
+```
+  2) test a failing test (Temper.Tested.TemperTest)
+     test/temper_test.exs:13
+     2 should not double to 5
+     nor 3 to 7
+```
+
+A test that bubbles without a failed hard assert reports `Bubble`, as
+std/testing does. ExUnit's own tools work: `mix test --seed`, `--only`, and
+a line number to run one test.
+
+**The harness.** `temper test -b elixir` and the functional suite run
+`main/0`, then `__temper_tests__/0`, which writes the JUnit XML that
+`reportTestResults` writes to `test-results.xml`.
 
 ## 13. Names and layout
 
@@ -708,7 +744,6 @@ method is freed when the method returns.
   stay consistent belongs in an `@actor`.
 - **A module-level mutable non-actor object is per process.** Each process
   gets its own copy on first read.
-- **No `mix test` integration.** Tests run through `main/0`.
 
 ## 17. Where things are
 
