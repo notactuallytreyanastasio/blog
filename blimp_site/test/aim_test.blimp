@@ -483,7 +483,7 @@ actor AimTests do
     aim <- :connected
     aim <- :sign_off
     aim <- :outbox
-    aim <- :remembered_dial(false)
+    aim <- :remembered_dial("")
     aim <- :want("SmarterChild")
     aim <- :sign_on("{\"name\":\"dialer\"}")
     # signing on, and SmarterChild asked to say hello
@@ -533,7 +533,7 @@ actor AimTests do
     assert(contains(page, "https://bobbby.online/images/og-aim.png?v=1"))
     assert(contains(page, "summary_large_image"))
     # its files are named by their contents, so a deploy is never half-cached
-    assert(contains(page, "/aim/aim.css?v=") and contains(page, "/aim/aim.js?v=") and contains(page, "data-program=\"/aim/aim.blimp?v="))
+    assert(contains(page, "/aim/aim.css?v=") and not(contains(page, "/aim/aim.js")) and contains(page, "data-location=\"1\"") and contains(page, "data-program=\"/aim/aim.blimp?v="))
     assert(contains(page, "/blimp/blimp-view.js?v=") and contains(page, "/blimp/blimp.js?v=") and contains(page, "/blimp/app.js?v="))
     assert(read_file("../priv/static/images/og-aim.png") != nil)
   end
@@ -687,5 +687,43 @@ actor AimTests do
     # the dial-up screen counts its own steps, on a timer it renders
     aim <- :sign_off
     aim <- :outbox
+  end
+
+  test "the page's program: its own socket, outbox numbering, ?msg= and the clock" do
+    aim <- :connected
+    aim <- :remembered_dial("1")
+    aim <- :location("foo=1&msg=SmarterChild")
+    assert_eq((aim <- :state).want, "sc")
+    aim <- :location("")
+    assert_eq((aim <- :state).want, "sc")
+    aim <- :sign_on("{\"name\":\"nia\"}")
+    st = aim <- :state
+    first = st.out_first
+    assert_eq(st.outbox, ["{\"t\":\"signon\",\"name\":\"nia\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])
+    # the view holds the socket (it carries the outbox), the two reads, the
+    # dial-up choice, the clock's timer and, signed on, the screen name
+    assert_eq(length(aimp_effects(st)), 6)
+    # Blimp sent the first: it goes, and the numbering moves on
+    aim <- :sent(first)
+    st2 = aim <- :state
+    assert_eq([length(st2.outbox), st2.out_first], [1, first + 1])
+    aim <- :sent(first)
+    assert_eq(length((aim <- :state).outbox), 1)
+    # a new connection: what was waiting is dropped, and it signs on again
+    aim <- :send("{\"message\":\"lost\"}")
+    aim <- :connected
+    st3 = aim <- :state
+    assert_eq(st3.outbox, ["{\"t\":\"signon\",\"name\":\"nia\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])
+    assert_eq(st3.out_first, first + 3)
+    # signed off, the screen name is not written over
+    assert_eq(length(aimp_effects(put(st3, :signed_on, false))), 5)
+    # the clock: "2:56 PM", no leading zero
+    c = aimp_clock()
+    assert(ends_with(c, " AM") or ends_with(c, " PM"))
+    assert(not(starts_with(c, "0")))
+    aim <- :sign_off
+    aim <- :outbox
+    aim <- :remembered_dial("")
+    aim <- :want("bobbyBot")
   end
 end

@@ -9,12 +9,13 @@
 # about; SmarterChild's, a script; and one with each other person signed
 # on, whose names come in a "buddies" frame. The IM window shows one at a
 # time, with a tab for each when there is more than one.
-# aim.js holds the socket
-# to /live/aim, hands this program every frame (`:frame`) and each
-# (re)connection (`:connected`), sends up what `:outbox` returns after
-# every render, and remembers what `:where` says to. Sounds, dragging and
-# the dial-up screen's clock are this program's: <audio> elements it
-# renders, drag: on each title bar, and a timer.
+# It is the whole page; there is no script of its own. Blimp's view holds
+# the socket to /live/aim (socket(): frames in as :frame, the outbox up,
+# numbered so each goes once), remembers the screen name and the dial-up
+# choice (stored() and store()), submits on Enter, keeps transcripts at
+# their end, keeps the clock (now() and utc_offset()), and plays the
+# sounds, which are <audio> elements. ?msg=SmarterChild arrives as
+# :location (data-location="1").
 
 def aimp_decode(text: String) -> Map do
   case json_decode(text) do
@@ -45,6 +46,13 @@ def aimp_messages(v: Any) -> List do
   case type_of(v) == :list do
     true -> filter(v, fn(m: Any) -> Bool do type_of(m) == :map end)
     false -> []
+  end
+end
+
+def aimp_drop(l: List, k: Int) -> List do
+  case k <= 0 or l == [] do
+    true -> l
+    false -> aimp_drop(tail(l), k - 1)
   end
 end
 
@@ -348,7 +356,7 @@ def aimp_their_log(s: Map, id: String) -> Any do
       end
   end
   lines = map(aimp_convo(s, id), fn(m: Map) -> Any do aimp_their_line(s, who, m) end)
-  el("div", %{class: "aim-log", id: "aim-log"}, [el("div", %{class: "aim-sys"}, opener) | lines])
+  el("div", %{class: "aim-log", id: "aim-log", scroll: :end}, [el("div", %{class: "aim-sys"}, opener) | lines])
 end
 
 # A tab for every conversation that has started, when there is more than one.
@@ -392,7 +400,7 @@ def aimp_log(s: Map) -> Any do
         map(aim_presets, fn(q: String) -> Any do el("button", %{class: "aim-preset", click: :ask_preset, with: q}, q) end))]
     _ -> []
   end
-  el("div", %{class: "aim-log", id: "aim-log"}, aimp_append(opener, aimp_append(aimp_lines(s, s.messages, 0, []), starters)))
+  el("div", %{class: "aim-log", id: "aim-log", scroll: :end}, aimp_append(opener, aimp_append(aimp_lines(s, s.messages, 0, []), starters)))
 end
 
 def aimp_im(s: Map) -> Any do
@@ -425,6 +433,7 @@ def aimp_im(s: Map) -> Any do
       el("span", %{class: "aim-tool"}, "link"), el("span", %{class: "aim-small aim-md-hint"}, hint)),
     el("form", %{class: "aim-compose", submit: :send},
       el("textarea", %{name: "message", id: concat("aim-input-", to_string(s.sent)), class: "aim-input", rows: "3", maxlength: "2000",
+        submit_on_enter: true, focus: true,
         placeholder: concat("Message ", who, "..."), disabled: dis}),
       el("div", %{class: "aim-im-buttons"},
         el("button", %{type: "button", class: "aim-btn aim-btn-icon", click: :warn}, "Warn"),
@@ -577,12 +586,13 @@ def aimp_party(s: Map) -> Any do
     aimp_titlebar("aim-party", "Party Line - Chat Room", :close_party),
     aimp_menubar(["File", "Edit", "People"]),
     el("div", %{class: "aim-party-body"},
-      el("div", %{class: "aim-log aim-party-log", id: "aim-party-log"}, empty, lines),
+      el("div", %{class: "aim-log aim-party-log", id: "aim-party-log", scroll: :end}, empty, lines),
       el("div", %{class: "aim-party-people"},
         el("div", %{class: "aim-small"}, concat(to_string(n), " in room")),
         el("ul", %{}, map(s.party_members, fn(m: Any) -> Any do el("li", %{}, aimp_str(m)) end)))),
     el("form", %{class: "aim-compose", submit: :party_send},
       el("textarea", %{name: "message", id: concat("aim-party-input-", to_string(s.party_sent)), class: "aim-input aim-party-input", rows: "2", maxlength: "1000",
+        submit_on_enter: true, focus: true,
         placeholder: "Say something to the room..."}),
       el("div", %{class: "aim-im-buttons"},
         el("span", %{class: "aim-spacer"}),
@@ -662,7 +672,7 @@ def aimp_taskbar(s: Map) -> Any do
   el("div", %{class: "aim-taskbar"},
     el("a", %{class: "aim-start", href: "/"}, el("span", %{class: "aim-start-flag"}), "bobbby.online"),
     el("div", %{class: "aim-tasks"}, tasks),
-    el("div", %{class: "aim-tray"}, aimp_runner("tiny"), el("span", %{id: "aim-clock"}, "")))
+    el("div", %{class: "aim-tray"}, aimp_runner("tiny"), el("span", %{id: "aim-clock"}, aimp_clock())))
 end
 
 def aimp_page(s: Map) -> Any do
@@ -707,7 +717,51 @@ def aimp_page(s: Map) -> Any do
   # number of children changes is rebuilt, and a rebuilt <audio autoplay>
   # plays its sound again
   el("div", %{class: cls}, el("div", %{class: "aim-windows"}, windows), aimp_taskbar(s),
-    el("span", %{class: "aim-sound-slot"}, aimp_sound(s)), el("span", %{class: "aim-timer-slot"}, aimp_dial_timer(s)))
+    el("span", %{class: "aim-sound-slot"}, aimp_sound(s)), el("span", %{class: "aim-timer-slot"}, aimp_dial_timer(s)),
+    el("span", %{class: "aim-effects"}, aimp_effects(s)))
+end
+
+# ── what the page does besides drawing ─────────────────────────────────
+# The socket, what is remembered between visits, the reader's keys, and the
+# clock's minute.
+
+def aimp_effects(s: Map) -> List do
+  remember = case s.signed_on do
+    true -> [store("aim.screen_name", s.name)]
+    false -> []
+  end
+  skip = case s.dial_skip do
+    true -> "1"
+    false -> ""
+  end
+  reader_keys = case s.reader >= 0 do
+    true -> [key("Escape", :close_reader), key("ArrowLeft", :reader_prev), key("ArrowRight", :reader_next)]
+    false -> []
+  end
+  aimp_append([
+    socket("/live/aim", %{frame: :frame, open: :connected, closed: :offline, sent: :sent}, s.out_first, s.outbox),
+    stored("aim.screen_name", :remembered),
+    stored("aim.skip_dialup", :remembered_dial),
+    store("aim.skip_dialup", skip),
+    timer(15000, :clock_tick)], aimp_append(remember, reader_keys))
+end
+
+# The taskbar's clock, in the reader's own zone: "2:56 PM".
+def aimp_clock() -> String do
+  t = format_time(now() + utc_offset(), "%I:%M %p")
+  case starts_with(t, "0") do
+    true -> slice(t, 1, length(t))
+    false -> t
+  end
+end
+
+# ?msg=SmarterChild from the page's query string, or "".
+def aimp_query_msg(q: String) -> String do
+  hits = filter(split(q, "&"), fn(kv: String) -> Bool do starts_with(kv, "msg=") end)
+  case hits do
+    [] -> ""
+    [kv | _] -> slice(kv, 4, length(kv))
+  end
 end
 
 # ── sounds ─────────────────────────────────────────────────────────────
@@ -762,7 +816,10 @@ actor AimPage do
   state muted: Bool :: false
   # messages sent; each gives the textarea a new id, so it comes back empty
   state sent: Int :: 0
+  # frames for the server, the first numbered out_first: Blimp's socket
+  # sends each number once and says :sent(n)
   state outbox: List :: []
+  state out_first: Int :: 1
   # what aim.js should play: :signon, :door_open, :door_close, :sent,
   # :received, :dial, or nil
   # whether a Buddy List has come since signing on (the first opens no doors)
@@ -807,7 +864,10 @@ actor AimPage do
 
   # the screen name remembered from last time (aim.js keeps it)
   on :remembered(n: String) do
-    become name: n
+    case n do
+      "" -> :ok
+      _ -> become name: n
+    end
     reply :ok
   end
 
@@ -817,10 +877,12 @@ actor AimPage do
     become online: nil, messages: [], loading: false, reader: -1, current: want, convos: %{}, typing: %{},
       listed: false, buddies: [], unread: [], cats: "", cats_open: false, party_lines: [], party_members: [], party_unread: false,
       board_posts: [], board_note: ""
-    case signed_on do
-      true -> become outbox: aimp_append(outbox, aimp_signon_frames(name, want))
-      false -> :ok
+    # what was queued for the old socket is dropped: sign on again instead
+    again = case signed_on do
+      true -> aimp_signon_frames(name, want)
+      false -> []
     end
+    become outbox: again, out_first: out_first + length(outbox)
     reply :ok
   end
 
@@ -1010,9 +1072,41 @@ actor AimPage do
     reply :ok
   end
 
-  on :remembered_dial(skip: Bool) do
-    become dial_skip: skip
+  on :remembered_dial(v: String) do
+    become dial_skip: v == "1"
     reply :ok
+  end
+
+  # The page's query string, once, when it starts (data-location="1").
+  on :location(q: String) do
+    case aimp_query_msg(q) do
+      "" -> :ok
+      m -> become want: aimp_wanted(m), current: aimp_wanted(m)
+    end
+    reply :ok
+  end
+
+  # Blimp's socket has sent every frame up to n: those can go.
+  on :sent(n: Int) do
+    k = n - out_first + 1
+    case k > 0 do
+      true -> become outbox: aimp_drop(outbox, k), out_first: n + 1
+      false -> :ok
+    end
+    reply :ok
+  end
+
+  # The clock's minute: nothing to change, only to draw again.
+  on :clock_tick do
+    reply :ok
+  end
+
+  on :reader_prev do
+    reply (self <- :reader_step(-1))
+  end
+
+  on :reader_next do
+    reply (self <- :reader_step(1))
   end
 
   # aim.js, a second or so apart while the dial-up screen is up
@@ -1118,9 +1212,11 @@ actor AimPage do
     reply :ok
   end
 
+  # The frames waiting to go up, taken (a test reads them; on a page the
+  # socket takes them).
   on :outbox do
     out = outbox
-    become outbox: []
+    become outbox: [], out_first: out_first + length(outbox)
     reply out
   end
 
@@ -1139,7 +1235,7 @@ actor AimPage do
       want: want, dial: dial, dial_skip: dial_skip, party_lines: party_lines, party_members: party_members,
       party_open: party_open, party_unread: party_unread, party_sent: party_sent, board_posts: board_posts,
       board_note: board_note, board_open: board_open, board_sent: board_sent,
-      sound: sound, sounds: sounds, moved: moved, front: front}
+      sound: sound, sounds: sounds, moved: moved, front: front, outbox: outbox, out_first: out_first}
   end
 
   on :view do
