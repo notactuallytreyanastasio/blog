@@ -531,6 +531,8 @@ actor AimTests do
     assert(contains(page, "Dont forget to say hi to SmarterChild"))
     assert(contains(page, "https://bobbby.online/images/og-aim.png?v=1"))
     assert(contains(page, "summary_large_image"))
+    # its files are named by their contents, so a deploy is never half-cached
+    assert(contains(page, "/aim/aim.css?v=") and contains(page, "/aim/aim.js?v=") and contains(page, "data-program=\"/aim/aim.blimp?v="))
     assert(read_file("../priv/static/images/og-aim.png") != nil)
   end
 
