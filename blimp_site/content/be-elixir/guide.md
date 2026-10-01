@@ -112,3 +112,25 @@ is skipped. To run them:
 ```
 
 Passing so far: AlgosHelloWorld.
+
+## 5. Statements: locals, branches, loops, exits
+
+The translator compiles a list of statements with an *End*: what falling
+off the end of the list means. In a function it is `nil`; in a loop body it
+is "go round again"; in a branch it is "hand back the variables you
+assigned".
+
+| Temper | Elixir |
+|--------|--------|
+| `var x = 1; x = x + 1` | `x = 1` then `x = TemperCore.int32(x + 1)` |
+| `if (c) { x = 1 }` mid-function | `x = if c do x = 1; x else x end` |
+| `while (t) { ... }` | `loop = fn loop, vars -> if t do ...; loop.(loop, vars) else vars end end` |
+| `return v` in tail position | `v` |
+| `return v` an `if` can carry | the rest of the function moves into the `if`'s other branch |
+| `return v` anywhere else | `throw({:temper_return, tag, v})`, caught by the function |
+
+Operators are support code: `ElixirSupportCode.kt` maps each Temper
+builtin operator to an Elixir operator or a `temper-core` call, and each
+`@connected` method (`Int32.toString`, `Float64.sqrt`, ...) the same way.
+A builtin with no entry stays Temper's own implementation or, if Temper has
+none, fails the build by name.

@@ -12,3 +12,4 @@ guide that grows as the backend does.
 ## Entries
 
 1. [2026-09-30: what an object is on the BEAM, and the output grammar](2026-09-30-what-an-object-is.md)
+2. [2026-10-01: loops without loops](2026-10-01-loops-without-loops.md)
