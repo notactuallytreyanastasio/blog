@@ -41,3 +41,4 @@ guide that grows as the backend does.
 26. [2026-10-01: a real app](2026-10-01-a-real-app.md)
 27. [2026-10-01: the runtime's hot paths](2026-10-01-hot-paths.md)
 28. [2026-10-01: tests out of the library, and tests that test something](2026-10-01-tests-out-of-the-library.md)
+29. [2026-10-01: what production cannot reach](2026-10-01-what-production-cannot-reach.md)
