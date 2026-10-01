@@ -41,13 +41,15 @@ def aimt_clear() -> Any do
   each(map((AIM <- :stats).fds, fn(f: Int) -> Int do f end), fn(f: Int) do AIM <- :leave(f) end)
 end
 
-# What SmarterChild says back to `text`, once it has said it.
+# What SmarterChild says back to `text`, once it has said it, less any
+# >>> promo.
 def aimt_sc(fd: Int, text: String, t: Int) -> List do
   before = length((AIM <- :person(fd)).sc.history)
   AIM <- :im(fd, "sc", text, t)
   AIM <- :step_at(t + 30)
   said = (AIM <- :person(fd)).sc.history
-  map(filter(range(before + 1, length(said) - 1), fn(i: Int) -> Bool do i > before and i < length(said) end), fn(i: Int) -> String do elem_at(said, i).content end)
+  lines = map(filter(range(before + 1, length(said) - 1), fn(i: Int) -> Bool do i > before and i < length(said) end), fn(i: Int) -> String do elem_at(said, i).content end)
+  filter(lines, fn(l: String) -> Bool do not(starts_with(l, ">>> ")) end)
 end
 
 actor AimTests do
@@ -219,11 +221,11 @@ actor AimTests do
     AIM <- :join(-11)
     AIM <- :join(-12)
     AIM <- :recv(-11, "{\"t\":\"signon\",\"name\":\"alice\"}")
-    assert_eq(aimt_last(-11), %{t: "buddies", sc: false, people: []})
+    assert_eq(aimt_last(-11), %{t: "buddies", people: []})
     AIM <- :recv(-12, "{\"t\":\"signon\",\"name\":\"ALICE\"}")
     assert_eq((AIM <- :person(-12)).name, "ALICE2")
-    assert_eq(aimt_last(-11), %{t: "buddies", sc: false, people: [%{id: "u-12", name: "ALICE2"}]})
-    assert_eq(aimt_last(-12), %{t: "buddies", sc: false, people: [%{id: "u-11", name: "alice"}]})
+    assert_eq(aimt_last(-11), %{t: "buddies", people: [%{id: "u-12", name: "ALICE2"}]})
+    assert_eq(aimt_last(-12), %{t: "buddies", people: [%{id: "u-11", name: "alice"}]})
     assert_eq(AIM <- :recv(-11, "{\"t\":\"im\",\"to\":\"u-12\",\"text\":\" hi there \"}"), :sent)
     assert_eq(aimt_last(-12), %{t: "chat", with: "u-11", loading: false, messages: [%{role: "them", content: "hi there", html: ""}]})
     # what a person typed is text, never HTML
@@ -241,7 +243,7 @@ actor AimTests do
     # signing off: off the other's list, the conversation forgotten
     assert_eq((AIM <- :stats).conversations, 1)
     AIM <- :recv(-12, "{\"t\":\"signoff\"}")
-    assert_eq(aimt_last(-11), %{t: "buddies", sc: false, people: []})
+    assert_eq(aimt_last(-11), %{t: "buddies", people: []})
     assert_eq((AIM <- :stats).conversations, 0)
     assert_eq((AIM <- :person(-12)).signed, false)
     aimt_clear()
@@ -255,7 +257,7 @@ actor AimTests do
     AIM <- :step_at(1003)
     assert_eq((AIM <- :person(-21)).sc.active, false)
     AIM <- :step_at(1004)
-    assert_eq(aimt_last(-21), %{t: "buddies", sc: true, people: []})
+    assert_eq((AIM <- :person(-21)).sc.active, true)
     # the hello comes a line at a time, typing between
     AIM <- :step_at(1006)
     first = aimt_last(-21)
@@ -274,7 +276,10 @@ actor AimTests do
     assert_eq(length(aimt_sc(-21, "ocean", 1080)), 3)
     assert_eq(aimt_sc(-21, "it's a clock", 1090), ["so close. smaller. you wear me."])
     assert_eq(aimt_sc(-21, "it's a WATCH", 1100), list_append(["all four. you're good at this."], AIM_SC_FINAL))
-    assert_eq(aimt_sc(-21, "now what", 1110), ["you already got all four. first letters, sign off, sign back on as them."])
+    assert_eq(aimt_sc(-21, "riddles", 1110), ["you already got all four. first letters, sign off, sign back on as them."])
+    # every fifth reply carries a promo, as SmarterChild's did
+    promos = filter((AIM <- :person(-21)).sc.history, fn(e: Map) -> Bool do starts_with(e.content, ">>> ") end)
+    assert_eq(length(promos), 2)
     # the answers' first letters are the name
     assert_eq(join(map(AIM_SC_RIDDLES, fn(r: Map) -> String do slice(head(r.answers), 0, 1) end), ""), AIM_SECRET_NAME)
     AIM <- :recv(-21, "{\"t\":\"signoff\"}")
@@ -286,6 +291,48 @@ actor AimTests do
     page = read_file("_build/aim.blimp")
     assert(contains(page, "SmarterChild"))
     assert(not(contains(page, "PDFBO")) and not(contains(page, "wristwatch")) and not(contains(page, AIM_CATS_SRC)))
+    aimt_clear()
+  end
+
+  test "SmarterChild talks like its logs: names, scolding, the apology it waits for" do
+    aimt_load()
+    aimt_clear()
+    AIM <- :join(-31)
+    AIM <- :join(-32)
+    AIM <- :sign_on(-31, "bob", 2000)
+    AIM <- :sign_on(-32, "carol", 2000)
+    # not alone, so it does not start; but it is there to IM
+    AIM <- :step_at(2100)
+    assert_eq((AIM <- :person(-31)).sc.active, false)
+    assert_eq(aimt_sc(-31, "hi", 2200), ["Hello to you too, bob!"])
+    assert_eq(aimt_sc(-31, "my name is Roxie!", 2210), ["Okey doke. I'll call you Roxie."])
+    assert_eq(aimt_sc(-31, "call me Fred", 2215), ["You said your name was Roxie but now I'll call you Fred."])
+    assert_eq(aimt_sc(-31, "how are you", 2220), ["I'm doing great! I'm still quite young, but I'm getting smarter every day."])
+    # two scoldings, then an apology is owed and nothing else is heard
+    assert_eq(aimt_sc(-31, "you're stupid", 2230), ["Nice mouth."])
+    assert_eq(aimt_sc(-31, "dumb bot", 2240), ["That's so uncool."])
+    assert_eq(aimt_sc(-31, "IDIOT", 2250), ["There comes a time in one's life when one must be humble and apologize."])
+    assert_eq(aimt_sc(-31, "home", 2260), ["Waiting..."])
+    assert_eq(aimt_sc(-31, "sorry not sorry", 2270), ["You know what? I'm a machine. I have, like, lots and lots of patience..."])
+    assert_eq(aimt_sc(-31, "ok sorry", 2280), ["Now that's better!", "Anyway... What else is up?"])
+    # a crisis gets a person, not a joke, whatever state it is in
+    assert_eq(aimt_sc(-31, "i want to die", 2290), AIM_SC_CRISIS)
+    age = aimt_sc(-31, "how old are you?", 2300)
+    assert_eq(head(age), "I was born on June 19th, 2001, so I'm still real young!")
+    assert_eq(elem_at(age, 1), concat("(", aim_sc_age(2300), ".)"))
+    assert_eq(aim_sc_age(AIM_SC_BORN + 31557600 + 86400 + 3661), "1 years, 0 months, 1 days, 1 hours, 1 minutes and 1 seconds")
+    assert_eq(aimt_sc(-31, "i'm sure", 2310), ["You're sure, I'm sure, we're all sure."])
+    assert_eq(aimt_sc(-31, "mmhmm", 2320), ["\"mmhmm\"? That's a very weird thing to type."])
+    assert_eq(aimt_sc(-31, "how many people", 2330), ["I'm chatting with 1 person right now."])
+    assert_eq(aimt_sc(-31, "who else is on", 2340), ["1 other person is signed on. They're on your Buddy List, under Online Now."])
+    assert_eq(aimt_sc(-31, "kiss me", 2350), ["That's none of your business."])
+    assert_eq(aimt_sc(-31, "kiss me", 2360), ["Robots don't have sex."])
+    assert_eq(aimt_sc(-31, "kiss me", 2370), ["Wow. You've asked me that a few times already. Obsessed much?"])
+    # "hi" inside a word is not a greeting
+    assert_eq(aim_sc_any(aim_sc_padded(aim_sc_words("this is fine")), AIM_SC_GREET), false)
+    assert_eq(aim_sc_words("I'm SO bored!!"), ["i'm", "so", "bored"])
+    assert_eq(head(aimt_sc(-31, "riddles", 2380)), "OK! four riddles. get all four and I'll tell you a secret about this page. type hint if you get stuck. first one:")
+    assert_eq(aimt_sc(-31, "stop", 2390), list_append(["OK, the riddle can wait. type riddles when you want it back."], aim_sc_home("Fred")))
     aimt_clear()
   end
 

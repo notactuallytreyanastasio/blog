@@ -126,7 +126,7 @@ end
 def aimp_here(s: Map, id: String) -> Bool do
   case id do
     "bot" -> s.online == true
-    "sc" -> s.sc_on
+    "sc" -> true
     _ -> filter(s.buddies, fn(b: Map) -> Bool do aimp_str(lookup(b, :id)) == id end) != []
   end
 end
@@ -229,11 +229,8 @@ def aimp_buddy_list(s: Map) -> Any do
     false -> 0
     _ -> 1
   end
-  sc = case s.sc_on do
-    true -> [aimp_buddy_to(s, "sc")]
-    false -> []
-  end
-  online = concat(to_string(bots_on + length(sc)), "/2")
+  sc = [aimp_buddy_to(s, "sc")]
+  online = concat(to_string(bots_on + 1), "/2")
   people = map(s.buddies, fn(b: Map) -> Any do aimp_buddy_to(s, aimp_str(lookup(b, :id))) end)
   nobody = case people do
     [] -> [el("div", %{class: "aim-buddy offline"}, el("span", %{class: "aim-buddy-note"}, "nobody else is signed on"))]
@@ -243,11 +240,7 @@ def aimp_buddy_list(s: Map) -> Any do
     "" -> []
     _ -> [el("div", %{class: "aim-group"}, "▾ Cats (2/2)"), aimp_buddy("Bobby's cats", "online cats", :open_cats, "")]
   end
-  sc_off = case s.sc_on do
-    true -> []
-    false -> [aimp_buddy("SmarterChild", "offline", nil, "")]
-  end
-  offline = concat("▾ Offline (", to_string(1 + length(sc_off)), "/", to_string(1 + length(sc_off)), ")")
+  offline = "▾ Offline (1/1)"
   muted = case s.muted do
     true -> "Sounds: off"
     false -> "Sounds: on"
@@ -267,7 +260,7 @@ def aimp_buddy_list(s: Map) -> Any do
       cats,
       el("div", %{class: "aim-group"}, offline),
       el("a", %{class: "aim-buddy offline", href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, el("span", %{class: "aim-buddy-name"}, "bobbby (the real one)")),
-      sc_off),
+      []),
     el("div", %{class: "aim-buddies-foot"},
       el("button", %{class: "aim-btn", click: :open_im}, "IM"),
       el("button", %{class: "aim-btn", click: :open_info}, "Info"),
@@ -559,7 +552,6 @@ actor AimPage do
   # conversation keeps its name after they sign off
   state buddies: List :: []
   state names: Map :: %{}
-  state sc_on: Bool :: false
   # conversations with something unread
   state unread: List :: []
   # the cats' picture, once the server has handed it over
@@ -576,7 +568,7 @@ actor AimPage do
   # socket: start again, and sign on again if this page already had.
   on :connected do
     become online: nil, messages: [], loading: false, reader: -1, current: "bot", convos: %{}, typing: %{},
-      buddies: [], sc_on: false, unread: [], cats: "", cats_open: false
+      buddies: [], unread: [], cats: "", cats_open: false
     case signed_on do
       true -> become outbox: aimp_append(outbox, [json_encode(%{t: "signon", name: name})])
       false -> :ok
@@ -614,7 +606,7 @@ actor AimPage do
         reply :chat
       "buddies" ->
         bs = aimp_buddies(lookup(msg, :people))
-        become buddies: bs, sc_on: lookup(msg, :sc) == true,
+        become buddies: bs,
           names: reduce(bs, names, fn(acc: Map, b: Map) -> Map do put(acc, aimp_str(lookup(b, :id)), aimp_str(lookup(b, :name))) end)
         reply :buddies
       "secret" ->
@@ -640,7 +632,7 @@ actor AimPage do
 
   on :sign_off do
     become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: "bot",
-      convos: %{}, typing: %{}, buddies: [], sc_on: false, unread: [], cats: "", cats_open: false,
+      convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false,
       outbox: aimp_append(outbox, [json_encode(%{t: "signoff"})])
     reply :ok
   end
@@ -777,7 +769,7 @@ actor AimPage do
     reply %{signed_on: signed_on, name: name, online: online, posts: posts,
       messages: messages, loading: loading, im_open: im_open, info_open: info_open, reader: reader,
       size: size, paper: paper, warn: warn, muted: muted, sent: sent, current: current, convos: convos,
-      typing: typing, buddies: buddies, names: names, sc_on: sc_on, unread: unread, cats: cats, cats_open: cats_open}
+      typing: typing, buddies: buddies, names: names, unread: unread, cats: cats, cats_open: cats_open}
   end
 
   on :view do
