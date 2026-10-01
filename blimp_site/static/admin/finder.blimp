@@ -164,8 +164,8 @@ actor FinderAdmin do
     reply :ok
   end
 
-  on :login(fields: String) do
-    pw = adp_text(adp_get(adp_fields(fields), "password", ""))
+  on :login(fields: Map) do
+    pw = adp_text(adp_get(fields, "password", ""))
     become outbox: adp_concat(outbox, [adp_http(seq, "login", "POST", "/admin/login", %{password: pw})]), seq: seq + 1
     reply :ok
   end
@@ -185,8 +185,8 @@ actor FinderAdmin do
     reply :ok
   end
 
-  on :create_section(fields: String) do
-    f = adp_fields(fields)
+  on :create_section(fields: Map) do
+    f = fields
     body = %{name: adp_text(adp_get(f, "name", "")), label: adp_text(adp_get(f, "label", ""))}
     become outbox: adp_concat(outbox, [adp_http(seq, "create_section", "POST", ADP_SECTIONS, body)]), seq: seq + 1
     reply :ok
@@ -197,12 +197,12 @@ actor FinderAdmin do
     reply :ok
   end
 
-  on :update_section(fields: String) do
+  on :update_section(fields: Map) do
     case editing_section do
       nil -> reply :ok
       s ->
         url = concat(ADP_SECTIONS, "/", to_string(lookup(s, "id")))
-        become outbox: adp_concat(outbox, [adp_http(seq, "update_section", "PATCH", url, adp_fields(fields))]), seq: seq + 1
+        become outbox: adp_concat(outbox, [adp_http(seq, "update_section", "PATCH", url, fields)]), seq: seq + 1
         reply :ok
     end
   end
@@ -236,8 +236,8 @@ actor FinderAdmin do
     reply :ok
   end
 
-  on :create_item(fields: String) do
-    become outbox: adp_concat(outbox, [adp_http(seq, "create_item", "POST", ADP_ITEMS, adp_fields(fields))]), seq: seq + 1
+  on :create_item(fields: Map) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "create_item", "POST", ADP_ITEMS, fields)]), seq: seq + 1
     reply :ok
   end
 
@@ -246,12 +246,12 @@ actor FinderAdmin do
     reply :ok
   end
 
-  on :update_item(fields: String) do
+  on :update_item(fields: Map) do
     case editing_item do
       nil -> reply :ok
       i ->
         url = concat(ADP_ITEMS, "/", to_string(lookup(i, "id")))
-        become outbox: adp_concat(outbox, [adp_http(seq, "update_item", "PATCH", url, adp_fields(fields))]), seq: seq + 1
+        become outbox: adp_concat(outbox, [adp_http(seq, "update_item", "PATCH", url, fields)]), seq: seq + 1
         reply :ok
     end
   end

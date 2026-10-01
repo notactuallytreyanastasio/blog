@@ -1501,7 +1501,7 @@ AIM_PROGRAM_PATH = desk_script_href("/aim/aim.blimp", "_build/aim.blimp")
 # Blimp's own runtime (APP_SCRIPTS) is versioned here too: drag: is new in
 # blimp-view.js (blimp#83), and a browser holding last week's copy would
 # draw the title bars and never move them.
-AIM_SCRIPTS = map(APP_SCRIPTS, fn(u: String) -> String do desk_script_href(u, concat("static", u)) end)
+AIM_SCRIPTS = APP_SCRIPTS
 # and the interpreter: the program uses socket() and stored(), which a
 # blimp.wasm from before blimp#86/#87 does not have
 AIM_WASM_PATH = desk_script_href("/blimp/blimp.wasm", "static/blimp/blimp.wasm")

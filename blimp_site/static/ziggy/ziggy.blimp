@@ -133,10 +133,10 @@ end
 
 def zgp_form(s: Map) -> Any do
   el("div", %{class: "zg-form"},
-    el("form", %{class: "zg-form-inner", submit: :send},
+    el("form", %{class: "zg-form-inner", submit: :send, reset_on_submit: true},
       el("div", %{class: "zg-input-wrap"},
         el("div", %{class: "zg-ghost", id: "zg-ghost"}, el("span", %{class: "typed"}), el("span", %{class: "suggestion"})),
-        el("textarea", %{name: "message", id: concat("zg-chat-input-", to_string(s.sent)), class: "zg-input", rows: "1",
+        el("textarea", %{name: "message", class: "zg-input", rows: "1",
           placeholder: "Ask something — write a full thought, not a fragment.", disabled: s.loading})),
       el("button", %{type: "submit", class: "zg-send", disabled: s.loading}, "Ask")),
     el("div", %{class: "zg-input-hint"}, "Tab accepts a suggestion · Shift+Enter for a new line"))
@@ -240,16 +240,16 @@ actor ZiggyPage do
     end
   end
 
-  on :unlock(fields: String) do
-    pw = zgp_str(lookup(zgp_decode(fields), :password))
+  on :unlock(fields: Map) do
+    pw = zgp_str(lookup(fields, :password))
     become outbox: zgp_append(outbox, [json_encode(%{t: "unlock", password: pw})])
     reply :ok
   end
 
   # The form (the Ask button, or Enter in the textarea, which ziggy.js
   # turns into a submit). The server trims it and ignores an empty one.
-  on :send(fields: String) do
-    text = zgp_str(lookup(zgp_decode(fields), :message))
+  on :send(fields: Map) do
+    text = zgp_str(lookup(fields, :message))
     case trim(text) == "" or loading or not(unlocked) do
       true -> reply :ignored
       false ->
@@ -259,7 +259,7 @@ actor ZiggyPage do
   end
 
   on :ask_preset(q: String) do
-    reply (self <- :send(json_encode(%{message: q})))
+    reply (self <- :send(%{message: q}))
   end
 
   on :outbox do

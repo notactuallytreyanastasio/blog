@@ -97,7 +97,7 @@ actor PageTests do
     # every script is an external file, closed at once: nothing inline
     assert_eq(length(split(lower, "\"></script>")) - 1, 4)
     each(TETRIS_SCRIPTS, fn(src: String) do
-      assert(contains(html, concat("<script src=\"", src, "\"></script>")))
+      assert(contains(html, concat("<script src=\"", script_href(src))))
     end)
     refute(contains(lower, "javascript:"))
     refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
@@ -116,7 +116,7 @@ actor PageTests do
       assert_eq(length(split(lower, "<script")) - 1, n)
       assert_eq(length(split(lower, "\"></script>")) - 1, n)
       each(elem_at(pair, 1), fn(src: String) do
-        assert(contains(html, concat("<script src=\"", src, "\"></script>")))
+        assert(contains(html, concat("<script src=\"", script_href(src))))
       end)
       refute(contains(lower, "javascript:"))
       refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
@@ -129,7 +129,7 @@ actor PageTests do
   test "an app page names its program, runs only Blimp's scripts, and can class <html>" do
     html = app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game")
     refute(contains(html, "/blimp/runtime.js"))
-    assert(contains(html, "<script src=\"/blimp/page-canvas.js\"></script>"))
+    assert(contains(html, concat("<script src=\"", script_href("/blimp/page-canvas.js"), "\"></script>")))
     lower = downcase(html)
     assert_eq(length(split(lower, "<script")) - 1, length(APP_SCRIPTS))
     assert_eq(length(split(lower, "\"></script>")) - 1, length(APP_SCRIPTS))

@@ -220,19 +220,19 @@ actor ZiggyTests do
     zg <- :connected
     zg <- :frame("{\"t\":\"hello\",\"enabled\":true}")
     zg <- :view
-    zg <- :unlock("{\"password\":\"pw\"}")
+    zg <- :unlock(%{"password": "pw"})
     assert_eq(zg <- :outbox, ["{\"t\":\"unlock\",\"password\":\"pw\"}"])
-    assert_eq(zg <- :send("{\"message\":\"too soon\"}"), :ignored)
+    assert_eq(zg <- :send(%{"message": "too soon"}), :ignored)
     zg <- :frame("{\"t\":\"unlock\",\"ok\":true}")
-    assert_eq(zg <- :send("{\"message\":\"   \"}"), :ignored)
+    assert_eq(zg <- :send(%{"message": "   "}), :ignored)
     zg <- :ask_preset("Where does the draft actually end?")
     assert_eq(zg <- :outbox, ["{\"t\":\"ask\",\"text\":\"Where does the draft actually end?\"}"])
     zg <- :frame("{\"t\":\"chat\",\"loading\":true,\"messages\":[{\"role\":\"user\",\"content\":\"q\",\"html\":\"\"}]}")
-    assert_eq(zg <- :send("{\"message\":\"while waiting\"}"), :ignored)
+    assert_eq(zg <- :send(%{"message": "while waiting"}), :ignored)
     zg <- :frame("{\"t\":\"chat\",\"loading\":false,\"messages\":[{\"role\":\"user\",\"content\":\"q\",\"html\":\"\"},{\"role\":\"assistant\",\"content\":\"**a**\",\"html\":\"<p><strong>a</strong></p>\"}]}")
     zg <- :stats(123, 178, 15)
     zg <- :view
-    assert_eq(zg <- :send("{\"message\":\"next\"}"), :sent)
+    assert_eq(zg <- :send(%{"message": "next"}), :sent)
     zg <- :close_chat
     assert_eq((zg <- :where).chat, false)
   end

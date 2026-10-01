@@ -353,8 +353,8 @@ actor CollageMaker do
     reply :ok
   end
 
-  on :verify_captcha(fields: String) do
-    a = cp_str(cp_get(cp_json(fields), "answer", answer))
+  on :verify_captcha(fields: Map) do
+    a = cp_str(cp_get(fields, "answer", answer))
     ord = case order do
       nil -> range(0, length(files) - 1)
       _ -> order

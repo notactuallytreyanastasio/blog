@@ -373,7 +373,7 @@ actor AimTests do
     v = to_html(aim <- :view)
     assert(contains(v, "aim-signon"))
     assert(contains(v, "value=\"oldname\""))
-    aim <- :sign_on("{\"name\":\"  newname  \"}")
+    aim <- :sign_on(%{"name": "  newname  "})
     assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"newname\"}"])
     # the modem first; the door opens when the dial-up screen goes
     assert_eq((aim <- :state).sound, :dial)
@@ -387,8 +387,8 @@ actor AimTests do
     aim <- :open_info
     assert(contains(to_html(aim <- :view), "It can search 75,344 of Bobby"))
     aim <- :close_info
-    assert_eq(aim <- :send("{\"message\":\"  \"}"), :ignored)
-    assert_eq(aim <- :send("{\"message\":\"hi\"}"), :sent)
+    assert_eq(aim <- :send(%{"message": "  "}), :ignored)
+    assert_eq(aim <- :send(%{"message": "hi"}), :sent)
     assert_eq(aim <- :outbox, ["{\"t\":\"ask\",\"text\":\"hi\"}"])
     long = "# A heading\n\nand a long answer"
     aim <- :frame(json_encode(%{t: "chat", loading: false, messages: [
@@ -412,7 +412,7 @@ actor AimTests do
     assert_eq(lookup(aim <- :where, :reader), false)
     # muted: nothing is played
     aim <- :toggle_sound
-    aim <- :send("{\"message\":\"quiet\"}")
+    aim <- :send(%{"message": "quiet"})
     assert(not(contains(to_html(aim <- :view), "<audio")))
     assert_eq(aimp_commas(1234567), "1,234,567")
     assert_eq(aimp_commas(12), "12")
@@ -421,7 +421,7 @@ actor AimTests do
   test "the page's program: buddies, SmarterChild, people, signing off, the cats" do
     aim <- :connected
     aim <- :toggle_sound
-    aim <- :sign_on("{\"name\":\"solo\"}")
+    aim <- :sign_on(%{"name": "solo"})
     aim <- :dial_done
     aim <- :outbox
     aim <- :frame("{\"t\":\"hello\",\"online\":true,\"posts\":9,\"bot\":\"bobbbyBot\"}")
@@ -437,9 +437,9 @@ actor AimTests do
     assert(contains(v2, "hey &lt;b&gt;you&lt;/b&gt;"))
     assert(contains(v2, "SmarterChild is typing..."))
     # typing: nothing goes up until it has finished
-    assert_eq(aim <- :send("{\"message\":\"map\"}"), :ignored)
+    assert_eq(aim <- :send(%{"message": "map"}), :ignored)
     aim <- :frame("{\"t\":\"chat\",\"with\":\"sc\",\"loading\":false,\"messages\":[{\"role\":\"them\",\"content\":\"riddle\",\"html\":\"\"}]}")
-    assert_eq(aim <- :send("{\"message\":\"map\"}"), :sent)
+    assert_eq(aim <- :send(%{"message": "map"}), :sent)
     assert_eq(aim <- :outbox, ["{\"t\":\"im\",\"to\":\"sc\",\"text\":\"map\"}"])
     # someone signs on and says something: the window is busy, so it waits, bold
     aim <- :frame("{\"t\":\"buddies\",\"sc\":true,\"people\":[{\"id\":\"u7\",\"name\":\"alice\"}]}")
@@ -451,22 +451,22 @@ actor AimTests do
     v4 = to_html(aim <- :view)
     assert(contains(v4, "alice - Instant Message") and contains(v4, "hi solo") and contains(v4, "alice is online."))
     assert(not(contains(v4, "(new message)")))
-    assert_eq(aim <- :send("{\"message\":\"hey alice\"}"), :sent)
+    assert_eq(aim <- :send(%{"message": "hey alice"}), :sent)
     assert_eq(aim <- :outbox, ["{\"t\":\"im\",\"to\":\"u7\",\"text\":\"hey alice\"}"])
     # alice signs off: the conversation stays, under her name, and can't be sent to
     aim <- :frame("{\"t\":\"buddies\",\"sc\":true,\"people\":[]}")
     assert(contains(to_html(aim <- :view), "alice signed off."))
-    assert_eq(aim <- :send("{\"message\":\"hello?\"}"), :ignored)
+    assert_eq(aim <- :send(%{"message": "hello?"}), :ignored)
     # bobbbyBot is still a tab away
     aim <- :open_im
     assert(contains(to_html(aim <- :view), "bobbbyBot - Instant Message"))
-    assert_eq(aim <- :send("{\"message\":\"grilled cheese\"}"), :sent)
+    assert_eq(aim <- :send(%{"message": "grilled cheese"}), :sent)
     assert_eq(aim <- :outbox, ["{\"t\":\"ask\",\"text\":\"grilled cheese\"}"])
     # signing off forgets everything; signing on as the name opens the cats
     aim <- :sign_off
     assert_eq(aim <- :outbox, ["{\"t\":\"signoff\"}"])
     assert(contains(to_html(aim <- :view), "aim-signon"))
-    aim <- :sign_on("{\"name\":\"meow\"}")
+    aim <- :sign_on(%{"name": "meow"})
     aim <- :dial_done
     aim <- :frame("{\"t\":\"secret\",\"src\":\"/aim/cats.jpg\"}")
     v5 = to_html(aim <- :view)
@@ -485,7 +485,7 @@ actor AimTests do
     aim <- :outbox
     aim <- :remembered_dial("")
     aim <- :want("SmarterChild")
-    aim <- :sign_on("{\"name\":\"dialer\"}")
+    aim <- :sign_on(%{"name": "dialer"})
     # signing on, and SmarterChild asked to say hello
     assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"dialer\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])
     # the dial-up screen runs on a timer the program renders
@@ -509,7 +509,7 @@ actor AimTests do
     assert(contains(to_html(aim <- :view), "SmarterChild - Instant Message"))
     # skipped next time, straight to the Buddy List and SmarterChild
     aim <- :sign_off
-    aim <- :sign_on("{\"name\":\"dialer\"}")
+    aim <- :sign_on(%{"name": "dialer"})
     v3 = to_html(aim <- :view)
     assert(contains(v3, "dialer's Buddy List") or contains(v3, "dialer&#39;s Buddy List"))
     assert(contains(v3, "SmarterChild - Instant Message"))
@@ -519,7 +519,7 @@ actor AimTests do
     assert_eq(aimp_wanted("nobody"), "bot")
     aim <- :want("bobbbybot")
     aim <- :sign_off
-    aim <- :sign_on("{\"name\":\"dialer\"}")
+    aim <- :sign_on(%{"name": "dialer"})
     assert(contains(to_html(aim <- :view), "bobbbyBot - Instant Message"))
     # the second sign-on still wanted SmarterChild; the third, bobbbyBot
     assert_eq(aim <- :outbox, ["{\"t\":\"signoff\"}", "{\"t\":\"signon\",\"name\":\"dialer\"}", "{\"t\":\"open\",\"with\":\"sc\"}", "{\"t\":\"signoff\"}", "{\"t\":\"signon\",\"name\":\"dialer\"}"])
@@ -605,7 +605,7 @@ actor AimTests do
 
   test "the page's program: the Party Line and the Bulletin Board" do
     aim <- :connected
-    aim <- :sign_on("{\"name\":\"gina\"}")
+    aim <- :sign_on(%{"name": "gina"})
     aim <- :dial_done
     aim <- :outbox
     aim <- :frame("{\"t\":\"board\",\"note\":\"\",\"posts\":[{\"id\":2,\"name\":\"hal\",\"text\":\"<b>hi</b> all\",\"at\":1,\"when\":\"2026-10-01\"}]}")
@@ -618,12 +618,12 @@ actor AimTests do
     v2 = to_html(aim <- :view)
     assert(contains(v2, "Party Line - Chat Room") and contains(v2, "gina has entered the room.") and contains(v2, "2 in room"))
     assert_eq((aim <- :state).party_unread, false)
-    assert_eq(aim <- :party_send("{\"message\":\"hey hal\"}"), :sent)
-    assert_eq(aim <- :party_send("{\"message\":\"  \"}"), :ignored)
+    assert_eq(aim <- :party_send(%{"message": "hey hal"}), :sent)
+    assert_eq(aim <- :party_send(%{"message": "  "}), :ignored)
     aim <- :open_board
     v3 = to_html(aim <- :view)
     assert(contains(v3, "bobbby.online Bulletin Board") and contains(v3, "&lt;b&gt;hi&lt;/b&gt; all") and contains(v3, "2026-10-01"))
-    assert_eq(aim <- :board_send("{\"note\":\"a note\"}"), :sent)
+    assert_eq(aim <- :board_send(%{"note": "a note"}), :sent)
     assert_eq(aim <- :outbox, ["{\"t\":\"party\",\"text\":\"hey hal\"}", "{\"t\":\"post\",\"text\":\"a note\"}"])
     # a refused post says why
     aim <- :frame("{\"t\":\"board\",\"note\":\"One note every 20 seconds, please.\",\"posts\":[]}")
@@ -634,7 +634,7 @@ actor AimTests do
 
   test "the page's program: doors open for someone signing on and shut for someone leaving" do
     aim <- :connected
-    aim <- :sign_on("{\"name\":\"ivy\"}")
+    aim <- :sign_on(%{"name": "ivy"})
     aim <- :dial_done
     # a sound is the last one asked for, and a count: each count is a new
     # <audio> element, which plays once
@@ -669,7 +669,7 @@ actor AimTests do
 
   test "the page's program: windows move by their title bars, and the moved one is in front" do
     aim <- :connected
-    aim <- :sign_on("{\"name\":\"lee\"}")
+    aim <- :sign_on(%{"name": "lee"})
     aim <- :dial_done
     v = to_html(aim <- :view)
     # each title bar drags its own window
@@ -696,7 +696,7 @@ actor AimTests do
     assert_eq((aim <- :state).want, "sc")
     aim <- :location("")
     assert_eq((aim <- :state).want, "sc")
-    aim <- :sign_on("{\"name\":\"nia\"}")
+    aim <- :sign_on(%{"name": "nia"})
     st = aim <- :state
     first = st.out_first
     assert_eq(st.outbox, ["{\"t\":\"signon\",\"name\":\"nia\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])
@@ -710,7 +710,7 @@ actor AimTests do
     aim <- :sent(first)
     assert_eq(length((aim <- :state).outbox), 1)
     # a new connection: what was waiting is dropped, and it signs on again
-    aim <- :send("{\"message\":\"lost\"}")
+    aim <- :send(%{"message": "lost"})
     aim <- :connected
     st3 = aim <- :state
     assert_eq(st3.outbox, ["{\"t\":\"signon\",\"name\":\"nia\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])

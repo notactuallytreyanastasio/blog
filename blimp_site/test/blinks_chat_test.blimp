@@ -384,7 +384,7 @@ actor BlinksChatTests do
     assert_eq(contains(v0, "Sign On to chat"), true)
     p <- :frame("{\"t\":\"me\",\"chatter\":null,\"returning\":\"bob\"}")
     assert_eq(contains(bct_html(p <- :view), "Welcome back — confirm your name"), true)
-    p <- :sign_on("{\"screen_name\":\" bob \"}")
+    p <- :sign_on(%{"screen_name": " bob "})
     assert_eq(bk_contains(blt_ops_of(p), "ws {\"t\":\"sign_on\",\"name\":\"bob\"}"), true)
     p <- :frame("{\"t\":\"me\",\"chatter\":{\"id\":1,\"name\":\"bob\",\"color\":\"hsl(1, 70%, 40%)\"},\"returning\":\"bob\"}")
     p <- :frame(json_encode(%{t: "chat", room: "blink:167", votes: put(%{}, "11", [2, 1]), mine: put(%{}, "11", 1), messages: [
@@ -412,7 +412,7 @@ actor BlinksChatTests do
     p <- :reply(11)
     assert_eq(contains(bct_html(p <- :view), "↪ replying to <b>amy</b> “hi @bob”"), true)
     p <- :chat_typing("thanks")
-    p <- :send_chat("{\"message\":\"thanks\"}")
+    p <- :send_chat(%{"message": "thanks"})
     assert_eq(bk_contains(blt_ops_of(p), "ws {\"t\":\"say\",\"text\":\"thanks\",\"reply_to\":11}"), true)
     v3 = bct_html(p <- :view)
     assert_eq(contains(v3, "replying to"), false)

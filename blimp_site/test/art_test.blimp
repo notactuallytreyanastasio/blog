@@ -62,7 +62,7 @@ actor ArtTests do
     a <- :set_generator("subdivision")
     after = to_html(a <- :view)
     assert(contains(after, " · subdivision"))
-    a <- :set_seed("{\"seed\":\"123\"}")
+    a <- :set_seed(%{"seed": "123"})
     assert(contains(to_html(a <- :view), "seed: 123 · subdivision"))
   end
 

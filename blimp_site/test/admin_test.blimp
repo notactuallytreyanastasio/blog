@@ -104,7 +104,7 @@ actor AdminTests do
     assert(contains(to_html(m <- :view), "Loading"))
     m <- :loaded(401, "{\"error\":\"Log in first\"}")
     assert(contains(to_html(m <- :view), "type=\"password\""))
-    m <- :login("{\"password\":\"hunter2\"}")
+    m <- :login(%{"password": "hunter2"})
     html = to_html(m <- :view)
     assert(contains(html, "/admin/login"))
     assert(contains(html, "hunter2"))
@@ -141,7 +141,7 @@ actor AdminTests do
     assert(contains(modal, "n:o/r"))
     # a refused create keeps the form open, with the LiveView's flash
     m <- :toggle_add
-    m <- :create("{\"slug\":\"one\",\"title\":\"Dup\"}")
+    m <- :create(%{"slug": "one", "title": "Dup"})
     m <- :done(4, 422, concat("{\"error\":\"Failed to create project\",", drop(ADT_ROWS, 1)))
     shown = to_html(m <- :view)
     assert(contains(shown, "Failed to create project"))

@@ -44,11 +44,25 @@
 // window, so whatever was grabbed can always be grabbed again. A press on
 // a button, link or field inside it is that control's, not a drag.
 //
+// key: on the children of an element matches them by key instead of by
+// position (when every child has one): a row added at the top is one new
+// element, and the rows below it keep theirs.
+//
+// A form's submit: sends its fields as a map, %{"name": "amy", "agree": true}
+// (checkboxes true/false, a radio group its checked value), and
+// reset_on_submit: true empties the form once it has sent them.
+//
 // Three more say how an element behaves, and send nothing themselves:
 //   submit_on_enter: true  a field whose Enter submits its form (so the
 //                          form's submit: runs); Shift+Enter is a new line
 //   scroll: :end           kept scrolled to the bottom as it grows, unless
 //                          the reader has scrolled up to read
+//   el("dialog", %{modal: true, dismiss: :msg}, ...)
+//                          a dialog the browser runs: modal is showModal()
+//                          (a backdrop, the focus kept inside, the page
+//                          behind it inert), otherwise show(). dismiss is
+//                          sent on Escape and on a click on the backdrop.
+//                          Open while it is in the view; gone, it is closed.
 //   focus: true            has the focus whenever nothing else does and it
 //                          is not disabled: when it appears, after the
 //                          button that opened it has gone, after it was
@@ -76,7 +90,7 @@
   var SVGNS = 'http://www.w3.org/2000/svg';
   var SVG_TAGS = { svg: 1, g: 1, path: 1, circle: 1, rect: 1, line: 1, polyline: 1, polygon: 1, text: 1, tspan: 1,
     defs: 1, linearGradient: 1, radialGradient: 1, stop: 1, ellipse: 1, title: 0 };
-  var EL_EVENTS = { click: 1, 'with': 1, input: 1, change: 1, submit: 1, swipe: 1, drag: 1, submit_on_enter: 1, scroll: 1, focus: 1, select: 1, selection: 1,
+  var EL_EVENTS = { click: 1, 'with': 1, input: 1, change: 1, submit: 1, swipe: 1, drag: 1, key: 1, submit_on_enter: 1, reset_on_submit: 1, scroll: 1, focus: 1, modal: 1, dismiss: 1, select: 1, selection: 1,
     debounce: 1, shortcut: 1, shortcut_keys: 1, paste_image: 1, inner_html: 1 };
 
   // Blimp strings count bytes (UTF-8); a field's selection counts UTF-16
@@ -128,6 +142,23 @@
     return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/#\{/g, '\\#{') + '"';
   }
 
+  // A form's fields as a Blimp map, %{"name": "amy", "agree": true}: a
+  // checkbox is true or false, a radio group is the checked one's value (or
+  // absent), anything else its text. Field names may be anything ("x-y"),
+  // so the keys are quoted; lookup(f, :name) and f.name both read them.
+  function fieldsMap(form) {
+    var parts = [], seen = {};
+    Array.prototype.forEach.call(form.elements || [], function (f) {
+      if (!f.name || f.disabled) return;
+      if (f.type === 'radio' && !f.checked) return;
+      if (f.type === 'submit' || f.type === 'button' || f.type === 'reset') return;
+      var v = f.type === 'checkbox' ? (f.checked ? 'true' : 'false') : literal(f.value == null ? '' : f.value);
+      if (seen[f.name] !== undefined) parts[seen[f.name]] = literal(f.name) + ': ' + v;
+      else { seen[f.name] = parts.length; parts.push(literal(f.name) + ': ' + v); }
+    });
+    return '%{' + parts.join(', ') + '}';
+  }
+
   // Set el's attributes to `attrs`, touching only what differs from `old`.
   function setAttrs(el, attrs, old) {
     Object.keys(attrs).forEach(function (k) {
@@ -170,6 +201,7 @@
     this._sending = false;
     this._scrollers = [];  // scroll: :end elements, kept at their end
     this._focusing = [];   // focus: true elements, which take the focus when it is free
+    this._dialogs = [];    // <dialog>s, opened once they are in the page
     var self = this;
     this._onKeydown = function (e) { self._handleKey(e); };
     this._onKeyup = function (e) { self._handleKeyUp(e); };
@@ -284,6 +316,13 @@
   // take the focus if nobody has it.
   BlimpView.prototype._settle = function () {
     var on = function (el) { return el.isConnected !== false; };
+    // a dialog opens once it is in the page (showModal needs that)
+    this._dialogs = this._dialogs.filter(on);
+    this._dialogs.forEach(function (el) {
+      if (el.open) return;
+      if (el._blimpOn && el._blimpOn.modal && el.showModal) el.showModal();
+      else if (el.show) el.show();
+    });
     this._scrollers = this._scrollers.filter(on);
     this._scrollers.forEach(function (el) {
       if (el._blimpOn && el._blimpOn.scroll === 'end' && el._blimpAtEnd !== false) el.scrollTop = el.scrollHeight;
@@ -534,20 +573,68 @@
       self._scrollers.push(el);
     }
     if (el._blimpOn.focus) self._focusing.push(el);
+    if ((el.tagName || el.tag || '').toLowerCase() === 'dialog') {
+      self._dialogs.push(el);
+      // Escape is the dialog's cancel: the program decides, so the browser
+      // does not close it behind the program's back
+      el.addEventListener('cancel', function (e) {
+        e.preventDefault();
+        if (el._blimpOn.dismiss) self.send(el._blimpOn.dismiss);
+      });
+      // a click on the backdrop lands on the dialog itself, outside its box;
+      // a click on its padding lands on it too, but inside
+      el.addEventListener('click', function (e) {
+        if (!el._blimpOn.dismiss || e.target !== el || !el.getBoundingClientRect) return;
+        var r = el.getBoundingClientRect();
+        var inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (!inside) self.send(el._blimpOn.dismiss);
+      });
+    }
     if (el._blimpOn.submit) el.addEventListener('submit', function (e) {
       e.preventDefault();
-      var fields = {};
-      Array.prototype.forEach.call(el.elements || [], function (f) {
-        if (!f.name) return;
-        fields[f.name] = f.type === 'checkbox' ? f.checked : f.value;
-      });
-      if (el._blimpOn.submit) self.send(el._blimpOn.submit, literal(JSON.stringify(fields)));
+      if (!el._blimpOn.submit) return;
+      self.send(el._blimpOn.submit, fieldsMap(el));
+      if (el._blimpOn.reset_on_submit && el.reset) el.reset();
     });
   };
 
   // -- patching ---------------------------------------------------------------
 
   // A new element for `b` in the place of `el`, in el's namespace.
+  // Children that all say key: are matched by key, not by position.
+  function childKey(n) { return n && n.tag === 'el' && n.attrs && n.attrs.key !== undefined ? String(attrVal(n.attrs.key)) : null; }
+  function keyedChildren(list) {
+    if (!list.length) return false;
+    var seen = {};
+    for (var i = 0; i < list.length; i++) {
+      var k = childKey(list[i]);
+      if (k === null) return false;
+      if (seen[k]) throw new Error('el: two children have key: ' + k);
+      seen[k] = true;
+    }
+    return true;
+  }
+
+  // A child whose key was there before keeps its element, patched; a new
+  // key is a new element; a key that went is removed. Kept elements are
+  // moved only if their order changed: a new row at the top is one insert,
+  // and the rows below it are not touched (an <iframe> that is moved
+  // reloads, and a video in it stops).
+  BlimpView.prototype._patchKeyed = function (el, ac, bc) {
+    var nodes = el.childNodes, old = {};
+    for (var i = 0; i < ac.length; i++) old[childKey(ac[i])] = { node: nodes[i], v: ac[i] };
+    var want = [], kept = {};
+    for (var j = 0; j < bc.length; j++) {
+      var k = childKey(bc[j]), o = old[k];
+      if (o) { kept[k] = true; want.push(this._patch(o.node, o.v, bc[j])); }
+      else want.push(this.renderView(bc[j]));
+    }
+    for (var key in old) if (!kept[key]) el.removeChild(old[key].node);
+    for (var w = 0; w < want.length; w++) {
+      if (nodes[w] !== want[w]) el.insertBefore(want[w], nodes[w] || null);
+    }
+  };
+
   BlimpView.prototype._rebuild = function (el, b) {
     var outer = this._inSvg;
     this._inSvg = el.namespaceURI === SVGNS;
@@ -579,7 +666,7 @@
         var want = {};
         Object.keys(EL_EVENTS).forEach(function (k) { if (b.attrs[k] !== undefined) want[k] = attrVal(b.attrs[k]); });
         // a kind of event it had no listener for needs a new element
-        var passive = { 'with': 1, selection: 1, debounce: 1, shortcut_keys: 1, inner_html: 1, focus: 1 };
+        var passive = { 'with': 1, selection: 1, debounce: 1, shortcut_keys: 1, inner_html: 1, focus: 1, modal: 1, reset_on_submit: 1, key: 1 };
         if (Object.keys(want).some(function (k) { return !passive[k] && !had[k]; })) return this.renderView(b);
         el._blimpOn = want;
         applyInstructions(el, b.attrs, a.attrs);
@@ -594,6 +681,7 @@
       var outerNs = this._inSvg;
       this._inSvg = el.namespaceURI === SVGNS;
       try {
+        if (keyedChildren(ac) && keyedChildren(bc)) { this._patchKeyed(el, ac, bc); return el; }
         var both = Math.min(ac.length, bc.length);
         for (var j = 0; j < both; j++) {
           var c = nodes[j];

@@ -664,8 +664,8 @@ actor Paper do
 
   # -- reading ---------------------------------------------------------------
 
-  on :search(fields: String) do
-    got = elem(json_decode(fields), 1)
+  on :search(fields: Map) do
+    got = fields
     become q: bk_str(lookup(got, "q")), similar: 0, page: 1, fresh: []
     reply :ok
   end
@@ -816,8 +816,8 @@ actor Paper do
   end
 
   # sign-on: a name, trimmed; nothing for a blank one
-  on :sign_on(json: String) do
-    name = bkx_trim_end(paper_trim_start(bk_str(bkv_get(bkv_json(json), "screen_name", ""))))
+  on :sign_on(json: Map) do
+    name = bkx_trim_end(paper_trim_start(bk_str(bkv_get(json, "screen_name", ""))))
     case name do
       "" -> reply :ok
       _ ->
@@ -833,8 +833,8 @@ actor Paper do
 
   # send-chat-message: said only when signed on and not blank; the box
   # empties either way
-  on :send_chat(json: String) do
-    text = bk_str(bkv_get(bkv_json(json), "message", ""))
+  on :send_chat(json: Map) do
+    text = bk_str(bkv_get(json, "message", ""))
     ob = case me != nil and chat > 0 and bkx_trim_end(paper_trim_start(text)) != "" do
       true -> [bkv_entry(seq + 1, "ws", bkv_op(seq + 1, "ws", json_encode(%{t: "say", text: text, reply_to: replying}), "", "")) | outbox]
       false -> outbox
@@ -919,8 +919,8 @@ actor Paper do
 
   # -- admin ------------------------------------------------------------------
 
-  on :unlock_admin(fields: String) do
-    key = bk_str(lookup(elem(json_decode(fields), 1), "key"))
+  on :unlock_admin(fields: Map) do
+    key = bk_str(lookup(fields, "key"))
     become outbox: [bkv_entry_arg(seq + 1, "unlock", merge(bkv_op(seq + 1, "http", "GET", "/blinks/admin", ""), %{"data-key": key}), key) | outbox], seq: seq + 1
     reply :ok
   end
@@ -938,8 +938,8 @@ actor Paper do
     reply :ok
   end
 
-  on :save_edit(fields: String) do
-    got = elem(json_decode(fields), 1)
+  on :save_edit(fields: Map) do
+    got = fields
     id = blk_id(bk_str(lookup(got, "id")))
     body = json_encode(%{title: bk_str(lookup(got, "title")), description: bk_str(lookup(got, "description"))})
     case admin and id > 0 do
@@ -957,8 +957,8 @@ actor Paper do
     reply :ok
   end
 
-  on :add_tags(fields: String) do
-    got = elem(json_decode(fields), 1)
+  on :add_tags(fields: Map) do
+    got = fields
     id = blk_id(bk_str(lookup(got, "id")))
     body = json_encode(%{tags: split(bk_str(lookup(got, "tags")), ",")})
     case admin and id > 0 do
@@ -1004,8 +1004,8 @@ actor Paper do
     reply :ok
   end
 
-  on :save_dork(fields: String) do
-    got = elem(json_decode(fields), 1)
+  on :save_dork(fields: Map) do
+    got = fields
     body = json_encode(%{dork_tags: bk_str(lookup(got, "dork_tags"))})
     become outbox: [bkv_entry(seq + 1, "dork", merge(bkv_op(seq + 1, "http", "POST", "/blinks/dork", body), %{"data-csrf": csrf})) | outbox], seq: seq + 1
     reply :ok

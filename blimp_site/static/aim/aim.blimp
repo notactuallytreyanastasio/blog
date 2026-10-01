@@ -219,15 +219,12 @@ end
 # property, which adds to the transform some windows centre themselves
 # with instead of replacing it. Phones stack the windows and ignore it.
 def aimp_win(s: Map, kind: String, extra: Map) -> Map do
-  off = case lookup(s.moved, kind) do
-    nil -> ""
-    m -> concat("translate: ", to_string(m.x), "px ", to_string(m.y), "px;")
+  m = lookup(s.moved, kind)
+  off = case m do
+    nil -> nil
+    _ -> concat(to_string(m.x), "px ", to_string(m.y), "px")
   end
-  front = case s.front == kind do
-    true -> " z-index: 4;"
-    false -> ""
-  end
-  put(put(extra, :class, concat("aim-win ", kind)), :style, concat(off, front))
+  put(put(extra, :class, ["aim-win", kind]), :style, %{translate: off, "z-index": show(s.front == kind, 4)})
 end
 
 # ── the Buddy List ─────────────────────────────────────────────────────
@@ -243,15 +240,11 @@ end
 # A buddy whose conversation a click opens; bold until it is read.
 def aimp_buddy_to(s: Map, id: String) -> Any do
   unread = filter(s.unread, fn(u: String) -> Bool do u == id end) != []
-  cls = case unread do
-    true -> "aim-buddy online unread"
-    false -> "aim-buddy online"
-  end
   note = case unread do
     true -> "(new message)"
     false -> ""
   end
-  el("div", %{class: cls, click: :open_chat, with: id}, el("span", %{class: "aim-buddy-name"}, aimp_name(s, id)), el("span", %{class: "aim-buddy-note"}, note))
+  el("div", %{class: %{"aim-buddy": true, online: true, unread: unread}, click: :open_chat, with: id}, el("span", %{class: "aim-buddy-name"}, aimp_name(s, id)), el("span", %{class: "aim-buddy-note"}, note))
 end
 
 def aimp_buddy_list(s: Map) -> Any do
@@ -267,14 +260,8 @@ def aimp_buddy_list(s: Map) -> Any do
   sc = [aimp_buddy_to(s, "sc")]
   online = concat(to_string(bots_on + 1), "/2")
   people = map(s.buddies, fn(b: Map) -> Any do aimp_buddy_to(s, aimp_str(lookup(b, :id))) end)
-  nobody = case people do
-    [] -> [el("div", %{class: "aim-buddy offline"}, el("span", %{class: "aim-buddy-note"}, "nobody else is signed on"))]
-    _ -> []
-  end
-  cats = case s.cats do
-    "" -> []
-    _ -> [el("div", %{class: "aim-group"}, "▾ Cats (2/2)"), aimp_buddy("Bobby's cats", "online cats", :open_cats, "")]
-  end
+  nobody = show(people == [], el("div", %{class: "aim-buddy offline"}, el("span", %{class: "aim-buddy-note"}, "nobody else is signed on")))
+  cats = show(s.cats != "", [el("div", %{class: "aim-group"}, "▾ Cats (2/2)"), aimp_buddy("Bobby's cats", "online cats", :open_cats, "")])
   party_cls = case s.party_unread do
     true -> "online unread"
     false -> "online"
@@ -431,8 +418,8 @@ def aimp_im(s: Map) -> Any do
       el("span", %{class: "aim-tool small-a"}, "A"), el("span", %{class: "aim-tool"}, "A"), el("span", %{class: "aim-tool big-a"}, "A"),
       el("span", %{class: "aim-tool b"}, "B"), el("span", %{class: "aim-tool i"}, "I"), el("span", %{class: "aim-tool u"}, "U"),
       el("span", %{class: "aim-tool"}, "link"), el("span", %{class: "aim-small aim-md-hint"}, hint)),
-    el("form", %{class: "aim-compose", submit: :send},
-      el("textarea", %{name: "message", id: concat("aim-input-", to_string(s.sent)), class: "aim-input", rows: "3", maxlength: "2000",
+    el("form", %{class: "aim-compose", submit: :send, reset_on_submit: true},
+      el("textarea", %{name: "message", class: "aim-input", rows: "3", maxlength: "2000",
         submit_on_enter: true, focus: true,
         placeholder: concat("Message ", who, "..."), disabled: dis}),
       el("div", %{class: "aim-im-buttons"},
@@ -529,20 +516,16 @@ def aimp_reader(s: Map) -> Any do
   answers = aimp_answers(s.messages)
   n = length(filter(answers, fn(j: Int) -> Bool do j <= s.reader end))
   q = aimp_nth(s.messages, s.reader - 1)
-  asked = case q == nil do
-    true -> []
-    false -> [el("p", %{class: "aim-reader-q"}, el("span", %{}, concat(s.name, " asked")), aimp_str(lookup(q, :content)))]
-  end
+  asked = show(q != nil, el("p", %{class: "aim-reader-q"}, el("span", %{}, concat(s.name, " asked")), aimp_str(lookup(q, :content))))
   theme_label = case s.paper do
     true -> "Night"
     false -> "Paper"
   end
-  page_cls = case s.paper do
-    true -> concat("aim-reader-page size-", to_string(s.size), " paper")
-    false -> concat("aim-reader-page size-", to_string(s.size), " night")
-  end
-  el("div", %{class: "aim-reader-scrim"},
-    el("div", %{class: "aim-win aim-reader", role: "dialog", "aria-label": "Reader"},
+  page_cls = ["aim-reader-page", concat("size-", to_string(s.size)), show(s.paper, "paper"), show(not(s.paper), "night")]
+  # the browser's own dialog: a backdrop, the page behind it inert, Escape
+  # and a click outside close it
+  el("dialog", %{class: "aim-reader-dialog", modal: true, dismiss: :close_reader, "aria-label": "Reader"},
+    el("div", %{class: "aim-win aim-reader"},
       aimp_titlebar("", concat("Reader - ", aim_bot_name), :close_reader),
       el("div", %{class: "aim-reader-tools"},
         el("button", %{class: "aim-btn", click: :reader_step, with: -1, disabled: aimp_step(answers, s.reader, -1) == s.reader}, "◂ Previous"),
@@ -590,8 +573,8 @@ def aimp_party(s: Map) -> Any do
       el("div", %{class: "aim-party-people"},
         el("div", %{class: "aim-small"}, concat(to_string(n), " in room")),
         el("ul", %{}, map(s.party_members, fn(m: Any) -> Any do el("li", %{}, aimp_str(m)) end)))),
-    el("form", %{class: "aim-compose", submit: :party_send},
-      el("textarea", %{name: "message", id: concat("aim-party-input-", to_string(s.party_sent)), class: "aim-input aim-party-input", rows: "2", maxlength: "1000",
+    el("form", %{class: "aim-compose", submit: :party_send, reset_on_submit: true},
+      el("textarea", %{name: "message", class: "aim-input aim-party-input", rows: "2", maxlength: "1000",
         submit_on_enter: true, focus: true,
         placeholder: "Say something to the room..."}),
       el("div", %{class: "aim-im-buttons"},
@@ -604,7 +587,7 @@ end
 
 def aimp_board(s: Map) -> Any do
   notes = map(s.board_posts, fn(n: Map) -> Any do
-    el("div", %{class: "aim-note"},
+    el("div", %{class: "aim-note", key: aimp_int(lookup(n, :id))},
       el("div", %{class: "aim-note-head"}, el("b", %{}, aimp_str(lookup(n, :name))), el("span", %{class: "aim-small"}, aimp_str(lookup(n, :when)))),
       el("div", %{class: "aim-note-text"}, aimp_str(lookup(n, :text))))
   end)
@@ -620,8 +603,8 @@ def aimp_board(s: Map) -> Any do
     aimp_titlebar("aim-board", "Bulletin Board", :close_board),
     el("div", %{class: "aim-board-head"}, el("strong", %{}, "bobbby.online Bulletin Board"), el("span", %{class: "aim-small"}, "Public. Signed with your screen name. Bobby can take notes down.")),
     el("div", %{class: "aim-board-list"}, empty, notes),
-    el("form", %{class: "aim-board-form", submit: :board_send},
-      el("textarea", %{name: "note", id: concat("aim-board-input-", to_string(s.board_sent)), class: "aim-field aim-board-input", rows: "3", maxlength: "500",
+    el("form", %{class: "aim-board-form", submit: :board_send, reset_on_submit: true},
+      el("textarea", %{name: "note", class: "aim-field aim-board-input", rows: "3", maxlength: "500",
         placeholder: "Leave a note for everyone..."}),
       note,
       el("div", %{class: "aim-im-buttons"},
@@ -679,31 +662,13 @@ def aimp_page(s: Map) -> Any do
   desk = case s.signed_on do
     false -> [aimp_signon(s)]
     true ->
-      im = case s.im_open do
-        true -> [aimp_im(s)]
-        false -> []
-      end
-      info = case s.info_open do
-        true -> [aimp_info(s)]
-        false -> []
-      end
-      reader = case s.reader >= 0 and aimp_nth(s.messages, s.reader) != nil do
-        true -> [aimp_reader(s)]
-        false -> []
-      end
-      cats = case s.cats_open and s.cats != "" do
-        true -> [aimp_cats(s)]
-        false -> []
-      end
-      party = case s.party_open do
-        true -> [aimp_party(s)]
-        false -> []
-      end
-      board = case s.board_open do
-        true -> [aimp_board(s)]
-        false -> []
-      end
-      aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(party, aimp_append(board, aimp_append(info, aimp_append(cats, reader))))))
+      [aimp_buddy_list(s),
+        show(s.im_open, aimp_im(s)),
+        show(s.party_open, aimp_party(s)),
+        show(s.board_open, aimp_board(s)),
+        show(s.info_open, aimp_info(s)),
+        show(s.cats_open and s.cats != "", aimp_cats(s)),
+        show(s.reader >= 0 and aimp_nth(s.messages, s.reader) != nil, aimp_reader(s))]
   end
   windows = case s.signed_on and s.dial >= 0 do
     true -> [aimp_dial(s)]
@@ -735,7 +700,7 @@ def aimp_effects(s: Map) -> List do
     false -> ""
   end
   reader_keys = case s.reader >= 0 do
-    true -> [key("Escape", :close_reader), key("ArrowLeft", :reader_prev), key("ArrowRight", :reader_next)]
+    true -> [key("ArrowLeft", :reader_prev), key("ArrowRight", :reader_next)]
     false -> []
   end
   aimp_append([
@@ -1007,8 +972,8 @@ actor AimPage do
     reply :ok
   end
 
-  on :party_send(fields: String) do
-    text = aimp_str(lookup(aimp_decode(fields), :message))
+  on :party_send(fields: Map) do
+    text = aimp_str(lookup(fields, :message))
     case trim(text) == "" or not(signed_on) do
       true -> reply :ignored
       false ->
@@ -1027,8 +992,8 @@ actor AimPage do
     reply :ok
   end
 
-  on :board_send(fields: String) do
-    text = aimp_str(lookup(aimp_decode(fields), :note))
+  on :board_send(fields: Map) do
+    text = aimp_str(lookup(fields, :note))
     case trim(text) == "" or not(signed_on) do
       true -> reply :ignored
       false ->
@@ -1047,8 +1012,8 @@ actor AimPage do
     reply :ok
   end
 
-  on :sign_on(fields: String) do
-    n = trim(aimp_str(lookup(aimp_decode(fields), :name)))
+  on :sign_on(fields: Map) do
+    n = trim(aimp_str(lookup(fields, :name)))
     sn = case n do
       "" -> "Visitor"
       _ -> utf8_slice(n, 0, 16)
@@ -1128,8 +1093,8 @@ actor AimPage do
     reply :ok
   end
 
-  on :send(fields: String) do
-    text = aimp_str(lookup(aimp_decode(fields), :message))
+  on :send(fields: Map) do
+    text = aimp_str(lookup(fields, :message))
     case trim(text) == "" or not(aimp_can_send((self <- :state))) do
       true -> reply :ignored
       false ->
@@ -1143,7 +1108,7 @@ actor AimPage do
   end
 
   on :ask_preset(q: String) do
-    reply (self <- :send(json_encode(%{message: q})))
+    reply (self <- :send(%{message: q}))
   end
 
   on :open_im do
