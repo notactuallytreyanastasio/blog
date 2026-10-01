@@ -490,46 +490,87 @@ from the `_connected.ex` file next to its Temper source.
 
 ## 12. Tests
 
-A `test("name") { ... }` block is a module function that takes a
+A `test("name") { ... }` block is a function that takes a
 `TemperCore.Test`. Soft asserts record a failure and carry on, and hard
-asserts bubble, following std/testing line for line. A library with tests
-gets two ways to run them.
+asserts bubble, following std/testing line for line.
 
-**`mix test`.** The backend writes `test/temper_test.exs`, with one ExUnit
-test per Temper test, named by the test's own sentence:
+**Tests are not part of the library.** Tests, and every function, class
+and module value that only tests reach, go to
+`test/support/temper_tests.ex`, under `Temper.MyLib.Tests`. The library's
+`mix.exs` compiles that directory only for `:test`, and a dependency that
+only tests need is `only: :test`. For a library with tests, that is
+always std, for std/testing:
 
 ```elixir
-defmodule Temper.Tested.TemperTest do
+def project do
+  [app: :temper_my_lib, ..., deps: deps(), elixirc_paths: elixirc_paths(Mix.env())]
+end
+
+defp deps do
+  [{:temper_core, path: "../temper-core"}, {:temper_std, path: "../std", only: :test}]
+end
+
+defp elixirc_paths(:test), do: ["lib", "test/support"]
+defp elixirc_paths(_), do: ["lib"]
+```
+
+The frontend decides what is test-only. It marks each declaration that
+only tests reach. A dependency is test-only when nothing in `lib/` names
+its modules or values: a dependency's init sets only its own values, so
+leaving it out of the library changes nothing the library does.
+
+**`mix test`.** Each Temper source file with tests gets an ExUnit file:
+`src/words_test.temper.md` becomes `test/words_test.exs`. Each Temper test
+becomes an ExUnit test, named by the test's own sentence:
+
+```elixir
+defmodule Temper.MarginaliaCore.WordsTest do
   use ExUnit.Case
 
   setup_all do
-    Temper.Tested.__temper_init__()
+    Temper.MarginaliaCore.Tests.__temper_init__()
     :ok
   end
 
-  test "doubling works" do
-    TemperCore.Test.check(&Temper.Tested.doublingWorks__12/1)
+  test "identical spans are all one piece" do
+    TemperCore.Test.check(&Temper.MarginaliaCore.Tests.identicalSpansAreAllOnePiece__1450/1, "src/words_test.temper.md:37")
   end
-  ...
 ```
 
-`setup_all` runs the library's top level, which tests read from.
-`TemperCore.Test.check/1` runs one test the way std/testing would and
-raises an ExUnit assertion error carrying its messages:
+`setup_all` runs the library's top level, then the tests' own. A failure
+leads with the Temper line, the line to fix:
 
 ```
-  2) test a failing test (Temper.Tested.TemperTest)
-     test/temper_test.exs:13
-     2 should not double to 5
-     nor 3 to 7
+  1) test a deliberately wrong expectation (Temper.MarginaliaCore.WordsTest)
+     test/words_test.exs:13
+     src/words_test.temper.md:24: a b -> a c: got same:a |del:b|ins:c
 ```
 
 A test that bubbles without a failed hard assert reports `Bubble`, as
 std/testing does. ExUnit's own tools work: `mix test --seed`, `--only`, and
 a line number to run one test.
 
-**The harness.** `temper test -b elixir` and the functional suite run
-`main/0`, then `__temper_tests__/0`, which writes the JUnit XML that
+**A test of constants tests the compiler.** The frontend evaluates every
+expression whose inputs are known while compiling, on every backend,
+through as many pure calls as it takes. So `assert(kinds(rows("a",
+"b")) == "same")` reaches Elixir, and JS, as `assert(false)` with its
+message already computed. It tests Temper's interpreter, not the
+generated code. A function that takes the `test` is never evaluated
+early, so put each check inside one:
+
+```temper
+let diffIs(test: Test, a: String, b: String, want: String): Void {
+  assert(render(diff(a, b)) == want) { "got ${render(diff(a, b))}" }
+}
+
+test("identical spans are all one piece") { test =>
+  diffIs(test, "a b c", "a b c", "same:a b c");
+}
+```
+
+**The harness.** `temper test -b elixir` and the functional suite compile
+and run with `MIX_ENV=test`. They run `main/0`, then
+`Temper.MyLib.Tests.__temper_tests__/0`, which writes the JUnit XML that
 `reportTestResults` writes to `test-results.xml`. Each test is also
 registered with the CLI under its function name, the name that XML
 carries. So a failure is reported by its sentence, and a library whose
