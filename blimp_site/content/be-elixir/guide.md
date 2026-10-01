@@ -202,3 +202,20 @@ Inherited method bodies are copied into the class, so there is no `super`.
 | `assert(c) { msg }` | `TemperCore.Test.assert(t, c, fn -> msg end)` |
 | a test run | `main()`, then `__temper_tests__/0` writes JUnit XML to `test-results.xml` |
 | `x as StringIndex` | `x >= 0`, since an index is an integer and none is `-1` |
+
+## 12. Generators and async
+
+| Temper | Elixir |
+|--------|--------|
+| a generator body | the frontend's state machine: a step `fn` over a `caseIndex` cell |
+| a generator | `TemperCore.Generator.adapt(step)`, a heap object `%{step, done}` |
+| `g.next()` | `TemperCore.Generator.next(g)`: `{:value, v}` or `:done`, anything else panics |
+| `g.done` | `TemperCore.Generator.done(g)` |
+| `empty()` | `:empty` |
+| `new PromiseBuilder()` | `TemperCore.Promise.new()`; builder and promise are one heap object |
+| `async { ... }` | enqueued on a FIFO run queue in the process dictionary |
+| `await p` | park the generator on `p`; `main/0` ends by draining the queue |
+
+Nothing runs in another process: the heap is per process, so a generator
+in its own process could not see the objects it was given.
+
