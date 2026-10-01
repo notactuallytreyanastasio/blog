@@ -3,8 +3,12 @@
 # and one thing AIM never had: a reader view, because bobbbyBot answers in
 # Markdown and a long answer deserves a page, not a chat bubble.
 #
-# The conversation is not here, only its picture. The server's AIM actor
-# (src/99_aim.blimp) holds it and asks DeepSeek; aim.js holds the socket
+# The conversations are not here, only their pictures. The server's AIM
+# actor (src/99_aim.blimp) holds them: bobbbyBot's, which it asks DeepSeek
+# about; SmarterChild's, a script; and one with each other person signed
+# on, whose names come in a "buddies" frame. The IM window shows one at a
+# time, with a tab for each when there is more than one.
+# aim.js holds the socket
 # to /live/aim, hands this program every frame (`:frame`) and each
 # (re)connection (`:connected`), sends up what `:outbox` returns after
 # every render, and plays the sounds `:where` says are wanted.
@@ -93,6 +97,60 @@ def aimp_long(content: String) -> Bool do
   length(content) > 420 or contains(content, "\n#") or contains(content, "```") or contains(content, "\n- ") or contains(content, "\n1. ")
 end
 
+# ── whose conversation ─────────────────────────────────────────────────
+# "bot" is bobbbyBot, "sc" SmarterChild, "u<n>" a person.
+
+def aimp_convo(s: Map, id: String) -> List do
+  case id do
+    "bot" -> s.messages
+    _ ->
+      case lookup(s.convos, id) do
+        nil -> []
+        ms -> ms
+      end
+  end
+end
+
+def aimp_name(s: Map, id: String) -> String do
+  case id do
+    "bot" -> aim_bot_name
+    "sc" -> "SmarterChild"
+    _ ->
+      case lookup(s.names, id) do
+        nil -> "Somebody"
+        n -> aimp_str(n)
+      end
+  end
+end
+
+def aimp_here(s: Map, id: String) -> Bool do
+  case id do
+    "bot" -> s.online == true
+    "sc" -> s.sc_on
+    _ -> filter(s.buddies, fn(b: Map) -> Bool do aimp_str(lookup(b, :id)) == id end) != []
+  end
+end
+
+def aimp_typing(s: Map, id: String) -> Bool do
+  case id do
+    "bot" -> s.loading
+    _ -> lookup(s.typing, id) == true
+  end
+end
+
+# what the other side has said in a conversation
+def aimp_heard(ms: List) -> Int do
+  length(filter(ms, fn(m: Map) -> Bool do aimp_str(lookup(m, :role)) != "user" end))
+end
+
+def aimp_without(list: List, x: Any) -> List do
+  filter(list, fn(y: Any) -> Bool do y != x end)
+end
+
+def aimp_buddies(v: Any) -> List do
+  filter(aimp_messages(v), fn(b: Map) -> Bool do aimp_str(lookup(b, :id)) != "" end)
+end
+
 # ── window chrome ──────────────────────────────────────────────────────
 
 def aimp_titlebar(title: String, close: Any) -> Any do
@@ -147,16 +205,49 @@ def aimp_buddy(name: String, cls: String, click: Any, note: String) -> Any do
   el("div", attrs, el("span", %{class: "aim-buddy-name"}, name), el("span", %{class: "aim-buddy-note"}, note))
 end
 
+# A buddy whose conversation a click opens; bold until it is read.
+def aimp_buddy_to(s: Map, id: String) -> Any do
+  unread = filter(s.unread, fn(u: String) -> Bool do u == id end) != []
+  cls = case unread do
+    true -> "aim-buddy online unread"
+    false -> "aim-buddy online"
+  end
+  note = case unread do
+    true -> "(new message)"
+    false -> ""
+  end
+  el("div", %{class: cls, click: :open_chat, with: id}, el("span", %{class: "aim-buddy-name"}, aimp_name(s, id)), el("span", %{class: "aim-buddy-note"}, note))
+end
+
 def aimp_buddy_list(s: Map) -> Any do
   bot = case s.online do
     true -> aimp_buddy(aim_bot_name, "online", :open_im, "")
     false -> aimp_buddy(aim_bot_name, "away", :open_im, "(away)")
     nil -> aimp_buddy(aim_bot_name, "idle", nil, "(connecting)")
   end
-  online = case s.online do
-    false -> "0/1"
-    _ -> "1/1"
+  bots_on = case s.online do
+    false -> 0
+    _ -> 1
   end
+  sc = case s.sc_on do
+    true -> [aimp_buddy_to(s, "sc")]
+    false -> []
+  end
+  online = concat(to_string(bots_on + length(sc)), "/2")
+  people = map(s.buddies, fn(b: Map) -> Any do aimp_buddy_to(s, aimp_str(lookup(b, :id))) end)
+  nobody = case people do
+    [] -> [el("div", %{class: "aim-buddy offline"}, el("span", %{class: "aim-buddy-note"}, "nobody else is signed on"))]
+    _ -> []
+  end
+  cats = case s.cats do
+    "" -> []
+    _ -> [el("div", %{class: "aim-group"}, "▾ Cats (2/2)"), aimp_buddy("Bobby's cats", "online cats", :open_cats, "")]
+  end
+  sc_off = case s.sc_on do
+    true -> []
+    false -> [aimp_buddy("SmarterChild", "offline", nil, "")]
+  end
+  offline = concat("▾ Offline (", to_string(1 + length(sc_off)), "/", to_string(1 + length(sc_off)), ")")
   muted = case s.muted do
     true -> "Sounds: off"
     false -> "Sounds: on"
@@ -169,15 +260,19 @@ def aimp_buddy_list(s: Map) -> Any do
     el("div", %{class: "aim-buddies-tree"},
       el("div", %{class: "aim-group"}, concat("▾ Buddies (", online, ")")),
       bot,
-      el("div", %{class: "aim-group"}, "▾ Family (0/0)"),
-      el("div", %{class: "aim-group"}, "▾ Co-Workers (0/0)"),
-      el("div", %{class: "aim-group"}, "▾ Offline (2/2)"),
+      sc,
+      el("div", %{class: "aim-group"}, concat("▾ Online Now (", to_string(length(people)), ")")),
+      people,
+      nobody,
+      cats,
+      el("div", %{class: "aim-group"}, offline),
       el("a", %{class: "aim-buddy offline", href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, el("span", %{class: "aim-buddy-name"}, "bobbby (the real one)")),
-      aimp_buddy("SmarterChild", "offline", nil, "")),
+      sc_off),
     el("div", %{class: "aim-buddies-foot"},
       el("button", %{class: "aim-btn", click: :open_im}, "IM"),
       el("button", %{class: "aim-btn", click: :open_info}, "Info"),
-      el("button", %{class: "aim-btn", click: :toggle_sound}, muted)))
+      el("button", %{class: "aim-btn", click: :toggle_sound}, muted),
+      el("button", %{class: "aim-btn", click: :sign_off}, "Sign Off")))
 end
 
 # ── the IM window ──────────────────────────────────────────────────────
@@ -205,6 +300,51 @@ def aimp_line(s: Map, m: Map, i: Int) -> Any do
   end
 end
 
+# A line of SmarterChild's or a person's: their words as text, never HTML.
+def aimp_their_line(s: Map, who: String, m: Map) -> Any do
+  content = aimp_str(lookup(m, :content))
+  case aimp_str(lookup(m, :role)) do
+    "user" -> el("div", %{class: "aim-line me"}, el("span", %{class: "aim-sn me"}, s.name, ":"), el("span", %{class: "aim-text"}, content))
+    _ -> el("div", %{class: "aim-line them"}, el("span", %{class: "aim-sn bot"}, who, ":"), el("span", %{class: "aim-text"}, content))
+  end
+end
+
+def aimp_their_log(s: Map, id: String) -> Any do
+  who = aimp_name(s, id)
+  opener = case id do
+    "sc" -> concat(who, " signed on.")
+    _ ->
+      case aimp_here(s, id) do
+        true -> concat(who, " is online.")
+        false -> concat(who, " signed off. Messages won't reach them.")
+      end
+  end
+  lines = map(aimp_convo(s, id), fn(m: Map) -> Any do aimp_their_line(s, who, m) end)
+  el("div", %{class: "aim-log", id: "aim-log"}, [el("div", %{class: "aim-sys"}, opener) | lines])
+end
+
+# A tab for every conversation that has started, when there is more than one.
+def aimp_tabs(s: Map) -> Any do
+  started = filter(keys(s.convos), fn(k: Any) -> Bool do aimp_convo(s, aimp_str(k)) != [] end)
+  ids = uniq(aimp_append(["bot"], aimp_append(map(started, fn(k: Any) -> String do aimp_str(k) end), [s.current])))
+  case length(ids) > 1 do
+    false -> []
+    true ->
+      [el("div", %{class: "aim-tabs"}, map(ids, fn(id: String) -> Any do
+        unread = filter(s.unread, fn(u: String) -> Bool do u == id end) != []
+        cls = case id == s.current do
+          true -> "aim-tab on"
+          false ->
+            case unread do
+              true -> "aim-tab unread"
+              false -> "aim-tab"
+            end
+        end
+        el("button", %{class: cls, click: :open_chat, with: id}, aimp_name(s, id))
+      end))]
+  end
+end
+
 def aimp_lines(s: Map, ms: List, i: Int, acc: List) -> List do
   case ms do
     [] -> reverse(acc)
@@ -228,24 +368,36 @@ def aimp_log(s: Map) -> Any do
 end
 
 def aimp_im(s: Map) -> Any do
-  status = case s.loading do
-    true -> el("div", %{class: "aim-status typing"}, el("span", %{class: "aim-pencil"}, "✎"), concat(aim_bot_name, " is typing..."))
-    false -> el("div", %{class: "aim-status"}, concat(aim_bot_name, "'s Warning Level: ", to_string(s.warn), "%"))
+  id = s.current
+  who = aimp_name(s, id)
+  bot = id == "bot"
+  status = case aimp_typing(s, id) do
+    true -> el("div", %{class: "aim-status typing"}, el("span", %{class: "aim-pencil"}, "✎"), concat(who, " is typing..."))
+    false -> el("div", %{class: "aim-status"}, concat(who, "'s Warning Level: ", to_string(s.warn), "%"))
   end
-  dis = s.loading or s.online != true
+  dis = not(aimp_can_send(s))
+  log = case bot do
+    true -> aimp_log(s)
+    false -> aimp_their_log(s, id)
+  end
+  hint = case bot do
+    true -> "Markdown works"
+    false -> ""
+  end
   el("div", %{class: "aim-win aim-im"},
-    aimp_titlebar(concat(aim_bot_name, " - Instant Message"), :close_im),
+    aimp_titlebar(concat(who, " - Instant Message"), :close_im),
     aimp_menubar(["File", "Edit", "Insert", "People"]),
-    el("div", %{class: "aim-warnbar"}, concat(aim_bot_name, "'s Warning Level: ", to_string(s.warn), "%")),
-    aimp_log(s),
+    aimp_tabs(s),
+    el("div", %{class: "aim-warnbar"}, concat(who, "'s Warning Level: ", to_string(s.warn), "%")),
+    log,
     el("div", %{class: "aim-toolbar"},
       el("span", %{class: "aim-swatch"}), el("span", %{class: "aim-swatch bg"}),
       el("span", %{class: "aim-tool small-a"}, "A"), el("span", %{class: "aim-tool"}, "A"), el("span", %{class: "aim-tool big-a"}, "A"),
       el("span", %{class: "aim-tool b"}, "B"), el("span", %{class: "aim-tool i"}, "I"), el("span", %{class: "aim-tool u"}, "U"),
-      el("span", %{class: "aim-tool"}, "link"), el("span", %{class: "aim-small aim-md-hint"}, "Markdown works")),
+      el("span", %{class: "aim-tool"}, "link"), el("span", %{class: "aim-small aim-md-hint"}, hint)),
     el("form", %{class: "aim-compose", submit: :send},
       el("textarea", %{name: "message", id: concat("aim-input-", to_string(s.sent)), class: "aim-input", rows: "3", maxlength: "2000",
-        placeholder: concat("Message ", aim_bot_name, "..."), disabled: dis}),
+        placeholder: concat("Message ", who, "..."), disabled: dis}),
       el("div", %{class: "aim-im-buttons"},
         el("button", %{type: "button", class: "aim-btn aim-btn-icon", click: :warn}, "Warn"),
         el("button", %{type: "button", class: "aim-btn aim-btn-icon", click: :close_im}, "Block"),
@@ -253,6 +405,22 @@ def aimp_im(s: Map) -> Any do
         el("span", %{class: "aim-spacer"}),
         el("button", %{type: "submit", class: "aim-btn aim-btn-default aim-send", disabled: dis}, aimp_runner("tiny"), "Send"))),
     status)
+end
+
+# Whether the IM window's conversation can take a message now.
+def aimp_can_send(s: Map) -> Bool do
+  aimp_here(s, s.current) and not(aimp_typing(s, s.current))
+end
+
+# ── the cats ───────────────────────────────────────────────────────────
+
+def aimp_cats(s: Map) -> Any do
+  el("div", %{class: "aim-win aim-cats", role: "dialog", "aria-label": "Bobby's cats"},
+    aimp_titlebar("Picture Viewer - cats.jpg", :close_cats),
+    el("div", %{class: "aim-cats-body"},
+      el("img", %{src: s.cats, alt: "Bobby's cats"}),
+      el("p", %{}, el("b", %{}, "You found them. "), "These are Bobby's cats."),
+      el("div", %{class: "aim-info-foot"}, el("button", %{class: "aim-btn", click: :close_cats}, "Close"))))
 end
 
 # ── the reader ─────────────────────────────────────────────────────────
@@ -315,11 +483,15 @@ end
 
 def aimp_taskbar(s: Map) -> Any do
   im = case s.im_open do
-    true -> [el("button", %{class: "aim-task on", click: :open_im}, concat(aim_bot_name, " - Instant Message"))]
+    true -> [el("button", %{class: "aim-task on", click: :open_chat, with: s.current}, concat(aimp_name(s, s.current), " - Instant Message"))]
+    false -> []
+  end
+  cats = case s.cats_open do
+    true -> [el("button", %{class: "aim-task", click: :open_cats}, "cats.jpg")]
     false -> []
   end
   tasks = case s.signed_on do
-    true -> aimp_append([el("span", %{class: "aim-task"}, concat(s.name, "'s Buddy List"))], im)
+    true -> aimp_append([el("span", %{class: "aim-task"}, concat(s.name, "'s Buddy List"))], aimp_append(im, cats))
     false -> [el("span", %{class: "aim-task on"}, "Sign On")]
   end
   el("div", %{class: "aim-taskbar"},
@@ -344,7 +516,11 @@ def aimp_page(s: Map) -> Any do
         true -> [aimp_reader(s)]
         false -> []
       end
-      aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(info, reader)))
+      cats = case s.cats_open and s.cats != "" do
+        true -> [aimp_cats(s)]
+        false -> []
+      end
+      aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(info, aimp_append(cats, reader))))
   end
   cls = case s.im_open and s.signed_on do
     true -> "aim-desktop im-open"
@@ -374,6 +550,21 @@ actor AimPage do
   state outbox: List :: []
   # what aim.js should play: :signon, :sent, :received, or nil
   state sound: Any :: nil
+  # whose conversation the IM window shows ("bot", "sc", "u<n>")
+  state current: String :: "bot"
+  # everyone else's conversations, and whether they are typing, by id
+  state convos: Map :: %{}
+  state typing: Map :: %{}
+  # who else is signed on, [%{id, name}..], and every name seen, so a
+  # conversation keeps its name after they sign off
+  state buddies: List :: []
+  state names: Map :: %{}
+  state sc_on: Bool :: false
+  # conversations with something unread
+  state unread: List :: []
+  # the cats' picture, once the server has handed it over
+  state cats: String :: ""
+  state cats_open: Bool :: false
 
   # the screen name remembered from last time (aim.js keeps it)
   on :remembered(n: String) do
@@ -384,7 +575,8 @@ actor AimPage do
   # The socket is (again) open. The server's conversation went with the old
   # socket: start again, and sign on again if this page already had.
   on :connected do
-    become online: nil, messages: [], loading: false, reader: -1
+    become online: nil, messages: [], loading: false, reader: -1, current: "bot", convos: %{}, typing: %{},
+      buddies: [], sc_on: false, unread: [], cats: "", cats_open: false
     case signed_on do
       true -> become outbox: aimp_append(outbox, [json_encode(%{t: "signon", name: name})])
       false -> :ok
@@ -405,14 +597,67 @@ actor AimPage do
         reply :hello
       "chat" ->
         ms = aimp_messages(lookup(msg, :messages))
-        got = length(aimp_answers(ms)) > length(aimp_answers(messages))
+        w = case aimp_str(lookup(msg, :with)) do
+          "" -> "bot"
+          x -> x
+        end
+        busy = lookup(msg, :loading) == true
+        got = aimp_heard(ms) > aimp_heard(aimp_convo((self <- :state), w))
+        case w do
+          "bot" -> become messages: ms, loading: busy
+          _ -> become convos: put(convos, w, ms), typing: put(typing, w, busy)
+        end
         case got do
-          true -> become messages: ms, loading: lookup(msg, :loading) == true, sound: :received
-          false -> become messages: ms, loading: lookup(msg, :loading) == true
+          true -> self <- :arrived(w)
+          false -> :ok
         end
         reply :chat
+      "buddies" ->
+        bs = aimp_buddies(lookup(msg, :people))
+        become buddies: bs, sc_on: lookup(msg, :sc) == true,
+          names: reduce(bs, names, fn(acc: Map, b: Map) -> Map do put(acc, aimp_str(lookup(b, :id)), aimp_str(lookup(b, :name))) end)
+        reply :buddies
+      "secret" ->
+        become cats: aimp_str(lookup(msg, :src)), cats_open: true, sound: :received
+        reply :secret
       _ -> reply :ignored
     end
+  end
+
+  # Something new from `w`: in front if nothing else is, otherwise unread.
+  on :arrived(w: String) do
+    s = (self <- :state)
+    case im_open and current == w do
+      true -> become sound: :received
+      false ->
+        case not(im_open) or aimp_convo(s, current) == [] do
+          true -> become current: w, im_open: true, sound: :received, unread: aimp_without(unread, w)
+          false -> become unread: aimp_append(aimp_without(unread, w), [w]), sound: :received
+        end
+    end
+    reply :ok
+  end
+
+  on :sign_off do
+    become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: "bot",
+      convos: %{}, typing: %{}, buddies: [], sc_on: false, unread: [], cats: "", cats_open: false,
+      outbox: aimp_append(outbox, [json_encode(%{t: "signoff"})])
+    reply :ok
+  end
+
+  on :open_chat(id: String) do
+    become current: id, im_open: true, unread: aimp_without(unread, id)
+    reply :ok
+  end
+
+  on :open_cats do
+    become cats_open: true
+    reply :ok
+  end
+
+  on :close_cats do
+    become cats_open: false
+    reply :ok
   end
 
   on :sign_on(fields: String) do
@@ -428,10 +673,14 @@ actor AimPage do
 
   on :send(fields: String) do
     text = aimp_str(lookup(aimp_decode(fields), :message))
-    case trim(text) == "" or loading or online != true do
+    case trim(text) == "" or not(aimp_can_send((self <- :state))) do
       true -> reply :ignored
       false ->
-        become outbox: aimp_append(outbox, [json_encode(%{t: "ask", text: text})]), sent: sent + 1, sound: :sent
+        up = case current do
+          "bot" -> %{t: "ask", text: text}
+          _ -> %{t: "im", to: current, text: text}
+        end
+        become outbox: aimp_append(outbox, [json_encode(up)]), sent: sent + 1, sound: :sent
         reply :sent
     end
   end
@@ -441,7 +690,7 @@ actor AimPage do
   end
 
   on :open_im do
-    become im_open: true
+    become im_open: true, current: "bot", unread: aimp_without(unread, "bot")
     reply :ok
   end
 
@@ -523,10 +772,16 @@ actor AimPage do
     reply %{sound: s, reader: reader >= 0, name: name, signed_on: signed_on}
   end
 
-  on :view do
-    reply aimp_page(%{signed_on: signed_on, name: name, online: online, posts: posts,
+  # Everything the view and the helpers above read, as one map.
+  on :state do
+    reply %{signed_on: signed_on, name: name, online: online, posts: posts,
       messages: messages, loading: loading, im_open: im_open, info_open: info_open, reader: reader,
-      size: size, paper: paper, warn: warn, muted: muted, sent: sent})
+      size: size, paper: paper, warn: warn, muted: muted, sent: sent, current: current, convos: convos,
+      typing: typing, buddies: buddies, names: names, sc_on: sc_on, unread: unread, cats: cats, cats_open: cats_open}
+  end
+
+  on :view do
+    reply aimp_page(self <- :state)
   end
 end
 

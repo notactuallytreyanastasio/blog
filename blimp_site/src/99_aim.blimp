@@ -28,9 +28,29 @@
 # request is http_start, and its answer is polled from the tick.
 #
 #   up    {"t":"signon","name":..}       the sign-on window's screen name
-#         {"t":"ask","text":..}          a message
+#         {"t":"signoff"}                back to the sign-on window
+#         {"t":"ask","text":..}          a message to bobbbyBot
+#         {"t":"im","to":id,"text":..}   a message to anyone else: "sc"
+#                                        (SmarterChild) or "u<socket>"
 #   down  {"t":"hello","online":bool,"posts":n,"bot":..}
-#         {"t":"chat","loading":bool,"messages":[{"role","content","html"}..]}
+#         {"t":"chat","with":id,"loading":bool,"messages":[{"role","content","html"}..]}
+#                                        id "bot" is bobbbyBot; a person's
+#                                        role is "user" (you) or "them"
+#         {"t":"buddies","people":[{"id","name"}..],"sc":bool}
+#                                        who else is signed on, whether
+#                                        SmarterChild is
+#         {"t":"secret","src":..}        the cats
+#
+# People who have signed on are on each other's Buddy Lists and IM each
+# other through AIM, which keeps the last AIM_DM_KEEP lines of each pair's
+# conversation and drops them when either signs off. Nothing goes to
+# DeepSeek, nothing is saved.
+#
+# SmarterChild is the other buddy. It is a script, not a model: someone
+# who signs on and finds nobody else there hears from it after
+# AIM_SC_WAIT_S seconds, four riddles whose answers' first letters are
+# the screen name that opens the Cats group (AIM_SECRET_NAME). The riddles
+# and answers live only here; the page's program never sees them.
 #
 # Spending is capped twice: aim_max_questions per page, and AIM_DAILY_LIMIT
 # (default 600) requests to DeepSeek a day, tool rounds included, for
@@ -223,7 +243,196 @@ def aim_screen_name(raw: String) -> String do
 end
 
 def aim_chat_frame(p: Map) -> String do
-  json_encode(%{t: "chat", loading: p.loading, messages: p.history})
+  json_encode(%{t: "chat", with: "bot", loading: p.loading, messages: p.history})
+end
+
+# ── people ─────────────────────────────────────────────────────────────
+
+AIM_DM_MAX_CHARS = 2000
+AIM_DM_KEEP = 200
+# the messages to other people one page can send, for a script that tries
+AIM_DM_LIMIT = 1000
+
+def aim_new_person(fd: Int) -> Map do
+  %{fd: fd, name: "Visitor", signed: false, signed_at: 0, history: [], count: 0, loading: false, job: nil, last: "",
+    dms_sent: 0, sc: aim_sc_fresh()}
+end
+
+def aim_signed(people: Map) -> List do
+  filter(values(people), fn(p: Map) -> Bool do p.signed end)
+end
+
+# A screen name nobody else signed on has, ignoring case: "alice", then
+# "alice2", "alice3"..., still at most 16 characters.
+def aim_unique_name(people: Map, fd: Int, name: String) -> String do
+  taken = map(filter(aim_signed(people), fn(p: Map) -> Bool do p.fd != fd end), fn(p: Map) -> String do downcase(p.name) end)
+  aim_unique_from(taken, name, 1)
+end
+
+def aim_unique_from(taken: List, name: String, n: Int) -> String do
+  suffix = case n do
+    1 -> ""
+    _ -> to_string(n)
+  end
+  cand = concat(utf8_slice(name, 0, 16 - length(suffix)), suffix)
+  case aim_has(taken, downcase(cand)) and n < 1000 do
+    true -> aim_unique_from(taken, name, n + 1)
+    false -> cand
+  end
+end
+
+def aim_has(list: List, x: Any) -> Bool do
+  filter(list, fn(y: Any) -> Bool do y == x end) != []
+end
+
+# A pair's conversation, the same key from either side.
+def aim_pair(a: Int, b: Int) -> String do
+  case a < b do
+    true -> concat(to_string(a), ":", to_string(b))
+    false -> concat(to_string(b), ":", to_string(a))
+  end
+end
+
+def aim_peer_id(fd: Int) -> String do
+  concat("u", to_string(fd))
+end
+
+# The person an "im" is addressed to: "u<socket>", signed on, or nil.
+def aim_peer(people: Map, to: String) -> Any do
+  case starts_with(to, "u") do
+    false -> nil
+    true ->
+      p = lookup(people, slice(to, 1, length(to)))
+      case p == nil do
+        true -> nil
+        false ->
+          case p.signed do
+            true -> p
+            false -> nil
+          end
+      end
+  end
+end
+
+def aim_last_n(list: List, n: Int) -> List do
+  case length(list) > n do
+    true -> reverse(zg_take(reverse(list), n))
+    false -> list
+  end
+end
+
+# A pair's conversation as one side sees it.
+def aim_dm_frame(me: Int, other: Int, log: List) -> String do
+  json_encode(%{t: "chat", with: aim_peer_id(other), loading: false, messages: map(log, fn(e: Map) -> Map do
+    role = case e.from == me do
+      true -> "user"
+      false -> "them"
+    end
+    %{role: role, content: e.content, html: ""}
+  end)})
+end
+
+def aim_roster_frame(people: Map, p: Map) -> String do
+  others = filter(aim_signed(people), fn(o: Map) -> Bool do o.fd != p.fd end)
+  ranked = sort_by_keys(others, map(others, fn(o: Map) -> String do downcase(o.name) end))
+  json_encode(%{t: "buddies", sc: p.sc.active, people: map(ranked, fn(o: Map) -> Map do %{id: aim_peer_id(o.fd), name: o.name} end)})
+end
+
+# ── SmarterChild ───────────────────────────────────────────────────────
+
+AIM_SC_NAME = "SmarterChild"
+# how long someone is alone before SmarterChild says hello
+AIM_SC_WAIT_S = 4
+# what the first letters of the four answers spell
+AIM_SECRET_NAME = "meow"
+AIM_CATS_SRC = "/aim/cats.jpg"
+
+# Each riddle: the question, the words that answer it (any one of them in
+# the reply), a hint, and wrong answers close enough to deserve a nudge.
+AIM_SC_RIDDLES = [
+  %{q: "I have cities but no houses, forests but no trees, and water but no fish. What am I?",
+    answers: ["map", "maps", "atlas"], hint: "you'd unfold me in the car in 2003, before your phone did it for you.",
+    near: [["globe", "close, but flatter."], ["world", "close, but flatter. and folded."]]},
+  %{q: "I have to be broken before you can use me. What am I?",
+    answers: ["egg", "eggs"], hint: "breakfast. there's a shell involved.",
+    near: [["promise", "ha. that's dark. something you eat."], ["heart", "too sad. something you eat."]]},
+  %{q: "This one's a code. Every letter has been moved one step forward in the alphabet: PDFBO",
+    answers: ["ocean", "oceans"], hint: "move each letter back one. P is really O, D is really C...",
+    near: [["sea", "right idea, but decode the letters: it's five of them."], ["water", "right idea, but decode the letters: it's five of them."]]},
+  %{q: "Last one. I have hands and a face, but I can't hold anything and I can't smile. What am I?",
+    answers: ["watch", "wristwatch", "watches"], hint: "you wear me on your wrist.",
+    near: [["clock", "so close. smaller. you wear me."], ["timer", "close. you wear me."]]}
+]
+
+def aim_sc_fresh() -> Map do
+  %{active: false, step: 0, wrong: 0, history: [], pending: []}
+end
+
+def aim_sc_intro() -> List do
+  ["hey. looks like it's just you and me on here right now.",
+   "nobody else is signed on, so: a game. four riddles. get all four and I'll tell you a secret about this page.",
+   "type hint if you get stuck. first one:",
+   head(AIM_SC_RIDDLES).q]
+end
+
+AIM_SC_FINAL = [
+  "now take the first letter of each of your answers, in order.",
+  "sign off (the button at the bottom of your Buddy List), then sign back on with those letters as your screen name. something's waiting."]
+
+AIM_SC_RIGHT = ["yep.", "correct.", "nice. that's it.", "all four. you're good at this."]
+AIM_SC_WRONG = ["nope.", "not it. type hint if you're stuck.", "nah, try again.", "no. but I believe in you."]
+
+def aim_sc_nth(list: List, i: Int) -> Any do
+  elem_at(list, rem(i, length(list)))
+end
+
+# What SmarterChild says to `text` at riddle `step` after `wrong` misses:
+# {step, wrong, [lines]}.
+def aim_sc_reply(step: Int, wrong: Int, text: String) -> Tuple do
+  terms = zg_terms(downcase(text))
+  case step >= length(AIM_SC_RIDDLES) do
+    true -> {step, wrong, ["you already got all four. first letters, sign off, sign back on as them."]}
+    false ->
+      r = elem_at(AIM_SC_RIDDLES, step)
+      hit = filter(terms, fn(t: String) -> Bool do aim_has(r.answers, t) end) != []
+      near = filter(r.near, fn(n: List) -> Bool do aim_has(terms, head(n)) end)
+      case hit do
+        true ->
+          next = step + 1
+          more = case next >= length(AIM_SC_RIDDLES) do
+            true -> AIM_SC_FINAL
+            false -> ["next:", elem_at(AIM_SC_RIDDLES, next).q]
+          end
+          {next, 0, [aim_sc_nth(AIM_SC_RIGHT, step) | more]}
+        false ->
+          case aim_has(terms, "hint") do
+            true -> {step, wrong, [r.hint]}
+            false ->
+              case near do
+                [] -> {step, wrong + 1, [aim_sc_nth(AIM_SC_WRONG, wrong)]}
+                [n | _] -> {step, wrong + 1, [head(tail(n))]}
+              end
+          end
+      end
+  end
+end
+
+# Lines to say, a second or two apart from `t` (after whatever is still
+# waiting to be said), as SmarterChild's pending list.
+def aim_sc_queue(pending: List, lines: List, t: Int, gap: Int) -> List do
+  start = case pending do
+    [] -> t
+    _ -> elem_at(reverse(pending), 0).at
+  end
+  list_append(pending, map(range(1, length(lines)), fn(i: Int) -> Map do %{at: start + i * gap, text: elem_at(lines, i - 1)} end))
+end
+
+def aim_sc_frame(sc: Map) -> String do
+  json_encode(%{t: "chat", with: "sc", loading: sc.pending != [], messages: sc.history})
+end
+
+def aim_secret(raw: String) -> Bool do
+  downcase(trim(raw)) == AIM_SECRET_NAME
 end
 
 actor AimChat do
@@ -233,9 +442,12 @@ actor AimChat do
   state daily_limit: Int :: 600
   state rows: List :: []
   state chunks: List :: []
-  # socket (as a string) -> %{fd, name, history, count, loading, job, last}
+  # socket (as a string) -> aim_new_person's map
   # job: nil | %{h, round, messages, at}
   state people: Map :: %{}
+  # aim_pair -> [%{from, content}..], the last AIM_DM_KEEP lines
+  state dms: Map :: %{}
+  state dms_sent: Int :: 0
   state abandoned: List :: []
   # the day (days since the epoch) the requests below are counted for
   state day: Int :: 0
@@ -266,7 +478,7 @@ actor AimChat do
   end
 
   on :join(fd: Int) do
-    become people: put(people, to_string(fd), %{fd: fd, name: "Visitor", history: [], count: 0, loading: false, job: nil, last: ""})
+    become people: put(people, to_string(fd), aim_new_person(fd))
     self <- :tell(fd, json_encode(%{t: "hello", online: key != "" and rows != [], posts: length(rows), bot: aim_bot_name}))
     reply :ok
   end
@@ -281,8 +493,146 @@ actor AimChat do
           j -> [j.h]
         end
     end
-    become people: zg_without(people, to_string(fd)), abandoned: list_append(abandoned, gone)
+    was = case p == nil do
+      true -> false
+      false -> p.signed
+    end
+    become people: zg_without(people, to_string(fd)), abandoned: list_append(abandoned, gone), dms: aim_forget(dms, fd)
+    case was do
+      true -> self <- :roster
+      false -> :ok
+    end
     reply :ok
+  end
+
+  # Every signed-on page's Buddy List, again.
+  on :roster do
+    each(aim_signed(people), fn(p: Map) do self <- :tell(p.fd, aim_roster_frame(people, p)) end)
+    reply :ok
+  end
+
+  # Signing on: a name nobody else has, onto everyone's Buddy List, and the
+  # cats if it is the name.
+  on :sign_on(fd: Int, raw: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :unknown
+      false ->
+        name = aim_unique_name(people, fd, aim_screen_name(raw))
+        become people: put(people, k, put(put(put(p, :name, name), :signed, true), :signed_at, t))
+        self <- :roster
+        case aim_secret(raw) do
+          true -> self <- :tell(fd, json_encode(%{t: "secret", src: AIM_CATS_SRC}))
+          false -> :ok
+        end
+        reply :signed_on
+    end
+  end
+
+  # Signing off: off everyone's list, and every conversation forgotten.
+  on :sign_off(fd: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :unknown
+      false ->
+        gone = case p.job do
+          nil -> []
+          j -> [j.h]
+        end
+        become people: put(people, k, put(aim_new_person(fd), :last, p.last)), dms: aim_forget(dms, fd), abandoned: list_append(abandoned, gone)
+        self <- :roster
+        reply :signed_off
+    end
+  end
+
+  # A message to a person or to SmarterChild.
+  on :im(fd: Int, to: String, text: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or text == "" do
+      true -> reply :ignored
+      false ->
+        case p.signed and p.dms_sent < AIM_DM_LIMIT do
+          false -> reply :ignored
+          true ->
+            body = utf8_slice(text, 0, AIM_DM_MAX_CHARS)
+            become people: put(people, k, put(p, :dms_sent, p.dms_sent + 1))
+            case to == "sc" do
+              true -> reply (self <- :sc_hear(fd, body, t))
+              false ->
+                other = aim_peer(people, to)
+                case other == nil or to == aim_peer_id(fd) do
+                  true -> reply :nobody
+                  false ->
+                    key = aim_pair(fd, other.fd)
+                    before = case lookup(dms, key) do
+                      nil -> []
+                      l -> l
+                    end
+                    log = aim_last_n(list_append(before, [%{from: fd, content: body}]), AIM_DM_KEEP)
+                    become dms: put(dms, key, log), dms_sent: dms_sent + 1
+                    self <- :tell(fd, aim_dm_frame(fd, other.fd, log))
+                    self <- :tell(other.fd, aim_dm_frame(other.fd, fd, log))
+                    reply :sent
+                end
+            end
+        end
+    end
+  end
+
+  # SmarterChild hears a message, and will answer it in a second or two.
+  on :sc_hear(fd: Int, text: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or not(p.sc.active) do
+      true -> reply :offline
+      false ->
+        sc = p.sc
+        r = aim_sc_reply(sc.step, sc.wrong, text)
+        next = %{active: true, step: elem(r, 0), wrong: elem(r, 1), history: list_append(sc.history, [aim_entry("user", text)]),
+          pending: aim_sc_queue(sc.pending, elem(r, 2), t, 1)}
+        become people: put(people, k, put(p, :sc, next))
+        self <- :tell(fd, aim_sc_frame(next))
+        reply :heard
+    end
+  end
+
+  # SmarterChild says hello to someone alone: on their Buddy List, and its
+  # first lines on their way.
+  on :sc_start(fd: Int, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or p.sc.active do
+      true -> reply :ok
+      false ->
+        sc = %{active: true, step: 0, wrong: 0, history: [], pending: aim_sc_queue([], aim_sc_intro(), t, 2)}
+        q = put(p, :sc, sc)
+        become people: put(people, k, q)
+        self <- :tell(fd, aim_roster_frame(put(people, k, q), q))
+        reply :started
+    end
+  end
+
+  # SmarterChild's lines that are due, said.
+  on :sc_say(fd: Int, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        due = filter(p.sc.pending, fn(l: Map) -> Bool do l.at <= t end)
+        case due do
+          [] -> reply :waiting
+          _ ->
+            said = map(due, fn(l: Map) -> Map do aim_entry("them", l.text) end)
+            sc = put(put(p.sc, :history, list_append(p.sc.history, said)), :pending, filter(p.sc.pending, fn(l: Map) -> Bool do l.at > t end))
+            become people: put(people, k, put(p, :sc, sc))
+            self <- :tell(fd, aim_sc_frame(sc))
+            reply length(due)
+        end
+    end
   end
 
   # Send a person a frame, and remember it (a test reads it back).
@@ -306,10 +656,10 @@ actor AimChat do
       true -> reply :unknown
       false ->
         case lookup(msg, :t) do
-          "signon" ->
-            become people: put(people, k, put(p, :name, aim_screen_name(zg_str(lookup(msg, :name)))))
-            reply :signed_on
+          "signon" -> reply (self <- :sign_on(fd, zg_str(lookup(msg, :name)), now()))
+          "signoff" -> reply (self <- :sign_off(fd))
           "ask" -> reply (self <- :ask(fd, trim(zg_str(lookup(msg, :text))), now()))
+          "im" -> reply (self <- :im(fd, zg_str(lookup(msg, :to)), trim(zg_str(lookup(msg, :text))), now()))
           _ -> reply :ignored
         end
     end
@@ -337,7 +687,7 @@ actor AimChat do
             self <- :tell(fd, aim_chat_frame(q))
             reply :limit
           false ->
-            q = %{fd: fd, name: p.name, history: history, count: p.count + 1, loading: true, job: nil, last: p.last}
+            q = put(put(put(put(p, :history, history), :count, p.count + 1), :loading, true), :job, nil)
             become people: put(people, k, q), asked: asked + 1
             self <- :tell(fd, aim_chat_frame(q))
             reply (self <- :request(fd, aim_rest(p.name, format_time(t, "%Y-%m-%d"), history), 0, t))
@@ -437,6 +787,19 @@ actor AimChat do
   # that has waited too long.
   on :step_at(t: Int) do
     become abandoned: filter(abandoned, fn(h: Int) -> Bool do http_result(h) == nil end)
+    # SmarterChild: hello to whoever has been alone long enough, and the
+    # lines that are due
+    signed = aim_signed(people)
+    case length(signed) == 1 do
+      true ->
+        lone = head(signed)
+        case not(lone.sc.active) and t - lone.signed_at >= AIM_SC_WAIT_S do
+          true -> self <- :sc_start(lone.fd, t)
+          false -> :ok
+        end
+      false -> :ok
+    end
+    each(filter(values(people), fn(p: Map) -> Bool do p.sc.pending != [] end), fn(p: Map) do self <- :sc_say(p.fd, t) end)
     asking = filter(values(people), fn(p: Map) -> Bool do p.job != nil end)
     each(asking, fn(p: Map) do
       r = http_result(p.job.h)
@@ -473,10 +836,22 @@ actor AimChat do
   end
 
   on :stats do
-    reply %{pages: length(keys(people)), keyed: key != "", model: model, posts: length(rows),
+    reply %{fds: map(values(people), fn(p: Map) -> Int do p.fd end), pages: length(keys(people)), signed_on: length(aim_signed(people)), conversations: length(keys(dms)), dms: dms_sent, keyed: key != "", model: model, posts: length(rows),
       chunks: length(chunks), asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
       failures: failures, last_error: last_error, cache_hit_tokens: cache_hit, cache_miss_tokens: cache_miss}
   end
+end
+
+# Every conversation `fd` was in, gone.
+def aim_forget(dms: Map, fd: Int) -> Map do
+  me = to_string(fd)
+  reduce(keys(dms), %{}, fn(acc: Map, k: Any) -> Map do
+    sides = split(k, ":")
+    case head(sides) == me or head(tail(sides)) == me do
+      true -> acc
+      false -> put(acc, k, lookup(dms, k))
+    end
+  end)
 end
 
 AIM = spawn AimChat
@@ -501,3 +876,7 @@ AIM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", aim_
 AIM_PROGRAM = map_asset(["_build/aim.blimp"], "text/plain; charset=utf-8")
 AIM_JS = map_asset(["static/aim/aim.js"], "text/javascript; charset=utf-8")
 AIM_CSS = map_asset(["static/aim/aim.css"], "text/css; charset=utf-8")
+# Bobby's cats, at the end of SmarterChild's riddles (AIM_CATS_SRC). Not
+# linked from anywhere; the server hands the address to a page that signs
+# on with AIM_SECRET_NAME.
+AIM_CATS = map_asset(["static/aim/cats.jpg"], "image/jpeg")

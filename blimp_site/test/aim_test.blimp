@@ -36,6 +36,20 @@ def aimt_load() -> Any do
   AIM <- :config("sk-test", AIMT_BASE, "deepseek-flash", 600)
 end
 
+# Everyone the tests before have left on.
+def aimt_clear() -> Any do
+  each(map((AIM <- :stats).fds, fn(f: Int) -> Int do f end), fn(f: Int) do AIM <- :leave(f) end)
+end
+
+# What SmarterChild says back to `text`, once it has said it.
+def aimt_sc(fd: Int, text: String, t: Int) -> List do
+  before = length((AIM <- :person(fd)).sc.history)
+  AIM <- :im(fd, "sc", text, t)
+  AIM <- :step_at(t + 30)
+  said = (AIM <- :person(fd)).sc.history
+  map(filter(range(before + 1, length(said) - 1), fn(i: Int) -> Bool do i > before and i < length(said) end), fn(i: Int) -> String do elem_at(said, i).content end)
+end
+
 actor AimTests do
   test "the archive: nine posts, the broken line dropped, a tab kept as a space" do
     assert_eq(AIM <- :load(nil), 0)
@@ -199,6 +213,82 @@ actor AimTests do
     assert_eq(AIM <- :ask(-6, "tomorrow", t + 86400), :asking)
   end
 
+  test "people who sign on see each other and IM; names are unique" do
+    aimt_load()
+    aimt_clear()
+    AIM <- :join(-11)
+    AIM <- :join(-12)
+    AIM <- :recv(-11, "{\"t\":\"signon\",\"name\":\"alice\"}")
+    assert_eq(aimt_last(-11), %{t: "buddies", sc: false, people: []})
+    AIM <- :recv(-12, "{\"t\":\"signon\",\"name\":\"ALICE\"}")
+    assert_eq((AIM <- :person(-12)).name, "ALICE2")
+    assert_eq(aimt_last(-11), %{t: "buddies", sc: false, people: [%{id: "u-12", name: "ALICE2"}]})
+    assert_eq(aimt_last(-12), %{t: "buddies", sc: false, people: [%{id: "u-11", name: "alice"}]})
+    assert_eq(AIM <- :recv(-11, "{\"t\":\"im\",\"to\":\"u-12\",\"text\":\" hi there \"}"), :sent)
+    assert_eq(aimt_last(-12), %{t: "chat", with: "u-11", loading: false, messages: [%{role: "them", content: "hi there", html: ""}]})
+    # what a person typed is text, never HTML
+    AIM <- :recv(-12, "{\"t\":\"im\",\"to\":\"u-11\",\"text\":\"<b>yo</b>\"}")
+    assert_eq(lookup(aimt_last(-11), :messages), [%{role: "user", content: "hi there", html: ""}, %{role: "them", content: "<b>yo</b>", html: ""}])
+    # not to yourself, nobody who isn't there, nobody who hasn't signed on
+    assert_eq(AIM <- :im(-11, "u-11", "me", now()), :nobody)
+    assert_eq(AIM <- :im(-11, "u-99", "x", now()), :nobody)
+    AIM <- :join(-13)
+    assert_eq(AIM <- :im(-11, "u-13", "x", now()), :nobody)
+    assert_eq(AIM <- :im(-13, "u-11", "x", now()), :ignored)
+    # with someone else here, SmarterChild stays away
+    AIM <- :step_at(now() + 60)
+    assert_eq((AIM <- :person(-11)).sc.active, false)
+    # signing off: off the other's list, the conversation forgotten
+    assert_eq((AIM <- :stats).conversations, 1)
+    AIM <- :recv(-12, "{\"t\":\"signoff\"}")
+    assert_eq(aimt_last(-11), %{t: "buddies", sc: false, people: []})
+    assert_eq((AIM <- :stats).conversations, 0)
+    assert_eq((AIM <- :person(-12)).signed, false)
+    aimt_clear()
+  end
+
+  test "alone, SmarterChild asks four riddles, and their letters open the cats" do
+    aimt_load()
+    aimt_clear()
+    AIM <- :join(-21)
+    AIM <- :sign_on(-21, "solo", 1000)
+    AIM <- :step_at(1003)
+    assert_eq((AIM <- :person(-21)).sc.active, false)
+    AIM <- :step_at(1004)
+    assert_eq(aimt_last(-21), %{t: "buddies", sc: true, people: []})
+    # the hello comes a line at a time, typing between
+    AIM <- :step_at(1006)
+    first = aimt_last(-21)
+    assert_eq([lookup(first, :with), lookup(first, :loading), length(lookup(first, :messages))], ["sc", true, 1])
+    AIM <- :step_at(1012)
+    hello = aimt_last(-21)
+    assert_eq([lookup(hello, :loading), length(lookup(hello, :messages))], [false, 4])
+    assert_eq(lookup(elem_at(lookup(hello, :messages), 3), :content), head(AIM_SC_RIDDLES).q)
+    assert_eq(lookup(elem_at(lookup(hello, :messages), 3), :role), "them")
+    assert_eq(aimt_sc(-21, "hint", 1020), [head(AIM_SC_RIDDLES).hint])
+    assert_eq(aimt_sc(-21, "a globe?", 1030), ["close, but flatter."])
+    assert_eq(aimt_sc(-21, "no idea", 1040), ["not it. type hint if you're stuck."])
+    assert_eq(aimt_sc(-21, "A MAP!", 1050), ["yep.", "next:", elem_at(AIM_SC_RIDDLES, 1).q])
+    assert_eq(length(aimt_sc(-21, "egg", 1060)), 3)
+    assert_eq(aimt_sc(-21, "sea", 1070), ["right idea, but decode the letters: it's five of them."])
+    assert_eq(length(aimt_sc(-21, "ocean", 1080)), 3)
+    assert_eq(aimt_sc(-21, "it's a clock", 1090), ["so close. smaller. you wear me."])
+    assert_eq(aimt_sc(-21, "it's a WATCH", 1100), list_append(["all four. you're good at this."], AIM_SC_FINAL))
+    assert_eq(aimt_sc(-21, "now what", 1110), ["you already got all four. first letters, sign off, sign back on as them."])
+    # the answers' first letters are the name
+    assert_eq(join(map(AIM_SC_RIDDLES, fn(r: Map) -> String do slice(head(r.answers), 0, 1) end), ""), AIM_SECRET_NAME)
+    AIM <- :recv(-21, "{\"t\":\"signoff\"}")
+    assert_eq((AIM <- :person(-21)).sc.active, false)
+    AIM <- :recv(-21, "{\"t\":\"signon\",\"name\":\" Meow \"}")
+    assert_eq(aimt_last(-21), %{t: "secret", src: "/aim/cats.jpg"})
+    assert_eq((AIM <- :person(-21)).name, "Meow")
+    # the riddles are the server's: the page's program has none of them
+    page = read_file("_build/aim.blimp")
+    assert(contains(page, "SmarterChild"))
+    assert(not(contains(page, "PDFBO")) and not(contains(page, "wristwatch")) and not(contains(page, AIM_CATS_SRC)))
+    aimt_clear()
+  end
+
   test "the page's program: sign on, frames in, messages out, the reader" do
     aim <- :remembered("oldname")
     v = to_html(aim <- :view)
@@ -244,5 +334,64 @@ actor AimTests do
     assert_eq(lookup(aim <- :where, :sound), nil)
     assert_eq(aimp_commas(1234567), "1,234,567")
     assert_eq(aimp_commas(12), "12")
+  end
+
+  test "the page's program: buddies, SmarterChild, people, signing off, the cats" do
+    aim <- :connected
+    aim <- :toggle_sound
+    aim <- :sign_on("{\"name\":\"solo\"}")
+    aim <- :outbox
+    aim <- :frame("{\"t\":\"hello\",\"online\":true,\"posts\":9,\"bot\":\"bobbbyBot\"}")
+    aim <- :frame("{\"t\":\"buddies\",\"sc\":false,\"people\":[]}")
+    v = to_html(aim <- :view)
+    assert(contains(v, "Online Now (0)") and contains(v, "nobody else is signed on") and contains(v, "Sign Off"))
+    assert(not(contains(v, "Cats (2/2)")))
+    # SmarterChild comes online and, with nothing said yet, takes the window
+    aim <- :frame("{\"t\":\"buddies\",\"sc\":true,\"people\":[]}")
+    aim <- :frame("{\"t\":\"chat\",\"with\":\"sc\",\"loading\":true,\"messages\":[{\"role\":\"them\",\"content\":\"hey <b>you</b>\",\"html\":\"\"}]}")
+    v2 = to_html(aim <- :view)
+    assert(contains(v2, "SmarterChild - Instant Message"))
+    assert(contains(v2, "hey &lt;b&gt;you&lt;/b&gt;"))
+    assert(contains(v2, "SmarterChild is typing..."))
+    # typing: nothing goes up until it has finished
+    assert_eq(aim <- :send("{\"message\":\"map\"}"), :ignored)
+    aim <- :frame("{\"t\":\"chat\",\"with\":\"sc\",\"loading\":false,\"messages\":[{\"role\":\"them\",\"content\":\"riddle\",\"html\":\"\"}]}")
+    assert_eq(aim <- :send("{\"message\":\"map\"}"), :sent)
+    assert_eq(aim <- :outbox, ["{\"t\":\"im\",\"to\":\"sc\",\"text\":\"map\"}"])
+    # someone signs on and says something: the window is busy, so it waits, bold
+    aim <- :frame("{\"t\":\"buddies\",\"sc\":true,\"people\":[{\"id\":\"u7\",\"name\":\"alice\"}]}")
+    aim <- :frame("{\"t\":\"chat\",\"with\":\"u7\",\"loading\":false,\"messages\":[{\"role\":\"them\",\"content\":\"hi solo\",\"html\":\"\"}]}")
+    v3 = to_html(aim <- :view)
+    assert(contains(v3, "SmarterChild - Instant Message"))
+    assert(contains(v3, "Online Now (1)") and contains(v3, "(new message)") and contains(v3, "aim-tab unread"))
+    aim <- :open_chat("u7")
+    v4 = to_html(aim <- :view)
+    assert(contains(v4, "alice - Instant Message") and contains(v4, "hi solo") and contains(v4, "alice is online."))
+    assert(not(contains(v4, "(new message)")))
+    assert_eq(aim <- :send("{\"message\":\"hey alice\"}"), :sent)
+    assert_eq(aim <- :outbox, ["{\"t\":\"im\",\"to\":\"u7\",\"text\":\"hey alice\"}"])
+    # alice signs off: the conversation stays, under her name, and can't be sent to
+    aim <- :frame("{\"t\":\"buddies\",\"sc\":true,\"people\":[]}")
+    assert(contains(to_html(aim <- :view), "alice signed off."))
+    assert_eq(aim <- :send("{\"message\":\"hello?\"}"), :ignored)
+    # bobbbyBot is still a tab away
+    aim <- :open_im
+    assert(contains(to_html(aim <- :view), "bobbbyBot - Instant Message"))
+    assert_eq(aim <- :send("{\"message\":\"grilled cheese\"}"), :sent)
+    assert_eq(aim <- :outbox, ["{\"t\":\"ask\",\"text\":\"grilled cheese\"}"])
+    # signing off forgets everything; signing on as the name opens the cats
+    aim <- :sign_off
+    assert_eq(aim <- :outbox, ["{\"t\":\"signoff\"}"])
+    assert(contains(to_html(aim <- :view), "aim-signon"))
+    aim <- :sign_on("{\"name\":\"meow\"}")
+    aim <- :frame("{\"t\":\"secret\",\"src\":\"/aim/cats.jpg\"}")
+    v5 = to_html(aim <- :view)
+    # the server said hello once, for the socket, not for each sign-on
+    assert(not(contains(v5, "(connecting)")))
+    assert(contains(v5, "Cats (2/2)") and contains(v5, "Picture Viewer - cats.jpg") and contains(v5, "src=\"/aim/cats.jpg\""))
+    aim <- :close_cats
+    assert(not(contains(to_html(aim <- :view), "Picture Viewer")))
+    aim <- :open_cats
+    assert(contains(to_html(aim <- :view), "Picture Viewer"))
   end
 end
