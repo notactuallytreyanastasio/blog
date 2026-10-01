@@ -161,3 +161,13 @@ Inherited method bodies are copied into the class, so there is no `super`.
 | `f` as a value | `&TemperMain.f/1` |
 | a call that omits optional arguments | the missing ones passed as `nil` |
 | `...rest` | one list parameter |
+
+## 8. Lists
+
+| Temper | Elixir |
+|--------|--------|
+| `List<T>` | an Elixir list |
+| `ListBuilder<T>` | a heap object `%TemperCore.Ref{class: :list_builder}` holding an Elixir list |
+| any `Listed` method | `TemperCore.List.fn(x, ...)`, which takes either |
+| a panic in core (`removeLast` on empty) | `raise TemperCore.Panic` |
+| a bubble in core (`get` out of range) | `raise TemperCore.Bubble` |
