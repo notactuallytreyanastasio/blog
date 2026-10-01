@@ -36,10 +36,11 @@ def dt_has_on_attr(html: String) -> Bool do
   length(filter(parts, fn(p: String) -> Bool do dt_letters_then_eq(p, 0) end)) > 0
 end
 
-# Scriptless apart from the scope's two scripts (HOME_TAGS): what matters
-# here is that nothing from the query string becomes one.
+# Scriptless apart from the scope's two scripts (HOME_TAGS) and the
+# background's (HOME_ART_TAG): what matters here is that nothing from the
+# query string becomes one.
 def dt_scriptless(page: String) -> Bool do
-  html = replace_all(page, HOME_TAGS, "")
+  html = replace_all(replace_all(page, HOME_TAGS, ""), HOME_ART_TAG, "")
   lower = downcase(html)
   not(contains(lower, "<script")) and not(contains(lower, "javascript:")) and not(dt_has_on_attr(html))
 end
@@ -198,6 +199,8 @@ actor DesktopTests do
     assert(length(desk.art_html) < 20000)
     assert_eq(desk_art_seed(86400 * 3 + 5), 3)
     assert(contains(dt_page("booted=1"), desk.art_html))
+    # the browser redraws it per view, from the tag right after it
+    assert(contains(dt_page("booted=1"), concat(desk.art_html, "<script src=\"/blimp/home-art.js?v=")))
   end
 
   test "the manifest lists every page in data/hangar.tsv, each with an icon, a card a group" do

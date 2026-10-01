@@ -257,6 +257,15 @@ end
 # percent, so the picture follows light and dark. The seed is the day the
 # desktop was built (days since 1970): it changes when the server restarts
 # or the museum reloads on a new day.
+#
+# That picture is what a reader with scripts off sees. Everyone else gets a
+# new one per page view from static/blimp/home-art.js, the same module
+# compiled by Temper's JS backend (static/blimp/home-art.sh, which checks
+# both backends draw the same bytes for the same seed). Its tag sits right
+# after the picture, so it redraws before the first paint. It is not drawn
+# here per request: a picture costs this interpreter 50ms or more, which a
+# one-thread server cannot spend on every view of "/", and the browser
+# about 0.02ms.
 DESK_ART_W = 1600
 DESK_ART_H = 1000
 
@@ -875,6 +884,8 @@ def desk_script_href(url: String, path: String) -> String do
   end
 end
 
+HOME_ART_TAG = concat("<script src=\"", desk_script_href("/blimp/home-art.js", "static/blimp/home-art.js"), "\"></script>")
+
 HOME_TAGS = concat("<script src=\"/blimp/canvas.js\"></script><script src=\"", desk_script_href("/blimp/home.js", "static/blimp/home.js"), "\"></script>")
 
 # The share card: the scope, as a link preview. priv/static/images, served
@@ -1065,6 +1076,7 @@ def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, pr
   total = desk_card_total(desk)
   body = join([
     desk.art_html,
+    HOME_ART_TAG,
     "<div class=\"home\">",
     "<div class=\"pane\">",
     desk_rail(epoch_s, st),
