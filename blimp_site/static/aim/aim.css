@@ -51,6 +51,9 @@ html.aim-html, html.aim-html body {
     inset -2px -2px var(--aim-mid), inset 2px 2px var(--aim-light), 4px 6px 18px rgba(0,0,0,.28);
 }
 .aim-titlebar {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -417,11 +420,38 @@ button.aim-task { cursor: pointer; }
 .aim-check { font: inherit; background: none; border: 0; padding: 2px 0; cursor: pointer; }
 .aim-check:focus-visible { outline: 1px dotted #000; }
 
+/* ── the Party Line and the Bulletin Board ─────────────────────────── */
+
+.aim-party { left: max(262px, calc(100% - 560px)); top: 70px; width: min(520px, calc(100% - 290px)); height: min(440px, calc(100% - 110px)); }
+.aim-party-body { flex: 1; min-height: 0; display: flex; gap: 4px; margin: 4px 0; }
+.aim-party-log { min-height: 0; }
+.aim-party-people {
+  width: 130px; flex: none; overflow: auto; background: #fff; padding: 4px 6px;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light);
+}
+.aim-party-people ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.aim-party-people li { padding: 1px 0; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aim-sn.them { color: var(--aim-bot); }
+
+.aim-board { left: max(300px, calc(50% - 160px)); top: 110px; width: min(440px, calc(100% - 330px)); height: min(500px, calc(100% - 150px)); }
+.aim-board-head { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px; }
+.aim-board-list {
+  flex: 1; min-height: 0; overflow: auto; background: #fffef0; padding: 6px;
+  box-shadow: inset 1px 1px var(--aim-mid), inset -1px -1px var(--aim-light);
+}
+.aim-note { background: #fff; border: 1px solid #d8d2a8; padding: 5px 7px; margin-bottom: 6px; box-shadow: 1px 1px 0 #e8e2b8; }
+.aim-note-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.aim-note-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.4 var(--aim-chat); }
+.aim-board-form { display: flex; flex-direction: column; gap: 5px; padding-top: 5px; }
+.aim-board-input { resize: vertical; }
+.aim-board-note { color: #b00; }
+
 @media (max-width: 760px) {
   /* the corner canvas window is 400px wide and would sit on Send */
   html.aim-html .blimp-window { display: none; }
   .aim-windows { padding: 8px; display: flex; flex-direction: column; }
-  .aim-win { position: relative; left: auto; top: auto; transform: none; width: auto; }
+  .aim-win { position: relative; left: auto; top: auto; transform: none; width: auto; translate: none !important; }
+  .aim-titlebar { cursor: default; touch-action: auto; }
   .aim-signon, .aim-dial { margin: auto 0; }
   .aim-buddies { height: auto; flex: 1; min-height: 0; }
   .im-open .aim-buddies { display: none; }
@@ -429,6 +459,8 @@ button.aim-task { cursor: pointer; }
   .aim-menubar, .aim-warnbar, .aim-toolbar .aim-tool, .aim-toolbar .aim-swatch { display: none; }
   .aim-input { font-size: 16px; height: 52px; }
   .aim-info, .aim-cats { position: absolute; left: 8px; right: 8px; top: 50%; transform: translateY(-50%); width: auto; }
+  .aim-party, .aim-board { position: absolute; left: 8px; right: 8px; top: 8px; bottom: 8px; width: auto; height: auto; z-index: 4; }
+  .aim-party-people { width: 90px; }
   .aim-reader-scrim { padding: 0; }
   .aim-reader { width: 100%; height: 100%; }
   .aim-reader-article { padding: 28px 18px 48px; }

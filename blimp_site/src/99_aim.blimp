@@ -34,6 +34,8 @@
 #                                        (/aim?msg=SmarterChild)
 #         {"t":"im","to":id,"text":..}   a message to anyone else: "sc"
 #                                        (SmarterChild) or "u<socket>"
+#         {"t":"party","text":..}        a line in the Party Line
+#         {"t":"post","text":..}         a note on the Bulletin Board
 #   down  {"t":"hello","online":bool,"posts":n,"bot":..}
 #         {"t":"chat","with":id,"loading":bool,"messages":[{"role","content","html"}..]}
 #                                        id "bot" is bobbbyBot; a person's
@@ -41,11 +43,28 @@
 #         {"t":"buddies","people":[{"id","name"}..]}
 #                                        who else is signed on
 #         {"t":"secret","src":..}        the cats
+#         {"t":"party","lines":[{"name","text","sys","me"}..],"members":[name..]}
+#                                        the Party Line, everyone signed on
+#         {"t":"board","posts":[{"id","name","text","at","when"}..],"note":..}
+#                                        the Bulletin Board, newest first;
+#                                        note is "" or why a post was refused
 #
 # People who have signed on are on each other's Buddy Lists and IM each
 # other through AIM, which keeps the last AIM_DM_KEEP lines of each pair's
 # conversation and drops them when either signs off. Nothing goes to
 # DeepSeek, nothing is saved.
+#
+# The Party Line is one chat room everyone signed on is in, the way AOL's
+# rooms were: it says who entered and left, keeps its last AIM_PARTY_KEEP
+# lines in memory, and nothing of it is saved.
+#
+# The Bulletin Board is the one thing here that is saved, and public: a
+# row in aim_bulletins for each note, which this file creates if it is
+# not there (AIM <- :board_load at boot). Without a database (a laptop,
+# the tests) the notes live in memory until the process stops. A note is
+# signed with the screen name; a page gets AIM_BOARD_LIMIT of them, one
+# every AIM_BOARD_GAP_S seconds. Bobby takes one down at the prompt:
+# AIM <- :unpost(id).
 #
 # SmarterChild is the other buddy, always online, rebuilt from its old
 # chat logs as a set of rules (below), not a model. Anyone can IM it;
@@ -258,7 +277,7 @@ AIM_DM_LIMIT = 1000
 
 def aim_new_person(fd: Int) -> Map do
   %{fd: fd, name: "Visitor", signed: false, signed_at: 0, history: [], count: 0, loading: false, job: nil, last: "",
-    dms_sent: 0, sc: aim_sc_fresh()}
+    dms_sent: 0, sc: aim_sc_fresh(), board_posts: 0, posted_at: 0}
 end
 
 def aim_signed(people: Map) -> List do
@@ -339,6 +358,40 @@ def aim_roster_frame(people: Map, p: Map) -> String do
   others = filter(aim_signed(people), fn(o: Map) -> Bool do o.fd != p.fd end)
   ranked = sort_by_keys(others, map(others, fn(o: Map) -> String do downcase(o.name) end))
   json_encode(%{t: "buddies", people: map(ranked, fn(o: Map) -> Map do %{id: aim_peer_id(o.fd), name: o.name} end)})
+end
+
+# ── the Party Line and the Bulletin Board ──────────────────────────────
+
+AIM_PARTY_KEEP = 100
+AIM_PARTY_MAX_CHARS = 1000
+AIM_BOARD_KEEP = 100
+AIM_BOARD_MAX_CHARS = 500
+AIM_BOARD_LIMIT = 10
+AIM_BOARD_GAP_S = 20
+
+AIM_BOARD_CREATE_SQL = "create table if not exists aim_bulletins (id bigserial primary key, name text not null, body text not null, inserted_at timestamptz not null default now())"
+AIM_BOARD_LIST_SQL = "select id, name, body, extract(epoch from inserted_at)::bigint as at from aim_bulletins order by id desc limit 100"
+AIM_BOARD_INSERT_SQL = "insert into aim_bulletins (name, body) values ($1, $2) returning id, extract(epoch from inserted_at)::bigint as at"
+AIM_BOARD_DELETE_SQL = "delete from aim_bulletins where id = $1"
+
+# The room as one person sees it: their own lines marked, and who is in it.
+def aim_party_frame(people: Map, party: List, fd: Int) -> String do
+  members = map(aim_signed(people), fn(o: Map) -> String do o.name end)
+  json_encode(%{t: "party",
+    lines: map(party, fn(l: Map) -> Map do %{name: l.name, text: l.text, sys: l.sys, me: l.fd == fd} end),
+    members: sort_by_keys(members, map(members, fn(n: String) -> String do downcase(n) end))})
+end
+
+def aim_party_line(fd: Int, name: String, text: String, sys: Bool) -> Map do
+  %{fd: fd, name: name, text: text, sys: sys}
+end
+
+def aim_board_frame(board: List, note: String) -> String do
+  json_encode(%{t: "board", note: note, posts: map(board, fn(n: Map) -> Map do put(n, :when, format_time(n.at, "%Y-%m-%d")) end)})
+end
+
+def aim_board_row(r: Map) -> Map do
+  %{id: r.id, name: r.name, text: r.body, at: r.at}
 end
 
 # ── SmarterChild ───────────────────────────────────────────────────────
@@ -889,6 +942,13 @@ actor AimChat do
   # aim_pair -> [%{from, content}..], the last AIM_DM_KEEP lines
   state dms: Map :: %{}
   state dms_sent: Int :: 0
+  # the Party Line's last lines, [aim_party_line..]
+  state party: List :: []
+  # the Bulletin Board, newest first, [%{id, name, text, at}..]; saved in
+  # aim_bulletins when board_db, otherwise numbered from board_next
+  state board: List :: []
+  state board_db: Bool :: false
+  state board_next: Int :: 1
   # SmarterChild's hellos so far, which picks the next one's opening
   state hellos: Int :: 0
   state abandoned: List :: []
@@ -942,15 +1002,132 @@ actor AimChat do
     end
     become people: zg_without(people, to_string(fd)), abandoned: list_append(abandoned, gone), dms: aim_forget(dms, fd)
     case was do
-      true -> self <- :roster
+      true ->
+        self <- :party_note(concat(p.name, " has left the room."))
+        self <- :roster
       false -> :ok
     end
     reply :ok
   end
 
-  # Every signed-on page's Buddy List, again.
+  # A line from the room itself: someone came or went.
+  on :party_note(text: String) do
+    become party: aim_last_n(list_append(party, [aim_party_line(0, "", text, true)]), AIM_PARTY_KEEP)
+    reply :ok
+  end
+
+  # Every signed-on page's Party Line and Buddy List, again.
   on :roster do
-    each(aim_signed(people), fn(p: Map) do self <- :tell(p.fd, aim_roster_frame(people, p)) end)
+    each(aim_signed(people), fn(p: Map) do
+      self <- :tell(p.fd, aim_party_frame(people, party, p.fd))
+      self <- :tell(p.fd, aim_roster_frame(people, p))
+    end)
+    reply :ok
+  end
+
+  # The Party Line, again, to everyone in it.
+  on :party_all do
+    each(aim_signed(people), fn(p: Map) do self <- :tell(p.fd, aim_party_frame(people, party, p.fd)) end)
+    reply :ok
+  end
+
+  # A line in the Party Line.
+  on :party_say(fd: Int, text: String) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or text == "" do
+      true -> reply :ignored
+      false ->
+        case p.signed and p.dms_sent < AIM_DM_LIMIT do
+          false -> reply :ignored
+          true ->
+            line = aim_party_line(fd, p.name, utf8_slice(text, 0, AIM_PARTY_MAX_CHARS), false)
+            become people: put(people, k, put(p, :dms_sent, p.dms_sent + 1)), party: aim_last_n(list_append(party, [line]), AIM_PARTY_KEEP)
+            self <- :party_all
+            reply :said
+        end
+    end
+  end
+
+  # The board from aim_bulletins (made if it is missing), or kept in memory
+  # without a database. Replies how many notes, or {:error, reason}.
+  on :board_load(use_db: Bool) do
+    case use_db do
+      false ->
+        become board_db: false
+        reply length(board)
+      true ->
+        made = DB <- :query(AIM_BOARD_CREATE_SQL, [])
+        case made do
+          {:error, why} -> reply {:error, why}
+          _ ->
+            case DB <- :query(AIM_BOARD_LIST_SQL, []) do
+              {:ok, rows} ->
+                become board_db: true, board: map(rows, fn(r: Map) -> Map do aim_board_row(r) end)
+                reply length(rows)
+              {:error, why} -> reply {:error, why}
+            end
+        end
+    end
+  end
+
+  # A note on the board, from a page signed on, if it has not posted too
+  # much or too lately.
+  on :post(fd: Int, text: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or text == "" do
+      true -> reply :ignored
+      false ->
+        why = case p.signed do
+          false -> "Sign on to post."
+          true ->
+            case p.board_posts >= AIM_BOARD_LIMIT do
+              true -> concat("That's ", to_string(AIM_BOARD_LIMIT), " notes from you. Sign off and come back another day.")
+              false ->
+                case p.board_posts > 0 and t - p.posted_at < AIM_BOARD_GAP_S do
+                  true -> concat("One note every ", to_string(AIM_BOARD_GAP_S), " seconds, please.")
+                  false -> ""
+                end
+            end
+        end
+        case why do
+          "" ->
+            body = utf8_slice(text, 0, AIM_BOARD_MAX_CHARS)
+            saved = case board_db do
+              false -> {:ok, [%{id: board_next, at: t}]}
+              true -> DB <- :query(AIM_BOARD_INSERT_SQL, [p.name, body])
+            end
+            case saved do
+              {:ok, [row | _]} ->
+                note = %{id: row.id, name: p.name, text: body, at: row.at}
+                become people: put(people, k, put(put(p, :board_posts, p.board_posts + 1), :posted_at, t)),
+                  board: zg_take([note | board], AIM_BOARD_KEEP), board_next: board_next + 1
+                each(aim_signed(people), fn(o: Map) do self <- :tell(o.fd, aim_board_frame((self <- :board), "")) end)
+                reply :posted
+              _ ->
+                self <- :tell(fd, aim_board_frame(board, "The board couldn't save that. Try again in a minute."))
+                reply :failed
+            end
+          _ ->
+            self <- :tell(fd, aim_board_frame(board, why))
+            reply :refused
+        end
+    end
+  end
+
+  on :board do
+    reply board
+  end
+
+  # Bobby, at the prompt: a note taken down.
+  on :unpost(id: Int) do
+    case board_db do
+      true -> DB <- :query(AIM_BOARD_DELETE_SQL, [id])
+      false -> :ok
+    end
+    become board: filter(board, fn(n: Map) -> Bool do n.id != id end)
+    each(aim_signed(people), fn(o: Map) do self <- :tell(o.fd, aim_board_frame((self <- :board), "")) end)
     reply :ok
   end
 
@@ -964,6 +1141,8 @@ actor AimChat do
       false ->
         name = aim_unique_name(people, fd, aim_screen_name(raw))
         become people: put(people, k, put(put(put(p, :name, name), :signed, true), :signed_at, t))
+        self <- :tell(fd, aim_board_frame(board, ""))
+        self <- :party_note(concat(name, " has entered the room."))
         self <- :roster
         case aim_secret(raw) do
           true -> self <- :tell(fd, json_encode(%{t: "secret", src: AIM_CATS_SRC}))
@@ -985,6 +1164,10 @@ actor AimChat do
           j -> [j.h]
         end
         become people: put(people, k, put(aim_new_person(fd), :last, p.last)), dms: aim_forget(dms, fd), abandoned: list_append(abandoned, gone)
+        case p.signed do
+          true -> self <- :party_note(concat(p.name, " has left the room."))
+          false -> :ok
+        end
         self <- :roster
         reply :signed_off
     end
@@ -1104,6 +1287,8 @@ actor AimChat do
           "signoff" -> reply (self <- :sign_off(fd))
           "ask" -> reply (self <- :ask(fd, trim(zg_str(lookup(msg, :text))), now()))
           "im" -> reply (self <- :im(fd, zg_str(lookup(msg, :to)), trim(zg_str(lookup(msg, :text))), now()))
+          "party" -> reply (self <- :party_say(fd, trim(zg_str(lookup(msg, :text)))))
+          "post" -> reply (self <- :post(fd, trim(zg_str(lookup(msg, :text))), now()))
           # /aim?msg=SmarterChild: it says hello at once, alone or not
           "open" ->
             case p.signed and zg_str(lookup(msg, :with)) == "sc" do
@@ -1286,7 +1471,7 @@ actor AimChat do
   end
 
   on :stats do
-    reply %{fds: map(values(people), fn(p: Map) -> Int do p.fd end), pages: length(keys(people)), signed_on: length(aim_signed(people)), conversations: length(keys(dms)), dms: dms_sent, keyed: key != "", model: model, posts: length(rows),
+    reply %{fds: map(values(people), fn(p: Map) -> Int do p.fd end), pages: length(keys(people)), signed_on: length(aim_signed(people)), conversations: length(keys(dms)), dms: dms_sent, party_lines: length(party), board: length(board), board_db: board_db, keyed: key != "", model: model, posts: length(rows),
       chunks: length(chunks), asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
       failures: failures, last_error: last_error, cache_hit_tokens: cache_hit, cache_miss_tokens: cache_miss}
   end

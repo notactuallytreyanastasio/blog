@@ -9,6 +9,8 @@
 //  - keys: Enter sends (Shift+Enter is a new line), Escape closes the
 //    reader, the arrow keys page through it.
 //  - the transcript stays scrolled to the bottom; the taskbar has a clock.
+//  - windows are dragged by their title bars, and the last one touched is
+//    in front.
 //  - /aim?msg=SmarterChild opens its window on signing on (`:want`).
 //  - the dial-up screen after Sign On: a tick a second or so while
 //    `:where` says it is dialing, its noise, and "skip it next time"
@@ -95,7 +97,7 @@
     var view = app.view;
     var blimp = app.blimp;
     var readerOpen = false;
-    var lastLog = 0;
+    var lastLog = 0, lastRoom = 0;
 
     // A send made while the view is rendering is dropped, so an event
     // waits for the stack to unwind.
@@ -118,11 +120,16 @@
         var page = document.getElementById('aim-reader-page');
         if (page) { page.scrollTop = 0; page.focus && page.focus(); }
       }
-      // keep the transcript at the bottom when it grows
+      // keep the transcripts at the bottom when they grow
       var log = document.getElementById('aim-log');
       if (log && log.scrollHeight !== lastLog) {
         lastLog = log.scrollHeight;
         log.scrollTop = log.scrollHeight;
+      }
+      var room = document.getElementById('aim-party-log');
+      if (room && room.scrollHeight !== lastRoom) {
+        lastRoom = room.scrollHeight;
+        room.scrollTop = room.scrollHeight;
       }
       var input = document.querySelector('.aim-input');
       if (input && !input.disabled && !readerOpen && document.activeElement === document.body && window.innerWidth > 700) input.focus();
@@ -131,7 +138,7 @@
     var render = view.render;
     view.render = function () {
       var r = render.apply(this, arguments);
-      try { sync(); } catch (e) { console.error(e); }
+      try { sync(); place(); } catch (e) { console.error(e); }
       return r;
     };
 
@@ -174,6 +181,70 @@
     document.addEventListener('click', function (e) {
       if (e.target.classList && e.target.classList.contains('aim-reader-scrim')) tell('close_reader');
     });
+
+    // Windows move by their title bars. The offset is the CSS `translate`
+    // property, which adds to the `transform` each window centres itself
+    // with rather than replacing it. Offsets are kept per kind of window
+    // (aim-buddies, aim-im, ...) and put back after every render, because
+    // a render may rebuild a window's element. Phones stack the windows,
+    // so there is nothing to drag there.
+    var moved = {}, front = null, drag = null;
+    function kind(win) {
+      for (var i = 0; i < win.classList.length; i++) {
+        var c = win.classList[i];
+        if (c !== 'aim-win' && c.indexOf('aim-') === 0) return c;
+      }
+      return null;
+    }
+    var shown = {};
+    function place() {
+      var wins = document.querySelectorAll('.aim-win');
+      // a window that has just opened comes to the front
+      var now = {};
+      for (var j = 0; j < wins.length; j++) {
+        var kj = kind(wins[j]);
+        now[kj] = true;
+        if (!shown[kj] && kj !== 'aim-reader' && Object.keys(shown).length) front = kj;
+      }
+      shown = now;
+      for (var i = 0; i < wins.length; i++) {
+        var k = kind(wins[i]), m = moved[k];
+        if (k === 'aim-reader') continue;
+        wins[i].style.translate = m ? m.x + 'px ' + m.y + 'px' : '';
+        wins[i].style.zIndex = k === front ? '4' : '';
+      }
+    }
+    function stacked() { return window.matchMedia('(max-width: 760px)').matches; }
+    document.addEventListener('pointerdown', function (e) {
+      var bar = e.target.closest && e.target.closest('.aim-titlebar');
+      var win = bar && bar.closest('.aim-win');
+      if (!win) {
+        var w = e.target.closest && e.target.closest('.aim-win');
+        if (w && kind(w) !== 'aim-reader') { front = kind(w); place(); }
+        return;
+      }
+      var k = kind(win);
+      if (k === 'aim-reader' || stacked() || e.button !== 0 || e.target.closest('button')) return;
+      front = k;
+      var m = moved[k] || { x: 0, y: 0 };
+      var r = win.getBoundingClientRect();
+      drag = { k: k, sx: e.clientX, sy: e.clientY, x: m.x, y: m.y, left: r.left, top: r.top, w: r.width };
+      bar.setPointerCapture && bar.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      place();
+    });
+    document.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      // keep at least 60px of the title bar on screen, and its top below 0
+      dx = Math.max(60 - drag.left - drag.w, Math.min(window.innerWidth - 60 - drag.left, dx));
+      dy = Math.max(-drag.top, Math.min(window.innerHeight - 60 - drag.top, dy));
+      moved[drag.k] = { x: drag.x + dx, y: drag.y + dy };
+      place();
+    });
+    function drop() { drag = null; }
+    document.addEventListener('pointerup', drop);
+    document.addEventListener('pointercancel', drop);
 
     function tick() {
       var c = document.getElementById('aim-clock');

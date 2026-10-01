@@ -1058,6 +1058,11 @@ case AIM_POSTS == 0 do
   true -> puts(concat("aim: no archive at ", AIM_ARCHIVE_FILE, ", so bobbbyBot is offline (build.sh copies it from AIM_ARCHIVE)"))
   false -> puts(concat("aim: ", to_string(AIM_POSTS), " posts"))
 end
+# /aim's Bulletin Board: aim_bulletins in Postgres, or memory without one
+case AIM <- :board_load(DB_OPTS != nil) do
+  {:error, why} -> puts(concat("aim: the bulletin board could not load: ", why))
+  n -> puts(concat("aim: ", to_string(n), " bulletin board notes"))
+end
 AIM_CONFIG = AIM <- :config(zg_env("AIM_API_KEY", ""), zg_env("AIM_BASE_URL", "https://api.deepseek.com"), zg_env("AIM_MODEL", "deepseek-flash"), to_int(zg_env("AIM_DAILY_LIMIT", "600")))
 case lookup(AIM_CONFIG, :keyed) do
   true -> :ok

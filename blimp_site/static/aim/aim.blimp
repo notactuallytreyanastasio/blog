@@ -1,5 +1,6 @@
 # /aim: the page's program. It draws a desktop from about 2003 -- the
-# sign-on window, the Buddy List, an Instant Message window, Get Info --
+# sign-on window, the Buddy List, an Instant Message window, Get Info, the
+# Party Line (one room with everyone in it) and the Bulletin Board --
 # and one thing AIM never had: a reader view, because bobbbyBot answers in
 # Markdown and a long answer deserves a page, not a chat bubble.
 #
@@ -240,6 +241,13 @@ def aimp_buddy_list(s: Map) -> Any do
     "" -> []
     _ -> [el("div", %{class: "aim-group"}, "▾ Cats (2/2)"), aimp_buddy("Bobby's cats", "online cats", :open_cats, "")]
   end
+  party_cls = case s.party_unread do
+    true -> "online unread"
+    false -> "online"
+  end
+  rooms = [el("div", %{class: "aim-group"}, "▾ Chat Rooms (2)"),
+    aimp_buddy("Party Line", party_cls, :open_party, concat("(", to_string(length(s.party_members)), " here)")),
+    aimp_buddy("Bulletin Board", "online", :open_board, concat("(", to_string(length(s.board_posts)), " notes)"))]
   offline = "▾ Offline (1/1)"
   muted = case s.muted do
     true -> "Sounds: off"
@@ -257,6 +265,7 @@ def aimp_buddy_list(s: Map) -> Any do
       el("div", %{class: "aim-group"}, concat("▾ Online Now (", to_string(length(people)), ")")),
       people,
       nobody,
+      rooms,
       cats,
       el("div", %{class: "aim-group"}, offline),
       el("a", %{class: "aim-buddy offline", href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, el("span", %{class: "aim-buddy-name"}, "bobbby (the real one)")),
@@ -517,6 +526,73 @@ def aimp_reader(s: Map) -> Any do
           el("footer", %{}, "An AI agent built from Bobby Grayson's posts, not Bobby. The real one is ", el("a", %{href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, "@bobbby.online"), ".")))))
 end
 
+# ── the Party Line ─────────────────────────────────────────────────────
+# One room with everyone signed on in it, like an AOL chat room: the
+# conversation on the left, who is here on the right.
+
+def aimp_party(s: Map) -> Any do
+  lines = map(s.party_lines, fn(l: Map) -> Any do
+    case lookup(l, :sys) == true do
+      true -> el("div", %{class: "aim-sys"}, aimp_str(lookup(l, :text)))
+      false ->
+        who = case lookup(l, :me) == true do
+          true -> "aim-sn me"
+          false -> "aim-sn them"
+        end
+        el("div", %{class: "aim-line"}, el("span", %{class: who}, aimp_str(lookup(l, :name)), ":"), el("span", %{class: "aim-text"}, aimp_str(lookup(l, :text))))
+    end
+  end)
+  empty = case lines do
+    [] -> [el("div", %{class: "aim-sys"}, "Nobody has said anything yet.")]
+    _ -> []
+  end
+  n = length(s.party_members)
+  el("div", %{class: "aim-win aim-party"},
+    aimp_titlebar("Party Line - Chat Room", :close_party),
+    aimp_menubar(["File", "Edit", "People"]),
+    el("div", %{class: "aim-party-body"},
+      el("div", %{class: "aim-log aim-party-log", id: "aim-party-log"}, empty, lines),
+      el("div", %{class: "aim-party-people"},
+        el("div", %{class: "aim-small"}, concat(to_string(n), " in room")),
+        el("ul", %{}, map(s.party_members, fn(m: Any) -> Any do el("li", %{}, aimp_str(m)) end)))),
+    el("form", %{class: "aim-compose", submit: :party_send},
+      el("textarea", %{name: "message", id: concat("aim-party-input-", to_string(s.party_sent)), class: "aim-input aim-party-input", rows: "2", maxlength: "1000",
+        placeholder: "Say something to the room..."}),
+      el("div", %{class: "aim-im-buttons"},
+        el("span", %{class: "aim-spacer"}),
+        el("button", %{type: "submit", class: "aim-btn aim-btn-default aim-send"}, aimp_runner("tiny"), "Send"))))
+end
+
+# ── the Bulletin Board ─────────────────────────────────────────────────
+# Notes anyone signed on can leave, newest first. The server saves them.
+
+def aimp_board(s: Map) -> Any do
+  notes = map(s.board_posts, fn(n: Map) -> Any do
+    el("div", %{class: "aim-note"},
+      el("div", %{class: "aim-note-head"}, el("b", %{}, aimp_str(lookup(n, :name))), el("span", %{class: "aim-small"}, aimp_str(lookup(n, :when)))),
+      el("div", %{class: "aim-note-text"}, aimp_str(lookup(n, :text))))
+  end)
+  empty = case notes do
+    [] -> [el("div", %{class: "aim-sys"}, "No notes yet. Leave the first one.")]
+    _ -> []
+  end
+  note = case s.board_note do
+    "" -> []
+    why -> [el("div", %{class: "aim-board-note"}, why)]
+  end
+  el("div", %{class: "aim-win aim-board"},
+    aimp_titlebar("Bulletin Board", :close_board),
+    el("div", %{class: "aim-board-head"}, el("strong", %{}, "bobbby.online Bulletin Board"), el("span", %{class: "aim-small"}, "Public. Signed with your screen name. Bobby can take notes down.")),
+    el("div", %{class: "aim-board-list"}, empty, notes),
+    el("form", %{class: "aim-board-form", submit: :board_send},
+      el("textarea", %{name: "note", id: concat("aim-board-input-", to_string(s.board_sent)), class: "aim-field aim-board-input", rows: "3", maxlength: "500",
+        placeholder: "Leave a note for everyone..."}),
+      note,
+      el("div", %{class: "aim-im-buttons"},
+        el("span", %{class: "aim-spacer"}),
+        el("button", %{type: "submit", class: "aim-btn aim-btn-default"}, "Post"))))
+end
+
 # ── Get Info ───────────────────────────────────────────────────────────
 
 def aimp_info(s: Map) -> Any do
@@ -545,8 +621,16 @@ def aimp_taskbar(s: Map) -> Any do
     true -> [el("button", %{class: "aim-task", click: :open_cats}, "cats.jpg")]
     false -> []
   end
+  party = case s.party_open do
+    true -> [el("button", %{class: "aim-task", click: :open_party}, "Party Line")]
+    false -> []
+  end
+  board = case s.board_open do
+    true -> [el("button", %{class: "aim-task", click: :open_board}, "Bulletin Board")]
+    false -> []
+  end
   tasks = case s.signed_on and s.dial < 0 do
-    true -> aimp_append([el("span", %{class: "aim-task"}, concat(s.name, "'s Buddy List"))], aimp_append(im, cats))
+    true -> aimp_append([el("span", %{class: "aim-task"}, concat(s.name, "'s Buddy List"))], aimp_append(im, aimp_append(party, aimp_append(board, cats))))
     false -> [el("span", %{class: "aim-task on"}, "Sign On")]
   end
   el("div", %{class: "aim-taskbar"},
@@ -575,7 +659,15 @@ def aimp_page(s: Map) -> Any do
         true -> [aimp_cats(s)]
         false -> []
       end
-      aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(info, aimp_append(cats, reader))))
+      party = case s.party_open do
+        true -> [aimp_party(s)]
+        false -> []
+      end
+      board = case s.board_open do
+        true -> [aimp_board(s)]
+        false -> []
+      end
+      aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(party, aimp_append(board, aimp_append(info, aimp_append(cats, reader))))))
   end
   windows = case s.signed_on and s.dial >= 0 do
     true -> [aimp_dial(s)]
@@ -628,6 +720,18 @@ actor AimPage do
   # the dial-up screen's step, or -1; whether to skip it (aim.js remembers)
   state dial: Int :: -1
   state dial_skip: Bool :: false
+  # the Party Line: its lines, who is in it, whether it is open, and
+  # whether something was said while it was shut
+  state party_lines: List :: []
+  state party_members: List :: []
+  state party_open: Bool :: false
+  state party_unread: Bool :: false
+  state party_sent: Int :: 0
+  # the Bulletin Board: its notes, why the last post was refused (or "")
+  state board_posts: List :: []
+  state board_note: String :: ""
+  state board_open: Bool :: false
+  state board_sent: Int :: 0
 
   # the screen name remembered from last time (aim.js keeps it)
   on :remembered(n: String) do
@@ -639,7 +743,8 @@ actor AimPage do
   # socket: start again, and sign on again if this page already had.
   on :connected do
     become online: nil, messages: [], loading: false, reader: -1, current: want, convos: %{}, typing: %{},
-      buddies: [], unread: [], cats: "", cats_open: false
+      buddies: [], unread: [], cats: "", cats_open: false, party_lines: [], party_members: [], party_unread: false,
+      board_posts: [], board_note: ""
     case signed_on do
       true -> become outbox: aimp_append(outbox, aimp_signon_frames(name, want))
       false -> :ok
@@ -680,6 +785,20 @@ actor AimPage do
         become buddies: bs,
           names: reduce(bs, names, fn(acc: Map, b: Map) -> Map do put(acc, aimp_str(lookup(b, :id)), aimp_str(lookup(b, :name))) end)
         reply :buddies
+      "party" ->
+        ls = aimp_messages(lookup(msg, :lines))
+        said = filter(ls, fn(l: Map) -> Bool do lookup(l, :sys) != true and lookup(l, :me) != true end)
+        before = filter(party_lines, fn(l: Map) -> Bool do lookup(l, :sys) != true and lookup(l, :me) != true end)
+        fresh = said != [] and (before == [] or lookup(aimp_nth(said, length(said) - 1), :text) != lookup(aimp_nth(before, length(before) - 1), :text) or length(said) != length(before))
+        members = case type_of(lookup(msg, :members)) == :list do
+          true -> lookup(msg, :members)
+          false -> []
+        end
+        become party_lines: ls, party_members: members, party_unread: party_unread or (fresh and not(party_open))
+        reply :party
+      "board" ->
+        become board_posts: aimp_messages(lookup(msg, :posts)), board_note: aimp_str(lookup(msg, :note))
+        reply :board
       "secret" ->
         become cats: aimp_str(lookup(msg, :src)), cats_open: true, sound: :received
         reply :secret
@@ -704,6 +823,8 @@ actor AimPage do
   on :sign_off do
     become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: want, dial: -1,
       convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false,
+      party_lines: [], party_members: [], party_open: false, party_unread: false,
+      board_posts: [], board_note: "", board_open: false,
       outbox: aimp_append(outbox, [json_encode(%{t: "signoff"})])
     reply :ok
   end
@@ -711,6 +832,46 @@ actor AimPage do
   on :open_chat(id: String) do
     become current: id, im_open: true, unread: aimp_without(unread, id)
     reply :ok
+  end
+
+  on :open_party do
+    become party_open: true, party_unread: false
+    reply :ok
+  end
+
+  on :close_party do
+    become party_open: false
+    reply :ok
+  end
+
+  on :party_send(fields: String) do
+    text = aimp_str(lookup(aimp_decode(fields), :message))
+    case trim(text) == "" or not(signed_on) do
+      true -> reply :ignored
+      false ->
+        become outbox: aimp_append(outbox, [json_encode(%{t: "party", text: text})]), party_sent: party_sent + 1, sound: :sent
+        reply :sent
+    end
+  end
+
+  on :open_board do
+    become board_open: true
+    reply :ok
+  end
+
+  on :close_board do
+    become board_open: false, board_note: ""
+    reply :ok
+  end
+
+  on :board_send(fields: String) do
+    text = aimp_str(lookup(aimp_decode(fields), :note))
+    case trim(text) == "" or not(signed_on) do
+      true -> reply :ignored
+      false ->
+        become outbox: aimp_append(outbox, [json_encode(%{t: "post", text: text})]), board_sent: board_sent + 1, board_note: ""
+        reply :sent
+    end
   end
 
   on :open_cats do
@@ -880,7 +1041,9 @@ actor AimPage do
       messages: messages, loading: loading, im_open: im_open, info_open: info_open, reader: reader,
       size: size, paper: paper, warn: warn, muted: muted, sent: sent, current: current, convos: convos,
       typing: typing, buddies: buddies, names: names, unread: unread, cats: cats, cats_open: cats_open,
-      want: want, dial: dial, dial_skip: dial_skip}
+      want: want, dial: dial, dial_skip: dial_skip, party_lines: party_lines, party_members: party_members,
+      party_open: party_open, party_unread: party_unread, party_sent: party_sent, board_posts: board_posts,
+      board_note: board_note, board_open: board_open, board_sent: board_sent}
   end
 
   on :view do

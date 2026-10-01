@@ -533,4 +533,98 @@ actor AimTests do
     assert(contains(page, "summary_large_image"))
     assert(read_file("../priv/static/images/og-aim.png") != nil)
   end
+
+  test "the Party Line: everyone signed on is in it, sees who came and went, and what was said" do
+    aimt_load()
+    aimt_clear()
+    AIM <- :join(-31)
+    AIM <- :join(-32)
+    AIM <- :join(-33)
+    AIM <- :recv(-31, "{\"t\":\"signon\",\"name\":\"carol\"}")
+    AIM <- :recv(-32, "{\"t\":\"signon\",\"name\":\"dave\"}")
+    # not signed on: not in the room, and cannot talk in it
+    assert_eq(AIM <- :recv(-33, "{\"t\":\"party\",\"text\":\"hello?\"}"), :ignored)
+    assert_eq(AIM <- :recv(-31, "{\"t\":\"party\",\"text\":\" anyone here \"}"), :said)
+    assert_eq(AIM <- :party_say(-32, ""), :ignored)
+    lines = (AIM <- :stats).party_lines
+    # the frame each sees: their own line marked, who is in the room
+    AIM <- :party_all
+    room = aimt_last(-32)
+    assert_eq(room.t, "party")
+    assert_eq(room.members, ["carol", "dave"])
+    said = filter(room.lines, fn(l: Map) -> Bool do l.sys == false end)
+    assert_eq(said, [%{name: "carol", text: "anyone here", sys: false, me: false}])
+    assert_eq(filter(zg_decode_map((AIM <- :person(-31)).last).lines, fn(l: Map) -> Bool do l.sys == false end), [%{name: "carol", text: "anyone here", sys: false, me: true}])
+    assert(filter(room.lines, fn(l: Map) -> Bool do l.text == "dave has entered the room." end) != [])
+    # signing off says so, and leaves the room
+    AIM <- :recv(-32, "{\"t\":\"signoff\"}")
+    AIM <- :party_all
+    room2 = aimt_last(-31)
+    assert_eq(room2.members, ["carol"])
+    assert_eq(length(room2.lines), lines + 1)
+    assert_eq(head(reverse(room2.lines)).text, "dave has left the room.")
+    aimt_clear()
+  end
+
+  test "the Bulletin Board: notes from people signed on, newest first, a gap between, a limit, taken down" do
+    aimt_load()
+    aimt_clear()
+    assert_eq(AIM <- :board_load(false), length(AIM <- :board))
+    before = length(AIM <- :board)
+    AIM <- :join(-41)
+    AIM <- :join(-42)
+    assert_eq(AIM <- :post(-41, "too early", 1000), :refused)
+    assert_eq(aimt_last(-41).note, "Sign on to post.")
+    AIM <- :recv(-41, "{\"t\":\"signon\",\"name\":\"erin\"}")
+    AIM <- :recv(-42, "{\"t\":\"signon\",\"name\":\"frank\"}")
+    assert_eq(AIM <- :post(-41, "first <i>note</i>", 1000), :posted)
+    # everyone signed on gets the board; a note is text, never HTML
+    AIM <- :sign_on(-42, "frank", 1000)
+    b = filter(AIM <- :board, fn(n: Map) -> Bool do n.name == "erin" end)
+    assert_eq(map(b, fn(n: Map) -> String do n.text end), ["first <i>note</i>"])
+    assert_eq(AIM <- :post(-41, "again", 1005), :refused)
+    assert_eq(aimt_last(-41).note, "One note every 20 seconds, please.")
+    assert_eq(AIM <- :post(-41, "again", 1030), :posted)
+    assert_eq(head(AIM <- :board).text, "again")
+    assert_eq(length(AIM <- :board), before + 2)
+    # ten from one page, then no more
+    each(range(1, 8), fn(i: Int) do AIM <- :post(-41, concat("n", to_string(i)), 1030 + i * 30) end)
+    assert_eq((AIM <- :person(-41)).board_posts, 10)
+    assert_eq(AIM <- :post(-41, "eleven", 5000), :refused)
+    # Bobby takes one down; every page gets the board again
+    gone = head(AIM <- :board).id
+    AIM <- :unpost(gone)
+    assert_eq(filter(AIM <- :board, fn(n: Map) -> Bool do n.id == gone end), [])
+    assert_eq((AIM <- :stats).board_db, false)
+    aimt_clear()
+  end
+
+  test "the page's program: the Party Line and the Bulletin Board" do
+    aim <- :connected
+    aim <- :sign_on("{\"name\":\"gina\"}")
+    aim <- :dial_done
+    aim <- :outbox
+    aim <- :frame("{\"t\":\"board\",\"note\":\"\",\"posts\":[{\"id\":2,\"name\":\"hal\",\"text\":\"<b>hi</b> all\",\"at\":1,\"when\":\"2026-10-01\"}]}")
+    aim <- :frame("{\"t\":\"party\",\"members\":[\"gina\",\"hal\"],\"lines\":[{\"name\":\"\",\"text\":\"gina has entered the room.\",\"sys\":true,\"me\":false},{\"name\":\"hal\",\"text\":\"yo\",\"sys\":false,\"me\":false}]}")
+    v = to_html(aim <- :view)
+    assert(contains(v, "Chat Rooms (2)") and contains(v, "(2 here)") and contains(v, "(1 notes)"))
+    # said while the room was shut: the Party Line is marked
+    assert((aim <- :state).party_unread)
+    aim <- :open_party
+    v2 = to_html(aim <- :view)
+    assert(contains(v2, "Party Line - Chat Room") and contains(v2, "gina has entered the room.") and contains(v2, "2 in room"))
+    assert_eq((aim <- :state).party_unread, false)
+    assert_eq(aim <- :party_send("{\"message\":\"hey hal\"}"), :sent)
+    assert_eq(aim <- :party_send("{\"message\":\"  \"}"), :ignored)
+    aim <- :open_board
+    v3 = to_html(aim <- :view)
+    assert(contains(v3, "bobbby.online Bulletin Board") and contains(v3, "&lt;b&gt;hi&lt;/b&gt; all") and contains(v3, "2026-10-01"))
+    assert_eq(aim <- :board_send("{\"note\":\"a note\"}"), :sent)
+    assert_eq(aim <- :outbox, ["{\"t\":\"party\",\"text\":\"hey hal\"}", "{\"t\":\"post\",\"text\":\"a note\"}"])
+    # a refused post says why
+    aim <- :frame("{\"t\":\"board\",\"note\":\"One note every 20 seconds, please.\",\"posts\":[]}")
+    assert(contains(to_html(aim <- :view), "One note every 20 seconds, please."))
+    aim <- :sign_off
+    assert_eq((aim <- :state).board_open, false)
+  end
 end
