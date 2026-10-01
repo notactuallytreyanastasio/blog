@@ -26,3 +26,4 @@ guide that grows as the backend does.
 13. [2026-10-01: output a person can read](2026-10-01-readable-output.md)
 14. [2026-10-01: a concrete class is the class](2026-10-01-static-dispatch.md)
 15. [2026-10-01: long-running programs](2026-10-01-long-running.md)
+16. [2026-10-01: clause bodies, fields, and `cond`](2026-10-01-readability-finished.md)
