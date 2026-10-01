@@ -1529,3 +1529,10 @@ AIM_CSS = map_asset(["static/aim/aim.css"], "text/css; charset=utf-8")
 # linked from anywhere; the server hands the address to a page that signs
 # on with AIM_SECRET_NAME.
 AIM_CATS = map_asset(["static/aim/cats.jpg"], "image/jpeg")
+# AIM's own sounds, the WAVs AIM 7.5.6.2 installed (archive.org/details/
+# aim7sfx): the door opening and slamming as buddies come and go, and the
+# message sounds. aim.js plays them; the dial-up modem it makes itself.
+AIM_SOUND_DOOROPEN = map_asset(["static/aim/sounds/dooropen.wav"], "audio/wav")
+AIM_SOUND_DOORSLAM = map_asset(["static/aim/sounds/doorslam.wav"], "audio/wav")
+AIM_SOUND_IMRCV = map_asset(["static/aim/sounds/imrcv.wav"], "audio/wav")
+AIM_SOUND_IMSEND = map_asset(["static/aim/sounds/imsend.wav"], "audio/wav")
