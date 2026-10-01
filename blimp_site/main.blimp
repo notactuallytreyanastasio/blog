@@ -55,7 +55,7 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  blinks_pwa_routes(STATIC_DIR, app_routes(wordle_routes(pong_routes(static_page_routes(tetris_routes(r7))))))
+  blinks_pwa_routes(STATIC_DIR, app_routes(wordle_routes(pong_routes(static_page_routes(journal_routes(tetris_routes(r7)))))))
 end
 
 # Pages that were LiveViews with nothing for a server to do, and two that

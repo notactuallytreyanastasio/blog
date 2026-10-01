@@ -1,0 +1,156 @@
+# /be-elixir: the running journal of be-elixir, a Temper backend for Elixir
+# and the BEAM, written in ~/code/temper-blimp.
+#
+# content/be-elixir/ is a copy of that repo's journal/ directory at one
+# commit (content/be-elixir/sync.sh made it, and COMMIT says which). Every
+# page is rendered at boot by the same Markdown renderer as the posts.
+#
+# The Markdown links to its own files the way GitHub wants them, guide.md
+# and probes/04_numbers.exs, and is kept byte for byte as the repo has it.
+# The links are rewritten to this site's routes after rendering instead.
+#
+#   /be-elixir              README.md
+#   /be-elixir/guide        guide.md
+#   /be-elixir/<entry>      2026-09-30-what-an-object-is.md and the like
+#   /be-elixir/probes       a list of the probes
+#   /be-elixir/probes/<f>   one probe, as text
+#
+# It builds its responses itself rather than with main.blimp's page_route,
+# because the tests are compiled from src/ without main.blimp.
+
+JOURNAL_DIR = "content/be-elixir"
+JOURNAL_ROUTE = "/be-elixir"
+JOURNAL_REPO = "https://github.com/notactuallytreyanastasio/temper-blimp"
+
+def journal_is_md(name: String) -> Bool do
+  length(name) > 3 and drop(name, length(name) - 3) == ".md"
+end
+
+# "guide.md" -> "/be-elixir/guide", "README.md" -> "/be-elixir"
+def journal_route_for(file: String) -> String do
+  case file do
+    "README.md" -> JOURNAL_ROUTE
+    _ -> concat(JOURNAL_ROUTE, "/", take(file, length(file) - 3))
+  end
+end
+
+def journal_files(dir: String) -> List do
+  names = list_dir(dir)
+  case names do
+    nil -> journal_die(concat("cannot list ", dir))
+    _ -> sort(filter(names, fn(n: String) -> Bool do journal_is_md(n) end))
+  end
+end
+
+def journal_probes(dir: String) -> List do
+  names = list_dir(concat(dir, "/probes"))
+  case names do
+    nil -> []
+    _ -> sort(names)
+  end
+end
+
+# A page named in the directory that will not read stops the boot, as a
+# missing post does: serving the rest and a 404 would look like it worked.
+def journal_die(why: String) -> Any do
+  print(concat("journal: ", why))
+  exit(1)
+end
+
+def journal_read(path: String) -> String do
+  body = read_file(path)
+  case body do
+    nil -> journal_die(concat("cannot read ", path))
+    _ -> body
+  end
+end
+
+# Every href= the renderer wrote that points at one of the journal's own
+# files becomes this site's route for it.
+def journal_links(html: String, files: List) -> String do
+  pages = reduce(files, html, fn(acc: String, f: String) -> String do
+    replace_all(acc, concat("href=\"", f, "\""), concat("href=\"", journal_route_for(f), "\""))
+  end)
+  probes = replace_all(pages, "href=\"probes/\"", concat("href=\"", JOURNAL_ROUTE, "/probes\""))
+  replace_all(probes, "href=\"probes/", concat("href=\"", JOURNAL_ROUTE, "/probes/"))
+end
+
+# The first "# " line of a page is its title.
+def journal_title(source: String) -> String do
+  heads = filter(split(source, "\n"), fn(l: String) -> Bool do starts_with(l, "# ") end)
+  case heads do
+    [] -> "be-elixir"
+    [h | _] -> drop(h, 2)
+  end
+end
+
+def journal_commit(dir: String) -> String do
+  trim(journal_read(concat(dir, "/COMMIT")))
+end
+
+def journal_nav(current: String) -> String do
+  items = [[JOURNAL_ROUTE, "Journal"], [concat(JOURNAL_ROUTE, "/guide"), "Guide"], [concat(JOURNAL_ROUTE, "/probes"), "Probes"]]
+  links = map(items, fn(i: List) -> String do
+    href = elem(i, 0)
+    mark = case href == current do
+      true -> " aria-current=\"page\""
+      false -> ""
+    end
+    concat("<a href=\"", href, "\"", mark, ">", elem(i, 1), "</a>")
+  end)
+  join([
+    "<header class=\"jr-top\"><a class=\"jr-home\" href=\"/\">bobbby.online</a>",
+    "<span class=\"jr-sep\">/</span><a class=\"jr-name\" href=\"", JOURNAL_ROUTE, "\">be-elixir</a>",
+    "<nav class=\"jr-nav\">", join(links, ""), "</nav></header>"
+  ], "")
+end
+
+def journal_footer(commit: String) -> String do
+  short = take(commit, 7)
+  join([
+    "<footer class=\"jr-foot\">Copied from <a href=\"", JOURNAL_REPO, "/tree/", commit, "/journal\">temper-blimp@", short, "</a>",
+    " (its <code>journal/</code> directory) and rendered by this site's Blimp server. ",
+    "The code it describes is <code>temper/be-elixir</code> in the same repository.</footer>"
+  ], "")
+end
+
+def journal_page(route: String, title: String, article: String, commit: String) -> String do
+  body = join([
+    "<div class=\"jr\">", journal_nav(route),
+    "<main class=\"jr-main\"><article class=\"jr-article article-content\">", article, "</article></main>",
+    journal_footer(commit), "</div>"
+  ], "")
+  page_layout(concat(title, " · be-elixir"), "The running journal of a Temper backend for Elixir and the BEAM.", "article", ["/assets/journal.css", "/assets/highlight.css"], body)
+end
+
+def journal_probes_page(probes: List, commit: String) -> String do
+  rows = map(probes, fn(p: String) -> String do
+    concat("<li><a href=\"", JOURNAL_ROUTE, "/probes/", p, "\"><code>", escape_html(p), "</code></a></li>")
+  end)
+  article = join([
+    "<h1>Probes</h1>",
+    "<p>Every claim the journal makes about Elixir was checked by running one of these scripts on Elixir 1.19.5 and OTP 28. ",
+    "Run any of them with <code>elixir &lt;file&gt;.exs</code>.</p>",
+    "<ul class=\"jr-probes\">", join(rows, ""), "</ul>"
+  ], "")
+  journal_page(concat(JOURNAL_ROUTE, "/probes"), "Probes", article, commit)
+end
+
+def journal_routes(routes: Map) -> Map do
+  files = journal_files(JOURNAL_DIR)
+  commit = journal_commit(JOURNAL_DIR)
+  with_pages = reduce(files, routes, fn(acc: Map, f: String) -> Map do
+    source = journal_read(concat(JOURNAL_DIR, "/", f))
+    html = journal_links(MARKDOWN <- :render(source), files)
+    route = journal_route_for(f)
+    put(acc, route, serialize(html_response(200, journal_page(route, journal_title(source), html, commit)), "GET"))
+  end)
+  probes = journal_probes(JOURNAL_DIR)
+  with_probes = reduce(probes, with_pages, fn(acc: Map, p: String) -> Map do
+    body = journal_read(concat(JOURNAL_DIR, "/probes/", p))
+    put(acc, concat(JOURNAL_ROUTE, "/probes/", p), serialize(response(200, "text/plain; charset=utf-8", "public, max-age=300", body), "GET"))
+  end)
+  r1 = put(with_probes, concat(JOURNAL_ROUTE, "/probes"), serialize(html_response(200, journal_probes_page(probes, commit)), "GET"))
+  css = journal_read("assets/journal.css")
+  put(r1, "/assets/journal.css", serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", css), "GET"))
+end
