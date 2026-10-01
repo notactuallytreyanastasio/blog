@@ -514,10 +514,17 @@ defp elixirc_paths(:test), do: ["lib", "test/support"]
 defp elixirc_paths(_), do: ["lib"]
 ```
 
-The frontend decides what is test-only. It marks each declaration that
-only tests reach. A dependency is test-only when nothing in `lib/` names
-its modules or values: a dependency's init sets only its own values, so
-leaving it out of the library changes nothing the library does.
+Two rules decide what is test-only. The frontend marks each declaration
+that only tests reach. Then the backend sends to the test side every
+non-exported function or module value that production can't reach.
+Production's roots are what Elixir can reach: exported functions and
+values, classes, and top-level statements. The second rule catches what
+the first misses. A call the frontend evaluated while compiling is gone
+from the tree, so a helper that only such calls used looks unused, not
+test-only. The same goes for a constant whose reads were inlined. A
+dependency is test-only when nothing in `lib/` names its modules or
+values. A dependency's init sets only its own values, so leaving it out
+of the library changes nothing the library does.
 
 **`mix test`.** Each Temper source file with tests gets an ExUnit file:
 `src/words_test.temper.md` becomes `test/words_test.exs`. Each Temper test
