@@ -1498,7 +1498,11 @@ AIM = spawn AimChat
 # people with the new page and last version's program, script and styles
 # (blog #184: no dial-up styles, no dragging, until the cache ran out).
 AIM_PROGRAM_PATH = desk_script_href("/aim/aim.blimp", "_build/aim.blimp")
-AIM_SCRIPTS = list_append(APP_SCRIPTS, [desk_script_href("/aim/aim.js", "static/aim/aim.js")])
+# Blimp's own runtime (APP_SCRIPTS) is versioned here too: drag: is new in
+# blimp-view.js (blimp#83), and a browser holding last week's copy would
+# draw the title bars and never move them.
+AIM_SCRIPTS = list_append(map(APP_SCRIPTS, fn(u: String) -> String do desk_script_href(u, concat("static", u)) end),
+  [desk_script_href("/aim/aim.js", "static/aim/aim.js")])
 AIM_CSS_HREF = desk_script_href("/aim/aim.css", "static/aim/aim.css")
 
 def aim_page() -> String do
