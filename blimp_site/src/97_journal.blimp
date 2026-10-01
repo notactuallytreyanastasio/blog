@@ -155,20 +155,34 @@ def journal_routes(routes: Map) -> Map do
   put(r1, "/assets/journal.css", serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", css), "GET"))
 end
 
-# The newest dated entry, for the links on /blog and the homepage:
-# %{title: ..., route: ...}, or nil when there is none. Entries are named
-# 2026-10-01-slug.md, so the last in sorted order is the newest.
+# The newest entry, for the links on /blog and the homepage:
+# %{title: ..., route: ...}, or nil when there is none.
+#
+# Newest is the last one README.md's numbered list links to, not the last
+# file name in sorted order: two entries written the same day sort by their
+# slugs, and "classes-as-modules" sorts before "loops-without-loops" though
+# it came after it.
 def journal_latest(dir: String) -> Any do
-  names = list_dir(dir)
-  dated = case names do
-    nil -> []
-    _ -> sort(filter(names, fn(n: String) -> Bool do journal_is_md(n) and journal_is_dated(n) end))
-  end
-  case reverse(dated) do
+  linked = journal_entries_listed(journal_read(concat(dir, "/README.md")))
+  case reverse(linked) do
     [] -> nil
     [newest | _] ->
       %{title: journal_title(journal_read(concat(dir, "/", newest))), route: journal_route_for(newest)}
   end
+end
+
+# The .md files the README's numbered list links to, in order:
+# "1. [title](2026-09-30-x.md)" -> "2026-09-30-x.md"
+def journal_entries_listed(readme: String) -> List do
+  lines = filter(split(readme, "\n"), fn(l: String) -> Bool do journal_is_entry_line(l) end)
+  map(lines, fn(l: String) -> String do
+    rest = drop(l, index_of(l, "](") + 2)
+    take(rest, index_of(rest, ")"))
+  end)
+end
+
+def journal_is_entry_line(l: String) -> Bool do
+  contains(l, ". [") and contains(l, ".md)") and journal_is_dated(drop(l, index_of(l, "](") + 2))
 end
 
 # 2026-10-01-slug.md: a year, a dash, a month, a dash
