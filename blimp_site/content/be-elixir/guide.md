@@ -1,266 +1,478 @@
 # How be-elixir works
 
-A guide to the backend as it stands, written to be read in order. Each
-chapter of the backend adds a section; nothing here describes code that does
-not exist yet.
+be-elixir compiles Temper to Elixir that runs on the BEAM. This guide
+covers the backend as it is now, in the order you need it: how to run it,
+what each Temper construct becomes, and where it falls short. The dated
+journal entries tell how each piece came about. Every Elixir snippet here
+is real output, mostly from one small program, *the tour*, reproduced
+whole in section 3.
 
-## 1. The output grammar
+## 1. Running it
 
-A Temper backend never prints strings of target code. It builds a tree of
-the target language and lets Temper's formatter render it. For Elixir the
-tree is described in one file:
-
-    temper/be-elixir/src/commonMain/kotlin/lang/temper/be/elixir/elixir.out-grammar
-
-and `./gradlew kcodegen:updateGeneratedCode` turns it into `Elixir.kt`, one
-Kotlin class per node. A rule like
-
-```
-Match ::= left%Pattern & "=" & right%Expr;
-```
-
-becomes `class Match(pos, left: Pattern, right: Expr)` that renders as
-`left = right`.
-
-Three files sit next to the grammar:
-
-- `ElixirOperatorDefinition.kt` is the precedence ladder. The formatter
-  consults it to decide where parentheses go, so the tree never contains
-  any. Comparison and equality are non-associative on purpose: `1 < 2 < 3`
-  is valid Elixir and evaluates to `false`.
-- `ElixirFormattingHints.kt` decides spaces and line breaks. Elixir ignores
-  indentation but not newlines, so the hints that matter are the ones that
-  keep `do` and `->` at the end of a line.
-- `ElixirHelpers.kt` writes literals: strings with every `#` escaped so
-  nothing interpolates, atoms quoted when they are not plain identifiers,
-  and floats with digits on both sides of the point. NaN and infinity, which
-  the BEAM cannot hold, are compile errors.
-
-To check a change to any of them:
+You need Elixir 1.15 or later with `mix` on the path. It was developed
+against Elixir 1.19.5 on OTP 28, and `~> 1.15` has not been tested below
+1.19. You also need JDK 21 to build Temper itself.
 
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21
 cd temper
-./gradlew :be-elixir:jvmTest :be-elixir:ktlintCheck
-elixir ../journal/probes/05_grammar_samples.exs
+./gradlew :cli:installDist                      # a `temper` that knows -b elixir
+cli/build/install/temper/bin/temper build -b elixir -w path/to/my-lib
+cd path/to/my-lib/temper.out/elixir/my-lib
+mix compile && mix run --no-compile -e "Temper.MyLib.main()"
 ```
 
-## 2. The backend and its runner
+`temper.out/elixir/` holds one Mix project per Temper library, next to
+`temper-core`, the runtime. If the library imports std, `std/` is there
+too:
 
-Three classes make `-b elixir` exist:
+```
+temper.out/elixir/
+  temper-core/     the runtime, a Mix project with its own tests
+  std/             Temper's standard library, translated
+  my-lib/          mix.exs depends on ../temper-core and ../std
+```
 
-- `ElixirBackend` turns Temper's intermediate form (TmpL) into output
-  files. Today it ignores its input and writes a hello-world Mix project.
-- `ElixirSupportNetwork` tells TmpL how this target handles what differs
-  between languages: bubbles (Temper's errors) become exceptions, function
-  values stay functions, void is `nil`.
-- `ElixirSpecifics` runs the output: `mix compile`, then
-  `mix run --no-compile -e "TemperMain.main()"`, so that Mix's
-  "Compiling 1 file" lines never mix with the program's output.
+`temper run -b elixir` and the functional-test harness do the same through
+`ElixirSpecifics`. They run `mix compile` first, so Mix's "Compiling"
+lines never mix with the program's own output, and the run includes a
+60-second watchdog. A program that never finishes halts with "timed out
+after 60000 ms" instead of hanging whatever called it.
 
-It is registered in `settings.gradle`, `bundled-backends/build.gradle` and
-`supported-backends/.../basic-plugin-list.json`, and then
-`./gradlew :cli:installDist` gives a `temper` that knows it:
+To check the backend:
 
 ```bash
-temper build -b elixir -w path/to/library
-cd path/to/library/temper.out/elixir/<library>
-mix compile && mix run --no-compile -e "TemperMain.main()"
+./gradlew :be-elixir:jvmTest :be-elixir:ktlintCheck     # unit, grammar and functional tests
+cd be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core && mix test
 ```
 
-## 3. temper-core
+The functional tests are Temper's shared suite of 65 programs, each with
+its expected output. All 65 pass. The ones that run for Elixir are the
+`onlyPasses(elixir(), ...)` list in `FunctionalTestStatus.kt`.
 
-The runtime library lives in the backend's resources:
+## 2. How a backend is put together
 
-    temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core/
+A Temper backend never prints target code as strings. The frontend
+lowers Temper to TmpL, an intermediate tree shared by every backend.
+`ElixirTranslator` turns TmpL into a tree of Elixir nodes, and Temper's
+formatter renders that tree. The pieces:
 
-It is a complete Mix project. The backend copies it to
-`temper.out/elixir/temper-core` (it is the backend's
-`coreLibraryResources`), and every generated library depends on it by
-path. Test it in place:
+| File | What it does |
+|------|--------------|
+| `elixir.out-grammar` | the Elixir syntax tree. `./gradlew kcodegen:updateGeneratedCode` turns it into `Elixir.kt`, one class per node |
+| `ElixirOperatorDefinition.kt` | the precedence ladder, which decides every parenthesis. Comparisons are non-associative on purpose, since `1 < 2 < 3` is legal Elixir and means `false` |
+| `ElixirFormattingHints.kt` | spaces, line breaks, indentation. `do` and `fn` indent, `end` dedents |
+| `ElixirHelpers.kt` | literals: strings with `#` escaped, atoms quoted when needed, floats always with a point |
+| `ElixirBackend.kt` | one Mix project per library: `mix.exs`, `lib/temper_main.ex`, the root module |
+| `ElixirTranslator.kt` | TmpL to Elixir: statements, classes, closures, calls |
+| `ElixirSupportNetwork.kt` | tells the frontend how this target differs: bubbles are exceptions, coroutines are state machines, void is `nil` |
+| `ElixirSupportCode.kt` | each builtin operator and `@connected` member, as an Elixir expression |
+| `ElixirNames.kt` | legal and readable names |
+| `ElixirSpecifics.kt` | compiling and running the output |
+| `temper-core/` | the runtime library, `TemperCore.*` |
 
-```bash
-cd temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core
-mix test
+Anything the translator does not handle is a `TODO()` carrying the TmpL
+node, so it fails at build time and says where. The backend never emits
+plausible-looking code it has not checked. The one deliberate exception
+is code the frontend has already rejected (section 11).
+
+## 3. The tour
+
+This program is used throughout:
+
+```temper
+class Point(public x: Int, public y: Int) {
+  public plus(o: Point): Point { new Point(x + o.x, y + o.y) }
+}
+
+class Counter {
+  public var count: Int = 0;
+  public bump(): Void { count += 1 }
+}
+
+interface Shape { public area(): Float64; }
+class Square(public side: Float64) extends Shape {
+  public area(): Float64 { side * side }
+}
+
+let sum(xs: List<Int>): Int {
+  var total = 0;
+  for (var i = 0; i < xs.length; ++i) {
+    total += xs[i];
+  }
+  total
+}
+
+let firstNegative(xs: List<Int>): Int {
+  for (var i = 0; i < xs.length; ++i) {
+    if (xs[i] < 0) { return i; }
+  }
+  -1
+}
+
+let p = new Point(1, 2).plus(new Point(3, 4));
+let c = new Counter();
+let alias = c;
+c.bump();
+alias.bump();
+let s: Shape = new Square(1.5);
+var calls = 0;
+let tick(): Int { calls += 1; calls }
+tick();
+tick();
+console.log("p=${p.x},${p.y} count=${c.count} area=${s.area()} calls=${calls}");
+console.log("sum=${sum([1, 2, 3])} neg=${firstNegative([4, -1, 5])} big=${1.7976931348623157e308 * 2.0}");
 ```
 
-| Function | Why it exists |
-|----------|---------------|
-| `TemperCore.int32(x)`, `int64(x)` | Elixir integers have no width; Temper's wrap |
-| `TemperCore.int32_div(a, b)`, `int32_rem(a, b)` | the wrap, plus a bubble on division by zero |
-| `TemperCore.Heap.new/get/put` | mutable objects that every alias shares |
-| `TemperCore.Bubble` | the exception an uncaught Temper bubble becomes |
-
-## 4. The translator, and the functional suite
-
-`ElixirTranslator` turns one Temper module (in TmpL form) into Elixir.
-Top-level statements become the body of `TemperMain.main/0`, because a
-Temper module runs its top level on load and `mix run` calls a function.
-
-Support code is how Temper builtins reach the target. `console.log` is
-connected support code: `ElixirSupportNetwork.translateConnectedReference`
-answers the key `core.type Console.log()` with an `ElixirInlineSupportCode`
-that builds `IO.puts(message)` at the call site.
-
-Progress is measured by Temper's shared functional tests. Which ones run
-for Elixir is the `onlyPasses(elixir(), ...)` list in
-`temper/functional-test-suite/.../FunctionalTestStatus.kt`; everything else
-is skipped. To run them:
-
-```bash
-./gradlew :be-elixir:jvmTest --tests 'lang.temper.be.elixir.ElixirFunctionalTest'
+```
+p=4,6 count=2 area=2.25 calls=2
+sum=6 neg=1 big=Infinity
 ```
 
-Passing so far: AlgosHelloWorld.
+## 4. A library is a root module
 
-## 5. Statements: locals, branches, loops, exits
+Each Temper library becomes one root module: `tour` is `Temper.Tour`,
+`std` is `Temper.Std`, and `my-lib` is `Temper.MyLib`. The `Temper.` prefix
+keeps a library from landing on Elixir's own `String` or `Enum`. The Mix
+app is `:temper_tour`. Its functions live in the root module, and each
+class gets a module beneath it, `Temper.Tour.Point`.
 
-The translator compiles a list of statements with an *End*: what falling
-off the end of the list means. In a function it is `nil`; in a loop body it
-is "go round again"; in a branch it is "hand back the variables you
-assigned".
+A Temper module runs its top level when it loads. That code becomes
+`__temper_init__/0`:
+
+```elixir
+def __temper_init__() do
+  TemperCore.init_once(:"Temper.Tour", fn ->
+    TemperCore.Global.put(:"Temper.Tour.p__24", Temper.Tour.Point.plus(Temper.Tour.Point.new(1, 2), Temper.Tour.Point.new(3, 4)))
+    TemperCore.Global.put(:"Temper.Tour.c__25", Temper.Tour.Counter.new())
+    ...
+    nil
+  end)
+end
+def main() do
+  Temper.Tour.__temper_init__()
+  TemperCore.Async.drain()
+end
+```
+
+- `init_once` records the library in the process dictionary, so a library
+  that two others depend on runs its top level only once.
+- A library's init first calls the init of every library it imports from,
+  so std's globals exist before the user's code reads them.
+- `main/0` runs init, then the async queue (section 9).
+- A module-level variable lives in `TemperCore.Global`, the process
+  dictionary, under a key that includes its library, because a `def`
+  cannot see variables outside its own parameters.
+
+An imported function is a direct call, `Temper.Std.parseJson(text)`, and
+`mix.exs` depends on the library it comes from:
+
+```elixir
+defp deps do
+  [{:temper_core, path: "../temper-core"}, {:temper_std, path: "../std"}]
+end
+```
+
+## 5. Values
 
 | Temper | Elixir |
 |--------|--------|
-| `var x = 1; x = x + 1` | `x = 1` then `x = TemperCore.int32(x + 1)` |
-| `if (c) { x = 1 }` mid-function | `x = if c do x = 1; x else x end` |
-| `while (t) { ... }` | `loop = fn loop, vars -> if t do ...; loop.(loop, vars) else vars end end` |
-| `return v` in tail position | `v` |
-| `return v` an `if` can carry | the rest of the function moves into the `if`'s other branch |
-| `return v` anywhere else | `throw({:temper_return, tag, v})`, caught by the function |
+| `Int` (32-bit) | an integer, wrapped after arithmetic: `TemperCore.int32(total + x)` |
+| `Int64` | an integer, wrapped with `TemperCore.int64` |
+| `Float64` | a float, or `:infinity`, `:neg_infinity` or `:nan` |
+| `Boolean` | `true` / `false` |
+| `String` | a UTF-8 binary |
+| `StringIndex` | a byte offset; `String.begin` is `0`, "no index" is `-1` |
+| `StringBuilder` | a heap object holding the string so far |
+| `List<T>` | an Elixir list |
+| `ListBuilder<T>` | a heap object holding an Elixir list |
+| `Map<K, V>` | `%TemperCore.Map{keys, map}`: insertion order kept beside an Elixir map |
+| `MapBuilder` | a heap object holding the same two |
+| `Pair` | `%TemperCore.Pair{key, value}` |
+| `Deque` | an Erlang `:queue`, on the heap |
+| `DenseBitVector` | the set bits, in a map on the heap |
+| `null`, `void` | `nil` |
+| `Empty` | `:empty` |
+| a type used as a value | its module, or a builtin's name as an atom: `:Void` |
 
-Operators are support code: `ElixirSupportCode.kt` maps each Temper
-builtin operator to an Elixir operator or a `temper-core` call, and each
-`@connected` method (`Int32.toString`, `Float64.sqrt`, ...) the same way.
-A builtin with no entry stays Temper's own implementation or, if Temper has
-none, fails the build by name.
+**Integers.** Elixir integers have no width. Temper's `Int` wraps at 32
+bits, so every `+`, `-` and `*` passes through `TemperCore.int32`.
+Division and remainder also bubble on zero. Bitwise operations use
+`Bitwise`, wrapped the same way.
 
-## 6. Classes
+**Floats.** The BEAM's floats have no infinity or NaN. Overflow,
+`1.0 / 0.0` and `:math.sqrt(-1.0)` all raise `ArithmeticError`, and an
+infinity's bits cannot even be matched out of a binary. So a `Float64`
+can also be one of three atoms, and no float operation is a bare
+operator:
 
-| Temper | Elixir |
-|--------|--------|
-| `class C` | `defmodule TemperMain.C` |
-| immutable class (no setter, no writes outside the constructor) | `defstruct`, built by `new/n` |
-| mutable class | `TemperCore.Heap.new(TemperMain.C, fields)`, a `%TemperCore.Ref{}` |
-| `new C(a)` | `TemperMain.C.new(a)` |
-| `obj.m(a)` | `TemperCore.call(obj, :m, [a])` |
-| `obj.p` / `obj.p = v` | `TemperCore.call(obj, :get_p, [])` / `:set_p` |
-| `C.s(a)` (static) | `TemperMain.C.s(a)` |
-| `x instanceof I` | `TemperCore.is_a(x, TemperMain.I)` |
+```elixir
+TemperCore.Float.mul(this.side__43, this.side__43)
+```
 
-Inherited method bodies are copied into the class, so there is no `super`.
+`mul` runs the BEAM's `*` inside a `try` and turns a raise into the IEEE
+result. On ten million adds that cost about 10%. Comparisons follow
+Temper's total order:
 
-## 7. Closures and imports
+    -Infinity < ... < -0.0 < 0.0 < ... < Infinity < NaN,   and NaN == NaN
+
+`near` is Python's `math.isclose`. `toString` prints the way JavaScript
+does, `1.0e+25` and `0.000001`, always with a point.
+
+**Strings.** A `StringIndex` is a byte offset into the UTF-8 binary, so
+`s[i]` is a binary match and stepping (`next`, `prev`) moves over a whole
+code point. `countBetween` counts code points, not graphemes.
+
+## 6. Functions and control flow
+
+Elixir has no mutable variables and no loops. Temper has both.
+
+**Locals are rebound.** `var x = 1; x = x + 1` becomes `x = 1` then
+`x = TemperCore.int32(x + 1)`. An `if` that assigns hands its variables
+back as a value: `x = if c do ...; x else x end`.
+
+**A loop is a function that calls itself.** It carries every variable it
+assigns, and hands them back when it ends:
+
+```elixir
+ex_loop_13 = fn ex_loop_13, i, total ->
+  if i < TemperCore.List.length(xs) do
+    total = TemperCore.int32(total + TemperCore.List.get(xs, i))
+    i = TemperCore.int32(i + 1)
+    ex_loop_13.(ex_loop_13, i, total)
+  else
+    {i, total}
+  end
+end
+{i, total} = ex_loop_13.(ex_loop_13, i, total)
+```
+
+The recursive call is a tail call, so the stack does not grow.
+
+**Exits are folded where they can be.** A statement list is translated
+together with what falling off its end means: return `nil`, go round the
+loop again, or hand back the assigned variables. An `if` whose branch
+always exits pulls the rest of the list into its other branch, so most
+`return`, `break` and `continue` statements become a value or a call.
+
+**The rest throw.** `firstNegative` returns from inside a loop, and the
+loop is a function, so the `return` becomes a tagged `throw`. The function
+catches its own tag. The loop's recursive call stays outside any `try`,
+which would otherwise break the tail call:
+
+```elixir
+def firstNegative__22(xs) do
+  try do
+    ...
+            if TemperCore.List.get(xs, i) < 0 do
+              return = i
+              throw({:temper_break, :ex_block_16, return})
+    ...
+  catch
+    {:temper_return, :ex_return_15, ex_value_20} ->
+    ex_value_20
+  end
+end
+```
+
+**Calls.** A module function is always called qualified,
+`Temper.Tour.tick__23()`. That works from inside a class module and never
+collides with a Kernel import of the same name. An omitted optional
+argument is passed as `nil`. A rest parameter is one list. A function
+used as a value is a capture, `&Temper.Std.parseJson/1`.
+
+## 7. Closures
 
 | Temper | Elixir |
 |--------|--------|
 | `let f(x) { ... }` inside a function | `f = fn x -> ... end` |
-| a local function that calls itself | `rec = fn rec, x -> ... rec.(rec, ...) end`, and `f = fn x -> rec.(rec, x) end` |
-| a local a closure reads and someone assigns | a cell: `TemperCore.Heap.new(:cell, %{v: x})` |
-| `f(x)` where `f` is a module function | `TemperMain.f(x)`, always qualified |
-| `f` as a value | `&TemperMain.f/1` |
-| a call that omits optional arguments | the missing ones passed as `nil` |
-| `...rest` | one list parameter |
+| a local function that calls itself | it is passed to itself: `rec = fn rec, x -> ... rec.(rec, ...) end` |
+| a local that a closure reads and anyone assigns | a cell: `TemperCore.Heap.new(:cell, %{v: x})` |
+| local functions that call each other | cells created at the top of the block, so either can call the other |
 
-## 8. Lists
+Elixir closures capture values, and Temper closures capture variables.
+The difference only shows when a captured variable is assigned, so only
+those variables become cells.
 
-| Temper | Elixir |
-|--------|--------|
-| `List<T>` | an Elixir list |
-| `ListBuilder<T>` | a heap object `%TemperCore.Ref{class: :list_builder}` holding an Elixir list |
-| any `Listed` method | `TemperCore.List.fn(x, ...)`, which takes either |
-| a panic in core (`removeLast` on empty) | `raise TemperCore.Panic` |
-| a bubble in core (`get` out of range) | `raise TemperCore.Bubble` |
+## 8. Classes and objects
 
-## 9. Strings
+A class is a module. What an object *is* depends on whether it can
+change:
 
-| Temper | Elixir |
-|--------|--------|
-| `String` | a UTF-8 binary |
-| `StringIndex` | a byte offset into it; `String.begin` is `0`, `StringIndex.none` is `-1` |
-| `s.next(i)`, `s.prev(i)` | step over one whole code point |
-| `s[i]` | the code point at byte offset `i` (`<<_::binary-size(i), cp::utf8, _::binary>>`) |
-| `s.countBetween(a, b)` | code points, not graphemes |
-| `StringBuilder` | a heap object holding the string so far |
+- **A class with no setter and no field writes outside its constructor**
+  is a `defstruct`. Copies are free, and it is an ordinary Elixir value
+  that can go anywhere, including other processes.
+- **Any other class** is a `%TemperCore.Ref{class, id}` into a heap kept in
+  the process dictionary. Two names for one object see each other's
+  writes, which is what Temper requires (`c` and `alias` above both bump
+  one count).
 
-## 10. Maps, deques, bit vectors, and connected functions
+```elixir
+defmodule Temper.Tour.Point do
+  defstruct [:x__29, :y__30]
+  ...
+  def new(x, y) do
+    this = %Temper.Tour.Point{}
+    this = %{this | :x__29 => x}
+    this = %{this | :y__30 => y}
+    this
+  end
+end
 
-| Temper | Elixir |
-|--------|--------|
-| `Map` | `%TemperCore.Map{keys: [...], map: %{}}`: insertion order beside an Elixir map |
-| `MapBuilder` | a heap object holding the same two |
-| `Pair` | `%TemperCore.Pair{key, value}` |
-| `Deque` | an Erlang `:queue` on the heap |
-| `DenseBitVector` | the set bits, in a map on the heap |
-| a `@connected` function in a user library | its defaulting, then `TemperConnected.name(...)` from the library's `_connected.ex` |
+defmodule Temper.Tour.Counter do
+  def bump(this) do
+    ...
+    TemperCore.Heap.put(this, :count__37, return)
+  end
+  def new() do
+    this = TemperCore.Heap.new(Temper.Tour.Counter, %{:count__37 => nil})
+    ...
+```
 
-## 11. Tests
+**Dispatch.** Temper does not allow extending a concrete class ("Cannot
+extend concrete type(s) A"). So when a receiver's static type is a
+concrete class, the object belongs to exactly that class, and the call
+goes straight to the class's module: `Temper.Tour.Point.plus(a, b)`,
+`Temper.Tour.Counter.bump(c)`. Only a receiver typed as an interface
+waits until run time:
 
-| Temper | Elixir |
-|--------|--------|
-| `test("name") { ... }` | a module function of one argument, the `Test` |
-| `assert(c) { msg }` | `TemperCore.Test.assert(t, c, fn -> msg end)` |
-| a test run | `main()`, then `__temper_tests__/0` writes JUnit XML to `test-results.xml` |
-| `x as StringIndex` | `x >= 0`, since an index is an integer and none is `-1` |
+```elixir
+TemperCore.call(TemperCore.Global.get(:"Temper.Tour.s__27"), :area, [])
+```
 
-## 12. Generators and async
-
-| Temper | Elixir |
-|--------|--------|
-| a generator body | the frontend's state machine: a step `fn` over a `caseIndex` cell |
-| a generator | `TemperCore.Generator.adapt(step)`, a heap object `%{step, done}` |
-| `g.next()` | `TemperCore.Generator.next(g)`: `{:value, v}` or `:done`, anything else panics |
-| `g.done` | `TemperCore.Generator.done(g)` |
-| `empty()` | `:empty` |
-| `new PromiseBuilder()` | `TemperCore.Promise.new()`; builder and promise are one heap object |
-| `async { ... }` | enqueued on a FIFO run queue in the process dictionary |
-| `await p` | park the generator on `p`; `main/0` ends by draining the queue |
-
-Nothing runs in another process: the heap is per process, so a generator
-in its own process could not see the objects it was given.
-
-## 13. Floats
+`TemperCore.call` finds the module from the struct or ref and applies the
+method to it.
 
 | Temper | Elixir |
 |--------|--------|
-| `Infinity`, `-Infinity`, `NaN` | `:infinity`, `:neg_infinity`, `:nan` |
-| `a * b` on floats | `TemperCore.Float.mul(a, b)`: the BEAM's `*`, with overflow rescued to an infinity |
-| `a < b` on floats | `TemperCore.Float.lt(a, b)`: `-Infinity < ... < -0.0 < 0.0 < ... < Infinity < NaN` |
-| `x.sqrt()` | `TemperCore.Float.math(:sqrt, x)`: `:math.sqrt`, NaN where it raises |
-| `x.near(y)` | `TemperCore.Float.near(x, y)`: Python's `math.isclose` |
-| `"1e999".toFloat64()` | `:infinity`: JSON syntax checked first, overflow is infinite |
+| `new C(a)` | `Temper.Lib.C.new(a)` |
+| `obj.m(a)`, `obj` a concrete class | `Temper.Lib.C.m(obj, a)` |
+| `obj.m(a)`, `obj` an interface | `TemperCore.call(obj, :m, [a])` |
+| `obj.p` / `obj.p = v` | `get_p(obj)` / `set_p(obj, v)`, dispatched the same way |
+| `C.s(a)` (static) | `Temper.Lib.C.s(a)` |
+| `x is I`, `x as I` | `TemperCore.is_a(x, Temper.Lib.I)`, using each class's `__temper_supertypes__/0` |
 
-The BEAM raises on every IEEE special case and cannot even match an
-infinity's bits out of a binary, so no float operation is a bare operator.
+An interface's method bodies are copied into each class that implements
+it, so there is no `super`. An abstract method left unimplemented raises
+`TemperCore.Panic` if it is ever called.
 
-## 14. Libraries
+## 9. Generators and async
+
+The obvious BEAM answer, one process per coroutine, does not work here. A
+generator in its own process would see an empty heap, and every object it
+had been given would be a dangling ref. So the frontend's
+`TranslateToRegularFunction` strategy, the one be-rust and be-java use,
+rewrites a generator body into a state machine: a step function that
+switches on a `caseIndex` cell.
+
+```elixir
+convertedCoroutine = fn generator ->
+  caseIndexLocal = TemperCore.Heap.get(caseIndex, :v)
+  TemperCore.Heap.put(caseIndex, :v, -1)
+  if caseIndexLocal == 0 do
+    IO.puts("one")
+    TemperCore.Heap.put(caseIndex, :v, 1)
+    {:value, :empty}
+  else
+    ...
+```
 
 | Temper | Elixir |
 |--------|--------|
-| library `std`, `my-lib` | root module `Temper.Std`, `Temper.MyLib`; app `:temper_std`, `:temper_my_lib` |
-| a library's top levels | `__temper_init__/0`: its dependencies' init, then its own, once per process |
-| running a library | `Temper.MyLib.main()`: init, then drain the async queue |
-| a module-level variable | `TemperCore.Global` under `:"Temper.MyLib.name"` |
-| an imported function | `Temper.Std.parseJson(...)`, its `mix.exs` depending on `../std` |
-| a type from another library | `Temper.Std.JsonArray`, dispatched dynamically |
-| a type as a value | its module, or `:Void` for a builtin |
+| a generator | `TemperCore.Generator.adapt(step)`, a heap object |
+| `g.next()` | `{:value, v}` or `:done`. Anything else is a panic, so a lowering bug cannot pass for "not done" |
+| `new PromiseBuilder()` | `TemperCore.Promise.new()`. The builder and its promise are one heap object; the first settle wins |
+| `async { ... }` | queued on a FIFO run queue in the process dictionary |
+| `await p` | park the generator on `p`; settling `p` queues it again |
 
-## 15. Regex and broken code
+`main/0` ends by draining that queue. It pops one generator, steps it
+once, and repeats. No step runs inside another, so a long chain of awaits
+is a loop and not a deeper stack. A million settled awaits drained in
+444 ms.
+
+## 10. Builtins, `@connected`, and std
+
+Temper's builtins reach Elixir as support code. `ElixirSupportCode.kt`
+maps each builtin operator and each `@connected` member to an Elixir
+expression, usually a `TemperCore` call: `console.log` becomes `IO.puts`,
+`list.length` becomes `TemperCore.List.length`. A builtin method that has
+no entry fails the build and names itself.
+
+std is translated like any library and compiles like one. A few std
+members are `@connected` without a body, which means every backend has
+to supply them:
+
+| std member | Elixir |
+|------------|--------|
+| `Date.today()` | `TemperCore.Temporal.today(Temper.Std.Date)`, built by std's own `Date` constructor |
+| regex compile, `found`, `find`, `replace`, `split` | `TemperCore.Regex` over `:re` |
+
+Regex patterns compile with `:unicode` but not `:ucp`. A `.` matches a
+whole code point, while `\d`, `\w` and `\s` stay ASCII, as they are in
+be-py. `:re` reports byte offsets, which is what a `StringIndex` is. Groups
+iterate in the order they appear in the pattern, which `:re.inspect`
+does not give, so the compiled regex carries the names itself. A
+connected std member with no Elixir support raises
+`no Elixir support code for <key>` if it is ever called.
+
+A user library's own `@connected` functions call `TemperConnected.name`,
+from the `_connected.ex` file next to its Temper source.
+
+## 11. Errors
 
 | Temper | Elixir |
 |--------|--------|
-| a regex, compiled | `{mp, names}`: `:re` with `:unicode` (not `:ucp`), and the capture names in pattern order |
-| `regex.find(text, begin)` | `:re.run` from byte offset `begin`; groups become std's own `Match` and `Group` |
-| `regex.replace(text) { ... }` | `:re`'s `:global` run, each match's span replaced by the block's string |
-| code the frontend rejected | `raise(TemperCore.Panic, "broken code: <diagnostic>")` where it stands |
+| a bubble (`throws Bubble`, a failed `as`, `orelse`) | `raise TemperCore.Bubble`, caught with `rescue _ in TemperCore.Bubble` |
+| `panic()` | `raise TemperCore.Panic` |
+| code the frontend rejected but was told to build anyway | `raise(TemperCore.Panic, "broken code: <the frontend's diagnostic>")`, where it stands |
 
-## 16. Names and layout
+## 12. Tests
+
+A `test("name") { ... }` block is a module function that takes a
+`TemperCore.Test`. Soft asserts record a failure and keep going; hard
+asserts bubble. A test run calls `main()` first, so tests can read
+module values, then `__temper_tests__/0`. That writes JUnit XML to
+`test-results.xml` for the harness, following std/testing line for line.
+
+## 13. Names and layout
 
 | Temper | Elixir |
 |--------|--------|
-| a local declared once in its function | its plain name: `sourceText` |
-| a name declared twice in one function | numbered in order: `t1`, `t2` |
-| a module function or global | keeps its uid: `parseJsonValue__369` |
-| a closure | `fn x ->` with its body indented, closed by a balanced `end` |
-| a named function as a value | `&Temper.Std.parseJson/1` |
+| a local declared once in its function | its plain name: `xs`, `total`, `sourceText` |
+| a name declared more than once in one function | numbered in order: `t1`, `t2` |
+| a module function or global | keeps its frontend id: `sum__21`, `:"Temper.Tour.calls__28"` |
+| a name Elixir reserves or Kernel imports | a trailing `_`: `length_` |
+| a name starting with a capital or `_` | a `v_` or `u` prefix |
+| the translator's own temporaries | `ex_loop_13`, `ex_return_15`, which no Temper name can collide with |
 
+Names are per function: Elixir variables belong to their function, so a
+frontend id only has to separate names that share a base inside one
+function.
+
+## 14. Limits
+
+These are the things a program can actually run into.
+
+- **The heap is never freed.** A mutable object lives in the process
+  dictionary until its process exits. Short-lived programs are fine. In a
+  long-running process the heap keeps growing.
+- **Mutable objects cannot leave their process.** A ref is an id into its
+  process's heap, so a ref sent to another process dangles there. Structs
+  travel fine.
+- **Code is single-process.** Async is a queue inside one process, not
+  BEAM concurrency.
+- **Struct fields keep frontend ids** (`x__29`), and `case`, `rescue` and
+  `catch` clause bodies are not indented past their pattern.
+- **A `ListBuilder` append copies the list,** so building a list one item
+  at a time is quadratic.
+- **No `mix test` integration.** Tests run through `main/0`.
+- **Two user libraries importing each other** have not been tried; only
+  libraries importing std have.
+
+## 15. Where things are
+
+- Backend: `temper/be-elixir/src/commonMain/kotlin/lang/temper/be/elixir/`
+- Runtime: `temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core/`
+- Probes, which check claims about Elixir and the BEAM: `journal/probes/`
+- How each part came about: the dated entries in `journal/`, listed in
+  `journal/README.md`
