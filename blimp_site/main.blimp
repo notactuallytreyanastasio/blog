@@ -238,7 +238,6 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/ziggy/graph.json" -> ZG_GRAPH_JSON
     "/aim" -> AIM_PAGE
     "/aim/aim.blimp" -> AIM_PROGRAM
-    "/aim/aim.js" -> AIM_JS
     "/aim/aim.css" -> AIM_CSS
     "/aim/cats.jpg" -> AIM_CATS
     "/aim/sounds/dooropen.wav" -> AIM_SOUND_DOOROPEN

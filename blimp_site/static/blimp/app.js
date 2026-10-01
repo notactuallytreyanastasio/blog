@@ -16,7 +16,9 @@
   try {
     var blimp = new Blimp()
     blimp.onPrint(function () {})
-    await blimp.init('/blimp/blimp.wasm')
+    // a page may name its interpreter by content (data-wasm="/blimp/blimp.wasm?v=..."),
+    // so a cached older one never runs a program that needs a newer one
+    await blimp.init(el.dataset.wasm || '/blimp/blimp.wasm')
     var res = await fetch(el.dataset.program)
     if (!res.ok) throw new Error(el.dataset.program + ' is ' + res.status)
     var source = await res.text()

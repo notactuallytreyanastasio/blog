@@ -12,6 +12,13 @@
 //   timer(ms, :msg)   -> {"tag":"timer","attrs":{"ms":{"text":"500"},"sends":"msg"}}
 //   key("ArrowLeft", :msg) -> {"tag":"key","attrs":{"code":{"text":"ArrowLeft"},"sends":"msg"}}
 //   key("*", :msg)              -> every key: :msg("a"), :msg("Enter"), ...
+//   stored("k", :msg)          -> :msg(value) once, from localStorage ("" if none)
+//   store("k", "v")            -> localStorage holds "v" under "k" ("" removes it)
+//   socket("/live/x", %{frame: :f, open: :o, closed: :c, sent: :s}, first, frames)
+//                              -> a WebSocket to /live/x while it is in the view:
+//                                 :f(text) per frame in, :o and :c as it connects
+//                                 and drops (it reconnects), frames numbered
+//                                 from `first` sent once each, then :s(n)
 //   key("ArrowUp", :down, :up) -> the same with "up":"up": a held key, sent
 //                                 once when it goes down and once when it
 //                                 comes up; auto-repeat is not sent
@@ -35,7 +42,18 @@
 // actor gets :msg(dx, dy), or :msg(with, dx, dy), the pixels moved since
 // the last one, at most once a frame. The pointer is held inside the
 // window, so whatever was grabbed can always be grabbed again. A press on
-// a button, link or field inside it is that control's, not a drag. An el
+// a button, link or field inside it is that control's, not a drag.
+//
+// Three more say how an element behaves, and send nothing themselves:
+//   submit_on_enter: true  a field whose Enter submits its form (so the
+//                          form's submit: runs); Shift+Enter is a new line
+//   scroll: :end           kept scrolled to the bottom as it grows, unless
+//                          the reader has scrolled up to read
+//   focus: true            has the focus whenever nothing else does and it
+//                          is not disabled: when it appears, after the
+//                          button that opened it has gone, after it was
+//                          disabled for a while. A chat's message box. Not
+//                          on a touch screen, where it throws a keyboard up. An el
 // whose id changes is a new element: a CSS animation keyed to it starts
 // again, as it did when LiveView replaced the node.
 //
@@ -58,7 +76,7 @@
   var SVGNS = 'http://www.w3.org/2000/svg';
   var SVG_TAGS = { svg: 1, g: 1, path: 1, circle: 1, rect: 1, line: 1, polyline: 1, polygon: 1, text: 1, tspan: 1,
     defs: 1, linearGradient: 1, radialGradient: 1, stop: 1, ellipse: 1, title: 0 };
-  var EL_EVENTS = { click: 1, 'with': 1, input: 1, change: 1, submit: 1, swipe: 1, drag: 1, select: 1, selection: 1,
+  var EL_EVENTS = { click: 1, 'with': 1, input: 1, change: 1, submit: 1, swipe: 1, drag: 1, submit_on_enter: 1, scroll: 1, focus: 1, select: 1, selection: 1,
     debounce: 1, shortcut: 1, shortcut_keys: 1, paste_image: 1, inner_html: 1 };
 
   // Blimp strings count bytes (UTF-8); a field's selection counts UTF-16
@@ -150,6 +168,8 @@
     this._held = {};    // KeyboardEvent.key -> true while a held key is down
     this._root = null;  // the element render() put in the container
     this._sending = false;
+    this._scrollers = [];  // scroll: :end elements, kept at their end
+    this._focusing = [];   // focus: true elements, which take the focus when it is free
     var self = this;
     this._onKeydown = function (e) { self._handleKey(e); };
     this._onKeyup = function (e) { self._handleKeyUp(e); };
@@ -213,6 +233,7 @@
 
   BlimpView.prototype.unmount = function () {
     this._stopTimers();
+    this._reconcileSockets({});
     document.removeEventListener('keydown', this._onKeydown);
     document.removeEventListener('keyup', this._onKeyup);
     if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('blur', this._onBlur);
@@ -243,16 +264,46 @@
       return this._fail(e.message || String(e));
     }
     this.view = view;
-    var fx = { timers: {}, keys: {}, fetches: {}, query: null };
+    this._settle();
+    var fx = { timers: {}, keys: {}, fetches: {}, stored: {}, stores: {}, sockets: {}, query: null };
     this._collectEffects(view, fx);
     this._reconcileTimers(fx.timers);
     this._reconcileFetches(fx.fetches);
+    this._reconcileStorage(fx.stored, fx.stores);
+    this._reconcileSockets(fx.sockets);
     if (fx.query !== null && typeof location !== 'undefined' && typeof history !== 'undefined') {
       var want = fx.query === '' ? location.pathname : '?' + fx.query;
       if (location.search !== (fx.query === '' ? '' : '?' + fx.query)) history.replaceState(null, '', want);
     }
     this.keys = fx.keys;
     if (this.opts.onRender) this.opts.onRender(view, fx);
+  };
+
+  // After a render, with every element in the page: scroll: :end elements
+  // that grew go back to their end, and focus: true ones that just appeared
+  // take the focus if nobody has it.
+  BlimpView.prototype._settle = function () {
+    var on = function (el) { return el.isConnected !== false; };
+    this._scrollers = this._scrollers.filter(on);
+    this._scrollers.forEach(function (el) {
+      if (el._blimpOn && el._blimpOn.scroll === 'end' && el._blimpAtEnd !== false) el.scrollTop = el.scrollHeight;
+    });
+    // focus: true is a standing claim, not a one-off: whatever has the focus
+    // keeps it (the button just clicked, a field being typed in), and when
+    // nothing has it the first enabled claimant takes it. A disabled field
+    // loses the focus (someone is typing to you) and gets it back after.
+    this._focusing = this._focusing.filter(function (el) { return on(el) && el._blimpOn && el._blimpOn.focus; });
+    if (!this._focusing.length || typeof document === 'undefined') return;
+    if (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) return;
+    var active = document.activeElement;
+    var idle = !active || active === document.body || active === document.documentElement || active.isConnected === false;
+    if (!idle) return;
+    for (var i = 0; i < this._focusing.length; i++) {
+      var el = this._focusing[i];
+      if (el.disabled || !el.focus) continue;
+      el.focus({ preventScroll: true });
+      return;
+    }
   };
 
   BlimpView.prototype.renderView = function (node) {
@@ -330,6 +381,9 @@
       case 'key':
       case 'fetch':
       case 'location_query':
+      case 'stored':
+      case 'store':
+      case 'socket':
         // effects render nothing; they are picked up by _collectEffects
         return document.createTextNode('');
       default: el = document.createElement('div');
@@ -462,6 +516,24 @@
       el.addEventListener('pointerup', drop);
       el.addEventListener('pointercancel', drop);
     }
+    if (el._blimpOn.submit_on_enter) el.addEventListener('keydown', function (e) {
+      if (!el._blimpOn.submit_on_enter || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      var form = el.form;
+      if (!form) return;
+      e.preventDefault();
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { cancelable: true }));
+    });
+    if (el._blimpOn.scroll) {
+      if (el._blimpOn.scroll !== 'end') throw new Error('el: scroll: :end is the only scroll there is, not ' + el._blimpOn.scroll);
+      // at the end until the reader scrolls up; back at the end, it sticks again
+      el._blimpAtEnd = true;
+      el.addEventListener('scroll', function () {
+        el._blimpAtEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;
+      });
+      self._scrollers.push(el);
+    }
+    if (el._blimpOn.focus) self._focusing.push(el);
     if (el._blimpOn.submit) el.addEventListener('submit', function (e) {
       e.preventDefault();
       var fields = {};
@@ -507,22 +579,29 @@
         var want = {};
         Object.keys(EL_EVENTS).forEach(function (k) { if (b.attrs[k] !== undefined) want[k] = attrVal(b.attrs[k]); });
         // a kind of event it had no listener for needs a new element
-        var passive = { 'with': 1, selection: 1, debounce: 1, shortcut_keys: 1, inner_html: 1 };
+        var passive = { 'with': 1, selection: 1, debounce: 1, shortcut_keys: 1, inner_html: 1, focus: 1 };
         if (Object.keys(want).some(function (k) { return !passive[k] && !had[k]; })) return this.renderView(b);
         el._blimpOn = want;
         applyInstructions(el, b.attrs, a.attrs);
       }
       if (b.attrs.inner_html !== undefined) return el;
-      if (ac.length !== bc.length) return this._rebuild(el, b);
+      // The children both trees have are patched; the new tree's extra ones
+      // are added, the old one's removed. A chat log that grows by a line
+      // keeps its element, and with it where it was scrolled, what had
+      // focus, and an <audio> that has played. (It used to be rebuilt
+      // whenever its number of children changed.)
       var nodes = el.childNodes;
       var outerNs = this._inSvg;
       this._inSvg = el.namespaceURI === SVGNS;
       try {
-        for (var j = 0; j < bc.length; j++) {
+        var both = Math.min(ac.length, bc.length);
+        for (var j = 0; j < both; j++) {
           var c = nodes[j];
           var n = this._patch(c, ac[j], bc[j]);
           if (n !== c) el.replaceChild(n, c);
         }
+        for (var k = both; k < bc.length; k++) el.appendChild(this.renderView(bc[k]));
+        while (nodes.length > bc.length) el.removeChild(nodes[nodes.length - 1]);
       } finally {
         this._inSvg = outerNs;
       }
@@ -535,7 +614,7 @@
       else if (b.tag === 'heading' && attrVal((a.attrs || {}).level) !== attrVal((b.attrs || {}).level)) return this.renderView(b);
     }
     // a list wraps each child in an <li>, and an effect node is a text node
-    if (b.tag === 'list' || b.tag === 'timer' || b.tag === 'key') {
+    if (b.tag === 'list' || b.tag === 'timer' || b.tag === 'key' || b.tag === 'socket') {
       return b.tag === 'list' && JSON.stringify(ac) !== JSON.stringify(bc) ? this.renderView(b) : el;
     }
     if (ac.length !== bc.length) return this.renderView(b);
@@ -637,6 +716,19 @@
     } else if (node.tag === 'fetch') {
       var url = attrVal(attrs.url), fsends = attrVal(attrs.sends);
       if (url && fsends) fx.fetches[url + '|' + fsends] = { url: url, sends: fsends };
+    } else if (node.tag === 'stored') {
+      var skey = attrVal(attrs.key), ssends = attrVal(attrs.sends);
+      if (skey && ssends) fx.stored[skey + '|' + ssends] = { key: String(skey), sends: ssends };
+    } else if (node.tag === 'store') {
+      if (attrVal(attrs.key)) fx.stores[String(attrVal(attrs.key))] = String(attrVal(attrs.value));
+    } else if (node.tag === 'socket') {
+      var path = attrVal(attrs.path);
+      if (path) fx.sockets[path] = {
+        path: String(path), first: attrInt(attrs.first, 1),
+        frame: attrVal(attrs.frame), open: attrVal(attrs.open), closed: attrVal(attrs.closed), sent: attrVal(attrs.sent),
+        frames: (node.children || []).map(function (c) { return c && c.text !== undefined ? String(c.text) : ''; }),
+      };
+      return;   // its children are frames to send, not view
     } else if (node.tag === 'location_query') {
       fx.query = String(attrVal(attrs.query));
     } else if (node.tag === 'key') {
@@ -646,6 +738,125 @@
     }
     var children = node.children || [];
     for (var i = 0; i < children.length; i++) this._collectEffects(children[i], fx);
+  };
+
+  // localStorage, which a private window or a blocked site may refuse: then
+  // a read is "" and a write is dropped, and the page goes on.
+  function storageGet(k) {
+    try { var v = typeof localStorage === 'undefined' ? null : localStorage.getItem(k); return v === null || v === undefined ? '' : String(v); } catch (e) { return ''; }
+  }
+  function storageSet(k, v) {
+    try { if (typeof localStorage === 'undefined') return; if (v === '') localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {}
+  }
+
+  // stored(): read once while it is in the view, and sent after this render
+  // has finished, as a fetch's answer is. store(): written when it differs.
+  // Reads go first, and a key is not written while its read is on its way:
+  // otherwise a page's first render, before it knows what was stored,
+  // would overwrite it with its starting state.
+  BlimpView.prototype._reconcileStorage = function (reads, writes) {
+    var self = this;
+    this.reads = this.reads || {};
+    this._unread = this._unread || {};
+    Object.keys(this.reads).forEach(function (k) { if (!reads[k]) delete self.reads[k]; });
+    Object.keys(reads).forEach(function (k) {
+      if (self.reads[k]) return;
+      self.reads[k] = true;
+      var r = reads[k], value = storageGet(r.key);
+      self._unread[r.key] = (self._unread[r.key] || 0) + 1;
+      var go = function () {
+        if (self._sending) return setTimeout(go, 0);
+        if (--self._unread[r.key] <= 0) delete self._unread[r.key];
+        if (!self.mounted || self.error || !self.reads[k]) return;
+        self.send(r.sends, literal(value));
+      };
+      setTimeout(go, 0);
+    });
+    Object.keys(writes).forEach(function (k) {
+      if (!self._unread[k] && storageGet(k) !== writes[k]) storageSet(k, writes[k]);
+    });
+  };
+
+  // A message from outside a render (a frame, a connection, a timer): sent
+  // when the view is free, so it never lands in the middle of one.
+  // They queue, and go in the order they came: frames from a server must
+  // reach the program in the order the server sent them.
+  BlimpView.prototype._later = function (msg, args) {
+    var self = this;
+    (this._queue = this._queue || []).push([msg, args]);
+    if (this._draining) return;
+    this._draining = true;
+    var drain = function () {
+      if (self._sending) return setTimeout(drain, 0);
+      self._draining = false;
+      var q = self._queue;
+      self._queue = [];
+      for (var i = 0; i < q.length; i++) {
+        if (!self.mounted || self.error) return;
+        self.send(q[i][0], q[i][1]);
+      }
+    };
+    setTimeout(drain, 0);
+  };
+
+  // socket(): one WebSocket per path while the view has the node. Each
+  // render hands over the latest spec; frames numbered above the last sent
+  // go out in order while it is open, and :sent(n) says how far it got.
+  // A drop is retried, 0.5s doubling to 10s, until the view lets it go.
+  BlimpView.prototype._reconcileSockets = function (wanted) {
+    var self = this;
+    this.sockets = this.sockets || {};
+    Object.keys(this.sockets).forEach(function (p) {
+      if (wanted[p]) return;
+      var gone = self.sockets[p];
+      delete self.sockets[p];
+      gone.wanted = false;
+      clearTimeout(gone.retry);
+      if (gone.ws) { gone.ws.onclose = null; gone.ws.close(); }
+    });
+    Object.keys(wanted).forEach(function (p) {
+      var s = self.sockets[p];
+      if (!s) {
+        s = self.sockets[p] = { spec: wanted[p], ws: null, sentUpTo: wanted[p].first - 1, wait: 500, wanted: true, retry: null };
+        self._connect(s);
+      } else s.spec = wanted[p];
+      self._flush(s);
+    });
+  };
+
+  BlimpView.prototype._connect = function (s) {
+    var self = this;
+    if (typeof WebSocket === 'undefined' || !s.wanted) return;
+    var scheme = typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss://' : 'ws://';
+    var host = typeof location !== 'undefined' ? location.host : '';
+    var ws = s.ws = new WebSocket(scheme + host + s.spec.path);
+    ws.onopen = function () {
+      s.wait = 500;
+      if (s.spec.open) self._later(s.spec.open);
+      self._flush(s);
+    };
+    ws.onmessage = function (ev) {
+      if (typeof ev.data === 'string' && s.spec.frame) self._later(s.spec.frame, literal(ev.data));
+    };
+    ws.onclose = function () {
+      s.ws = null;
+      if (!s.wanted) return;
+      if (s.spec.closed) self._later(s.spec.closed);
+      s.retry = setTimeout(function () { self._connect(s); }, s.wait);
+      s.wait = Math.min(s.wait * 2, 10000);
+    };
+  };
+
+  BlimpView.prototype._flush = function (s) {
+    if (!s.ws || s.ws.readyState !== 1) return;
+    var before = s.sentUpTo;
+    for (var i = 0; i < s.spec.frames.length; i++) {
+      var n = s.spec.first + i;
+      if (n <= s.sentUpTo) continue;
+      s.ws.send(s.spec.frames[i]);
+      s.sentUpTo = n;
+    }
+    if (s.sentUpTo !== before && s.spec.sent) this._later(s.spec.sent, String(s.sentUpTo));
   };
 
   BlimpView.prototype._reconcileTimers = function (wanted) {
