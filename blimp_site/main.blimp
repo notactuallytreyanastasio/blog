@@ -236,6 +236,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/ziggy/ziggy.js" -> ZG_JS
     "/ziggy/ziggy.css" -> ZG_CSS
     "/ziggy/graph.json" -> ZG_GRAPH_JSON
+    "/aim" -> AIM_PAGE
+    "/aim/aim.blimp" -> AIM_PROGRAM
+    "/aim/aim.js" -> AIM_JS
+    "/aim/aim.css" -> AIM_CSS
     # Role Call (src/99_role_call.blimp): the page, its program, script,
     # sunflower and css, and Blog.RoleCall's queries
     "/role-call" -> RC_PAGE
@@ -488,6 +492,7 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
     "/live/firehose" -> :firehose
     "/live/mta" -> :mta
     "/live/ziggy" -> :ziggy
+    "/live/aim" -> :aim
     "/live/blinks" -> :blinks
     "/live/cameras" -> :cameras
     _ -> nil
@@ -533,6 +538,11 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
       # a /ziggy page is told whether its chat can be unlocked
       case kind == :ziggy do
         true -> ZG <- :join(c)
+        false -> :ok
+      end
+      # an /aim page is told whether bobbbyBot is online
+      case kind == :aim do
+        true -> AIM <- :join(c)
         false -> :ok
       end
       # a /blinks page hears of every save and who is in which chat,
@@ -606,6 +616,9 @@ def drop_socket(sock: Map, socks: Map, games: Map, why: String) -> Tuple do
       {map_without(socks, to_string(sock.fd)), games, false}
     :ziggy ->
       ZG <- :leave(sock.fd)
+      {map_without(socks, to_string(sock.fd)), games, false}
+    :aim ->
+      AIM <- :leave(sock.fd)
       {map_without(socks, to_string(sock.fd)), games, false}
     :blinks ->
       bkl_leave(ROOMS, sock.fd)
@@ -681,6 +694,10 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
             # an unlock, a question or a suggestion; ZG answers it itself
             :ziggy ->
               ZG <- :recv(sock.fd, payload)
+              live_frames(next, socks, games, changed)
+            # a screen name or a message; AIM answers it itself
+            :aim ->
+              AIM <- :recv(sock.fd, payload)
               live_frames(next, socks, games, changed)
             # which chat room it is in, and what it says there (src/99_blinkslive.blimp, src/99_blinkschat.blimp)
             :blinks ->
@@ -837,6 +854,7 @@ def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Boo
   MTA <- :step
   GALLERY <- :step
   ZG <- :step
+  AIM <- :step
   # saved links' pages and Bluesky threads (src/99_blinksenrich.blimp)
   BKE <- :step
   # the daily dead-link sweep (src/99_blinkscheck.blimp)
@@ -1033,6 +1051,17 @@ end
 MTA <- :key(mta_key())
 # /ziggy's graph, and its chat's key, password and models
 ZG <- :graph(ZG_GRAPH)
+# /aim's archive (build.sh copies it in; it is not in git) and its DeepSeek key
+AIM_POSTS = AIM <- :load(read_file(AIM_ARCHIVE_FILE))
+case AIM_POSTS == 0 do
+  true -> puts(concat("aim: no archive at ", AIM_ARCHIVE_FILE, ", so bobbbyBot is offline (build.sh copies it from AIM_ARCHIVE)"))
+  false -> puts(concat("aim: ", to_string(AIM_POSTS), " posts"))
+end
+AIM_CONFIG = AIM <- :config(zg_env("AIM_API_KEY", ""), zg_env("AIM_BASE_URL", "https://api.deepseek.com"), zg_env("AIM_MODEL", "deepseek-flash"), to_int(zg_env("AIM_DAILY_LIMIT", "600")))
+case lookup(AIM_CONFIG, :keyed) do
+  true -> :ok
+  _ -> puts("aim: AIM_API_KEY is not set, so bobbbyBot is offline")
+end
 ZG <- :config(zg_env("OPENAI_API_KEY", ""), zg_env("ZIGGY_CHAT_PASSWORD", ""), zg_env("OPENAI_MODEL", "gpt-5.1"), zg_env("OPENAI_AUTOCOMPLETE_MODEL", "gpt-5.4-nano"), zg_env("OPENAI_BASE_URL", "https://api.openai.com/v1"))
 # /cameras' star, hide and note need BLINKS_API_TOKEN; without it nobody can
 case CAM_TOKEN do

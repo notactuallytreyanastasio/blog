@@ -1,0 +1,534 @@
+# /aim: the page's program. It draws a desktop from about 2003 -- the
+# sign-on window, the Buddy List, an Instant Message window, Get Info --
+# and one thing AIM never had: a reader view, because bobbbyBot answers in
+# Markdown and a long answer deserves a page, not a chat bubble.
+#
+# The conversation is not here, only its picture. The server's AIM actor
+# (src/99_aim.blimp) holds it and asks DeepSeek; aim.js holds the socket
+# to /live/aim, hands this program every frame (`:frame`) and each
+# (re)connection (`:connected`), sends up what `:outbox` returns after
+# every render, and plays the sounds `:where` says are wanted.
+
+def aimp_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+def aimp_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+def aimp_int(v: Any) -> Int do
+  case type_of(v) == :integer do
+    true -> v
+    false -> 0
+  end
+end
+
+def aimp_messages(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> filter(v, fn(m: Any) -> Bool do type_of(m) == :map end)
+    false -> []
+  end
+end
+
+def aimp_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def aimp_nth(list: List, i: Int) -> Any do
+  case list do
+    [] -> nil
+    [x | rest] ->
+      case i do
+        0 -> x
+        _ -> aimp_nth(rest, i - 1)
+      end
+  end
+end
+
+# 75344 -> "75,344"
+def aimp_commas(n: Int) -> String do
+  s = to_string(n)
+  case length(s) > 3 do
+    false -> s
+    true -> concat(aimp_commas(n / 1000), ",", slice(s, length(s) - 3, length(s)))
+  end
+end
+
+# The indexes of the bot's answers, in order: what the reader pages through.
+def aimp_answers(ms: List) -> List do
+  reverse(elem(reduce(ms, {[], 0}, fn(acc: Tuple, m: Map) -> Tuple do
+    i = elem(acc, 1)
+    case aimp_str(lookup(m, :role)) do
+      "assistant" -> {[i | elem(acc, 0)], i + 1}
+      _ -> {elem(acc, 0), i + 1}
+    end
+  end), 0))
+end
+
+# The answer before or after `i` (-1 for before, 1 for after), or i.
+def aimp_step(answers: List, i: Int, dir: Int) -> Int do
+  pick = case dir < 0 do
+    true -> filter(reverse(answers), fn(j: Int) -> Bool do j < i end)
+    false -> filter(answers, fn(j: Int) -> Bool do j > i end)
+  end
+  case pick do
+    [] -> i
+    [j | _] -> j
+  end
+end
+
+# A reply worth a page: long, or shaped like a document.
+def aimp_long(content: String) -> Bool do
+  length(content) > 420 or contains(content, "\n#") or contains(content, "```") or contains(content, "\n- ") or contains(content, "\n1. ")
+end
+
+# ── window chrome ──────────────────────────────────────────────────────
+
+def aimp_titlebar(title: String, close: Any) -> Any do
+  x = case close do
+    nil -> el("span", %{class: "aim-tb-btn dead"}, "×")
+    msg -> el("button", %{class: "aim-tb-btn", click: msg, title: "Close"}, "×")
+  end
+  el("div", %{class: "aim-titlebar"},
+    el("span", %{class: "aim-tb-icon"}),
+    el("span", %{class: "aim-tb-title"}, title),
+    el("span", %{class: "aim-tb-btns"},
+      el("span", %{class: "aim-tb-btn dead"}, "_"),
+      el("span", %{class: "aim-tb-btn dead"}, "□"),
+      x))
+end
+
+def aimp_menubar(items: List) -> Any do
+  el("div", %{class: "aim-menubar"}, map(items, fn(t: String) -> Any do el("span", %{}, t) end))
+end
+
+# The yellow running figure, drawn here rather than borrowed.
+def aimp_runner(cls: String) -> Any do
+  el("span", %{class: concat("aim-runner ", cls), inner_html: "<svg viewBox=\"0 0 32 40\" aria-hidden=\"true\"><circle cx=\"19\" cy=\"6\" r=\"5\"/><path d=\"M17 12 L9 20 L3 18 M17 12 L14 25 L22 31 L20 39 M14 25 L7 33 L1 32 M16 15 L25 19 L30 15\" fill=\"none\" stroke-width=\"4.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"})
+end
+
+# ── sign on ────────────────────────────────────────────────────────────
+
+def aimp_signon(s: Map) -> Any do
+  el("div", %{class: "aim-win aim-signon"},
+    aimp_titlebar("Sign On", nil),
+    el("div", %{class: "aim-signon-body"},
+      el("div", %{class: "aim-signon-logo"}, aimp_runner("big"),
+        el("div", %{class: "aim-wordmark"}, el("strong", %{}, "AIM"), el("span", %{}, "bobbby.online edition"))),
+      el("form", %{class: "aim-signon-form", submit: :sign_on},
+        el("label", %{"for": "aim-sn"}, "Screen Name"),
+        el("input", %{id: "aim-sn", name: "name", class: "aim-field", value: s.name, maxlength: "16", autocomplete: "nickname", placeholder: "Visitor"}),
+        el("label", %{"for": "aim-pw"}, "Password"),
+        el("input", %{id: "aim-pw", class: "aim-field", type: "password", disabled: true, placeholder: "not needed"}),
+        el("div", %{class: "aim-signon-row"},
+          el("span", %{class: "aim-small"}, "No account? Make up a name."),
+          el("button", %{type: "submit", class: "aim-btn aim-btn-default"}, aimp_runner("tiny"), "Sign On"))),
+      el("div", %{class: "aim-small aim-signon-foot"}, "Version 5.9.blimp")))
+end
+
+# ── the Buddy List ─────────────────────────────────────────────────────
+
+def aimp_buddy(name: String, cls: String, click: Any, note: String) -> Any do
+  attrs = case click do
+    nil -> %{class: concat("aim-buddy ", cls)}
+    msg -> %{class: concat("aim-buddy ", cls), click: msg}
+  end
+  el("div", attrs, el("span", %{class: "aim-buddy-name"}, name), el("span", %{class: "aim-buddy-note"}, note))
+end
+
+def aimp_buddy_list(s: Map) -> Any do
+  bot = case s.online do
+    true -> aimp_buddy(aim_bot_name, "online", :open_im, "")
+    false -> aimp_buddy(aim_bot_name, "away", :open_im, "(away)")
+    nil -> aimp_buddy(aim_bot_name, "idle", nil, "(connecting)")
+  end
+  online = case s.online do
+    false -> "0/1"
+    _ -> "1/1"
+  end
+  muted = case s.muted do
+    true -> "Sounds: off"
+    false -> "Sounds: on"
+  end
+  el("div", %{class: "aim-win aim-buddies"},
+    aimp_titlebar(concat(s.name, "'s Buddy List"), nil),
+    aimp_menubar(["My AIM", "People", "Help"]),
+    el("div", %{class: "aim-buddies-brand"}, aimp_runner("mid"), el("div", %{}, el("strong", %{}, "bobbby.online"), el("span", %{}, "Instant Messenger"))),
+    el("div", %{class: "aim-buddies-tabs"}, el("span", %{class: "on"}, "Online"), el("span", %{}, "List Setup")),
+    el("div", %{class: "aim-buddies-tree"},
+      el("div", %{class: "aim-group"}, concat("▾ Buddies (", online, ")")),
+      bot,
+      el("div", %{class: "aim-group"}, "▾ Family (0/0)"),
+      el("div", %{class: "aim-group"}, "▾ Co-Workers (0/0)"),
+      el("div", %{class: "aim-group"}, "▾ Offline (2/2)"),
+      el("a", %{class: "aim-buddy offline", href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, el("span", %{class: "aim-buddy-name"}, "bobbby (the real one)")),
+      aimp_buddy("SmarterChild", "offline", nil, "")),
+    el("div", %{class: "aim-buddies-foot"},
+      el("button", %{class: "aim-btn", click: :open_im}, "IM"),
+      el("button", %{class: "aim-btn", click: :open_info}, "Info"),
+      el("button", %{class: "aim-btn", click: :toggle_sound}, muted)))
+end
+
+# ── the IM window ──────────────────────────────────────────────────────
+
+def aimp_line(s: Map, m: Map, i: Int) -> Any do
+  role = aimp_str(lookup(m, :role))
+  content = aimp_str(lookup(m, :content))
+  case role do
+    "assistant" ->
+      long = aimp_long(content)
+      cls = case long do
+        true -> "aim-line bot long"
+        false -> "aim-line bot"
+      end
+      more = case long do
+        true -> [el("button", %{class: "aim-readmore", click: :open_reader, with: i}, "Open in Reader →")]
+        false -> [el("button", %{class: "aim-reader-chip", click: :open_reader, with: i, title: "Open in Reader"}, "¶")]
+      end
+      el("div", %{class: cls},
+        el("span", %{class: "aim-sn bot"}, aim_bot_name, ":"),
+        el("div", %{class: "aim-md", inner_html: aimp_str(lookup(m, :html))}),
+        more)
+    _ ->
+      el("div", %{class: "aim-line me"}, el("span", %{class: "aim-sn me"}, s.name, ":"), el("span", %{class: "aim-text"}, content))
+  end
+end
+
+def aimp_lines(s: Map, ms: List, i: Int, acc: List) -> List do
+  case ms do
+    [] -> reverse(acc)
+    [m | rest] -> aimp_lines(s, rest, i + 1, [aimp_line(s, m, i) | acc])
+  end
+end
+
+def aimp_log(s: Map) -> Any do
+  opener = case s.online do
+    false -> [el("div", %{class: "aim-sys"}, concat(aim_bot_name, " is away: \"", aim_away_message, "\". Messages won't be answered right now."))]
+    _ -> [el("div", %{class: "aim-sys"}, concat(aim_bot_name, " signed on. Built from ", aimp_commas(s.posts), " posts; ", aimp_commas(s.in_prompt), " of them are on its mind at all times, and it can search the rest."))]
+  end
+  starters = case s.messages do
+    [] ->
+      [el("div", %{class: "aim-presets"},
+        el("span", %{class: "aim-small"}, "Say something, or:"),
+        map(aim_presets, fn(q: String) -> Any do el("button", %{class: "aim-preset", click: :ask_preset, with: q}, q) end))]
+    _ -> []
+  end
+  el("div", %{class: "aim-log", id: "aim-log"}, aimp_append(opener, aimp_append(aimp_lines(s, s.messages, 0, []), starters)))
+end
+
+def aimp_im(s: Map) -> Any do
+  status = case s.loading do
+    true -> el("div", %{class: "aim-status typing"}, el("span", %{class: "aim-pencil"}, "✎"), concat(aim_bot_name, " is typing..."))
+    false -> el("div", %{class: "aim-status"}, concat(aim_bot_name, "'s Warning Level: ", to_string(s.warn), "%"))
+  end
+  dis = s.loading or s.online != true
+  el("div", %{class: "aim-win aim-im"},
+    aimp_titlebar(concat(aim_bot_name, " - Instant Message"), :close_im),
+    aimp_menubar(["File", "Edit", "Insert", "People"]),
+    el("div", %{class: "aim-warnbar"}, concat(aim_bot_name, "'s Warning Level: ", to_string(s.warn), "%")),
+    aimp_log(s),
+    el("div", %{class: "aim-toolbar"},
+      el("span", %{class: "aim-swatch"}), el("span", %{class: "aim-swatch bg"}),
+      el("span", %{class: "aim-tool small-a"}, "A"), el("span", %{class: "aim-tool"}, "A"), el("span", %{class: "aim-tool big-a"}, "A"),
+      el("span", %{class: "aim-tool b"}, "B"), el("span", %{class: "aim-tool i"}, "I"), el("span", %{class: "aim-tool u"}, "U"),
+      el("span", %{class: "aim-tool"}, "link"), el("span", %{class: "aim-small aim-md-hint"}, "Markdown works")),
+    el("form", %{class: "aim-compose", submit: :send},
+      el("textarea", %{name: "message", id: concat("aim-input-", to_string(s.sent)), class: "aim-input", rows: "3", maxlength: "2000",
+        placeholder: concat("Message ", aim_bot_name, "..."), disabled: dis}),
+      el("div", %{class: "aim-im-buttons"},
+        el("button", %{type: "button", class: "aim-btn aim-btn-icon", click: :warn}, "Warn"),
+        el("button", %{type: "button", class: "aim-btn aim-btn-icon", click: :close_im}, "Block"),
+        el("button", %{type: "button", class: "aim-btn aim-btn-icon", click: :open_info}, "Get Info"),
+        el("span", %{class: "aim-spacer"}),
+        el("button", %{type: "submit", class: "aim-btn aim-btn-default aim-send", disabled: dis}, aimp_runner("tiny"), "Send"))),
+    status)
+end
+
+# ── the reader ─────────────────────────────────────────────────────────
+
+def aimp_reader(s: Map) -> Any do
+  m = aimp_nth(s.messages, s.reader)
+  answers = aimp_answers(s.messages)
+  n = length(filter(answers, fn(j: Int) -> Bool do j <= s.reader end))
+  q = aimp_nth(s.messages, s.reader - 1)
+  asked = case q == nil do
+    true -> []
+    false -> [el("p", %{class: "aim-reader-q"}, el("span", %{}, concat(s.name, " asked")), aimp_str(lookup(q, :content)))]
+  end
+  theme_label = case s.paper do
+    true -> "Night"
+    false -> "Paper"
+  end
+  page_cls = case s.paper do
+    true -> concat("aim-reader-page size-", to_string(s.size), " paper")
+    false -> concat("aim-reader-page size-", to_string(s.size), " night")
+  end
+  el("div", %{class: "aim-reader-scrim"},
+    el("div", %{class: "aim-win aim-reader", role: "dialog", "aria-label": "Reader"},
+      aimp_titlebar(concat("Reader - ", aim_bot_name), :close_reader),
+      el("div", %{class: "aim-reader-tools"},
+        el("button", %{class: "aim-btn", click: :reader_step, with: -1, disabled: aimp_step(answers, s.reader, -1) == s.reader}, "◂ Previous"),
+        el("button", %{class: "aim-btn", click: :reader_step, with: 1, disabled: aimp_step(answers, s.reader, 1) == s.reader}, "Next ▸"),
+        el("span", %{class: "aim-small"}, concat("Answer ", to_string(n), " of ", to_string(length(answers)))),
+        el("span", %{class: "aim-spacer"}),
+        el("button", %{class: "aim-btn", click: :reader_size, with: -1, title: "Smaller text"}, "A−"),
+        el("button", %{class: "aim-btn", click: :reader_size, with: 1, title: "Larger text"}, "A+"),
+        el("button", %{class: "aim-btn", click: :reader_theme}, theme_label)),
+      el("div", %{class: page_cls, id: "aim-reader-page"},
+        el("article", %{class: "aim-reader-article"},
+          el("header", %{},
+            el("div", %{class: "aim-reader-kicker"}, concat(aim_bot_name, " · from ", aimp_commas(s.posts), " posts")),
+            asked),
+          el("div", %{class: "aim-reader-body", inner_html: aimp_str(lookup(m, :html))}),
+          el("footer", %{}, "An AI agent built from Bobby Grayson's posts, not Bobby. The real one is ", el("a", %{href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, "@bobbby.online"), ".")))))
+end
+
+# ── Get Info ───────────────────────────────────────────────────────────
+
+def aimp_info(s: Map) -> Any do
+  el("div", %{class: "aim-win aim-info"},
+    aimp_titlebar(concat("Buddy Info: ", aim_bot_name), :close_info),
+    el("div", %{class: "aim-info-body"},
+      el("div", %{class: "aim-info-head"}, aimp_runner("mid"), el("div", %{}, el("strong", %{}, aim_bot_name), el("span", %{class: "aim-small"}, "Member since: 2009"))),
+      el("div", %{class: "aim-info-profile"},
+        el("p", %{}, el("b", %{}, "An AI agent, not Bobby. "), "It talks like ", el("a", %{href: "https://bsky.app/profile/bobbby.online", target: "_blank", rel: "noopener"}, "@bobbby.online"), " because it has read everything he posted."),
+        el("ul", %{},
+          el("li", %{}, concat(aimp_commas(s.posts), " posts: every tweet from the 2024 Twitter archive and every Bluesky post since 2023")),
+          el("li", %{}, concat(aimp_commas(s.in_prompt), " of them sit in its prompt, about 758,000 tokens; it searches the rest")),
+          el("li", %{}, "Model: DeepSeek V4.1 Flash, 1M-token context"),
+          el("li", %{}, "Server: one Blimp process on bobbby.online")),
+        el("p", %{class: "aim-small"}, "Conversations are not saved. Sign off and they're gone.")),
+      el("div", %{class: "aim-info-foot"}, el("button", %{class: "aim-btn", click: :close_info}, "Close"))))
+end
+
+def aimp_taskbar(s: Map) -> Any do
+  im = case s.im_open do
+    true -> [el("button", %{class: "aim-task on", click: :open_im}, concat(aim_bot_name, " - Instant Message"))]
+    false -> []
+  end
+  tasks = case s.signed_on do
+    true -> aimp_append([el("span", %{class: "aim-task"}, concat(s.name, "'s Buddy List"))], im)
+    false -> [el("span", %{class: "aim-task on"}, "Sign On")]
+  end
+  el("div", %{class: "aim-taskbar"},
+    el("a", %{class: "aim-start", href: "/"}, el("span", %{class: "aim-start-flag"}), "bobbby.online"),
+    el("div", %{class: "aim-tasks"}, tasks),
+    el("div", %{class: "aim-tray"}, aimp_runner("tiny"), el("span", %{id: "aim-clock"}, "")))
+end
+
+def aimp_page(s: Map) -> Any do
+  windows = case s.signed_on do
+    false -> [aimp_signon(s)]
+    true ->
+      im = case s.im_open do
+        true -> [aimp_im(s)]
+        false -> []
+      end
+      info = case s.info_open do
+        true -> [aimp_info(s)]
+        false -> []
+      end
+      reader = case s.reader >= 0 and aimp_nth(s.messages, s.reader) != nil do
+        true -> [aimp_reader(s)]
+        false -> []
+      end
+      aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(info, reader)))
+  end
+  cls = case s.im_open and s.signed_on do
+    true -> "aim-desktop im-open"
+    false -> "aim-desktop"
+  end
+  el("div", %{class: cls}, el("div", %{class: "aim-windows"}, windows), aimp_taskbar(s))
+end
+
+actor AimPage do
+  state signed_on: Bool :: false
+  state name: String :: ""
+  # nil until the server says whether the bot is online
+  state online: Any :: nil
+  state posts: Int :: 0
+  state in_prompt: Int :: 0
+  state messages: List :: []
+  state loading: Bool :: false
+  state im_open: Bool :: true
+  state info_open: Bool :: false
+  # the message the reader shows, or -1
+  state reader: Int :: -1
+  state size: Int :: 2
+  state paper: Bool :: true
+  state warn: Int :: 0
+  state muted: Bool :: false
+  # messages sent; each gives the textarea a new id, so it comes back empty
+  state sent: Int :: 0
+  state outbox: List :: []
+  # what aim.js should play: :signon, :sent, :received, or nil
+  state sound: Any :: nil
+
+  # the screen name remembered from last time (aim.js keeps it)
+  on :remembered(n: String) do
+    become name: n
+    reply :ok
+  end
+
+  # The socket is (again) open. The server's conversation went with the old
+  # socket: start again, and sign on again if this page already had.
+  on :connected do
+    become online: nil, messages: [], loading: false, reader: -1
+    case signed_on do
+      true -> become outbox: aimp_append(outbox, [json_encode(%{t: "signon", name: name})])
+      false -> :ok
+    end
+    reply :ok
+  end
+
+  on :offline do
+    become loading: false
+    reply :ok
+  end
+
+  on :frame(text: String) do
+    msg = aimp_decode(text)
+    case lookup(msg, :t) do
+      "hello" ->
+        become online: lookup(msg, :online) == true, posts: aimp_int(lookup(msg, :posts)), in_prompt: aimp_int(lookup(msg, :in_prompt))
+        reply :hello
+      "chat" ->
+        ms = aimp_messages(lookup(msg, :messages))
+        got = length(aimp_answers(ms)) > length(aimp_answers(messages))
+        case got do
+          true -> become messages: ms, loading: lookup(msg, :loading) == true, sound: :received
+          false -> become messages: ms, loading: lookup(msg, :loading) == true
+        end
+        reply :chat
+      _ -> reply :ignored
+    end
+  end
+
+  on :sign_on(fields: String) do
+    n = trim(aimp_str(lookup(aimp_decode(fields), :name)))
+    sn = case n do
+      "" -> "Visitor"
+      _ -> utf8_slice(n, 0, 16)
+    end
+    become signed_on: true, name: sn, im_open: true, sound: :signon,
+      outbox: aimp_append(outbox, [json_encode(%{t: "signon", name: sn})])
+    reply :ok
+  end
+
+  on :send(fields: String) do
+    text = aimp_str(lookup(aimp_decode(fields), :message))
+    case trim(text) == "" or loading or online != true do
+      true -> reply :ignored
+      false ->
+        become outbox: aimp_append(outbox, [json_encode(%{t: "ask", text: text})]), sent: sent + 1, sound: :sent
+        reply :sent
+    end
+  end
+
+  on :ask_preset(q: String) do
+    reply (self <- :send(json_encode(%{message: q})))
+  end
+
+  on :open_im do
+    become im_open: true
+    reply :ok
+  end
+
+  on :close_im do
+    become im_open: false
+    reply :ok
+  end
+
+  on :open_info do
+    become info_open: true
+    reply :ok
+  end
+
+  on :close_info do
+    become info_open: false
+    reply :ok
+  end
+
+  on :open_reader(i: Int) do
+    become reader: i
+    reply :ok
+  end
+
+  on :close_reader do
+    become reader: -1
+    reply :ok
+  end
+
+  on :reader_step(dir: Int) do
+    case reader >= 0 do
+      true -> become reader: aimp_step(aimp_answers(messages), reader, dir)
+      false -> :ok
+    end
+    reply :ok
+  end
+
+  on :reader_size(d: Int) do
+    n = size + d
+    case n >= 0 and n <= 4 do
+      true -> become size: n
+      false -> :ok
+    end
+    reply :ok
+  end
+
+  on :reader_theme do
+    become paper: not(paper)
+    reply :ok
+  end
+
+  # AIM's warning button, which here only embarrasses the one who presses it
+  on :warn do
+    case warn < 100 do
+      true -> become warn: warn + 10
+      false -> :ok
+    end
+    reply :ok
+  end
+
+  on :toggle_sound do
+    become muted: not(muted)
+    reply :ok
+  end
+
+  on :outbox do
+    out = outbox
+    become outbox: []
+    reply out
+  end
+
+  # For aim.js after a render: a sound to play (once), whether the reader
+  # is open, the screen name to remember.
+  on :where do
+    s = case muted do
+      true -> nil
+      false -> sound
+    end
+    become sound: nil
+    reply %{sound: s, reader: reader >= 0, name: name, signed_on: signed_on}
+  end
+
+  on :view do
+    reply aimp_page(%{signed_on: signed_on, name: name, online: online, posts: posts, in_prompt: in_prompt,
+      messages: messages, loading: loading, im_open: im_open, info_open: info_open, reader: reader,
+      size: size, paper: paper, warn: warn, muted: muted, sent: sent})
+  end
+end
+
+aim = spawn AimPage
+aim <- :view

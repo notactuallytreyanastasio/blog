@@ -1,0 +1,243 @@
+# needs: static/aim/aim.blimp
+#
+# /aim: the chat actor and the archive (src/99_aim.blimp), the page's
+# program (static/aim/aim.blimp) and the Temper they share
+# (temper/src/aim). Sockets here are negative, which AIM does not write
+# to; it keeps the last frame it would have sent each one.
+#
+# fixtures/aim/posts.tsv is a made-up archive of ten posts in
+# tools/aim_corpus.py's format, in two chunks (a form feed after the fourth),
+# one line broken and one with a tab in its text. The JSON fixtures are DeepSeek chat.completions answers in the
+# documented shape, written by hand: tool_call.json searches, final.json
+# answers (with raw HTML and a javascript: link a prompt could have talked
+# the model into), empty.json is deepseek-flash spending every token on
+# thinking, which it did when thinking was on, error_401.json a refused key.
+#
+# AIM is configured against a closed local port: a request it starts fails
+# on its own and is never read; the answers are handed to :answered.
+
+AIMT_BASE = "http://127.0.0.1:9"
+
+def aimt_fixture(name: String) -> String do
+  read_file(concat("test/fixtures/aim/", name))
+end
+
+def aimt_last(fd: Int) -> Map do
+  p = AIM <- :person(fd)
+  zg_decode_map(p.last)
+end
+
+def aimt_history(fd: Int) -> List do
+  (AIM <- :person(fd)).history
+end
+
+def aimt_load() -> Any do
+  AIM <- :load(aimt_fixture("posts.tsv"))
+  AIM <- :config("sk-test", AIMT_BASE, "deepseek-flash", 600)
+end
+
+actor AimTests do
+  test "the archive: nine posts, the broken line dropped, a tab kept as a space" do
+    assert_eq(AIM <- :load(nil), 0)
+    assert_eq(AIM <- :load(aimt_fixture("posts.tsv")), 9)
+    st = AIM <- :stats
+    assert_eq([st.posts, st.in_prompt, st.chunks], [9, 5, 2])
+    assert_eq(aim_row("1\tbsky\t2026-10-01\ttext with\ta tab inside it").text, "text with a tab inside it")
+    assert_eq(aim_row("nope"), nil)
+    assert_eq(aim_post_line("bsky", "2025-03-02", "hi"), "[bsky 2025-03-02] hi")
+    assert_eq(aim_post_line("twitter", "", "hi"), "[twitter] hi")
+  end
+
+  test "the prompt is the system text, then exactly the in-context posts, in file order" do
+    rows = aim_rows(aimt_fixture("posts.tsv"))
+    m = elem(json_decode(aim_prefix(rows)), 1)
+    assert_eq(lookup(m, :role), "system")
+    c = lookup(m, :content)
+    assert(starts_with(c, aim_system_prompt))
+    posts = slice(c, length(aim_system_prompt), length(c))
+    assert_eq(posts, "[twitter] writing elixir on a train is the best way to write elixir\n[bsky 2025-03-02] saw phish at msg again and the knicks won the same night\n[reply 2025-06-10] yes the leica is worth it / but only if you shoot it every day\n[bsky 2026-09-29] blimp now serves the whole site / phoenix is off\n[bsky 2026-10-01] text with a tab inside it\n")
+  end
+
+  test "every request starts with the same bytes, whoever asks and whatever they said" do
+    aimt_load()
+    a = AIM <- :body("alice", [%{role: "user", content: "hi"}])
+    b = AIM <- :body("bob", [%{role: "user", content: "what is blimp"}, %{role: "assistant", content: "a language"}, %{role: "user", content: "ok"}])
+    st = AIM <- :stats
+    # model, thinking, tools and the archive come before anything that varies
+    at = index_of(a, ",{\"role\":\"system\",\"content\":\"Today is ")
+    assert(at > st.prefix_bytes)
+    assert_eq(slice(a, 0, at), slice(b, 0, at))
+    assert(contains(a, "\"thinking\":{\"type\":\"disabled\"}"))
+    assert(contains(a, "The person messaging you signed on with the screen name \\\"alice\\\"."))
+    doc = elem(json_decode(b), 1)
+    assert_eq(map(lookup(doc, :messages), fn(m: Map) -> String do lookup(m, :role) end), ["system", "system", "user", "assistant", "user"])
+    assert_eq(lookup(doc, :model), "deepseek-flash")
+    assert_eq(lookup(elem_at(lookup(doc, :tools), 0), :type), "function")
+  end
+
+  test "search: most matching words first, then newest, tweets last; by source" do
+    aimt_load()
+    # "phish" is in one chunk and "knicks" in both: only phish's chunk is
+    # read, so the first chunk's knicks tweet is not among them
+    assert_eq(AIM <- :search("knicks phish", "any"), [
+      "[reply 2026-09-30] the knicks, phish, and a leica walk into a bar",
+      "[bsky 2025-03-02] saw phish at msg again and the knicks won the same night"])
+    assert_eq(AIM <- :search("knicks", "any"), [
+      "[reply 2026-09-30] the knicks, phish, and a leica walk into a bar",
+      "[bsky 2025-03-02] saw phish at msg again and the knicks won the same night",
+      "[twitter] the knicks are going to win it all this year, i can feel it"])
+    # stop words go, unless that is all there is
+    assert_eq(aim_drop_stop_words(["the", "knicks"]), ["knicks"])
+    assert_eq(aim_drop_stop_words(["the", "and"]), ["the", "and"])
+    assert_eq(AIM <- :search("KNICKS", "twitter"), ["[twitter] the knicks are going to win it all this year, i can feel it"])
+    assert_eq(AIM <- :search("knicks", "bluesky"), [
+      "[reply 2026-09-30] the knicks, phish, and a leica walk into a bar",
+      "[bsky 2025-03-02] saw phish at msg again and the knicks won the same night"])
+    assert_eq(AIM <- :search("a b", "any"), [])
+    assert_eq(AIM <- :search("zzzz", "any"), [])
+  end
+
+  test "a message goes to the model, through a search, and comes back rendered and safe" do
+    aimt_load()
+    AIM <- :join(-1)
+    assert_eq(aimt_last(-1), %{t: "hello", online: true, posts: 9, in_prompt: 5, bot: "bobbbyBot"})
+    AIM <- :recv(-1, "{\"t\":\"signon\",\"name\":\"  SuperCoolDude1987 with a long name \"}")
+    assert_eq((AIM <- :person(-1)).name, "SuperCoolDude198")
+    AIM <- :recv(-1, "{\"t\":\"ask\",\"text\":\"  did you see phish?  \"}")
+    p = AIM <- :person(-1)
+    assert_eq([p.loading, p.count, length(p.history), p.job.round], [true, 1, 1, 0])
+    assert_eq(elem_at(p.history, 0).content, "did you see phish?")
+    assert_eq(lookup(elem_at(p.job.rest, 0), :role), "system")
+    assert(contains(lookup(elem_at(p.job.rest, 0), :content), "\"SuperCoolDude198\""))
+    # waiting: a second message is not taken
+    assert_eq(AIM <- :ask(-1, "another", now()), :ignored)
+    assert_eq(AIM <- :answered(-1, {:ok, 200, aimt_fixture("tool_call.json")}, now()), :asking)
+    q = AIM <- :person(-1)
+    assert_eq(q.job.round, 1)
+    rest = q.job.rest
+    # the session, the message, the model's call, the search's answer
+    assert_eq(length(rest), 4)
+    assert_eq(lookup(elem_at(rest, 3), :tool_call_id), "call_1")
+    found = elem(json_decode(lookup(elem_at(rest, 3), :content)), 1)
+    assert_eq(lookup(found, :count), 2)
+    assert_eq(AIM <- :answered(-1, {:ok, 200, aimt_fixture("final.json")}, now()), :final)
+    r = AIM <- :person(-1)
+    assert_eq([r.loading, length(r.history), r.job], [false, 2, nil])
+    got = elem_at(r.history, 1)
+    assert(starts_with(got.content, "## The Knicks and Phish"))
+    assert_eq(got.html, "<h2>The Knicks and Phish</h2>\n<p>I saw <strong>phish</strong> at MSG and the Knicks won that night.</p>\n<!-- raw HTML omitted -->\n<p><!-- raw HTML omitted -->click</a></p>")
+    last = aimt_last(-1)
+    assert_eq([lookup(last, :t), lookup(last, :loading), length(lookup(last, :messages))], ["chat", false, 2])
+    st = AIM <- :stats
+    assert_eq([st.cache_hit_tokens, st.cache_miss_tokens], [1515520, 770])
+  end
+
+  test "errors, an empty answer and too many searches each end in a reply" do
+    aimt_load()
+    AIM <- :join(-2)
+    AIM <- :recv(-2, "{\"t\":\"ask\",\"text\":\"hello\"}")
+    AIM <- :answered(-2, {:ok, 401, aimt_fixture("error_401.json")}, now())
+    e = elem_at(aimt_history(-2), 1).content
+    assert(starts_with(e, "Sorry, I couldn't answer that (DeepSeek said 401: {"))
+    AIM <- :recv(-2, "{\"t\":\"ask\",\"text\":\"again\"}")
+    AIM <- :answered(-2, {:ok, 200, aimt_fixture("empty.json")}, now())
+    assert_eq(elem_at(aimt_history(-2), 3).content, "Sorry, I couldn't answer that (DeepSeek answered with nothing).")
+    AIM <- :recv(-2, "{\"t\":\"ask\",\"text\":\"loop\"}")
+    calls = aimt_fixture("tool_call.json")
+    assert_eq(AIM <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(AIM <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(AIM <- :answered(-2, {:ok, 200, calls}, now()), :asking)
+    assert_eq(AIM <- :answered(-2, {:ok, 200, calls}, now()), :error)
+    assert_eq(elem_at(aimt_history(-2), 5).content, "Sorry, I couldn't answer that (too many searches for one message).")
+    assert_eq((AIM <- :stats).last_error, "too many searches for one message")
+  end
+
+  test "a request that never answers gives up after 90s" do
+    aimt_load()
+    AIM <- :join(-3)
+    AIM <- :recv(-3, "{\"t\":\"ask\",\"text\":\"slow\"}")
+    t0 = (AIM <- :person(-3)).job.at
+    AIM <- :step_at(t0 + 91)
+    r = AIM <- :person(-3)
+    last = elem_at(r.history, 1).content
+    # either the closed port answered first, or the clock ran out
+    assert(starts_with(last, "Sorry, I couldn't answer that (the request to DeepSeek failed: "))
+    assert_eq(r.loading, false)
+  end
+
+  test "no archive or no key is offline; a page and the day each have a limit" do
+    AIM <- :load(nil)
+    AIM <- :config("sk-test", AIMT_BASE, "deepseek-flash", 600)
+    AIM <- :join(-4)
+    assert_eq(lookup(aimt_last(-4), :online), false)
+    AIM <- :recv(-4, "{\"t\":\"ask\",\"text\":\"q\"}")
+    assert_eq(elem_at(aimt_history(-4), 1).content, "Sorry, I couldn't answer that (the archive is not loaded).")
+    AIM <- :load(aimt_fixture("posts.tsv"))
+    AIM <- :config("", AIMT_BASE, "deepseek-flash", 600)
+    AIM <- :join(-5)
+    assert_eq(aimt_last(-5), %{t: "hello", online: false, posts: 9, in_prompt: 5, bot: "bobbbyBot"})
+    AIM <- :recv(-5, "{\"t\":\"ask\",\"text\":\"q\"}")
+    assert_eq(elem_at(aimt_history(-5), 1).content, "Sorry, I couldn't answer that (AIM_API_KEY is not set).")
+    each(range(2, aim_max_questions), fn(i: Int) do AIM <- :ask(-5, "q", now()) end)
+    p = AIM <- :person(-5)
+    assert_eq(p.count, aim_max_questions)
+    assert_eq(AIM <- :ask(-5, "one more", now()), :limit)
+    assert_eq(elem_at(reverse(aimt_history(-5)), 0).content, aim_limit_reply(aim_max_questions))
+    # the day's budget: two requests, then the reply that says so
+    AIM <- :config("sk-test", AIMT_BASE, "deepseek-flash", 2)
+    t = now()
+    AIM <- :join(-6)
+    AIM <- :ask(-6, "one", t)
+    AIM <- :answered(-6, {:ok, 200, aimt_fixture("final.json")}, t)
+    AIM <- :ask(-6, "two", t)
+    AIM <- :answered(-6, {:ok, 200, aimt_fixture("final.json")}, t)
+    assert_eq(AIM <- :ask(-6, "three", t), :limit)
+    assert_eq(elem_at(reverse(aimt_history(-6)), 0).content, aim_daily_reply)
+    # tomorrow it answers again
+    assert_eq(AIM <- :ask(-6, "tomorrow", t + 86400), :asking)
+  end
+
+  test "the page's program: sign on, frames in, messages out, the reader" do
+    aim <- :remembered("oldname")
+    v = to_html(aim <- :view)
+    assert(contains(v, "aim-signon"))
+    assert(contains(v, "value=\"oldname\""))
+    aim <- :sign_on("{\"name\":\"  newname  \"}")
+    assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"newname\"}"])
+    assert_eq(lookup(aim <- :where, :sound), :signon)
+    assert_eq(lookup(aim <- :where, :sound), nil)
+    aim <- :frame("{\"t\":\"hello\",\"online\":true,\"posts\":75344,\"in_prompt\":19572,\"bot\":\"bobbbyBot\"}")
+    v2 = to_html(aim <- :view)
+    assert(contains(v2, "newname&#39;s Buddy List") or contains(v2, "newname's Buddy List"))
+    assert(contains(v2, "Built from 75,344 posts; 19,572 of them"))
+    assert_eq(aim <- :send("{\"message\":\"  \"}"), :ignored)
+    assert_eq(aim <- :send("{\"message\":\"hi\"}"), :sent)
+    assert_eq(aim <- :outbox, ["{\"t\":\"ask\",\"text\":\"hi\"}"])
+    long = "# A heading\n\nand a long answer"
+    aim <- :frame(json_encode(%{t: "chat", loading: false, messages: [
+      %{role: "user", content: "hi", html: ""},
+      %{role: "assistant", content: "short", html: "<p>short</p>"},
+      %{role: "user", content: "more", html: ""},
+      %{role: "assistant", content: long, html: "<h1>A heading</h1>"}]}))
+    assert_eq(lookup(aim <- :where, :sound), :received)
+    v3 = to_html(aim <- :view)
+    assert(contains(v3, "Open in Reader"))
+    aim <- :open_reader(3)
+    assert_eq(lookup(aim <- :where, :reader), true)
+    v4 = to_html(aim <- :view)
+    assert(contains(v4, "Answer 2 of 2"))
+    assert(contains(v4, "<h1>A heading</h1>"))
+    aim <- :reader_step(-1)
+    assert(contains(to_html(aim <- :view), "Answer 1 of 2"))
+    aim <- :reader_step(-1)
+    assert(contains(to_html(aim <- :view), "Answer 1 of 2"))
+    aim <- :close_reader
+    assert_eq(lookup(aim <- :where, :reader), false)
+    # muted: no sound is asked for
+    aim <- :toggle_sound
+    aim <- :send("{\"message\":\"quiet\"}")
+    assert_eq(lookup(aim <- :where, :sound), nil)
+    assert_eq(aimp_commas(1234567), "1,234,567")
+    assert_eq(aimp_commas(12), "12")
+  end
+end

@@ -127,6 +127,19 @@ with_temper _build/ziggy.blimp src/40_http.blimp static/ziggy/ziggy.blimp
 # repo after a `deciduous sync`); the image has only priv/static, so the
 # server reads a copy here.
 cp ../priv/ziggy/graph-data.json _build/ziggy-graph.json
+# /aim: the buddy list and IM window are Blimp (static/aim/aim.blimp), their
+# words Temper (temper/src/aim); the chat is the server's (src/99_aim.blimp).
+with_temper _build/aim.blimp static/aim/aim.blimp
+# bobbbyBot's archive is every post Bobby wrote, which is personal data,
+# and this repo is public: it lives outside the repo (tools/aim_corpus.py
+# builds it) and is copied in here. Without it the site boots with the bot
+# offline, and deploy.sh refuses to stage.
+AIM_ARCHIVE="${AIM_ARCHIVE:-$HOME/code/aim-corpus/aim-posts.tsv}"
+if [ -f "$AIM_ARCHIVE" ]; then
+  cmp -s "$AIM_ARCHIVE" _build/aim-posts.tsv || cp "$AIM_ARCHIVE" _build/aim-posts.tsv
+else
+  rm -f _build/aim-posts.tsv
+fi
 # Role Call: the tab, the sets, the tour and the printing are Temper
 # (temper/src/role_call), the actor and view Blimp; query_param is the server's.
 with_temper _build/role_call.blimp src/40_http.blimp static/role_call/role_call.blimp

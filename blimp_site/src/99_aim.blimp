@@ -1,0 +1,529 @@
+# /aim: bobbbyBot, an agent built from every post Bobby wrote on Twitter
+# and Bluesky, in a copy of AOL Instant Messenger.
+#
+# The archive is ~75,000 posts, ~2.7M tokens; DeepSeek's window is 1M. So
+# the system prompt holds a fixed part of it, ~758K tokens (every Bluesky
+# post that was not a reply, the newest replies, a sample of tweets), and
+# a search_posts tool reaches the rest. Which part is decided offline by
+# tools/aim_corpus.py and written into the archive itself (its first
+# column), so this file only formats.
+#
+# The prompt is that big on purpose, and it is affordable because DeepSeek
+# caches prefixes: a request whose leading tokens match one it has seen
+# pays ~2% for them and answers in ~3.5s instead of ~13.5s (measured
+# 2026-10-01: 757,760 of 757,972 tokens a cache hit). The cache matches
+# bytes, so everything up to the conversation is the same for every
+# visitor and every round: the prompt text, the archive, the model, the
+# tools, and `thinking` -- a request with another thinking setting missed
+# the cache on the same prompt. Whatever varies (today's date, the
+# visitor's screen name) is a second system message after the archive.
+#
+# Thinking is off. With reasoning_effort "low" deepseek-flash twice spent
+# all of max_tokens (600) reasoning and answered nothing; with thinking
+# disabled it answered in the posts' voice in 3.4s.
+#
+# The archive is personal data and the blog repo is public: build.sh
+# copies it from outside the repo (AIM_ARCHIVE, default
+# ~/code/aim-corpus/aim-posts.tsv) into _build, deploy.sh refuses to stage
+# without it, and main.blimp hands it to AIM at boot. Without it the
+# buddy is offline and the boot log says why.
+#
+# The chat is AIM below, one actor for every open page, stepped by the
+# Site's tick as ZG is (src/99_ziggy.blimp, whose shape this follows): a
+# request is http_start, and its answer is polled from the tick.
+#
+#   up    {"t":"signon","name":..}       the sign-on window's screen name
+#         {"t":"ask","text":..}          a message
+#   down  {"t":"hello","online":bool,"posts":n,"in_prompt":n,"bot":..}
+#         {"t":"chat","loading":bool,"messages":[{"role","content","html"}..]}
+#
+# Spending is capped twice: aim_max_questions per page, and AIM_DAILY_LIMIT
+# (default 600) requests to DeepSeek a day, tool rounds included, for
+# everyone together.
+
+AIM_ARCHIVE_FILE = "_build/aim-posts.tsv"
+AIM_MAX_TOOL_ROUNDS = 4
+AIM_MAX_TOKENS = 1500
+AIM_SEARCH_LIMIT = 30
+# answers here come in ~3.5s; a cold cache is ~14s, a long answer longer
+AIM_ASK_TIMEOUT_S = 90
+
+# ── the archive ────────────────────────────────────────────────────────
+
+# One line of aim-posts.tsv: in_context, source, date, text.
+def aim_row(line: String) -> Any do
+  cols = split(line, "\t")
+  case length(cols) >= 4 do
+    false -> nil
+    true ->
+      text = join(tail(tail(tail(cols))), " ")
+      source = aim_nth(cols, 1)
+      date = aim_nth(cols, 2)
+      %{in_prompt: head(cols) == "1", source: source, date: date, text: text,
+        line: aim_post_line(source, date, text), lower: downcase(text)}
+  end
+end
+
+def aim_nth(list: List, i: Int) -> Any do
+  case i do
+    0 -> head(list)
+    _ -> aim_nth(tail(list), i - 1)
+  end
+end
+
+# map and filter, not a reduce that conses: a list here is an array, so
+# [r | acc] copies it, and 75,000 of those ran a 2 GB heap out at boot.
+def aim_rows(text: String) -> List do
+  filter(map(split(text, "\n"), fn(line: String) -> Any do aim_row(line) end), fn(r: Any) -> Bool do r != nil end)
+end
+
+# The archive as tools/aim_corpus.py wrote it, a chunk of 256 posts between
+# form feeds: %{rows, lower}, lower being the chunk's posts lower-cased in
+# one string, for one native `contains` to say whether any of them can
+# match. A loop over every post is ~3us a post here, ~200ms for the
+# archive, and the site answers nobody while it runs.
+# (a form feed by its code: Blimp's strings have no \f)
+AIM_CHUNK_BREAK = concat("\n", from_char_code(12), "\n")
+
+def aim_chunks(text: String) -> List do
+  map(split(text, AIM_CHUNK_BREAK), fn(block: String) -> Map do
+    rows = aim_rows(block)
+    %{rows: rows, lower: join(map(rows, fn(r: Map) -> String do r.lower end), "\n")}
+  end)
+end
+
+# The system message, JSON-encoded once: every request starts with these
+# bytes.
+def aim_prefix(rows: List) -> String do
+  posts = join(map(filter(rows, fn(r: Map) -> Bool do r.in_prompt end), fn(r: Map) -> String do r.line end), "\n")
+  json_encode(%{role: "system", content: concat(aim_system_prompt, posts, "\n")})
+end
+
+# The chunks one search reads at most: ~10,000 posts, ~40ms.
+AIM_SCAN_CHUNKS = 40
+
+# search_posts: the posts with the most of the query's words, newest first
+# among equals, from the chunks that hold its rarest word (the newest
+# AIM_SCAN_CHUNKS of them). source is "bluesky", "twitter" or anything
+# else for both.
+def aim_search(chunks: List, query: String, source: String) -> List do
+  terms = aim_drop_stop_words(zg_terms(downcase(query)))
+  hits = map(terms, fn(t: String) -> List do filter(chunks, fn(c: Map) -> Bool do contains(c.lower, t) end) end)
+  found = filter(hits, fn(h: List) -> Bool do h != [] end)
+  case found do
+    [] -> []
+    _ ->
+      fewest = head(sort_by_keys(found, map(found, fn(h: List) -> Int do length(h) end)))
+      scan = reverse(zg_take(reverse(fewest), AIM_SCAN_CHUNKS))
+      rows = filter(flat(map(scan, fn(c: Map) -> List do c.rows end)), fn(r: Map) -> Bool do aim_from(r, source) end)
+      all = map(rows, fn(r: Map) -> Map do %{score: aim_score(terms, r.lower), date: r.date, line: r.line} end)
+      scored = filter(all, fn(x: Map) -> Bool do x.score > 0 end)
+      # ascending: the most words first, then the newest (a tweet, undated, last)
+      ranked = sort_by_keys(scored, map(scored, fn(x: Map) -> Int do 0 - (x.score * 100000000 + aim_ymd(x.date)) end))
+      map(zg_take(ranked, AIM_SEARCH_LIMIT), fn(x: Map) -> String do x.line end)
+  end
+end
+
+def aim_from(r: Map, source: String) -> Bool do
+  case source do
+    "bluesky" -> r.source != "twitter"
+    "twitter" -> r.source == "twitter"
+    _ -> true
+  end
+end
+
+# How many of the words a post has (native contains, not zg_score: the
+# Temper one is ~5x slower here).
+def aim_score(terms: List, lower: String) -> Int do
+  length(filter(terms, fn(t: String) -> Bool do contains(lower, t) end))
+end
+
+# 2025-03-02 -> 20250302; a tweet (no date) 0
+def aim_ymd(d: String) -> Int do
+  case d do
+    "" -> 0
+    _ -> to_int(replace(d, "-", ""))
+  end
+end
+
+AIM_TOOLS = [%{type: "function", function: %{name: "search_posts",
+  description: "Search all ~75,000 of Bobby's posts (Bluesky and Twitter) for words. Returns up to 30 posts, the ones with the most matching words first, newest first among equals.",
+  parameters: %{type: "object",
+    properties: %{query: %{type: "string", description: "A few plain words, e.g. \"phish msg\" or \"leica\"."},
+      source: %{type: "string", enum: ["any", "bluesky", "twitter"], description: "Where to look (default any)."}},
+    required: ["query"]}}}]
+AIM_TOOLS_JSON = json_encode(AIM_TOOLS)
+
+def aim_run_tool(chunks: List, call: Any) -> Map do
+  f = lookup(call, :function)
+  name = zg_str(lookup(f, :name))
+  args = zg_decode_map(lookup(f, :arguments))
+  result = case name do
+    "search_posts" ->
+      found = aim_search(chunks, zg_str(lookup(args, :query)), zg_str(lookup(args, :source)))
+      %{count: length(found), posts: found}
+    _ -> %{error: concat("no tool named ", name)}
+  end
+  %{role: "tool", tool_call_id: lookup(call, :id), content: json_encode(result)}
+end
+
+# ── talking to DeepSeek ────────────────────────────────────────────────
+
+# The request, written out so the prefix (encoded once) goes in as it is.
+# Everything before "messages" is the same on every request, and so is the
+# first message.
+def aim_body(model: String, prefix: String, rest: List) -> String do
+  concat("{\"model\":", json_encode(model),
+    ",\"thinking\":{\"type\":\"disabled\"},\"temperature\":0.9,\"max_tokens\":", to_string(AIM_MAX_TOKENS),
+    ",\"tools\":", AIM_TOOLS_JSON, ",\"tool_choice\":\"auto\",\"messages\":[", prefix,
+    join(map(rest, fn(m: Map) -> String do concat(",", json_encode(m)) end), ""), "]}")
+end
+
+# The conversation after the archive: who is asking and when, then every
+# turn's words.
+def aim_rest(name: String, today: String, history: List) -> List do
+  turns = map(history, fn(e: Map) -> Map do %{role: e.role, content: e.content} end)
+  [%{role: "system", content: aim_session_prompt(name, today)} | turns]
+end
+
+# {cache hit tokens, cache miss tokens} of an answer, or {0, 0}
+def aim_usage(body: String) -> Tuple do
+  u = lookup(zg_decode_map(body), :usage)
+  case type_of(u) == :map do
+    false -> {0, 0}
+    true -> {aim_int(lookup(u, :prompt_cache_hit_tokens)), aim_int(lookup(u, :prompt_cache_miss_tokens))}
+  end
+end
+
+def aim_int(v: Any) -> Int do
+  case type_of(v) == :integer do
+    true -> v
+    false -> 0
+  end
+end
+
+# What one answer means for a question in flight, as zg_classify, with
+# DeepSeek's name on the errors.
+def aim_classify(result: Any) -> Tuple do
+  case result do
+    {:ok, 200, body} ->
+      msg = zg_message(body)
+      case msg do
+        nil -> {:error, "DeepSeek sent something unexpected"}
+        _ ->
+          calls = zg_list(lookup(msg, :tool_calls))
+          case calls do
+            [] ->
+              content = zg_str(lookup(msg, :content))
+              case trim(content) do
+                "" -> {:error, "DeepSeek answered with nothing"}
+                _ -> {:final, content}
+              end
+            _ -> {:tools, msg}
+          end
+      end
+    {:ok, status, body} -> {:error, concat("DeepSeek said ", to_string(status), ": ", slice(body, 0, 200))}
+    {:error, why} -> {:error, concat("the request to DeepSeek failed: ", to_string(why))}
+    _ -> {:error, "the request to DeepSeek failed"}
+  end
+end
+
+# The assistant's turn as the window shows it: rendered and made safe, as
+# /ziggy's are.
+def aim_entry(role: String, content: String) -> Map do
+  case role do
+    "assistant" -> %{role: role, content: content, html: zg_render(content)}
+    _ -> %{role: role, content: content, html: ""}
+  end
+end
+
+# A screen name: trimmed, at most 16 characters, "Visitor" if nothing.
+def aim_screen_name(raw: String) -> String do
+  name = trim(replace(replace(raw, "\n", " "), "\t", " "))
+  case name do
+    "" -> "Visitor"
+    _ -> utf8_slice(name, 0, 16)
+  end
+end
+
+def aim_chat_frame(p: Map) -> String do
+  json_encode(%{t: "chat", loading: p.loading, messages: p.history})
+end
+
+actor AimChat do
+  state key: String :: ""
+  state base: String :: "https://api.deepseek.com"
+  state model: String :: "deepseek-flash"
+  state daily_limit: Int :: 600
+  state rows: List :: []
+  state chunks: List :: []
+  state prefix: String :: ""
+  state in_prompt: Int :: 0
+  # socket (as a string) -> %{fd, name, history, count, loading, job, last}
+  # job: nil | %{h, round, messages, at}
+  state people: Map :: %{}
+  state abandoned: List :: []
+  # the day (days since the epoch) the requests below are counted for
+  state day: Int :: 0
+  state today_requests: Int :: 0
+  state asked: Int :: 0
+  state requests: Int :: 0
+  state failures: Int :: 0
+  state cache_hit: Int :: 0
+  state cache_miss: Int :: 0
+  state last_error: String :: ""
+
+  on :load(text: Any) do
+    case type_of(text) == :string do
+      false ->
+        become rows: [], chunks: [], prefix: "", in_prompt: 0
+        reply 0
+      true ->
+        c = aim_chunks(text)
+        r = flat(map(c, fn(x: Map) -> List do x.rows end))
+        become rows: r, chunks: c, prefix: aim_prefix(r), in_prompt: length(filter(r, fn(x: Map) -> Bool do x.in_prompt end))
+        reply length(r)
+    end
+  end
+
+  on :config(k: String, b: String, m: String, limit: Int) do
+    become key: k, base: b, model: m, daily_limit: limit
+    reply %{keyed: k != "", posts: length(rows), in_prompt: in_prompt}
+  end
+
+  on :join(fd: Int) do
+    become people: put(people, to_string(fd), %{fd: fd, name: "Visitor", history: [], count: 0, loading: false, job: nil, last: ""})
+    self <- :tell(fd, json_encode(%{t: "hello", online: key != "" and rows != [], posts: length(rows), in_prompt: in_prompt, bot: aim_bot_name}))
+    reply :ok
+  end
+
+  on :leave(fd: Int) do
+    p = lookup(people, to_string(fd))
+    gone = case p == nil do
+      true -> []
+      false ->
+        case p.job do
+          nil -> []
+          j -> [j.h]
+        end
+    end
+    become people: zg_without(people, to_string(fd)), abandoned: list_append(abandoned, gone)
+    reply :ok
+  end
+
+  # Send a person a frame, and remember it (a test reads it back).
+  on :tell(fd: Int, frame: String) do
+    zg_send(fd, frame)
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        become people: put(people, k, put(p, :last, frame))
+        reply :ok
+    end
+  end
+
+  on :recv(fd: Int, text: String) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    msg = zg_decode_map(text)
+    case p == nil do
+      true -> reply :unknown
+      false ->
+        case lookup(msg, :t) do
+          "signon" ->
+            become people: put(people, k, put(p, :name, aim_screen_name(zg_str(lookup(msg, :name)))))
+            reply :signed_on
+          "ask" -> reply (self <- :ask(fd, trim(zg_str(lookup(msg, :text))), now()))
+          _ -> reply :ignored
+        end
+    end
+  end
+
+  # A message: nothing while empty or waiting; the limits' replies once a
+  # page or the day has had its share; otherwise it joins the conversation
+  # and goes to the model.
+  on :ask(fd: Int, text: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or text == "" or p.loading do
+      true -> reply :ignored
+      false ->
+        history = list_append(p.history, [aim_entry("user", text)])
+        full = today_requests >= daily_limit and t / 86400 == day
+        case p.count >= aim_max_questions or full do
+          true ->
+            said = case full do
+              true -> aim_daily_reply
+              false -> aim_limit_reply(aim_max_questions)
+            end
+            q = put(p, :history, list_append(history, [aim_entry("assistant", said)]))
+            become people: put(people, k, q)
+            self <- :tell(fd, aim_chat_frame(q))
+            reply :limit
+          false ->
+            q = %{fd: fd, name: p.name, history: history, count: p.count + 1, loading: true, job: nil, last: p.last}
+            become people: put(people, k, q), asked: asked + 1
+            self <- :tell(fd, aim_chat_frame(q))
+            reply (self <- :request(fd, aim_rest(p.name, format_time(t, "%Y-%m-%d"), history), 0, t))
+        end
+    end
+  end
+
+  # One request to the model for a person's message, round `round`.
+  on :request(fd: Int, rest: List, round: Int, t: Int) do
+    case key == "" or prefix == "" do
+      true ->
+        why = case key do
+          "" -> "AIM_API_KEY is not set"
+          _ -> "the archive is not loaded"
+        end
+        reply (self <- :finish(fd, {:error, why}))
+      false ->
+        d = t / 86400
+        count = case d == day do
+          true -> today_requests
+          false -> 0
+        end
+        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), aim_body(model, prefix, rest), %{timeout_ms: AIM_ASK_TIMEOUT_S * 1000})
+        case h < 0 do
+          true -> reply (self <- :finish(fd, {:error, "every HTTP slot is busy"}))
+          false ->
+            k = to_string(fd)
+            p = lookup(people, k)
+            case p == nil do
+              true ->
+                become abandoned: [h | abandoned], day: d, today_requests: count + 1
+                reply :gone
+              false ->
+                become people: put(people, k, put(p, :job, %{h: h, round: round, rest: rest, at: t})),
+                  requests: requests + 1, day: d, today_requests: count + 1
+                reply :asking
+            end
+        end
+    end
+  end
+
+  # An answer to a person's request (http_result's value; a test passes a
+  # recorded one): the reply, or a search and the next round, or an error.
+  on :answered(fd: Int, result: Any, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or p.job == nil do
+      true -> reply :gone
+      false ->
+        job = p.job
+        u = case result do
+          {:ok, 200, body} -> aim_usage(body)
+          _ -> {0, 0}
+        end
+        become people: put(people, k, put(p, :job, nil)), cache_hit: cache_hit + elem(u, 0), cache_miss: cache_miss + elem(u, 1)
+        what = aim_classify(result)
+        case elem(what, 0) do
+          :tools ->
+            msg = elem(what, 1)
+            results = map(zg_list(lookup(msg, :tool_calls)), fn(c: Any) -> Map do aim_run_tool(chunks, c) end)
+            next = job.round + 1
+            case next >= AIM_MAX_TOOL_ROUNDS do
+              true -> reply (self <- :finish(fd, {:error, "too many searches for one message"}))
+              false -> reply (self <- :request(fd, list_append(job.rest, [msg | results]), next, t))
+            end
+          _ -> reply (self <- :finish(fd, what))
+        end
+    end
+  end
+
+  on :finish(fd: Int, what: Tuple) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        failed = elem(what, 0) == :error
+        text = case failed do
+          true -> aim_offline_reply(elem(what, 1))
+          false -> elem(what, 1)
+        end
+        q = put(put(put(p, :history, list_append(p.history, [aim_entry("assistant", text)])), :loading, false), :job, nil)
+        case failed do
+          true -> become people: put(people, k, q), failures: failures + 1, last_error: elem(what, 1)
+          false -> become people: put(people, k, q)
+        end
+        self <- :tell(fd, aim_chat_frame(q))
+        reply elem(what, 0)
+    end
+  end
+
+  on :step do
+    reply (self <- :step_at(now()))
+  end
+
+  # From the Site's tick: every answer that has come, and every request
+  # that has waited too long.
+  on :step_at(t: Int) do
+    become abandoned: filter(abandoned, fn(h: Int) -> Bool do http_result(h) == nil end)
+    asking = filter(values(people), fn(p: Map) -> Bool do p.job != nil end)
+    each(asking, fn(p: Map) do
+      r = http_result(p.job.h)
+      case r do
+        nil ->
+          case t - p.job.at > AIM_ASK_TIMEOUT_S do
+            true ->
+              self <- :drop_handle(p.job.h)
+              self <- :answered(p.fd, {:error, "timeout"}, t)
+            false -> :waiting
+          end
+        _ -> self <- :answered(p.fd, r, t)
+      end
+    end)
+    reply length(asking)
+  end
+
+  on :drop_handle(h: Int) do
+    become abandoned: [h | abandoned]
+    reply :ok
+  end
+
+  # For a test, or the prompt: what a search would hand the model.
+  on :search(query: String, source: String) do
+    reply aim_search(chunks, query, source)
+  end
+
+  on :body(name: String, history: List) do
+    reply aim_body(model, prefix, aim_rest(name, "2026-01-01", history))
+  end
+
+  on :person(fd: Int) do
+    reply lookup(people, to_string(fd))
+  end
+
+  on :stats do
+    reply %{pages: length(keys(people)), keyed: key != "", model: model, posts: length(rows), in_prompt: in_prompt,
+      prefix_bytes: length(prefix), chunks: length(chunks), asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
+      failures: failures, last_error: last_error, cache_hit_tokens: cache_hit, cache_miss_tokens: cache_miss}
+  end
+end
+
+AIM = spawn AimChat
+
+# ── the page ────────────────────────────────────────────────────────────
+
+AIM_PROGRAM_PATH = "/aim/aim.blimp"
+AIM_SCRIPTS = list_append(APP_SCRIPTS, ["/aim/aim.js"])
+
+def aim_page() -> String do
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", AIM_PROGRAM_PATH, "\" data-actor=\"aim\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "it needs JavaScript. The program is <a href=\"", AIM_PROGRAM_PATH, "\">", AIM_PROGRAM_PATH, "</a>.</p></noscript>\n",
+    script_tags(AIM_SCRIPTS)
+  ], "")
+  page_layout_html("bobbbyBot", "Instant message an AI agent built from every post Bobby Grayson wrote on Twitter and Bluesky.", "website", ["/assets/blimp-window.css", "/aim/aim.css"], body, "aim-html")
+end
+
+AIM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", aim_page())
+AIM_PROGRAM = map_asset(["_build/aim.blimp"], "text/plain; charset=utf-8")
+AIM_JS = map_asset(["static/aim/aim.js"], "text/javascript; charset=utf-8")
+AIM_CSS = map_asset(["static/aim/aim.css"], "text/css; charset=utf-8")
