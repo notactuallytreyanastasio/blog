@@ -207,7 +207,7 @@ can also be one of three atoms, and no float operation is a bare
 operator:
 
 ```elixir
-TemperCore.Float.mul(this.side__43, this.side__43)
+TemperCore.Float.mul(this.side, this.side)
 ```
 
 `mul` runs the BEAM's `*` inside a `try` and turns a raise into the IEEE
@@ -270,7 +270,7 @@ def firstNegative__22(xs) do
     ...
   catch
     {:temper_return, :ex_return_15, ex_value_20} ->
-    ex_value_20
+      ex_value_20
   end
 end
 ```
@@ -309,12 +309,12 @@ change:
 
 ```elixir
 defmodule Temper.Tour.Point do
-  defstruct [:x__29, :y__30]
+  defstruct [:x, :y]
   ...
   def new(x, y) do
     this = %Temper.Tour.Point{}
-    this = %{this | :x__29 => x}
-    this = %{this | :y__30 => y}
+    this = %{this | :x => x}
+    this = %{this | :y => y}
     this
   end
 end
@@ -322,10 +322,10 @@ end
 defmodule Temper.Tour.Counter do
   def bump(this) do
     ...
-    TemperCore.Heap.put(this, :count__37, return)
+    TemperCore.Heap.put(this, :count, return)
   end
   def new() do
-    this = TemperCore.Heap.new(Temper.Tour.Counter, %{:count__37 => nil})
+    this = TemperCore.Heap.new(Temper.Tour.Counter, %{:count => nil})
     ...
 ```
 
@@ -369,12 +369,18 @@ switches on a `caseIndex` cell.
 convertedCoroutine = fn generator ->
   caseIndexLocal = TemperCore.Heap.get(caseIndex, :v)
   TemperCore.Heap.put(caseIndex, :v, -1)
-  if caseIndexLocal == 0 do
-    IO.puts("one")
-    TemperCore.Heap.put(caseIndex, :v, 1)
-    {:value, :empty}
-  else
-    ...
+  cond do
+    caseIndexLocal == 0 ->
+      IO.puts("one")
+      TemperCore.Heap.put(caseIndex, :v, 1)
+      {:value, :empty}
+    caseIndexLocal == 1 ->
+      IO.puts("two")
+      :done
+    true ->
+      :done
+  end
+end
 ```
 
 | Temper | Elixir |
@@ -441,6 +447,8 @@ module values, then `__temper_tests__/0`. That writes JUnit XML to
 | a local declared once in its function | its plain name: `xs`, `total`, `sourceText` |
 | a name declared more than once in one function | numbered in order: `t1`, `t2` |
 | a module function or global | keeps its frontend id: `sum__21`, `:"Temper.Tour.calls__28"` |
+| a field | its plain name, `:x`, since a class has one member of each name |
+| `if a ... else if b ... else ...` | one `cond` with an arm per branch |
 | a name Elixir reserves or Kernel imports | a trailing `_`: `length_` |
 | a name starting with a capital or `_` | a `v_` or `u` prefix |
 | the translator's own temporaries | `ex_loop_13`, `ex_return_15`, which no Temper name can collide with |
@@ -504,8 +512,6 @@ shared. The receiving process must have run the library's
 - **Code is single-process.** Async is a queue inside one process, not
   BEAM concurrency. Using several processes is up to the host, through
   export and import.
-- **Struct fields keep frontend ids** (`x__29`), and `case`, `rescue` and
-  `catch` clause bodies are not indented past their pattern.
 - **A `ListBuilder` append copies the list,** so building a list one item
   at a time is quadratic.
 - **No `mix test` integration.** Tests run through `main/0`.
