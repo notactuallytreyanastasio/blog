@@ -1,0 +1,67 @@
+# phangraphs (/phish): Blog.Phish, the queries, and the JSON the page's
+# program fetches. The SQL is temper/src/db/data.temper.md (phish_*_q),
+# built with Alloy. This is apart from src/97_phish.blimp because that file
+# is also part of the browser's program (build.sh), which has no database
+# and should not carry Alloy.
+
+PHISH_YEARS_Q = phish_years_q()
+
+# The rows, or nil when the database did not answer (the reason is in
+# DB <- :stats and the log).
+def phish_rows(q: List) -> Any do
+  case DB <- :query(head(q), tail(q)) do
+    {:ok, rows} -> rows
+    {:error, reason} ->
+      puts(concat("phangraphs: ", reason))
+      nil
+  end
+end
+
+def phish_years() -> Any do
+  rows = phish_rows(PHISH_YEARS_Q)
+  case rows do
+    nil -> nil
+    _ -> map(rows, fn(r: Map) -> Int do r.year end)
+  end
+end
+
+def phish_song_list(year: String) -> Any do
+  phish_rows(phish_songs_q(phish_year(year)))
+end
+
+def phish_song_history(song: String, year: String) -> Any do
+  phish_rows(phish_history_q(song, phish_year(year)))
+end
+
+# ── the JSON the page's program fetches ─────────────────────────────────
+
+# /phish/years.json, /phish/songs.json?year=, /phish/history.json?song=&year=
+# or nil for any other path. A query that fails is a 503 saying so.
+def phish_api(path: String, query: String) -> Any do
+  case path do
+    "/phish/years.json" -> phish_answer(phish_years())
+    "/phish/songs.json" ->
+      songs = phish_song_list(query_param(query, "year"))
+      case songs do
+        nil -> phish_answer(nil)
+        _ -> phish_answer(map(songs, fn(s: Map) -> Map do
+          %{song_name: s.song_name, times_played: s.times_played, jamchart_count: s.jamchart_count}
+        end))
+      end
+    "/phish/history.json" ->
+      tracks = phish_song_history(query_param(query, "song"), query_param(query, "year"))
+      case tracks do
+        nil -> phish_answer(nil)
+        # today, for "(12d ago)": the browser's Blimp has no clock
+        _ -> phish_answer(%{today: format_time(now(), "%Y-%m-%d"), tracks: tracks})
+      end
+    _ -> nil
+  end
+end
+
+def phish_answer(value: Any) -> Map do
+  case value do
+    nil -> response(503, "application/json; charset=utf-8", "no-cache", "{\"error\": \"the database did not answer\"}")
+    _ -> response(200, "application/json; charset=utf-8", "public, max-age=300", json_encode(value))
+  end
+end

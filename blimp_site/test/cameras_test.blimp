@@ -194,15 +194,20 @@ actor CamerasTests do
 
   test "the server: list_listings/1's query" do
     q = cam_list_query(cam_filters("city=brk&q=50%25_off&min=200&max=1000&starred=1&sort=newest"))
-    sql = elem(q, 0)
+    sql = head(q)
     assert(contains(sql, "WHERE (NOT (c0.\"title\" ILIKE $1) AND ((c0.\"body\" IS NULL) OR NOT (c0.\"body\" ILIKE $2))) AND (c0.\"closed_at\" IS NULL) AND (c0.\"subarea\" = $3) AND ((c0.\"title\" ILIKE $4) OR (c0.\"body\" ILIKE $5)) AND (c0.\"price_cents\" >= $6) AND (c0.\"price_cents\" <= $7) AND (c0.\"hidden_at\" IS NULL) AND (NOT (c0.\"starred_at\" IS NULL)) ORDER BY c0.\"renewed_at\" DESC NULLS LAST, c0.\"id\" DESC LIMIT 500"))
     # String.replace(text, ~r/[%_]/, "")
-    assert_eq(elem(q, 1), ["%digital%", "%digital%", "brk", "%50off%", "%50off%", 20000, 100000])
+    assert_eq(tail(q), ["%digital%", "%digital%", "brk", "%50off%", "%50off%", "20000", "100000"])
     tab = cam_list_query(cam_filters("status=all"))
-    assert(contains(elem(tab, 0), "AND (c0.\"area\" = $3) AND (c0.\"hidden_at\" IS NULL) ORDER BY c0.\"score\" DESC, c0.\"renewed_at\" DESC NULLS LAST"))
-    assert_eq(elem(tab, 1), ["%digital%", "%digital%", "newyork"])
+    assert(contains(head(tab), "AND (c0.\"area\" = $3) AND (c0.\"hidden_at\" IS NULL) ORDER BY c0.\"score\" DESC, c0.\"renewed_at\" DESC NULLS LAST"))
+    assert_eq(tail(tab), ["%digital%", "%digital%", "newyork"])
     anywhere = cam_list_query(cam_filters("city=&hidden=1&status=closed"))
-    assert(contains(elem(anywhere, 0), "AND (NOT (c0.\"closed_at\" IS NULL)) ORDER BY"))
+    assert(contains(head(anywhere), "AND (NOT (c0.\"closed_at\" IS NULL)) ORDER BY"))
+    # every other clause is there or not; the parameters are only the visible/1 pair
+    assert_eq(tail(anywhere), ["%digital%", "%digital%"])
+    assert_eq(tail(cam_note_q(5, nil)), ["5"])
+    assert(contains(head(cam_note_q(5, nil)), "set note = NULL,"))
+    assert_eq(tail(cam_note_q(5, "hi")), ["hi", "5"])
   end
 
   test "the server without a database, and without BLINKS_API_TOKEN" do

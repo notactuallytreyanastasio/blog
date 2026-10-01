@@ -171,11 +171,18 @@ actor StumbleIngestTests do
 
   test "one INSERT for a batch, twelve parameters a row, conflicts skipped" do
     rows = elem(sti_frames(STI_T_FRAMES, STI_T_NOW), 0)
-    sql = sti_insert_sql(3)
-    assert(contains(sql, "$36::json"))
-    assert(not(contains(sql, "$37")))
-    assert(contains(sql, "on conflict do nothing returning id"))
-    assert_eq(length(sti_params([head(rows), head(rows), head(rows)])), 36)
+    q = sti_insert_query([head(rows), head(rows), head(rows)])
+    assert(contains(head(q), "$36::json"))
+    assert(not(contains(head(q), "$37")))
+    assert(contains(head(q), "on conflict do nothing returning id"))
+    assert_eq(length(tail(q)), 36)
+    # values go as the text the Blimp version bound: numbers as digits, langs as JSON
+    r = head(rows)
+    assert_eq(tail(sti_insert_query([r])), [r.url, r.url_hash, r.post_uri, r.post_text, r.post_created_at, r.author_did, r.author_handle, r.author_display_name, "535", "61", "sarantakos.wordpress.com", "[\"en\"]"])
+    # a missing value is NULL in the text, and takes no parameter
+    bare = sti_insert_query([put(head(rows), :post_text, nil)])
+    assert(contains(head(bare), "$3::text, NULL::text, $4::timestamp"))
+    assert_eq(length(tail(bare)), 11)
   end
 
   test "with no database the rows wait rather than go" do

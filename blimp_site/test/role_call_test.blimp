@@ -223,7 +223,10 @@ actor RoleCallTests do
     assert_eq(role_call_api("/role-call/count.json", "").status, 503)
     assert_eq(contains(RC_PAGE.body, "data-program=\"/role-call/role_call.blimp\""), true)
     assert_eq(contains(RC_PAGE.body, "/role-call/sunflower.js"), true)
-    assert_eq(contains(RC_SEARCH_SQL, "ILIKE $1"), true)
+    search = rc_search_q("%wire%", "tt1,tt2")
+    assert_eq(contains(head(search), "WHERE (r0.\"title\" ILIKE $1) AND (NOT (r0.\"id\" = ANY(string_to_array($2, ','))))"), true)
+    assert_eq(tail(search), ["%wire%", "tt1,tt2"])
+    assert_eq(tail(rc_recs_q("nm1,nm2", "tt9", "tt1")), ["nm1,nm2", "tt9", "tt1"])
   end
 end
 

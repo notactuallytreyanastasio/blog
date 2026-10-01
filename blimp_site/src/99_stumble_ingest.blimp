@@ -355,27 +355,31 @@ end
 
 # ── the insert ──────────────────────────────────────────────────────────
 
-STI_COLUMNS = "url, url_hash, post_uri, post_text, post_created_at, author_did, author_handle, author_display_name, author_followers_count, score, domain, langs, inserted_at, updated_at"
+# One statement for a batch, twelve values a row: sti_insert_q in
+# temper/src/db/data.temper.md, built with Alloy. ON CONFLICT DO NOTHING is
+# Ecto's on_conflict: :nothing: a url already stored (by url_hash) is
+# skipped, and so is a second row with the same hash in this batch.
 
-def sti_values(k: Int) -> String do
-  b = k * 12
-  p = fn(i: Int) -> String do concat("$", to_string(b + i)) end
-  concat("(", p(1), "::text, ", p(2), "::text, ", p(3), "::text, ", p(4), "::text, ", p(5), "::timestamp, ", p(6), "::text, ", p(7), "::text, ", p(8), "::text, ",
-         p(9), "::int, ", p(10), "::int, ", p(11), "::text, array(select x from json_array_elements_text(", p(12), "::json) with ordinality as l(x, n) order by n)::varchar[], ",
-         "now() at time zone 'utc', now() at time zone 'utc')")
+# A value as the text src/80_postgres.blimp's pg_param sends for it (langs
+# as a JSON array), nil for NULL.
+def sti_param(v: Any) -> Any do
+  case v do
+    nil -> nil
+    _ ->
+      case type_of(v) do
+        :string -> v
+        :integer -> to_string(v)
+        :float -> to_string(v)
+        :list -> json_encode(v)
+        other -> bubble concat("a query parameter of type ", to_string(other))
+      end
+  end
 end
 
-# One statement for n rows. ON CONFLICT DO NOTHING is Ecto's
-# on_conflict: :nothing: a url already stored (by url_hash) is skipped,
-# and so is a second row with the same hash in this batch.
-def sti_insert_sql(n: Int) -> String do
-  concat("insert into pa_links (", STI_COLUMNS, ") values ", join(map(range(0, n - 1), fn(k: Int) -> String do sti_values(k) end), ", "), " on conflict do nothing returning id")
-end
-
-def sti_params(rows: List) -> List do
-  reduce(rows, [], fn(acc: List, r: Map) -> List do
-    sti_append_all(acc, [r.url, r.url_hash, r.post_uri, r.post_text, r.post_created_at, r.author_did, r.author_handle, r.author_display_name, r.author_followers_count, r.score, r.domain, r.langs])
-  end)
+def sti_insert_query(rows: List) -> List do
+  sti_insert_q(map(rows, fn(r: Map) -> List do
+    map([r.url, r.url_hash, r.post_uri, r.post_text, r.post_created_at, r.author_did, r.author_handle, r.author_display_name, r.author_followers_count, r.score, r.domain, r.langs], fn(v: Any) -> Any do sti_param(v) end)
+  end))
 end
 
 # rows (oldest first) into Postgres: {inserted, rows to try again}. When
@@ -384,7 +388,8 @@ end
 # insert raised. When the connection is gone, the rows wait for the next
 # flush (at most STI_MAX_PENDING of them).
 def sti_insert(rows: List) -> Tuple do
-  case DB <- :query(sti_insert_sql(length(rows)), sti_params(rows)) do
+  q = sti_insert_query(rows)
+  case DB <- :query(head(q), tail(q)) do
     {:ok, got} -> {length(got), []}
     {:error, reason} ->
       case (DB <- :stats).connected do
@@ -399,7 +404,8 @@ end
 def sti_insert_each(rows: List, reason: String) -> Tuple do
   puts(concat("stumble ingest: insert of ", to_string(length(rows)), " rows failed (", reason, "); trying each alone"))
   each_one = map(rows, fn(r: Map) -> Any do
-    case DB <- :query(sti_insert_sql(1), sti_params([r])) do
+    q = sti_insert_query([r])
+    case DB <- :query(head(q), tail(q)) do
       {:ok, got} -> length(got)
       {:error, why} ->
         puts(concat("stumble ingest: not stored: ", r.url, " (", why, ")"))
