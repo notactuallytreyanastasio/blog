@@ -315,11 +315,20 @@ those variables become cells.
 A class is a module. What an object *is* depends on whether it can
 change:
 
-- **A class with no setter and no field writes outside its constructor**
-  is a `defstruct`. Copies are free, and it is an ordinary Elixir value
-  that can go anywhere, including other processes.
+- **A class marked `@imu`** is a `defstruct`. Copies are free, and it is an
+  ordinary Elixir value that can go anywhere, including other processes.
+  The frontend enforces `@imu` ("Class P claims imu but has a `var`
+  property"), so the struct can never be written after construction.
 - **Any other class** is a `%TemperCore.Ref{class, id}` into a heap kept in
-  the process dictionary. Two names for one object see each other's
+  the process dictionary.
+
+The choice follows the annotation, not the class body. If it were
+inferred, a later version of a library that added a setter would silently
+turn a struct into a ref. Consumers' `%Lib.Point{}` patterns would stop
+matching, values that crossed processes freely no longer would, and `==`
+would compare identity instead of fields. With `@imu` as the contract,
+that change can only happen by removing the annotation. An unannotated
+class that never mutates is a ref, which is slower but consistent. Two names for one object see each other's
   writes, which is what Temper requires (`c` and `alias` above both bump
   one count).
 
@@ -485,8 +494,35 @@ memory fell from 50 MB to 17 MB when it exited. So the first answer is
 the usual BEAM one: a process per request or per job, and nothing more to
 do.
 
-A process that lives on, such as a GenServer, calls
-`TemperCore.Heap.collect(roots)` between calls into Temper code:
+A process that lives on, such as a GenServer, needs no code either.
+Every exported function runs its body through `TemperCore.Heap.entry`:
+
+```elixir
+def handle(n) do
+  TemperCore.Heap.entry(fn ->
+    sb = TemperCore.StringBuilder.new()
+    ...
+  end)
+end
+```
+
+That is a small generational collector. Objects made during the outermost
+call into a library are young. When the call returns, or raises, the
+young objects nothing reaches are freed. "Reaches" means from the
+result, from Temper's globals and the rest of the process dictionary, or
+from an older object that the call wrote to: a write barrier in
+`Heap.put` remembers those older objects. Older objects are never
+touched, so whatever the caller still holds from earlier calls stays
+alive. Nested calls (Temper code calling exported functions) collect only
+at the outermost one. The same service as below, with no `collect` in it
+at all, ran 100,000 requests and ended with 1 object (its counter) in
+26 KB, in 270 ms.
+
+What `entry` cannot free: an object the caller kept and later dropped,
+or anything made outside an exported function (Elixir calling a
+constructor or method directly). For those,
+`TemperCore.Heap.collect(roots)` is a full mark and sweep, called between
+calls into Temper code:
 
 ```elixir
 def handle_call({:req, n}, _from, state) do
@@ -506,8 +542,9 @@ and keeps one long-lived counter, run for 100,000 requests:
 
 | | objects left | process memory | time |
 |---|---|---|---|
-| no collect | 200,001 | 49,364 KB | 492 ms |
+| no collector (before `entry`) | 200,001 | 49,364 KB | 492 ms |
 | `collect` after each call | 1 | 18 KB | 194 ms |
+| `entry` alone, nothing in the server | 1 | 26 KB | 270 ms |
 
 Collecting after each call is cheap when little survives, because each
 pass costs as much as the live heap. A process that keeps a large heap

@@ -28,3 +28,4 @@ guide that grows as the backend does.
 15. [2026-10-01: long-running programs](2026-10-01-long-running.md)
 16. [2026-10-01: clause bodies, fields, and `cond`](2026-10-01-readability-finished.md)
 17. [2026-10-01: lists that index in constant time](2026-10-01-lists-that-index.md)
+18. [2026-10-01: `@imu` is the contract, and the heap collects itself](2026-10-01-imu-and-entry.md)
