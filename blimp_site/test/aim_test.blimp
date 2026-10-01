@@ -376,10 +376,10 @@ actor AimTests do
     aim <- :sign_on("{\"name\":\"  newname  \"}")
     assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"newname\"}"])
     # the modem first; the door opens when the dial-up screen goes
-    assert_eq(lookup(aim <- :where, :sound), :dial)
-    assert_eq(lookup(aim <- :where, :sound), nil)
+    assert_eq((aim <- :state).sound, :dial)
+    assert(contains(to_html(aim <- :view), "/aim/sounds/dialup.wav"))
     aim <- :dial_done
-    assert_eq(lookup(aim <- :where, :sound), :signon)
+    assert_eq((aim <- :state).sound, :signon)
     aim <- :frame("{\"t\":\"hello\",\"online\":true,\"posts\":75344,\"bot\":\"bobbbyBot\"}")
     v2 = to_html(aim <- :view)
     assert(contains(v2, "newname&#39;s Buddy List") or contains(v2, "newname's Buddy List"))
@@ -396,7 +396,7 @@ actor AimTests do
       %{role: "assistant", content: "short", html: "<p>short</p>"},
       %{role: "user", content: "more", html: ""},
       %{role: "assistant", content: long, html: "<h1>A heading</h1>"}]}))
-    assert_eq(lookup(aim <- :where, :sound), :received)
+    assert_eq((aim <- :state).sound, :received)
     v3 = to_html(aim <- :view)
     assert(contains(v3, "Open in Reader"))
     aim <- :open_reader(3)
@@ -410,10 +410,10 @@ actor AimTests do
     assert(contains(to_html(aim <- :view), "Answer 1 of 2"))
     aim <- :close_reader
     assert_eq(lookup(aim <- :where, :reader), false)
-    # muted: no sound is asked for
+    # muted: nothing is played
     aim <- :toggle_sound
     aim <- :send("{\"message\":\"quiet\"}")
-    assert_eq(lookup(aim <- :where, :sound), nil)
+    assert(not(contains(to_html(aim <- :view), "<audio")))
     assert_eq(aimp_commas(1234567), "1,234,567")
     assert_eq(aimp_commas(12), "12")
   end
@@ -488,7 +488,8 @@ actor AimTests do
     aim <- :sign_on("{\"name\":\"dialer\"}")
     # signing on, and SmarterChild asked to say hello
     assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"dialer\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])
-    assert_eq(lookup(aim <- :where, :dialing), true)
+    # the dial-up screen runs on a timer the program renders
+    assert_eq(length(aimp_dial_timer(aim <- :state)), 1)
     v = to_html(aim <- :view)
     assert(contains(v, "Sign On - Connecting") and contains(v, "Dialing bobbby.online...") and contains(v, "Skip"))
     assert(contains(v, "SmarterChild is the old robot") and contains(v, "bobbbyBot is the new robot"))
@@ -498,7 +499,7 @@ actor AimTests do
     aim <- :dial_tick
     v2 = to_html(aim <- :view)
     assert(contains(v2, "Go Online") and contains(v2, "width: 100%"))
-    assert_eq(lookup(aim <- :where, :dialing), false)
+    assert_eq(aimp_dial_timer(aim <- :state), [])
     # it stops at the last step
     aim <- :dial_tick
     assert(contains(to_html(aim <- :view), "Go Online"))
@@ -634,24 +635,56 @@ actor AimTests do
     aim <- :connected
     aim <- :sign_on("{\"name\":\"ivy\"}")
     aim <- :dial_done
-    # signing on is a door opening
-    assert_eq((aim <- :where).sound, :signon)
+    # a sound is the last one asked for, and a count: each count is a new
+    # <audio> element, which plays once
+    st = aim <- :state
+    assert_eq(st.sound, :signon)
+    n = st.sounds
+    assert(contains(to_html(aim <- :view), concat("id=\"aim-sound-", to_string(n), "\"")))
+    assert(contains(to_html(aim <- :view), "/aim/sounds/dooropen.wav"))
     # the list as it was when you came: no doors for those already here
     aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u1\",\"name\":\"jo\"}]}")
-    assert_eq((aim <- :where).sound, nil)
+    assert_eq((aim <- :state).sounds, n)
     aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u1\",\"name\":\"jo\"},{\"id\":\"u2\",\"name\":\"kay\"}]}")
-    assert_eq((aim <- :where).sound, :door_open)
+    assert_eq([(aim <- :state).sound, (aim <- :state).sounds], [:door_open, n + 1])
     aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u2\",\"name\":\"kay\"}]}")
-    assert_eq((aim <- :where).sound, :door_close)
+    assert_eq([(aim <- :state).sound, (aim <- :state).sounds], [:door_close, n + 2])
+    assert(contains(to_html(aim <- :view), "/aim/sounds/doorslam.wav"))
     aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u2\",\"name\":\"kay\"}]}")
-    assert_eq((aim <- :where).sound, nil)
+    assert_eq((aim <- :state).sounds, n + 2)
+    # muted: no <audio> at all
+    aim <- :toggle_sound
+    assert(not(contains(to_html(aim <- :view), "<audio")))
+    aim <- :toggle_sound
     # and signing off is a door shutting
     aim <- :sign_off
-    assert_eq((aim <- :where).sound, :door_close)
-    # the sounds aim.js plays are AIM's own WAVs, served from /aim/sounds/
-    each([AIM_SOUND_DOOROPEN, AIM_SOUND_DOORSLAM, AIM_SOUND_IMRCV, AIM_SOUND_IMSEND], fn(r: Map) do
+    assert_eq([(aim <- :state).sound, (aim <- :state).sounds], [:door_close, n + 3])
+    # the sounds the page plays are served from /aim/sounds/
+    each([AIM_SOUND_DOOROPEN, AIM_SOUND_DOORSLAM, AIM_SOUND_IMRCV, AIM_SOUND_IMSEND, AIM_SOUND_DIALUP], fn(r: Map) do
       assert(starts_with(r.body, "RIFF"))
     end)
+    aim <- :outbox
+  end
+
+  test "the page's program: windows move by their title bars, and the moved one is in front" do
+    aim <- :connected
+    aim <- :sign_on("{\"name\":\"lee\"}")
+    aim <- :dial_done
+    v = to_html(aim <- :view)
+    # each title bar drags its own window
+    assert(contains(v, "aim-titlebar"))
+    aim <- :move_window("aim-buddies", 30, 12)
+    aim <- :move_window("aim-buddies", -5, 3)
+    st = aim <- :state
+    assert_eq(lookup(st.moved, "aim-buddies"), %{x: 25, y: 15})
+    assert_eq(st.front, "aim-buddies")
+    assert(contains(to_html(aim <- :view), "translate: 25px 15px; z-index: 4;"))
+    # opening a window puts it in front instead
+    aim <- :open_party
+    assert_eq((aim <- :state).front, "aim-party")
+    assert(contains(to_html(aim <- :view), "translate: 25px 15px;\""))
+    # the dial-up screen counts its own steps, on a timer it renders
+    aim <- :sign_off
     aim <- :outbox
   end
 end
