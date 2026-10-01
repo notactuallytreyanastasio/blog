@@ -16,8 +16,10 @@
 //    `:where` says it is dialing, its noise, and "skip it next time"
 //    remembered here.
 //
-// The sounds are made here with Web Audio, not AIM's recordings: a rising
-// pair for a door opening, one blip for sent, two for received.
+// The sounds are made here with Web Audio, after AIM's: its recordings are
+// AOL's, so these are imitations, not copies. A door creaks open when a
+// buddy signs on (and when you do), creaks and slams when one signs off;
+// a sent message goes "bloop" down, a received one "bloo-deep" up.
 (function () {
   function literal(s) {
     return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/#\{/g, '\\#{') + '"';
@@ -31,17 +33,6 @@
   function rememberSkip(v) { try { if (v) localStorage.setItem(SKIP, '1'); else localStorage.removeItem(SKIP); } catch (e) {} }
 
   var audio = null;
-  function tone(freq, at, dur, gain) {
-    var t = audio.currentTime + at;
-    var o = audio.createOscillator(), g = audio.createGain();
-    o.type = 'triangle';
-    o.frequency.setValueAtTime(freq, t);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(audio.destination);
-    o.start(t); o.stop(t + dur + 0.02);
-  }
   // A 56k handshake, shortened: seven touch-tone digits, the answer tone,
   // then the warbling hiss of two modems agreeing. About four seconds, quiet.
   function dialup() {
@@ -77,14 +68,84 @@
     o.connect(g); g.connect(audio.destination);
     o.start(at); o.stop(at + dur + 0.02);
   }
+  // A wooden door's creak is stick-slip: the hinge catches and lets go
+  // dozens of times a second, and each release rings the wood. So: a train
+  // of clicks whose rate glides from `r0` to `r1` per second, each click a
+  // few decaying resonances, the whole thing swelling and fading. Rendered
+  // once into a buffer and kept.
+  var creaks = {};
+  function creak(key, len, r0, r1, gain) {
+    if (creaks[key]) return creaks[key];
+    var sr = audio.sampleRate, n = Math.floor(sr * len);
+    var buf = audio.createBuffer(1, n, sr), d = buf.getChannelData(0);
+    var modes = [[310, 0.012, 1], [740, 0.007, 0.6], [1650, 0.004, 0.35], [2900, 0.002, 0.2]];
+    var t = 0.01, seed = 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    while (t < len - 0.02) {
+      var x = t / len;
+      // rate rises then sags, with a little jitter, as a hand pushes a door
+      var rate = r0 + (r1 - r0) * Math.sin(Math.PI * Math.min(1, x * 1.2) / 2);
+      rate *= 0.85 + 0.3 * rnd();
+      var env = Math.sin(Math.PI * Math.min(1, x / 0.15) / 2) * (1 - Math.pow(x, 3));
+      var amp = gain * env * (0.7 + 0.6 * rnd());
+      var at = Math.floor(t * sr), pitch = 0.9 + 0.35 * x;
+      for (var m = 0; m < modes.length; m++) {
+        var f = modes[m][0] * pitch, tau = modes[m][1], a = amp * modes[m][2];
+        var end = Math.min(n, at + Math.floor(tau * 6 * sr));
+        for (var i = at; i < end; i++) {
+          var dt = (i - at) / sr;
+          d[i] += a * Math.exp(-dt / tau) * Math.sin(2 * Math.PI * f * dt);
+        }
+      }
+      t += 1 / rate;
+    }
+    creaks[key] = buf;
+    return buf;
+  }
+  function playBuffer(buf, at, gain) {
+    var src = audio.createBufferSource(), g = audio.createGain();
+    src.buffer = buf; g.gain.value = gain;
+    src.connect(g); g.connect(audio.destination);
+    src.start(audio.currentTime + at);
+  }
+  function doorOpen() {
+    playBuffer(creak('open', 0.85, 38, 140, 0.5), 0, 0.5);
+  }
+  function doorClose() {
+    playBuffer(creak('close', 0.32, 90, 150, 0.5), 0, 0.45);
+    // the slam: a low thud and a burst of rattle
+    var t = audio.currentTime + 0.3;
+    var o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.25);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + 0.4);
+    var n = Math.floor(audio.sampleRate * 0.18), nb = audio.createBuffer(1, n, audio.sampleRate), nd = nb.getChannelData(0);
+    for (var i = 0; i < n; i++) nd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audio.sampleRate * 0.03));
+    var ns = audio.createBufferSource(), lp = audio.createBiquadFilter(), ng = audio.createGain();
+    ns.buffer = nb; lp.type = 'lowpass'; lp.frequency.value = 900; ng.gain.value = 0.35;
+    ns.connect(lp); lp.connect(ng); ng.connect(audio.destination); ns.start(t);
+  }
+  // a sine whose pitch slides, for the message blips
+  function slide(f0, f1, at, dur, gain) {
+    var t = audio.currentTime + at;
+    var o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function imSent() { slide(1250, 420, 0, 0.13, 0.32); }
+  function imReceived() { slide(520, 780, 0, 0.09, 0.3); slide(880, 1560, 0.085, 0.16, 0.3); }
   function play(which) {
     try {
       audio = audio || new (window.AudioContext || window.webkitAudioContext)();
       if (audio.state === 'suspended') audio.resume();
       if (which === 'dial') dialup();
-      else if (which === 'signon') { tone(523, 0, 0.18, 0.12); tone(784, 0.12, 0.3, 0.12); }
-      else if (which === 'sent') { tone(880, 0, 0.09, 0.08); }
-      else if (which === 'received') { tone(988, 0, 0.1, 0.1); tone(1319, 0.11, 0.16, 0.1); }
+      else if (which === 'signon' || which === 'door_open') doorOpen();
+      else if (which === 'door_close') doorClose();
+      else if (which === 'sent') imSent();
+      else if (which === 'received') imReceived();
     } catch (e) {}
   }
 

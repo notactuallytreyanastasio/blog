@@ -699,7 +699,10 @@ actor AimPage do
   # messages sent; each gives the textarea a new id, so it comes back empty
   state sent: Int :: 0
   state outbox: List :: []
-  # what aim.js should play: :signon, :sent, :received, or nil
+  # what aim.js should play: :signon, :door_open, :door_close, :sent,
+  # :received, :dial, or nil
+  # whether a Buddy List has come since signing on (the first opens no doors)
+  state listed: Bool :: false
   state sound: Any :: nil
   # whose conversation the IM window shows ("bot", "sc", "u<n>")
   state current: String :: "bot"
@@ -743,7 +746,7 @@ actor AimPage do
   # socket: start again, and sign on again if this page already had.
   on :connected do
     become online: nil, messages: [], loading: false, reader: -1, current: want, convos: %{}, typing: %{},
-      buddies: [], unread: [], cats: "", cats_open: false, party_lines: [], party_members: [], party_unread: false,
+      listed: false, buddies: [], unread: [], cats: "", cats_open: false, party_lines: [], party_members: [], party_unread: false,
       board_posts: [], board_note: ""
     case signed_on do
       true -> become outbox: aimp_append(outbox, aimp_signon_frames(name, want))
@@ -782,7 +785,25 @@ actor AimPage do
         reply :chat
       "buddies" ->
         bs = aimp_buddies(lookup(msg, :people))
-        become buddies: bs,
+        # AIM's doors: open for someone new on the list, shut for someone
+        # gone. Not for the list as it was when you signed on.
+        ids = map(bs, fn(b: Map) -> String do aimp_str(lookup(b, :id)) end)
+        had = map(buddies, fn(b: Map) -> String do aimp_str(lookup(b, :id)) end)
+        came = filter(ids, fn(i: String) -> Bool do filter(had, fn(h: String) -> Bool do h == i end) == [] end)
+        went = filter(had, fn(h: String) -> Bool do filter(ids, fn(i: String) -> Bool do h == i end) == [] end)
+        case listed do
+          false -> :ok
+          true ->
+            case came != [] do
+              true -> become sound: :door_open
+              false ->
+                case went != [] do
+                  true -> become sound: :door_close
+                  false -> :ok
+                end
+            end
+        end
+        become listed: true, buddies: bs,
           names: reduce(bs, names, fn(acc: Map, b: Map) -> Map do put(acc, aimp_str(lookup(b, :id)), aimp_str(lookup(b, :name))) end)
         reply :buddies
       "party" ->
@@ -822,7 +843,7 @@ actor AimPage do
 
   on :sign_off do
     become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: want, dial: -1,
-      convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false,
+      convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false, listed: false, sound: :door_close,
       party_lines: [], party_members: [], party_open: false, party_unread: false,
       board_posts: [], board_note: "", board_open: false,
       outbox: aimp_append(outbox, [json_encode(%{t: "signoff"})])
@@ -898,7 +919,7 @@ actor AimPage do
       true -> :signon
       false -> :dial
     end
-    become signed_on: true, name: sn, im_open: true, current: want, dial: dial, sound: sound,
+    become signed_on: true, name: sn, im_open: true, current: want, dial: dial, sound: sound, listed: false,
       outbox: aimp_append(outbox, aimp_signon_frames(sn, want))
     reply :ok
   end

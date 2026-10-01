@@ -629,4 +629,25 @@ actor AimTests do
     aim <- :sign_off
     assert_eq((aim <- :state).board_open, false)
   end
+
+  test "the page's program: doors open for someone signing on and shut for someone leaving" do
+    aim <- :connected
+    aim <- :sign_on("{\"name\":\"ivy\"}")
+    aim <- :dial_done
+    # signing on is a door opening
+    assert_eq((aim <- :where).sound, :signon)
+    # the list as it was when you came: no doors for those already here
+    aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u1\",\"name\":\"jo\"}]}")
+    assert_eq((aim <- :where).sound, nil)
+    aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u1\",\"name\":\"jo\"},{\"id\":\"u2\",\"name\":\"kay\"}]}")
+    assert_eq((aim <- :where).sound, :door_open)
+    aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u2\",\"name\":\"kay\"}]}")
+    assert_eq((aim <- :where).sound, :door_close)
+    aim <- :frame("{\"t\":\"buddies\",\"people\":[{\"id\":\"u2\",\"name\":\"kay\"}]}")
+    assert_eq((aim <- :where).sound, nil)
+    # and signing off is a door shutting
+    aim <- :sign_off
+    assert_eq((aim <- :where).sound, :door_close)
+    aim <- :outbox
+  end
 end
