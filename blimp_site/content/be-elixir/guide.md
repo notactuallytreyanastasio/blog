@@ -244,7 +244,7 @@ does, `1.0e+25` and `0.000001`, always with a point.
 
 **Lists.** A Temper `List` is a tuple in a struct, so `xs[i]` and
 `xs.length` take constant time. As an Elixir list, an indexed loop over
-16,000 items took 282 ms, because both walk the list. A `ListBuilder`
+16,000 items took 236 ms, because both walk the list. A `ListBuilder`
 holds an `:array`, so appending is `O(log n)`; as a list, every append
 copied, and 16,000 appends took 1.2 s. Now a million items build in 186 ms
 and sum by index in 20 ms.
@@ -484,6 +484,7 @@ from the `_connected.ex` file next to its Temper source.
 | a bubble (`throws Bubble`, a failed `as`, `orelse`) | `raise TemperCore.Bubble`, caught with `rescue _ in TemperCore.Bubble` |
 | `panic()` | `raise TemperCore.Panic` |
 | code the frontend rejected but was told to build anyway | `raise(TemperCore.Panic, "broken code: <the frontend's diagnostic>")`, where it stands |
+| a property read on a value whose type did not compile, such as an object of a rejected class | the same raise, naming the property |
 
 ## 12. Tests
 
@@ -527,7 +528,11 @@ a line number to run one test.
 
 **The harness.** `temper test -b elixir` and the functional suite run
 `main/0`, then `__temper_tests__/0`, which writes the JUnit XML that
-`reportTestResults` writes to `test-results.xml`.
+`reportTestResults` writes to `test-results.xml`. Each test is also
+registered with the CLI under its function name, the name that XML
+carries. So a failure is reported by its sentence, and a library whose
+init raises before any test runs reports `0 of 30 (30 not run)`, not
+`0 of 0`.
 
 ## 13. Names and layout
 
@@ -553,7 +558,10 @@ every binding that nothing reads the `_` prefix. It works backwards
 through each block and follows Elixir's scoping, where a binding inside
 an `if`, `case` or `fn` does not leak out. The same pass drops the
 binding from `t = raise(...)`, which Elixir's type checker reports as a
-pattern that can never match.
+pattern that can never match, and ends the block at the raise. Elixir
+checks every variable a function reads, reachable or not, so a later read
+of `t` would not compile ("undefined variable"); nothing after a raise in
+its block can run anyway (`probes/10_unbound_after_raise.exs`).
 
 ## 14. Long-running programs
 
@@ -630,8 +638,9 @@ it arrives. Export copies every object the value reaches. Objects keep
 their ids, which are unique across processes and nodes, so aliasing
 inside the value survives and a ref captured by a closure still works.
 Like any BEAM message it is a copy: later writes on either side are not
-shared. The receiving process must have run the library's
-`__temper_init__/0` if the code it calls reads module values.
+shared. The receiving process does not have to initialize anything: every
+exported function and constructor runs the library's `__temper_init__/0`
+first (entry 24).
 
 ## 15. Actors
 
@@ -749,7 +758,72 @@ in an actor, whose single process makes each update one step.
 Each call runs through `Heap.entry` inside the actor, so garbage from a
 method is freed when the method returns.
 
-## 16. Limits
+## 16. Using it in an app
+
+[Marginalia](https://github.com/notactuallytreyanastasio/marginalia), a
+Phoenix app, runs its core text logic from Temper this way: paragraph and
+word diffs, sentence splitting, PDF reflow, and the manuscript segmenter.
+The case study is
+[marginalia#6](https://github.com/notactuallytreyanastasio/marginalia/pull/6),
+and entry 26 covers what it taught the backend.
+
+**Commit the generated code.** The Temper libraries live in `temper/`, and
+the Elixir generated from them in `temper/out/`, used as a path
+dependency. Building, testing and deploying then need no JVM:
+
+```elixir
+{:temper_marginalia_core, path: "temper/out/marginalia-core"},
+...
+"temper.check": ["cmd bin/temper-gen --check"],
+precommit: ["temper.check", "compile --warnings-as-errors", ...]
+```
+
+`bin/temper-gen` runs `temper build -b elixir` in a scratch copy, deletes
+the `*.map` files, replaces `temper/out`, and records the compiler's commit
+in `temper/out/TEMPER_COMMIT`. `--check` rebuilds and fails if the result
+differs from what is committed, which works because the output is
+deterministic and compiles without warnings. A Dockerfile needs
+`COPY temper/out temper/out` before `mix deps.get`.
+
+**Keep the Elixir modules as facades.** Each module keeps its API and
+calls the generated library, turning `@imu` structs back into whatever its
+callers already match on:
+
+```elixir
+def rows(before_text, after_text) do
+  Core.rows(before_text || "", after_text || "") |> Enum.map(&row/1)
+end
+
+defp row(%Core.Row{kind: "same", left: l, right: r}), do: {:same, l, r}
+```
+
+**Export only the API.** Every exported function runs the library's init
+check and `TemperCore.Heap.entry` (section 14). That is cheap once per call
+from Elixir, but a helper called once per character pays it once per
+character. Un-exporting Marginalia's helpers was most of a 3x-to-5x
+slowdown.
+
+**Let the host answer what Temper cannot know.** Temper's core strings carry
+no Unicode character data. Questions like "is this code point `\p{Lu}`"
+are `@connected` declarations, answered in `_connected.ex` by the engine the
+original code used, with an ASCII fast path:
+
+```elixir
+def isUnicodeUpper(cp) when cp < 128, do: cp >= ?A and cp <= ?Z
+def isUnicodeUpper(cp), do: Regex.match?(~r/\A\p{Lu}\z/u, <<cp::utf8>>)
+```
+
+**Check a port against the code it replaces.** Keep the original modules
+as fixtures, run old and new on random inputs, and count which rules the
+inputs reached. Marginalia's ports agreed on more than 90,000 inputs, and
+being faithful turned up a regex bug the original had always had.
+
+**What it costs.** Code that walks strings is about 3x slower than
+hand-written Elixir that runs regexes over whole binaries. In Marginalia
+that is a few milliseconds per document. PDF reflow, which the original did
+with a regex per line, got 3.5x faster.
+
+## 17. Limits
 
 - **Async is single-process.** `async` is a queue inside one process, not
   BEAM concurrency. Concurrency comes from `@actor` classes, or from host
@@ -760,7 +834,7 @@ method is freed when the method returns.
 - **A module-level mutable non-actor object is per process.** Each process
   gets its own copy on first read.
 
-## 17. Where things are
+## 18. Where things are
 
 - Backend: `temper/be-elixir/src/commonMain/kotlin/lang/temper/be/elixir/`
 - Runtime: `temper/be-elixir/src/commonMain/resources/lang/temper/be/elixir/temper-core/`
@@ -768,5 +842,7 @@ method is freed when the method returns.
 - Runnable examples: `journal/examples/bank/` (actors, a shared ledger,
   supervision, driven from Elixir) and `journal/examples/twolibs/` (one
   library using another)
+- Used in an app: [marginalia#6](https://github.com/notactuallytreyanastasio/marginalia/pull/6)
+  (section 16)
 - How each part came about: the dated entries in `journal/`, listed in
   `journal/README.md`
