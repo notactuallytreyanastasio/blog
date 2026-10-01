@@ -416,6 +416,68 @@ def aimp_cats(s: Map) -> Any do
       el("div", %{class: "aim-info-foot"}, el("button", %{class: "aim-btn", click: :close_cats}, "Close"))))
 end
 
+# ── the dial-up screen ─────────────────────────────────────────────────
+# Between Sign On and the Buddy List, as AOL had: the steps lighting up one
+# at a time (aim.js ticks it), the modem's noise, and while it runs, who is
+# on the other end. dial is the step it is on, or -1 when it is not shown.
+
+def aimp_dial(s: Map) -> Any do
+  last = length(aim_dial_steps) - 1
+  done = s.dial >= last
+  steps = map(range(0, last), fn(i: Int) -> Any do
+    cls = case i < s.dial or done do
+      true -> "aim-dial-step done"
+      false ->
+        case i == s.dial do
+          true -> "aim-dial-step now"
+          false -> "aim-dial-step"
+        end
+    end
+    el("li", %{class: cls}, el("span", %{class: "aim-dial-n"}, to_string(i + 1)), el("span", %{}, elem_at(aim_dial_steps, i)))
+  end)
+  pct = to_string((s.dial + 1) * 100 / (last + 1))
+  check = case s.dial_skip do
+    true -> "☑ Skip this next time"
+    false -> "☐ Skip this next time"
+  end
+  go = case done do
+    true -> el("button", %{class: "aim-btn aim-btn-default", click: :dial_done}, aimp_runner("tiny"), "Go Online")
+    false -> el("button", %{class: "aim-btn", click: :dial_done}, "Skip")
+  end
+  el("div", %{class: "aim-win aim-dial", role: "dialog", "aria-label": "Connecting"},
+    aimp_titlebar("Sign On - Connecting", nil),
+    el("div", %{class: "aim-dial-body"},
+      el("div", %{class: "aim-dial-head"}, aimp_runner("mid"),
+        el("div", %{}, el("strong", %{}, concat("Signing on ", s.name)), el("span", %{class: "aim-small"}, "bobbby.online edition"))),
+      el("ol", %{class: "aim-dial-steps"}, steps),
+      el("div", %{class: "aim-dial-bar", "aria-hidden": "true"}, el("span", %{style: concat("width: ", pct, "%")})),
+      el("div", %{class: "aim-dial-about"},
+        el("h3", %{}, aim_dial_title),
+        map(aim_dial_lines, fn(l: String) -> Any do el("p", %{}, l) end)),
+      el("div", %{class: "aim-dial-foot"},
+        el("button", %{class: "aim-check", click: :dial_toggle_skip}, check),
+        el("span", %{class: "aim-spacer"}),
+        go)))
+end
+
+# Signing on, and when SmarterChild was asked for, asking it to say hello.
+def aimp_signon_frames(name: String, want: String) -> List do
+  first = [json_encode(%{t: "signon", name: name})]
+  case want do
+    "sc" -> aimp_append(first, [json_encode(%{t: "open", with: "sc"})])
+    _ -> first
+  end
+end
+
+# What ?msg= asks for: "sc" for SmarterChild, "bot" for bobbbyBot, any case.
+def aimp_wanted(raw: String) -> String do
+  case downcase(trim(raw)) do
+    "smarterchild" -> "sc"
+    "sc" -> "sc"
+    _ -> "bot"
+  end
+end
+
 # ── the reader ─────────────────────────────────────────────────────────
 
 def aimp_reader(s: Map) -> Any do
@@ -483,7 +545,7 @@ def aimp_taskbar(s: Map) -> Any do
     true -> [el("button", %{class: "aim-task", click: :open_cats}, "cats.jpg")]
     false -> []
   end
-  tasks = case s.signed_on do
+  tasks = case s.signed_on and s.dial < 0 do
     true -> aimp_append([el("span", %{class: "aim-task"}, concat(s.name, "'s Buddy List"))], aimp_append(im, cats))
     false -> [el("span", %{class: "aim-task on"}, "Sign On")]
   end
@@ -494,7 +556,7 @@ def aimp_taskbar(s: Map) -> Any do
 end
 
 def aimp_page(s: Map) -> Any do
-  windows = case s.signed_on do
+  desk = case s.signed_on do
     false -> [aimp_signon(s)]
     true ->
       im = case s.im_open do
@@ -514,6 +576,10 @@ def aimp_page(s: Map) -> Any do
         false -> []
       end
       aimp_append([aimp_buddy_list(s)], aimp_append(im, aimp_append(info, aimp_append(cats, reader))))
+  end
+  windows = case s.signed_on and s.dial >= 0 do
+    true -> [aimp_dial(s)]
+    false -> desk
   end
   cls = case s.im_open and s.signed_on do
     true -> "aim-desktop im-open"
@@ -557,6 +623,11 @@ actor AimPage do
   # the cats' picture, once the server has handed it over
   state cats: String :: ""
   state cats_open: Bool :: false
+  # whose window opens on signing on: ?msg= (aim.js hands it over)
+  state want: String :: "bot"
+  # the dial-up screen's step, or -1; whether to skip it (aim.js remembers)
+  state dial: Int :: -1
+  state dial_skip: Bool :: false
 
   # the screen name remembered from last time (aim.js keeps it)
   on :remembered(n: String) do
@@ -567,10 +638,10 @@ actor AimPage do
   # The socket is (again) open. The server's conversation went with the old
   # socket: start again, and sign on again if this page already had.
   on :connected do
-    become online: nil, messages: [], loading: false, reader: -1, current: "bot", convos: %{}, typing: %{},
+    become online: nil, messages: [], loading: false, reader: -1, current: want, convos: %{}, typing: %{},
       buddies: [], unread: [], cats: "", cats_open: false
     case signed_on do
-      true -> become outbox: aimp_append(outbox, [json_encode(%{t: "signon", name: name})])
+      true -> become outbox: aimp_append(outbox, aimp_signon_frames(name, want))
       false -> :ok
     end
     reply :ok
@@ -631,7 +702,7 @@ actor AimPage do
   end
 
   on :sign_off do
-    become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: "bot",
+    become signed_on: false, messages: [], loading: false, reader: -1, info_open: false, current: want, dial: -1,
       convos: %{}, typing: %{}, buddies: [], unread: [], cats: "", cats_open: false,
       outbox: aimp_append(outbox, [json_encode(%{t: "signoff"})])
     reply :ok
@@ -658,8 +729,46 @@ actor AimPage do
       "" -> "Visitor"
       _ -> utf8_slice(n, 0, 16)
     end
-    become signed_on: true, name: sn, im_open: true, sound: :signon,
-      outbox: aimp_append(outbox, [json_encode(%{t: "signon", name: sn})])
+    dial = case dial_skip do
+      true -> -1
+      false -> 0
+    end
+    sound = case dial_skip do
+      true -> :signon
+      false -> :dial
+    end
+    become signed_on: true, name: sn, im_open: true, current: want, dial: dial, sound: sound,
+      outbox: aimp_append(outbox, aimp_signon_frames(sn, want))
+    reply :ok
+  end
+
+  # ?msg=SmarterChild (or bobbbyBot): whose window to open on signing on
+  on :want(raw: String) do
+    become want: aimp_wanted(raw), current: aimp_wanted(raw)
+    reply :ok
+  end
+
+  on :remembered_dial(skip: Bool) do
+    become dial_skip: skip
+    reply :ok
+  end
+
+  # aim.js, a second or so apart while the dial-up screen is up
+  on :dial_tick do
+    case dial >= 0 and dial < length(aim_dial_steps) - 1 do
+      true -> become dial: dial + 1
+      false -> :ok
+    end
+    reply :ok
+  end
+
+  on :dial_done do
+    become dial: -1, sound: :signon
+    reply :ok
+  end
+
+  on :dial_toggle_skip do
+    become dial_skip: not(dial_skip)
     reply :ok
   end
 
@@ -761,7 +870,8 @@ actor AimPage do
       false -> sound
     end
     become sound: nil
-    reply %{sound: s, reader: reader >= 0, name: name, signed_on: signed_on}
+    reply %{sound: s, reader: reader >= 0, name: name, signed_on: signed_on,
+      dialing: dial >= 0 and dial < length(aim_dial_steps) - 1, dial_skip: dial_skip}
   end
 
   # Everything the view and the helpers above read, as one map.
@@ -769,7 +879,8 @@ actor AimPage do
     reply %{signed_on: signed_on, name: name, online: online, posts: posts,
       messages: messages, loading: loading, im_open: im_open, info_open: info_open, reader: reader,
       size: size, paper: paper, warn: warn, muted: muted, sent: sent, current: current, convos: convos,
-      typing: typing, buddies: buddies, names: names, unread: unread, cats: cats, cats_open: cats_open}
+      typing: typing, buddies: buddies, names: names, unread: unread, cats: cats, cats_open: cats_open,
+      want: want, dial: dial, dial_skip: dial_skip}
   end
 
   on :view do

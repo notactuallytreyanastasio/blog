@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <!-- The sign-on screen's sky: AOL 4.0 navy into a lighter blue -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1f6b"/>
+      <stop offset="0.6" stop-color="#1846b8"/>
+      <stop offset="1" stop-color="#3a7bd5"/>
+    </linearGradient>
+    <!-- The triangle: the old America Online mark, glassy the way 1996 liked it -->
+    <linearGradient id="tri" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7fb4ff"/>
+      <stop offset="0.45" stop-color="#1c5fe0"/>
+      <stop offset="1" stop-color="#062a8c"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000080"/>
+      <stop offset="1" stop-color="#1084d0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#sky)"/>
+  <!-- dial-up stars -->
+  <g fill="#fff" opacity="0.55">
+    <circle cx="70" cy="60" r="1.6"/><circle cx="180" cy="120" r="1.2"/><circle cx="310" cy="40" r="1.8"/>
+    <circle cx="460" cy="95" r="1.2"/><circle cx="540" cy="30" r="1.5"/><circle cx="640" cy="70" r="1.2"/>
+    <circle cx="40" cy="250" r="1.2"/><circle cx="600" cy="190" r="1.4"/><circle cx="120" cy="560" r="1.2"/>
+    <circle cx="520" cy="590" r="1.6"/><circle cx="260" cy="600" r="1.2"/>
+  </g>
+
+  <!-- The mark: a triangle with a ring swung through it -->
+  <circle cx="300" cy="235" r="190" fill="url(#glow)"/>
+  <g transform="translate(300 245)">
+    <path d="M0 -150 C14 -150 22 -142 30 -128 L150 92 C160 110 152 124 130 124 L-130 124 C-152 124 -160 110 -150 92 L-30 -128 C-22 -142 -14 -150 0 -150 Z"
+          fill="url(#tri)" stroke="#ffffff" stroke-width="6"/>
+    <path d="M-26 -118 L-118 52 C-80 -10 -40 -60 20 -96 Z" fill="#ffffff" opacity="0.35"/>
+    <ellipse cx="18" cy="40" rx="66" ry="66" fill="none" stroke="#ffffff" stroke-width="22"/>
+    <ellipse cx="18" cy="40" rx="66" ry="66" fill="none" stroke="#ffd400" stroke-width="6" stroke-dasharray="120 300" transform="rotate(-40 18 40)"/>
+  </g>
+  <text x="300" y="430" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="54" fill="#ffffff" letter-spacing="1">Bobbby Online</text>
+  <text x="300" y="470" text-anchor="middle" font-family="Verdana" font-size="17" fill="#cfe0ff" letter-spacing="3">SO EASY TO USE, NO WONDER IT'S #1</text>
+
+  <!-- the running man, yellow, mid-stride -->
+  <g transform="translate(222 572) scale(0.8)" stroke="#000" stroke-width="4" stroke-linejoin="round">
+    <circle cx="40" cy="-58" r="17" fill="#ffd400"/>
+    <path d="M30 -38 L52 -38 L58 0 L80 22 L72 32 L46 10 L30 34 L12 30 L28 2 L22 -22 L4 -6 L-6 -14 L18 -40 Z" fill="#ffd400"/>
+    <path d="M52 -32 L78 -20 L74 -10 L50 -20 Z" fill="#ffd400"/>
+  </g>
+  <text x="296" y="574" font-family="Tahoma" font-weight="bold" font-size="34" fill="#ffd400">AIM</text>
+
+  <!-- Buddy List, Windows 98 -->
+  <g transform="translate(700 70)">
+    <rect x="6" y="6" width="420" height="480" fill="#000" opacity="0.35"/>
+    <rect width="420" height="480" fill="#c0c0c0" stroke="#fff" stroke-width="2"/>
+    <rect x="1" y="1" width="418" height="478" fill="none" stroke="#808080" stroke-width="2"/>
+    <rect x="5" y="5" width="410" height="34" fill="url(#title)"/>
+    <text x="16" y="29" font-family="Tahoma" font-weight="bold" font-size="18" fill="#fff">Buddy List</text>
+    <g font-family="Tahoma" font-size="16" font-weight="bold" fill="#000">
+      <rect x="320" y="10" width="26" height="23" fill="#c0c0c0" stroke="#fff"/><text x="327" y="28">_</text>
+      <rect x="350" y="10" width="26" height="23" fill="#c0c0c0" stroke="#fff"/><text x="357" y="28">□</text>
+      <rect x="380" y="10" width="26" height="23" fill="#c0c0c0" stroke="#fff"/><text x="387" y="28">×</text>
+    </g>
+    <text x="16" y="66" font-family="Tahoma" font-size="17" fill="#000">My AIM   People   Help</text>
+
+    <!-- the list -->
+    <rect x="14" y="80" width="392" height="300" fill="#fff" stroke="#808080" stroke-width="2"/>
+    <g font-family="Tahoma" font-size="20">
+      <text x="30" y="114" font-weight="bold" fill="#000">▾ Buddies (2/3)</text>
+      <text x="58" y="150" fill="#000">SmarterChild</text>
+      <text x="58" y="186" fill="#000">bobbbyBot</text>
+      <text x="58" y="222" fill="#808080" font-style="italic">your friend</text>
+      <text x="30" y="266" font-weight="bold" fill="#000">▾ Co-Workers (0/0)</text>
+      <text x="30" y="302" font-weight="bold" fill="#808080">▸ Offline (1/1)</text>
+    </g>
+    <!-- SmarterChild's door just opened -->
+    <g transform="translate(200 132)">
+      <rect width="196" height="26" rx="4" fill="#fffbcc" stroke="#000"/>
+      <text x="10" y="18" font-family="Tahoma" font-size="14" fill="#000">say hi to SmarterChild</text>
+    </g>
+
+    <!-- bottom buttons -->
+    <g font-family="Tahoma" font-size="15" fill="#000" text-anchor="middle">
+      <rect x="20" y="400" width="118" height="58" fill="#c0c0c0" stroke="#fff" stroke-width="2"/>
+      <rect x="152" y="400" width="118" height="58" fill="#c0c0c0" stroke="#fff" stroke-width="2"/>
+      <rect x="284" y="400" width="118" height="58" fill="#c0c0c0" stroke="#fff" stroke-width="2"/>
+      <text x="79" y="436">IM</text><text x="211" y="436">Chat</text><text x="343" y="436">Away</text>
+    </g>
+  </g>
+
+  <text x="913" y="600" text-anchor="middle" font-family="Tahoma" font-weight="bold" font-size="30" fill="#ffffff">AOL Instant Messenger</text>
+</svg>

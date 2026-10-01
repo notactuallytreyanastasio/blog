@@ -262,11 +262,11 @@ actor AimTests do
     AIM <- :step_at(1006)
     first = aimt_last(-21)
     assert_eq([lookup(first, :with), lookup(first, :loading), length(lookup(first, :messages))], ["sc", true, 1])
-    AIM <- :step_at(1012)
+    AIM <- :step_at(1014)
     hello = aimt_last(-21)
-    assert_eq([lookup(hello, :loading), length(lookup(hello, :messages))], [false, 4])
-    assert_eq(lookup(elem_at(lookup(hello, :messages), 3), :content), head(AIM_SC_RIDDLES).q)
-    assert_eq(lookup(elem_at(lookup(hello, :messages), 3), :role), "them")
+    assert_eq([lookup(hello, :loading), length(lookup(hello, :messages))], [false, 5])
+    assert_eq(lookup(elem_at(lookup(hello, :messages), 4), :content), head(AIM_SC_RIDDLES).q)
+    assert_eq(lookup(elem_at(lookup(hello, :messages), 4), :role), "them")
     assert_eq(aimt_sc(-21, "hint", 1020), [head(AIM_SC_RIDDLES).hint])
     assert_eq(aimt_sc(-21, "a globe?", 1030), ["close, but flatter."])
     assert_eq(aimt_sc(-21, "no idea", 1040), ["not it. type hint if you're stuck."])
@@ -294,6 +294,30 @@ actor AimTests do
     aimt_clear()
   end
 
+  test "SmarterChild opens a different way each time, every way a portal to 2004" do
+    intros = map(range(0, 4), fn(k: Int) -> String do join(aim_sc_intro("Ann", true, k, "2026"), " ") end)
+    assert_eq(length(uniq(intros)), 5)
+    each(intros, fn(i: String) do
+      assert(contains(i, "2004") and contains(i, "Ann") and not(contains(i, "NAME")) and not(contains(i, "YEAR")))
+      assert(contains(i, head(AIM_SC_RIDDLES).q))
+    end)
+    assert(contains(elem_at(intros, 3), "out there it's 2026"))
+    # the sixth comes round to the first
+    assert_eq(join(aim_sc_intro("Ann", true, 5, "2026"), " "), head(intros))
+    # and the actor moves on one each hello
+    aimt_load()
+    aimt_clear()
+    AIM <- :join(-41)
+    AIM <- :sign_on(-41, "x", 3000)
+    AIM <- :sc_start(-41, 3000, true)
+    first = head((AIM <- :person(-41)).sc.pending).text
+    AIM <- :sign_off(-41)
+    AIM <- :sign_on(-41, "x", 3100)
+    AIM <- :sc_start(-41, 3100, true)
+    assert(head((AIM <- :person(-41)).sc.pending).text != first)
+    aimt_clear()
+  end
+
   test "SmarterChild talks like its logs: names, scolding, the apology it waits for" do
     aimt_load()
     aimt_clear()
@@ -305,6 +329,14 @@ actor AimTests do
     AIM <- :step_at(2100)
     assert_eq((AIM <- :person(-31)).sc.active, false)
     assert_eq(aimt_sc(-31, "hi", 2200), ["Hello to you too, bob!"])
+    # /aim?msg=SmarterChild: carol's page asks, and it says hello at once,
+    # without claiming she is alone
+    assert_eq(AIM <- :recv(-32, "{\"t\":\"open\",\"with\":\"sc\"}"), :started)
+    hello = map((AIM <- :person(-32)).sc.pending, fn(l: Map) -> String do l.text end)
+    assert(aim_has(hello, "I've got a game for you: four riddles. get all four and I'll tell you a secret about this page."))
+    assert(contains(join(hello, " "), "carol") and contains(join(hello, " "), "2004"))
+    assert_eq(AIM <- :recv(-32, "{\"t\":\"open\",\"with\":\"sc\"}"), :ok)
+    assert_eq(AIM <- :recv(-32, "{\"t\":\"open\",\"with\":\"bot\"}"), :ignored)
     assert_eq(aimt_sc(-31, "my name is Roxie!", 2210), ["Okey doke. I'll call you Roxie."])
     assert_eq(aimt_sc(-31, "call me Fred", 2215), ["You said your name was Roxie but now I'll call you Fred."])
     assert_eq(aimt_sc(-31, "how are you", 2220), ["I'm doing great! I'm still quite young, but I'm getting smarter every day."])
@@ -323,7 +355,7 @@ actor AimTests do
     assert_eq(aim_sc_age(AIM_SC_BORN + 31557600 + 86400 + 3661), "1 years, 0 months, 1 days, 1 hours, 1 minutes and 1 seconds")
     assert_eq(aimt_sc(-31, "i'm sure", 2310), ["You're sure, I'm sure, we're all sure."])
     assert_eq(aimt_sc(-31, "mmhmm", 2320), ["\"mmhmm\"? That's a very weird thing to type."])
-    assert_eq(aimt_sc(-31, "how many people", 2330), ["I'm chatting with 1 person right now."])
+    assert_eq(aimt_sc(-31, "how many people", 2330), ["I'm chatting with 2 people right now."])
     assert_eq(aimt_sc(-31, "who else is on", 2340), ["1 other person is signed on. They're on your Buddy List, under Online Now."])
     assert_eq(aimt_sc(-31, "kiss me", 2350), ["That's none of your business."])
     assert_eq(aimt_sc(-31, "kiss me", 2360), ["Robots don't have sex."])
@@ -343,8 +375,11 @@ actor AimTests do
     assert(contains(v, "value=\"oldname\""))
     aim <- :sign_on("{\"name\":\"  newname  \"}")
     assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"newname\"}"])
-    assert_eq(lookup(aim <- :where, :sound), :signon)
+    # the modem first; the door opens when the dial-up screen goes
+    assert_eq(lookup(aim <- :where, :sound), :dial)
     assert_eq(lookup(aim <- :where, :sound), nil)
+    aim <- :dial_done
+    assert_eq(lookup(aim <- :where, :sound), :signon)
     aim <- :frame("{\"t\":\"hello\",\"online\":true,\"posts\":75344,\"bot\":\"bobbbyBot\"}")
     v2 = to_html(aim <- :view)
     assert(contains(v2, "newname&#39;s Buddy List") or contains(v2, "newname's Buddy List"))
@@ -387,6 +422,7 @@ actor AimTests do
     aim <- :connected
     aim <- :toggle_sound
     aim <- :sign_on("{\"name\":\"solo\"}")
+    aim <- :dial_done
     aim <- :outbox
     aim <- :frame("{\"t\":\"hello\",\"online\":true,\"posts\":9,\"bot\":\"bobbbyBot\"}")
     aim <- :frame("{\"t\":\"buddies\",\"sc\":false,\"people\":[]}")
@@ -431,6 +467,7 @@ actor AimTests do
     assert_eq(aim <- :outbox, ["{\"t\":\"signoff\"}"])
     assert(contains(to_html(aim <- :view), "aim-signon"))
     aim <- :sign_on("{\"name\":\"meow\"}")
+    aim <- :dial_done
     aim <- :frame("{\"t\":\"secret\",\"src\":\"/aim/cats.jpg\"}")
     v5 = to_html(aim <- :view)
     # the server said hello once, for the socket, not for each sign-on
@@ -440,5 +477,60 @@ actor AimTests do
     assert(not(contains(to_html(aim <- :view), "Picture Viewer")))
     aim <- :open_cats
     assert(contains(to_html(aim <- :view), "Picture Viewer"))
+  end
+
+  test "the page's program: the dial-up screen, and ?msg=SmarterChild" do
+    aim <- :connected
+    aim <- :sign_off
+    aim <- :outbox
+    aim <- :remembered_dial(false)
+    aim <- :want("SmarterChild")
+    aim <- :sign_on("{\"name\":\"dialer\"}")
+    # signing on, and SmarterChild asked to say hello
+    assert_eq(aim <- :outbox, ["{\"t\":\"signon\",\"name\":\"dialer\"}", "{\"t\":\"open\",\"with\":\"sc\"}"])
+    assert_eq(lookup(aim <- :where, :dialing), true)
+    v = to_html(aim <- :view)
+    assert(contains(v, "Sign On - Connecting") and contains(v, "Dialing bobbby.online...") and contains(v, "Skip"))
+    assert(contains(v, "SmarterChild is the old robot") and contains(v, "bobbbyBot is the new robot"))
+    assert(not(contains(v, "Buddy List")))
+    aim <- :dial_tick
+    aim <- :dial_tick
+    aim <- :dial_tick
+    v2 = to_html(aim <- :view)
+    assert(contains(v2, "Go Online") and contains(v2, "width: 100%"))
+    assert_eq(lookup(aim <- :where, :dialing), false)
+    # it stops at the last step
+    aim <- :dial_tick
+    assert(contains(to_html(aim <- :view), "Go Online"))
+    aim <- :dial_toggle_skip
+    assert_eq(lookup(aim <- :where, :dial_skip), true)
+    aim <- :dial_done
+    assert(contains(to_html(aim <- :view), "SmarterChild - Instant Message"))
+    # skipped next time, straight to the Buddy List and SmarterChild
+    aim <- :sign_off
+    aim <- :sign_on("{\"name\":\"dialer\"}")
+    v3 = to_html(aim <- :view)
+    assert(contains(v3, "dialer's Buddy List") or contains(v3, "dialer&#39;s Buddy List"))
+    assert(contains(v3, "SmarterChild - Instant Message"))
+    # any case; anything else is bobbbyBot
+    assert_eq(aimp_wanted(" smarterCHILD "), "sc")
+    assert_eq(aimp_wanted("bobbbyBot"), "bot")
+    assert_eq(aimp_wanted("nobody"), "bot")
+    aim <- :want("bobbbybot")
+    aim <- :sign_off
+    aim <- :sign_on("{\"name\":\"dialer\"}")
+    assert(contains(to_html(aim <- :view), "bobbbyBot - Instant Message"))
+    # the second sign-on still wanted SmarterChild; the third, bobbbyBot
+    assert_eq(aim <- :outbox, ["{\"t\":\"signoff\"}", "{\"t\":\"signon\",\"name\":\"dialer\"}", "{\"t\":\"open\",\"with\":\"sc\"}", "{\"t\":\"signoff\"}", "{\"t\":\"signon\",\"name\":\"dialer\"}"])
+  end
+
+  test "the page has its own share card: AOL Instant Messenger, and the picture" do
+    page = aim_page()
+    assert(contains(page, "<title>AOL Instant Messenger</title>"))
+    assert(contains(page, "property=\"og:title\" content=\"AOL Instant Messenger\""))
+    assert(contains(page, "Dont forget to say hi to SmarterChild"))
+    assert(contains(page, "https://bobbby.online/images/og-aim.png?v=1"))
+    assert(contains(page, "summary_large_image"))
+    assert(read_file("../priv/static/images/og-aim.png") != nil)
   end
 end

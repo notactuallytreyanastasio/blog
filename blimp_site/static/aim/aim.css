@@ -378,12 +378,51 @@ button.aim-task { cursor: pointer; }
 .aim-cats-body img { display: block; width: 100%; max-height: 70vh; object-fit: contain; background: #000; box-shadow: inset 1px 1px var(--aim-dark), inset -1px -1px var(--aim-light); }
 .aim-cats-body p { margin: 8px 2px 0; }
 
+/* ── the dial-up screen ─────────────────────────────────────────────── */
+.aim-dial { width: min(520px, calc(100% - 32px)); left: 50%; top: 50%; transform: translate(-50%, -52%); }
+.aim-dial-body { padding: 4px 10px 8px; }
+.aim-dial-head {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 -10px 8px;
+  background: linear-gradient(180deg, #0a246a, #3a6ea5); color: #fff;
+}
+.aim-dial-head div { display: flex; flex-direction: column; }
+.aim-dial-head strong { font-size: 14px; }
+.aim-dial-head .aim-small { color: #dfe8ff; }
+.aim-dial-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.aim-dial-step { display: flex; align-items: center; gap: 8px; color: var(--aim-mid); }
+.aim-dial-n {
+  width: 18px; height: 18px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 11px; background: var(--aim-face);
+  box-shadow: inset -1px -1px var(--aim-dark), inset 1px 1px var(--aim-light);
+}
+.aim-dial-step.now { color: #000; font-weight: bold; }
+.aim-dial-step.now .aim-dial-n { background: var(--aim-yellow); animation: aim-blink 0.8s steps(2, start) infinite; }
+.aim-dial-step.done { color: #000; }
+.aim-dial-step.done .aim-dial-n { background: #2e9e3e; color: #fff; }
+.aim-dial-bar {
+  height: 14px; margin: 8px 0 10px; background: #fff;
+  box-shadow: inset 1px 1px var(--aim-dark), inset -1px -1px var(--aim-light);
+}
+.aim-dial-bar span {
+  display: block; height: 100%; transition: width .9s linear;
+  background: repeating-linear-gradient(90deg, #0a246a 0 9px, transparent 9px 11px);
+}
+.aim-dial-about {
+  background: #fff; padding: 8px 10px; max-height: 42vh; overflow: auto;
+  box-shadow: inset 1px 1px var(--aim-dark), inset -1px -1px var(--aim-light);
+}
+.aim-dial-about h3 { margin: 0 0 6px; font-size: 13px; }
+.aim-dial-about p { margin: 0 0 7px; line-height: 1.4; }
+.aim-dial-foot { display: flex; align-items: center; gap: 6px; padding-top: 8px; }
+.aim-check { font: inherit; background: none; border: 0; padding: 2px 0; cursor: pointer; }
+.aim-check:focus-visible { outline: 1px dotted #000; }
+
 @media (max-width: 760px) {
   /* the corner canvas window is 400px wide and would sit on Send */
   html.aim-html .blimp-window { display: none; }
   .aim-windows { padding: 8px; display: flex; flex-direction: column; }
   .aim-win { position: relative; left: auto; top: auto; transform: none; width: auto; }
-  .aim-signon { margin: auto 0; }
+  .aim-signon, .aim-dial { margin: auto 0; }
   .aim-buddies { height: auto; flex: 1; min-height: 0; }
   .im-open .aim-buddies { display: none; }
   .aim-im { flex: 1; height: auto; min-height: 0; width: auto; }

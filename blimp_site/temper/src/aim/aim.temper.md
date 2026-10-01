@@ -126,3 +126,25 @@ What the IM window offers before anything has been said.
     export let aim_offline_reply(reason: String): String {
       "Sorry, I couldn't answer that (${reason})."
     }
+
+## The dial-up screen
+
+What the sign-on window shows between Sign On and the Buddy List, as
+AOL's did while the modem screamed: the steps, one at a time, and while
+they run, who is on the other end. SmarterChild is the old robot,
+bobbbyBot the new one.
+
+    export let aim_dial_steps: List<String> = [
+      "Dialing bobbby.online...",
+      "Connecting at 56,000 bps...",
+      "Checking your screen name...",
+      "Connected.",
+    ];
+
+    export let aim_dial_title: String = "Two robots live here, and some people.";
+
+    export let aim_dial_lines: List<String> = [
+      "SmarterChild is the old robot. It was AIM's famous bot in 2001, and this one was rebuilt from its real chat logs, word for word. It is a script, not an AI: it won't learn anything, it will scold you if you're rude, and if you're the only one here it has riddles for you.",
+      "bobbbyBot is the new robot: a language model (DeepSeek) that talks about exactly two things, grilled cheese and pictures of kids smoking. It can search Bobby's old posts for both.",
+      "Everyone else under Online Now is a real person on this page right now. Click a name to IM them. Be nice. Nothing anyone says here is saved.",
+    ];
