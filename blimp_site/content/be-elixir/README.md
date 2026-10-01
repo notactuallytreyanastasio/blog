@@ -18,3 +18,4 @@ guide that grows as the backend does.
 5. [2026-10-01: a list builder is a list, too](2026-10-01-lists.md)
 6. [2026-10-01: a string index is a byte offset](2026-10-01-strings.md)
 7. [2026-10-01: maps keep their order, and the user writes the Elixir](2026-10-01-maps-and-the-rest.md)
+8. [2026-10-01: `@test` blocks, and the file `.gitignore` ate](2026-10-01-tests-and-a-missing-file.md)

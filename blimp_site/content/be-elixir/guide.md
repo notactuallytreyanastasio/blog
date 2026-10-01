@@ -193,3 +193,12 @@ Inherited method bodies are copied into the class, so there is no `super`.
 | `Deque` | an Erlang `:queue` on the heap |
 | `DenseBitVector` | the set bits, in a map on the heap |
 | a `@connected` function in a user library | its defaulting, then `TemperConnected.name(...)` from the library's `_connected.ex` |
+
+## 11. Tests
+
+| Temper | Elixir |
+|--------|--------|
+| `test("name") { ... }` | a module function of one argument, the `Test` |
+| `assert(c) { msg }` | `TemperCore.Test.assert(t, c, fn -> msg end)` |
+| a test run | `main()`, then `__temper_tests__/0` writes JUnit XML to `test-results.xml` |
+| `x as StringIndex` | `x >= 0`, since an index is an integer and none is `-1` |
