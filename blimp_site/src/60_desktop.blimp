@@ -902,7 +902,7 @@ def desk_rail(epoch_s: Int, st: Map) -> String do
     "<header class=\"rail\">",
     "<a class=\"mark\" href=\"/?booted=1\">", desk_blimp_svg(46), "<span class=\"mark-name\">bobbby<span>.online</span></span></a>",
     "<nav class=\"rail-nav\" aria-label=\"Site\">",
-    "<a href=\"#work\">Things I made</a><a href=\"/blog\">Writing</a><a href=\"", desk_href(put(st, "leica", "1")), "\">Photographs</a><a href=\"#museum\">Museum</a><a href=\"/directory\">Directory</a>",
+    "<a href=\"#work\">Things I made</a><a href=\"/blog\">Writing</a><a href=\"", desk_href(put(st, "leica", "1")), "\">Photographs</a><a href=\"#museum\">Museum</a><a href=\"/aim\">AIM</a><a href=\"/directory\">Directory</a>",
     "</nav>",
     "<p class=\"rail-clock\"><span>UTC</span> ", desk_clock(epoch_s), "</p>",
     "</header>"

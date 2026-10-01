@@ -19,6 +19,7 @@ numbers	/nyc_census_and_pluto	How Many People Live Here?	nyc-census	Draw a shape
 numbers	/hacker-news	Hacker News	hg-hn	The top 50, refetched every three minutes by an actor that never blocks.
 numbers	/stumble	Stumble	hg-dice	A bag of links people shared on Bluesky. Reach in.
 numbers	/cameras	Camera Browser	hg-camera	Film cameras for sale on Craigslist in four cities, on one page.
+toys	/aim	bobbbyBot	hg-aim	An AIM buddy that can search every post I wrote. It will only talk about grilled cheese and pictures of children smoking.
 toys	/stack	The Stack	hg-stack	Every compiler, file and process between this site's source and your screen.
 toys	/mirror	Mirror	code-mirror	The Blimp source of the page you are reading, cut out of the running server.
 toys	/markdown-editor	Markdown Editor	hg-markdown	The preview is the renderer the posts use, running in your browser.

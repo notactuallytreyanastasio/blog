@@ -13,9 +13,9 @@
 # Words in the intro.
 programmer	I wrote the language this site runs in, Blimp, and moved the whole site onto it from Phoenix in September 2026. The stack page draws every piece between the source and your screen.	The stack=/stack | Blimp on GitHub=https://github.com/notactuallytreyanastasio/blimp | The machine=#machine
 photographer	I shoot on a Leica. These are the frames I keep coming back to.	The gallery=/gallery | My favourite Leica shots=/?leica=1 | Instagram=
-artist	The picture behind this page is one: Temper Art's Bauhaus generator, on a new seed each day. /art draws more, and seed 42 is always the same picture.	Temper Art=/art | The toys=#work-toys
+artist	The picture behind this page is one: Temper Art's Bauhaus generator, on a new seed every time this page loads. /art draws more, and seed 42 is always the same picture.	Temper Art=/art | The toys=#work-toys
 nyc	The city keeps turning up in the work: every bus on the routes you pick, and a census map you draw a shape on.	MTA Bus Map=/mta-bus-map | How Many People Live Here?=/nyc_census_and_pluto
-games-and-toys	Seven games and nine toys, served by the same process as this page: the one drawn under the intro.	Games=#work | Art, tools & toys=#work-toys
+games-and-toys	Seven games and ten toys, served by the same process as this page: the one drawn under the intro.	Games=#work | Art, tools & toys=#work-toys
 writing	Posts on building this site, GenStage, tree law, Nathan Fielder and chess, among others.	All posts=/blog
 photographs	One very large image of my favourite Leica shots, 110 MB, so the link asks before it loads. The gallery is the smaller way in.	The gallery=/gallery
 older-projects	Hardware, maps, music, machine learning, social experiments. Each one says what it was built with, and where the source is when it is public.	The museum=#museum
