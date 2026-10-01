@@ -182,3 +182,14 @@ Inherited method bodies are copied into the class, so there is no `super`.
 | `s[i]` | the code point at byte offset `i` (`<<_::binary-size(i), cp::utf8, _::binary>>`) |
 | `s.countBetween(a, b)` | code points, not graphemes |
 | `StringBuilder` | a heap object holding the string so far |
+
+## 10. Maps, deques, bit vectors, and connected functions
+
+| Temper | Elixir |
+|--------|--------|
+| `Map` | `%TemperCore.Map{keys: [...], map: %{}}`: insertion order beside an Elixir map |
+| `MapBuilder` | a heap object holding the same two |
+| `Pair` | `%TemperCore.Pair{key, value}` |
+| `Deque` | an Erlang `:queue` on the heap |
+| `DenseBitVector` | the set bits, in a map on the heap |
+| a `@connected` function in a user library | its defaulting, then `TemperConnected.name(...)` from the library's `_connected.ex` |
