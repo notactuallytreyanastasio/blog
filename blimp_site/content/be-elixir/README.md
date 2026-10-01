@@ -8,7 +8,7 @@ guide that grows as the backend does.
   each Temper construct becomes in Elixir and why, and its limits.
 - [probes/](probes/) -- the Elixir scripts every claim about the target was
   checked with. Run any of them with `elixir probes/<file>.exs`.
-- [examples/](examples/) -- runnable Temper libraries with the Elixir that
+- [examples/](https://github.com/notactuallytreyanastasio/temper-blimp/tree/main/journal/examples) -- runnable Temper libraries with the Elixir that
   drives them, such as `bank/`, a set of `@actor` accounts.
 
 ## Entries
