@@ -159,8 +159,8 @@ actor MuseumAdmin do
     reply :ok
   end
 
-  on :login(fields: String) do
-    pw = adp_text(adp_get(adp_fields(fields), "password", ""))
+  on :login(fields: Map) do
+    pw = adp_text(adp_get(fields, "password", ""))
     become outbox: adp_concat(outbox, [adp_http(seq, "login", "POST", "/admin/login", %{password: pw})]), seq: seq + 1
     reply :ok
   end
@@ -180,8 +180,8 @@ actor MuseumAdmin do
     reply :ok
   end
 
-  on :create(fields: String) do
-    become outbox: adp_concat(outbox, [adp_http(seq, "create", "POST", ADP_PROJECTS, adp_fields(fields))]), seq: seq + 1
+  on :create(fields: Map) do
+    become outbox: adp_concat(outbox, [adp_http(seq, "create", "POST", ADP_PROJECTS, fields)]), seq: seq + 1
     reply :ok
   end
 
@@ -195,12 +195,12 @@ actor MuseumAdmin do
     reply :ok
   end
 
-  on :update(fields: String) do
+  on :update(fields: Map) do
     case editing do
       nil -> reply :ok
       p ->
         url = concat(ADP_PROJECTS, "/", to_string(lookup(p, "id")))
-        become outbox: adp_concat(outbox, [adp_http(seq, "update", "PATCH", url, adp_fields(fields))]), seq: seq + 1
+        become outbox: adp_concat(outbox, [adp_http(seq, "update", "PATCH", url, fields)]), seq: seq + 1
         reply :ok
     end
   end

@@ -88,11 +88,8 @@ actor Art do
     reply self <- :draw(seed, g)
   end
 
-  on :set_seed(fields: String) do
-    raw = case json_decode(fields) do
-      {:ok, f} -> lookup(f, :seed)
-      _ -> nil
-    end
+  on :set_seed(fields: Map) do
+    raw = lookup(fields, :seed)
     s = case type_of(raw) == :string do
       true -> art_seed_of(raw, seed)
       false -> seed

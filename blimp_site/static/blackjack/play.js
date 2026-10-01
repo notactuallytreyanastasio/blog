@@ -22,8 +22,9 @@
   try {
     var blimp = new Blimp()
     blimp.onPrint(function () {})
-    await blimp.init('/blimp/blimp.wasm')
-    var res = await fetch('/blackjack/blackjack.blimp')
+    var rt = document.querySelector('script[data-blimp-build]')
+    await blimp.init((rt && rt.getAttribute('data-blimp-wasm')) || '/blimp/blimp.wasm')
+    var res = await fetch('/blackjack/blackjack.blimp' + (rt ? '?v=' + rt.getAttribute('data-blimp-build') : ''))
     if (!res.ok) throw new Error('blackjack.blimp is ' + res.status)
     var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null
     function flush() {

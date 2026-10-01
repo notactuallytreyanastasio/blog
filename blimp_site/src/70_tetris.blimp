@@ -11,9 +11,7 @@
 TETRIS_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/tetris/play.js"]
 
 def tetris_page(blimp_commit: String, source_lines: Int) -> String do
-  scripts = join(map(TETRIS_SCRIPTS, fn(src: String) -> String do
-    concat("<script src=\"", src, "\"></script>\n")
-  end), "")
+  scripts = script_tags(TETRIS_SCRIPTS)
   short = take(blimp_commit, 7)
   body = join([
     "<div class=\"mac-blog\" style=\"overflow: auto;\">",

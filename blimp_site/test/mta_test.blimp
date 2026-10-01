@@ -181,5 +181,5 @@ end
 
 def mta_page_ok() -> Bool do
   body = MTA_PAGE.body
-  contains(body, "<title>MTA Bus Map Tracker</title>") and contains(body, "<div id=\"mta-bus-map\" class=\"absolute inset-0 z-0\"></div>") and contains(body, "data-program=\"/mta-bus-map/mta.blimp\" data-actor=\"mta\"") and contains(body, "<script src=\"/mta-bus-map/mta.js\"></script>") and contains(body, "MTA Bus Map - Live Transit Tracker") and contains(MTA_JS.body, "Leaflet 1.9.4") and contains(MTA_JS.body, "/live/mta")
+  contains(body, "<title>MTA Bus Map Tracker</title>") and contains(body, "<div id=\"mta-bus-map\" class=\"absolute inset-0 z-0\"></div>") and contains(body, "data-program=\"/mta-bus-map/mta.blimp\" data-actor=\"mta\"") and contains(body, concat("<script src=\"", script_href("/mta-bus-map/mta.js"), "\"></script>")) and contains(body, "MTA Bus Map - Live Transit Tracker") and contains(MTA_JS.body, "Leaflet 1.9.4") and contains(MTA_JS.body, "/live/mta")
 end

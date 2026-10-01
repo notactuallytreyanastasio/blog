@@ -498,7 +498,7 @@ actor Stumble do
     reply :ok
   end
 
-  on :noop(fields: String) do
+  on :noop(fields: Map) do
     reply :ok
   end
 

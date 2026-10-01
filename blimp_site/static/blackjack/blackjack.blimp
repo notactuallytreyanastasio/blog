@@ -198,11 +198,8 @@ actor Table do
   end
 
   # The name form: {"name": "..."} from the page.
-  on :set_name(fields: String) do
-    name = case json_decode(fields) do
-      {:ok, f} -> lookup(f, :name)
-      _ -> nil
-    end
+  on :set_name(fields: Map) do
+    name = lookup(fields, :name)
     case type_of(name) == :string do
       true -> become outbox: [json_encode(%{t: "name", name: name}) | outbox]
       false -> become outbox: outbox

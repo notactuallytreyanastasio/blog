@@ -29,7 +29,7 @@ actor AdminFinderTests do
     f <- :add_item(1)
     refute(contains(to_html(f <- :view), "Emoji icon"))
     f <- :add_item(2)
-    f <- :create_item("{\"section_id\":\"2\",\"name\":\"X\",\"icon\":\"Y\"}")
+    f <- :create_item(%{"section_id": "2", "name": "X", "icon": "Y"})
     asked = to_html(f <- :view)
     assert(contains(asked, "/admin/finder/items"))
     # the form closes once the item is made, as adding_item_to: nil did
@@ -42,7 +42,7 @@ actor AdminFinderTests do
     f <- :loaded(200, AFT_ROWS)
     f <- :edit_item(7)
     assert(contains(to_html(f <- :view), "Edit Item"))
-    f <- :update_item("{\"name\":\"Pong!\",\"icon\":\"P\",\"visible\":\"true\"}")
+    f <- :update_item(%{"name": "Pong!", "icon": "P", "visible": "true"})
     assert(contains(to_html(f <- :view), "/admin/finder/items/7"))
     f <- :done(0, 200, AFT_ROWS)
     refute(contains(to_html(f <- :view), "Edit Item"))

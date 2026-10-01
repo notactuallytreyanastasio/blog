@@ -160,8 +160,8 @@ actor Reader do
     end
   end
 
-  on :search(fields: String) do
-    become q: bk_str(lookup(elem(json_decode(fields), 1), "q")), page: 1
+  on :search(fields: Map) do
+    become q: bk_str(lookup(fields, "q")), page: 1
     reply :ok
   end
 

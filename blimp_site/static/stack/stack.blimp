@@ -289,7 +289,7 @@ actor Stack do
   end
 
   # Enter in the search box: the best match, picked
-  on :go(fields: String) do
+  on :go(fields: Map) do
     best = stk_best(query)
     case best < 0 do
       true -> become sel: sel

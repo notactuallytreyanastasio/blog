@@ -260,13 +260,15 @@ html.aim-html, html.aim-html body {
 
 /* ── the reader ─────────────────────────────────────────────────────── */
 
-.aim-reader-scrim {
-  position: absolute; inset: 0; z-index: 5;
-  background: rgba(10, 36, 106, .35);
-  display: flex; align-items: center; justify-content: center;
-  padding: 18px;
+/* the reader is a <dialog>: the browser puts it on top, centred, with a
+   ::backdrop; these take away the dialog's own frame */
+.aim-reader-dialog {
+  padding: 0; border: 0; background: transparent; overflow: visible;
+  width: min(860px, calc(100vw - 36px)); height: min(92vh, 980px);
+  max-width: none; max-height: none;
 }
-.aim-reader { position: relative; width: min(860px, 100%); height: min(92%, 980px); }
+.aim-reader-dialog::backdrop { background: rgba(10, 36, 106, .35); }
+.aim-reader { position: relative; width: 100%; height: 100%; }
 .aim-reader-tools { display: flex; align-items: center; gap: 4px; padding: 4px 2px; flex-wrap: wrap; }
 .aim-reader-page {
   flex: 1; overflow: auto; outline: none;
@@ -461,7 +463,7 @@ button.aim-task { cursor: pointer; }
   .aim-info, .aim-cats { position: absolute; left: 8px; right: 8px; top: 50%; transform: translateY(-50%); width: auto; }
   .aim-party, .aim-board { position: absolute; left: 8px; right: 8px; top: 8px; bottom: 8px; width: auto; height: auto; z-index: 4; }
   .aim-party-people { width: 90px; }
-  .aim-reader-scrim { padding: 0; }
+  .aim-reader-dialog { width: 100vw; height: 100vh; }
   .aim-reader { width: 100%; height: 100%; }
   .aim-reader-article { padding: 28px 18px 48px; }
   .aim-task { max-width: 120px; }

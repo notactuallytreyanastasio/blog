@@ -220,8 +220,33 @@ PONG_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "
 GOD_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/pong/god.js"]
 PONG_CSS = ["/assets/app-3cfac71d5552d1426de906087a8be2fe.css", "/assets/pong.css", "/assets/blimp-window.css"]
 
+# Every script a page loads is named by its contents (?v=), when the file
+# is one of ours under static/: Cloudflare keeps /blimp/* and a page's own
+# scripts for hours, and a deploy that changes Blimp's runtime must not
+# meet last week's copy of it. Where the list has Blimp's interpreter, the
+# page is also told which blimp.wasm goes with it (app.js reads it).
+def script_href(src: String) -> String do
+  case starts_with(src, "/") and not(contains(src, "?")) and read_file(concat("static", src)) != nil do
+    true -> desk_script_href(src, concat("static", src))
+    false -> src
+  end
+end
+
+BLIMP_WASM_HREF = script_href("/blimp/blimp.wasm")
+# One name for this deploy's runtime: a page's host adds it to the URL of
+# the program it fetches, so a program is never fetched from a cache
+# older than the runtime that runs it. Both ride on blimp.js's own tag as
+# data- attributes: the site's pages have no inline script.
+BLIMP_BUILD = take(sha256(concat(read_file("static/blimp/blimp-view.js"), read_file("static/blimp/blimp.wasm"))), 10)
+
 def script_tags(srcs: List) -> String do
-  join(map(srcs, fn(src: String) -> String do concat("<script src=\"", src, "\"></script>\n") end), "")
+  join(map(srcs, fn(src: String) -> String do
+    extra = case src == "/blimp/blimp.js" do
+      true -> concat("\" data-blimp-wasm=\"", BLIMP_WASM_HREF, "\" data-blimp-build=\"", BLIMP_BUILD)
+      false -> ""
+    end
+    concat("<script src=\"", script_href(src), extra, "\"></script>\n")
+  end), "")
 end
 
 # PongLive's window, with Blimp's program where the board was. The game id

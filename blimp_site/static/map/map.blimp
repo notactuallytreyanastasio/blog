@@ -198,8 +198,8 @@ actor Wook do
 
   # The form, as the fields it had: {"user_name": .., "music_link": .., "note": ..}.
   # The server decides whether it is a tag; the prompt closes either way.
-  on :submit(json: String) do
-    f = mp_decode(json)
+  on :submit(json: Map) do
+    f = json
     case prompt do
       nil -> become prompt: nil
       _ ->

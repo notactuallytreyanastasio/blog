@@ -18,8 +18,14 @@
     blimp.onPrint(function () {})
     // a page may name its interpreter by content (data-wasm="/blimp/blimp.wasm?v=..."),
     // so a cached older one never runs a program that needs a newer one
-    await blimp.init(el.dataset.wasm || '/blimp/blimp.wasm')
-    var res = await fetch(el.dataset.program)
+    // this deploy's interpreter and runtime name, from blimp.js's own tag
+    var rt = document.querySelector('script[data-blimp-build]')
+    var build = rt ? rt.getAttribute('data-blimp-build') : ''
+    await blimp.init(el.dataset.wasm || (rt && rt.getAttribute('data-blimp-wasm')) || '/blimp/blimp.wasm')
+    // the program as of this deploy's runtime (data-blimp-build, from script_tags)
+    var program = el.dataset.program
+    if (build && program.indexOf('?') < 0) program += '?v=' + build
+    var res = await fetch(program)
     if (!res.ok) throw new Error(el.dataset.program + ' is ' + res.status)
     var source = await res.text()
     var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null

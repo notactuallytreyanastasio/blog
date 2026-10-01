@@ -106,14 +106,14 @@ actor MapTests do
     assert(contains(head(p.pins).popup, "<strong>K8 Fuego</strong>"))
     assert_eq(length((w <- :pins(1, 60)).pins), 0)
     w <- :clicked("{\"lat\":12.5,\"lng\":-7.25}")
-    w <- :submit("{\"user_name\":\"me\",\"music_link\":\"L\",\"note\":\"\"}")
+    w <- :submit(%{"user_name": "me", "music_link": "L", "note": ""})
     out = w <- :outbox
     assert_eq(length(out), 1)
     sent = mt_decoded(head(out).frame)
     assert_eq([sent.t, sent.name, sent.link, sent.lat, sent.lng], ["tag", "me", "L", 12.5, -7.25])
     assert_eq(w <- :outbox, [])
     # no prompt open, nothing sent
-    w <- :submit("{\"user_name\":\"me\",\"music_link\":\"L\",\"note\":\"\"}")
+    w <- :submit(%{"user_name": "me", "music_link": "L", "note": ""})
     assert_eq(w <- :outbox, [])
     w <- :locate
     assert_eq(w <- :outbox, [%{to: "map", what: "locate"}])
@@ -138,5 +138,5 @@ end
 
 def map_route_ok() -> Bool do
   body = MAP_PAGE.body
-  contains(body, "<div id=\"mapid\"></div>") and contains(body, "data-program=\"/map/map.blimp\" data-actor=\"wook\"") and contains(body, "<script src=\"/map/map.js\"></script>") and contains(body, "<title>Tag A Wook</title>") and contains(MAP_JS.body, "Leaflet 1.9.4") and contains(MAP_JS.body, "markerClusterGroup") and contains(MAP_CSS.body, ".browse-button")
+  contains(body, "<div id=\"mapid\"></div>") and contains(body, "data-program=\"/map/map.blimp\" data-actor=\"wook\"") and contains(body, concat("<script src=\"", script_href("/map/map.js"), "\"></script>")) and contains(body, "<title>Tag A Wook</title>") and contains(MAP_JS.body, "Leaflet 1.9.4") and contains(MAP_JS.body, "markerClusterGroup") and contains(MAP_CSS.body, ".browse-button")
 end
