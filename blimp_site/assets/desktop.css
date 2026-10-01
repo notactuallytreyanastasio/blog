@@ -50,7 +50,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --desk: #1c1630; --wash-1: #4a2448; --wash-2: #1f3458; --wash-3: #1d4a3c; --wash-4: #4a4220; --win: #1c1c1c; --frame: #000000;
+    --win: #1c1c1c; --frame: #000000;
     --ink: #e8e8e8; --ink-2: #bdbdbd; --ink-3: #8a8a8a; --rule: #e8e8e8; --rule-2: #3a3a3a;
     --face: #3c3c3c; --hi: #6a6a6a; --lite: #4c4c4c; --lo: #222222; --dk: #000000;
     --title: #0a2a8a; --title-2: #2a6cc0; --sel: #2a4cc0; --sel-ink: #ffffff;
@@ -60,7 +60,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --desk: #1c1630; --wash-1: #4a2448; --wash-2: #1f3458; --wash-3: #1d4a3c; --wash-4: #4a4220; --win: #1c1c1c; --frame: #000000;
+  --win: #1c1c1c; --frame: #000000;
   --ink: #e8e8e8; --ink-2: #bdbdbd; --ink-3: #8a8a8a; --rule: #e8e8e8; --rule-2: #3a3a3a;
   --face: #3c3c3c; --hi: #6a6a6a; --lite: #4c4c4c; --lo: #222222; --dk: #000000;
   --title: #0a2a8a; --title-2: #2a6cc0; --sel: #2a4cc0; --sel-ink: #ffffff;
@@ -168,8 +168,6 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
 .bg-art :is(rect, circle, polygon):nth-child(5n+4) { fill: var(--p4); }
 .bg-art :is(rect, circle, polygon):nth-child(5n) { fill: var(--p5); }
 .bg-art line { stroke: #fff; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bg-art { opacity: .3; } }
-:root[data-theme="dark"] .bg-art { opacity: .3; }
 
 /* ── A window: a white sheet in a black frame, with a hard shadow ─────── *
  * Every card, the intro and the machine are one. A section's <header> is
