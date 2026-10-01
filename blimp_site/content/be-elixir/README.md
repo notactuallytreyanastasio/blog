@@ -23,3 +23,4 @@ guide that grows as the backend does.
 10. [2026-10-01: floats past the BEAM's edge](2026-10-01-floats-past-the-edge.md)
 11. [2026-10-01: std was there all along](2026-10-01-libraries.md)
 12. [2026-10-01: regex, broken code, and 65 of 65](2026-10-01-regex-and-broken-code.md)
+13. [2026-10-01: output a person can read](2026-10-01-readable-output.md)

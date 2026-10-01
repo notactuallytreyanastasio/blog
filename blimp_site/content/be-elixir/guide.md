@@ -254,3 +254,13 @@ infinity's bits out of a binary, so no float operation is a bare operator.
 | `regex.replace(text) { ... }` | `:re`'s `:global` run, each match's span replaced by the block's string |
 | code the frontend rejected | `raise(TemperCore.Panic, "broken code: <diagnostic>")` where it stands |
 
+## 16. Names and layout
+
+| Temper | Elixir |
+|--------|--------|
+| a local declared once in its function | its plain name: `sourceText` |
+| a name declared twice in one function | numbered in order: `t1`, `t2` |
+| a module function or global | keeps its uid: `parseJsonValue__369` |
+| a closure | `fn x ->` with its body indented, closed by a balanced `end` |
+| a named function as a value | `&Temper.Std.parseJson/1` |
+
