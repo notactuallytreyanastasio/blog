@@ -138,19 +138,16 @@ actor PageTests do
     refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
   end
 
-  test "/mirror shows exactly its own file, every character spinning" do
+  test "/mirror shows exactly its own file, holding still" do
     file = read_file("src/96_mirror.blimp")
     assert_eq(concat(mirror_source(concat("x\n", file, "y\n")), "\n"), file)
     html = mirror_page(concat("x\n", file))
     assert(runtime_once(html))
     refute(contains(downcase(without_runtime(html)), "<script"))
-    # one span per character, multi-byte characters kept whole
-    assert_eq(length(utf8_chars("aé—b")), 4)
-    lines = split(file, "\n")
-    chars = reduce(lines, 0, fn(n: Int, l: String) -> Int do n + length(utf8_chars(l)) end)
-    assert_eq(length(split(html, "class=\"mirror-char\"")) - 1, chars)
-    # the file's own markup is shown, one escaped character at a time
-    assert(contains(html, "ms infinite;\">&lt;</span>"))
+    # the file itself, escaped, and nothing in it animated
+    assert(contains(html, concat("<code class=\"language-blimp\">", escape_html(mirror_source(concat("x\n", file))), "</code>")))
+    refute(contains(html, "mirror-char"))
+    refute(contains(html, "mirror-spin"))
   end
 
   test "a snapshot page gets the runtime window before its own </body>" do

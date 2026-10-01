@@ -5,9 +5,8 @@
 # _build/site.blimp, the program the server is running, between this
 # file's first line and its last.
 #
-# Every character gets MirrorLive's random spin (6 to 15 seconds, one of
-# the app stylesheet's mirror-spin-N keyframes) and delay (up to 5s), once
-# per boot rather than once per visit. There is no script on the page.
+# The characters used to spin as MirrorLive's did; now the code holds still
+# so it can be read. There is no script on the page.
 
 MIRROR_BEGIN = "# mirror: begin"
 MIRROR_END = "# mirror: end"
@@ -22,37 +21,6 @@ def mirror_source(program: String) -> String do
   end
 end
 
-# A string's characters, not its bytes: a UTF-8 continuation byte
-# (0x80-0xBF) stays with the byte before it.
-def utf8_chars(s: String) -> List do
-  utf8_chars_from(s, 0, [])
-end
-
-def utf8_chars_from(s: String, i: Int, acc: List) -> List do
-  case i >= length(s) do
-    true -> reverse(acc)
-    false ->
-      b = char_at(s, i)
-      code = char_code(b)
-      case code >= 128 and code < 192 and acc != [] do
-        true -> utf8_chars_from(s, i + 1, [concat(head(acc), b) | tail(acc)])
-        false -> utf8_chars_from(s, i + 1, [b | acc])
-      end
-  end
-end
-
-def mirror_char(c: String) -> String do
-  d = random(1, 10) + 5
-  concat("<span class=\"mirror-char\" style=\"animation: mirror-spin-", to_string(d), " ", to_string(d), "s linear ",
-         to_string(random(1, 5000)), "ms infinite;\">", escape_html(c), "</span>")
-end
-
-def mirror_lines(source: String) -> String do
-  join(map(split(source, "\n"), fn(line: String) -> String do
-    join(map(utf8_chars(line), fn(c: String) -> String do mirror_char(c) end), "")
-  end), "\n")
-end
-
 def mirror_page(program: String) -> String do
   source = mirror_source(program)
   body = join([
@@ -65,7 +33,7 @@ def mirror_page(program: String) -> String do
     "<h1 class=\"text-2xl font-bold mb-6 text-white\">Mirror Mirror on the wall, who's the most meta of them all?</h1>",
     "<div class=\"bg-gray-800 rounded-lg p-6 shadow-lg\">",
     "<pre class=\"text-sm font-mono text-white mirror-code\"><code class=\"language-blimp\">",
-    mirror_lines(source),
+    escape_html(source),
     "</code></pre></div></div></div>",
     "<div class=\"os-statusbar\"><span>Viewing: 96_mirror.blimp, ", to_string(length(split(source, "\n"))), " lines of the running program</span>\n",
     "<span>Mode: Self-Reflection</span></div>",
