@@ -245,3 +245,12 @@ infinity's bits out of a binary, so no float operation is a bare operator.
 | a type from another library | `Temper.Std.JsonArray`, dispatched dynamically |
 | a type as a value | its module, or `:Void` for a builtin |
 
+## 15. Regex and broken code
+
+| Temper | Elixir |
+|--------|--------|
+| a regex, compiled | `{mp, names}`: `:re` with `:unicode` (not `:ucp`), and the capture names in pattern order |
+| `regex.find(text, begin)` | `:re.run` from byte offset `begin`; groups become std's own `Match` and `Group` |
+| `regex.replace(text) { ... }` | `:re`'s `:global` run, each match's span replaced by the block's string |
+| code the frontend rejected | `raise(TemperCore.Panic, "broken code: <diagnostic>")` where it stands |
+
