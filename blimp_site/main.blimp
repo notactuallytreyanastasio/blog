@@ -240,6 +240,7 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/aim/aim.blimp" -> AIM_PROGRAM
     "/aim/aim.js" -> AIM_JS
     "/aim/aim.css" -> AIM_CSS
+    "/aim/cats.jpg" -> AIM_CATS
     # Role Call (src/99_role_call.blimp): the page, its program, script,
     # sunflower and css, and Blog.RoleCall's queries
     "/role-call" -> RC_PAGE
