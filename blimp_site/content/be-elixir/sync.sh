@@ -3,12 +3,12 @@
 # temper-blimp, and records which commit in COMMIT. The pages at
 # /be-elixir are rendered from these files at boot (src/97_journal.blimp).
 #
-#   content/be-elixir/sync.sh [ref]    default: origin/elixir-04-hello-world
+#   content/be-elixir/sync.sh [ref]    default: origin/main
 #
 # TEMPER_BLIMP points at a temper-blimp checkout (default ~/code/temper-blimp).
 set -eu
 REPO=${TEMPER_BLIMP:-$HOME/code/temper-blimp}
-REF=${1:-origin/elixir-04-hello-world}
+REF=${1:-origin/main}
 DEST=$(cd "$(dirname "$0")" && pwd)
 git -C "$REPO" fetch -q origin
 SHA=$(git -C "$REPO" rev-parse --verify "$REF^{commit}")
