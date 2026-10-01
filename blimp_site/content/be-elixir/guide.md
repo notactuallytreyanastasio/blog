@@ -219,3 +219,17 @@ Inherited method bodies are copied into the class, so there is no `super`.
 Nothing runs in another process: the heap is per process, so a generator
 in its own process could not see the objects it was given.
 
+## 13. Floats
+
+| Temper | Elixir |
+|--------|--------|
+| `Infinity`, `-Infinity`, `NaN` | `:infinity`, `:neg_infinity`, `:nan` |
+| `a * b` on floats | `TemperCore.Float.mul(a, b)`: the BEAM's `*`, with overflow rescued to an infinity |
+| `a < b` on floats | `TemperCore.Float.lt(a, b)`: `-Infinity < ... < -0.0 < 0.0 < ... < Infinity < NaN` |
+| `x.sqrt()` | `TemperCore.Float.math(:sqrt, x)`: `:math.sqrt`, NaN where it raises |
+| `x.near(y)` | `TemperCore.Float.near(x, y)`: Python's `math.isclose` |
+| `"1e999".toFloat64()` | `:infinity`: JSON syntax checked first, overflow is infinite |
+
+The BEAM raises on every IEEE special case and cannot even match an
+infinity's bits out of a binary, so no float operation is a bare operator.
+
