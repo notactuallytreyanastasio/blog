@@ -161,6 +161,12 @@ end
 - A library's init first calls the init of every library it imports from,
   so std's globals exist before the user's code reads them.
 - `main/0` runs init, then the async queue (section 9).
+- **Elixir code never has to call init.** Every exported function, and
+  the constructor of every exported class, starts with
+  `Temper.Lib.__temper_init__()`. The first call on the node runs the top
+  level; every later one is a single ETS lookup, which costs nothing
+  measurable across 100,000 GenServer requests. Code running inside the
+  init itself skips the call, so there is no recursion.
 - A module-level variable lives in `TemperCore.Global`, keyed by library,
   because a `def` cannot see variables outside its own parameters. Every
   process on the node sees the same module values: a value that can be

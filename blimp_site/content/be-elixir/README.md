@@ -36,3 +36,4 @@ guide that grows as the backend does.
 21. [2026-10-01: std's values are values again, and two libraries meet](2026-10-01-std-imu-and-two-libraries.md)
 22. [2026-10-01: `mix test`](2026-10-01-mix-test.md)
 23. [2026-10-01: compiling without warnings](2026-10-01-no-warnings.md)
+24. [2026-10-01: a library initializes itself](2026-10-01-self-init.md)
