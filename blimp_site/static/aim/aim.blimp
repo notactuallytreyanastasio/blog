@@ -418,8 +418,8 @@ def aimp_cats(s: Map) -> Any do
   el("div", %{class: "aim-win aim-cats", role: "dialog", "aria-label": "Bobby's cats"},
     aimp_titlebar("Picture Viewer - cats.jpg", :close_cats),
     el("div", %{class: "aim-cats-body"},
-      el("img", %{src: s.cats, alt: "Bobby's cats"}),
-      el("p", %{}, el("b", %{}, "You found them. "), "These are Bobby's cats."),
+      el("img", %{src: s.cats, alt: "Bobby's cat, belly up on a sunny floor"}),
+      el("p", %{}, el("b", %{}, "You found the cats. "), "Belly up, in the sun."),
       el("div", %{class: "aim-info-foot"}, el("button", %{class: "aim-btn", click: :close_cats}, "Close"))))
 end
 
