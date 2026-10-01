@@ -884,7 +884,7 @@ HOME_CARD = %{
   alt: "Bobbby's Online Museum: the site's one Blimp process drawn live, its actors as hexagons and its messages as rays"
 }
 
-HOME_FONTS = "https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&amp;display=swap"
+HOME_FONTS = "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..700&amp;family=Space+Grotesk:wght@500..700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
 
 def desk_rail(epoch_s: Int, st: Map) -> String do
   join([

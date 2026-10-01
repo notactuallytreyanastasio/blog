@@ -1,24 +1,23 @@
 /* desktop.css (the name Caddy routes to Blimp; its ?v= hash busts caches).
- * The homepage: a Macintosh of 1988 that has had a Windows 95 machine
- * plugged into it.
+ * The homepage: old windows on a bright pastel desk.
  *
- * The Mac half is the desktop and its windows: a 1-bit dithered desktop, a
- * white menu bar, white windows in a one-pixel black frame with a hard
- * shadow, striped title bars with a close box, inverted selections. The
- * Windows half is everything you press and everything that reports: grey
- * bevelled buttons and tabs, sunken status panels, the navy title bar on
- * the machine's own window and on the dialogs. Pixelify Sans stands in for
- * Chicago; the reading text is Geneva on a Mac and Tahoma on Windows, the
- * fonts those machines shipped with; the numbers are Monaco. */
+ * The windows are a 1988 Macintosh's (white sheets in a one-pixel black
+ * frame with a hard shadow, striped title bars, a close box, inverted
+ * selections) and Windows 95's (bevelled grey buttons and tabs, sunken
+ * status panels, the navy title bar on the machine's window and on the
+ * dialogs). Behind them is a pastel wash with the Temper Art picture in
+ * pastel inks. The type is not old: DM Sans to read, Space Grotesk for
+ * titles, JetBrains Mono for numbers, all a size up from what the old
+ * systems used, so the period is in the chrome and not in the reading. */
 
 :root {
-  --desk: #2f7f7f;
-  --desk-2: #286f6f;
+  --desk: #f6eaff;
+  --wash-1: #ffc9e2; --wash-2: #c4e2ff; --wash-3: #c6f6de; --wash-4: #fff2b0;
   --win: #ffffff;
   --frame: #000000;
   --ink: #000000;
-  --ink-2: #333333;
-  --ink-3: #6a6a6a;
+  --ink-2: #2f2f3a;
+  --ink-3: #5c5c6b;
   --rule: #000000;
   --rule-2: #c8c8c8;
   --face: #c0c0c0;
@@ -31,7 +30,7 @@
   --sel: #000080;
   --sel-ink: #ffffff;
   --link: #0000a8;
-  --accent: #000080;
+  --accent: #5b2bd6;
   --stripe: #000000;
   --balloon: #ffffe1;
   --signal: #0000a8;
@@ -41,29 +40,31 @@
   --sheet: #ffffff;
   --cpu: #d01010;
   --mem: #000080;
-  --chicago: "Pixelify Sans", "Chicago", "Charcoal", Geneva, Tahoma, sans-serif;
-  --wide: Geneva, Tahoma, Verdana, "Segoe UI", sans-serif;
-  --mono: Monaco, "Lucida Console", "Courier New", ui-monospace, monospace;
+  --display: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+  --wide: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* the art's inks */
+  --p1: #ff9fcb; --p2: #8fc4ff; --p3: #ffe66b; --p4: #8ff0c0; --p5: #c9a6ff;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --desk: #123c3c; --desk-2: #0e3232; --win: #1c1c1c; --frame: #000000;
+    --desk: #1c1630; --wash-1: #4a2448; --wash-2: #1f3458; --wash-3: #1d4a3c; --wash-4: #4a4220; --win: #1c1c1c; --frame: #000000;
     --ink: #e8e8e8; --ink-2: #bdbdbd; --ink-3: #8a8a8a; --rule: #e8e8e8; --rule-2: #3a3a3a;
     --face: #3c3c3c; --hi: #6a6a6a; --lite: #4c4c4c; --lo: #222222; --dk: #000000;
     --title: #0a2a8a; --title-2: #2a6cc0; --sel: #2a4cc0; --sel-ink: #ffffff;
-    --link: #8fb4ff; --accent: #8fb4ff; --stripe: #5c5c5c; --balloon: #2a2a1c; --signal: #8fb4ff; --signal-fill: #ff4a3a;
+    --link: #8fb4ff; --accent: #c9a6ff; --stripe: #5c5c5c; --balloon: #2a2a1c; --signal: #8fb4ff; --signal-fill: #ff4a3a;
     --scope: #07070f; --sheet: #1c1c1c; --cpu: #ff5a4a; --mem: #6a9cff;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --desk: #123c3c; --desk-2: #0e3232; --win: #1c1c1c; --frame: #000000;
+  --desk: #1c1630; --wash-1: #4a2448; --wash-2: #1f3458; --wash-3: #1d4a3c; --wash-4: #4a4220; --win: #1c1c1c; --frame: #000000;
   --ink: #e8e8e8; --ink-2: #bdbdbd; --ink-3: #8a8a8a; --rule: #e8e8e8; --rule-2: #3a3a3a;
   --face: #3c3c3c; --hi: #6a6a6a; --lite: #4c4c4c; --lo: #222222; --dk: #000000;
   --title: #0a2a8a; --title-2: #2a6cc0; --sel: #2a4cc0; --sel-ink: #ffffff;
-  --link: #8fb4ff; --accent: #8fb4ff; --stripe: #5c5c5c; --balloon: #2a2a1c; --signal: #8fb4ff; --signal-fill: #ff4a3a;
+  --link: #8fb4ff; --accent: #c9a6ff; --stripe: #5c5c5c; --balloon: #2a2a1c; --signal: #8fb4ff; --signal-fill: #ff4a3a;
   --scope: #07070f; --sheet: #1c1c1c; --cpu: #ff5a4a; --mem: #6a9cff;
   color-scheme: dark;
 }
@@ -72,14 +73,18 @@
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  /* the desktop: a 50% dither, two pixels a square, as the Finder drew it */
+  /* the desk: a wash of pastels, still while the page scrolls */
   background-color: var(--desk);
-  background-image: repeating-conic-gradient(var(--desk) 0% 25%, var(--desk-2) 0% 50%);
-  background-size: 4px 4px;
+  background-image:
+    radial-gradient(ellipse at 8% 12%, var(--wash-1) 0, transparent 45%),
+    radial-gradient(ellipse at 92% 6%, var(--wash-2) 0, transparent 45%),
+    radial-gradient(ellipse at 80% 92%, var(--wash-3) 0, transparent 50%),
+    radial-gradient(ellipse at 12% 88%, var(--wash-4) 0, transparent 50%);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--wide);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 15.5px;
+  line-height: 1.55;
   overflow-x: hidden;
 }
 a { color: inherit; }
@@ -101,7 +106,7 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
 
 .plate-label {
   font-family: var(--wide);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-2);
 }
 .plate-label span { font-family: var(--mono); color: var(--ink-3); }
@@ -116,7 +121,7 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
   padding: 3px clamp(16px, 2.4vw, 44px);
   background: var(--win);
   border-bottom: 1px solid var(--frame);
-  font-family: var(--chicago);
+  font-family: var(--display);
 }
 .mark { display: flex; align-items: center; gap: 8px; text-decoration: none; }
 .blimp-svg { display: block; color: var(--ink); height: auto; }
@@ -124,18 +129,18 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
 .blimp-svg .b-line { stroke: currentColor; }
 .blimp-svg .b-car { fill: var(--ink); }
 .mark .blimp-svg { width: 34px; }
-.mark-name { font-family: var(--chicago); font-weight: 700; font-size: 16px; }
+.mark-name { font-family: var(--display); font-weight: 700; font-size: 17px; }
 .mark-name span { font-weight: 400; color: var(--ink-3); }
 .rail-nav { display: flex; gap: 0 2px; flex-wrap: wrap; }
 .rail-nav a {
-  font-family: var(--chicago);
+  font-family: var(--display);
   font-weight: 500;
-  font-size: 15px;
+  font-size: 14.5px;
   text-decoration: none;
-  padding: 1px 9px;
+  padding: 2px 10px;
 }
 .rail-nav a:hover { background: var(--ink); color: var(--win); }
-.rail-clock { margin-left: auto; font-family: var(--chicago); font-size: 15px; white-space: nowrap; }
+.rail-clock { margin-left: auto; font-family: var(--mono); font-size: 13px; white-space: nowrap; }
 .rail-clock span { font-size: 12px; color: var(--ink-3); }
 
 /* ── The split: a still pane on the left, cards on the right ──────────── *
@@ -154,15 +159,17 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
 
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 
-/* ── The background: a Temper Art picture, in two inks on the desktop ─── */
-.bg-art { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .2; color: #000; }
+/* ── The background: a Temper Art picture, in pastel inks ──────────── */
+.bg-art { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .55; }
 .bg-art svg { width: 100%; height: 100%; display: block; }
-.bg-art :is(rect, circle, polygon) { fill: currentColor; }
-.bg-art :is(rect, circle, polygon):nth-child(3n) { fill: #fff; }
-.bg-art line { stroke: currentColor; }
-.bg-art line:nth-child(4n) { stroke: #fff; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bg-art { opacity: .22; } }
-:root[data-theme="dark"] .bg-art { opacity: .22; }
+.bg-art :is(rect, circle, polygon):nth-child(5n+1) { fill: var(--p1); }
+.bg-art :is(rect, circle, polygon):nth-child(5n+2) { fill: var(--p2); }
+.bg-art :is(rect, circle, polygon):nth-child(5n+3) { fill: var(--p3); }
+.bg-art :is(rect, circle, polygon):nth-child(5n+4) { fill: var(--p4); }
+.bg-art :is(rect, circle, polygon):nth-child(5n) { fill: var(--p5); }
+.bg-art line { stroke: #fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bg-art { opacity: .3; } }
+:root[data-theme="dark"] .bg-art { opacity: .3; }
 
 /* ── A window: a white sheet in a black frame, with a hard shadow ─────── *
  * Every card, the intro and the machine are one. A section's <header> is
@@ -207,11 +214,11 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
   box-shadow: 0 0 0 2px var(--win);
 }
 .sec-head h2 {
-  font-family: var(--chicago);
+  font-family: var(--display);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 17px;
-  padding: 0 7px;
+  padding: 0 8px;
   background: var(--win);
 }
 .sec-count {
@@ -225,7 +232,7 @@ a:focus-visible { outline: 1px dotted var(--ink); outline-offset: 1px; }
 }
 a.sec-count { color: var(--link); text-decoration: underline; }
 a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
-.sec-note { color: var(--ink-2); font-size: 13.5px; margin-bottom: 10px; max-width: 70ch; }
+.sec-note { color: var(--ink-2); font-size: 15px; margin-bottom: 10px; max-width: 70ch; }
 .sec-note a { color: var(--link); }
 
 /* the Finder's strip: "12 items   340K in disk", above a double rule */
@@ -236,8 +243,8 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   gap: 12px;
   margin: -12px 0 12px;
   padding: 3px 12px 4px;
-  font-size: 11.5px;
-  color: var(--ink);
+  font-size: 12.5px;
+  color: var(--ink-2);
   border-bottom: 3px double var(--frame);
 }
 .card-kicker span { margin-left: 6px; }
@@ -262,22 +269,23 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   transform: translateX(-50%);
   padding: 0 8px;
   background: var(--win);
-  font-family: var(--chicago);
+  font-family: var(--display);
   font-weight: 700;
   font-size: 15px;
   line-height: 17px;
 }
 .headline {
-  font-family: var(--chicago);
+  font-family: var(--display);
   font-weight: 700;
-  font-size: clamp(28px, 3vw, 46px);
+  font-size: clamp(30px, 3vw, 48px);
   line-height: 1.08;
+  letter-spacing: -.02em;
   margin-bottom: 14px;
   max-width: 22ch;
 }
 .headline em { font-style: normal; display: block; color: var(--accent); }
 .intro .plate-label { margin-bottom: 10px; }
-.intro-text { font-size: 15px; line-height: 1.5; max-width: 60ch; margin-top: 10px; }
+.intro-text { font-size: 16.5px; line-height: 1.55; max-width: 60ch; margin-top: 10px; }
 .intro-text a { color: var(--link); text-underline-offset: 2px; }
 
 /* ── The machine: the one Windows 95 window on the desk ───────────────── */
@@ -371,7 +379,7 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   margin-top: 4px;
 }
 .gauge { padding: 3px 8px 4px; box-shadow: var(--field); min-width: 0; }
-.gauge dt { font-size: 10.5px; color: var(--ink-2); }
+.gauge dt { font-size: 11.5px; color: var(--ink-2); }
 .gauge dd { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gauge dd a { color: var(--link); }
 
@@ -383,7 +391,7 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   padding: 8px 10px 10px;
 }
 .meter-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 8px; }
-.meter-legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--ink-2); }
+.meter-legend { display: flex; gap: 16px; font-size: 13.5px; color: var(--ink-2); }
 .mk { display: inline-flex; align-items: center; gap: 6px; }
 .mk i { display: inline-block; width: 16px; height: 2px; }
 .mk-cpu i { background: var(--cpu); }
@@ -417,16 +425,16 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 }
 .mf-icon { grid-row: span 2; width: 56px; height: 35px; color: var(--ink); padding-top: 2px; }
 .mf-icon svg { width: 56px; height: 35px; display: block; fill: currentColor; }
-.mf-name { font-family: var(--chicago); font-weight: 600; font-size: 16px; line-height: 1.2; }
-.mf-pitch { font-size: 13px; line-height: 1.4; color: var(--ink-2); margin-top: 2px; }
+.mf-name { font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.25; }
+.mf-pitch { font-size: 14.5px; line-height: 1.45; color: var(--ink-2); margin-top: 2px; }
 /* a click on a Mac icon inverts it */
 .mf-row:hover, .mf-row:hover .mf-icon, .mf-row:hover .mf-pitch { background: var(--ink); color: var(--win); }
 
 /* ── The log: the newest posts ───────────────────────────────────────── */
 .log-list li + li { border-top: 1px dotted var(--ink-3); }
 .log-list a.log-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 16px 2px 18px; text-decoration: none; }
-.log-title { font-family: var(--chicago); font-weight: 700; font-size: 20px; line-height: 1.2; }
-.log-date { font-family: var(--mono); font-size: 11px; color: var(--ink-3); padding-top: 5px; white-space: nowrap; }
+.log-title { font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 1.2; }
+.log-date { font-family: var(--mono); font-size: 12px; color: var(--ink-3); padding-top: 5px; white-space: nowrap; }
 .log-lede { grid-column: 1 / -1; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); max-width: 72ch; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .log-meta { grid-column: 1 / -1; font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 6px; }
 .log-list a.log-link:hover .log-title { background: var(--ink); color: var(--win); }
@@ -437,9 +445,9 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 .tab {
   position: relative;
   top: 1px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   text-decoration: none;
-  padding: 3px 10px 2px;
+  padding: 4px 11px 3px;
   background: var(--face);
   color: var(--ink);
   border-radius: 3px 3px 0 0;
@@ -461,8 +469,8 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 }
 .ex-ico { grid-row: span 2; width: 40px; height: 25px; color: var(--ink); padding-top: 2px; }
 .ex-ico svg { width: 40px; height: 25px; display: block; fill: currentColor; }
-.ex-name { font-weight: 700; font-size: 14px; line-height: 1.25; }
-.ex-line { font-size: 12.5px; line-height: 1.35; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ex-name { font-family: var(--display); font-weight: 600; font-size: 15.5px; line-height: 1.25; }
+.ex-line { font-size: 13.5px; line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ex:hover, .ex:hover .ex-ico, .ex:hover .ex-line { background: var(--ink); color: var(--win); }
 .ex.on, .ex.on .ex-ico, .ex.on .ex-line { background: var(--sel); color: var(--sel-ink); }
 
@@ -487,7 +495,7 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   padding: 1px 6px;
   background: linear-gradient(90deg, var(--title), var(--title-2));
   color: #fff;
-  font-family: var(--chicago);
+  font-family: var(--display);
   font-weight: 700;
   font-size: 14px;
   line-height: 18px;
@@ -511,9 +519,9 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 .ex-close:active { box-shadow: var(--bevel-in); }
 .ex-icon svg { width: 96px; height: auto; color: var(--ink); }
 .ex-icon svg g, .ex-icon svg rect { fill: currentColor; }
-.ex-title { font-family: var(--chicago); font-weight: 700; font-size: 20px; line-height: 1.15; }
+.ex-title { font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 1.15; }
 .ex-tagline { color: var(--ink-2); margin: 2px 0 8px; }
-.ex-desc { white-space: pre-line; font-size: 13.5px; max-width: 75ch; margin-bottom: 10px; padding: 8px 10px; background: var(--win); box-shadow: var(--bevel-in); }
+.ex-desc { white-space: pre-line; font-size: 15px; max-width: 75ch; margin-bottom: 10px; padding: 8px 10px; background: var(--win); box-shadow: var(--bevel-in); }
 .ex-techs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .ex-tech { font-family: var(--mono); font-size: 11px; padding: 1px 6px; box-shadow: var(--field); color: var(--ink); }
 .ex-repos { font-size: 13px; margin-bottom: 8px; }
@@ -527,9 +535,9 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   min-width: 75px;
   text-align: center;
   font-family: var(--wide);
-  font-size: 13px;
+  font-size: 14px;
   text-decoration: none;
-  padding: 5px 14px 6px;
+  padding: 6px 16px 7px;
   color: var(--ink);
   background: var(--face);
   box-shadow: var(--bevel-out);
@@ -541,8 +549,8 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 /* ── Everything else, as lines of links ───────────────────────────────── */
 .more-rows { display: grid; gap: 12px 28px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 .photos .sec-note { font-size: 14.5px; }
-.more-row h3 { font-family: var(--chicago); font-weight: 700; font-size: 15px; margin-bottom: 2px; }
-.more-row p { font-size: 13px; color: var(--ink-2); }
+.more-row h3 { font-family: var(--display); font-weight: 700; font-size: 16px; margin-bottom: 2px; }
+.more-row p { font-size: 14.5px; color: var(--ink-2); }
 .more-row a { color: var(--link); text-underline-offset: 2px; }
 .more-row a:hover { background: var(--sel); color: var(--sel-ink); text-decoration: none; }
 .more-row .sep { color: var(--ink-3); }
@@ -556,7 +564,7 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   flex-wrap: wrap;
   gap: 8px 32px;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .foot p { max-width: 70ch; }
@@ -592,14 +600,14 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   padding: 1px 6px;
   background: linear-gradient(90deg, var(--title), var(--title-2));
   color: #fff;
-  font-family: var(--chicago);
+  font-family: var(--display);
   font-weight: 700;
   font-size: 14px;
   line-height: 18px;
 }
 .leica-card .plate-label { color: var(--ink-2); }
-.leica-card h2 { font-family: var(--chicago); font-weight: 700; font-size: 19px; line-height: 1.15; margin: 4px 0 10px; }
-.leica-card p { font-size: 13.5px; margin-bottom: 8px; color: var(--ink); }
+.leica-card h2 { font-family: var(--display); font-weight: 700; font-size: 19px; line-height: 1.15; margin: 4px 0 10px; }
+.leica-card p { font-size: 15px; margin-bottom: 8px; color: var(--ink); }
 .leica-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; justify-content: flex-end; }
 
 @media (max-width: 640px) {
@@ -668,8 +676,8 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
      when a scroll ends near one (proximity), and the last one ends the
      page. */
   .card { scroll-snap-align: start; }
-  .headline { font-size: clamp(24px, 2.2vw, 40px); max-width: none; margin-bottom: 8px; }
-  .intro-text { font-size: 14.5px; margin-top: 8px; }
+  .headline { font-size: clamp(26px, 2.3vw, 42px); max-width: none; margin-bottom: 8px; }
+  .intro-text { font-size: 16px; margin-top: 8px; }
   .gauges { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .gauge dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gauge dd { font-size: 13px; }
@@ -680,7 +688,7 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 }
 @media (min-width: 760px) and (max-height: 860px) {
   .intro .plate-label { display: none; }
-  .intro-text { font-size: 13.5px; line-height: 1.42; margin-top: 6px; }
+  .intro-text { font-size: 15px; line-height: 1.45; margin-top: 6px; }
   .headline { font-size: clamp(22px, 1.9vw, 32px); }
 }
 
@@ -778,16 +786,16 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   top: calc(100% + 6px);
   left: 0;
   width: max-content;
-  max-width: min(330px, calc(100vw - 32px));
-  padding: 6px 9px 8px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 11px 10px;
   background: var(--balloon);
   border: 1px solid var(--frame);
   box-shadow: 2px 2px 0 var(--frame);
   color: var(--ink);
   font-family: var(--wide);
   font-weight: 400;
-  font-size: 12.5px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.5;
   letter-spacing: 0;
   text-transform: none;
   text-align: left;
@@ -797,6 +805,10 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
 .gloss > .note::before { content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
 .gloss-sec > .note { top: calc(100% + 1px); left: 8px; max-width: min(460px, calc(100% - 16px)); }
 .gloss:hover > .note, .gloss:focus-within > .note, .gloss:has(> .gloss-t[open]) > .note { display: block; }
+/* home.js flips a note above its word when below would run off the screen */
+.gloss > .note.note-up { top: auto; bottom: calc(100% + 6px); }
+.gloss > .note.note-up::before { top: auto; bottom: -8px; }
+.gloss-sec > .note.note-up { bottom: calc(100% + 1px); }
 .note .who {
   display: block;
   margin-bottom: 2px;
@@ -805,7 +817,7 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   color: var(--ink-2);
 }
 .note .said { display: block; }
-.note-links { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 6px; font-family: var(--wide); font-size: 12px; }
+.note-links { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 6px; font-family: var(--wide); font-size: 13.5px; }
 .note-links a { color: var(--link); text-underline-offset: 2px; }
 
 /* No hover (a phone, a tablet): a tap opens the note and a tap closes it,
@@ -824,8 +836,15 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
     margin: 8px 0 10px;
     box-shadow: none;
   }
-  .gloss.gloss-sec { flex-wrap: wrap; }
-  .gloss-sec > .note { flex: 1 1 100%; }
+  /* a heading's note still hangs under the title bar, not inside it */
+  .gloss-sec > .note {
+    position: absolute;
+    top: calc(100% + 1px);
+    left: 8px;
+    right: 8px;
+    margin: 0;
+    box-shadow: 2px 2px 0 var(--frame);
+  }
 }
 
 /* ── Writing: a title, a date and a margin note, no excerpt ──────────── */
@@ -834,14 +853,14 @@ a.sec-count:hover { background: var(--sel); color: var(--sel-ink); }
   display: flex; justify-content: space-between; align-items: baseline;
   gap: 16px; padding: 0; text-decoration: none;
 }
-.log-list .log-row .log-title { font-size: 17px; line-height: 1.25; }
+.log-list .log-row .log-title { font-size: 18.5px; line-height: 1.25; }
 .log-list .log-row .log-date { padding-top: 0; flex: 0 0 auto; }
 .log-note {
   position: static; display: block; visibility: visible; opacity: 1;
   transform: none; width: auto; max-width: 64ch; box-shadow: none;
   margin: 5px 0 0; padding: 0 0 0 10px; background: none;
   border: 0; border-left: 1px solid var(--ink);
-  font-size: 13px; line-height: 1.45; color: var(--ink-2);
+  font-size: 14.5px; line-height: 1.5; color: var(--ink-2);
 }
 .log-note .said { display: inline; }
 .log-note .note-links { display: inline; margin-left: 6px; }

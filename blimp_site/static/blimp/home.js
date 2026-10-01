@@ -7,6 +7,8 @@
 // script: CSS shows a note while its word is hovered, focused or open. This
 // only tidies up: one open at a time, Escape or a click elsewhere closes
 // them, a note that would run off the right of the screen is pulled back,
+// one that would run off the bottom opens above its word instead (the left
+// pane is clipped at the bottom of the screen, so there it was cut off),
 // and a note closed with the mouse lets go of the focus that would keep it up.
 (function () {
   var glosses = document.querySelectorAll('.gloss')
@@ -30,10 +32,20 @@
     var n = g.querySelector(':scope > .note')
     if (!n) return
     n.style.translate = ''
+    n.classList.remove('note-up')
     var r = n.getBoundingClientRect()
     if (!r.width) return
     var over = r.right - (document.documentElement.clientWidth - 12)
     if (over > 0) n.style.translate = -Math.min(over, Math.max(0, r.left - 12)) + 'px 0'
+    // On a phone the note is in the text (position static); nothing to flip.
+    if (getComputedStyle(n).position !== 'absolute') return
+    var floor = window.innerHeight - 8
+    var pane = g.closest('.pane')
+    if (pane) floor = Math.min(floor, pane.getBoundingClientRect().bottom - 4)
+    if (r.bottom <= floor) return
+    n.classList.add('note-up')
+    // Above is no better (the menu bar, the top of the screen): put it back.
+    if (n.getBoundingClientRect().top < 36) n.classList.remove('note-up')
   }
   glosses.forEach(function (g) {
     g.addEventListener('mouseenter', function () { fit(g) })
