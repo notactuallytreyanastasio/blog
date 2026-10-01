@@ -87,7 +87,7 @@ class Point(public x: Int, public y: Int) {
 
 class Counter {
   public var count: Int = 0;
-  public bump(): Void { count += 1 }
+  public bump(): Void { count += 1; }
 }
 
 interface Shape { public area(): Float64; }
@@ -95,7 +95,7 @@ class Square(public side: Float64) extends Shape {
   public area(): Float64 { side * side }
 }
 
-let sum(xs: List<Int>): Int {
+export let sum(xs: List<Int>): Int {
   var total = 0;
   for (var i = 0; i < xs.length; ++i) {
     total += xs[i];
@@ -103,7 +103,7 @@ let sum(xs: List<Int>): Int {
   total
 }
 
-let firstNegative(xs: List<Int>): Int {
+export let firstNegative(xs: List<Int>): Int {
   for (var i = 0; i < xs.length; ++i) {
     if (xs[i] < 0) { return i; }
   }
@@ -124,6 +124,11 @@ console.log("p=${p.x},${p.y} count=${c.count} area=${s.area()} calls=${calls}");
 console.log("sum=${sum([1, 2, 3])} neg=${firstNegative([4, -1, 5])} big=${1.7976931348623157e308 * 2.0}");
 ```
 
+`sum` and `firstNegative` are exported only so that they survive. Called
+with constants alone, an unexported function is evaluated by the frontend
+while compiling, and then nothing calls it, so it is not generated
+(section 12).
+
 ```
 p=4,6 count=2 area=2.25 calls=2
 sum=6 neg=1 big=Infinity
@@ -143,8 +148,8 @@ A Temper module runs its top level when it loads. That code becomes
 ```elixir
 def __temper_init__() do
   TemperCore.init_once(:"Temper.Tour", fn ->
-    TemperCore.Global.put(:"Temper.Tour.p__24", Temper.Tour.Point.plus(Temper.Tour.Point.new(1, 2), Temper.Tour.Point.new(3, 4)))
-    TemperCore.Global.put(:"Temper.Tour.c__25", Temper.Tour.Counter.new())
+    TemperCore.Global.put(:"Temper.Tour.p", Temper.Tour.Point.plus(Temper.Tour.Point.new(1, 2), Temper.Tour.Point.new(3, 4)))
+    TemperCore.Global.put(:"Temper.Tour.c", Temper.Tour.Counter.new())
     ...
     nil
   end)
@@ -276,16 +281,16 @@ back as a value: `x = if c do ...; x else x end`.
 assigns, and hands them back when it ends:
 
 ```elixir
-ex_loop_13 = fn ex_loop_13, i, total ->
+ex_loop_1 = fn ex_loop_1, i, total ->
   if i < TemperCore.List.length(xs) do
     total = TemperCore.int32(total + TemperCore.List.get(xs, i))
     i = TemperCore.int32(i + 1)
-    ex_loop_13.(ex_loop_13, i, total)
+    ex_loop_1.(ex_loop_1, i, total)
   else
     {i, total}
   end
 end
-{i, total} = ex_loop_13.(ex_loop_13, i, total)
+{_i, total} = ex_loop_1.(ex_loop_1, i, total)
 ```
 
 The recursive call is a tail call, so the stack does not grow.
@@ -302,22 +307,25 @@ catches its own tag. The loop's recursive call stays outside any `try`,
 which would otherwise break the tail call:
 
 ```elixir
-def firstNegative__22(xs) do
-  try do
-    ...
-            if TemperCore.List.get(xs, i) < 0 do
-              return = i
-              throw({:temper_break, :ex_block_16, return})
-    ...
-  catch
-    {:temper_return, :ex_return_15, ex_value_20} ->
-      ex_value_20
-  end
+def firstNegative(xs) do
+  Temper.Tour.__temper_init__()
+  TemperCore.Heap.entry(fn ->
+    try do
+      ...
+              if TemperCore.List.get(xs, i) < 0 do
+                return = i
+                throw({:temper_break, :ex_block_1, return})
+      ...
+    catch
+      {:temper_return, :ex_return_0, ex_value_5} ->
+        ex_value_5
+    end
+  end)
 end
 ```
 
 **Calls.** A module function is always called qualified,
-`Temper.Tour.tick__23()`. That works from inside a class module and never
+`Temper.Tour.tick()`. That works from inside a class module and never
 collides with a Kernel import of the same name. An omitted optional
 argument is passed as `nil`. A rest parameter is one list. A function
 used as a value is a capture, `&Temper.Std.parseJson/1`.
@@ -392,7 +400,7 @@ goes straight to the class's module: `Temper.Tour.Point.plus(a, b)`,
 waits until run time:
 
 ```elixir
-TemperCore.call(TemperCore.Global.get(:"Temper.Tour.s__27"), :area, [])
+TemperCore.call(TemperCore.Global.get(:"Temper.Tour.s"), :area, [])
 ```
 
 `TemperCore.call` finds the module from the struct or ref and applies the
@@ -516,7 +524,8 @@ defp elixirc_paths(_), do: ["lib"]
 
 Two rules decide what is test-only. The frontend marks each declaration
 that only tests reach. Then the backend sends to the test side every
-non-exported function or module value that production can't reach.
+non-exported function or module value that production can't reach but a
+test can. Anything nothing reaches isn't generated at all.
 Production's roots are what Elixir can reach: exported functions and
 values, classes, and top-level statements. The second rule catches what
 the first misses. A call the frontend evaluated while compiling is gone
@@ -540,7 +549,7 @@ defmodule Temper.MarginaliaCore.WordsTest do
   end
 
   test "identical spans are all one piece" do
-    TemperCore.Test.check(&Temper.MarginaliaCore.Tests.identicalSpansAreAllOnePiece__1450/1, "src/words_test.temper.md:37")
+    TemperCore.Test.check(&Temper.MarginaliaCore.Tests.identicalSpansAreAllOnePiece/1, "src/words_test.temper.md:37")
   end
 ```
 
@@ -590,17 +599,20 @@ init raises before any test runs reports `0 of 30 (30 not run)`, not
 |--------|--------|
 | a local declared once in its function | its plain name: `xs`, `total`, `sourceText` |
 | a name declared more than once in one function | numbered in order: `t1`, `t2` |
-| a module function or global | keeps its frontend id: `sum__21`, `:"Temper.Tour.calls__28"` |
+| a module function, global or test | its plain name: `tick`, `:"Temper.Tour.calls"`; a name the library declares twice is `fn`, `fn__2` in declaration order |
 | a field | its plain name, `:x`, since a class has one member of each name |
 | `if a ... else if b ... else ...` | one `cond` with an arm per branch |
 | a name Elixir reserves or Kernel imports | a trailing `_`: `length_` |
 | a name starting with a capital or `_` | a `v_` or `u` prefix |
-| the translator's own temporaries | `ex_loop_13`, `ex_return_15`, which no Temper name can collide with |
+| the translator's own temporaries | `ex_loop_1`, `ex_return_0`, counted from 0 in each function, and prefixed `ex_`, which no Temper name can take |
 | a binding nothing reads | Elixir's `_` prefix: `{_i, total} = loop.(...)` |
 
 Names are per function: Elixir variables belong to their function, so a
 frontend id only has to separate names that share a base inside one
-function.
+function. Nothing counts across the library. The frontend's ids do, so one
+new declaration used to renumber every name after it, and a diff of
+committed generated code was mostly renumbering. Now a new function shows
+up in a diff as itself (entry 31).
 
 Generated code compiles without warnings, std included, where it used to
 print about 200. A last pass over each function (`ElixirTidy.kt`) gives
