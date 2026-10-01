@@ -54,7 +54,7 @@ actor JournalTests do
 
   test "the newest dated entry is what /blog and the homepage link to" do
     latest = journal_latest(JOURNAL_DIR)
-    newest = head(reverse(sort(filter(list_dir(JOURNAL_DIR), fn(n: String) -> Bool do journal_is_dated(n) end))))
+    newest = head(reverse(journal_entries_listed(journal_read(concat(JOURNAL_DIR, "/README.md")))))
     assert_eq(latest.route, journal_route_for(newest))
     row = journal_blog_row()
     assert(contains(row, "href=\"/be-elixir\""))
@@ -69,5 +69,11 @@ actor JournalTests do
   test "/blog lists the journal above the posts" do
     page = blog_index_page([])
     assert(contains(page, "be-elixir: a Temper backend for Elixir, a running journal"))
+  end
+
+  test "the newest entry is the README's last, not the last file name" do
+    readme = "## Entries\n\n1. [a](2026-10-01-loops-without-loops.md)\n2. [b](2026-10-01-classes-as-modules.md)\n"
+    assert_eq(journal_entries_listed(readme), ["2026-10-01-loops-without-loops.md", "2026-10-01-classes-as-modules.md"])
+    assert_eq(journal_entries_listed("- [guide.md](guide.md) -- how it works\n"), [])
   end
 end
