@@ -687,3 +687,7 @@ a.sec-count:hover { text-decoration: underline; }
 @media (max-width: 759px) {
   .log-list .log-row > a.log-link { flex-direction: column; gap: 2px; }
 }
+
+/* the running journal, under the newest posts */
+.log-journal { margin: 10px 2px 0; padding-top: 10px; border-top: 1px dotted var(--rule); font-size: 13.5px; color: var(--ink-2); }
+.log-journal a { color: var(--signal); }
