@@ -155,14 +155,23 @@ def main() do
 end
 ```
 
-- `init_once` records the library in the process dictionary, so a library
-  that two others depend on runs its top level only once.
+- `init_once` runs a library's top level **once per node**, however many
+  processes and libraries ask for it. A process that arrives while another
+  is still running it waits under a lock until it finishes.
 - A library's init first calls the init of every library it imports from,
   so std's globals exist before the user's code reads them.
 - `main/0` runs init, then the async queue (section 9).
-- A module-level variable lives in `TemperCore.Global`, the process
-  dictionary, under a key that includes its library, because a `def`
-  cannot see variables outside its own parameters.
+- A module-level variable lives in `TemperCore.Global`, keyed by library,
+  because a `def` cannot see variables outside its own parameters. Every
+  process on the node sees the same module values: a value that can be
+  shared (a number, string, list, map, `@imu` struct or actor) lives in an
+  ETS table. A mutable object that is not an actor cannot be shared, since
+  its ref only means something in the heap that made it, so each process
+  gets its own copy the first time it reads it. Section 15 covers sharing
+  mutable state safely.
+- The ETS table, the actor registry and the actor supervisor belong to the
+  `:temper_core` OTP application. It starts with any Mix project that
+  depends on a translated library.
 
 An imported function is a direct call, `Temper.Std.parseJson(text)`, and
 `mix.exs` depends on the library it comes from:
@@ -320,7 +329,7 @@ change:
   The frontend enforces `@imu` ("Class P claims imu but has a `var`
   property"), so the struct can never be written after construction.
 - **A class marked `@actor`** is a process per instance,
-  `%TemperCore.Actor{class, pid}`, that any process may hold (section 15).
+  `%TemperCore.Actor{class, id}`, that any process may hold (section 15).
 - **Any other class** is a `%TemperCore.Ref{class, id}` into a heap kept in
   the process dictionary.
 
@@ -603,8 +612,9 @@ end
 ```
 
 `new` starts a GenServer and runs the constructor inside it. The object
-is `%TemperCore.Actor{class, pid}`: an ordinary term that can be sent,
-stored and compared. Its fields exist only inside its own process. Each
+is `%TemperCore.Actor{class, id}`: an ordinary term that can be sent,
+stored and compared. The id is registered to whichever process runs the
+actor now, so the identity survives a restart. Its fields exist only inside its own process. Each
 method body runs through `TemperCore.Actor.run`. From inside the actor
 (`this.m()`) that is a plain call. From anywhere else it is a
 `GenServer.call`, which costs about 1.6 µs. Calls stay synchronous, as
@@ -635,24 +645,58 @@ The rules, one per line of that output:
   are checked, and a mutable non-actor object raises a `Panic` that names
   it. Immutable values and other actors cross freely: strings, numbers,
   lists, maps, `@imu` structs. This is Erlang's own rule.
-- **Lifetime.** An actor ends when the process that created it ends, for
-  any reason. It is linked to its creator and also monitors it, because a
-  link alone ignores a normal exit. An actor meant to outlive a
-  short-lived process has to be created by a longer-lived one.
+- **Lifetime.** By default an actor ends when the process that created it
+  ends, for any reason. It is linked to its creator and also monitors it,
+  because a link alone ignores a normal exit.
+- **Supervision.** Actors created inside
+  `TemperCore.Actor.supervised(fn -> ... end)` start under the
+  `TemperCore.Actors` supervisor instead. They outlive their creator. After
+  a crash they restart by re-running their constructor with the same
+  arguments: fresh state, the same identity, as OTP does. A call that
+  reaches the dead process retries once on the new one. It never ran,
+  because an actor only stops after replying to the call that crashed it.
+  `TemperCore.Actor.stop/1` ends either kind.
+- **Errors and crashes are different.** A Temper bubble or panic is the
+  result of one call, and the actor carries on. Any other exception (an
+  Elixir error, an exit) crashes the actor, after the caller gets the error.
+
+```
+supervised actor whose creator ended: 5
+```
+
+**Sharing mutable module state.** An actor created by a library's top
+level belongs to the node: top levels run supervised, so it does not end
+with whichever process ran the init. That makes an `@actor` the way to
+share mutable state between processes:
+
+```temper
+@actor export class Ledger {
+  public var entries: Int = 0;
+  public record(): Int { entries += 1; entries }
+}
+export let ledger = new Ledger();
+```
+
+Every account, in every process, records into the same ledger. After the
+thousand concurrent deposits it holds exactly 1000. A plain shared `var`
+would not be safe for this. Two processes doing `count += 1` can both
+read 4 and both write 5, because the read and the write are separate
+steps, and Temper has no locks. A counter shared across processes belongs
+in an actor, whose single process makes each update one step.
 
 Each call runs through `Heap.entry` inside the actor, so garbage from a
-method is freed when the method returns. An actor starts with a copy of
-its creator's Temper globals. From then on, module-level mutable state is
-per process.
+method is freed when the method returns.
 
 ## 16. Limits
 
 - **Async is single-process.** `async` is a queue inside one process, not
   BEAM concurrency. Concurrency comes from `@actor` classes, or from host
   processes using export and import.
-- **Module-level mutable state is per process.** An actor starts with a
-  copy of its creator's globals, and the two diverge from then on.
-- **An actor ends with its creator.** There is no supervision tree yet.
+- **A shared module `var` is not atomic.** Every process sees writes to it,
+  but a read followed by a write can race. Shared mutable state that must
+  stay consistent belongs in an `@actor`.
+- **A module-level mutable non-actor object is per process.** Each process
+  gets its own copy on first read.
 - **No `mix test` integration.** Tests run through `main/0`.
 - **Two user libraries importing each other** have not been tried; only
   libraries importing std have.

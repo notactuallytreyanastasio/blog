@@ -2,9 +2,18 @@
 
     export class Box { public var v: Int = 0; }
 
+One ledger for the whole node: a module-level actor, so every process and
+every account records into the same one.
+
+    @actor export class Ledger {
+      public var entries: Int = 0;
+      public record(): Int { entries += 1; entries }
+    }
+    export let ledger = new Ledger();
+
     @actor export class Account(public owner: String) {
       public var balance: Int = 0;
-      public deposit(n: Int): Int { balance += n; balance }
+      public deposit(n: Int): Int { ledger.record(); balance += n; balance }
       public withdraw(n: Int): Int throws Bubble {
         if (n > balance) { bubble() }
         balance -= n;

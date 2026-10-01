@@ -32,3 +32,4 @@ guide that grows as the backend does.
 17. [2026-10-01: lists that index in constant time](2026-10-01-lists-that-index.md)
 18. [2026-10-01: `@imu` is the contract, and the heap collects itself](2026-10-01-imu-and-entry.md)
 19. [2026-10-01: `@actor`: a Temper object that is a process](2026-10-01-actors.md)
+20. [2026-10-01: supervised actors, and one set of module values per node](2026-10-01-supervision-and-shared-state.md)
