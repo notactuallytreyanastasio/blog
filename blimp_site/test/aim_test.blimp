@@ -648,6 +648,10 @@ actor AimTests do
     # and signing off is a door shutting
     aim <- :sign_off
     assert_eq((aim <- :where).sound, :door_close)
+    # the sounds aim.js plays are AIM's own WAVs, served from /aim/sounds/
+    each([AIM_SOUND_DOOROPEN, AIM_SOUND_DOORSLAM, AIM_SOUND_IMRCV, AIM_SOUND_IMSEND], fn(r: Map) do
+      assert(starts_with(r.body, "RIFF"))
+    end)
     aim <- :outbox
   end
 end
