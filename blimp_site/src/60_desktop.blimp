@@ -891,8 +891,8 @@ HOME_TAGS = concat("<script src=\"/blimp/canvas.js\"></script><script src=\"", d
 # The share card: the scope, as a link preview. priv/static/images, served
 # at /images/; ?v= because Cloudflare and every link unfurler cache it.
 HOME_CARD = %{
-  url: "https://bobbby.online/images/og-museum.png?v=1",
-  alt: "Bobbby's Online Museum: the site's one Blimp process drawn live, its actors as hexagons and its messages as rays"
+  url: "https://bobbby.online/images/og-home.png?v=1",
+  alt: "Bobby's homepage: the Read Me window, \"Hi, I'm Bobby. I use things in ways they were not intended.\", beside the machine under the page, its actors as hexagons and its messages as rays"
 }
 
 HOME_FONTS = "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..700&amp;family=Space+Grotesk:wght@500..700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
