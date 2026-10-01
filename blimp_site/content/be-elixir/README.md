@@ -19,3 +19,4 @@ guide that grows as the backend does.
 6. [2026-10-01: a string index is a byte offset](2026-10-01-strings.md)
 7. [2026-10-01: maps keep their order, and the user writes the Elixir](2026-10-01-maps-and-the-rest.md)
 8. [2026-10-01: `@test` blocks, and the file `.gitignore` ate](2026-10-01-tests-and-a-missing-file.md)
+9. [2026-10-01: generators and async as state machines](2026-10-01-generators-as-state-machines.md)
