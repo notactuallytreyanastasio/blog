@@ -16,3 +16,4 @@ guide that grows as the backend does.
 3. [2026-10-01: classes as modules, objects as structs or heap refs](2026-10-01-classes-as-modules.md)
 4. [2026-10-01: closures, cells, and failing by name](2026-10-01-closures-and-cells.md)
 5. [2026-10-01: a list builder is a list, too](2026-10-01-lists.md)
+6. [2026-10-01: a string index is a byte offset](2026-10-01-strings.md)

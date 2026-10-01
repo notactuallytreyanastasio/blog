@@ -171,3 +171,14 @@ Inherited method bodies are copied into the class, so there is no `super`.
 | any `Listed` method | `TemperCore.List.fn(x, ...)`, which takes either |
 | a panic in core (`removeLast` on empty) | `raise TemperCore.Panic` |
 | a bubble in core (`get` out of range) | `raise TemperCore.Bubble` |
+
+## 9. Strings
+
+| Temper | Elixir |
+|--------|--------|
+| `String` | a UTF-8 binary |
+| `StringIndex` | a byte offset into it; `String.begin` is `0`, `StringIndex.none` is `-1` |
+| `s.next(i)`, `s.prev(i)` | step over one whole code point |
+| `s[i]` | the code point at byte offset `i` (`<<_::binary-size(i), cp::utf8, _::binary>>`) |
+| `s.countBetween(a, b)` | code points, not graphemes |
+| `StringBuilder` | a heap object holding the string so far |
