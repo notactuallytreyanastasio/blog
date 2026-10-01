@@ -134,3 +134,18 @@ builtin operator to an Elixir operator or a `temper-core` call, and each
 `@connected` method (`Int32.toString`, `Float64.sqrt`, ...) the same way.
 A builtin with no entry stays Temper's own implementation or, if Temper has
 none, fails the build by name.
+
+## 6. Classes
+
+| Temper | Elixir |
+|--------|--------|
+| `class C` | `defmodule TemperMain.C` |
+| immutable class (no setter, no writes outside the constructor) | `defstruct`, built by `new/n` |
+| mutable class | `TemperCore.Heap.new(TemperMain.C, fields)`, a `%TemperCore.Ref{}` |
+| `new C(a)` | `TemperMain.C.new(a)` |
+| `obj.m(a)` | `TemperCore.call(obj, :m, [a])` |
+| `obj.p` / `obj.p = v` | `TemperCore.call(obj, :get_p, [])` / `:set_p` |
+| `C.s(a)` (static) | `TemperMain.C.s(a)` |
+| `x instanceof I` | `TemperCore.is_a(x, TemperMain.I)` |
+
+Inherited method bodies are copied into the class, so there is no `super`.
