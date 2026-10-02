@@ -396,13 +396,15 @@ defp firstNegative_loop_1(xs, i, return) do
 end
 ```
 
-**The rest throw.** An exit from a loop inside an `if` in the middle of a
-list still becomes a tagged `throw`, caught by the function or block it
-leaves, because that `if` hands back variables rather than the function's
-result. So does a `break` out of a block whose following statements are
-too long to copy. The loop's recursive call stays outside any `try`,
-which would otherwise break the tail call; for the same reason a `try`
-inside a loop body never carries the loop's end into its arms.
+**So do an `if` and a `try` in the middle of a list.** Their arms end
+`{:cont, vars}` or with an exit's tuple, and a `case` after them goes on
+with the rest of the list, written once, or takes the exit (entry 49).
+The `case` is outside the `try`, so a loop's call to itself from it is
+still a tail call; for the same reason a `try` inside a loop body never
+carries the loop's end into its arms. An exit still throws only from a
+list nothing can hand it back through, module init code or a block whose
+following statements are too long to copy; std, alloy and
+marginalia-core have none.
 
 **Calls.** A module function is called qualified, `Temper.Lib.f()`,
 which works from inside a class module and never collides with a Kernel
@@ -704,7 +706,9 @@ and run with `MIX_ENV=test`. They run `__temper_main__/0`, then
 registered with the CLI under its function name, the name that XML
 carries. So a failure is reported by its sentence, and a library whose
 init raises before any test runs reports `0 of 30 (30 not run)`, not
-`0 of 0`.
+`0 of 0`. A test that panics, crashes or throws fails alone, with Elixir's
+banner for what it raised, and the tests after it still run; in a
+workspace of several libraries, each library's tests run (entry 48).
 
 ## 13. Names and layout
 
