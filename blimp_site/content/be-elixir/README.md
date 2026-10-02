@@ -6,8 +6,9 @@ guide that grows as the backend does.
 
 - [guide.md](guide.md) -- how the backend works as it stands: running it, what
   each Temper construct becomes in Elixir and why, and its limits.
-- [probes/](probes/) -- the Elixir scripts every claim about the target was
-  checked with. Run any of them with `elixir probes/<file>.exs`.
+- [probes/](probes/) -- the scripts every claim about the target was
+  checked with. Run an `.exs` one with `elixir probes/<file>.exs`; a
+  directory has a README saying how to run it.
 - [examples/](https://github.com/notactuallytreyanastasio/temper-blimp/tree/main/journal/examples) -- runnable Temper libraries with the Elixir that
   drives them, such as `bank/`, a set of `@actor` accounts.
 
@@ -44,3 +45,17 @@ guide that grows as the backend does.
 29. [2026-10-01: what production cannot reach](2026-10-01-what-production-cannot-reach.md)
 30. [2026-10-01: code nothing reaches](2026-10-01-code-nothing-reaches.md)
 31. [2026-10-01: names that stay put](2026-10-01-names-that-stay-put.md)
+32. [2026-10-01: the constructor of a rejected class](2026-10-01-rejected-constructor.md)
+33. [2026-10-01: a library may have a `main`](2026-10-01-temper-main.md)
+34. [2026-10-01: what a reviewer found](2026-10-01-what-a-reviewer-found.md)
+35. [2026-10-01: what a `do` assigned before it bubbled](2026-10-01-try-keeps-assignments.md)
+36. [2026-10-01: a hoisted function, made too early](2026-10-01-hoisted-closures.md)
+37. [2026-10-01: `<=>` on floats, and the empty string](2026-10-01-float-order-and-empty-index.md)
+38. [2026-10-01: two differences, kept on purpose](2026-10-01-kept-on-purpose.md)
+39. [2026-10-01: the backend moves into Temper](2026-10-01-the-backend-moves-into-temper.md)
+40. [2026-10-01: a loop whose condition fails while compiling](2026-10-01-a-loop-whose-condition-fails.md)
+41. [2026-10-01: typespecs, and a Dialyzer that checks them](2026-10-01-typespecs-and-a-dialyzer-that-checks-them.md)
+42. [2026-10-01: one class is not another](2026-10-01-one-class-is-not-another.md)
+43. [2026-10-01: what Elixir can call, and what `h` shows](2026-10-01-what-elixir-can-call.md)
+44. [2026-10-01: an app you can change](2026-10-01-an-app-you-can-change.md)
+45. [2026-10-01: a return is not a throw](2026-10-01-a-return-is-not-a-throw.md)
