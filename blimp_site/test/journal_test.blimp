@@ -47,6 +47,18 @@ actor JournalTests do
     assert(contains(lookup(routes, "/be-elixir"), concat("/tree/", commit, "/journal")))
   end
 
+  test "a probe that is a directory is served file by file, and the directory is not a probe" do
+    probes = journal_probes(JOURNAL_DIR)
+    each(probes, fn(p: String) do assert(list_dir(concat(JOURNAL_DIR, "/probes/", p)) == nil) end)
+    nested = filter(probes, fn(p: String) -> Bool do contains(p, "/") end)
+    assert(length(nested) >= 1)
+  end
+
+  test "links into examples/ go to GitHub at the copied commit" do
+    html = "<a href=\"examples/loopcond/\">l</a> <a href=\"https://x/examples/y\">x</a>"
+    assert_eq(journal_example_links(html, "abc"), "<a href=\"https://github.com/notactuallytreyanastasio/temper-blimp/tree/abc/journal/examples/loopcond/\">l</a> <a href=\"https://x/examples/y\">x</a>")
+  end
+
   test "a page's title is its first heading" do
     assert_eq(journal_title("intro\n# The title\n## Sub\n"), "The title")
     assert_eq(journal_title("no heading"), "be-elixir")

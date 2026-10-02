@@ -13,7 +13,8 @@
 #   /be-elixir/guide        guide.md
 #   /be-elixir/<entry>      2026-09-30-what-an-object-is.md and the like
 #   /be-elixir/probes       a list of the probes
-#   /be-elixir/probes/<f>   one probe, as text
+#   /be-elixir/probes/<f>   one probe, as text; probes/11_dialyzer/run.sh
+#                           and the like for a probe that is a directory
 #
 # It builds its responses itself rather than with main.blimp's page_route,
 # because the tests are compiled from src/ without main.blimp.
@@ -42,11 +43,25 @@ def journal_files(dir: String) -> List do
   end
 end
 
+# Every file under probes/, by its path there: "04_numbers.exs", and for a
+# probe that is a directory, each of its files, "11_dialyzer/run.sh". A
+# directory is not itself a probe: served, it would be read as a file and
+# stop the boot.
 def journal_probes(dir: String) -> List do
-  names = list_dir(concat(dir, "/probes"))
+  sort(journal_probes_under(concat(dir, "/probes"), ""))
+end
+
+def journal_probes_under(dir: String, prefix: String) -> List do
+  names = list_dir(dir)
   case names do
     nil -> []
-    _ -> sort(names)
+    _ -> flat(map(names, fn(n: String) -> List do
+      inner = list_dir(concat(dir, "/", n))
+      case inner do
+        nil -> [concat(prefix, n)]
+        _ -> journal_probes_under(concat(dir, "/", n), concat(prefix, n, "/"))
+      end
+    end))
   end
 end
 
@@ -73,6 +88,12 @@ def journal_links(html: String, files: List) -> String do
   end)
   probes = replace_all(pages, "href=\"probes/\"", concat("href=\"", JOURNAL_ROUTE, "/probes\""))
   replace_all(probes, "href=\"probes/", concat("href=\"", JOURNAL_ROUTE, "/probes/"))
+end
+
+# examples/ is copied but not served: its Temper and Elixir are read on
+# GitHub, at the commit this copy came from.
+def journal_example_links(html: String, commit: String) -> String do
+  replace_all(html, "href=\"examples/", concat("href=\"", JOURNAL_REPO, "/tree/", commit, "/journal/examples/"))
 end
 
 # The first "# " line of a page is its title.
@@ -130,7 +151,7 @@ def journal_probes_page(probes: List, commit: String) -> String do
   article = join([
     "<h1>Probes</h1>",
     "<p>Every claim the journal makes about Elixir was checked by running one of these scripts on Elixir 1.19.5 and OTP 28. ",
-    "Run any of them with <code>elixir &lt;file&gt;.exs</code>.</p>",
+    "Run an <code>.exs</code> one with <code>elixir &lt;file&gt;.exs</code>; a probe made of several files has a README saying how to run it.</p>",
     "<ul class=\"jr-probes\">", join(rows, ""), "</ul>"
   ], "")
   journal_page(concat(JOURNAL_ROUTE, "/probes"), "Probes", article, commit)
@@ -141,7 +162,7 @@ def journal_routes(routes: Map) -> Map do
   commit = journal_commit(JOURNAL_DIR)
   with_pages = reduce(files, routes, fn(acc: Map, f: String) -> Map do
     source = journal_read(concat(JOURNAL_DIR, "/", f))
-    html = journal_links(MARKDOWN <- :render(source), files)
+    html = journal_example_links(journal_links(MARKDOWN <- :render(source), files), commit)
     route = journal_route_for(f)
     put(acc, route, serialize(html_response(200, journal_page(route, journal_title(source), html, commit)), "GET"))
   end)
