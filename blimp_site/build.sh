@@ -9,12 +9,14 @@
 # a JVM here but not on the server: what ships is _build/site.blimp, Blimp
 # through and through (see deploy.sh).
 #
-#   TEMPER            the temper CLI (default: temper-blimp's branch 112)
+#   TEMPER            the temper CLI (default: temper-blimp's branch 114, whose
+#                     continuations take every name they hand back; 112's read
+#                     some from their caller, which Blimp c47e653 broke)
 #   TEMPER_JAVA_HOME  the JDK it runs on (default: Homebrew's openjdk@21)
 set -euo pipefail
 cd "$(dirname "$0")"
 BLIMP="${BLIMP:-blimp}"
-TEMPER="${TEMPER:-/Users/bg/code/temper-blimp-112/temper/cli/build/install/temper/bin/temper}"
+TEMPER="${TEMPER:-/Users/bg/code/temper-blimp-114/temper/cli/build/install/temper/bin/temper}"
 TEMPER_JAVA_HOME="${TEMPER_JAVA_HOME:-/opt/homebrew/opt/openjdk@21}"
 mkdir -p _build
 
