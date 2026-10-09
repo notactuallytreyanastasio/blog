@@ -1,0 +1,45 @@
+# /piet, three Piet programs assembling and running: a program the browser
+# runs (static/piet/piet.blimp: the window, the list, Play) and a script
+# that animates the images (static/piet/piet.js) from /piet/data.json.gz.
+#
+# The data is committed as it was made in temper-blimp (piet-programs, PRs
+# #176-#197 there): the three compiled images, npiet's step count for each,
+# every codel's landing count and first step from a run of npiet 1.3f
+# patched to count, and each program's output from that run. 590 KB
+# gzipped, 2.3 MB unpacked by the browser; read once, at boot.
+#
+# Caddy buffers the data as it does /sky/points.json.gz, so a slow reader
+# does not hold the one-threaded server (deploy/Caddyfile.snippet,
+# @piet_data).
+
+PIET_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/piet/piet.js"]
+
+def piet_page_html() -> String do
+  program = "/piet/piet.blimp"
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", program, "\" data-actor=\"piet\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; ",
+    "that needs JavaScript to start. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
+    script_tags(PIET_SCRIPTS)
+  ], "")
+  page_layout_html("Piet in Piet — three Piet programs, assembling and running",
+    "Three Temper libraries compiled to Piet images: a Piet interpreter running a Piet program, today's Mondrian, and a program that looks itself up on esolangs.org. Watch each image draw itself, run under npiet, and print.",
+    "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/piet.css"], body, "piet-page")
+end
+
+def piet_asset(file: String, content_type: String) -> Map do
+  body = read_file(file)
+  case body do
+    nil ->
+      print(concat("cannot read ", file))
+      exit(1)
+    _ -> response(200, content_type, "public, max-age=300", body)
+  end
+end
+
+PIET_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", piet_page_html())
+PIET_PROGRAM = piet_asset("_build/piet.blimp", "text/plain; charset=utf-8")
+PIET_JS = piet_asset("static/piet/piet.js", "text/javascript; charset=utf-8")
+PIET_CSS = piet_asset("assets/piet.css", "text/css; charset=utf-8")
+PIET_DATA = piet_asset("static/piet/data.json.gz", "application/gzip")
