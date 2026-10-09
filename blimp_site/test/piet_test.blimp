@@ -1,0 +1,40 @@
+# needs: static/piet/piet.blimp
+
+PIET_TEST_HTML = piet_page_html()
+
+actor PietTests do
+  test "the page mounts the program, with no inline script" do
+    assert(contains(PIET_TEST_HTML, "data-program=\"/piet/piet.blimp\" data-actor=\"piet\""))
+    assert(contains(PIET_TEST_HTML, "/assets/piet.css"))
+    assert(contains(PIET_TEST_HTML, "class=\"piet-page\""))
+    refute(contains(downcase(PIET_TEST_HTML), "javascript:"))
+  end
+
+  test "the scripts come in order, the animation last" do
+    app = index_of(PIET_TEST_HTML, "/blimp/app.js")
+    anim = index_of(PIET_TEST_HTML, "/piet/piet.js")
+    assert(app > 0)
+    assert(anim > app)
+  end
+
+  test "it starts on Piet in Piet; choosing a program plays it, and Play plays it again" do
+    p = spawn Piet
+    assert_eq(p <- :scene, %{current: "piet-in-piet", run: 0})
+    p <- :pick("mondrian")
+    assert_eq(p <- :scene, %{current: "mondrian", run: 1})
+    p <- :play
+    assert_eq(p <- :scene, %{current: "mondrian", run: 2})
+  end
+
+  test "every program in the list has a note, and an unknown one falls back to the first" do
+    assert_eq(map(PIET_PROGRAMS, fn(q: Map) -> String do q.id end), ["piet-in-piet", "mondrian", "fact-check"])
+    assert_eq(piet_find("nope").id, "piet-in-piet")
+    assert_eq(piet_find("fact-check").name, "Fact check")
+  end
+
+  test "the data is the gzip the page fetches" do
+    data = read_file("static/piet/data.json.gz")
+    assert(data != nil)
+    assert(length(data) > 500000)
+  end
+end

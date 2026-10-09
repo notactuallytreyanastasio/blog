@@ -1,0 +1,65 @@
+/* /piet: three Piet programs, assembling and running. The window is the
+   site's Mac window (blimp-window.css); inside it, the colour is all the
+   programs'. */
+
+html.piet-page, html.piet-page body { min-height: 100%; }
+html.piet-page body {
+  margin: 0;
+  background: #a8a8a8;
+  background-image: repeating-conic-gradient(#a0a0a0 0% 25%, #a8a8a8 0% 50%);
+  background-size: 2px 2px;
+}
+
+.piet-desktop { padding: 8px; min-height: 100vh; box-sizing: border-box; }
+.piet-window { width: 98vw; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; }
+.piet-content { display: flex; padding: 0; min-height: 70vh; }
+
+.piet-side { width: 280px; flex-shrink: 0; border-right: 1px solid #000; background: #fff; display: flex; flex-direction: column; gap: 10px; padding: 8px; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 12px; }
+.piet-list { display: flex; flex-direction: column; border: 1px solid #000; }
+.piet-row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border: 0; border-bottom: 1px solid #000; background: #fff; color: #000; cursor: pointer; font: inherit; text-align: left; }
+.piet-row:last-child { border-bottom: 0; }
+.piet-row.piet-on { background: #000; color: #fff; }
+.piet-row-steps { font-variant-numeric: tabular-nums; opacity: .7; }
+.piet-note p { margin: 0 0 6px 0; line-height: 1.35; }
+.piet-note-name { font-weight: bold; font-size: 14px; }
+.piet-note-figures { font-variant-numeric: tabular-nums; color: #555; }
+.piet-play { border: 2px solid #000; border-radius: 6px; background: #fff; padding: 6px 0; font: inherit; font-weight: bold; cursor: pointer; }
+.piet-play:active { background: #000; color: #fff; }
+.piet-how { margin: 0; color: #555; line-height: 1.35; font-size: 11px; }
+
+.piet-main { flex: 1; min-width: 0; position: relative; background: #1b1c1f; }
+.piet-stage { padding: 10px; }
+.piet-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(27, 28, 31, .92); color: #fff; font-family: Chicago, Geneva, Helvetica, sans-serif; font-size: 13px; }
+.piet-loading.piet-on { display: none; }
+
+.piet-program { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+.piet-program[hidden] { display: none; }
+.piet-acts { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.piet-act { font: 11px/1 Chicago, Geneva, Helvetica, sans-serif; padding: 5px 8px; border: 1px solid #555; color: #999; }
+.piet-act.piet-on { background: #fff; color: #000; border-color: #fff; }
+.piet-act.piet-done { color: #fff; border-color: #fff; }
+.piet-image { background: #000; padding: 8px; display: grid; gap: 6px; }
+.piet-image canvas { width: 100%; height: auto; display: block; image-rendering: pixelated; }
+.piet-bar { height: 3px; background: #2b2e33; }
+.piet-bar i { display: block; height: 100%; width: 0; background: #ffd400; }
+.piet-meter { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 11px/1.3 Monaco, Menlo, monospace; color: #c9ccd2; font-variant-numeric: tabular-nums; }
+
+.piet-output { background: #fff; border: 1px solid #000; padding: 10px; display: grid; gap: 8px; min-width: 0; }
+.piet-eyebrow { font: bold 11px Chicago, Geneva, Helvetica, sans-serif; text-transform: uppercase; letter-spacing: .08em; color: #555; }
+.piet-terminal:empty { display: none; }
+.piet-terminal { margin: 0; font: 12px/1.45 Monaco, Menlo, monospace; white-space: pre-wrap; word-break: break-word; min-height: 3em; }
+.piet-painting { width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
+.piet-strip { overflow-x: auto; background: #000; padding: 6px; }
+.piet-strip canvas { display: block; image-rendering: pixelated; }
+.piet-said { font: bold 54px/1 Chicago, Geneva, Helvetica, sans-serif; min-height: 1em; }
+.piet-cursor { color: #e00000; }
+.piet-status { font: 11px/1.4 Monaco, Menlo, monospace; color: #555; min-height: 2.8em; font-variant-numeric: tabular-nums; }
+.piet-stack { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
+.piet-stack span { font: 11px/1 Monaco, Menlo, monospace; padding: 4px 6px; border: 1px solid #999; }
+.piet-stack span:first-child { border-color: #000; }
+
+@media (max-width: 900px) {
+  .piet-content { flex-direction: column; }
+  .piet-side { width: auto; border-right: 0; border-bottom: 1px solid #000; }
+  .piet-program { grid-template-columns: minmax(0, 1fr); }
+}

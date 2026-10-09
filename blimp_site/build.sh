@@ -121,6 +121,9 @@ with_temper _build/sky.blimp static/sky/sky.blimp
 # Phish Lab: scales, ticks, bins, colours and number formats are Temper
 # (temper/src/phish_lab), the chart's loops, actor and view Blimp.
 with_temper _build/phish_lab.blimp static/phish_lab/phish_lab.blimp
+# Piet in Piet: the window is Blimp; the animation and its data are static
+# (static/piet/piet.js, static/piet/data.json.gz, made in temper-blimp).
+with_temper _build/piet.blimp static/piet/piet.blimp
 # The Ziggy Account: the prompts, search words, character titles and the
 # reply sanitiser are Temper (temper/src/ziggy), the window and chat Blimp;
 # the explorer is d3 (static/ziggy/ziggy.js). query_param is the server's.

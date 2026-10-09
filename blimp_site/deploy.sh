@@ -58,6 +58,7 @@ stage() {
   cp _build/stack.blimp "$DIST/blimp_site/_build/stack.blimp"
   cp _build/sky.blimp _build/sky_layout.json _build/sky_points.json.gz "$DIST/blimp_site/_build/"
   cp _build/phish_lab.blimp "$DIST/blimp_site/_build/phish_lab.blimp"
+  cp _build/piet.blimp "$DIST/blimp_site/_build/piet.blimp"
   cp _build/ziggy.blimp _build/ziggy-graph.json "$DIST/blimp_site/_build/"
   [ -f _build/aim-posts.tsv ] || { echo "no _build/aim-posts.tsv: set AIM_ARCHIVE to bobbbyBot's archive (tools/aim_corpus.py)" >&2; exit 1; }
   cp _build/aim.blimp _build/aim-posts.tsv "$DIST/blimp_site/_build/"
