@@ -205,7 +205,8 @@ actor DesktopTests do
 
   test "the manifest lists every page in data/hangar.tsv, each with an icon, a card a group" do
     html = dt_page("booted=1")
-    assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 31)
+    assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 32)
+    assert(contains(html, "<a class=\"mf-row\" href=\"/piet\">"))
     assert(contains(html, "<a class=\"mf-row\" href=\"/chess-lv\">"))
     assert_eq(length(split(html, "Things I made that you can use <span>")) - 1, 4)
     assert(contains(html, "id=\"work\" aria-labelledby=\"work-h\">"))
