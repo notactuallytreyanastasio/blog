@@ -25,6 +25,7 @@ toys	/mirror	Mirror	code-mirror	The Blimp source of the page you are reading, cu
 toys	/markdown-editor	Markdown Editor	hg-markdown	The preview is the renderer the posts use, running in your browser.
 toys	/typewriter	Typewriter	hg-typewriter	No copy, no paste. Backspace works. Print it when you're done.
 toys	/art	Temper Art	hg-art	Seeded generative art. Seed 42 draws the same picture forever.
+toys	/piet	Piet in Piet	hg-piet	A Piet interpreter compiled to a Piet image, running a Piet program. Watch it draw itself.
 toys	/ziggy	The Ziggy Account	hg-ziggy	123 story beats and 178 connections, and a chat that has read them.
 toys	/blinks	Blinks	hg-links	My links, saved from my phone. Tour, walk or watch them.
 toys	/very_direct_message	Very Direct Message	receipt-printer	It prints on a receipt printer on my desk. Leave your name.
