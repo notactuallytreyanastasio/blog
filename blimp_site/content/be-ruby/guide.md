@@ -94,6 +94,11 @@ not Temper.
 A bubble is `TemperCore::Bubble`, a StandardError, so a bare `rescue`
 catches it.
 
+`console.log` is `TemperCore.console_log`, not `puts`. `puts` skips its
+newline when the string already ends in one, and prints an array one
+element per line, both of which are helpful to a person at a terminal and
+wrong for a translation.
+
 There is one temper-core in an output directory, not one copied into each
 library. Two copies would each reopen `TemperCore`, and whichever loaded
 last would quietly win for everybody.
@@ -139,6 +144,8 @@ kind of node.
 | `RubyFormattingHints.kt` | spaces, and only spaces |
 | `RubyHelpers.kt` | literals: strings, floats, symbols, comments |
 | `RubyBackend.kt` | one gem per library, and temper-core beside them |
+| `RubyTranslator.kt` | TmpL to Ruby, one module at a time. Anything it does not handle is a `TODO()` carrying the node |
+| `RubySupportCode.kt` | each builtin and `@connected` member, as Ruby |
 | `RubySupportNetwork.kt` | how this target differs: bubbles are exceptions, coroutines generators, void is `nil` |
 | `RubySpecifics.kt` | running the output with `ruby -I` |
 | `temper-core/` | the runtime gem |
@@ -166,8 +173,9 @@ interpolate, and the second and third are the ones people forget.
 ruby be-ruby/journal/probes/04_grammar_samples.rb
 ```
 
-`jvmTest` runs the grammar tests, temper-core's minitest suite and
-`steep check`. It goes looking for a Ruby 4 itself, because a Gradle
+`jvmTest` runs the grammar tests, the functional tests that are switched
+on (the `onlyPasses(ruby(), ...)` list in `FunctionalTestStatus.kt`),
+temper-core's minitest suite and `steep check`. It goes looking for a Ruby 4 itself, because a Gradle
 daemon remembers whatever PATH it started with, and on a Mac that is
 probably the 2.6. The probe evaluates every rendering the grammar test
 pins and checks its value, so the expected strings are known to mean
@@ -175,9 +183,9 @@ what the tree says, not just to look plausible.
 
 ## 7. What does not work
 
-Nearly everything, still. The translator is a placeholder that prints
-Hello, World! whatever you give it. No builtins are mapped, so a library
-that calls `console.log` fails to build with `Cannot translate value fn
-getConsole`. Nothing calls temper-core yet, and generated code has no
-signatures. Strings, lists and maps have no runtime support. The next
-entries are about making those stop being true.
+Nearly everything, still. The translator knows literals and
+`console.log`, and that is the complete list. One functional test of
+sixty-six passes. A top-level `let`, a function, a class: each stops the
+build with a TODO naming the node. Generated code has no signatures yet.
+Strings, lists and maps have no runtime support. The next entries are
+about making those stop being true.

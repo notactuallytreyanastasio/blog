@@ -19,3 +19,4 @@ follows is about the word "nearly".
 1. [2026-10-10: the easy one, and the four ways it is not](2026-10-10-the-easy-one.md)
 2. [2026-10-10: a backend that says hello whatever you tell it](2026-10-10-hello-whatever-you-say.md)
 3. [2026-10-10: temper-core, and a type checker you have to talk into it](2026-10-10-the-runtime-and-the-receipts.md)
+4. [2026-10-10: `console.log` is not `puts`, and one test of sixty-six](2026-10-10-console-log-is-not-puts.md)
