@@ -88,6 +88,11 @@ not Temper.
 | `Int` is 32 bits and wraps | integers never overflow | `int32`, `int64` |
 | `-7 / 2` is -3 (truncate) | `-7 / 2` is -4 (floor) | `int_div`, `int64_div` |
 | `-7 % 2` is -1 | `-7 % 2` is 1 | `int_rem` (which is `Integer#remainder`) |
+| NaN == NaN, 0.0 != -0.0 | the opposite, for `==` and `eql?` | `float_eq`, `float_cmp` |
+| `(-8.0) ** (1.0 / 3)` is NaN | it is a Complex number | `float_pow` |
+| `-2.5.round()` is -2.0 | `-2.5.round` is the Integer -3 | `float_round`, `float_floor`, `float_ceil` |
+| `sqrt(-1.0)` is NaN | Math::DomainError | `float_math` |
+| floats print like JavaScript, with `.0` | `1e20.to_s` is `"1.0e+20"` | `float_to_string` |
 | `1.0 / 0.0` bubbles | it is `Infinity` | `float_div`, `float_rem` |
 | integer division by zero bubbles | it raises ZeroDivisionError | a zero check, raising `Bubble` |
 
@@ -103,7 +108,56 @@ There is one temper-core in an output directory, not one copied into each
 library. Two copies would each reopen `TemperCore`, and whichever loaded
 last would quietly win for everybody.
 
-## 4. Types
+## 4. What Temper becomes
+
+What the translator handles so far, and the one choice in each that was
+not obvious.
+
+**Module functions** are `def self.name` on the library's module, written
+first in the module body whatever their order in the source, because
+Temper lets a top-level statement call a function declared below it and
+Ruby does not define a method until its `def` has run. Inside the module,
+a call is just `fib(n)`, since `self` is the module.
+
+**Module-level values.** A `let` with an initializer that is never
+reassigned is a constant, `GREETING`; anything else is the module's own
+instance variable, `@calls`. Not module-body locals, which no `def` can
+see. And not `@ivars` everywhere, because inside a class's method `@calls`
+would be the instance's, silently `nil` (`probes/09_module_state.rb`). The
+translator stops with a TODO rather than read module state where `self`
+is not the module.
+
+**Names** are Ruby-shaped: `fib_number` for locals and methods,
+`GREETING` for constants. A module function whose name a Ruby module
+already answers to (177 of them, `name`, `hash`, `raise` among them,
+straight from `probes/10_taken_names.rb`) gets a trailing underscore, so
+it cannot override the module's own.
+
+**Local functions** are lambdas, `fact = ->(n) do ... end`, called as
+`fact.(n)`, because a lambda can see the locals around it and a `def`
+cannot.
+
+**Arithmetic.** Int `+`, `-`, `*` and negation are wrapped in
+`TemperCore.int32(...)`; Int64's in `int64`. Division and remainder go
+through temper-core. Float `+`, `-`, `*` are Ruby's own, since Ruby floats
+are IEEE doubles; division, remainder, power, equality and comparison go
+through temper-core, which has Temper's answers where Ruby's differ.
+Comparisons of Int, Int64 and String are Ruby's `<`; Float64's and
+Boolean's are not, because Ruby orders neither the way Temper does.
+
+**Loops and jumps.** `while` is `while`. Ruby has no labelled `break`, so
+a labelled block whose jumps cross nothing is a one-shot `while true ...
+break end`, and anything else is `catch(:label) do ... end` with `throw`.
+Never `loop do`, which swallows StopIteration. Every plain `break` or
+`next` is checked against what lies between it and its target, and the
+build stops if something would intercept it.
+
+**Exceptions.** A Temper `orelse` is `begin ... rescue
+TemperCore::Bubble ... end`. Only Bubble: a Ruby error in translated code,
+a NoMethodError say, is a bug, and is not caught as if it were a Temper
+failure.
+
+## 5. Types
 
 The runtime has an RBS signature, `temper-core/sig/temper_core.rbs`, and
 a Steepfile, and `steep check` passes. Generated libraries do not have
@@ -128,7 +182,7 @@ signature is the likeliest bug in generated code. And `steep check` exits
 Steepfile from older docs, the `D::Ruby.strict` shorthand is gone: it is
 `Steep::Diagnostic::Ruby.strict` now.
 
-## 5. How the backend is put together
+## 6. How the backend is put together
 
 A Temper backend never prints target code as strings. It builds a tree
 of the target language and lets Temper's formatter print the tree. Here
@@ -145,6 +199,7 @@ kind of node.
 | `RubyHelpers.kt` | literals: strings, floats, symbols, comments |
 | `RubyBackend.kt` | one gem per library, and temper-core beside them |
 | `RubyTranslator.kt` | TmpL to Ruby, one module at a time. Anything it does not handle is a `TODO()` carrying the node |
+| `RubyNames.kt` | Ruby-shaped, collision-free names: `snake_case`, `SCREAMING_SNAKE`, and the 177 a module function may not take |
 | `RubySupportCode.kt` | each builtin and `@connected` member, as Ruby |
 | `RubySupportNetwork.kt` | how this target differs: bubbles are exceptions, coroutines generators, void is `nil` |
 | `RubySpecifics.kt` | running the output with `ruby -I` |
@@ -166,7 +221,7 @@ pointless expression and throws it away.
 Strings escape every `#`, because `#{x}`, `#@x` and `#$x` all
 interpolate, and the second and third are the ones people forget.
 
-## 6. Checking it
+## 7. Checking it
 
 ```bash
 ./gradlew :be-ruby:jvmTest :be-ruby:ktlintCheck
@@ -181,11 +236,9 @@ probably the 2.6. The probe evaluates every rendering the grammar test
 pins and checks its value, so the expected strings are known to mean
 what the tree says, not just to look plausible.
 
-## 7. What does not work
+## 8. What does not work
 
-Nearly everything, still. The translator knows literals and
-`console.log`, and that is the complete list. One functional test of
-sixty-six passes. A top-level `let`, a function, a class: each stops the
-build with a TODO naming the node. Generated code has no signatures yet.
-Strings, lists and maps have no runtime support. The next entries are
-about making those stop being true.
+Eleven of sixty-six functional tests pass. Classes and interfaces are
+not translated, nor are lists, maps, string methods, closures used as
+values, generators or `@test` blocks; each stops the build with a TODO
+naming the node. Generated libraries have no RBS signatures yet.
