@@ -19,11 +19,15 @@ actor PietTests do
 
   test "it starts on Piet in Piet; choosing a program plays it, and Play plays it again" do
     p = spawn Piet
-    assert_eq(p <- :scene, %{current: "piet-in-piet", run: 0})
+    assert_eq(p <- :scene, %{current: "piet-in-piet", run: 0, fill: 0, tile: 0})
     p <- :pick("mondrian")
-    assert_eq(p <- :scene, %{current: "mondrian", run: 1})
+    assert_eq(p <- :scene, %{current: "mondrian", run: 1, fill: 0, tile: 0})
     p <- :play
-    assert_eq(p <- :scene, %{current: "mondrian", run: 2})
+    assert_eq(p <- :scene, %{current: "mondrian", run: 2, fill: 0, tile: 0})
+    p <- :fill
+    assert_eq(p <- :scene, %{current: "mondrian", run: 2, fill: 1, tile: 0})
+    p <- :tile
+    assert_eq(p <- :scene, %{current: "mondrian", run: 2, fill: 1, tile: 1})
   end
 
   test "every program in the list has a note, and an unknown one falls back to the first" do

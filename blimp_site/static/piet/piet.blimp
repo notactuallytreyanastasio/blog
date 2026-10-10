@@ -8,8 +8,10 @@
 # image, replays npiet's run over it from /piet/data.json.gz, and shows the
 # program's output. After every render it asks
 #
-#   piet <- :scene   %{current, run}: the program to show, and a counter
-#                    that goes up each time it should play from the start.
+#   piet <- :scene   %{current, run, fill, tile}: the program to show, a counter
+#                    that goes up each time it should play from the start,
+#                    one that goes up each time the page should fill, and
+#                    one for each time it should tile.
 #
 # and says :loaded once the data has arrived.
 
@@ -27,6 +29,8 @@ PIET_PROGRAMS = [
 actor Piet do
   state current: String :: "piet-in-piet"
   state run: Int :: 0
+  state fill: Int :: 0
+  state tile: Int :: 0
   state loaded: Bool :: false
 
   # Choosing a program plays it.
@@ -45,8 +49,22 @@ actor Piet do
     reply :ok
   end
 
+  # Fill the page: piet.js opens Life over the whole window, in Piet's
+  # colours, seeded with the Piet program Life ran on, each time this goes up.
+  on :fill do
+    become fill: fill + 1
+    reply :ok
+  end
+
+  # Tile the page: as many small Life games as fit, each its own Piet
+  # program, each run as a Piet program after every generation.
+  on :tile do
+    become tile: tile + 1
+    reply :ok
+  end
+
   on :scene do
-    reply %{current: current, run: run}
+    reply %{current: current, run: run, fill: fill, tile: tile}
   end
 
   on :view do
@@ -87,6 +105,8 @@ def piet_page(current: String, loaded: Bool) -> Any do
             el("p", %{}, p.note),
             el("p", %{class: "piet-note-figures"}, concat(concat(p.steps, " npiet steps · "), p.time))),
           el("button", %{type: "button", class: "piet-play", click: :play}, "Play"),
+          el("button", %{type: "button", class: "piet-play piet-fill", click: :fill}, "Fill the page"),
+          el("button", %{type: "button", class: "piet-play piet-fill", click: :tile}, "Tile the page"),
           el("p", %{class: "piet-how"}, "Each image draws itself, top to bottom. Then npiet's run is replayed over it: a codel lights up at the step npiet first lands on it, hotter the more steps landed there. Then the output, as the program printed it.")),
         el("div", %{class: "piet-main"},
           el("div", %{id: "piet-stage", class: "piet-stage"}),
