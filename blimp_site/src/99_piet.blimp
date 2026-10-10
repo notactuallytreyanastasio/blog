@@ -13,7 +13,7 @@
 # does not hold the one-threaded server (deploy/Caddyfile.snippet,
 # @piet_data).
 
-PIET_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/piet/piet.js"]
+PIET_SCRIPTS = ["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/blimp/app.js", "/piet/art.js", "/piet/piet.js"]
 
 def piet_page_html() -> String do
   program = "/piet/piet.blimp"
@@ -44,3 +44,27 @@ PIET_PROGRAM = piet_asset("_build/piet.blimp", "text/plain; charset=utf-8")
 PIET_JS = piet_asset("static/piet/piet.js", "text/javascript; charset=utf-8")
 PIET_CSS = piet_asset("assets/piet.css", "text/css; charset=utf-8")
 PIET_DATA = piet_asset("static/piet/data.json.gz", "application/gzip")
+
+# /piet/life: the Fill the page and Tile the page layers on a page of their
+# own (static/piet/art.js, started by static/piet/life.js), tiles first and
+# one big board at /piet/life#board. Both run in this page's JavaScript; the
+# tiles' Piet interpreter does what npiet does where the specification
+# leaves room, and was checked against npiet on 240 boards.
+
+PIET_LIFE_SCRIPTS = ["/piet/art.js", "/piet/life.js"]
+
+def piet_life_page_html() -> String do
+  body = join([
+    "<p id=\"piet-life-status\" class=\"piet-life-status\">Drawing Piet programs...</p>\n",
+    "<noscript><p class=\"piet-life-status\">This page plays Conway's Life on Piet programs, in your browser, ",
+    "and needs JavaScript. The programs themselves, compiled from Temper and run by npiet, are at <a href=\"/piet\">/piet</a>.</p></noscript>\n",
+    script_tags(PIET_LIFE_SCRIPTS)
+  ], "")
+  page_layout_html("Life on Piet programs",
+    "Many small games of Conway's Life, each its own Piet program that prints a word, each run as a Piet program after every generation; or one game the size of the window, in Piet's colours.",
+    "website", ["/assets/piet.css"], body, "piet-life-page")
+end
+
+PIET_LIFE_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", piet_life_page_html())
+PIET_ART_JS = piet_asset("static/piet/art.js", "text/javascript; charset=utf-8")
+PIET_LIFE_JS = piet_asset("static/piet/life.js", "text/javascript; charset=utf-8")
