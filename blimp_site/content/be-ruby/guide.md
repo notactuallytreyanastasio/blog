@@ -188,20 +188,61 @@ failure.
 
 ## 5. Types
 
-The runtime has an RBS signature, `temper-core/sig/temper_core.rbs`, and
-a Steepfile, and `steep check` passes. Generated libraries do not have
-signatures yet; that is coming, and the idea is that the backend writes
-the signature from Temper's types at the same moment it writes the code.
-
-The Steepfile uses Steep's strict profile:
+Every generated library ships `sig/temper/<library>.rbs` and a Steepfile,
+and temper-core has its own. The translator writes each signature in the
+same pass as the code, from the same Temper types, so a signature cannot
+describe a method that is not there. The Steepfile, in each library:
 
 ```ruby
 target :lib do
-  signature "sig"
+  signature "sig", "../temper-core/sig"
   check "lib"
   configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
 end
 ```
+
+The temper-core path has to be relative. Steep 2.1 accepts an absolute
+one and then loads nothing from it (`probes/18_steep_signature_path/`).
+
+How Temper's types come out (`RubyTypes.kt`):
+
+| Temper | RBS |
+|--------|-----|
+| `Int`, `Int64` | `Integer` |
+| `Float64` | `Float` |
+| `String` | `String` |
+| `Boolean` | `bool` |
+| `Void` | `void` as a result, `nil` as a value |
+| `T?` | `T?` |
+| a function type | `^(A) -> R` |
+| a class or interface | its constant, with type arguments: `D[I]` |
+| a type parameter | its name, with any bound: `[T < I]` |
+| `AnyValue` | `untyped` |
+| `Never`, `Bubble` | `bot` |
+
+A module's own variables are `self.@x: T`; its constants are `X: T`.
+
+Some of the Ruby is shaped the way it is for Steep's sake, and each choice
+was forced by a Steep error on a program that otherwise ran fine:
+
+- A local with no initializer gets no `x = nil`, because Steep fixes a
+  local's type at its first assignment. The placeholder stays only where
+  Ruby's scoping needs it: a local read by a lambda, or first assigned in
+  a `catch` block.
+- A `return` inside a lambda is `next`, because Steep checks a lambda's
+  `return` against the enclosing method (`probes/16_steep_lambda_return/`).
+- An early return the frontend lowered into a labelled block is turned
+  back into `return`.
+- A cast to a class is `TemperCore.cast(x, C)`, declared `untyped`, and a
+  value the frontend proved non-null is `TemperCore.not_null(x)`, declared
+  `[T] (T?) -> T`. Its body is `case`/`when nil`, the one way to write it
+  that Steep accepts (`probes/17_steep_not_null/`).
+- No module-level constant takes the library module's name, `Temper` or
+  `TemperCore`.
+
+RBS has no `protected`, so a private property's protected reader appears
+in the signature as a plain `attr_reader`. Steep is looser there than
+Ruby.
 
 Two things about Steep 2.1 you would otherwise find out the annoying way
 (`probes/06_steep/` shows both). A method with no signature at all is
@@ -222,6 +263,8 @@ kind of node.
 | File | What it does |
 |------|--------------|
 | `ruby.out-grammar` | the Ruby syntax tree. Every statement writes its own newline |
+| `rbs.out-grammar` | the RBS syntax tree, for the signatures (`Rbs.kt` is generated from it) |
+| `RubyTypes.kt` | a Temper type as an RBS type |
 | `RubyOperatorDefinition.kt` | the precedence ladder, which decides every parenthesis |
 | `RubyOperator.kt` | the operators, minus `and`, `or` and `not` |
 | `RubyFormattingHints.kt` | spaces, and only spaces |
@@ -259,7 +302,7 @@ ruby be-ruby/journal/probes/04_grammar_samples.rb
 
 `jvmTest` runs the grammar tests, the functional tests that are switched
 on (the `onlyPasses(ruby(), ...)` list in `FunctionalTestStatus.kt`),
-temper-core's minitest suite and `steep check`. It goes looking for a Ruby 4 itself, because a Gradle
+temper-core's minitest suite and `steep check`. Each functional test also runs Steep on its output, and `SemanticsTypeCheckedLocals`, which is ill-typed on purpose, must fail it. It goes looking for a Ruby 4 itself, because a Gradle
 daemon remembers whatever PATH it started with, and on a Mac that is
 probably the 2.6. The probe evaluates every rendering the grammar test
 pins and checks its value, so the expected strings are known to mean
@@ -267,9 +310,9 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Twenty-eight of sixty-six functional tests pass. Not translated yet:
-strings beyond literals and concatenation, lists, maps, StringBuilder and
-the rest of the standard library, functions used as values, generators,
-async, `@test` blocks, and classes imported from other libraries; each
-stops the build with a TODO naming the node. Generated libraries have no
-RBS signatures yet.
+Twenty-eight of sixty-six functional tests pass, and all twenty-eight
+type-check. Not translated yet: strings beyond literals and
+concatenation, lists, maps, StringBuilder and the rest of the standard
+library, functions used as values, generators, async, `@test` blocks,
+and classes imported from other libraries; each stops the build with a
+TODO naming the node.

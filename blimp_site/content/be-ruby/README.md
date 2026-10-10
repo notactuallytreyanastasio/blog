@@ -90,10 +90,24 @@ the class gets a one-line forwarder naming Temper's winner. Also: a
 static method called `new` would have replaced the constructor, which
 Ruby would have allowed.
 
-**Where it stands.** Twenty-eight of sixty-six. Generated classes
-still have no RBS signatures, which is the next entry, and then the
-standard library: strings, lists and maps, where most of the remaining
-tests stop.
+**Types** ([entry 7](2026-10-10-steep-was-right.md)). Every library
+now ships an RBS signature, generated from Temper's types in the same pass
+that writes the Ruby, and the tests run Steep on it. When the checker
+first ran, it rejected six programs that ran correctly, and it was right
+all six times. A local declared as `x = nil` was typed nil forever. A
+constant called `T` inside the module called `T` meant one thing to Ruby
+and another to Steep. And an early return had come out as a `while true`
+loop with a variable in it, which Steep disliked for a type reason and any
+reader would dislike for every reason; it is a plain `return` now. Steep
+misreads `return` inside a lambda as the method's, so lambdas say `next`.
+Steep ignores an absolute path in a Steepfile without a word. And one
+test, the one that deliberately passes a String where an Int goes, is now
+required to fail the type check, so a backend that typed everything
+`untyped` would get caught.
+
+**Where it stands.** Twenty-eight of sixty-six, all of them typed. The
+standard library is next: strings, lists and maps, where most of the
+remaining tests stop.
 
 ## What is here
 
@@ -113,3 +127,4 @@ tests stop.
 4. [2026-10-10: `console.log` is not `puts`, and one test of sixty-six](2026-10-10-console-log-is-not-puts.md)
 5. [2026-10-10: where a variable lives, and eleven of sixty-six](2026-10-10-where-a-variable-lives.md)
 6. [2026-10-10: classes, and who wins the diamond](2026-10-10-classes-and-the-diamond.md)
+7. [2026-10-10: types, and six times Steep was right](2026-10-10-steep-was-right.md)

@@ -1,0 +1,5 @@
+module N
+  def self.a: [T] (T? value) -> T
+  def self.b: [T] (T? value) -> T
+  def self.c: [T] (T? value) -> T
+end
