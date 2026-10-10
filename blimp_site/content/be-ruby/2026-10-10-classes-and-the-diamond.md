@@ -47,15 +47,22 @@ An interface becomes a Ruby module, a class `include`s its interfaces, and
 `is_a?` sees an included module:
 
 ```ruby
-module Shape
-  def describe()
-    return "a shape with area " + TemperCore.float_to_string(area)
+module I
+  def place()
+    return "Byron Bay"
   end
 end
-class Square
-  include(Shape)
-  ...
+class C
+  include(I)
+end
+C_2 = C.new()
+TemperCore.console_log("Goodbye, gotta run, " + C_2.place + "!")
 ```
+
+(That is `ClassesInheritedGetter`, whole. The `C_2` is the module-level
+`let c`, which wants to be the constant `C` and finds the class already
+standing there. Numbering keeps it correct; it does not keep it pretty,
+and it is on the list.)
 
 A method the class defines beats one from a module it includes, which is
 what Temper's override means. An interface method with no body is simply
