@@ -152,6 +152,35 @@ Never `loop do`, which swallows StopIteration. Every plain `break` or
 `next` is checked against what lies between it and its target, and the
 build stops if something would intercept it.
 
+**Classes** are Ruby classes. A constructor is `initialize`, a backed
+property is an `@ivar` with an `attr_reader` (and an `attr_writer` if it
+is a `var`): public for a public property, protected for a private one,
+so another instance of the class can still read it. A getter is `def x`,
+a setter `def x=(value)`, called as `thing.x = value`. Statics are `def
+self.` methods and class constants, `Simple::SIMON`, assigned at the end
+of the class body so an initializer can construct the class. Instance
+methods avoid the 111 names an Object already answers to; static methods
+avoid the module's list plus `new`, `allocate` and the rest of what a
+class has.
+
+**Interfaces** are modules, and a class `include`s its interfaces. An
+interface method with no body is left out, so a class that forgets it
+fails with NoMethodError. Temper resolves an inherited method
+breadth-first and Ruby's include chain does not, so a method two
+interfaces define gets a forwarder in the class naming Temper's choice
+(`probes/14_include_order.rb`):
+
+```ruby
+def a(...)
+  ADeep.instance_method(:a).bind_call(self, ...)
+end
+```
+
+`x is T` is `TemperCore.is_a(x, T)`, and `x as T` is `TemperCore.cast`,
+which bubbles when it fails. A class's method reaches module state as
+`Lib.calls`, through a singleton accessor, and module functions as
+`Lib.fib(n)`.
+
 **Exceptions.** A Temper `orelse` is `begin ... rescue
 TemperCore::Bubble ... end`. Only Bubble: a Ruby error in translated code,
 a NoMethodError say, is a bug, and is not caught as if it were a Temper
@@ -238,7 +267,9 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Eleven of sixty-six functional tests pass. Classes and interfaces are
-not translated, nor are lists, maps, string methods, closures used as
-values, generators or `@test` blocks; each stops the build with a TODO
-naming the node. Generated libraries have no RBS signatures yet.
+Twenty-eight of sixty-six functional tests pass. Not translated yet:
+strings beyond literals and concatenation, lists, maps, StringBuilder and
+the rest of the standard library, functions used as values, generators,
+async, `@test` blocks, and classes imported from other libraries; each
+stops the build with a TODO naming the node. Generated libraries have no
+RBS signatures yet.

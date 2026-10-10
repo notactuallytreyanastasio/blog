@@ -1,9 +1,20 @@
-# The method names a Temper module function must not take: every method a
-# module already answers to (public, private and protected, from Module,
-# Object and Kernel), which a `def self.name` would override for that
-# module. Run: ruby 10_taken_names.rb   (prints them, one per line, sorted)
-m = Module.new
-names = m.methods + m.private_methods + m.protected_methods
+# The method names translated code must not take, as Ruby itself reports
+# them. Run: ruby 10_taken_names.rb module|object|class
+#
+#   module  every method a module answers to: a module function is
+#           `def self.name` on the library's module and would override it
+#   object  every method an object answers to: a Temper class's instance
+#           method would override it (`hash`, `freeze`, `class`...)
+#   class   every method a class answers to: a static method would
+#           override it (`new`, `allocate`...)
+#
+# Public, private and protected, plain names only, one per line, sorted.
+subject = case ARGV.fetch(0, "module")
+          when "module" then Module.new
+          when "object" then Object.new
+          when "class" then Class.new
+          end
+names = subject.methods + subject.private_methods + subject.protected_methods
 plain = names.map(&:to_s).grep(/\A[a-z_][a-z0-9_]*[?!=]?\z/).uniq.sort
 puts plain
-warn "#{plain.size} names (ruby #{RUBY_VERSION})"
+warn "#{ARGV.fetch(0, "module")}: #{plain.size} names (ruby #{RUBY_VERSION})"

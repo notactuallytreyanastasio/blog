@@ -78,9 +78,22 @@ a row. Steep caught its first real bug. Ruby has no labelled `break`, so
 labelled blocks become one-shot `while true` loops or `catch`/`throw`,
 and not `loop do`, which swallows StopIteration.
 
-**Where it stands.** Eleven of sixty-six. Classes are next, which is
-where twenty of the remaining tests stop, and where Temper's types have
-the most to say to RBS.
+**Classes** ([entry 6](2026-10-10-classes-and-the-diamond.md)).
+Twenty-eight of sixty-six. Temper classes extend only interfaces, so an
+interface is a Ruby module and a class includes it, and most classes come
+out looking hand-written. The exception is the diamond. When two of a
+class's interfaces inherit the same default method, Temper picks the
+nearest one breadth-first and Ruby's include chain picks something else.
+Temper's suite has a test built to catch exactly this, and it caught the
+first draft. So where (and only where) two interfaces define a method,
+the class gets a one-line forwarder naming Temper's winner. Also: a
+static method called `new` would have replaced the constructor, which
+Ruby would have allowed.
+
+**Where it stands.** Twenty-eight of sixty-six. Generated classes
+still have no RBS signatures, which is the next entry, and then the
+standard library: strings, lists and maps, where most of the remaining
+tests stop.
 
 ## What is here
 
@@ -99,3 +112,4 @@ the most to say to RBS.
 3. [2026-10-10: temper-core, and a type checker you have to talk into it](2026-10-10-the-runtime-and-the-receipts.md)
 4. [2026-10-10: `console.log` is not `puts`, and one test of sixty-six](2026-10-10-console-log-is-not-puts.md)
 5. [2026-10-10: where a variable lives, and eleven of sixty-six](2026-10-10-where-a-variable-lives.md)
+6. [2026-10-10: classes, and who wins the diamond](2026-10-10-classes-and-the-diamond.md)
