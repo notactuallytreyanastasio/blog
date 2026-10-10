@@ -1,0 +1,7 @@
+module M
+  def self.show: (Integer i) -> String
+  def self.apply: (^(Integer) -> String f, Integer i) -> String
+  def self.by_method: () -> String
+  def self.by_lambda: () -> String
+  def self.map_method: () -> Array[String]
+end

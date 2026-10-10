@@ -1,0 +1,14 @@
+module G
+  EMPTY: Array[untyped]
+  def self.empty_list: [T] () -> Array[T]
+  def self.reduce: [T] (Array[T] list, ^(T, T) -> T f) -> T
+  def self.add: (Integer a, Integer b) -> Integer
+  def self.size: (Array[Integer] list) -> Integer
+  def self.empty_plain: () -> Integer
+  def self.empty_frozen: () -> Integer
+  def self.empty_generic: () -> Integer
+  def self.lambda_inline: () -> Integer
+  ADD: ^(Integer, Integer) -> Integer
+  def self.lambda_const: () -> Integer
+  def self.lambda_block: () -> Integer
+end

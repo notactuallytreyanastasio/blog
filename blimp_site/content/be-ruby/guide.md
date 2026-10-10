@@ -95,6 +95,11 @@ not Temper.
 | floats print like JavaScript, with `.0` | `1e20.to_s` is `"1.0e+20"` | `float_to_string` |
 | `1.0 / 0.0` bubbles | it is `Infinity` | `float_div`, `float_rem` |
 | integer division by zero bubbles | it raises ZeroDivisionError | a zero check, raising `Bubble` |
+| `ls[i]` panics outside `[0, length)` | `a[-1]` is the last, `a[9]` is nil | `list_get`, `list_get_or` |
+| `lb.set(9, x)` panics | `a[9] = x` pads with nils | `list_builder_set`, `list_builder_add` |
+| `sorted` and `sort` are stable | `sort` is not (stable at 40 items by luck) | `listed_sorted`, `list_builder_sort` |
+| `reduce` of an empty list panics | `inject` answers nil | `listed_reduce` |
+| `toList()` of a List is itself | an Array does not know it is a List | `list_to_list`, by `frozen?` |
 
 A bubble is `TemperCore::Bubble`, a StandardError, so a bare `rescue`
 catches it.
@@ -181,6 +186,20 @@ which bubbles when it fails. A class's method reaches module state as
 `Lib.calls`, through a singleton accessor, and module functions as
 `Lib.fib(n)`.
 
+**Lists** are Arrays: a `List` frozen, a `ListBuilder` not, so
+`[2, 3]` is `[2, 3].freeze` and `new ListBuilder()` is `[]`. Ruby's own
+method is used where it means what Temper's does (`length`, `empty?`,
+`push`, `concat`, `clear`, `reverse!`, `dup`, and `map` and `select` with
+the function as a block); indexing, bounds and sorting go through
+temper-core (section 3). A builtin method with no Ruby mapping stops the
+build with `TODO not connected: <key>`. Without that, the frontend would
+fall back to calling a Ruby method of the same name, and Ruby's `split`,
+for one, is not Temper's.
+
+**Functions as values.** A module function passed as a value is a
+constant holding a lambda that calls it, `HELLO = ->(a) do hello(a) end`,
+and a function value is called with `f.(x)`.
+
 **Exceptions.** A Temper `orelse` is `begin ... rescue
 TemperCore::Bubble ... end`. Only Bubble: a Ruby error in translated code,
 a NoMethodError say, is a bug, and is not caught as if it were a Temper
@@ -214,6 +233,7 @@ How Temper's types come out (`RubyTypes.kt`):
 | `Boolean` | `bool` |
 | `Void` | `void` as a result, `nil` as a value |
 | `T?` | `T?` |
+| `List<T>`, `ListBuilder<T>`, `Listed<T>` | `Array[T]` |
 | a function type | `^(A) -> R` |
 | a class or interface | its constant, with type arguments: `D[I]` |
 | a type parameter | its name, with any bound: `[T < I]` |
@@ -239,6 +259,15 @@ was forced by a Steep error on a program that otherwise ran fine:
   that Steep accepts (`probes/17_steep_not_null/`).
 - No module-level constant takes the library module's name, `Temper` or
   `TemperCore`.
+
+- A module function used as a value is a constant holding a lambda that
+  calls it, `FN = ->(a) do fn(a) end`, declared with its proc type. Steep
+  rejects `method(:fn)` where a proc is wanted
+  (`probes/20_steep_method_value/`), and cannot type the parameters of a
+  lambda passed straight to a generic method
+  (`probes/21_steep_lambda_inference/`).
+- An empty list is `TemperCore.empty_list`, since Steep cannot type
+  `[].freeze`.
 
 RBS has no `protected`, so a private property's protected reader appears
 in the signature as a plain `attr_reader`. Steep is looser there than
@@ -310,9 +339,9 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Twenty-eight of sixty-six functional tests pass, and all twenty-eight
-type-check. Not translated yet: strings beyond literals and
-concatenation, lists, maps, StringBuilder and the rest of the standard
-library, functions used as values, generators, async, `@test` blocks,
-and classes imported from other libraries; each stops the build with a
-TODO naming the node.
+Thirty-four of sixty-six functional tests pass, and all of them
+type-check. Not translated yet: String's methods beyond literals and
+concatenation, StringBuilder, maps, `Deque`, `DenseBitVector`, generic
+module functions used as values, generators, async, `@test` blocks, and
+classes imported from other libraries. Each stops the build with a TODO
+naming the node or the builtin.

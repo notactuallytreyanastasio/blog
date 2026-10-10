@@ -105,9 +105,23 @@ test, the one that deliberately passes a String where an Int goes, is now
 required to fail the type check, so a backend that typed everything
 `untyped` would get caught.
 
-**Where it stands.** Twenty-eight of sixty-six, all of them typed. The
-standard library is next: strings, lists and maps, where most of the
-remaining tests stop.
+**Lists** ([entry 8](2026-10-10-a-sort-that-is-stable-at-forty.md)).
+Thirty-four of sixty-six. A List is a frozen Array and a ListBuilder an
+unfrozen one, which is also what JavaScript's runtime does. Ruby's
+indexing had to be fenced off: `a[-1]` is the last element, reading past
+the end is nil, and writing past it pads with nils. The probe for sort
+stability said Ruby's sort was stable at forty items, which was lucky, and
+unstable at 8, 100 and 1000, which was the truth. A function used as a
+value is a constant holding a lambda, because Steep will not accept
+`method(:f)` as a proc and cannot type a lambda handed straight to a
+generic method. And the best find was a quiet one. Any Temper builtin the
+backend had not mapped was falling through to whichever Ruby method had
+the same name, so Temper's `split` was running as Ruby's `split`, which
+drops trailing empty strings. It printed nearly the right answer. Unmapped
+builtins now stop the build by name.
+
+**Where it stands.** Thirty-four of sixty-six, all typed. Strings are
+next, and the guard has already listed what they need.
 
 ## What is here
 
@@ -128,3 +142,4 @@ remaining tests stop.
 5. [2026-10-10: where a variable lives, and eleven of sixty-six](2026-10-10-where-a-variable-lives.md)
 6. [2026-10-10: classes, and who wins the diamond](2026-10-10-classes-and-the-diamond.md)
 7. [2026-10-10: types, and six times Steep was right](2026-10-10-steep-was-right.md)
+8. [2026-10-10: lists, and a sort that is stable at forty](2026-10-10-a-sort-that-is-stable-at-forty.md)
