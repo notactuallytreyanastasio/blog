@@ -120,8 +120,21 @@ the same name, so Temper's `split` was running as Ruby's `split`, which
 drops trailing empty strings. It printed nearly the right answer. Unmapped
 builtins now stop the build by name.
 
-**Where it stands.** Thirty-four of sixty-six, all typed. Strings are
-next, and the guard has already listed what they need.
+**Strings** ([entry 9](2026-10-10-strings-by-the-byte.md)). Forty-six
+of sixty-six. Temper never indexes a string by integer. It hands out
+opaque string indices, and in Ruby they are byte offsets into the UTF-8,
+because Ruby's own `s[i]` scans from the start of any string that is not
+ASCII. Ruby turned out to be lenient in all the wrong places: `pack("U")`
+encodes surrogates into broken UTF-8, `Integer("1_000")` is a thousand,
+`"12abc".to_i` is twelve, and an empty `String.new` is binary. Steep
+splatted a lambda's array parameter, a rule Ruby does not have even for
+blocks, so every lambda is now `lambda do |a|`. Then I wrote a fresh
+string program, not from the suite, and ran it on JavaScript, Python and
+Ruby. Ruby disagreed with JavaScript on one line of forty-two, a `0x`
+prefix both references accept. JavaScript and Python disagreed with each
+other on two.
+
+**Where it stands.** Forty-six of sixty-six, all typed. Maps are next.
 
 ## What is here
 
@@ -143,3 +156,4 @@ next, and the guard has already listed what they need.
 6. [2026-10-10: classes, and who wins the diamond](2026-10-10-classes-and-the-diamond.md)
 7. [2026-10-10: types, and six times Steep was right](2026-10-10-steep-was-right.md)
 8. [2026-10-10: lists, and a sort that is stable at forty](2026-10-10-a-sort-that-is-stable-at-forty.md)
+9. [2026-10-10: strings, by the byte](2026-10-10-strings-by-the-byte.md)

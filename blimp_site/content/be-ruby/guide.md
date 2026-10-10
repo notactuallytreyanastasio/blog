@@ -100,6 +100,12 @@ not Temper.
 | `sorted` and `sort` are stable | `sort` is not (stable at 40 items by luck) | `listed_sorted`, `list_builder_sort` |
 | `reduce` of an empty list panics | `inject` answers nil | `listed_reduce` |
 | `toList()` of a List is itself | an Array does not know it is a List | `list_to_list`, by `frozen?` |
+| a StringIndex steps by code point | `s[i]` counts characters and scans to find one | byte offsets: `string_next`, `string_prev`, `string_get` |
+| `split` keeps every empty piece | `split` drops trailing ones, and `" "` means any whitespace | `string_split` |
+| `fromCodePoint` bubbles on surrogates | `[0xD800].pack("U")` encodes them | `string_from_code_point` |
+| `toInt32` takes digits and a sign | `Integer("1_000")` is 1000, `"12abc".to_i` is 12 | `string_to_int32`, `string_to_int64` |
+| `toFloat64` takes JSON numbers, NaN, Infinity | `Float(".5")` works, `Float("Infinity")` raises | `string_to_float64` |
+| an optional argument left out arrives as null | Ruby's defaults apply only to a missing argument | every core function with a default treats nil as it |
 
 A bubble is `TemperCore::Bubble`, a StandardError, so a bare `rescue`
 catches it.
@@ -138,7 +144,7 @@ already answers to (177 of them, `name`, `hash`, `raise` among them,
 straight from `probes/10_taken_names.rb`) gets a trailing underscore, so
 it cannot override the module's own.
 
-**Local functions** are lambdas, `fact = ->(n) do ... end`, called as
+**Local functions** are lambdas, `fact = lambda do |n| ... end`, called as
 `fact.(n)`, because a lambda can see the locals around it and a `def`
 cannot.
 
@@ -196,8 +202,15 @@ build with `TODO not connected: <key>`. Without that, the frontend would
 fall back to calling a Ruby method of the same name, and Ruby's `split`,
 for one, is not Temper's.
 
+**Strings** are Strings, frozen as literals. A `StringIndex` is a byte
+offset: `String.begin` is `0`, `s.end` is `s.bytesize`, and
+`StringIndex.none` is `-1`, so `i is StringIndex` is `i >= 0` and index
+comparisons are plain `<` and `>`. A `StringBuilder` is an unfrozen
+String: `+""` (not `String.new`, which is binary), `<<` to append, and
+`dup` for `toString`.
+
 **Functions as values.** A module function passed as a value is a
-constant holding a lambda that calls it, `HELLO = ->(a) do hello(a) end`,
+constant holding a lambda that calls it, `HELLO = lambda do |a| hello(a) end`,
 and a function value is called with `f.(x)`.
 
 **Exceptions.** A Temper `orelse` is `begin ... rescue
@@ -234,6 +247,8 @@ How Temper's types come out (`RubyTypes.kt`):
 | `Void` | `void` as a result, `nil` as a value |
 | `T?` | `T?` |
 | `List<T>`, `ListBuilder<T>`, `Listed<T>` | `Array[T]` |
+| `StringBuilder` | `String` |
+| `StringIndex`, `NoStringIndex`, `StringIndexOption` | `Integer` |
 | a function type | `^(A) -> R` |
 | a class or interface | its constant, with type arguments: `D[I]` |
 | a type parameter | its name, with any bound: `[T < I]` |
@@ -261,13 +276,16 @@ was forced by a Steep error on a program that otherwise ran fine:
   `TemperCore`.
 
 - A module function used as a value is a constant holding a lambda that
-  calls it, `FN = ->(a) do fn(a) end`, declared with its proc type. Steep
+  calls it, `FN = lambda do |a| fn(a) end`, declared with its proc type. Steep
   rejects `method(:fn)` where a proc is wanted
   (`probes/20_steep_method_value/`), and cannot type the parameters of a
   lambda passed straight to a generic method
   (`probes/21_steep_lambda_inference/`).
 - An empty list is `TemperCore.empty_list`, since Steep cannot type
   `[].freeze`.
+- Every lambda is `lambda do |a| ... end`, never `->(a) do ... end`. Steep
+  2.1 splats a stabby lambda's single Array parameter
+  (`probes/23_steep_lambda_splat/`).
 
 RBS has no `protected`, so a private property's protected reader appears
 in the signature as a plain `attr_reader`. Steep is looser there than
@@ -339,9 +357,13 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Thirty-four of sixty-six functional tests pass, and all of them
-type-check. Not translated yet: String's methods beyond literals and
-concatenation, StringBuilder, maps, `Deque`, `DenseBitVector`, generic
-module functions used as values, generators, async, `@test` blocks, and
-classes imported from other libraries. Each stops the build with a TODO
-naming the node or the builtin.
+Forty-six of sixty-six functional tests pass, and all of them
+type-check. Not translated yet: maps, `Deque`, `DenseBitVector`, `Date`,
+regular expressions, generic module functions used as values,
+generators, async, `@test` blocks, and imports between libraries. Each
+stops the build with a TODO naming the node or the builtin.
+
+Known differences from the reference backends: none in
+`probes/24_fresh_strings/`, which agrees with JavaScript line for line.
+JavaScript and Python disagree with each other there on an Arabic-Indic
+digit and on `1e400`, and Ruby sides with JavaScript.

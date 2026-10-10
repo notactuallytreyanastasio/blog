@@ -59,11 +59,18 @@ check ':"with space"', "with space".to_sym
 check ':empty?', :empty?
 check '[1, [], { "a" => 1, :b => nil }, {}]', [1, [], { "a" => 1, b: nil }, {}]
 check <<~RUBY, 3
-  add = ->(a, b) do
+  add = lambda do |a, b|
     return a + b
   end
   add.(1, 2)
 RUBY
+check <<~RUBY, 1
+  hi = lambda do
+    return 1
+  end
+  hi.()
+RUBY
+check "[lambda do |x|\n  x\nend.lambda?, lambda do |x|\n  x\nend.arity]", [true, 1]
 check <<~RUBY, [0, 1, 3, 4, 5]
   out = []
   i = 0
