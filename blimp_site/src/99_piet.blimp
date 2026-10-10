@@ -47,7 +47,8 @@ PIET_DATA = piet_asset("static/piet/data.json.gz", "application/gzip")
 
 # /piet/life: the Fill the page and Tile the page layers on a page of their
 # own (static/piet/art.js, started by static/piet/life.js), tiles first and
-# one big board at /piet/life#board. Both run in this page's JavaScript; the
+# one big board at /piet/life#board. /piet/tiles and /piet/board are the same
+# page opened on one or the other, a link for each. Both run in this page's JavaScript; the
 # tiles' Piet interpreter does what npiet does where the specification
 # leaves room, and was checked against npiet on 240 boards.
 
