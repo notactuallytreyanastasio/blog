@@ -234,6 +234,8 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/piet/data.json.gz" -> PIET_DATA
     # Life on Piet programs, on its own page: the page and its two scripts
     "/piet/life" -> PIET_LIFE_PAGE
+    "/piet/tiles" -> PIET_LIFE_PAGE
+    "/piet/board" -> PIET_LIFE_PAGE
     "/piet/art.js" -> PIET_ART_JS
     "/piet/life.js" -> PIET_LIFE_JS
     # the iCloud album (src/99_gallery.blimp): the page and its script; the
