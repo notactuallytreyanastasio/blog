@@ -1,0 +1,3 @@
+module OnlyWarning
+  def self.declared: (Integer value) -> Integer
+end
