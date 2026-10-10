@@ -1,9 +1,9 @@
-# /piet: three Piet programs, assembling and running. A Piet program is an
-# image; these three are Temper libraries that temper-blimp's be-piet
+# /piet: four Piet programs, assembling and running. A Piet program is an
+# image; these four are Temper libraries that temper-blimp's be-piet
 # compiled to images, and npiet ran (temper-blimp/piet-programs, PRs
 # #176-#197 there).
 #
-# This program is the window: which of the three is shown, its notes, and
+# This program is the window: which of the four is shown, its notes, and
 # the Play button. The animation is static/piet/piet.js, which draws each
 # image, replays npiet's run over it from /piet/data.json.gz, and shows the
 # program's output. After every render it asks
@@ -19,7 +19,9 @@ PIET_PROGRAMS = [
   %{id: "mondrian", name: "Mondrian", steps: "34,140,191", time: "90.5 s",
     note: "Asks for today's date, seeds a random number generator with it, and paints a composition in red, yellow and blue: Mondrian's colours, and three of Piet's."},
   %{id: "fact-check", name: "Fact check", steps: "24,540,365", time: "40.2 s",
-    note: "Fetches the Commands section of the Piet article on esolangs.org over HTTPS, prints its table, and tests the claim that Divide is Python's // with its own divide command."}
+    note: "Fetches the Commands section of the Piet article on esolangs.org over HTTPS, prints its table, and tests the claim that Divide is Python's // with its own divide command."},
+  %{id: "life", name: "Life", steps: "1,265,631,744", time: "2 h 59 min",
+    note: "Plays Conway's Life on the Piet program it embeds, the one Piet in Piet runs, and after every generation runs the board as a Piet program. Generation 0 says Piet!; then Life takes it apart."}
 ]
 
 actor Piet do
@@ -75,7 +77,7 @@ def piet_page(current: String, loaded: Bool) -> Any do
     el("div", %{class: "os-window os-window-mac piet-window"},
       el("div", %{class: "os-titlebar"},
         el("div", %{class: "os-titlebar-buttons"}, el("a", %{href: "/", class: "os-btn-close"})),
-        el("span", %{class: "os-titlebar-title"}, "npiet — three Piet programs"),
+        el("span", %{class: "os-titlebar-title"}, "npiet — four Piet programs"),
         el("div", %{class: "os-titlebar-spacer"})),
       el("div", %{class: "os-content piet-content"},
         el("div", %{class: "piet-side"},
@@ -88,7 +90,7 @@ def piet_page(current: String, loaded: Bool) -> Any do
           el("p", %{class: "piet-how"}, "Each image draws itself, top to bottom. Then npiet's run is replayed over it: a codel lights up at the step npiet first lands on it, hotter the more steps landed there. Then the output, as the program printed it.")),
         el("div", %{class: "piet-main"},
           el("div", %{id: "piet-stage", class: "piet-stage"}),
-          el("div", %{class: piet_on("piet-loading", loaded)}, "Loading the three programs (590 KB)..."))),
+          el("div", %{class: piet_on("piet-loading", loaded)}, "Loading the four programs..."))),
       el("div", %{class: "os-statusbar"},
         el("span", %{}, "be-piet · temper-blimp"),
         el("span", %{}, "npiet 1.3f"))))

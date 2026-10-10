@@ -27,7 +27,7 @@ actor PietTests do
   end
 
   test "every program in the list has a note, and an unknown one falls back to the first" do
-    assert_eq(map(PIET_PROGRAMS, fn(q: Map) -> String do q.id end), ["piet-in-piet", "mondrian", "fact-check"])
+    assert_eq(map(PIET_PROGRAMS, fn(q: Map) -> String do q.id end), ["piet-in-piet", "mondrian", "fact-check", "life"])
     assert_eq(piet_find("nope").id, "piet-in-piet")
     assert_eq(piet_find("fact-check").name, "Fact check")
   end
