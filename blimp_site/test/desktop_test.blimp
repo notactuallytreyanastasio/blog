@@ -79,7 +79,8 @@ actor DesktopTests do
 
   test "the snapshots load" do
     desk = load_desktop("data", dt_posts())
-    assert_eq(length(desk.museum), 33)
+    assert_eq(length(desk.museum), 34)
+    assert_eq(desk_find_project(desk.museum, "piet-life").internal_path, "/piet/life")
     assert_eq(desk.categories, ["creative", "hardware", "maps", "ml", "music", "social", "tools", "writing"])
     assert_eq(desk.item_count, 30)
     assert_eq(length(split(desk.finder_html, "class=\"more-row\"")), 7)
@@ -129,8 +130,8 @@ actor DesktopTests do
 
   test "the filter shows one category" do
     assert(contains(dt_page("cat=hardware"), "<span class=\"sec-count\">4 exhibits</span>"))
-    assert(contains(dt_page(""), "<span class=\"sec-count\">33 exhibits</span>"))
-    assert(contains(dt_page("cat=creative"), "<span class=\"sec-count\">2 exhibits</span>"))
+    assert(contains(dt_page(""), "<span class=\"sec-count\">34 exhibits</span>"))
+    assert(contains(dt_page("cat=creative"), "<span class=\"sec-count\">3 exhibits</span>"))
   end
 
   test "closing the last exhibit does not replay the splash" do
