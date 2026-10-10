@@ -1,12 +1,13 @@
-# /piet, three Piet programs assembling and running: a program the browser
+# /piet, four Piet programs assembling and running: a program the browser
 # runs (static/piet/piet.blimp: the window, the list, Play) and a script
 # that animates the images (static/piet/piet.js) from /piet/data.json.gz.
 #
 # The data is committed as it was made in temper-blimp (piet-programs, PRs
-# #176-#197 there): the three compiled images, npiet's step count for each,
+# #176-#199 there): the four compiled images, npiet's step count for each,
 # every codel's landing count and first step from a run of npiet 1.3f
-# patched to count, and each program's output from that run. 590 KB
-# gzipped, 2.3 MB unpacked by the browser; read once, at boot.
+# patched to count, and each program's output from that run (Life's is
+# its 31 boards and runs). 910 KB gzipped, unpacked by the browser; read
+# once, at boot.
 #
 # Caddy buffers the data as it does /sky/points.json.gz, so a slow reader
 # does not hold the one-threaded server (deploy/Caddyfile.snippet,
@@ -23,8 +24,8 @@ def piet_page_html() -> String do
     "that needs JavaScript to start. The program is <a href=\"", program, "\">", program, "</a>.</p></noscript>\n",
     script_tags(PIET_SCRIPTS)
   ], "")
-  page_layout_html("Piet in Piet — three Piet programs, assembling and running",
-    "Three Temper libraries compiled to Piet images: a Piet interpreter running a Piet program, today's Mondrian, and a program that looks itself up on esolangs.org. Watch each image draw itself, run under npiet, and print.",
+  page_layout_html("Piet in Piet — four Piet programs, assembling and running",
+    "Four Temper libraries compiled to Piet images: a Piet interpreter running a Piet program, today's Mondrian, a program that looks itself up on esolangs.org, and Conway's Life played on a Piet program. Watch each image draw itself, run under npiet, and print.",
     "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/piet.css"], body, "piet-page")
 end
 

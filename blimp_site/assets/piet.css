@@ -48,6 +48,7 @@ html.piet-page body {
 .piet-eyebrow { font: bold 11px Chicago, Geneva, Helvetica, sans-serif; text-transform: uppercase; letter-spacing: .08em; color: #555; }
 .piet-terminal:empty { display: none; }
 .piet-terminal { margin: 0; font: 12px/1.45 Monaco, Menlo, monospace; white-space: pre-wrap; word-break: break-word; min-height: 3em; }
+.piet-life { width: 100%; height: auto; image-rendering: pixelated; background: #000; border: 1px solid #000; }
 .piet-painting { width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
 .piet-strip { overflow-x: auto; background: #000; padding: 6px; }
 .piet-strip canvas { display: block; image-rendering: pixelated; }

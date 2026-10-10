@@ -159,6 +159,13 @@
       var W = this.inner.rows[0].length, Hh = this.inner.rows.length
       this.strip.width = W * this.S; this.strip.height = Hh * this.S
     }
+    if (k === 'life') {
+      this.lifeCanvas = el('canvas', 'piet-life'); o.appendChild(this.lifeCanvas)
+      this.lifeGen = el('div', 'piet-said'); o.appendChild(this.lifeGen)
+      this.lifeRun = el('div', 'piet-status'); o.appendChild(this.lifeRun)
+      var L = this.d.life
+      this.lifeCanvas.width = L.width * 4; this.lifeCanvas.height = L.height * 4
+    }
     this.term = el('pre', 'piet-terminal'); o.appendChild(this.term)
     if (k === 'mondrian') {
       this.paint = el('canvas', 'piet-painting'); o.appendChild(this.paint)
@@ -170,6 +177,7 @@
     this.term.textContent = ''
     if (k === 'piet-in-piet') { this.drawStrip(-1, 0); this.said.textContent = ''; this.status.textContent = 'waiting for npiet'; this.stackEl.textContent = '' }
     if (k === 'mondrian') this.drawPainting(0)
+    if (k === 'life') { this.drawLife(0); this.lifeGen.textContent = ''; this.lifeRun.textContent = 'waiting for npiet' }
   }
   Program.prototype.finishOutput = function () {
     var k = this.d.kind
@@ -181,12 +189,19 @@
       this.stackEl.textContent = ''
     }
     if (k === 'mondrian') this.drawPainting(this.d.grid.length)
+    if (k === 'life') { var last = this.d.life.frames.length - 1; this.showLife(last); this.term.textContent = this.lifeSummary() }
   }
   Program.prototype.playOutput = async function (live) {
     var k = this.d.kind, lines, i
     if (k === 'mondrian') {
       this.term.textContent = this.d.text
       for (var r = 0; r <= this.d.grid.length; r++) { this.drawPainting(r); await wait(90); if (!live()) return }
+    } else if (k === 'life') {
+      this.term.textContent = ''
+      for (var g = 0; g < this.d.life.frames.length; g++) {
+        this.showLife(g); await wait(g < 3 ? 1400 : 260); if (!live()) return
+      }
+      this.term.textContent = this.lifeSummary()
     } else if (k === 'fact-check') {
       lines = this.d.text.split('\n')
       for (i = 0; i < lines.length; i++) { this.term.textContent += lines[i] + '\n'; await wait(lines[i] ? 160 : 60); if (!live()) return }
@@ -194,6 +209,35 @@
       await this.playInner(live)
     }
   }
+  // Life's boards come from the program's own output, run-length encoded
+  // ("1a129K..."), one per generation.
+  Program.prototype.lifeCells = function (g) {
+    var L = this.d.life
+    if (!L.cells) L.cells = []
+    if (!L.cells[g]) {
+      var out = [], re = /(\d+)([a-rKW])/g, m
+      while ((m = re.exec(L.frames[g]))) for (var i = 0; i < +m[1]; i++) out.push(m[2])
+      L.cells[g] = out
+    }
+    return L.cells[g]
+  }
+  Program.prototype.drawLife = function (g) {
+    var L = this.d.life, c = this.lifeCanvas.getContext('2d'), cells = this.lifeCells(g), k = 4
+    c.fillStyle = '#000'; c.fillRect(0, 0, L.width * k, L.height * k)
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i] === 'K') continue
+      c.fillStyle = colourOf(cells[i]); c.fillRect((i % L.width) * k, Math.floor(i / L.width) * k, k, k)
+    }
+  }
+  Program.prototype.showLife = function (g) {
+    var r = this.d.life.runs[g]
+    this.drawLife(g)
+    this.lifeGen.textContent = 'generation ' + g
+    var said = r.said ? ', said "' + r.said + '"' : ', said nothing'
+    var how = r.how === 'stopped' ? 'stopped at the ' + fmt(this.d.life.limit) + '-step limit' : (r.steps === 0 ? 'halted before taking a step' : 'halted after ' + r.steps + ' steps')
+    this.lifeRun.textContent = fmt(r.live) + ' live codels; run as a Piet program, it ' + how + said
+  }
+  Program.prototype.lifeSummary = function () { return this.d.text }
   Program.prototype.drawPainting = function (rows) {
     var c = this.paint.getContext('2d'), g = this.d.grid
     c.fillStyle = '#fff'; c.fillRect(0, 0, this.paint.width, this.paint.height)
