@@ -31,6 +31,10 @@
     ws.onopen = function () { wait = 1000 }
     ws.onmessage = function (ev) {
       var state = JSON.parse(ev.data)
+      // A window that has just connected is sent the meter's last two
+      // minutes first, {meter_history}, for the homepage's graph (home.js
+      // takes it); that is not a snapshot, and this window has no meter.
+      if (!state.actors) return
       viz.feed(state, null)
       state.messages.forEach(function (m) { if (/^(GET|HEAD|POST|WS) /.test(m.message)) answered++ })
       var site = state.actors.filter(function (a) { return a.type === 'Site' })[0]
