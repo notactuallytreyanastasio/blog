@@ -107,6 +107,7 @@ def piet_page(current: String, loaded: Bool) -> Any do
           el("button", %{type: "button", class: "piet-play", click: :play}, "Play"),
           el("button", %{type: "button", class: "piet-play piet-fill", click: :fill}, "Fill the page"),
           el("button", %{type: "button", class: "piet-play piet-fill", click: :tile}, "Tile the page"),
+          el("a", %{href: "/piet/life", class: "piet-how piet-life-link"}, "Both, on a page of their own: /piet/life"),
           el("p", %{class: "piet-how"}, "Each image draws itself, top to bottom. Then npiet's run is replayed over it: a codel lights up at the step npiet first lands on it, hotter the more steps landed there. Then the output, as the program printed it.")),
         el("div", %{class: "piet-main"},
           el("div", %{id: "piet-stage", class: "piet-stage"}),

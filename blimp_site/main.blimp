@@ -232,6 +232,10 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/piet/piet.js" -> PIET_JS
     "/assets/piet.css" -> PIET_CSS
     "/piet/data.json.gz" -> PIET_DATA
+    # Life on Piet programs, on its own page: the page and its two scripts
+    "/piet/life" -> PIET_LIFE_PAGE
+    "/piet/art.js" -> PIET_ART_JS
+    "/piet/life.js" -> PIET_LIFE_JS
     # the iCloud album (src/99_gallery.blimp): the page and its script; the
     # photos, /gallery/img/:guid/:size, are gallery_or_404's
     "/gallery" -> gallery_route(path)

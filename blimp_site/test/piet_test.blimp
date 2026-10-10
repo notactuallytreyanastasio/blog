@@ -10,11 +10,25 @@ actor PietTests do
     refute(contains(downcase(PIET_TEST_HTML), "javascript:"))
   end
 
+  test "/piet/life is the art alone: its two scripts in order, and no inline script" do
+    html = piet_life_page_html()
+    art = index_of(html, "/piet/art.js")
+    starter = index_of(html, "/piet/life.js")
+    assert(art > 0)
+    assert(starter > art)
+    refute(contains(html, "data-program="))
+    refute(contains(downcase(html), "javascript:"))
+    assert(contains(html, "class=\"piet-life-page\""))
+    assert(contains(html, "href=\"/piet\""))
+  end
+
   test "the scripts come in order, the animation last" do
     app = index_of(PIET_TEST_HTML, "/blimp/app.js")
+    shared = index_of(PIET_TEST_HTML, "/piet/art.js")
     anim = index_of(PIET_TEST_HTML, "/piet/piet.js")
     assert(app > 0)
-    assert(anim > app)
+    assert(shared > app)
+    assert(anim > shared)
   end
 
   test "it starts on Piet in Piet; choosing a program plays it, and Play plays it again" do
