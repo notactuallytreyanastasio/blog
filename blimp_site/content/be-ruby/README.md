@@ -180,8 +180,20 @@ had left after code that always returned. Also: a property named `hash`
 would have replaced Object#hash, and local functions that call each other
 need forward declarations Steep will accept.
 
-**Where it stands.** Fifty-eight of sixty-seven, all typed. `async` is
-next.
+**Coroutines Ruby already had**
+([entry 13](2026-10-10-coroutines-ruby-already-had.md)). Sixty-four of
+sixty-seven. A Temper generator runs its body in a Ruby Fiber, so nothing
+inside it needs rewriting: `yield()` is `Fiber.yield`, and `await` hands
+the promise to an event loop that resumes the block once it settles. A
+real HTTP request from inside an async block now works end to end. A fresh
+ordering program found the backends disagreeing about when an async block
+runs: Ruby at once, JavaScript only after the top level, and Python on a
+thread pool, in whatever order the threads choose. It also crashed
+JavaScript's generated code on `is ValueResult`. A type used as a value is
+the Ruby class that stands for it, `::NilClass` for Void.
+
+**Where it stands.** Sixty-four of sixty-seven, all typed. `@test` blocks
+are next.
 
 ## What is here
 
@@ -207,3 +219,4 @@ next.
 10. [2026-10-10: maps, and a nil that equalled another nil](2026-10-10-a-nil-that-equalled-another-nil.md)
 11. [2026-10-10: a date, and everything it imports](2026-10-10-a-date-and-everything-it-imports.md)
 12. [2026-10-10: twelve errors Steep did not mention](2026-10-10-twelve-errors-steep-did-not-mention.md)
+13. [2026-10-10: coroutines Ruby already had](2026-10-10-coroutines-ruby-already-had.md)

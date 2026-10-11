@@ -253,6 +253,18 @@ is read through the reader method every exported value gets,
 Steepfile loads the other's signatures, and a run puts every sibling's
 `lib` on the load path.
 
+**Generators and async.** A function that yields returns
+`TemperCore::Generator.new(lambda do ... end)`, which runs the body in a
+Fiber; `next`/`nextSafe` resume it, `yield()` is `Fiber.yield`, and
+`done` reports whether it has finished. `async { ... }` is
+`TemperCore.async_launch(factory)`: the block runs at once up to its first
+`await` of an unsettled promise. `await p` is `TemperCore.await(p)`, which
+answers at once for a settled promise and otherwise yields it to the event
+loop. The loop runs at exit, resuming blocks in the order their promises
+settled and waiting for background work. `empty()` is `TemperCore::EMPTY`.
+A type used as a value is the Ruby class for it: `::NilClass` for Void,
+`::Integer` for Int, a translated class's constant.
+
 **Local functions** are lambdas. One that an earlier statement in its block
 calls, or that calls itself, is declared first:
 `putter = TemperCore.forward_reference #: ^(Integer) -> void`.
@@ -301,6 +313,10 @@ How Temper's types come out (`RubyTypes.kt`):
 | `Pair<K, V>`, `Deque<T>`, `DenseBitVector` | `TemperCore::Pair[K, V]`, `TemperCore::Deque[T]`, `TemperCore::DenseBitVector` |
 | `MapKey`, as a bound | `::Hash::_Key`: `[K < ::Hash::_Key]` |
 | std/temporal `Date` | `Date` (the Steepfile loads `library "date"`) |
+| `Generator<T>`, `SafeGenerator<T>` | `TemperCore::Generator[T]` |
+| `GeneratorResult<T>` | `TemperCore::ValueResult[T] \| TemperCore::DoneResult[T]` |
+| `Empty` | `TemperCore::Empty` |
+| `Type` | `Module` |
 | `Promise<R>`, `PromiseBuilder<R>` | `TemperCore::Promise[R]`, `TemperCore::PromiseBuilder[R]` |
 | a function type | `^(A) -> R` |
 | a class or interface | its constant, with type arguments: `D[I]` |
@@ -431,10 +447,10 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Fifty-eight of sixty-seven functional tests pass, and every library their
+Sixty-four of sixty-seven functional tests pass, and every library their
 builds write parses and type-checks. Not translated yet: generic module
 functions used as values, another library's function used as a value,
-generators, async, `@test` blocks, and RBS for `Empty` and `Type`. Each stops the
+`@test` blocks, and a connected function declared in the library itself. Each stops the
 build with a TODO naming the node or the builtin.
 
 Known differences from the reference backends: none in
@@ -449,4 +465,7 @@ more than twice past its storage; Python and Ruby keep it. In
 `probes/35_fresh_dates/`, Ruby agrees with Temper's interpreter on 26 of
 27 lines, and differs on Arabic-Indic digits in a year, which the
 interpreter's `toInt32` accepts. JavaScript's runtime rolls invalid dates
-over (31 April is 1 May) and reads `"96-03-31"` as 1996.
+over (31 April is 1 May) and reads `"96-03-31"` as 1996. In
+`probes/39_fresh_async/`, the backends start async blocks at different
+times: Ruby at once (up to the first unsettled `await`), JavaScript after
+the top level, Python on a thread pool.
