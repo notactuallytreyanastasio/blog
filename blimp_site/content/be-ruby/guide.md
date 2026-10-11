@@ -285,7 +285,13 @@ calls, or that calls itself, is declared first:
 
 **Functions as values.** A module function passed as a value is a
 constant holding a lambda that calls it, `HELLO = lambda do |a| hello(a) end`,
-and a function value is called with `f.(x)`.
+and a function value is called with `f.(x)`. Another library's function
+is the same with a receiver, `ENTIRE = lambda do |a| Temper::Std.entire(a)
+end`. A generic function needs its type arguments to be a value at all,
+`identity<Int>`, and gets one constant per instantiation, since a
+constant's RBS type cannot be generic: `IDENTITY: ^(Integer) -> Integer`,
+`IDENTITY_2: ^(String) -> String`. A defaulted parameter is `|a, b = nil|`
+in the lambda, so the lambda's arity matches its declared type.
 
 **Exceptions.** A Temper `orelse` is `begin ... rescue
 TemperCore::Bubble ... end`. Only Bubble: a Ruby error in translated code,
@@ -383,6 +389,13 @@ was forced by a Steep error on a program that otherwise ran fine:
   (`probes/20_steep_method_value/`), and cannot type the parameters of a
   lambda passed straight to a generic method
   (`probes/21_steep_lambda_inference/`).
+- A function value's lambda takes `b = nil` for a defaulted parameter.
+  Steep accepts `|a, b|` as `^(String, ?String?) -> String`, and then the
+  one-argument call raises ArgumentError (`probes/41_steep_lambda_arity/`).
+- `f<Int>` reaches the backend as a call to the builtin `<>`, whose own
+  type is Invalid, so the translator substitutes the type arguments into
+  the function's signature itself, with the formals from the declaration,
+  and translates that through `translateSignatureForBackend` in `be`.
 - An empty list is `TemperCore.empty_list`, since Steep cannot type
   `[].freeze`.
 - Every lambda is `lambda do |a| ... end`, never `->(a) do ... end`. Steep
@@ -464,10 +477,11 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-All sixty-seven functional tests pass, with no skip list, and every
+All sixty-eight functional tests pass, with no skip list, and every
 library their builds write parses and type-checks. Still a `TODO` at build
-time, because no test reaches them: a generic module function used as a
-value, and another library's function used as a value. Code the frontend
+time: another library's *generic* function used as a value with type
+arguments, `listJsonAdapter<Int>`, since its type formals are not in the
+reference's type and its declaration is in the other library. Code the frontend
 reported as an error becomes `TemperCore.garbage("message")`, which panics
 when reached. Each stops the
 build with a TODO naming the node or the builtin.

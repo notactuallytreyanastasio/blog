@@ -204,10 +204,25 @@ Getting there found that every parameter with a `= null` default had been
 required in Ruby. Code the frontend reports as broken becomes a panic
 carrying the frontend's message, and that test is required to fail Steep.
 
-**Where it stands.** Sixty-seven of sixty-seven, all typed. What that does
-not mean is the second half of entry 14: three open disagreements between
-the backends, four bugs found in JavaScript's runtime and reported nowhere,
-and two constructs that still stop the build because no test uses them.
+**Functions as values, and a value the frontend threw away**
+([entry 15](2026-10-11-a-value-the-frontend-threw-away.md)). Sixty-eight
+of sixty-eight. A generic function used as a value, `identity<Int>`,
+reaches the backend as a call to a builtin `<>` that JavaScript and
+Python replace with a placeholder that fails; Ruby gives each
+instantiation its own lambda constant, typed `^(Integer) -> Integer`.
+Another library's function works as a value too. Steep accepts a lambda
+with two required parameters as a proc type whose second is optional, so
+function values now spell out `b = nil`. Then Steep found a `return` of a
+temporary nobody assigned. The frontend had been dropping a function's
+last expression when the loop before it held both a `return` and a
+`continue` or `break`, and Temper's own interpreter answered with the
+loop counter instead. The fix is one line in the frontend, with a unit
+test and a new shared functional test.
+
+**Where it stands.** Sixty-eight of sixty-eight, all typed. Another
+library's generic function used as a value stops the build. The open
+disagreements between the backends, and the bugs in JavaScript's runtime
+reported nowhere, are listed in entries 14 and 15.
 
 ## What is here
 
@@ -235,3 +250,4 @@ and two constructs that still stop the build because no test uses them.
 12. [2026-10-10: twelve errors Steep did not mention](2026-10-10-twelve-errors-steep-did-not-mention.md)
 13. [2026-10-10: coroutines Ruby already had](2026-10-10-coroutines-ruby-already-had.md)
 14. [2026-10-10: sixty-seven of sixty-seven](2026-10-10-sixty-seven-of-sixty-seven.md)
+15. [2026-10-11: functions as values, and a value the frontend threw away](2026-10-11-a-value-the-frontend-threw-away.md)
