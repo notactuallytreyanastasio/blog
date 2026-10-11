@@ -105,6 +105,10 @@ not Temper.
 | `fromCodePoint` bubbles on surrogates | `[0xD800].pack("U")` encodes them | `string_from_code_point` |
 | `toInt32` takes digits and a sign | `Integer("1_000")` is 1000, `"12abc".to_i` is 12 | `string_to_int32`, `string_to_int64` |
 | `toFloat64` takes JSON numbers, NaN, Infinity | `Float(".5")` works, `Float("Infinity")` raises | `string_to_float64` |
+| `map[key]` bubbles only for a missing key | `fetch` raises KeyError, `delete` answers nil for a missing key and for a nil value | `mapped_get`, `map_builder_remove` |
+| `forEach` hands a function a key and a value | `hash.each(&f)` hands a two-parameter lambda one array, and raises | `mapped_for_each` |
+| `removeFirst` of an empty Deque panics | `[].shift` is nil | `TemperCore::Deque`, an Array inside |
+| a DenseBitVector grows to any bit you set | (no such class) | `TemperCore::DenseBitVector`, eight bits to a byte of a binary String |
 | an optional argument left out arrives as null | Ruby's defaults apply only to a missing argument | every core function with a default treats nil as it |
 
 A bubble is `TemperCore::Bubble`, a StandardError, so a bare `rescue`
@@ -209,6 +213,20 @@ comparisons are plain `<` and `>`. A `StringBuilder` is an unfrozen
 String: `+""` (not `String.new`, which is binary), `<<` to append, and
 `dup` for `toString`.
 
+**Maps** are Hashes: a `Map` frozen, a `MapBuilder` not, and a `Pair`
+is `TemperCore::Pair`. `new Map(pairs)` is `TemperCore.map_from_pairs`,
+`new MapBuilder()` is `{}`, `has` is `key?`, `getOr` is `fetch(key,
+fallback)` (the fallback only for a missing key, not a nil value),
+`set` is `store`, `keys()` and `values()` are frozen copies, and
+`toMapBuilder()` is `dup`. A Hash keeps insertion order, as Temper
+requires (`probes/25_hashes.rb`).
+
+**Deque and DenseBitVector** are temper-core classes:
+`TemperCore::Deque.new` with `add`, `empty?` and `remove_first`, and
+`TemperCore::DenseBitVector.new(capacity)` with `get` and `set`. A Deque
+is an Array, because CRuby's `shift` is cheap (`probes/27_deque_and_bits.rb`;
+node's is not, `probes/27_shift.js`).
+
 **Functions as values.** A module function passed as a value is a
 constant holding a lambda that calls it, `HELLO = lambda do |a| hello(a) end`,
 and a function value is called with `f.(x)`.
@@ -249,6 +267,9 @@ How Temper's types come out (`RubyTypes.kt`):
 | `List<T>`, `ListBuilder<T>`, `Listed<T>` | `Array[T]` |
 | `StringBuilder` | `String` |
 | `StringIndex`, `NoStringIndex`, `StringIndexOption` | `Integer` |
+| `Map<K, V>`, `MapBuilder<K, V>`, `Mapped<K, V>` | `Hash[K, V]` |
+| `Pair<K, V>`, `Deque<T>`, `DenseBitVector` | `TemperCore::Pair[K, V]`, `TemperCore::Deque[T]`, `TemperCore::DenseBitVector` |
+| `MapKey`, as a bound | `::Hash::_Key`: `[K < ::Hash::_Key]` |
 | a function type | `^(A) -> R` |
 | a class or interface | its constant, with type arguments: `D[I]` |
 | a type parameter | its name, with any bound: `[T < I]` |
@@ -266,8 +287,19 @@ was forced by a Steep error on a program that otherwise ran fine:
   a `catch` block.
 - A `return` inside a lambda is `next`, because Steep checks a lambda's
   `return` against the enclosing method (`probes/16_steep_lambda_return/`).
-- An early return the frontend lowered into a labelled block is turned
-  back into `return`.
+- An early return the frontend lowered into a labelled block or a loop is
+  turned back into `return`. After a `while true` that can only end by
+  returning, an unreachable `raise "unreachable"`, because Steep types the
+  loop, and so the method, as nil (`probes/30_steep_endless_loop/`).
+- An empty Array or Hash going into a local carries Steep's inline
+  annotation, `x = [] #: Array[DiffPath]`. A method's type parameters are
+  not in scope there (`probes/29_steep_annotation_scope/`), so each is
+  written `untyped`: `#: Array[Change[untyped]]`.
+- temper-core's map functions take an unbounded key type and annotate a
+  key `untyped` before `Hash#fetch`, since Steep cannot pass a parameter
+  bounded by `Hash::_Key` to a method with a bounded parameter of its own
+  (`probes/26_steep_hash_key/`). Generated signatures bound map keys by
+  `::Hash::_Key`, which a bounded-to-unbounded call allows.
 - A cast to a class is `TemperCore.cast(x, C)`, declared `untyped`, and a
   value the frontend proved non-null is `TemperCore.not_null(x)`, declared
   `[T] (T?) -> T`. Its body is `case`/`when nil`, the one way to write it
@@ -357,13 +389,18 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Forty-six of sixty-six functional tests pass, and all of them
-type-check. Not translated yet: maps, `Deque`, `DenseBitVector`, `Date`,
-regular expressions, generic module functions used as values,
-generators, async, `@test` blocks, and imports between libraries. Each
-stops the build with a TODO naming the node or the builtin.
+Fifty-one of sixty-seven functional tests pass, and all of them
+type-check. Not translated yet: `Date`, regular expressions, generic
+module functions used as values, generators, async, `@test` blocks,
+imports between libraries, and RBS for `Empty` and `Type`. Each stops the
+build with a TODO naming the node or the builtin.
 
 Known differences from the reference backends: none in
 `probes/24_fresh_strings/`, which agrees with JavaScript line for line.
 JavaScript and Python disagree with each other there on an Arabic-Indic
-digit and on `1e400`, and Ruby sides with JavaScript.
+digit and on `1e400`, and Ruby sides with JavaScript. In
+`probes/31_fresh_maps/`, Ruby differs from JavaScript on one line: `getOr`
+for a key whose value is null, where JavaScript's runtime answers the
+fallback and Temper's documentation, Python and Ruby answer null. In
+`probes/32_fresh_bits/`, JavaScript's `DenseBitVector` drops a bit set
+more than twice past its storage; Python and Ruby keep it.

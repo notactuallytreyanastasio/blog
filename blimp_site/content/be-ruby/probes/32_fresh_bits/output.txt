@@ -1,0 +1,19 @@
+== js
+set 1000 on an empty vector, get 1000: [false]
+set 200 on a 16-bit vector, get 200: [false]
+then set 100, get 100: [true]
+get -1: [false]
+  throw Error();
+Error
+== py
+set 1000 on an empty vector, get 1000: [true]
+set 200 on a 16-bit vector, get 200: [true]
+then set 100, get 100: [true]
+get -1: [false]
+IndexError: pop from an empty deque
+== ruby
+'TemperCore::Deque#remove_first': removeFirst of an empty Deque (TemperCore::Panic)
+set 1000 on an empty vector, get 1000: [true]
+set 200 on a 16-bit vector, get 200: [true]
+then set 100, get 100: [true]
+get -1: [false]

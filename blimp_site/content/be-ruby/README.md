@@ -134,7 +134,24 @@ Ruby. Ruby disagreed with JavaScript on one line of forty-two, a `0x`
 prefix both references accept. JavaScript and Python disagreed with each
 other on two.
 
-**Where it stands.** Forty-six of sixty-six, all typed. Maps are next.
+**Maps, and a nil that equalled another nil**
+([entry 10](2026-10-10-a-nil-that-equalled-another-nil.md)). Fifty-one
+of sixty-seven. A Map is a frozen Hash, a Deque is an Array, because
+CRuby's `shift` is constant time where node's moves the whole array, and
+a DenseBitVector is bits in a binary String. Fresh programs found two
+places where JavaScript's runtime contradicts Temper's documentation:
+`getOr` answers the fallback for a key that is present with a null value,
+and `DenseBitVector.set` drops a bit set far enough out. Then the real
+find. Since entry 7, the translator had been deleting `x = nil`
+statements it thought were its own placeholders, and because the syntax
+tree compares nodes structurally, a real `x = nil` from an `else { null }`
+looked identical and went too. Inside a loop, a Ruby local keeps its old
+value, so a three-line program printed 5, 5, 5 where every other backend
+prints 5, -1, -1. No test had a loop, a second pass and a null in a place
+that mattered. There is one in the shared suite now.
+
+**Where it stands.** Fifty-one of sixty-seven, all typed. `Date` is next,
+then generators.
 
 ## What is here
 
@@ -157,3 +174,4 @@ other on two.
 7. [2026-10-10: types, and six times Steep was right](2026-10-10-steep-was-right.md)
 8. [2026-10-10: lists, and a sort that is stable at forty](2026-10-10-a-sort-that-is-stable-at-forty.md)
 9. [2026-10-10: strings, by the byte](2026-10-10-strings-by-the-byte.md)
+10. [2026-10-10: maps, and a nil that equalled another nil](2026-10-10-a-nil-that-equalled-another-nil.md)
