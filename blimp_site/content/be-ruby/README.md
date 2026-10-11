@@ -188,7 +188,8 @@ the promise to an event loop that resumes the block once it settles. A
 real HTTP request from inside an async block now works end to end. A fresh
 ordering program found the backends disagreeing about when an async block
 runs: Ruby at once, JavaScript only after the top level, and Python on a
-thread pool, in whatever order the threads choose. It also crashed
+thread pool, in whatever order the threads choose. (Entry 16: the
+interpreter, never asked here, sides with JavaScript.) It also crashed
 JavaScript's generated code on `is ValueResult`. A type used as a value is
 the Ruby class that stands for it, `::NilClass` for Void.
 
@@ -219,10 +220,22 @@ last expression when the loop before it held both a `return` and a
 loop counter instead. The fix is one line in the frontend, with a unit
 test and a new shared functional test.
 
+**The reference nobody asked**
+([entry 16](2026-10-11-the-reference-nobody-asked.md)). Checking the
+journal's findings against our open upstream issues turned up three
+mistakes. Two bugs entry 14 said were "reported nowhere" had been reported
+by us two days earlier: #556 (Arabic-Indic digits) and #579 (generators on
+js and Python). And entry 13 chose Ruby's async order without ever running
+Temper's interpreter, which starts blocks after the top level, in launch
+order, as JavaScript and rust do. Ruby does too now: `async_launch` queues
+the block, and probe 39 matches the interpreter on all nineteen lines.
+Entries 13 and 14 carry visible corrections.
+
 **Where it stands.** Sixty-eight of sixty-eight, all typed. Another
-library's generic function used as a value stops the build. The open
-disagreements between the backends, and the bugs in JavaScript's runtime
-reported nowhere, are listed in entries 14 and 15.
+library's generic function used as a value stops the build. Five findings
+have no upstream issue yet, listed in entry 16: the frontend's dropped
+trailing value, generic function values on js and Python, and three bugs
+in JavaScript's runtime.
 
 ## What is here
 
@@ -251,3 +264,4 @@ reported nowhere, are listed in entries 14 and 15.
 13. [2026-10-10: coroutines Ruby already had](2026-10-10-coroutines-ruby-already-had.md)
 14. [2026-10-10: sixty-seven of sixty-seven](2026-10-10-sixty-seven-of-sixty-seven.md)
 15. [2026-10-11: functions as values, and a value the frontend threw away](2026-10-11-a-value-the-frontend-threw-away.md)
+16. [2026-10-11: the reference nobody asked](2026-10-11-the-reference-nobody-asked.md)

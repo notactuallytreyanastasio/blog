@@ -257,8 +257,10 @@ Steepfile loads the other's signatures, and a run puts every sibling's
 `TemperCore::Generator.new(lambda do ... end)`, which runs the body in a
 Fiber; `next`/`nextSafe` resume it, `yield()` is `Fiber.yield`, and
 `done` reports whether it has finished. `async { ... }` is
-`TemperCore.async_launch(factory)`: the block runs at once up to its first
-`await` of an unsettled promise. `await p` is `TemperCore.await(p)`, which
+`TemperCore.async_launch(factory)`, which queues the block: blocks start
+after the top level has finished, in the order they were launched, as on
+Temper's interpreter, and each runs up to its first `await` of an
+unsettled promise. `await p` is `TemperCore.await(p)`, which
 answers at once for a settled promise and otherwise yields it to the event
 loop. The loop runs at exit, resuming blocks in the order their promises
 settled and waiting for background work. `empty()` is `TemperCore::EMPTY`.
@@ -499,6 +501,7 @@ more than twice past its storage; Python and Ruby keep it. In
 27 lines, and differs on Arabic-Indic digits in a year, which the
 interpreter's `toInt32` accepts. JavaScript's runtime rolls invalid dates
 over (31 April is 1 May) and reads `"96-03-31"` as 1996. In
-`probes/39_fresh_async/`, the backends start async blocks at different
-times: Ruby at once (up to the first unsettled `await`), JavaScript after
-the top level, Python on a thread pool.
+`probes/39_fresh_async/`, Ruby agrees with the interpreter line for line:
+async blocks start after the top level, in launch order, as on
+JavaScript; Python runs them on a thread pool. JavaScript and Python both
+fail on a generator's `done` and on `is ValueResult` (upstream #579).

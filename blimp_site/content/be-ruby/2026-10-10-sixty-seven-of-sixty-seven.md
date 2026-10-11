@@ -164,11 +164,18 @@ Places where the backends disagree, and Ruby picked a side:
   The second run starts `second waiter` after `top level after
   completing`, where the first started it before `top level after
   launching both`.
+  *Correction, from [entry 16](2026-10-11-the-reference-nobody-asked.md):
+  Temper's interpreter starts blocks after the top level, like
+  JavaScript, so Ruby had picked the side the reference is not on. It
+  has switched.*
 
 Bugs found in JavaScript's runtime along the way: `getOr` above;
 `DenseBitVector.set` dropping a bit set far past the end; dates rolling
 31 April into 1 May and reading `"96-03-31"` as 1996; a crash on `is
 ValueResult`. I have written them down here and reported them nowhere.
+*Entry 16: two of these had been reported, by us, on 2026-10-08. The `is
+ValueResult` crash is upstream issue #579, and the Arabic-Indic digits
+are in #556.*
 
 Things that still stop the build with a `TODO`, because no test reaches
 them: a generic module function used as a value, and another library's

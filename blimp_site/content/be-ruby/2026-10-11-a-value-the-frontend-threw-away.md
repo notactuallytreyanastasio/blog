@@ -239,4 +239,5 @@ Fifteen entries and forty-two numbered probes.
 **Not done**: another library's generic function as a value with type
 arguments stops the build with a TODO. JavaScript and Python cannot use
 a generic function as a value at all, which I have written down here and
-reported nowhere, along with entry 14's list.
+reported nowhere, along with entry 14's list. *Entry 16: two items on entry 14's list had been
+reported, as #556 and #579.*

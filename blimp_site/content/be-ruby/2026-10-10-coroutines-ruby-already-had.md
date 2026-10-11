@@ -88,6 +88,12 @@ is now a known way for the backends to disagree, and a program that
 prints from an async block and from the top level will print in a
 different order on each.
 
+*Correction, from [entry 16](2026-10-11-the-reference-nobody-asked.md):
+I never ran this program on Temper's interpreter. It starts blocks after
+the top level, in launch order, like JavaScript, and upstream issue #516
+shows rust doing the same. So Ruby had picked the order the reference
+does not use. It uses the interpreter's order now.*
+
 The same program found two things wrong with JavaScript. Testing a
 generator's result with `is ValueResult` crashes: `ReferenceError:
 ValueResult_24 is not defined`, which looks like a missing import. And
@@ -97,7 +103,9 @@ instead, with `undefined method 'done'`: temper-core had declared it
 `done?`, Ruby's spelling, while Temper reads it as a property called
 `done`. It is both now, and the bounded version shows a value, then done,
 then done again for every later step. (Python's saved output has no step
-lines at all, and I have not looked into why.)
+lines at all, and I have not looked into why. *Entry 16: it fails on `is
+ValueResult` with a NameError, which is in upstream issue #579, along
+with JavaScript's crash and its missing `done`.*)
 
 ## Empty and Type
 
