@@ -1,0 +1,15 @@
+module M
+  module T
+  end
+  def self.inline: [E] (E item) -> Array[E]
+  def self.shadowed: [T] (T item) -> Array[T]
+  def self.type_var: [E] (E item) -> Array[E]
+  def self.array_new: [E] (E item) -> Array[E]
+  def self.core_builder: [E] (E item) -> Array[E]
+  def self.new_list_builder: [X] () -> Array[X]
+  def self.concrete: (Integer item) -> Array[Integer]
+end
+module M
+  def self.array_new_checked: [E] (E item) -> Array[E]
+  def self.concrete_checked: (Integer item) -> Array[Integer]
+end
