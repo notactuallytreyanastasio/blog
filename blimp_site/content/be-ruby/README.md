@@ -150,8 +150,23 @@ value, so a three-line program printed 5, 5, 5 where every other backend
 prints 5, -1, -1. No test had a loop, a second pass and a null in a place
 that mattered. There is one in the shared suite now.
 
-**Where it stands.** Fifty-one of sixty-seven, all typed. `Date` is next,
-then generators.
+**A date, and everything it imports**
+([entry 11](2026-10-10-a-date-and-everything-it-imports.md)).
+Fifty-two of sixty-seven. Importing `Date` from `std/temporal` compiles all
+of Temper's standard library, so one date test needed networking, regular
+expressions and JSON to translate too: 2,361 lines of Ruby, which pass
+Steep. Ruby's own Date turns Julian before 1582, which the functional test
+cannot see because every weekday it checks is later; temper-core makes
+every Date Gregorian. A fresh calendar program found JavaScript's runtime
+rolling 31 April over into 1 May and reading `"96-03-31"` as 1996, the
+exact bug the test warns about. Ruby agrees with Temper's interpreter on
+26 lines of 27. Networking runs on a thread and hands results back to the
+main thread, which is the start of an event loop. Ruby's regex dialect
+anchors `^` and `$` at every line break, so temper-core rewrites the
+JavaScript-dialect patterns std/regex produces before Ruby compiles them.
+
+**Where it stands.** Fifty-two of sixty-seven, all typed. References
+between libraries are next, then `async`.
 
 ## What is here
 
@@ -175,3 +190,4 @@ then generators.
 8. [2026-10-10: lists, and a sort that is stable at forty](2026-10-10-a-sort-that-is-stable-at-forty.md)
 9. [2026-10-10: strings, by the byte](2026-10-10-strings-by-the-byte.md)
 10. [2026-10-10: maps, and a nil that equalled another nil](2026-10-10-a-nil-that-equalled-another-nil.md)
+11. [2026-10-10: a date, and everything it imports](2026-10-10-a-date-and-everything-it-imports.md)

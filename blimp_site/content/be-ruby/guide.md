@@ -109,6 +109,10 @@ not Temper.
 | `forEach` hands a function a key and a value | `hash.each(&f)` hands a two-parameter lambda one array, and raises | `mapped_for_each` |
 | `removeFirst` of an empty Deque panics | `[].shift` is nil | `TemperCore::Deque`, an Array inside |
 | a DenseBitVector grows to any bit you set | (no such class) | `TemperCore::DenseBitVector`, eight bits to a byte of a binary String |
+| a Date is proleptic Gregorian | `Date` is Julian before 1582, and `Date.new(2023, 6, -1)` is June 30 | `date`, with `Date::GREGORIAN` and a range check |
+| `fromIsoString` takes `YYYY-MM-DD`, four or more year digits | `Date.iso8601("96-03-31")` is 1996 | `date_from_iso_string` |
+| regex `^`, `$`, `.`, `\s`, `\b` as JavaScript reads them | `^`/`$` match at line breaks, `.` matches `\r`, `\s` misses U+00A0, `\b` is Unicode | `regex_compile_formatted` rewrites the pattern |
+| regex `split` keeps trailing empties, `""` splits to `[""]` | `split` drops them, `"".split` is `[]` | `regex_compiled_split`, JavaScript's algorithm |
 | an optional argument left out arrives as null | Ruby's defaults apply only to a missing argument | every core function with a default treats nil as it |
 
 A bubble is `TemperCore::Bubble`, a StandardError, so a bare `rescue`
@@ -227,6 +231,18 @@ requires (`probes/25_hashes.rb`).
 is an Array, because CRuby's `shift` is cheap (`probes/27_deque_and_bits.rb`;
 node's is not, `probes/27_shift.js`).
 
+**The standard library.** Importing anything from `std` translates all of
+it into one library, `Temper::Std`. A std/temporal `Date` is Ruby's `Date`
+(through `TemperCore.date`, Gregorian), with `year`, `month`, `day`,
+`cwday` and `to_s`. `std/net`'s request runs on a thread of its own and
+its result is handed back to the main thread, which drains what is
+outstanding at exit (`TemperCore.in_background`, `drain`). `Promise` and
+`PromiseBuilder` are temper-core classes. std/regex patterns are compiled
+by `TemperCore.regex_compile_formatted`. A few connected members use their
+Temper bodies (`rubyUsesTemperBody` in `RubySupportCode.kt`): those of
+classes that are themselves translated from Temper, where the frontend's
+call-by-name fallback reaches the translated method.
+
 **Functions as values.** A module function passed as a value is a
 constant holding a lambda that calls it, `HELLO = lambda do |a| hello(a) end`,
 and a function value is called with `f.(x)`.
@@ -270,6 +286,8 @@ How Temper's types come out (`RubyTypes.kt`):
 | `Map<K, V>`, `MapBuilder<K, V>`, `Mapped<K, V>` | `Hash[K, V]` |
 | `Pair<K, V>`, `Deque<T>`, `DenseBitVector` | `TemperCore::Pair[K, V]`, `TemperCore::Deque[T]`, `TemperCore::DenseBitVector` |
 | `MapKey`, as a bound | `::Hash::_Key`: `[K < ::Hash::_Key]` |
+| std/temporal `Date` | `Date` (the Steepfile loads `library "date"`) |
+| `Promise<R>`, `PromiseBuilder<R>` | `TemperCore::Promise[R]`, `TemperCore::PromiseBuilder[R]` |
 | a function type | `^(A) -> R` |
 | a class or interface | its constant, with type arguments: `D[I]` |
 | a type parameter | its name, with any bound: `[T < I]` |
@@ -389,10 +407,10 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Fifty-one of sixty-seven functional tests pass, and all of them
-type-check. Not translated yet: `Date`, regular expressions, generic
-module functions used as values, generators, async, `@test` blocks,
-imports between libraries, and RBS for `Empty` and `Type`. Each stops the
+Fifty-two of sixty-seven functional tests pass, and all of them
+type-check. Not translated yet: references to names in other libraries,
+generic module functions used as values, generators, async, `@test`
+blocks, and RBS for `Empty` and `Type`. Each stops the
 build with a TODO naming the node or the builtin.
 
 Known differences from the reference backends: none in
@@ -403,4 +421,8 @@ digit and on `1e400`, and Ruby sides with JavaScript. In
 for a key whose value is null, where JavaScript's runtime answers the
 fallback and Temper's documentation, Python and Ruby answer null. In
 `probes/32_fresh_bits/`, JavaScript's `DenseBitVector` drops a bit set
-more than twice past its storage; Python and Ruby keep it.
+more than twice past its storage; Python and Ruby keep it. In
+`probes/35_fresh_dates/`, Ruby agrees with Temper's interpreter on 26 of
+27 lines, and differs on Arabic-Indic digits in a year, which the
+interpreter's `toInt32` accepts. JavaScript's runtime rolls invalid dates
+over (31 April is 1 May) and reads `"96-03-31"` as 1996.
