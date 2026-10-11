@@ -243,6 +243,20 @@ Temper bodies (`rubyUsesTemperBody` in `RubySupportCode.kt`): those of
 classes that are themselves translated from Temper, where the frontend's
 call-by-name fallback reaches the translated method.
 
+**Libraries using libraries.** An import from a sibling module is an alias.
+An exported name's Ruby form is computed from its text alone
+(`rubyMethodText`, `rubyTypeText`), so another library can compute it too;
+two exports that collide stop the build. Another library's function is
+`Temper::Std.parse_json(...)`, its class `Temper::Std::Regex`, and its value
+is read through the reader method every exported value gets,
+`Temper::Std.begin_`. The importer requires the other library, its
+Steepfile loads the other's signatures, and a run puts every sibling's
+`lib` on the load path.
+
+**Local functions** are lambdas. One that an earlier statement in its block
+calls, or that calls itself, is declared first:
+`putter = TemperCore.forward_reference #: ^(Integer) -> void`.
+
 **Functions as values.** A module function passed as a value is a
 constant holding a lambda that calls it, `HELLO = lambda do |a| hello(a) end`,
 and a function value is called with `f.(x)`.
@@ -318,6 +332,12 @@ was forced by a Steep error on a program that otherwise ran fine:
   bounded by `Hash::_Key` to a method with a bounded parameter of its own
   (`probes/26_steep_hash_key/`). Generated signatures bound map keys by
   `::Hash::_Key`, which a bounded-to-unbounded call allows.
+- A local initialised to null carries its type, `x = nil #: String?`.
+- A null test on a value whose type is a type parameter is `nil == x`,
+  since Steep allows no method, `nil?` included, on an unbounded `T`
+  (`probes/38_steep_nil_test/`).
+- A property's reader, writer and instance variable share one name that
+  avoids keywords and Object's methods: a property `hash` is `hash_`.
 - A cast to a class is `TemperCore.cast(x, C)`, declared `untyped`, and a
   value the frontend proved non-null is `TemperCore.not_null(x)`, declared
   `[T] (T?) -> T`. Its body is `case`/`when nil`, the one way to write it
@@ -397,6 +417,10 @@ interpolate, and the second and third are the ones people forget.
 ruby be-ruby/journal/probes/04_grammar_samples.rb
 ```
 
+Steep 2.1 reports no error for a file Ruby cannot parse
+(`probes/37_steep_unparsable/`), so the harness compiles every generated
+file before running Steep, on every library the build wrote.
+
 `jvmTest` runs the grammar tests, the functional tests that are switched
 on (the `onlyPasses(ruby(), ...)` list in `FunctionalTestStatus.kt`),
 temper-core's minitest suite and `steep check`. Each functional test also runs Steep on its output, and `SemanticsTypeCheckedLocals`, which is ill-typed on purpose, must fail it. It goes looking for a Ruby 4 itself, because a Gradle
@@ -407,10 +431,10 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Fifty-two of sixty-seven functional tests pass, and all of them
-type-check. Not translated yet: references to names in other libraries,
-generic module functions used as values, generators, async, `@test`
-blocks, and RBS for `Empty` and `Type`. Each stops the
+Fifty-eight of sixty-seven functional tests pass, and every library their
+builds write parses and type-checks. Not translated yet: generic module
+functions used as values, another library's function used as a value,
+generators, async, `@test` blocks, and RBS for `Empty` and `Type`. Each stops the
 build with a TODO naming the node or the builtin.
 
 Known differences from the reference backends: none in

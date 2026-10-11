@@ -154,8 +154,8 @@ that mattered. There is one in the shared suite now.
 ([entry 11](2026-10-10-a-date-and-everything-it-imports.md)).
 Fifty-two of sixty-seven. Importing `Date` from `std/temporal` compiles all
 of Temper's standard library, so one date test needed networking, regular
-expressions and JSON to translate too: 2,361 lines of Ruby, which pass
-Steep. Ruby's own Date turns Julian before 1582, which the functional test
+expressions and JSON to translate too: 2,361 lines of Ruby, which I said
+passed Steep, and which did not even parse (entry 12 has the correction). Ruby's own Date turns Julian before 1582, which the functional test
 cannot see because every weekday it checks is later; temper-core makes
 every Date Gregorian. A fresh calendar program found JavaScript's runtime
 rolling 31 April over into 1 May and reading `"96-03-31"` as 1996, the
@@ -165,8 +165,23 @@ main thread, which is the start of an event loop. Ruby's regex dialect
 anchors `^` and `$` at every line break, so temper-core rewrites the
 JavaScript-dialect patterns std/regex produces before Ruby compiles them.
 
-**Where it stands.** Fifty-two of sixty-seven, all typed. References
-between libraries are next, then `async`.
+**Twelve errors Steep did not mention**
+([entry 12](2026-10-10-twelve-errors-steep-did-not-mention.md)).
+Fifty-eight of sixty-seven. One library can now use another's names: in a
+sibling module an import is an alias, and across libraries exported names
+are chosen from their text alone, so both sides agree, and every exported
+value gets a reader method. The first regex test to run found that std/regex's
+`Begin` had become the constant `BEGIN`, a Ruby keyword, so std had never
+parsed, and that Steep 2.1 says "No type error detected" about a file it
+cannot parse, which is how entry 11 came to claim otherwise. The harness
+now compiles every file and checks every library. That turned up twelve
+real problems in std, among them `return return_` lines the translator
+had left after code that always returned. Also: a property named `hash`
+would have replaced Object#hash, and local functions that call each other
+need forward declarations Steep will accept.
+
+**Where it stands.** Fifty-eight of sixty-seven, all typed. `async` is
+next.
 
 ## What is here
 
@@ -191,3 +206,4 @@ between libraries are next, then `async`.
 9. [2026-10-10: strings, by the byte](2026-10-10-strings-by-the-byte.md)
 10. [2026-10-10: maps, and a nil that equalled another nil](2026-10-10-a-nil-that-equalled-another-nil.md)
 11. [2026-10-10: a date, and everything it imports](2026-10-10-a-date-and-everything-it-imports.md)
+12. [2026-10-10: twelve errors Steep did not mention](2026-10-10-twelve-errors-steep-did-not-mention.md)

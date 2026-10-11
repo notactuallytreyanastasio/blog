@@ -9,4 +9,4 @@ for b in js py ruby; do
 done
 diff js.out ruby.out && echo "ruby agrees with js"
 diff js.out py.out
-rm -rf temper.out
+rm -rf temper.out temper.keep *.full

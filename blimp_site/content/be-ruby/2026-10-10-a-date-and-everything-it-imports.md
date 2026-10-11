@@ -15,9 +15,15 @@ temporal, but also JSON, networking, regular expressions and the test
 framework. The Ruby comes out as one module, `Temper::Std`, 2,361 lines,
 and before this chapter the backend could not get through the first
 `Promise` in it. So to get a date, I had to do networking and regular
-expressions too. The generated `std` passes Steep in strict mode, which
-the harness does not check (it checks the test's own library), so I
-checked it by hand.
+expressions too. The harness does not run Steep on `std` (it checks the
+test's own library), so I ran it by hand, and it said "No type error
+detected", and I wrote here that `std` passes Steep.
+
+**Correction** ([entry 12](2026-10-10-twelve-errors-steep-did-not-mention.md)):
+it did not. This `std` had a constant named `BEGIN`, which is a Ruby
+keyword, so the file did not parse at all, and Steep 2.1 reports "No type
+error detected" for a file it cannot parse. Nothing ran `std`, so nothing
+noticed.
 
 ## Ruby's Date is Julian, sometimes
 
