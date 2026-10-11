@@ -265,6 +265,20 @@ settled and waiting for background work. `empty()` is `TemperCore::EMPTY`.
 A type used as a value is the Ruby class for it: `::NilClass` for Void,
 `::Integer` for Int, a translated class's constant.
 
+**Tests.** Each `test("name") { ... }` block is a module function taking
+std/testing's `Test`, in `lib/temper/<lib>/tests.rb`, which also defines
+`TEST_CASES`. Requiring the library does not load it. A test run requires
+it and writes `Temper::Std.run_test_cases(TEST_CASES)`, std/testing's own
+JUnit XML, to `test-results.xml`.
+
+**A library's own connected functions** are Ruby the library supplies in
+`_connected.rb`, beside its Temper source, defining
+`Temper::Lib::Connected`. The backend copies it to
+`lib/temper/<lib>/connected.rb`, requires it, gives each `@connected`
+function a body that applies Temper's defaults and calls `Connected`, and
+writes RBS for `Connected` from the declarations, so Steep checks the
+hand-written Ruby.
+
 **Local functions** are lambdas. One that an earlier statement in its block
 calls, or that calls itself, is declared first:
 `putter = TemperCore.forward_reference #: ^(Integer) -> void`.
@@ -349,6 +363,8 @@ was forced by a Steep error on a program that otherwise ran fine:
   (`probes/26_steep_hash_key/`). Generated signatures bound map keys by
   `::Hash::_Key`, which a bounded-to-unbounded call allows.
 - A local initialised to null carries its type, `x = nil #: String?`.
+- A `Bubble` or `Never` in a union is dropped, since `bot` is in every type,
+  so `Void | Bubble` as a result is `void`.
 - A null test on a value whose type is a type parameter is `nil == x`,
   since Steep allows no method, `nil?` included, on an unbounded `T`
   (`probes/38_steep_nil_test/`).
@@ -437,8 +453,9 @@ Steep 2.1 reports no error for a file Ruby cannot parse
 (`probes/37_steep_unparsable/`), so the harness compiles every generated
 file before running Steep, on every library the build wrote.
 
-`jvmTest` runs the grammar tests, the functional tests that are switched
-on (the `onlyPasses(ruby(), ...)` list in `FunctionalTestStatus.kt`),
+`jvmTest` runs the grammar tests, every functional test (be-ruby had an
+`onlyPasses(ruby(), ...)` list in `FunctionalTestStatus.kt` until entry
+14, when it no longer needed one),
 temper-core's minitest suite and `steep check`. Each functional test also runs Steep on its output, and `SemanticsTypeCheckedLocals`, which is ill-typed on purpose, must fail it. It goes looking for a Ruby 4 itself, because a Gradle
 daemon remembers whatever PATH it started with, and on a Mac that is
 probably the 2.6. The probe evaluates every rendering the grammar test
@@ -447,10 +464,12 @@ what the tree says, not just to look plausible.
 
 ## 8. What does not work
 
-Sixty-four of sixty-seven functional tests pass, and every library their
-builds write parses and type-checks. Not translated yet: generic module
-functions used as values, another library's function used as a value,
-`@test` blocks, and a connected function declared in the library itself. Each stops the
+All sixty-seven functional tests pass, with no skip list, and every
+library their builds write parses and type-checks. Still a `TODO` at build
+time, because no test reaches them: a generic module function used as a
+value, and another library's function used as a value. Code the frontend
+reported as an error becomes `TemperCore.garbage("message")`, which panics
+when reached. Each stops the
 build with a TODO naming the node or the builtin.
 
 Known differences from the reference backends: none in

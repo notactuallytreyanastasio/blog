@@ -192,8 +192,22 @@ thread pool, in whatever order the threads choose. It also crashed
 JavaScript's generated code on `is ValueResult`. A type used as a value is
 the Ruby class that stands for it, `::NilClass` for Void.
 
-**Where it stands.** Sixty-four of sixty-seven, all typed. `@test` blocks
-are next.
+**Sixty-seven of sixty-seven**
+([entry 14](2026-10-10-sixty-seven-of-sixty-seven.md)). Every functional
+test passes, every library the tests make parses and passes Steep, and
+be-ruby's list of tests it may run is deleted, so it runs them all. A
+Temper library's `test` blocks run under std/testing's own runner,
+translated from Temper, which writes the JUnit XML the harness reads. A
+library's hand-written `_connected.rb` is copied into its gem and checked
+by Steep against signatures generated from the Temper declarations.
+Getting there found that every parameter with a `= null` default had been
+required in Ruby. Code the frontend reports as broken becomes a panic
+carrying the frontend's message, and that test is required to fail Steep.
+
+**Where it stands.** Sixty-seven of sixty-seven, all typed. What that does
+not mean is the second half of entry 14: three open disagreements between
+the backends, four bugs found in JavaScript's runtime and reported nowhere,
+and two constructs that still stop the build because no test uses them.
 
 ## What is here
 
@@ -220,3 +234,4 @@ are next.
 11. [2026-10-10: a date, and everything it imports](2026-10-10-a-date-and-everything-it-imports.md)
 12. [2026-10-10: twelve errors Steep did not mention](2026-10-10-twelve-errors-steep-did-not-mention.md)
 13. [2026-10-10: coroutines Ruby already had](2026-10-10-coroutines-ruby-already-had.md)
+14. [2026-10-10: sixty-seven of sixty-seven](2026-10-10-sixty-seven-of-sixty-seven.md)
