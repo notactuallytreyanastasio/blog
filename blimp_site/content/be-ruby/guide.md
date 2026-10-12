@@ -496,7 +496,8 @@ digit and on `1e400`, and Ruby sides with JavaScript. In
 for a key whose value is null, where JavaScript's runtime answers the
 fallback and Temper's documentation, Python and Ruby answer null. In
 `probes/32_fresh_bits/`, JavaScript's `DenseBitVector` drops a bit set
-more than twice past its storage; Python and Ruby keep it. In
+at index 128 or above, whatever its capacity, and cpp's aborts on any
+index past its capacity (upstream #621); Python and Ruby keep the bit. In
 `probes/35_fresh_dates/`, Ruby agrees with Temper's interpreter on 26 of
 27 lines, and differs on Arabic-Indic digits in a year, which the
 interpreter's `toInt32` accepts. JavaScript's runtime rolls invalid dates
