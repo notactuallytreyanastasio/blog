@@ -232,10 +232,10 @@ the block, and probe 39 matches the interpreter on all nineteen lines.
 Entries 13 and 14 carry visible corrections.
 
 **Where it stands.** Sixty-eight of sixty-eight, all typed. Another
-library's generic function used as a value stops the build. Five findings
-have no upstream issue yet, listed in entry 16: the frontend's dropped
-trailing value, generic function values on js and Python, and three bugs
-in JavaScript's runtime.
+library's generic function used as a value stops the build. The five findings
+that had no upstream issue are now filed as #618 to #622, with
+reproductions in temper-issue-repros: the frontend's dropped trailing
+value, generic function values, `getOr`, `DenseBitVector` and `Date`.
 
 ## What is here
 

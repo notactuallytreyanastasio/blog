@@ -101,18 +101,26 @@ Steep, and all 68 functional tests pass, including `ControlFlowAsync`,
 `ControlFlowActor` and `TypesNetresponse`, which goes through a real HTTP
 request inside an async block.
 
-## Still reported nowhere
+## Reported now
 
-These have no issue upstream that I can find:
+These had no issue upstream that I could find, so each is now a case in
+temper-issue-repros (60 to 64), checked against upstream main at
+`ffba652a` on every backend this machine can run, and an issue: #618 to
+#622 in the order below. Writing them up properly made three of them
+bigger. `identity<Int>` as a value fails on every compiled backend, not
+only js and Python. js drops any bit set at index 128 or above, whatever
+the capacity, and cpp aborts on any `set` or `get` past it. And each
+backend's `Date.fromIsoString` accepts its own set of strings, cpp builds
+31 April without complaint, and js's answers depend on the time zone.
 
-- the frontend dropping a function's last value after a loop with both
+- #618, the frontend dropping a function's last value after a loop with both
   a `return` and a `continue` or `break` (entry 15). #536 has the same
   symptom, a `return__N` nobody assigned, but its cause was in the
   backend layer, and our PR #572 fixes it.
-- `identity<Int>` as a value failing on js and Python (entry 15).
-- js's `getOr` answering the fallback for a key whose value is null.
-- js's `DenseBitVector.set` dropping a bit set far past the end.
-- js's dates turning 31 April into 1 May and reading `"96-03-31"` as
+- #619, `identity<Int>` as a value failing (entry 15).
+- #620, js's `getOr` answering the fallback for a key whose value is null.
+- #621, js's `DenseBitVector.set` dropping a bit set far past the end.
+- #622, js's dates turning 31 April into 1 May and reading `"96-03-31"` as
   1996. PR #608 touches dates, but only `dayOfWeek`.
 
 One more thing for anyone checking these against a be-ruby build: the
