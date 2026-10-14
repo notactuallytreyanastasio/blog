@@ -33,7 +33,7 @@ toys	/collage-maker	Collage Maker	collage-maker	Up to 36 photos in, one collage 
 toys	https://github.com/notactuallytreyanastasio/padmac	Remote Mac	hg-remote-mac	Your iPad as a screen, trackpad and keyboard for your Mac, over Wi-Fi. Built from source; not on the App Store.
 sites	https://blimp.bobbby.online	Blimp	hg-blimp	The actor language this site runs on. What works, measured, and what does not yet.
 sites	https://marginalia.bobbby.online	Marginalia	hg-marginalia	Upload a draft. It reads the whole thing and argues with you in the margin.
-sites	https://tyler.bobbby.online	Tyler	hg-tyler	Disability Rights Oregon's guides and court documents, matched to your situation.
+sites	https://tyler.bobbby.online	OregonAid	hg-tyler	Disability Rights Oregon's guides and court documents, matched to your situation.
 sites	https://dave.bobbby.online	Dave	hg-dave	Put a song on the TV; every iPad in the classroom follows the line.
 sites	https://lumines.bobbby.online	Lumines HD	hg-lumines	A beat-locked Lumines clone, its soundtrack synthesized in your browser. Shared boards.
 sites	https://slides.bobbby.online	Slides	hg-slides	A free slides.com alternative, with your phone as the remote.
