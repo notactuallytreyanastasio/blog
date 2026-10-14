@@ -50,7 +50,9 @@ def cut_order(pages: List) -> List do
   map(pages, fn(p: Map) -> String do concat(p.group, p.path) end)
 end
 
-CUT_GROUPS = "{\"saved\":false,\"groups\":[{\"group\":\"games\",\"label\":\"Games\",\"tiles\":[{\"path\":\"/a\",\"name\":\"A\",\"pitch\":\"a.\",\"icon\":\"<svg/>\",\"group\":\"games\"},{\"path\":\"/b\",\"name\":\"B\",\"pitch\":\"b.\",\"icon\":\"<svg/>\",\"group\":\"games\"}]},{\"group\":\"wire\",\"label\":\"Live from the internet\",\"tiles\":[{\"path\":\"/c\",\"name\":\"C\",\"pitch\":\"c.\",\"icon\":\"<svg/>\",\"group\":\"wire\"}]}]}"
+CUT_CARDS = "\"cards\":[{\"key\":\"writing\",\"label\":\"Writing\",\"group\":false},{\"key\":\"games\",\"label\":\"Games\",\"group\":true},{\"key\":\"wire\",\"label\":\"Live from the internet\",\"group\":true},{\"key\":\"more\",\"label\":\"Everything else\",\"group\":false}]"
+CUT_GROUPS = concat("{\"saved\":false,", CUT_CARDS, ",\"groups\":[{\"group\":\"games\",\"label\":\"Games\",\"tiles\":[{\"path\":\"/a\",\"name\":\"A\",\"pitch\":\"a.\",\"icon\":\"<svg/>\",\"group\":\"games\"},{\"path\":\"/b\",\"name\":\"B\",\"pitch\":\"b.\",\"icon\":\"<svg/>\",\"group\":\"games\"}]},{\"group\":\"wire\",\"label\":\"Live from the internet\",\"tiles\":[{\"path\":\"/c\",\"name\":\"C\",\"pitch\":\"c.\",\"icon\":\"<svg/>\",\"group\":\"wire\"}]}]}")
+CUT_SAVED_CARDS = "[\"writing\",\"games\",\"wire\",\"more\"]"
 
 # the JSON the outbox carries, as to_html escaped it in the attribute
 def cut_outbox_json(html: String) -> String do
@@ -71,12 +73,59 @@ actor CurateTests do
     partial = [%{"path": "/c", "group": "games"}, %{"path": "/zzz", "group": "games"}, %{"path": "/a", "group": "nope"}, %{"path": "/c", "group": "wire"}, "junk"]
     assert_eq(cut_order(desk_arrange(CUT_PAGES, partial)), ["games/c", "games/a", "games/b", "wire/d"])
     assert_eq(cut_order(desk_arrange(CUT_PAGES, "not a list")), cut_order(CUT_PAGES))
+    # the row as it is written now: a map with the tiles and the cards
+    assert_eq(cut_order(desk_arrange(CUT_PAGES, %{"tiles": saved, "cards": ["wire"]})), ["games/d", "games/a", "wire/b", "wire/c"])
+    assert_eq(cut_order(desk_arrange(CUT_PAGES, %{"cards": ["wire"]})), cut_order(CUT_PAGES))
+  end
+
+  test "the column's cards: the saved order first, the rest in the page's own" do
+    keys = desk_card_keys([%{group: "games"}, %{group: "wire"}])
+    assert_eq(keys, ["writing", "museum", "games", "wire", "photos", "more"])
+    assert_eq(desk_card_order(keys, nil), keys)
+    assert_eq(desk_card_order(keys, []), keys)
+    assert_eq(desk_card_order(keys, ["wire", "museum"]), ["wire", "museum", "writing", "games", "photos", "more"])
+    # a key the page does not have, or not a string, or twice: dropped
+    assert_eq(desk_card_order(keys, ["more", "nope", 7, "more"]), ["more", "writing", "museum", "games", "wire", "photos"])
+    assert_eq(desk_layout_cards(%{"tiles": [], "cards": ["more"]}), ["more"])
+    assert_eq(desk_layout_cards([]), nil)
+    assert_eq(desk_layout_tiles([]), [])
+    assert_eq(desk_layout_tiles(%{"tiles": [], "cards": ["more"]}), [])
+    # the homepage follows: the toys card first, the museum last
+    pages = desk_hangar_pages()
+    groups = desk_uniq(map(pages, fn(p: Map) -> String do p.group end), [])
+    middle = filter(desk_card_keys(map(groups, fn(g: String) -> Map do %{group: g} end)), fn(k: String) -> Bool do k != "toys" and k != "museum" end)
+    desk = build_desktop([], [], %{}, [], %{"tiles": [], "cards": list_append(["toys" | middle], ["museum"])})
+    assert_eq(head(desk.card_order), "toys")
+    assert_eq(last(desk.card_order), "museum")
+    assert_eq(length(desk.card_order), length(groups) + 4)
+    page = desktop_page("x=1", desk, 1790640000)
+    assert(index_of(page, "id=\"work\"") < index_of(page, "id=\"more\""))
+    assert(index_of(page, "id=\"more\"") < index_of(page, "id=\"museum\""))
+    assert(index_of(page, "id=\"museum\"") > index_of(page, "id=\"writing\""))
+    # the toys card is the first group card, so it is #work; games is not
+    assert(contains(page, "id=\"work-games\""))
+    refute(contains(page, "id=\"work-toys\""))
+    assert(contains(page, concat("Things I made that you can use <span>01 / ", desk_pad(length(groups) + 4, 2))))
+    # nothing saved: the page's own order, games first as #work
+    plain = build_desktop([], [], %{}, [], nil)
+    assert_eq(head(plain.card_order), "writing")
+    assert(contains(desktop_page("x=1", plain, 1790640000), "id=\"work\" aria-labelledby=\"work-h\">"))
   end
 
   test "the file's own pages arrange the same way, and every card keeps a note" do
     pages = desk_hangar_pages()
     assert(length(pages) > 20)
     assert_eq(cut_order(desk_arrange(pages, [])), cut_order(pages))
+    # a tile goes to a /path of this site or an https:// address elsewhere
+    assert(desk_hangar_href_ok("/art"))
+    assert(desk_hangar_href_ok("https://blimp.bobbby.online"))
+    refute(desk_hangar_href_ok("http://blimp.bobbby.online"))
+    refute(desk_hangar_href_ok("https://"))
+    refute(desk_hangar_href_ok("art"))
+    refute(desk_hangar_href_ok("/a b"))
+    sites = filter(pages, fn(p: Map) -> Bool do p.group == "sites" end)
+    assert(length(sites) > 5)
+    assert(starts_with(head(sites).path, "https://"))
     # the first page into the last card: a saved tile comes first in its
     # card, the file's unsaved ones after it
     first = head(pages)
@@ -114,6 +163,27 @@ actor CurateTests do
     assert_eq(cur_check(emptied), concat("Every card needs at least one page; ", desk_hangar_label(g1), " would have none"))
     # the entries the row gets are only path and group
     assert_eq(json_encode(cur_entries([%{"path": "/a", "group": "g", "name": "x"}])), json_encode([%{path: "/a", group: "g"}]))
+    # the cards: none chosen, or the column's keys once each
+    assert_eq(cur_check_cards(nil), "")
+    assert_eq(cur_check_cards([]), "")
+    assert_eq(cur_check_cards(CUR_CARDS), "")
+    assert_eq(cur_check_cards(["museum", "toys"]), "")
+    assert_eq(cur_check_cards("museum"), "cards must be a list of card names")
+    assert_eq(cur_check_cards(["museum", "attic"]), "Not a card of this site: \"attic\"")
+    assert_eq(cur_check_cards([3]), "Not a card of this site: 3")
+    assert_eq(cur_check_cards(["museum", "museum"]), "A card is listed twice")
+    assert_eq(head(CUR_CARDS), "writing")
+    assert_eq(last(CUR_CARDS), "more")
+    assert(desk_member(CUR_CARDS, "sites"))
+    assert_eq(cur_card_label("sites"), "Other apps and sites")
+    assert_eq(cur_card_label("museum"), "The museum")
+    # what the page is told: every card in order, the hangar ones marked
+    cards = cur_cards(%{"tiles": [], "cards": ["sites", "museum"]})
+    assert_eq(head(cards), %{key: "sites", label: "Other apps and sites", group: true})
+    assert_eq(elem_at(cards, 1).key, "museum")
+    assert_eq(elem_at(cards, 1).group, false)
+    assert_eq(length(cards), length(CUR_CARDS))
+    assert_eq(head(cur_cards(nil)).key, "writing")
   end
 
   test "the page sets the session's CSRF token and names its program" do
@@ -180,6 +250,39 @@ actor CurateTests do
     refute(contains(cards, "Back to the file"))
     assert(index_of(cards, "data-path=\"/a\"") < index_of(cards, "data-path=\"/b\""))
     assert(index_of(cards, "data-path=\"/b\"") < index_of(cards, "data-path=\"/c\""))
+    # every card of the column, in its order, the fixed ones without tiles
+    assert(index_of(cards, "data-card=\"writing\"") < index_of(cards, "data-group=\"games\""))
+    assert(index_of(cards, "data-group=\"wire\"") < index_of(cards, "data-card=\"more\""))
+    assert(contains(cards, "1 / 4"))
+    assert(contains(cards, "4 / 4"))
+    assert(contains(cards, "Everything else"))
+  end
+
+  test "the program moves a card up or down the column and writes the order" do
+    c = spawn Curator
+    c <- :loaded(200, CUT_GROUPS)
+    # the first card has no up, the last no down: nothing written
+    c <- :card_up(0)
+    c <- :card_down(3)
+    c <- :card_up(9)
+    refute(contains(to_html(c <- :view), "data-op"))
+    # Games (1) up: before Writing
+    c <- :card_up(1)
+    html = to_html(c <- :view)
+    assert(index_of(html, "data-group=\"games\"") < index_of(html, "data-card=\"writing\""))
+    assert(contains(cut_outbox_json(html), "\"cards\":[\"games\",\"writing\",\"wire\",\"more\"]"))
+    assert(contains(cut_outbox_json(html), "\"tiles\":[{\"path\":\"/a\",\"group\":\"games\"}"))
+    c <- :done(0, 200, CUT_GROUPS)
+    # the server's answer is the order shown
+    html2 = to_html(c <- :view)
+    assert(index_of(html2, "data-card=\"writing\"") < index_of(html2, "data-group=\"games\""))
+    # Live (2) down: after Everything else
+    c <- :card_down(2)
+    assert(contains(cut_outbox_json(to_html(c <- :view)), "\"cards\":[\"writing\",\"games\",\"more\",\"wire\"]"))
+    # a tile move carries the cards too
+    c <- :done(1, 200, CUT_GROUPS)
+    c <- :up(1)
+    assert(contains(cut_outbox_json(to_html(c <- :view)), concat("\"cards\":", CUT_SAVED_CARDS)))
   end
 
   test "the program writes every move, as the tiles in page order" do
@@ -190,7 +293,7 @@ actor CurateTests do
     html = to_html(c <- :view)
     assert(index_of(html, "data-path=\"/c\"") < index_of(html, "data-path=\"/a\""))
     assert(contains(html, "/curate/layout"))
-    assert_eq(cut_outbox_json(html), "{\"tiles\":[{\"path\":\"/c\",\"group\":\"games\"},{\"path\":\"/a\",\"group\":\"games\"},{\"path\":\"/b\",\"group\":\"games\"}]}")
+    assert_eq(cut_outbox_json(html), concat("{\"tiles\":[{\"path\":\"/c\",\"group\":\"games\"},{\"path\":\"/a\",\"group\":\"games\"},{\"path\":\"/b\",\"group\":\"games\"}],\"cards\":", CUT_SAVED_CARDS, "}"))
     # the server answers the cards it saved
     c <- :done(0, 200, "{\"saved\":true,\"groups\":[{\"group\":\"games\",\"label\":\"Games\",\"tiles\":[{\"path\":\"/c\",\"name\":\"C\",\"pitch\":\"c.\",\"icon\":\"\",\"group\":\"games\"}]},{\"group\":\"wire\",\"label\":\"Live from the internet\",\"tiles\":[{\"path\":\"/a\",\"name\":\"A\",\"pitch\":\"a.\",\"icon\":\"\",\"group\":\"wire\"}]}]}")
     saved = to_html(c <- :view)
@@ -199,21 +302,21 @@ actor CurateTests do
     assert(index_of(saved, "data-path=\"/c\"") < index_of(saved, "data-path=\"/a\""))
     # the arrows: tile 1 (/a, in Live) up has nowhere to go within its card; down neither
     c <- :up(1)
-    assert_eq(cut_outbox_json(to_html(c <- :view)), "{\"tiles\":[{\"path\":\"/c\",\"group\":\"games\"},{\"path\":\"/a\",\"group\":\"wire\"}]}")
+    assert_eq(cut_outbox_json(to_html(c <- :view)), concat("{\"tiles\":[{\"path\":\"/c\",\"group\":\"games\"},{\"path\":\"/a\",\"group\":\"wire\"}],\"cards\":", CUT_SAVED_CARDS, "}"))
     c <- :done(1, 200, CUT_GROUPS)
     # now /a /b in Games, /c in Live: /b (1) up, then the card menu sends /c to Games
     c <- :up(1)
-    assert_eq(cut_outbox_json(to_html(c <- :view)), "{\"tiles\":[{\"path\":\"/b\",\"group\":\"games\"},{\"path\":\"/a\",\"group\":\"games\"},{\"path\":\"/c\",\"group\":\"wire\"}]}")
+    assert_eq(cut_outbox_json(to_html(c <- :view)), concat("{\"tiles\":[{\"path\":\"/b\",\"group\":\"games\"},{\"path\":\"/a\",\"group\":\"games\"},{\"path\":\"/c\",\"group\":\"wire\"}],\"cards\":", CUT_SAVED_CARDS, "}"))
     c <- :done(2, 200, CUT_GROUPS)
     c <- :regroup("games /c")
-    assert_eq(cut_outbox_json(to_html(c <- :view)), "{\"tiles\":[{\"path\":\"/a\",\"group\":\"games\"},{\"path\":\"/b\",\"group\":\"games\"},{\"path\":\"/c\",\"group\":\"games\"}]}")
+    assert_eq(cut_outbox_json(to_html(c <- :view)), concat("{\"tiles\":[{\"path\":\"/a\",\"group\":\"games\"},{\"path\":\"/b\",\"group\":\"games\"},{\"path\":\"/c\",\"group\":\"games\"}],\"cards\":", CUT_SAVED_CARDS, "}"))
     c <- :done(3, 400, "{\"error\":\"Every card needs at least one page; Live from the internet would have none\",\"saved\":false,\"groups\":[]}")
     refused = to_html(c <- :view)
     assert(contains(refused, "would have none"))
     # a drop onto the empty space of a card: the end of it
     c <- :loaded(200, CUT_GROUPS)
     c <- :moved("/a", "", 1, "wire")
-    assert_eq(cut_outbox_json(to_html(c <- :view)), "{\"tiles\":[{\"path\":\"/b\",\"group\":\"games\"},{\"path\":\"/c\",\"group\":\"wire\"},{\"path\":\"/a\",\"group\":\"wire\"}]}")
+    assert_eq(cut_outbox_json(to_html(c <- :view)), concat("{\"tiles\":[{\"path\":\"/b\",\"group\":\"games\"},{\"path\":\"/c\",\"group\":\"wire\"},{\"path\":\"/a\",\"group\":\"wire\"}],\"cards\":", CUT_SAVED_CARDS, "}"))
     # dropped where it was, or onto a card that is not there: nothing to write
     c <- :done(4, 200, CUT_GROUPS)
     c <- :moved("/a", "/a", 1, "games")

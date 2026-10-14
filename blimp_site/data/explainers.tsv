@@ -28,6 +28,7 @@ sec-games	All of these are Blimp now. The rules of 2048, Wordle and Blackjack ar
 sec-wire	Pages that hold a line open to somewhere else: Bluesky's relay, the MTA's Bus Time, and everyone else who has the page open.
 sec-numbers	Mostly Phish, some Bluesky, some New York. phangraphs and Moon Phish were checked against the Elixir they replaced, output for output.	phangraphs=/phish
 sec-toys	Things to use rather than read. The mirror and the stack are this site looking at itself.	The mirror=/mirror | The stack=/stack
+sec-sites	Things with a domain of their own: other apps running on the same box as this site, and sites that stand alone. Each link leaves this page.
 sec-photos	The collage is 30,846 by 20,550 pixels, which is why the link asks first. The gallery is the smaller way in.	The gallery=/gallery
 sec-more	The old Mac-style desktop's Finder, flattened into lines of links. Phoenix served it until September 2026.	The old site=https://old.bobbby.online
 # One note a post, shown under its title in the Writing card. Keyed by

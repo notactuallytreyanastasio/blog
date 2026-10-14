@@ -1,10 +1,12 @@
-# /curate: the homepage's "Things I made" cards, rearranged. The cards and
-# their tiles come from /curate/layout.json (src/99_curate.blimp), as the
-# homepage shows them now. A move is shown at once and written through
-# the outbox (static/admin/common.blimp) as POST /curate/layout, which
-# answers the cards again as "/" will now show them. A drag between or
-# within cards is static/curate/curate.js's, which sends :moved; the
-# arrows and the card menu on each tile do the same without a mouse.
+# /curate: the homepage's right-hand cards, rearranged. The cards, in the
+# column's order, and the "Things I made" cards' tiles come from
+# /curate/layout.json (src/99_curate.blimp), as the homepage shows them
+# now. A move is shown at once and written through the outbox
+# (static/admin/common.blimp) as POST /curate/layout, which answers the
+# cards again as "/" will now show them. A drag between or within cards is
+# static/curate/curate.js's, which sends :moved; the arrows and the card
+# menu on each tile do the same without a mouse, and the arrows on a
+# card's title move the card up or down the column.
 
 CUP_LAYOUT = "/curate/layout"
 
@@ -148,12 +150,56 @@ def cup_step(groups: List, i: Int, up: Bool) -> List do
   end
 end
 
+# the group `group`'s tiles, from the cards' groups
+def cup_group_tiles(groups: List, group: String) -> List do
+  got = filter(groups, fn(g: Map) -> Bool do cup_group(g) == group end)
+  case got do
+    [] -> []
+    [g | _] -> cup_tiles(g)
+  end
+end
+
+# where the group's first tile falls counting every card's tiles, which
+# is what :up and :down are told
+def cup_base(groups: List, group: String) -> Int do
+  reduce(groups, 0, fn(n: Int, g: Map) -> Int do
+    case cup_group(g) == group do
+      true -> n
+      false ->
+        case n < 0 do
+          true -> n
+          false -> n + length(cup_tiles(g))
+        end
+    end
+  end)
+end
+
+def cup_card_keys(cards: List) -> List do
+  map(cards, fn(c: Map) -> String do adp_text(lookup(c, "key")) end)
+end
+
+# the i-th and the next trade places
+def cup_swap_at(list: List, i: Int) -> List do
+  case list do
+    [] -> []
+    [a | rest] ->
+      case i == 0 do
+        true ->
+          case rest do
+            [] -> [a]
+            [b | more] -> [b | [a | more]]
+          end
+        false -> [a | cup_swap_at(rest, i - 1)]
+      end
+  end
+end
+
 def cup_names(groups: List) -> List do
   map(groups, fn(g: Map) -> List do [cup_group(g), adp_text(lookup(g, "label"))] end)
 end
 
-def cup_write(outbox: List, seq: Int, groups: List) -> List do
-  adp_concat(outbox, [adp_http(seq, "write", "POST", CUP_LAYOUT, %{tiles: cup_entries(groups)})])
+def cup_write(outbox: List, seq: Int, groups: List, cards: List) -> List do
+  adp_concat(outbox, [adp_http(seq, "write", "POST", CUP_LAYOUT, %{tiles: cup_entries(groups), cards: cup_card_keys(cards)})])
 end
 
 # ---------------------------------------------------------------- view
@@ -180,16 +226,34 @@ def cup_tile_rows(tiles: List, group: String, names: List, base: Int, j: Int, ac
   end
 end
 
-def cup_cards(groups: List, names: List, base: Int, acc: List) -> List do
-  case groups do
+def cup_card_tools(i: Int, n: Int) -> Any do
+  el("span", %{class: "cu-tools cu-card-tools"},
+    el("button", %{type: "button", class: "cu-tool", click: :card_up, with: i, disabled: i == 0, "aria-label": "Card up one"}, "▲"),
+    el("button", %{type: "button", class: "cu-tool", click: :card_down, with: i, disabled: i == n - 1, "aria-label": "Card down one"}, "▼"))
+end
+
+# The column's cards in order, numbered as the homepage numbers them. A
+# hangar card lists its tiles; the others (Writing, the museum,
+# Photographs, Everything else) are only moved.
+def cup_cards(cards: List, groups: List, names: List, i: Int, acc: List) -> List do
+  case cards do
     [] -> reverse(acc)
-    [g | rest] ->
-      tiles = cup_tiles(g)
-      group = cup_group(g)
-      card = el("section", %{class: "cu-card", "data-group": group, key: group},
-        el("h2", %{class: "cu-label"}, adp_text(lookup(g, "label")), el("span", %{}, to_string(length(tiles)))),
-        el("ul", %{class: "cu-list", "data-group": group}, cup_tile_rows(tiles, group, names, base, 0, [])))
-      cup_cards(rest, names, base + length(tiles), [card | acc])
+    [c | rest] ->
+      key = adp_text(lookup(c, "key"))
+      label = adp_text(lookup(c, "label"))
+      number = concat(to_string(i + 1), " / ", to_string(i + length(rest) + 1))
+      card = case lookup(c, "group") == true do
+        true ->
+          tiles = cup_group_tiles(groups, key)
+          el("section", %{class: "cu-card", "data-group": key, key: key},
+            el("h2", %{class: "cu-label"}, el("span", %{class: "cu-number"}, number), label, el("span", %{}, to_string(length(tiles))), cup_card_tools(i, i + length(rest) + 1)),
+            el("ul", %{class: "cu-list", "data-group": key}, cup_tile_rows(tiles, key, names, cup_base(groups, key), 0, [])))
+        false ->
+          el("section", %{class: "cu-card cu-fixed", "data-card": key, key: key},
+            el("h2", %{class: "cu-label"}, el("span", %{class: "cu-number"}, number), label, el("span", %{}, ""), cup_card_tools(i, i + length(rest) + 1)),
+            el("p", %{class: "cu-fixed-note"}, "This card's contents are not arranged here; only its place in the column is."))
+      end
+      cup_cards(rest, groups, names, i + 1, [card | acc])
   end
 end
 
@@ -204,6 +268,7 @@ actor Curator do
   # :loading until the first fetch answers, :login on a 401, then :ready
   state phase: Atom :: :loading
   state groups: List :: []
+  state cards: List :: []
   state saved: Bool :: false
   state flash: String :: ""
   state asking: Bool :: true
@@ -214,7 +279,7 @@ actor Curator do
     case status do
       200 ->
         data = adp_json(body)
-        become phase: :ready, groups: adp_get(data, "groups", []), saved: adp_get(data, "saved", false) == true, asking: false, flash: ""
+        become phase: :ready, groups: adp_get(data, "groups", []), cards: adp_get(data, "cards", []), saved: adp_get(data, "saved", false) == true, asking: false, flash: ""
       401 -> become phase: :login, asking: false
       _ -> become asking: false, flash: concat("Could not load the cards (", to_string(status), ")")
     end
@@ -243,7 +308,7 @@ actor Curator do
     fresh = cup_move(groups, path, group, target, after == 1)
     case fresh == groups do
       true -> :ok
-      false -> become groups: fresh, outbox: cup_write(outbox, seq, fresh), seq: seq + 1
+      false -> become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
     end
     reply :ok
   end
@@ -251,13 +316,34 @@ actor Curator do
   # the arrows: `i` is the tile's place counting every card
   on :up(i: Int) do
     fresh = cup_step(groups, i, true)
-    become groups: fresh, outbox: cup_write(outbox, seq, fresh), seq: seq + 1
+    become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
     reply :ok
   end
 
   on :down(i: Int) do
     fresh = cup_step(groups, i, false)
-    become groups: fresh, outbox: cup_write(outbox, seq, fresh), seq: seq + 1
+    become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
+    reply :ok
+  end
+
+  # the arrows on a card's title: `i` is the card's place in the column
+  on :card_up(i: Int) do
+    case i > 0 and i < length(cards) do
+      false -> :ok
+      true ->
+        fresh = cup_swap_at(cards, i - 1)
+        become cards: fresh, outbox: cup_write(outbox, seq, groups, fresh), seq: seq + 1
+    end
+    reply :ok
+  end
+
+  on :card_down(i: Int) do
+    case i >= 0 and i < length(cards) - 1 do
+      false -> :ok
+      true ->
+        fresh = cup_swap_at(cards, i)
+        become cards: fresh, outbox: cup_write(outbox, seq, groups, fresh), seq: seq + 1
+    end
     reply :ok
   end
 
@@ -270,7 +356,7 @@ actor Curator do
         fresh = cup_move(groups, drop(v, sp + 1), take(v, sp), "", true)
         case fresh == groups do
           true -> :ok
-          false -> become groups: fresh, outbox: cup_write(outbox, seq, fresh), seq: seq + 1
+          false -> become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
         end
     end
     reply :ok
@@ -305,11 +391,16 @@ actor Curator do
               nil -> groups
               r -> r
             end
+            data = adp_json(body)
+            fresh_cards = case type_of(adp_get(data, "cards", nil)) do
+              :list -> adp_get(data, "cards", cards)
+              _ -> cards
+            end
             phase_now = case status do
               401 -> :login
               _ -> phase
             end
-            become outbox: rest, groups: fresh, saved: adp_get(adp_json(body), "saved", saved) == true, flash: a.flash, phase: phase_now
+            become outbox: rest, groups: fresh, cards: fresh_cards, saved: adp_get(data, "saved", saved) == true, flash: a.flash, phase: phase_now
         end
     end
     reply :ok
@@ -333,14 +424,14 @@ actor Curator do
             el("div", %{class: "cu-title"},
               el("p", %{class: "cu-kicker"}, "bobbby.online"),
               el("h1", %{}, "Arrange the homepage"),
-              el("p", %{class: "cu-lede"}, "The cards under Things I made, as the homepage shows them. Drag a page up or down its card, or into another one; the homepage follows at once.")),
+              el("p", %{class: "cu-lede"}, "The homepage's right-hand cards, in its order. The arrows on a card's title move the card; drag a page up or down its card, or into another one. The homepage follows at once.")),
             el("div", %{class: "cu-actions"},
               el("a", %{href: "/#work", class: "cu-btn"}, "See the homepage"),
               reset,
               el("button", %{type: "button", class: "cu-btn cu-quiet", click: :logout}, "Log out"))),
           adp_flash_view(flash),
           el("p", %{class: "cu-state"}, cup_state_line(saved)),
-          el("div", %{class: "cu-cards"}, cup_cards(groups, cup_names(groups), 0, [])))
+          el("div", %{class: "cu-cards"}, cup_cards(cards, groups, cup_names(groups), 0, [])))
     end
     reply el("div", %{}, page, adp_outbox_view(outbox), ask)
   end

@@ -31,8 +31,12 @@ body { background: var(--cu-desk); color: var(--cu-ink); margin: 0; }
 
 .cu-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; align-items: start; }
 .cu-card { background: var(--cu-sheet); border: 1px solid var(--cu-ink); box-shadow: 4px 4px 0 var(--cu-ink); padding: 14px 16px 6px; }
-.cu-label { font-family: var(--cu-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; margin: 0 0 6px; display: flex; justify-content: space-between; }
+.cu-label { font-family: var(--cu-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; margin: 0 0 6px; display: flex; gap: 10px; align-items: center; }
 .cu-label span { color: var(--cu-ink-3); font-weight: 400; }
+.cu-label .cu-number { margin-right: 10px; }
+.cu-label .cu-card-tools { margin-left: auto; }
+.cu-fixed { background: transparent; box-shadow: none; border-style: dashed; }
+.cu-fixed-note { font-size: 13px; color: var(--cu-ink-3); margin: 4px 0 8px; }
 .cu-list { list-style: none; margin: 0; padding: 0; min-height: 44px; }
 .cu-list.cu-over { outline: 2px dashed var(--cu-signal); outline-offset: 4px; }
 .cu-tile {

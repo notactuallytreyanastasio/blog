@@ -2,19 +2,22 @@
 #
 # The cards and their tiles are data/hangar.tsv's (src/60_desktop.blimp:
 # the manifest), which a deploy ships and the tests read, so the order is
-# not written back into it: it is one row, homepage_layout id 1, a JSON
-# list of {path, group} in the order chosen, which desk_arrange lays over
-# the file. The page is a Blimp program in the browser
+# not written back into it: it is one row, homepage_layout id 1, JSON
+# {"tiles": [{path, group}, ...], "cards": [key, ...]}: the tiles in the
+# order chosen, each in its card, and the right-hand column's cards by key
+# (desk_card_keys), which desk_arrange and desk_card_order lay over the
+# file. The page is a Blimp program in the browser
 # (static/curate/curate.blimp) and these JSON routes:
 #
 #   GET    /curate               the page (and the session's CSRF token)
 #   GET    /curate/layout.json   the cards as the homepage shows them now
-#   POST   /curate/layout        {tiles: [{path, group}, ...]} -> the row
+#   POST   /curate/layout        {tiles: [...], cards: [...]} -> the row
 #   DELETE /curate/layout        the row gone: the file's order again
 #   POST   /curate/login, /curate/logout
 #
 # Every answer is the cards again, as "/" will now show them ({"groups":
-# [...], "saved": true}); a refused save says why ({"error": ..., ...}, 400).
+# [...], "cards": [...], "saved": true}); a refused save says why
+# ({"error": ..., ...}, 400).
 #
 # The password is CURATE_PASSWORD. A login is kept in the signed session
 # as a MAC of the password, as /admin's is (src/99_admin.blimp), for
@@ -32,6 +35,19 @@ CUR_LOGIN_S = 43200
 
 # The file's pages, read once: the file does not change while the site runs.
 CUR_PAGES = desk_hangar_pages()
+CUR_GROUPS = desk_uniq(map(CUR_PAGES, fn(p: Map) -> String do p.group end), [])
+# the column's cards, in the page's own order
+CUR_CARDS = desk_card_keys(map(CUR_GROUPS, fn(g: String) -> Map do %{group: g} end))
+
+def cur_card_label(key: String) -> String do
+  case key do
+    "writing" -> "Writing"
+    "museum" -> "The museum"
+    "photos" -> "Photographs"
+    "more" -> "Everything else"
+    _ -> desk_hangar_label(key)
+  end
+end
 
 actor Curate do
   state dirty: Bool :: false
@@ -181,6 +197,33 @@ def cur_check(tiles: Any) -> String do
   end
 end
 
+# "" when the cards can be saved: nil (no order chosen) or a list of the
+# column's keys, none twice. A key the column does not have is refused
+# rather than dropped, so a typo in a hand-made request is heard.
+def cur_check_cards(cards: Any) -> String do
+  case type_of(cards) do
+    :nil -> ""
+    :list ->
+      bad = filter(cards, fn(k: Any) -> Bool do type_of(k) != :string or not(desk_member(CUR_CARDS, k)) end)
+      case bad do
+        [k | _] -> concat("Not a card of this site: ", take(json_encode(k), 120))
+        [] ->
+          case length(desk_uniq(cards, [])) == length(cards) do
+            false -> "A card is listed twice"
+            true -> ""
+          end
+      end
+    _ -> "cards must be a list of card names"
+  end
+end
+
+def cur_cards_or_none(cards: Any) -> List do
+  case type_of(cards) do
+    :list -> cards
+    _ -> []
+  end
+end
+
 # ---------------------------------------------------------------- answers
 
 # The cards as "/" shows them: label, and each tile with its icon's SVG.
@@ -197,9 +240,17 @@ def cur_groups(pages: List) -> List do
   end)
 end
 
+# The column's cards in the order "/" shows them: key, label, and whether
+# it is a hangar card (one with tiles).
+def cur_cards(saved: Any) -> List do
+  map(desk_card_order(CUR_CARDS, desk_layout_cards(saved)), fn(k: String) -> Map do
+    %{key: k, label: cur_card_label(k), group: desk_member(CUR_GROUPS, k)}
+  end)
+end
+
 def cur_state() -> Map do
   saved = cur_saved()
-  %{groups: cur_groups(desk_arrange(CUR_PAGES, saved)), saved: saved != nil}
+  %{groups: cur_groups(desk_arrange(CUR_PAGES, saved)), cards: cur_cards(saved), saved: saved != nil}
 end
 
 def cur_ok(conn: Map) -> Map do
@@ -221,13 +272,18 @@ end
 
 def cur_layout_save(conn: Map) -> Map do
   tiles = lookup(conn.body_params, "tiles")
-  why = cur_check(tiles)
+  cards = lookup(conn.body_params, "cards")
+  why = case cur_check(tiles) do
+    "" -> cur_check_cards(cards)
+    bad -> bad
+  end
   case why do
     "" ->
       case cur_ensure_table() do
         {:error, reason} -> cur_db_err(conn, reason)
         _ ->
-          case DB <- :query(CUR_UPSERT_Q, [json_encode(cur_entries(tiles))]) do
+          row = json_encode(%{tiles: cur_entries(tiles), cards: cur_cards_or_none(cards)})
+          case DB <- :query(CUR_UPSERT_Q, [row]) do
             {:error, reason} -> cur_db_err(conn, reason)
             _ ->
               CURATE <- :changed

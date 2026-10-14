@@ -206,10 +206,13 @@ actor DesktopTests do
 
   test "the manifest lists every page in data/hangar.tsv, each with an icon, a card a group" do
     html = dt_page("booted=1")
-    assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 32)
+    assert_eq(length(split(html, "class=\"mf-row\"")) - 1, 45)
     assert(contains(html, "<a class=\"mf-row\" href=\"/piet\">"))
     assert(contains(html, "<a class=\"mf-row\" href=\"/chess-lv\">"))
-    assert_eq(length(split(html, "Things I made that you can use <span>")) - 1, 4)
+    assert_eq(length(split(html, "Things I made that you can use <span>")) - 1, 5)
+    # a tile may leave the site: the sites card's do, escaped like any href
+    assert(contains(html, "<a class=\"mf-row\" href=\"https://blimp.bobbby.online\">"))
+    assert(contains(html, "<h2 id=\"work-sites-h\">Other apps and sites</h2>"))
     assert(contains(html, "id=\"work\" aria-labelledby=\"work-h\">"))
     assert(contains(html, "<h2 id=\"work-h\">Games</h2><details class=\"gloss-t gloss-tab\">"))
     assert(contains(html, "</div><span class=\"sec-count\">07</span></header>"))
@@ -223,11 +226,12 @@ actor DesktopTests do
     assert(at("id=\"writing\"") < at("id=\"museum\""))
     assert(at("id=\"museum\"") < at("id=\"work\""))
     assert(at("id=\"work\"") < at("id=\"work-toys\""))
-    assert(at("id=\"work-toys\"") < at("id=\"photographs\""))
+    assert(at("id=\"work-toys\"") < at("id=\"work-sites\""))
+    assert(at("id=\"work-sites\"") < at("id=\"photographs\""))
     assert(at("id=\"photographs\"") < at("id=\"more\""))
-    assert(contains(html, "The newest posts <span>01 / 08</span>"))
-    assert(contains(html, "<span>08 / 08</span>"))
-    assert_eq(length(split(html, "<section class=\"card")) - 1, 8)
+    assert(contains(html, "The newest posts <span>01 / 09</span>"))
+    assert(contains(html, "<span>09 / 09</span>"))
+    assert_eq(length(split(html, "<section class=\"card")) - 1, 9)
   end
 
   test "the counters are fixed width, so the prebuilt / can be spliced" do
@@ -309,7 +313,7 @@ actor DesktopTests do
     assert_eq(filter(shown, fn(k: String) -> Bool do contains(html, concat("aria-describedby=\"gl-", k, "\"")) == false end), [])
     assert_eq(filter(DESK_NOTE_WORDS, fn(k: String) -> Bool do lookup(DESK_NOTES, k) == nil end), [])
     # a heading note for each card and for the machine
-    assert_eq(length(split(html, "class=\"gloss gloss-sec\"")) - 1, 9)
+    assert_eq(length(split(html, "class=\"gloss gloss-sec\"")) - 1, 10)
     assert(contains(html, "<section class=\"scope-col\" id=\"machine\""))
   end
 

@@ -155,6 +155,8 @@ checked; the name and pitch are escaped here.
         "Live from the internet"
       } else if (group == "numbers") {
         "Data & maps"
+      } else if (group == "sites") {
+        "Other apps and sites"
       } else {
         "Art, tools & toys"
       }

@@ -30,3 +30,16 @@ toys	/ziggy	The Ziggy Account	hg-ziggy	123 story beats and 178 connections, and 
 toys	/blinks	Blinks	hg-links	My links, saved from my phone. Tour, walk or watch them.
 toys	/very_direct_message	Very Direct Message	receipt-printer	It prints on a receipt printer on my desk. Leave your name.
 toys	/collage-maker	Collage Maker	collage-maker	Up to 36 photos in, one collage out, cut in your browser.
+toys	https://github.com/notactuallytreyanastasio/padmac	Remote Mac	hg-remote-mac	Your iPad as a screen, trackpad and keyboard for your Mac, over Wi-Fi. Built from source; not on the App Store.
+sites	https://blimp.bobbby.online	Blimp	hg-blimp	The actor language this site runs on. What works, measured, and what does not yet.
+sites	https://marginalia.bobbby.online	Marginalia	hg-marginalia	Upload a draft. It reads the whole thing and argues with you in the margin.
+sites	https://tyler.bobbby.online	Tyler	hg-tyler	Disability Rights Oregon's guides and court documents, matched to your situation.
+sites	https://dave.bobbby.online	Dave	hg-dave	Put a song on the TV; every iPad in the classroom follows the line.
+sites	https://lumines.bobbby.online	Lumines HD	hg-lumines	A beat-locked Lumines clone, its soundtrack synthesized in your browser. Shared boards.
+sites	https://slides.bobbby.online	Slides	hg-slides	A free slides.com alternative, with your phone as the remote.
+sites	https://gifmaker.bobbby.online	Framecut	gif-maker	Turn any video into GIFs, frame by frame.
+sites	https://downloader.bobbby.online	Framecut Grabber	hg-grabber	Paste a video link; a small desktop app slices it into frames for Framecut.
+sites	https://soldat.bobbby.online	Soldat, by Fable	hg-soldat	Fable cloned Soldat and ended up with an arena combat sim and a bot trainer. Its own account of it.
+sites	https://deciduous.dev	Deciduous	deciduous	A shared memory for coding agents: the decisions behind the code, as a graph.
+sites	https://phishjamexplorer.com	Phish Jam Explorer	hg-phstats	Phish jam statistics on a domain of their own.
+sites	https://old.bobbby.online	The old site	hg-old	Phoenix served bobbby.online until September 2026. Retired, not scrapped: every old page still answers.
