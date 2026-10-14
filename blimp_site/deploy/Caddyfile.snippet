@@ -24,7 +24,8 @@
 # The /blinks handles (chapter 74) go above @blimp; deploy/Caddyfile.blinks-cutover.diff
 # is the whole change against production's Caddyfile as read on 2026-09-30.
 
-	# /admin/museum and /admin/finder (src/99_admin.blimp), every method:
+	# /admin/museum and /admin/finder (src/99_admin.blimp) and /curate
+	# (src/99_curate.blimp), every method:
 	# the pages and their files by GET, the login and every write by POST,
 	# PATCH or DELETE. No handle_response fallback to Phoenix, which could
 	# not carry a write's body anyway, and a 404 here is Blimp's (no such
@@ -33,7 +34,7 @@
 	# file order, so these paths reach Blimp whatever the method.
 	# request_buffers: the whole body first, so a slow client does not hold
 	# Blimp's one thread (see #111).
-	@blimp_admin path /admin/museum /admin/museum/* /admin/museum.blimp /admin/finder /admin/finder/* /admin/finder.blimp /admin/admin.js /admin/login /admin/logout /assets/admin-museum.css /assets/admin-finder.css
+	@blimp_admin path /admin/museum /admin/museum/* /admin/museum.blimp /admin/finder /admin/finder/* /admin/finder.blimp /admin/admin.js /admin/login /admin/logout /assets/admin-museum.css /assets/admin-finder.css /curate /curate/* /curate.blimp /assets/curate.css
 	handle @blimp_admin {
 		reverse_proxy blimp-blog:4100 {
 			request_buffers 1MB

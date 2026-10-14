@@ -218,16 +218,16 @@ end
 # (load_desktop_db) and from the data/*.tsv snapshot in tests and offline
 # (load_desktop); the pixel icons are always icons.txt, which is taken from
 # the Phoenix source, not the database.
+# layout is the order /curate saved (desk_arrange), nil for the file's.
 def load_desktop(dir: String, posts: List) -> Map do
   loaded = desk_load_museum(desk_read(concat(dir, "/museum.tsv")), desk_read(concat(dir, "/museum_repos.tsv")))
   finder = desk_load_finder(desk_read(concat(dir, "/finder_sections.tsv")), desk_read(concat(dir, "/finder_items.tsv")))
-  build_desktop(loaded, finder, desk_load_icons(desk_read(concat(dir, "/icons.txt"))), posts)
+  build_desktop(loaded, finder, desk_load_icons(desk_read(concat(dir, "/icons.txt"))), posts, nil)
 end
 
-def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
-  icon_text = concat(desk_read("data/hangar_icons.txt"), "\n", desk_read("data/icons.txt"))
-  own = desk_path_entries(desk_lines(icon_text), "", [], %{})
-  hangar = desk_load_hangar(desk_read("data/hangar.tsv"), own, %{})
+def build_desktop(loaded: List, finder: List, icons: Map, posts: List, layout: Any) -> Map do
+  own = desk_hangar_icons()
+  hangar = desk_arrange(desk_load_hangar(desk_read("data/hangar.tsv"), own, %{}), layout)
   museum = map(loaded, fn(p: Map) -> Map do
     put(put(p, "row_html", desk_ex_row(p, own)), "detail_html", desk_detail_inner(p, icons))
   end)
@@ -489,6 +489,124 @@ def desk_hangar_groups(pages: List) -> List do
   end)
 end
 
+# ── /curate: the saved order over the file's ───────────────────────────
+#
+# homepage_layout's one row (src/99_curate.blimp) is a JSON list of
+# {path, group}: the tiles in the order chosen, each in the card it was
+# put in. The cards keep data/hangar.tsv's order; each shows its saved
+# tiles in the saved order, then any page the file has and the row does
+# not, in the file's order. A saved path the file no longer has, or a
+# card the file does not have, is dropped: the page can only show what the
+# file vouches for. nil (nothing saved, or no database) is the file's order.
+
+def desk_hangar_icons() -> Map do
+  icon_text = concat(desk_read("data/hangar_icons.txt"), "\n", desk_read("data/icons.txt"))
+  desk_path_entries(desk_lines(icon_text), "", [], %{})
+end
+
+# data/hangar.tsv's pages with their icons, in the file's order.
+def desk_hangar_pages() -> List do
+  desk_load_hangar(desk_read("data/hangar.tsv"), desk_hangar_icons(), %{})
+end
+
+def desk_find_page(pages: List, path: String) -> Any do
+  case pages do
+    [] -> nil
+    [p | rest] ->
+      case p.path == path do
+        true -> p
+        false -> desk_find_page(rest, path)
+      end
+  end
+end
+
+# One saved entry as {path, group}, or nil when it is not that shape.
+def desk_layout_entry(e: Any) -> Any do
+  case type_of(e) do
+    :map ->
+      path = lookup(e, "path")
+      group = lookup(e, "group")
+      case type_of(path) == :string and type_of(group) == :string do
+        true -> %{path: path, group: group}
+        false -> nil
+      end
+    _ -> nil
+  end
+end
+
+# The row's entries the file vouches for; the first mention of a path wins.
+def desk_layout_entries(layout: List, pages: List, groups: List, seen: List, acc: List) -> List do
+  case layout do
+    [] -> reverse(acc)
+    [raw | rest] ->
+      e = desk_layout_entry(raw)
+      ok = case e do
+        nil -> false
+        _ -> desk_find_page(pages, e.path) != nil and desk_member(groups, e.group) and not(desk_member(seen, e.path))
+      end
+      case ok do
+        true -> desk_layout_entries(rest, pages, groups, [e.path | seen], [e | acc])
+        false -> desk_layout_entries(rest, pages, groups, seen, acc)
+      end
+  end
+end
+
+def desk_arrange(pages: List, layout: Any) -> List do
+  case type_of(layout) do
+    :list ->
+      groups = desk_uniq(map(pages, fn(p: Map) -> String do p.group end), [])
+      entries = desk_layout_entries(layout, pages, groups, [], [])
+      placed = map(entries, fn(e: Map) -> Map do put(desk_find_page(pages, e.path), "group", e.group) end)
+      taken = map(entries, fn(e: Map) -> String do e.path end)
+      left = filter(pages, fn(p: Map) -> Bool do not(desk_member(taken, p.path)) end)
+      reduce(groups, [], fn(acc: List, g: String) -> List do
+        list_append(acc, list_append(
+          filter(placed, fn(p: Map) -> Bool do p.group == g end),
+          filter(left, fn(p: Map) -> Bool do p.group == g end)))
+      end)
+    _ -> pages
+  end
+end
+
+# The saved order from Postgres: {:ok, layout | nil, db} or
+# {:error, reason, db}. The table is made by the first save
+# (src/99_curate.blimp), so a site never curated has none; pg_tables is
+# asked before the row, because selecting from a table that is not there
+# is an error, and that would keep the whole desktop from loading.
+DESK_LAYOUT_EXISTS_Q = ["select count(*) as n from pg_tables where schemaname = 'public' and tablename = 'homepage_layout'"]
+DESK_LAYOUT_Q = ["select layout from homepage_layout where id = 1"]
+
+def desk_layout_json(rows: List) -> Any do
+  case rows do
+    [] -> nil
+    [r | _] ->
+      got = json_decode(r.layout)
+      case elem(got, 0) do
+        :ok -> elem(got, 1)
+        _ -> nil
+      end
+  end
+end
+
+def desk_layout_db(db: Map) -> Tuple do
+  case pg_query(db, head(DESK_LAYOUT_EXISTS_Q), tail(DESK_LAYOUT_EXISTS_Q)) do
+    {:error, reason, next} -> {:error, reason, next}
+    {:ok, rows, next} ->
+      there = case rows do
+        [] -> false
+        [r | _] -> r.n > 0
+      end
+      case there do
+        false -> {:ok, nil, next}
+        true ->
+          case pg_query(next, head(DESK_LAYOUT_Q), tail(DESK_LAYOUT_Q)) do
+            {:error, reason, db2} -> {:error, reason, db2}
+            {:ok, found, db2} -> {:ok, desk_layout_json(found), db2}
+          end
+      end
+  end
+end
+
 # The Blimp commit the server binary was built from: deploy.sh writes it to
 # bin/BLIMP_COMMIT, which the image puts at /app/BLIMP_COMMIT, one up from
 # the site. A laptop has none, and says "local build".
@@ -564,7 +682,8 @@ end
 #
 # The same rows data/export.sh snapshots, as the same maps the snapshot
 # loader makes, so build_desktop cannot tell them apart.
-# {:ok, museum, finder, db} or {:error, reason, db}. A row the page could
+# {:ok, museum, finder, layout, db} or {:error, reason, db}; layout is
+# /curate's saved order or nil (desk_layout_db). A row the page could
 # not show honestly (a slug that needs URL escaping, a Finder action with
 # no script-free equivalent) is an error for the whole load, never a
 # skipped row: the caller keeps the desktop it has and says why.
@@ -613,7 +732,10 @@ def load_desk_db(db: Map) -> Tuple do
           finder = map(elem_at(sets, 2), fn(s: Map) -> Map do
             %{name: s.name, label: s.label, items: filter(items, fn(i: Map) -> Bool do i.section == s.name end)}
           end)
-          {:ok, museum, finder, next}
+          case desk_layout_db(next) do
+            {:ok, layout, db2} -> {:ok, museum, finder, layout, db2}
+            {:error, reason, db2} -> {:error, reason, db2}
+          end
         {[p | _], _} -> {:error, concat("museum project ", p.slug, " has a slug or category (", p.category, ") that would need URL escaping"), next}
         {_, [i | _]} -> {:error, concat("finder item ", i.name, " has action ", i.action, ", which has no script-free equivalent"), next}
       end
@@ -1041,7 +1163,7 @@ def desk_foot(st: Map) -> String do
   join([
     "<footer class=\"foot\">",
     "<p><strong>Phoenix</strong> served this site until September 2026. It has been retired, not scrapped: it still takes visitors at <a href=\"https://old.bobbby.online\">old.bobbby.online</a>.</p>",
-    "<p class=\"foot-links\"><a href=\"/very_direct_message\">Print on my desk</a><a href=\"", desk_href(put(st, "leica", "1")), "\">My favourite Leica shots (110 MB)</a><a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp on GitHub</a><a href=\"/\">Replay the boot screen</a></p>",
+    "<p class=\"foot-links\"><a href=\"/very_direct_message\">Print on my desk</a><a href=\"", desk_href(put(st, "leica", "1")), "\">My favourite Leica shots (110 MB)</a><a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp on GitHub</a><a href=\"/curate\">Arrange the cards above</a><a href=\"/\">Replay the boot screen</a></p>",
     "</footer>"
   ], "")
 end

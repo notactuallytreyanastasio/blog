@@ -1,0 +1,72 @@
+/* /curate: the homepage's "Things I made" cards, with handles. The tiles
+   are drawn as the homepage draws them (desktop.css's .mf-row: a pixel
+   icon, a name, a pitch, a dotted rule) so what is moved here looks like
+   what moves there. */
+:root {
+  --cu-ink: #000;
+  --cu-ink-2: #2f2f3a;
+  --cu-ink-3: #5c5c6b;
+  --cu-sheet: #fff;
+  --cu-desk: #f6eaff;
+  --cu-signal: #0000a8;
+  --cu-display: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+  --cu-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+body { background: var(--cu-desk); color: var(--cu-ink); margin: 0; }
+.cu-page { max-width: 1120px; margin: 0 auto; padding: 28px 20px 60px; font-family: var(--cu-display); }
+.cu-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; }
+.cu-kicker { font-family: var(--cu-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--cu-ink-3); margin: 0 0 4px; }
+.cu-title h1 { font-size: 30px; line-height: 1.1; margin: 0 0 8px; font-weight: 700; }
+.cu-lede { margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--cu-ink-2); }
+.cu-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cu-btn {
+  font: 600 13.5px/1 var(--cu-display); padding: 9px 13px; cursor: pointer; text-decoration: none;
+  color: var(--cu-ink); background: var(--cu-sheet); border: 1px solid var(--cu-ink); box-shadow: 2px 2px 0 var(--cu-ink);
+}
+.cu-btn:hover { background: var(--cu-ink); color: var(--cu-sheet); }
+.cu-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--cu-ink); }
+.cu-quiet { box-shadow: none; border-color: var(--cu-ink-3); color: var(--cu-ink-3); }
+.cu-state { font-family: var(--cu-mono); font-size: 12.5px; color: var(--cu-ink-3); margin: 0 0 16px; }
+.adm-flash { background: #ffffe1; border: 1px solid var(--cu-ink); padding: 10px 12px; margin: 0 0 14px; font-size: 14px; cursor: pointer; }
+
+.cu-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; align-items: start; }
+.cu-card { background: var(--cu-sheet); border: 1px solid var(--cu-ink); box-shadow: 4px 4px 0 var(--cu-ink); padding: 14px 16px 6px; }
+.cu-label { font-family: var(--cu-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; margin: 0 0 6px; display: flex; justify-content: space-between; }
+.cu-label span { color: var(--cu-ink-3); font-weight: 400; }
+.cu-list { list-style: none; margin: 0; padding: 0; min-height: 44px; }
+.cu-list.cu-over { outline: 2px dashed var(--cu-signal); outline-offset: 4px; }
+.cu-tile {
+  display: grid; grid-template-columns: 18px 56px minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+  padding: 9px 4px 10px; border-bottom: 1px dotted var(--cu-ink-3); cursor: grab; position: relative;
+}
+.cu-tile:active { cursor: grabbing; }
+.cu-tile.cu-dragging { opacity: .35; }
+.cu-tile.cu-before::before, .cu-tile.cu-after::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 3px; background: var(--cu-signal);
+}
+.cu-tile.cu-before::before { top: -2px; }
+.cu-tile.cu-after::after { bottom: -2px; }
+.cu-handle { color: var(--cu-ink-3); font-size: 15px; text-align: center; user-select: none; }
+.cu-icon { width: 56px; height: 35px; color: var(--cu-ink); }
+.cu-icon svg { width: 56px; height: 35px; display: block; fill: currentColor; }
+.cu-text { display: grid; min-width: 0; }
+.cu-name { font-weight: 600; font-size: 16px; line-height: 1.25; }
+.cu-pitch { font-size: 13.5px; line-height: 1.4; color: var(--cu-ink-2); margin-top: 2px; }
+.cu-tools { display: flex; gap: 4px; align-items: center; }
+.cu-tool, .cu-to {
+  font: 12px/1 var(--cu-mono); color: var(--cu-ink); background: var(--cu-sheet); border: 1px solid var(--cu-ink);
+  padding: 6px 7px; cursor: pointer; border-radius: 0;
+}
+.cu-tool:hover:not(:disabled), .cu-to:hover { background: var(--cu-ink); color: var(--cu-sheet); }
+.cu-tool:disabled { opacity: .3; cursor: default; }
+.cu-to { max-width: 140px; }
+.password-form { max-width: 320px; margin: 100px auto; text-align: center; font-family: var(--cu-display); }
+.password-form h2 { font-size: 22px; margin: 0 0 14px; }
+.password-form input { padding: 9px 12px; border: 1px solid var(--cu-ink); font-size: 15px; width: 220px; display: block; margin: 0 auto 10px; }
+.password-form button { padding: 9px 20px; background: var(--cu-ink); color: var(--cu-sheet); border: none; cursor: pointer; font: 600 14px var(--cu-display); }
+@media (max-width: 900px) { .cu-cards { grid-template-columns: 1fr; } }
+@media (max-width: 520px) {
+  .cu-tile { grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto; }
+  .cu-handle { display: none; }
+  .cu-tools { grid-column: 1 / -1; justify-content: flex-end; margin-top: 6px; }
+}
