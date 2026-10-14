@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# A `gh` stand-in for testing adapters/github-projects.sh without writing to
+# GitHub. Put this directory first on PATH:
+#
+#   PATH="$PWD/mock:$PATH" bash adapters/github-projects.sh ...
+#
+# Only `gh api graphql` is understood. Each call's query and variables are
+# appended to $GH_MOCK_RECORD (one JSON object per line) and a canned
+# response in the real schema's shape is printed, chosen by which operation
+# the query names. Ids are the format GitHub uses (R_, I_, PVT_, PVTSSF_,
+# PVTI_ prefixes) so a parser that assumes a shape is caught.
+set -euo pipefail
+[ "${1:-}" = "api" ] && [ "${2:-}" = "graphql" ] || { echo "mock gh: only 'gh api graphql' is supported" >&2; exit 2; }
+shift 2
+query=""; vars="{"; arrays=""; nl=$'\n'
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -f|-F)
+      kv=$2; k=${kv%%=*}; v=${kv#*=}
+      if [ "$k" = "query" ]; then query=$v; else
+        case "$k" in
+          *"[]") arrays="${arrays:-}${nl}${k%[]}=$v";;   # gh's repeated key[]=v array syntax
+          *) case "$1" in
+               -F) vars="$vars\"$k\":$v,";;
+               -f) vars="$vars\"$k\":$(printf '%s' "$v" | python3 -I -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),";;
+             esac;;
+        esac
+      fi
+      shift 2;;
+    *) shift;;
+  esac
+done
+vars="${vars%,}}"
+record=${GH_MOCK_RECORD:-/dev/null}
+python3 -I -c '
+import json, sys
+v = json.loads(sys.argv[2])
+for line in sys.argv[3].splitlines():
+    if "=" in line:
+        k, val = line.split("=", 1); v.setdefault(k, []).append(val)
+print(json.dumps({"query": sys.argv[1], "variables": v}))' "$query" "$vars" "${arrays:-}" >> "$record"
+
+case "$query" in
+  *"repository(owner:"*)
+    echo '{"data":{"repository":{"id":"R_kgDOMOCK0001","labels":{"nodes":[{"id":"LA_kwDOMOCK0001","name":"bug"},{"id":"LA_kwDOMOCK0002","name":"enhancement"}]}}}}';;
+  *"createIssue("*)
+    echo '{"data":{"createIssue":{"issue":{"id":"I_kwDOMOCK0042","number":42,"url":"https://github.com/mock-owner/mock-repo/issues/42"}}}}';;
+  *"projectV2(number:"*)
+    echo '{"data":{"user":{"projectV2":{"id":"PVT_kwHOMOCK0001","field":{"id":"PVTSSF_lAHOMOCK0001","options":[{"id":"f75ad846","name":"Todo"},{"id":"47fc9ee4","name":"In Progress"},{"id":"98236657","name":"Done"}]}}}}}';;
+  *"addProjectV2ItemById("*)
+    echo '{"data":{"addProjectV2ItemById":{"item":{"id":"PVTI_lAHOMOCK0001"}}}}';;
+  *"updateProjectV2ItemFieldValue("*)
+    echo '{"data":{"updateProjectV2ItemFieldValue":{"projectV2Item":{"id":"PVTI_lAHOMOCK0001"}}}}';;
+  *) echo "mock gh: no canned response for query: $query" >&2; exit 1;;
+esac
