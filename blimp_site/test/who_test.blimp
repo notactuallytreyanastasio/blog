@@ -1,0 +1,467 @@
+# needs: static/who/who.blimp
+#
+# /who: the graph and story queries, the tools and the chat actor
+# (src/99_who.blimp), the page's program (static/who/who.blimp) and the
+# Temper they share (temper/src/who). Sockets here are negative, which WHO
+# does not write to; it keeps the last frame it would have sent each one.
+#
+# The graph is the real export (_build/who-graph.json, copied by build.sh
+# from priv/who), so the figures here are the file's: Blog.WhoTest's, and
+# a refreshed export that changes them should change the test.
+#
+# fixtures/who/ are chat.completions answers in DeepSeek's (OpenAI's)
+# shape, written by hand: tool_call.json asks for search_graph and story,
+# final.json answers (with raw HTML a prompt could have talked the model
+# into), error_401.json is DeepSeek's refused key, truncated.json a reply
+# that hit max_tokens. WHO is configured against a closed local port: a
+# request it starts fails on its own and is never read; the answers are
+# handed to :answered.
+
+WHT_BASE = "http://127.0.0.1:9"
+
+def wht_fixture(name: String) -> String do
+  read_file(concat("test/fixtures/who/", name))
+end
+
+def wht_last(fd: Int) -> Map do
+  p = WHO <- :person(fd)
+  zg_decode_map(p.last)
+end
+
+def wht_ids(list: List) -> List do
+  map(list, fn(n: Any) -> Any do lookup(n, :id) end)
+end
+
+def wht_titles(list: List) -> List do
+  map(list, fn(n: Any) -> Any do lookup(n, :title) end)
+end
+
+def wht_any_starts(titles: List, prefix: String) -> Bool do
+  length(filter(titles, fn(t: Any) -> Bool do starts_with(zg_str(t), prefix) end)) > 0
+end
+
+def wht_last_said(fd: Int) -> String do
+  p = WHO <- :person(fd)
+  (last(p.history)).content
+end
+
+# A page behind the password "pw": joined, unlocked, and the bot's opening
+# note about the exhibit answered from a fixture, so a question can follow.
+def wht_open(fd: Int) -> Any do
+  WHO <- :join(fd)
+  WHO <- :recv(fd, "{\"t\":\"unlock\",\"password\":\"pw\"}")
+  WHO <- :answered(fd, {:ok, 200, wht_fixture("final.json")}, now())
+end
+
+# main.blimp hands WHO the files at boot; a test does it itself, once
+WHT_STATS = WHO <- :load(read_file(WHO_GRAPH_FILE), read_file(WHO_EPISODES_FILE))
+WHT_G = WHO <- :graph
+WHT_EPS = WHO <- :episodes
+
+actor WhoTests do
+  test "a Doctor's title parses, and nothing else does" do
+    assert_eq(who_doctor_parts("The Tenth Doctor (David Tennant, 2005–2010)"), ["Tenth", "David Tennant", "2005–2010"])
+    assert_eq(who_doctor_parts("The Fugitive Doctor (Jo Martin, pre-Hartnell)"), ["Fugitive", "Jo Martin", "pre-Hartnell"])
+    assert_eq(who_doctor_parts("The Doctor's TARDIS (a type 40)"), [])
+    assert_eq(who_doctor_parts("Blink - Sally Sparrow, timey-wimey, Angels"), [])
+    assert_eq(who_doctor_parts("The Tenth Doctor (David Tennant)"), [])
+    assert_eq(who_doctor_parts("The Tenth Doctor (David Tennant, 2005) again"), [])
+    assert_eq(who_ordinal_number("tenth"), 10)
+    assert_eq(who_ordinal_number("fifteenth"), 15)
+    assert_eq(who_ordinal_number("war"), 0)
+    assert_eq(who_all_digits("10"), true)
+    assert_eq(who_all_digits("10th"), false)
+    assert_eq(who_all_digits(""), false)
+  end
+
+  test "search words keep apostrophes and drop short words; the relations are Blog.Who's" do
+    # three letters or more: "the" stays, "of" goes
+    assert_eq(who_terms("sally's sparrow, the of timey-wimey"), ["sally's", "sparrow", "the", "timey", "wimey"])
+    assert_eq(who_terms("of"), [])
+    assert_eq(who_story_relation("Story of"), true)
+    assert_eq(who_story_relation("Debut story"), true)
+    assert_eq(who_story_relation("Features companion"), false)
+    assert_eq(who_sequence_relation("Chronologically followed by"), true)
+    assert_eq(who_sequence_relation("Story of"), false)
+    assert_eq(who_stats_text(2731, 7728, 17, 384, 42), "2731 nodes · 7728 edges · 17 Doctors · 384 TV stories · 42 decisions")
+  end
+
+  test "the export loads with the counts the explorer's README gives" do
+    assert_eq(WHT_STATS, %{nodes: 2731, edges: 7728, doctors: 17, stories: 384, decisions: 42})
+    assert_eq(length(WHT_G.eras), 5)
+    assert_eq(map(zg_take(WHT_G.doctors, 3), fn(d: Map) -> String do d.ordinal end), ["First", "Second", "Third"])
+    fugitive = head(filter(WHT_G.doctors, fn(d: Map) -> Bool do d.ordinal == "Fugitive" end))
+    assert_eq([lookup(fugitive, :actor), fugitive.years], ["Jo Martin", "pre-Hartnell"])
+  end
+
+  test "a Doctor can be named by number, ordinal or actor" do
+    assert_eq((who_doctor(WHT_G, 10)).ordinal, "Tenth")
+    assert_eq((who_doctor(WHT_G, "10")).ordinal, "Tenth")
+    assert_eq((who_doctor(WHT_G, "tenth")).ordinal, "Tenth")
+    # Tennant played two; the earlier node wins, which is the one people mean
+    assert_eq((who_doctor(WHT_G, "Tennant")).ordinal, "Tenth")
+    assert_eq((who_doctor(WHT_G, "Hurt")).ordinal, "War")
+    assert_eq(who_doctor(WHT_G, "Pertwee's cat"), nil)
+    assert_eq(who_doctor(WHT_G, ""), nil)
+    assert_eq(who_doctor(WHT_G, nil), nil)
+  end
+
+  test "stories are filed under their Doctor and exclude companions and enemies" do
+    tenth = who_doctor(WHT_G, 10)
+    titles = wht_titles(who_stories_of(WHT_G, tenth.id))
+    assert(wht_any_starts(titles, "Blink"))
+    assert_eq(wht_any_starts(titles, "Rose Tyler"), false)
+    assert_eq(wht_any_starts(titles, "The Daleks"), false)
+    # in id order
+    ids = wht_ids(who_stories_of(WHT_G, tenth.id))
+    assert_eq(ids, sort(ids))
+  end
+
+  test "search scores by words: a title fragment finds the node first, a tie goes to the lower id" do
+    hits = who_search(WHT_G, "Sally Sparrow timey", nil)
+    assert_eq(lookup(elem_at(hits, 0), :title), "Blink - Sally Sparrow, timey-wimey, Angels")
+    assert_eq(who_search(WHT_G, "of", nil), [])
+    assert_eq(who_search(WHT_G, "", nil), [])
+    tie = who_search(WHT_G, "Blink Angels", nil)
+    assert(contains(zg_str(lookup(elem_at(tie, 0), :title)), "Weeping Angels"))
+    assert(contains(zg_str(lookup(elem_at(tie, 1), :title)), "Blink -"))
+    assert_eq(length(who_search(WHT_G, "Doctor", nil)), 20)
+    decisions = who_search(WHT_G, "Daleks", "decision")
+    assert(length(decisions) > 0)
+    assert_eq(length(filter(decisions, fn(n: Any) -> Bool do lookup(n, :node_type) != "decision" end)), 0)
+    assert_eq(who_search(WHT_G, "Daleks", "revisit"), [])
+  end
+
+  test "neighbours carry the rationale as the relation, and a chain walks the sequence edges" do
+    blink = elem_at(who_search(WHT_G, "Blink Sally Sparrow", nil), 0)
+    nb = who_neighbors(WHT_G, lookup(blink, :id))
+    doctor_edges = filter(nb.outgoing, fn(e: Map) -> Bool do e.relation == "Doctor" and contains(zg_str(e.title), "Tenth Doctor") end)
+    assert_eq(length(doctor_edges), 1)
+    ambassadors = elem_at(who_search(WHT_G, "Ambassadors of Death", nil), 0)
+    chain = who_chain(WHT_G, lookup(ambassadors, :id), true, 3)
+    assert_eq(lookup(elem_at(chain, 0), :id), lookup(ambassadors, :id))
+    assert(wht_any_starts(wht_titles(chain), "Inferno"))
+    assert(length(chain) <= 4)
+    back = who_chain(WHT_G, lookup(ambassadors, :id), false, 3)
+    assert_eq(lookup(elem_at(back, 0), :id), lookup(ambassadors, :id))
+  end
+
+  test "the decisions come with their options and outcomes" do
+    genesis = head(filter(who_decisions(WHT_G), fn(d: Map) -> Bool do contains(zg_str(d.title), "Daleks at their creation") end))
+    assert(genesis != nil)
+    assert(length(filter(genesis.options, fn(t: Any) -> Bool do contains(zg_str(t), "Destroy Daleks") end)) > 0)
+    assert(length(filter(genesis.outcomes, fn(t: Any) -> Bool do contains(zg_str(t), "Daleks survive") end)) > 0)
+    assert_eq(length(who_decisions(WHT_G)), 42)
+  end
+
+  test "a TV story's wiki record is there by title, and story search reads the whole record" do
+    blink = who_episode(WHT_EPS, "blink")
+    assert_eq(lookup(blink, :writer), "Steven Moffat")
+    assert_eq(lookup(blink, :enemies), ["Weeping Angels"])
+    # the scrape is thin here: no Doctor, no companions for Blink
+    assert_eq(lookup(blink, :doctor), nil)
+    assert_eq(lookup(blink, :companions), [])
+    assert_eq(lookup(who_episode_summary(blink, false), :synopsis), nil)
+    assert(contains(zg_str(lookup(who_episode_summary(blink, true), :synopsis)), "Blink"))
+    assert_eq(who_episode(WHT_EPS, "not a story"), nil)
+    assert_eq(who_episode(WHT_EPS, nil), nil)
+    titles = wht_titles(who_search_episodes(WHT_EPS, "Moffat Angels"))
+    assert(who_member(titles, "Blink"))
+    assert(length(titles) <= 12)
+  end
+
+  test "the tools answer as Blog.Who.Chat's did" do
+    assert_eq(length(WHO_TOOLS), 9)
+    found = who_run_tool(WHT_G, WHT_EPS, "search_graph", %{query: "Sally Sparrow timey"})
+    assert_eq(lookup(elem_at(found, 0), :title), "Blink - Sally Sparrow, timey-wimey, Angels")
+    assert_eq(who_run_tool(WHT_G, WHT_EPS, "search_graph", %{query: "zzzz"}), %{result: "nothing in the graph matches those words; try fewer or simpler ones"})
+    assert_eq(who_run_tool(WHT_G, WHT_EPS, "node_neighbors", %{}), %{error: "no node with that id"})
+    nb = who_run_tool(WHT_G, WHT_EPS, "node_neighbors", %{id: lookup(elem_at(found, 0), :id)})
+    assert_eq(nb.type, "observation")
+    assert(length(nb.outgoing) > 0)
+    assert_eq(length(who_run_tool(WHT_G, WHT_EPS, "the_doctors", %{})), 17)
+    tennant = who_run_tool(WHT_G, WHT_EPS, "doctor_stories", %{doctor: "Tennant"})
+    assert(contains(tennant.doctor, "Tenth"))
+    assert_eq(tennant.capped_at, 80)
+    assert(length(tennant.stories) <= 80)
+    assert(tennant.total >= length(tennant.stories))
+    missing = who_run_tool(WHT_G, WHT_EPS, "doctor_stories", %{doctor: "Pertwee's cat"})
+    assert_eq(missing.error, "no Doctor matches \"Pertwee's cat\"; call the_doctors for the list")
+    assert_eq(who_run_tool(WHT_G, WHT_EPS, "chain", %{id: 999999}), %{error: "no node with that id"})
+    walked = who_run_tool(WHT_G, WHT_EPS, "chain", %{id: lookup(elem_at(found, 0), :id), direction: "forward"})
+    assert(type_of(walked) == :list or starts_with(zg_str(lookup(walked, :result)), "no sequence edges forward from Blink"))
+    assert_eq(length(who_run_tool(WHT_G, WHT_EPS, "the_eras", %{})), 5)
+    assert_eq(length(who_run_tool(WHT_G, WHT_EPS, "the_doctors_decisions", %{})), 42)
+    story = who_run_tool(WHT_G, WHT_EPS, "story", %{title: "Blink"})
+    assert_eq(story.writer, "Steven Moffat")
+    assert(starts_with(zg_str(story.wiki_url), "http"))
+    assert_eq(who_run_tool(WHT_G, WHT_EPS, "story", %{title: "The Ziggy Account"}).error, "no TV story with that title; search_stories finds near misses, and novels and audios are graph nodes that search_graph finds")
+    stories = who_run_tool(WHT_G, WHT_EPS, "search_stories", %{query: "Moffat Angels"})
+    assert(who_member(wht_titles(stories), "Blink"))
+    assert_eq(lookup(elem_at(stories, 0), :synopsis), nil)
+    assert_eq(who_run_tool(WHT_G, WHT_EPS, "search_stories", %{query: "zzzz"}), %{result: "no TV story matches those words; it may be a novel or audio, which search_graph finds"})
+    assert_eq(who_run_tool(WHT_G, WHT_EPS, "recall_conversations", %{query: "x"}), %{error: "unknown tool"})
+  end
+
+  test "the exhibit: a featurable story, its node, its relations, the chain and its Doctor" do
+    pool = who_featurable_stories(WHT_G, WHT_EPS)
+    assert(length(pool) > 200)
+    assert(length(pool) < length(WHT_EPS))
+    assert_eq(lookup(who_pick_story(pool, 0), :title), lookup(elem_at(pool, 0), :title))
+    assert_eq(lookup(who_pick_story(pool, length(pool) + 1), :title), lookup(elem_at(pool, 1), :title))
+    assert_eq(who_pick_story([], 3), nil)
+    box = who_infobox("Blink", lookup(who_episode(WHT_EPS, "Blink"), :synopsis))
+    assert_eq(box.series, "Series 3, Episode 10")
+    assert_eq(who_fact(box.facts, "Premiere broadcast"), "9 June 2007")
+    assert_eq(who_fact(box.facts, "Main enemy"), "Weeping Angels")
+    assert_eq(who_fact(box.facts, "Format"), "1x45 minute episode")
+    assert_eq(who_fact(box.facts, "Key crew"), "")
+    assert_eq(who_fact(box.facts, "Doctor"), "")
+    inferno_box = who_infobox("Inferno", lookup(who_episode(WHT_EPS, "Inferno"), :synopsis))
+    assert_eq(who_fact(inferno_box.facts, "Doctor"), "Third Doctor")
+    assert_eq(who_fact(inferno_box.facts, "Number of parts"), "7")
+    assert_eq(who_infobox("x", "just prose, no labels").facts, [])
+    assert_eq(who_story_number("054"), "54")
+    assert_eq(who_story_number("-"), "-")
+    x = who_exhibit(WHT_G, who_episode(WHT_EPS, "Blink"))
+    assert_eq([x.title, lookup(x.node, :id), x.writer, x.story_number, x.aired, x.series], ["Blink", 182, "Steven Moffat", "186", "9 June 2007", "Series 3, Episode 10"])
+    assert(length(x.relations) > 5)
+    assert(starts_with(zg_str(lookup(elem_at(x.after, 0), :title)), "Utopia"))
+    assert(length(x.after) <= 4)
+    assert(length(x.before) <= 3)
+    # the scrape has no Doctor for Blink; the node's "Doctor" edge has
+    assert_eq(lookup(x.doctor_card, :ordinal), "Tenth")
+    inferno = who_exhibit(WHT_G, who_episode(WHT_EPS, "Inferno"))
+    assert_eq(lookup(inferno.doctor_card, :ordinal), "Third")
+    assert_eq(lookup(elem(json_decode(who_exhibit_frame(x)), 1), :t), "exhibit")
+    assert_eq(who_featurable("x"), false)
+    assert_eq(who_kicker("TV story 186", "Series 3, Episode 10", "", "9 June 2007"), "TV story 186 · Series 3, Episode 10 · 9 June 2007")
+  end
+
+  test "a page with no password is told the hello, shown a story, and the bot opens" do
+    WHO <- :config("sk-test", "", "deepseek-chat", WHT_BASE, 600)
+    hello = zg_decode_map(who_hello_frame(WHT_G, WHT_EPS, false))
+    assert_eq([lookup(hello, :t), lookup(hello, :locked), length(zg_list(lookup(hello, :doctors))), length(zg_list(lookup(hello, :eras)))], ["hello", false, 17, 5])
+    assert_eq(lookup(lookup(hello, :stats), :nodes), 2731)
+    WHO <- :join(-1)
+    p = WHO <- :person(-1)
+    assert_eq([p.unlocked, p.loading, length(p.history), p.job.iteration, p.exhibit != nil], [true, true, 1, 0, true])
+    # the opener is the visitor's turn to the model, hidden from the page
+    assert_eq((elem_at(p.history, 0)).hidden, true)
+    assert(contains((elem_at(p.history, 0)).content, "Open the conversation"))
+    assert(contains((elem_at(p.history, 0)).content, p.exhibit.title))
+    chat = wht_last(-1)
+    assert_eq([lookup(chat, :t), lookup(chat, :loading), lookup(chat, :messages)], ["chat", true, []])
+    assert_eq(WHO <- :answered(-1, {:ok, 200, wht_fixture("final.json")}, now()), :final)
+    chat2 = wht_last(-1)
+    assert_eq([lookup(chat2, :loading), length(lookup(chat2, :messages))], [false, 1])
+    assert_eq(lookup(elem_at(lookup(chat2, :messages), 0), :role), "assistant")
+    # another story: a new exhibit, and another note about it
+    first = (WHO <- :person(-1)).exhibit.title
+    assert_eq(WHO <- :recv(-1, "{\"t\":\"shuffle\"}"), :asking)
+    q = WHO <- :person(-1)
+    assert(q.exhibit.title != first)
+    assert_eq([q.loading, length(q.history)], [true, 3])
+    assert(contains((elem_at(q.history, 2)).content, "another story"))
+    assert_eq(WHO <- :recv(-1, "{\"t\":\"shuffle\"}"), :ignored)
+    WHO <- :answered(-1, {:ok, 200, wht_fixture("final.json")}, now())
+    tenth = who_doctor(WHT_G, 10)
+    assert_eq(WHO <- :recv(-1, concat("{\"t\":\"doctor\",\"id\":", to_string(tenth.id), "}")), :doctor)
+    d = wht_last(-1)
+    assert_eq([lookup(d, :t), lookup(d, :ordinal)], ["doctor", "Tenth"])
+    assert(wht_any_starts(wht_titles(zg_list(lookup(d, :stories))), "Blink"))
+    assert_eq(WHO <- :recv(-1, "{\"t\":\"doctor\",\"id\":999999}"), :ignored)
+    assert_eq(WHO <- :recv(-1, "{\"t\":\"search\",\"q\":\" Gallifrey \"}"), :results)
+    r = wht_last(-1)
+    assert_eq(lookup(r, :q), "Gallifrey")
+    assert(length(zg_list(lookup(r, :results))) > 0)
+    blink = elem_at(who_search(WHT_G, "Blink Sally Sparrow", nil), 0)
+    assert_eq(WHO <- :recv(-1, concat("{\"t\":\"node\",\"id\":\"", to_string(lookup(blink, :id)), "\"}")), :node)
+    n = wht_last(-1)
+    assert_eq(lookup(lookup(n, :node), :title), "Blink - Sally Sparrow, timey-wimey, Angels")
+    assert(length(zg_list(lookup(n, :outgoing))) > 0)
+    assert_eq(WHO <- :recv(-1, "{\"t\":\"node\",\"id\":999999}"), :no_node)
+    assert_eq(lookup(wht_last(-1), :error), "no node with that id")
+    # no password: an unlock is a yes
+    WHO <- :recv(-1, "{\"t\":\"unlock\",\"password\":\"\"}")
+    assert_eq(wht_last(-1), %{t: "unlock", ok: true})
+    WHO <- :leave(-1)
+    assert_eq(WHO <- :person(-1), nil)
+  end
+
+  test "behind a password the bot waits for the unlock; then a question goes through two tools and comes back rendered and safe" do
+    WHO <- :config("sk-test", "pw", "deepseek-chat", WHT_BASE, 600)
+    WHO <- :join(-2)
+    p0 = WHO <- :person(-2)
+    # the exhibit is shown, the opener is not asked: a locked page may not chat
+    assert_eq([p0.unlocked, p0.loading, p0.history, p0.exhibit != nil], [false, false, [], true])
+    assert_eq(lookup(wht_last(-2), :t), "exhibit")
+    assert_eq(WHO <- :recv(-2, "{\"t\":\"ask\",\"text\":\"locked?\"}"), :ignored)
+    WHO <- :recv(-2, "{\"t\":\"unlock\",\"password\":\"nope\"}")
+    assert_eq(wht_last(-2), %{t: "unlock", ok: false, error: "Wrong password."})
+    WHO <- :recv(-2, "{\"t\":\"unlock\",\"password\":\"pw\"}")
+    # unlocked, and the opener goes at once
+    p1 = WHO <- :person(-2)
+    assert_eq([p1.unlocked, p1.loading, length(p1.history)], [true, true, 1])
+    WHO <- :answered(-2, {:ok, 200, wht_fixture("final.json")}, now())
+    WHO <- :recv(-2, "{\"t\":\"ask\",\"text\":\"  Who wrote Blink, and which Doctor is it filed under?  \"}")
+    p = WHO <- :person(-2)
+    assert_eq([p.loading, p.count, length(p.history), p.job.iteration], [true, 1, 3, 0])
+    assert_eq(elem_at(p.history, 2).content, "Who wrote Blink, and which Doctor is it filed under?")
+    assert_eq(lookup(elem_at(p.job.messages, 0), :role), "system")
+    assert(contains(lookup(elem_at(p.job.messages, 0), :content), "TARDIS's databank"))
+    # the request is Blog.LLM's: the tools, 0.7, 2,000 tokens
+    body = zg_decode_map(who_request_body("deepseek-chat", p.job.messages))
+    assert_eq([lookup(body, :max_tokens), lookup(body, :temperature), length(zg_list(lookup(body, :tools)))], [2000, 0.7, 9])
+    # waiting: a second question is not taken
+    assert_eq(WHO <- :ask(-2, "another", now()), :ignored)
+    assert_eq(WHO <- :answered(-2, {:ok, 200, wht_fixture("tool_call.json")}, now()), :asking)
+    q = WHO <- :person(-2)
+    assert_eq(q.job.iteration, 1)
+    ms = q.job.messages
+    # system, the hidden opener and its note, the question, the model's
+    # tool calls, then one answer per call
+    assert_eq(length(ms), 7)
+    assert_eq(lookup(elem_at(ms, 5), :tool_call_id), "call_search_1")
+    found = elem(json_decode(lookup(elem_at(ms, 5), :content)), 1)
+    assert_eq(lookup(elem_at(found, 0), :title), "Blink - Sally Sparrow, timey-wimey, Angels")
+    story = elem(json_decode(lookup(elem_at(ms, 6), :content)), 1)
+    assert_eq(lookup(story, :writer), "Steven Moffat")
+    assert_eq(WHO <- :answered(-2, {:ok, 200, wht_fixture("final.json")}, now()), :final)
+    r = WHO <- :person(-2)
+    assert_eq([r.loading, length(r.history), r.job], [false, 4, nil])
+    got = elem_at(r.history, 3)
+    assert(starts_with(got.content, "**Blink** is node 182"))
+    assert_eq(got.html, "<p><strong>Blink</strong> is node 182, filed under the Tenth Doctor.</p>\n<ul>\n<li>Written by Steven Moffat, directed by Hettie MacDonald.</li>\n<li>The Weeping Angels are its only listed enemy.</li>\n</ul>\n<p>See <a href=\"/who?node=182\">the node</a> or <!-- raw HTML omitted -->this.</p>\n<p>tags: not a post</p>")
+    last = wht_last(-2)
+    # the hidden turn is not among the page's three
+    assert_eq([lookup(last, :t), lookup(last, :loading), length(lookup(last, :messages))], ["chat", false, 3])
+  end
+
+  test "errors are Blog.Who.Chat's words, a cut-off reply is one, and eight rounds of tools is the end" do
+    WHO <- :config("sk-test", "pw", "deepseek-chat", WHT_BASE, 600)
+    wht_open(-3)
+    WHO <- :recv(-3, "{\"t\":\"ask\",\"text\":\"hello\"}")
+    WHO <- :answered(-3, {:ok, 401, wht_fixture("error_401.json")}, now())
+    e = wht_last_said(-3)
+    assert(starts_with(e, "Sorry — I hit an error: the model answered 401: {"))
+    assert(contains(e, "api key"))
+    WHO <- :recv(-3, "{\"t\":\"ask\",\"text\":\"again\"}")
+    WHO <- :answered(-3, {:error, "ConnectionRefused"}, now())
+    assert_eq(wht_last_said(-3), "Sorry — I hit an error: could not reach the model (ConnectionRefused)")
+    WHO <- :recv(-3, "{\"t\":\"ask\",\"text\":\"everything\"}")
+    WHO <- :answered(-3, {:ok, 200, wht_fixture("truncated.json")}, now())
+    assert_eq(wht_last_said(-3), "Sorry — I hit an error: the reply was cut off; try a narrower question")
+    WHO <- :recv(-3, "{\"t\":\"ask\",\"text\":\"busy\"}")
+    WHO <- :answered(-3, {:ok, 429, "{}"}, now())
+    assert_eq(wht_last_said(-3), "Sorry — I hit an error: the model is rate limiting us; give it a moment")
+    WHO <- :recv(-3, "{\"t\":\"ask\",\"text\":\"loop\"}")
+    calls = wht_fixture("tool_call.json")
+    # range is inclusive: seven more rounds of tools are taken, the eighth is not
+    each(range(1, 7), fn(i: Int) do assert_eq(WHO <- :answered(-3, {:ok, 200, calls}, now()), :asking) end)
+    assert_eq(WHO <- :answered(-3, {:ok, 200, calls}, now()), :error)
+    assert_eq(wht_last_said(-3), "Sorry — I hit an error: gave up after too many tool calls")
+    WHO <- :recv(-3, "{\"t\":\"ask\",\"text\":\"nothing\"}")
+    assert_eq(WHO <- :answered(-3, {:ok, 200, "{\"choices\":[]}"}, now()), :error)
+    assert(starts_with(wht_last_said(-3), "Sorry — I hit an error: unexpected OpenAI response"))
+  end
+
+  test "the daily cap counts every model request, the opener included, and says so past it" do
+    WHO <- :config("sk-test", "pw", "deepseek-chat", WHT_BASE, 2)
+    wht_open(-7)
+    assert_eq((WHO <- :stats).spent_today, 1)
+    WHO <- :recv(-7, "{\"t\":\"ask\",\"text\":\"one\"}")
+    WHO <- :answered(-7, {:ok, 200, wht_fixture("final.json")}, now())
+    assert_eq((WHO <- :stats).spent_today, 2)
+    WHO <- :recv(-7, "{\"t\":\"ask\",\"text\":\"two\"}")
+    assert_eq(wht_last_said(-7), zg_error_reply(who_limit_reached(2)))
+    assert_eq((WHO <- :person(-7)).loading, false)
+    # a new day starts the count again
+    assert_eq(WHO <- :request(-7, [], 0, now() + 86400 * 2), :asking)
+    assert_eq((WHO <- :stats).spent_today, 1)
+  end
+
+  test "a request that never answers gives up after a minute" do
+    WHO <- :config("sk-test", "pw", "deepseek-chat", WHT_BASE, 600)
+    wht_open(-4)
+    WHO <- :recv(-4, "{\"t\":\"ask\",\"text\":\"slow\"}")
+    t0 = (WHO <- :person(-4)).job.at
+    # at least this one is waiting (another test's page may be too)
+    waiting = WHO <- :step_at(t0 + 30)
+    assert(waiting >= 1)
+    WHO <- :step_at(t0 + 61)
+    r = WHO <- :person(-4)
+    last = wht_last_said(-4)
+    # either the closed port answered first, or the clock ran out
+    assert(starts_with(last, "Sorry — I hit an error: could not reach the model ("))
+    assert_eq(r.loading, false)
+  end
+
+  test "no key, and the forty-message limit" do
+    WHO <- :config("", "pw", "deepseek-chat", WHT_BASE, 600)
+    WHO <- :join(-5)
+    WHO <- :recv(-5, "{\"t\":\"unlock\",\"password\":\"pw\"}")
+    # the opener fails at once without a key, and says why
+    assert_eq(wht_last_said(-5), "Sorry — I hit an error: no model key is configured on this deploy (OPENAI_API_KEY)")
+    WHO <- :recv(-5, "{\"t\":\"ask\",\"text\":\"q\"}")
+    assert_eq(wht_last_said(-5), "Sorry — I hit an error: no model key is configured on this deploy (OPENAI_API_KEY)")
+    each(range(2, 40), fn(i: Int) do WHO <- :ask(-5, "q", now()) end)
+    p = WHO <- :person(-5)
+    assert_eq([p.count, length(p.history)], [40, 82])
+    assert_eq(WHO <- :ask(-5, "one more", now()), :limit)
+    assert_eq(wht_last_said(-5), zg_limit_reply(40))
+  end
+
+  test "the page's program: the hello and the exhibit, browsing out and back, the chat" do
+    who <- :connected
+    who <- :view
+    assert_eq(who <- :frame("{\"t\":\"hello\",\"locked\":false,\"stats\":{\"nodes\":2731,\"edges\":7728,\"doctors\":17,\"stories\":384,\"decisions\":42},\"doctors\":[{\"id\":17,\"ordinal\":\"Tenth\",\"title\":\"The Tenth Doctor (David Tennant, 2005–2010)\",\"actor\":\"David Tennant\",\"years\":\"2005–2010\"}],\"eras\":[{\"id\":2,\"title\":\"Classic era\",\"size\":12}]}"), :hello)
+    who <- :view
+    x = who_exhibit(WHT_G, who_episode(WHT_EPS, "Blink"))
+    assert_eq(who <- :frame(who_exhibit_frame(x)), :exhibit)
+    who <- :view
+    assert_eq(who <- :frame(who_exhibit_frame(who_exhibit(WHT_G, who_episode(WHT_EPS, "Inferno")))), :exhibit)
+    who <- :view
+    assert_eq(who <- :shuffle, :asked)
+    assert_eq(who <- :outbox, ["{\"t\":\"shuffle\"}"])
+    who <- :toggle_browse
+    who <- :view
+    assert_eq(who <- :pick_doctor("17"), :picked)
+    assert_eq(who <- :outbox, ["{\"t\":\"doctor\",\"id\":17}"])
+    assert_eq(who <- :pick_doctor("99"), :unknown)
+    who <- :frame("{\"t\":\"doctor\",\"id\":17,\"ordinal\":\"Tenth\",\"title\":\"x\",\"stories\":[{\"id\":182,\"type\":\"observation\",\"title\":\"Blink - Sally Sparrow, timey-wimey, Angels\"}]}")
+    who <- :view
+    assert_eq(who <- :pick_doctor(17), :unpicked)
+    assert_eq(who <- :typed("   "), :cleared)
+    assert_eq(who <- :typed("Gallifrey "), :searching)
+    assert_eq(who <- :outbox, ["{\"t\":\"search\",\"q\":\"Gallifrey\"}"])
+    # a stale answer is not this search's
+    who <- :frame("{\"t\":\"results\",\"q\":\"Galli\",\"results\":[{\"id\":1,\"type\":\"goal\",\"title\":\"no\"}]}")
+    who <- :frame("{\"t\":\"results\",\"q\":\"Gallifrey\",\"results\":[{\"id\":5,\"type\":\"observation\",\"title\":\"Gallifrey - the Doctor's home\"}]}")
+    who <- :view
+    assert_eq(who <- :inspect("5"), :asked)
+    assert_eq(who <- :inspect("x"), :ignored)
+    assert_eq(who <- :outbox, ["{\"t\":\"node\",\"id\":5}"])
+    who <- :frame("{\"t\":\"node\",\"node\":{\"id\":5,\"type\":\"observation\",\"title\":\"Gallifrey - the Doctor's home\"},\"outgoing\":[{\"relation\":\"Set in\",\"id\":6,\"title\":\"The Deadly Assassin\",\"type\":\"observation\"}],\"incoming\":[]}")
+    who <- :view
+    # a locked deploy: the lock, then the unlock
+    who <- :frame("{\"t\":\"hello\",\"locked\":true,\"stats\":{},\"doctors\":[],\"eras\":[]}")
+    who <- :view
+    assert_eq(who <- :send(%{"message": "too soon"}), :ignored)
+    who <- :unlock(%{"password": "pw"})
+    assert_eq(who <- :outbox, ["{\"t\":\"unlock\",\"password\":\"pw\"}"])
+    who <- :frame("{\"t\":\"unlock\",\"ok\":true}")
+    assert_eq(who <- :send(%{"message": "   "}), :ignored)
+    assert_eq(who <- :ask_about, :sent)
+    assert_eq(who <- :outbox, ["{\"t\":\"ask\",\"text\":\"Tell me about Gallifrey - the Doctor's home: what it is, what it connects to, and why it matters.\"}"])
+    who <- :frame("{\"t\":\"chat\",\"loading\":true,\"messages\":[{\"role\":\"user\",\"content\":\"q\",\"html\":\"\"}]}")
+    assert_eq(who <- :send(%{"message": "while waiting"}), :ignored)
+    who <- :frame("{\"t\":\"chat\",\"loading\":false,\"messages\":[{\"role\":\"user\",\"content\":\"q\",\"html\":\"\"},{\"role\":\"assistant\",\"content\":\"**a**\",\"html\":\"<p><strong>a</strong></p>\"}]}")
+    who <- :view
+    assert_eq(who <- :ask_preset("Walk me forward from Blink in broadcast order."), :sent)
+    assert_eq(who <- :outbox, ["{\"t\":\"ask\",\"text\":\"Walk me forward from Blink in broadcast order.\"}"])
+    who <- :close_node
+    who <- :toggle_browse
+    who <- :view
+  end
+end

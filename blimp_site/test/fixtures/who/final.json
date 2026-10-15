@@ -1,0 +1,17 @@
+{
+  "id": "chatcmpl-who-fixture-2",
+  "object": "chat.completion",
+  "created": 1790000001,
+  "model": "deepseek-chat",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "**Blink** is node 182, filed under the Tenth Doctor.\n\n- Written by Steven Moffat, directed by Hettie MacDonald.\n- The Weeping Angels are its only listed enemy.\n\nSee <a href=\"/who?node=182\">the node</a> or <img src=x onerror=alert(1)>this.\n\ntags: not a post"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 3400, "completion_tokens": 70, "total_tokens": 3470}
+}

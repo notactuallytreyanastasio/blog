@@ -1,0 +1,1063 @@
+# /who: Doctor Who's knowledge graph, to browse and to ask.
+#
+# WhoLive was one LiveView behind a password: the whole page, browsing
+# included, waited for WHO_CHAT_PASSWORD. Browsing was the server's assigns
+# (the picked Doctor, the search, the inspected node), and "Ask the TARDIS"
+# was Blog.Who.Chat: a function-calling loop over Blog.Who's queries,
+# through Blog.LLM to DeepSeek, up to eight rounds of tools per question.
+# Conversations were rows in graph_chat_messages (graph "who"), and a
+# recall_conversations tool searched them.
+#
+# Here the page is a Blimp program (static/who/who.blimp: the header, the
+# Doctors, the search, the inspector and the chat) and the graph stays on
+# the server: the page asks WHO over its socket for a Doctor's stories, a
+# search or a node's edges, and keeps what it is sent. Browsing is open;
+# only the chat is behind the password, as /ziggy's is. The chat is the
+# ZiggyChat shape (src/99_ziggy.blimp, whose helpers this calls): one actor
+# for every open page, stepped by the Site's tick, a request to the model
+# as http_start and its answer polled from the tick. Nothing is saved: a
+# conversation lives as long as its socket, so there is no recall tool and
+# the prompt no longer names one (temper/src/who).
+#
+# The page opens on an exhibit: one TV story with a full wiki record,
+# picked at random when the socket opens, with its graph node's relations,
+# the broadcast chain either side and its Doctor. The model is asked to
+# open the conversation about it (temper/src/who's who_opener_prompt, sent
+# as a hidden turn of the visitor's, through the same tool loop), so the
+# chat's first words are the bot's. "Another story" picks again and the
+# bot says something about the new one.
+#
+# There is no password unless WHO_CHAT_PASSWORD is set. The credit guard
+# is a daily cap on model requests (WHO_DAILY_LIMIT, 600): past it, the
+# chat says so and the page still browses.
+#
+# The page opens /live/who; the Site actor hands WHO the socket (:join),
+# every frame on it (:recv) and its end (:leave).
+#
+#   up    {"t":"unlock","password":..}   the chat's lock form, when there is one
+#         {"t":"ask","text":..}          a question, or a preset
+#         {"t":"shuffle"}                another story, please
+#         {"t":"doctor","id":..}         a Doctor's stories, please
+#         {"t":"search","q":..}          a search of the graph
+#         {"t":"node","id":..}           a node and its edges
+#   down  {"t":"hello","locked":bool,"stats":{..},"doctors":[..],"eras":[..]}
+#         {"t":"exhibit", ..the exhibit, see who_exhibit..}
+#         {"t":"unlock","ok":bool,"error":..}
+#         {"t":"chat","loading":bool,"messages":[{"role","content","html"}..]}
+#         {"t":"doctor","id":..,"ordinal":..,"title":..,"stories":[{id,type,title}..]}
+#         {"t":"results","q":..,"results":[{id,type,title}..]}
+#         {"t":"node","node":{id,type,title},"outgoing":[..],"incoming":[..]}
+#                                        or {"t":"node","error":..}
+#
+# The model is reached as the Ziggy Account reaches it: OPENAI_BASE_URL,
+# OPENAI_API_KEY and OPENAI_MODEL, which production points at DeepSeek
+# (deepseek-chat, thinking off).
+#
+# Two things about this graph the Ziggy graph does not share, which
+# Blog.Who's doc noted: no node has a description, every fact is in the
+# title, so search and summaries are of titles alone; and every edge is
+# leads_to, the relation is its rationale, so neighbours carry the
+# rationale as `relation`.
+
+# ../priv/who/*.json, copied by build.sh (the image has only priv/static)
+WHO_GRAPH_FILE = "_build/who-graph.json"
+WHO_EPISODES_FILE = "_build/who-episodes.json"
+WHO_MAX_TOOL_ITERATIONS = 8
+# a question's rounds can each take a while on DeepSeek with 2,000 tokens
+# of answer allowed; Blog.LLM waited on Req's default
+WHO_ASK_TIMEOUT_S = 60
+WHO_STORY_CAP = 80
+WHO_DAILY_LIMIT = 600
+# the broadcast chain shown either side of the featured story
+WHO_EXHIBIT_BEFORE = 3
+WHO_EXHIBIT_AFTER = 4
+WHO_SEARCH_LIMIT = 20
+WHO_EPISODE_LIMIT = 12
+WHO_CHAIN_LIMIT = 12
+
+# ── the graph ──────────────────────────────────────────────────────────
+
+def who_summary(n: Any) -> Map do
+  %{id: lookup(n, :id), type: lookup(n, :node_type), title: lookup(n, :title)}
+end
+
+def who_summaries(nodes: List) -> List do
+  map(nodes, fn(n: Any) -> Map do who_summary(n) end)
+end
+
+# A Doctor's node as the page and the_doctors see it, or nil.
+def who_doctor_summary(n: Any) -> Any do
+  parts = who_doctor_parts(zg_str(lookup(n, :title)))
+  case length(parts) == 3 do
+    # "actor" is a Blimp keyword, so the key is written as a string
+    true -> %{id: lookup(n, :id), ordinal: elem_at(parts, 0), title: lookup(n, :title), "actor": elem_at(parts, 1), years: elem_at(parts, 2)}
+    false -> nil
+  end
+end
+
+def who_not_nil(list: List) -> List do
+  filter(list, fn(x: Any) -> Bool do x != nil end)
+end
+
+# graph-data.json as Blog.Who read it, with what is asked for on every
+# page beside it: each node's lower-cased title for search, the Doctors
+# (Blog.Who.doctors/0: one observation each, titled "The Nth Doctor
+# (Actor, years)", in id order, which is the file's order) and the eras.
+def who_graph(text: Any) -> Map do
+  doc = zg_decode_map(text)
+  nodes = zg_list(lookup(doc, :nodes))
+  edges = zg_list(lookup(doc, :edges))
+  index = map(nodes, fn(n: Any) -> Map do
+    %{node: n, low: downcase(zg_str(lookup(n, :title)))}
+  end)
+  doctors = who_not_nil(map(nodes, fn(n: Any) -> Any do who_doctor_summary(n) end))
+  g = %{nodes: nodes, edges: edges, index: index, doctors: doctors, eras: []}
+  put(g, :eras, who_find_eras(g))
+end
+
+def who_episodes(text: Any) -> List do
+  case text do
+    nil -> []
+    _ ->
+      case json_decode(text) do
+        {:ok, l} -> zg_list(l)
+        _ -> []
+      end
+  end
+end
+
+def who_stats(g: Map, eps: List) -> Map do
+  %{nodes: length(g.nodes), edges: length(g.edges), doctors: length(g.doctors), stories: length(eps),
+    decisions: length(filter(g.nodes, fn(n: Any) -> Bool do lookup(n, :node_type) == "decision" end))}
+end
+
+def who_get_node(g: Map, id: Any) -> Any do
+  want = zg_int(id)
+  case want do
+    nil -> nil
+    _ -> head(filter(g.nodes, fn(n: Any) -> Bool do lookup(n, :id) == want end))
+  end
+end
+
+def who_edges_out(g: Map, id: Int) -> List do
+  filter(g.edges, fn(e: Any) -> Bool do lookup(e, :from_node_id) == id end)
+end
+
+def who_edges_in(g: Map, id: Int) -> List do
+  filter(g.edges, fn(e: Any) -> Bool do lookup(e, :to_node_id) == id end)
+end
+
+# Blog.Who.eras/0: the goal nodes 2 to 6 (Classic, Wilderness, Time War,
+# New Who, spinoffs) with how many edges leave each.
+def who_find_eras(g: Map) -> List do
+  goals = filter(g.nodes, fn(n: Any) -> Bool do
+    id = lookup(n, :id)
+    lookup(n, :node_type) == "goal" and id >= 2 and id <= 6
+  end)
+  map(goals, fn(n: Any) -> Map do
+    %{id: lookup(n, :id), title: lookup(n, :title), size: length(who_edges_out(g, lookup(n, :id)))}
+  end)
+end
+
+# Blog.Who.doctor/1: by number (10), ordinal ("Tenth"), actor surname
+# ("Tennant") or any of the title; the first in id order wins, so Tennant
+# is the Tenth, which is the one people mean.
+def who_doctor(g: Map, ref: Any) -> Any do
+  case type_of(ref) do
+    :integer -> head(filter(g.doctors, fn(d: Map) -> Bool do who_ordinal_number(downcase(d.ordinal)) == ref end))
+    :string ->
+      q = downcase(trim(ref))
+      case who_all_digits(q) do
+        true -> who_doctor(g, to_int(q))
+        false ->
+          case q do
+            "" -> nil
+            _ -> head(filter(g.doctors, fn(d: Map) -> Bool do
+              downcase(d.ordinal) == q or contains(downcase(zg_str(lookup(d, :actor))), q) or contains(downcase(d.title), q)
+            end))
+          end
+      end
+    _ -> nil
+  end
+end
+
+def who_doctor_by_id(g: Map, id: Any) -> Any do
+  want = zg_int(id)
+  head(filter(g.doctors, fn(d: Map) -> Bool do d.id == want end))
+end
+
+# Blog.Who.search_nodes/2: filter by type, score each title by how many of
+# the query's words it contains, drop the zeros, best first and the lower
+# id on a tie (the index is in id order), the first twenty.
+def who_search(g: Map, query: Any, node_type: Any) -> List do
+  terms = who_terms(downcase(zg_str(query)))
+  case terms do
+    [] -> []
+    _ ->
+      kept = filter(g.index, fn(i: Map) -> Bool do
+        zg_no_filter(node_type) or lookup(i.node, :node_type) == node_type
+      end)
+      scored = map(kept, fn(i: Map) -> Any do {i.node, zg_score(terms, i.low)} end)
+      hits = filter(scored, fn(p: Any) -> Bool do elem(p, 1) > 0 end)
+      top = reduce(hits, 0, fn(m: Int, p: Any) -> Int do max(m, elem(p, 1)) end)
+      ordered = flat(map(reverse(range(1, top)), fn(s: Int) -> List do
+        map(filter(hits, fn(p: Any) -> Bool do elem(p, 1) == s end), fn(p: Any) -> Any do elem(p, 0) end)
+      end))
+      zg_take(ordered, WHO_SEARCH_LIMIT)
+  end
+end
+
+def who_edge_summary(g: Map, e: Any, other_id: Any) -> Map do
+  other = who_get_node(g, other_id)
+  title = case other do
+    nil -> nil
+    _ -> lookup(other, :title)
+  end
+  type = case other do
+    nil -> nil
+    _ -> lookup(other, :node_type)
+  end
+  %{relation: lookup(e, :rationale), id: other_id, title: title, type: type}
+end
+
+# Blog.Who.neighbors/1: every edge in and out, with the other node's title
+# and the rationale as the relation.
+def who_neighbors(g: Map, id: Int) -> Map do
+  %{outgoing: map(who_edges_out(g, id), fn(e: Any) -> Map do who_edge_summary(g, e, lookup(e, :to_node_id)) end),
+    incoming: map(who_edges_in(g, id), fn(e: Any) -> Map do who_edge_summary(g, e, lookup(e, :from_node_id)) end)}
+end
+
+def who_member(ids: List, id: Any) -> Bool do
+  length(filter(ids, fn(x: Any) -> Bool do x == id end)) > 0
+end
+
+# Blog.Who.stories_of/1: every node with an edge into the Doctor's whose
+# rationale files a story ("Story of", "Doctor", "Debut story"...), in id
+# order. Companions, enemies and the era point at the Doctor too, with
+# other words, and are left out.
+def who_stories_of(g: Map, doctor_id: Int) -> List do
+  ids = map(filter(who_edges_in(g, doctor_id), fn(e: Any) -> Bool do who_story_relation(zg_str(lookup(e, :rationale))) end),
+    fn(e: Any) -> Any do lookup(e, :from_node_id) end)
+  filter(g.nodes, fn(n: Any) -> Bool do who_member(ids, lookup(n, :id)) end)
+end
+
+# Blog.Who.chain/3: from a node, follow the first "Followed by" /
+# "Chronologically followed by" edge out (or in, walking back) that leads
+# somewhere new, up to `limit` steps. The nodes passed, first to last.
+def who_chain(g: Map, id: Int, forward: Bool, limit: Int) -> List do
+  who_walk(g, id, forward, limit, [id])
+end
+
+def who_walk(g: Map, id: Int, forward: Bool, n: Int, seen: List) -> List do
+  case n <= 0 do
+    true -> who_not_nil(map(reverse(seen), fn(x: Any) -> Any do who_get_node(g, x) end))
+    false ->
+      edges = case forward do
+        true -> who_edges_out(g, id)
+        false -> who_edges_in(g, id)
+      end
+      nexts = map(filter(edges, fn(e: Any) -> Bool do who_sequence_relation(zg_str(lookup(e, :rationale))) end),
+        fn(e: Any) -> Any do
+          case forward do
+            true -> lookup(e, :to_node_id)
+            false -> lookup(e, :from_node_id)
+          end
+        end)
+      fresh = filter(nexts, fn(x: Any) -> Bool do not(who_member(seen, x)) end)
+      case fresh do
+        [] -> who_walk(g, id, forward, 0, seen)
+        [next | _] -> who_walk(g, next, forward, n - 1, [next | seen])
+      end
+  end
+end
+
+def who_titles_of_type(nodes: List, t: String) -> List do
+  map(filter(nodes, fn(n: Any) -> Bool do lookup(n, :node_type) == t end), fn(n: Any) -> Any do lookup(n, :title) end)
+end
+
+# Blog.Who.decisions/0: every decision with the options it chose between
+# (either side of it), the actions and outcomes downstream, and the
+# observations upstream it was about.
+def who_decisions(g: Map) -> List do
+  map(filter(g.nodes, fn(n: Any) -> Bool do lookup(n, :node_type) == "decision" end), fn(d: Any) -> Map do
+    id = lookup(d, :id)
+    down = who_not_nil(map(who_edges_out(g, id), fn(e: Any) -> Any do who_get_node(g, lookup(e, :to_node_id)) end))
+    up = who_not_nil(map(who_edges_in(g, id), fn(e: Any) -> Any do who_get_node(g, lookup(e, :from_node_id)) end))
+    %{id: id, title: lookup(d, :title),
+      options: who_titles_of_type(list_append(up, down), "option"),
+      actions: who_titles_of_type(down, "action"),
+      outcomes: who_titles_of_type(down, "outcome"),
+      about: who_titles_of_type(up, "observation")}
+  end)
+end
+
+# ── the TV stories ─────────────────────────────────────────────────────
+
+# Blog.Who.episode/1: by title, case-insensitive, else the first whose
+# title starts with it.
+def who_episode(eps: List, title: Any) -> Any do
+  q = downcase(trim(zg_str(title)))
+  case q do
+    "" -> nil
+    _ ->
+      exact = head(filter(eps, fn(e: Any) -> Bool do downcase(zg_str(lookup(e, :title))) == q end))
+      case exact do
+        nil -> head(filter(eps, fn(e: Any) -> Bool do starts_with(downcase(zg_str(lookup(e, :title))), q) end))
+        _ -> exact
+      end
+  end
+end
+
+def who_strings(v: Any) -> List do
+  filter(zg_list(v), fn(x: Any) -> Bool do type_of(x) == :string end)
+end
+
+# The record's text, lower-cased: title, Doctor, writer, director, setting,
+# synopsis, companions and enemies.
+def who_episode_text(e: Any) -> String do
+  fields = who_not_nil([lookup(e, :title), lookup(e, :doctor), lookup(e, :writer), lookup(e, :director),
+    lookup(e, :setting_location), lookup(e, :synopsis)])
+  downcase(join(list_append(map(fields, fn(f: Any) -> String do zg_str(f) end),
+    list_append(who_strings(lookup(e, :companions)), who_strings(lookup(e, :enemies)))), " "))
+end
+
+# Blog.Who.search_episodes/2: scored like the graph, ties in story-number
+# order (the file's), the first twelve.
+def who_search_episodes(eps: List, query: Any) -> List do
+  terms = who_terms(downcase(zg_str(query)))
+  case terms do
+    [] -> []
+    _ ->
+      scored = map(eps, fn(e: Any) -> Any do {e, zg_score(terms, who_episode_text(e))} end)
+      hits = filter(scored, fn(p: Any) -> Bool do elem(p, 1) > 0 end)
+      top = reduce(hits, 0, fn(m: Int, p: Any) -> Int do max(m, elem(p, 1)) end)
+      ordered = flat(map(reverse(range(1, top)), fn(s: Int) -> List do
+        map(filter(hits, fn(p: Any) -> Bool do elem(p, 1) == s end), fn(p: Any) -> Any do elem(p, 0) end)
+      end))
+      zg_take(ordered, WHO_EPISODE_LIMIT)
+  end
+end
+
+# Blog.Who.episode_summary/2: the wiki fields worth handing to a model,
+# the 1 KB synopsis only when asked.
+def who_episode_summary(e: Any, full: Bool) -> Map do
+  base = %{title: lookup(e, :title), story_number: lookup(e, :story_number), doctor: lookup(e, :doctor),
+    aired: lookup(e, :air_date_start), episodes: lookup(e, :episode_count), companions: lookup(e, :companions),
+    enemies: lookup(e, :enemies), writer: lookup(e, :writer), director: lookup(e, :director),
+    setting: lookup(e, :setting_location), missing_status: lookup(e, :missing_status)}
+  case full do
+    true -> put(base, :synopsis, lookup(e, :synopsis))
+    false -> base
+  end
+end
+
+# ── the exhibit ────────────────────────────────────────────────────────
+
+# The wiki record's "synopsis" is not one: it is the story's infobox,
+# flattened to a line ("Blink Series 3, Episode 10 Adapted from: ... Doctor:
+# Tenth Doctor Companion(s): ... Key crew Writer: Steven Moffat ... Premiere
+# broadcast: 9 June 2007 ..."). These are its labels, in the order the
+# wiki prints them; a value runs from its label to the next label found.
+WHO_INFOBOX_LABELS = ["Novelised as:", "Adapted from:", "Adapted into:", "Script release:", "Main character(s):",
+  "Doctor:", "Companion(s):", "Featuring:", "Main enemy:", "Main setting:", "Key crew", "Writer:", "Director:",
+  "Producer:", "Release details", "Story number:", "Number of parts:", "Premiere broadcast:", "Premiere network:",
+  "Format:", "Production code:", "Confidential:", "Full video", "Official trailer", "Memorable moment",
+  "Another memorable moment", "Toby Hadoke's Who's Round", "← Previous", "Next →"]
+# section headings, media links and navigation: they end the value before
+# them and are not facts themselves
+WHO_INFOBOX_NOISE = ["Key crew", "Release details", "Full video", "Official trailer", "Memorable moment", "Another memorable moment", "Toby Hadoke's Who's Round"]
+
+# [%{at, label}] for every label the text has, in text order (an insertion
+# sort: two dozen labels at most).
+def who_label_positions(text: String) -> List do
+  found = filter(map(WHO_INFOBOX_LABELS, fn(l: String) -> Map do %{at: index_of(text, l), label: l} end),
+    fn(m: Map) -> Bool do m.at >= 0 end)
+  reduce(found, [], fn(acc: List, m: Map) -> List do who_insert_by_at(acc, m) end)
+end
+
+def who_insert_by_at(sorted: List, m: Map) -> List do
+  case sorted do
+    [] -> [m]
+    [h | rest] ->
+      case m.at < h.at do
+        true -> [m | sorted]
+        false -> [h | who_insert_by_at(rest, m)]
+      end
+  end
+end
+
+# The facts: [%{label, value}] in the wiki's order, headings dropped, and
+# the words before the first label (the series and episode line, after
+# the title) as "series".
+def who_infobox(title: String, text: String) -> Map do
+  positions = who_label_positions(text)
+  facts = who_facts_from(text, positions, [])
+  preamble = case positions do
+    [] -> ""
+    [first | _] -> trim(slice(text, 0, first.at))
+  end
+  series = case starts_with(preamble, title) do
+    true -> trim(drop(preamble, length(title)))
+    false -> preamble
+  end
+  %{facts: filter(facts, fn(f: Map) -> Bool do not(who_member(WHO_INFOBOX_NOISE, f.label)) and f.value != "" end), series: series}
+end
+
+def who_facts_from(text: String, positions: List, acc: List) -> List do
+  case positions do
+    [] -> reverse(acc)
+    [p | rest] ->
+      from = p.at + length(p.label)
+      to = case rest do
+        [] -> length(text)
+        [q | _] -> q.at
+      end
+      # slice takes a length
+      value = trim(slice(text, from, to - from))
+      label = replace(replace(replace(p.label, ":", ""), "← ", ""), " →", "")
+      who_facts_from(text, rest, [%{label: label, value: value} | acc])
+  end
+end
+
+def who_fact(facts: List, label: String) -> String do
+  found = head(filter(facts, fn(f: Map) -> Bool do f.label == label end))
+  case found do
+    nil -> ""
+    f -> f.value
+  end
+end
+
+# "054" -> "54"; anything else as it is
+def who_story_number(v: Any) -> String do
+  s = zg_str(v)
+  case who_all_digits(s) do
+    true -> to_string(to_int(s))
+    false -> s
+  end
+end
+
+# The TV stories worth featuring: a record with a synopsis of some length
+# and a node of its own in the graph, so the page has relations to show
+# and the bot has edges to talk about. (The Comic Relief sketches have
+# records and no node.) Computed once, at :load.
+def who_featurable_stories(g: Map, eps: List) -> List do
+  filter(eps, fn(e: Any) -> Bool do
+    who_featurable(zg_str(lookup(e, :synopsis))) and who_story_node(g, zg_str(lookup(e, :title))) != nil
+  end)
+end
+
+# The n-th of the pool, round and round; the caller picks n.
+def who_pick_story(pool: List, n: Int) -> Any do
+  case pool do
+    [] -> nil
+    _ -> elem_at(pool, rem(abs(n), length(pool)))
+  end
+end
+
+# The graph node for a TV story: the observation titled "Title - ..." or
+# "Title" exactly; the lowest id when there are several.
+def who_story_node(g: Map, title: String) -> Any do
+  want = downcase(title)
+  prefix = concat(want, " - ")
+  head(filter(g.index, fn(i: Map) -> Bool do
+    lookup(i.node, :node_type) == "observation" and (i.low == want or starts_with(i.low, prefix))
+  end))
+end
+
+def who_drop_first(list: List) -> List do
+  case list do
+    [] -> []
+    [_ | rest] -> rest
+  end
+end
+
+# What the page shows and the model is told: the wiki record, the node and
+# its relations, the broadcast chain either side (nearest first, without
+# the story itself) and the Doctor's card.
+def who_exhibit(g: Map, e: Any) -> Map do
+  title = zg_str(lookup(e, :title))
+  found = who_story_node(g, title)
+  node = case found do
+    nil -> nil
+    i -> i.node
+  end
+  relations = case node do
+    nil -> []
+    _ ->
+      nb = who_neighbors(g, lookup(node, :id))
+      list_append(nb.outgoing, nb.incoming)
+  end
+  after = case node do
+    nil -> []
+    _ -> who_summaries(who_drop_first(who_chain(g, lookup(node, :id), true, WHO_EXHIBIT_AFTER)))
+  end
+  before = case node do
+    nil -> []
+    _ -> who_summaries(who_drop_first(who_chain(g, lookup(node, :id), false, WHO_EXHIBIT_BEFORE)))
+  end
+  box = who_infobox(title, zg_str(lookup(e, :synopsis)))
+  # the Doctor: the node's own "Doctor" edge, else the infobox's "Doctor:"
+  # line (the record's doctor field is blank for every story)
+  doctor_edge = head(filter(relations, fn(r: Map) -> Bool do r.relation == "Doctor" end))
+  doctor = case doctor_edge do
+    nil -> who_doctor(g, who_fact(box.facts, "Doctor"))
+    r -> who_doctor_by_id(g, r.id)
+  end
+  node_summary = case node do
+    nil -> nil
+    _ -> who_summary(node)
+  end
+  record = put(put(who_episode_summary(e, true), :wiki_url, lookup(e, :wiki_url)), :story_number, who_story_number(lookup(e, :story_number)))
+  boxed = put(put(put(put(record, :facts, box.facts), :series, box.series), :aired, who_fact(box.facts, "Premiere broadcast")), :format, who_fact(box.facts, "Format"))
+  placed = put(put(put(boxed, :node, node_summary), :relations, relations), :after, after)
+  put(put(placed, :before, before), :doctor_card, doctor)
+end
+
+def who_exhibit_frame(x: Map) -> String do
+  json_encode(put(x, :t, "exhibit"))
+end
+
+# ── the tools ──────────────────────────────────────────────────────────
+
+def who_fn_tool(name: String, description: String, properties: Map, required: List) -> Map do
+  params = case required do
+    [] -> %{"type": "object", "properties": properties}
+    _ -> %{"type": "object", "properties": properties, "required": required}
+  end
+  %{"type": "function", "function": %{"name": name, "description": description, "parameters": params}}
+end
+
+WHO_TOOLS = [
+  who_fn_tool("search_graph",
+    "Word-scored search over every node title in the knowledge graph: stories, Doctors, companions, enemies, places, concepts, formats and the show's own decisions. Retry with fewer, simpler words if thin.",
+    %{"query": %{"type": "string"},
+      "node_type": %{"type": "string", "enum": ["goal", "option", "decision", "action", "outcome", "observation", "revisit"],
+        "description": "Optional: restrict to one node type. Most things are observations."}},
+    ["query"]),
+  who_fn_tool("node_neighbors",
+    "Everything connected to one node, with the relation on each edge (Story of, Features companion, Set in, Followed by, Chronologically followed by, Format...). This is how you find a story's companions, a companion's Doctors, what a place appears in.",
+    %{"id": %{"type": "integer"}}, ["id"]),
+  who_fn_tool("the_doctors",
+    "Every incarnation of the Doctor in the graph, with actor and years, and the node id to use with doctor_stories or node_neighbors.",
+    %{}, []),
+  who_fn_tool("doctor_stories",
+    "The stories the graph files under one Doctor, across every medium. Takes the Doctor by ordinal (\"Tenth\"), number (10) or actor surname (\"Tennant\"). Can be long for the busy Doctors; it is capped at 80 and says so.",
+    %{"doctor": %{"type": "string"}}, ["doctor"]),
+  who_fn_tool("chain",
+    "Walk the sequence edges from a node: what follows it (or what it follows) in broadcast or in-universe order, up to a dozen steps. Use it for 'what comes after X' and 'what led up to X'.",
+    %{"id": %{"type": "integer"}, "direction": %{"type": "string", "enum": ["forward", "back"]}}, ["id"]),
+  who_fn_tool("the_eras",
+    "The five eras the graph hangs off (Classic, Wilderness Years, Time War, New Who, spinoffs) with how much sits under each.",
+    %{}, []),
+  who_fn_tool("the_doctors_decisions",
+    "The show's own big choices as a decision graph: each decision with the options weighed, the action taken, the outcome, and what it was about. Use it for 'should the Doctor have...' questions and for the revisits where the show changed its answer.",
+    %{}, []),
+  who_fn_tool("story",
+    "The wiki record of one TELEVISION story by title: Doctor, companions, enemies, writer, director, setting, air date, episode count, missing-episode status and the synopsis. Only the 384 TV stories; novels and audios are graph nodes.",
+    %{"title": %{"type": "string"}}, ["title"]),
+  who_fn_tool("search_stories",
+    "Word-scored search over the TV stories' wiki records: title, companions, enemies, writer, director, setting and synopsis. 'Moffat Angels' finds the Weeping Angel stories he wrote.",
+    %{"query": %{"type": "string"}}, ["query"])
+]
+
+def who_empty_to_note(list: List, note: String) -> Any do
+  case list do
+    [] -> %{result: note}
+    _ -> list
+  end
+end
+
+# Blog.Who.Chat's tools, answer for answer. A call without the argument a
+# tool needs is the tool's own error, and the model can try again.
+def who_run_tool(g: Map, eps: List, name: String, args: Map) -> Any do
+  case name do
+    "search_graph" ->
+      who_empty_to_note(who_summaries(who_search(g, lookup(args, :query), lookup(args, :node_type))),
+        "nothing in the graph matches those words; try fewer or simpler ones")
+    "node_neighbors" ->
+      n = who_get_node(g, lookup(args, :id))
+      case n do
+        nil -> %{error: "no node with that id"}
+        _ -> merge(who_summary(n), who_neighbors(g, lookup(n, :id)))
+      end
+    "the_doctors" -> g.doctors
+    "doctor_stories" ->
+      d = who_doctor(g, lookup(args, :doctor))
+      case d do
+        nil -> %{error: concat("no Doctor matches ", json_encode(lookup(args, :doctor)), "; call the_doctors for the list")}
+        _ ->
+          stories = who_stories_of(g, d.id)
+          %{doctor: d.title, total: length(stories), capped_at: WHO_STORY_CAP, stories: who_summaries(zg_take(stories, WHO_STORY_CAP))}
+      end
+    "chain" ->
+      forward = lookup(args, :direction) != "back"
+      n = who_get_node(g, lookup(args, :id))
+      case n do
+        nil -> %{error: "no node with that id"}
+        _ ->
+          nodes = who_chain(g, lookup(n, :id), forward, WHO_CHAIN_LIMIT)
+          case length(nodes) <= 1 do
+            true ->
+              dir = case forward do
+                true -> "forward"
+                false -> "back"
+              end
+              %{result: concat("no sequence edges ", dir, " from ", zg_str(lookup(n, :title)))}
+            false -> who_summaries(nodes)
+          end
+      end
+    "the_eras" -> g.eras
+    "the_doctors_decisions" -> who_decisions(g)
+    "story" ->
+      e = who_episode(eps, lookup(args, :title))
+      case e do
+        nil -> %{error: "no TV story with that title; search_stories finds near misses, and novels and audios are graph nodes that search_graph finds"}
+        _ -> put(who_episode_summary(e, true), :wiki_url, lookup(e, :wiki_url))
+      end
+    "search_stories" ->
+      who_empty_to_note(map(who_search_episodes(eps, lookup(args, :query)), fn(e: Any) -> Map do who_episode_summary(e, false) end),
+        "no TV story matches those words; it may be a novel or audio, which search_graph finds")
+    _ -> %{error: "unknown tool"}
+  end
+end
+
+# One tool call answered, as the message that goes back to the model.
+def who_tool_message(g: Map, eps: List, call: Any) -> Map do
+  f = lookup(call, :function)
+  name = zg_str(lookup(f, :name))
+  args = zg_decode_map(lookup(f, :arguments))
+  %{role: "tool", tool_call_id: lookup(call, :id), content: json_encode(who_run_tool(g, eps, name, args))}
+end
+
+# ── talking to the model ───────────────────────────────────────────────
+
+# Blog.LLM's request for Blog.Who.Chat: the tools, 0.7, 2,000 tokens of
+# answer. A reply that hits that cap was Blog.LLM's :truncated error, not
+# a shorter answer; who_classify keeps that.
+def who_request_body(model: String, messages: List) -> String do
+  json_encode(%{model: model, messages: messages, tools: WHO_TOOLS, tool_choice: "auto", temperature: 0.7, max_tokens: 2000})
+end
+
+def who_finish_reason(body: String) -> String do
+  doc = zg_decode_map(body)
+  case zg_list(lookup(doc, :choices)) do
+    [] -> ""
+    [c | _] -> zg_str(lookup(c, :finish_reason))
+  end
+end
+
+# zg_classify, with Blog.Who.Chat's words for what went wrong and the cut
+# off reply as an error.
+def who_classify(result: Any) -> Tuple do
+  case result do
+    {:ok, 200, body} ->
+      case who_finish_reason(body) == "length" do
+        true -> {:error, "the reply was cut off; try a narrower question"}
+        false -> zg_classify(result)
+      end
+    {:ok, 429, _} -> {:error, "the model is rate limiting us; give it a moment"}
+    {:ok, status, body} -> {:error, concat("the model answered ", to_string(status), ": ", slice(body, 0, 300))}
+    {:error, why} -> {:error, concat("could not reach the model (", to_string(why), ")")}
+    _ -> {:error, "could not reach the model"}
+  end
+end
+
+# ── the chat ───────────────────────────────────────────────────────────
+
+def who_entry(role: String, content: String) -> Map do
+  case role do
+    "assistant" -> %{role: role, content: content, html: zg_render(content), hidden: false}
+    _ -> %{role: role, content: content, html: "", hidden: false}
+  end
+end
+
+# A turn the model is sent as the visitor's but the page never shows: the
+# exhibit, and the request to open the conversation about it.
+def who_hidden_entry(content: String) -> Map do
+  %{role: "user", content: content, html: "", hidden: true}
+end
+
+def who_messages(history: List) -> List do
+  [%{role: "system", content: who_system_prompt} | map(history, fn(e: Map) -> Map do %{role: e.role, content: e.content} end)]
+end
+
+def who_shown(history: List) -> List do
+  map(filter(history, fn(e: Map) -> Bool do not(e.hidden) end), fn(e: Map) -> Map do %{role: e.role, content: e.content, html: e.html} end)
+end
+
+def who_chat_frame(p: Map) -> String do
+  json_encode(%{t: "chat", loading: p.loading, messages: who_shown(p.history)})
+end
+
+def who_hello_frame(g: Map, eps: List, locked: Bool) -> String do
+  json_encode(%{t: "hello", locked: locked, stats: who_stats(g, eps), doctors: g.doctors, eras: g.eras})
+end
+
+# UTC days since the epoch, the daily cap's clock
+def who_day(t: Int) -> Int do
+  t / 86400
+end
+
+actor WhoChat do
+  state graph: Map :: %{nodes: [], edges: [], index: [], doctors: [], eras: []}
+  state episodes: List :: []
+  # the stories a page can open on (who_featurable_stories)
+  state pool: List :: []
+  state key: String :: ""
+  state password: String :: ""
+  state model: String :: "deepseek-chat"
+  state base: String :: "https://api.deepseek.com"
+  # model requests allowed per UTC day, and the day and count so far
+  state limit: Int :: 600
+  state day: Int :: 0
+  state spent: Int :: 0
+  # which featurable story the next page opens on; one along each time
+  state next_story: Int :: 0
+  # socket (as a string) -> %{fd, unlocked, history, count, loading, job, last, exhibit}
+  # job: nil | %{h, iteration, messages, at}
+  state people: Map :: %{}
+  # handles given up on, read and dropped when they finish so the slot frees
+  state abandoned: List :: []
+  state asked: Int :: 0
+  state requests: Int :: 0
+  state failures: Int :: 0
+  state last_error: String :: ""
+
+  on :load(graph_text: Any, episodes_text: Any) do
+    g = who_graph(graph_text)
+    eps = who_episodes(episodes_text)
+    become graph: g, episodes: eps, pool: who_featurable_stories(g, eps)
+    reply who_stats(g, eps)
+  end
+
+  # A new configuration is a new budget: the day's count starts again.
+  on :config(k: String, pw: String, m: String, b: String, n: Int) do
+    become key: k, password: pw, model: m, base: b, limit: n, day: 0, spent: 0, next_story: rem(now_ms(), 1000)
+    reply %{keyed: k != "", locked: pw != "", limit: n}
+  end
+
+  # A page: the hello, then its exhibit, and the opener unless a password
+  # stands in the way.
+  on :join(fd: Int) do
+    hello = who_hello_frame(graph, episodes, password != "")
+    zg_send(fd, hello)
+    become people: put(people, to_string(fd), %{fd: fd, unlocked: password == "", history: [], count: 0, loading: false, job: nil, last: hello, exhibit: nil})
+    reply (self <- :feature(fd, next_story, who_opener_prompt))
+  end
+
+  # Put story n (of the featurable ones) in front of a page, and ask the
+  # model to say something about it if the page may chat.
+  on :feature(fd: Int, n: Int, prompt_for: Any) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    story = who_pick_story(pool, n)
+    case p == nil or story == nil do
+      true -> reply :none
+      false ->
+        x = who_exhibit(graph, story)
+        become people: put(people, k, put(p, :exhibit, x)), next_story: n + 1
+        self <- :tell(fd, who_exhibit_frame(x))
+        reply (self <- :open(fd, prompt_for))
+    end
+  end
+
+  # The bot's turn about the exhibit, as a hidden turn of the visitor's
+  # through the ordinary loop; nothing while locked or waiting.
+  on :open(fd: Int, prompt_for: Any) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or not(p.unlocked) or p.loading or p.exhibit == nil do
+      true -> reply :ignored
+      false ->
+        facts = json_encode(zg_without(p.exhibit, "synopsis_html"))
+        history = list_append(p.history, [who_hidden_entry(prompt_for(facts))])
+        q = put(put(p, :history, history), :loading, true)
+        become people: put(people, k, q)
+        self <- :tell(fd, who_chat_frame(q))
+        reply (self <- :request(fd, who_messages(history), 0, now()))
+    end
+  end
+
+  on :leave(fd: Int) do
+    p = lookup(people, to_string(fd))
+    gone = case p == nil do
+      true -> []
+      false ->
+        case p.job do
+          nil -> []
+          j -> [j.h]
+        end
+    end
+    become people: zg_without(people, to_string(fd)), abandoned: list_append(abandoned, gone)
+    reply :ok
+  end
+
+  # Send a person a frame, and remember it (a test reads it back).
+  on :tell(fd: Int, frame: String) do
+    zg_send(fd, frame)
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        become people: put(people, k, put(p, :last, frame))
+        reply :ok
+    end
+  end
+
+  on :recv(fd: Int, text: String) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    msg = zg_decode_map(text)
+    case p == nil do
+      true -> reply :unknown
+      false ->
+        case lookup(msg, :t) do
+          "unlock" ->
+            said = zg_str(lookup(msg, :password))
+            case password == "" or said == password do
+              true ->
+                become people: put(people, k, put(p, :unlocked, true))
+                self <- :tell(fd, json_encode(%{t: "unlock", ok: true}))
+                # the opener waited for the lock
+                case p.history do
+                  [] -> self <- :open(fd, who_opener_prompt)
+                  _ -> :opened
+                end
+                reply :unlocked
+              false ->
+                self <- :tell(fd, json_encode(%{t: "unlock", ok: false, error: "Wrong password."}))
+                reply :wrong
+            end
+          "ask" -> reply (self <- :ask(fd, trim(zg_str(lookup(msg, :text))), now()))
+          "shuffle" ->
+            case p.loading do
+              true -> reply :ignored
+              false -> reply (self <- :feature(fd, next_story, who_shuffle_prompt))
+            end
+          "doctor" ->
+            d = who_doctor_by_id(graph, lookup(msg, :id))
+            case d do
+              nil -> reply :ignored
+              _ ->
+                self <- :tell(fd, json_encode(%{t: "doctor", id: d.id, ordinal: d.ordinal, title: d.title, stories: who_summaries(who_stories_of(graph, d.id))}))
+                reply :doctor
+            end
+          "search" ->
+            q = trim(zg_str(lookup(msg, :q)))
+            self <- :tell(fd, json_encode(%{t: "results", q: q, results: who_summaries(who_search(graph, q, nil))}))
+            reply :results
+          "node" ->
+            n = who_get_node(graph, lookup(msg, :id))
+            case n do
+              nil ->
+                self <- :tell(fd, json_encode(%{t: "node", error: "no node with that id"}))
+                reply :no_node
+              _ ->
+                self <- :tell(fd, json_encode(merge(%{t: "node", node: who_summary(n)}, who_neighbors(graph, lookup(n, :id)))))
+                reply :node
+            end
+          _ -> reply :ignored
+        end
+    end
+  end
+
+  # WhoLive's "send": nothing while locked, empty or waiting; the limit's
+  # message once forty questions have been asked; otherwise the question
+  # joins the conversation and goes to the model.
+  on :ask(fd: Int, text: String, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or not(p.unlocked) or text == "" or p.loading do
+      true -> reply :ignored
+      false ->
+        case p.count >= who_max_chat_messages do
+          true ->
+            q = put(p, :history, list_append(p.history, [who_entry("assistant", zg_limit_reply(who_max_chat_messages))]))
+            become people: put(people, k, q)
+            self <- :tell(fd, who_chat_frame(q))
+            reply :limit
+          false ->
+            history = list_append(p.history, [who_entry("user", text)])
+            q = %{fd: fd, unlocked: true, history: history, count: p.count + 1, loading: true, job: nil, last: p.last}
+            become people: put(people, k, q), asked: asked + 1
+            self <- :tell(fd, who_chat_frame(q))
+            reply (self <- :request(fd, who_messages(history), 0, t))
+        end
+    end
+  end
+
+  # One request to the model for a person's question, round `iteration`.
+  # The daily cap counts requests, tool rounds included.
+  on :request(fd: Int, messages: List, iteration: Int, t: Int) do
+    today = who_day(t)
+    used = case today == day do
+      true -> spent
+      false -> 0
+    end
+    case key do
+      "" -> reply (self <- :finish(fd, {:error, "no model key is configured on this deploy (OPENAI_API_KEY)"}))
+      _ ->
+        case used >= limit do
+          true -> reply (self <- :finish(fd, {:error, who_limit_reached(limit)}))
+          false ->
+            become day: today, spent: used + 1
+            reply (self <- :send_request(fd, messages, iteration, t))
+        end
+    end
+  end
+
+  on :send_request(fd: Int, messages: List, iteration: Int, t: Int) do
+    case key do
+      "" -> reply :unkeyed
+      _ ->
+        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), who_request_body(model, messages))
+        case h < 0 do
+          true -> reply (self <- :finish(fd, {:error, "could not reach the model (every HTTP slot is busy)"}))
+          false ->
+            k = to_string(fd)
+            p = lookup(people, k)
+            case p == nil do
+              true ->
+                become abandoned: [h | abandoned]
+                reply :gone
+              false ->
+                become people: put(people, k, put(p, :job, %{h: h, iteration: iteration, messages: messages, at: t})), requests: requests + 1
+                reply :asking
+            end
+        end
+    end
+  end
+
+  # An answer to a person's request (http_result's value; a test passes a
+  # recorded one): the reply, or tools and the next round, or an error.
+  on :answered(fd: Int, result: Any, t: Int) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil or p.job == nil do
+      true -> reply :gone
+      false ->
+        job = p.job
+        become people: put(people, k, put(p, :job, nil))
+        what = who_classify(result)
+        case elem(what, 0) do
+          :final -> reply (self <- :finish(fd, what))
+          :error -> reply (self <- :finish(fd, what))
+          :tools ->
+            msg = elem(what, 1)
+            results = map(zg_list(lookup(msg, :tool_calls)), fn(c: Any) -> Map do who_tool_message(graph, episodes, c) end)
+            next = job.iteration + 1
+            case next >= WHO_MAX_TOOL_ITERATIONS do
+              true -> reply (self <- :finish(fd, {:error, "gave up after too many tool calls"}))
+              false -> reply (self <- :request(fd, list_append(job.messages, [msg | results]), next, t))
+            end
+        end
+    end
+  end
+
+  on :finish(fd: Int, what: Tuple) do
+    k = to_string(fd)
+    p = lookup(people, k)
+    case p == nil do
+      true -> reply :gone
+      false ->
+        text = case elem(what, 0) do
+          :final -> elem(what, 1)
+          _ -> zg_error_reply(elem(what, 1))
+        end
+        failed = case elem(what, 0) do
+          :error -> 1
+          _ -> 0
+        end
+        err = case elem(what, 0) do
+          :error -> elem(what, 1)
+          _ -> last_error
+        end
+        q = put(put(put(p, :history, list_append(p.history, [who_entry("assistant", text)])), :loading, false), :job, nil)
+        become people: put(people, k, q), failures: failures + failed, last_error: err
+        self <- :tell(fd, who_chat_frame(q))
+        reply elem(what, 0)
+    end
+  end
+
+  on :step do
+    reply (self <- :step_at(now()))
+  end
+
+  # From the Site's tick: every answer that has come, and every request
+  # that has waited too long.
+  on :step_at(t: Int) do
+    self <- :drain
+    asking = filter(values(people), fn(p: Map) -> Bool do p.job != nil end)
+    each(asking, fn(p: Map) do
+      r = http_result(p.job.h)
+      case r do
+        nil ->
+          case t - p.job.at > WHO_ASK_TIMEOUT_S do
+            true ->
+              self <- :drop_handle(p.job.h)
+              self <- :answered(p.fd, {:error, "timeout"}, t)
+            false -> :waiting
+          end
+        _ -> self <- :answered(p.fd, r, t)
+      end
+    end)
+    reply length(asking)
+  end
+
+  # read what the given-up requests have answered, which frees their slots
+  on :drain do
+    become abandoned: filter(abandoned, fn(h: Int) -> Bool do http_result(h) == nil end)
+    reply :ok
+  end
+
+  on :drop_handle(h: Int) do
+    become abandoned: [h | abandoned]
+    reply :ok
+  end
+
+  # For a test: one person as the actor holds them.
+  on :person(fd: Int) do
+    reply lookup(people, to_string(fd))
+  end
+
+  # For a test: the graph as loaded.
+  on :graph do
+    reply graph
+  end
+
+  on :episodes do
+    reply episodes
+  end
+
+  on :stats do
+    reply %{pages: length(keys(people)), keyed: key != "", locked: password != "", model: model, limit: limit, spent_today: spent,
+      asking: length(filter(values(people), fn(p: Map) -> Bool do p.job != nil end)),
+      abandoned: length(abandoned), asked: asked, requests: requests, failures: failures, last_error: last_error}
+  end
+end
+
+WHO = spawn WhoChat
+
+# ── the page ────────────────────────────────────────────────────────────
+
+WHO_PROGRAM_PATH = "/who/who.blimp"
+WHO_SCRIPTS = list_append(APP_SCRIPTS, ["/who/who.js"])
+
+# WhoLive's page, less the layout's sidebar: .who-page is position:fixed
+# over everything anyway. The program draws all of it.
+def who_page() -> String do
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"", WHO_PROGRAM_PATH, "\" data-actor=\"who\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; it needs JavaScript. ",
+    "The program is <a href=\"", WHO_PROGRAM_PATH, "\">", WHO_PROGRAM_PATH, "</a>.</p></noscript>\n",
+    script_tags(WHO_SCRIPTS)
+  ], "")
+  page_layout_html("Doctor Who: ask the graph", "A fan-built knowledge graph of the whole of Doctor Who, to browse and to ask: every Doctor, every story across television, audio, novels and comics, and the show's own decisions.", "website", [APP_CSS, "/assets/blimp-window.css", "/who/who.css"], body, "h-full")
+end
+
+WHO_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", who_page())
+WHO_PROGRAM = map_asset(["_build/who.blimp"], "text/plain; charset=utf-8")
+WHO_JS = map_asset(["static/who/who.js"], "text/javascript; charset=utf-8")
+WHO_CSS = map_asset(["static/who/who.css"], "text/css; charset=utf-8")
