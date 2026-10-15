@@ -132,6 +132,14 @@ with_temper _build/ziggy.blimp src/40_http.blimp static/ziggy/ziggy.blimp
 # repo after a `deciduous sync`); the image has only priv/static, so the
 # server reads a copy here.
 cp ../priv/ziggy/graph-data.json _build/ziggy-graph.json
+# Doctor Who: the Doctor titles, the search words and the prompt are Temper
+# (temper/src/who); the queries, the chat and the page Blimp.
+with_temper _build/who.blimp static/who/who.blimp
+# The graph and the TV stories are the Phoenix app's (priv/who, copied
+# from the danielle_who explorer's public/data after a `deciduous sync`
+# there); the image has only priv/static, so the server reads copies here.
+cp ../priv/who/graph-data.json _build/who-graph.json
+cp ../priv/who/wiki-episodes.json _build/who-episodes.json
 # /aim: the buddy list and IM window are Blimp (static/aim/aim.blimp), their
 # words Temper (temper/src/aim); the chat is the server's (src/99_aim.blimp).
 with_temper _build/aim.blimp static/aim/aim.blimp

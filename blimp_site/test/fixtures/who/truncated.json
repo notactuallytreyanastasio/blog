@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-who-fixture-3",
+  "object": "chat.completion",
+  "created": 1790000002,
+  "model": "deepseek-chat",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "The Tenth Doctor's stories, every one of them, in order, with"},
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {"prompt_tokens": 3400, "completion_tokens": 2000, "total_tokens": 5400}
+}

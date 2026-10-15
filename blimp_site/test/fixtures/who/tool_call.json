@@ -1,0 +1,29 @@
+{
+  "id": "chatcmpl-who-fixture-1",
+  "object": "chat.completion",
+  "created": 1790000000,
+  "model": "deepseek-chat",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_search_1",
+            "type": "function",
+            "function": {"name": "search_graph", "arguments": "{\"query\":\"Sally Sparrow timey\"}"}
+          },
+          {
+            "id": "call_story_2",
+            "type": "function",
+            "function": {"name": "story", "arguments": "{\"title\":\"blink\"}"}
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {"prompt_tokens": 2100, "completion_tokens": 48, "total_tokens": 2148}
+}
