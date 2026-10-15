@@ -110,7 +110,7 @@ ship_guard() {
   behind=$(git rev-list --count HEAD..origin/main)
   if [ "$branch" != "main" ] || [ -n "$dirty" ] || [ "$behind" != "0" ]; then
     echo "ship refused: on '$branch'${dirty:+, with uncommitted changes}${behind:+, $behind commit(s) behind origin/main}." >&2
-    echo "Merge to main, pull it, and ship from a main checkout; other sessions' pages go with the tree. (SHIP_ANYWAY=1 overrides.)" >&2
+    echo "There is one site, and a ship is all of it: other sessions' pages go with the tree. The way to try a branch live is to merge it (a PR onto main), pull a main checkout, and ship from there. (SHIP_ANYWAY=1 overrides.)" >&2
     [ "${SHIP_ANYWAY:-}" = "1" ] || exit 2
     echo "SHIP_ANYWAY=1: shipping from '$branch' regardless" >&2
   fi
