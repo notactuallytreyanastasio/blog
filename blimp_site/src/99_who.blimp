@@ -50,8 +50,10 @@
 #                                        or {"t":"node","error":..}
 #
 # The model is reached as the Ziggy Account reaches it: OPENAI_BASE_URL,
-# OPENAI_API_KEY and OPENAI_MODEL, which production points at DeepSeek
-# (deepseek-chat, thinking off).
+# OPENAI_API_KEY and OPENAI_MODEL, which production points at Fireworks'
+# GLM 5.3 (1M context; DeepSeek, deepseek-chat, until it went down on
+# 2026-10-14). GLM 5.3 always thinks; the request sets no effort, and
+# a search round came back in under a second with 0 reasoning tokens.
 #
 # Two things about this graph the Ziggy graph does not share, which
 # Blog.Who's doc noted: no node has a description, every fact is in the
@@ -63,7 +65,7 @@
 WHO_GRAPH_FILE = "_build/who-graph.json"
 WHO_EPISODES_FILE = "_build/who-episodes.json"
 WHO_MAX_TOOL_ITERATIONS = 8
-# a question's rounds can each take a while on DeepSeek with 2,000 tokens
+# a question's rounds can each take a while with 2,000 tokens
 # of answer allowed; Blog.LLM waited on Req's default
 WHO_ASK_TIMEOUT_S = 60
 WHO_STORY_CAP = 80
@@ -705,8 +707,8 @@ actor WhoChat do
   state pool: List :: []
   state key: String :: ""
   state password: String :: ""
-  state model: String :: "deepseek-chat"
-  state base: String :: "https://api.deepseek.com"
+  state model: String :: "accounts/fireworks/models/glm-5p3"
+  state base: String :: "https://api.fireworks.ai/inference/v1"
   # model requests allowed per UTC day, and the day and count so far
   state limit: Int :: 600
   state day: Int :: 0

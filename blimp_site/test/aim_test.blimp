@@ -79,7 +79,7 @@ actor AimTests do
     assert(length(a) < 8000)
     assert(contains(lookup(elem_at(lookup(da, :messages), 1), :content), "screen name \"alice\"."))
     assert_eq(map(lookup(db, :messages), fn(m: Map) -> String do lookup(m, :role) end), ["system", "system", "user", "assistant", "user"])
-    assert_eq([lookup(db, :model), lookup(lookup(db, :thinking), :type), lookup(db, :tool_choice)], ["deepseek-flash", "disabled", "auto"])
+    assert_eq([lookup(db, :model), lookup(db, :reasoning_effort), lookup(db, :thinking), lookup(db, :tool_choice)], ["deepseek-flash", "low", nil, "auto"])
     assert_eq(lookup(elem_at(lookup(db, :tools), 0), :type), "function")
   end
 
@@ -155,10 +155,10 @@ actor AimTests do
     AIM <- :recv(-2, "{\"t\":\"ask\",\"text\":\"hello\"}")
     AIM <- :answered(-2, {:ok, 401, aimt_fixture("error_401.json")}, now())
     e = elem_at(aimt_history(-2), 1).content
-    assert(starts_with(e, "Sorry, I couldn't answer that (DeepSeek said 401: {"))
+    assert(starts_with(e, "Sorry, I couldn't answer that (the model said 401: {"))
     AIM <- :recv(-2, "{\"t\":\"ask\",\"text\":\"again\"}")
     AIM <- :answered(-2, {:ok, 200, aimt_fixture("empty.json")}, now())
-    assert_eq(elem_at(aimt_history(-2), 3).content, "Sorry, I couldn't answer that (DeepSeek answered with nothing).")
+    assert_eq(elem_at(aimt_history(-2), 3).content, "Sorry, I couldn't answer that (the model answered with nothing).")
     AIM <- :recv(-2, "{\"t\":\"ask\",\"text\":\"loop\"}")
     calls = aimt_fixture("tool_call.json")
     assert_eq(AIM <- :answered(-2, {:ok, 200, calls}, now()), :asking)
@@ -179,7 +179,7 @@ actor AimTests do
     r = AIM <- :person(-3)
     last = elem_at(r.history, 1).content
     # either the closed port answered first, or the clock ran out
-    assert(starts_with(last, "Sorry, I couldn't answer that (the request to DeepSeek failed: "))
+    assert(starts_with(last, "Sorry, I couldn't answer that (the request to the model failed: "))
     assert_eq(r.loading, false)
   end
 
