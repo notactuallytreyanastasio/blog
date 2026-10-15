@@ -285,6 +285,21 @@ actor CurateTests do
     assert(contains(cut_outbox_json(to_html(c <- :view)), concat("\"cards\":", CUT_SAVED_CARDS)))
   end
 
+  test "a tile's arrows count the cards before its own, not every other card" do
+    groups = [
+      %{"group": "games", "tiles": [%{"path": "/a"}, %{"path": "/b"}]},
+      %{"group": "wire", "tiles": [%{"path": "/c"}]},
+      %{"group": "numbers", "tiles": [%{"path": "/d"}, %{"path": "/e"}, %{"path": "/f"}]}
+    ]
+    assert_eq(cup_base(groups, "games"), 0)
+    assert_eq(cup_base(groups, "wire"), 2)
+    assert_eq(cup_base(groups, "numbers"), 3)
+    # so the first Live tile's "down" arrow (2) is /c's, with nowhere to go,
+    # and the second Data tile's "up" arrow (4) trades /e with /d
+    assert_eq(map(cup_tiles(elem_at(cup_step(groups, 2, false), 1)), fn(t: Map) -> String do cup_path(t) end), ["/c"])
+    assert_eq(map(cup_tiles(elem_at(cup_step(groups, 4, true), 2)), fn(t: Map) -> String do cup_path(t) end), ["/e", "/d", "/f"])
+  end
+
   test "the program writes every move, as the tiles in page order" do
     c = spawn Curator
     c <- :loaded(200, CUT_GROUPS)

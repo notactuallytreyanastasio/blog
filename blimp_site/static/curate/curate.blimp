@@ -159,19 +159,19 @@ def cup_group_tiles(groups: List, group: String) -> List do
   end
 end
 
-# where the group's first tile falls counting every card's tiles, which
-# is what :up and :down are told
+# where the group's first tile falls counting every card's tiles before
+# it, which is what :up and :down are told: the cards before it, not every
+# other card (a reduce that kept adding past the match sent the arrows of
+# every card but the last into another card's tiles)
 def cup_base(groups: List, group: String) -> Int do
-  reduce(groups, 0, fn(n: Int, g: Map) -> Int do
-    case cup_group(g) == group do
-      true -> n
-      false ->
-        case n < 0 do
-          true -> n
-          false -> n + length(cup_tiles(g))
-        end
-    end
-  end)
+  case groups do
+    [] -> 0
+    [g | rest] ->
+      case cup_group(g) == group do
+        true -> 0
+        false -> length(cup_tiles(g)) + cup_base(rest, group)
+      end
+  end
 end
 
 def cup_card_keys(cards: List) -> List do
