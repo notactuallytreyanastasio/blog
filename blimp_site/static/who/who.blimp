@@ -1,0 +1,607 @@
+# /who: the page's program. One TV story is the manuscript, set to be read:
+# a kicker, the title, a lede of who made it and who is in it, the synopsis
+# as prose, then where it sits in the graph (its relations, the broadcast
+# chain either side, its Doctor). The conversation is in the margin, as
+# notes beside the prose: the bot's words arrive there first, about the
+# story on the page, and the visitor answers in the same rail.
+#
+# The graph is not here. The server's WHO actor (src/99_who.blimp) picks
+# the story, builds the exhibit and asks the model; who.js holds the socket
+# to /live/who, hands this program every frame (`:frame`) and each
+# (re)connection (`:connected`), and sends up what `:outbox` returns.
+# "Another story" and the graph browser below the read are frames up and
+# frames back; the page shows what it last heard.
+
+def whp_decode(text: String) -> Map do
+  case json_decode(text) do
+    {:ok, m} ->
+      case type_of(m) == :map do
+        true -> m
+        false -> %{}
+      end
+    _ -> %{}
+  end
+end
+
+def whp_str(v: Any) -> String do
+  case type_of(v) == :string do
+    true -> v
+    false -> ""
+  end
+end
+
+def whp_int(v: Any) -> Any do
+  case type_of(v) do
+    :integer -> v
+    :float -> floor(v)
+    :string ->
+      case who_all_digits(trim(v)) do
+        true -> to_int(trim(v))
+        false -> nil
+      end
+    _ -> nil
+  end
+end
+
+def whp_num(v: Any) -> Int do
+  case whp_int(v) do
+    nil -> 0
+    n -> n
+  end
+end
+
+def whp_maps(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> filter(v, fn(m: Any) -> Bool do type_of(m) == :map end)
+    false -> []
+  end
+end
+
+def whp_strings(v: Any) -> List do
+  case type_of(v) == :list do
+    true -> filter(v, fn(x: Any) -> Bool do type_of(x) == :string and x != "" end)
+    false -> []
+  end
+end
+
+def whp_member(list: List, x: Any) -> Bool do
+  length(filter(list, fn(y: Any) -> Bool do y == x end)) > 0
+end
+
+def whp_append(a: List, b: List) -> List do
+  reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
+end
+
+def whp_stats_text(s: Any) -> String do
+  case type_of(s) == :map do
+    false -> ""
+    true -> who_stats_text(whp_num(lookup(s, :nodes)), whp_num(lookup(s, :edges)), whp_num(lookup(s, :doctors)), whp_num(lookup(s, :stories)), whp_num(lookup(s, :decisions)))
+  end
+end
+
+def whp_id_str(m: Map) -> String do
+  to_string(whp_num(lookup(m, :id)))
+end
+
+# ── the chrome ─────────────────────────────────────────────────────────
+
+def whp_bar(s: Map) -> Any do
+  browse_cls = case s.browse_open do
+    true -> "on"
+    false -> ""
+  end
+  el("header", %{class: "who-bar"},
+    el("span", %{class: "who-brand"}, "Doctor Who", el("span", %{}, " · the graph")),
+    el("span", %{class: "who-meta"}, s.stats),
+    el("nav", %{},
+      el("button", %{click: :shuffle, disabled: s.loading}, "Another story"),
+      el("button", %{class: browse_cls, click: :toggle_browse}, "Browse the graph"),
+      el("a", %{href: "https://notactuallytreyanastasio.github.io/danielle_who/", target: "_blank", rel: "noopener"}, "the explorer ↗")))
+end
+
+# ── the manuscript ─────────────────────────────────────────────────────
+
+# "TV story 186 · Series 3, Episode 10 · The Tenth Doctor · 9 June 2007"
+def whp_kicker(x: Map) -> Any do
+  number = case whp_str(lookup(x, :story_number)) do
+    "" -> "TV story"
+    n -> concat("TV story ", n)
+  end
+  doctor = case lookup(x, :doctor_card) do
+    nil -> whp_str(lookup(x, :doctor))
+    d -> concat("The ", whp_str(lookup(d, :ordinal)), " Doctor")
+  end
+  text = who_kicker(number, whp_str(lookup(x, :series)), doctor, whp_str(lookup(x, :aired)))
+  missing = whp_str(lookup(x, :missing_status))
+  warn = case missing == "" or missing == "Complete" or missing == "complete" do
+    true -> []
+    false -> [" · ", el("span", %{class: "warn"}, missing)]
+  end
+  el("div", %{class: "who-kicker"}, text, warn)
+end
+
+# The infobox, as rows; the lede already has the writer, director,
+# companions, enemies and setting, so those are left out here.
+def whp_facts(x: Map) -> List do
+  shown = filter(whp_maps(lookup(x, :facts)), fn(f: Map) -> Bool do
+    not(whp_member(["Writer", "Director", "Companion(s)", "Main enemy", "Main setting", "Doctor", "Story number"], whp_str(lookup(f, :label))))
+  end)
+  case shown do
+    [] -> []
+    _ -> [el("ul", %{class: "who-facts"}, map(shown, fn(f: Map) -> Any do
+      el("li", %{}, el("span", %{class: "k"}, whp_str(lookup(f, :label))), el("span", %{class: "v"}, whp_str(lookup(f, :value))))
+    end))]
+  end
+end
+
+def whp_names(v: Any) -> String do
+  join(whp_strings(v), ", ")
+end
+
+# "Written by W, directed by D. With C; against E. Set in S."
+def whp_lede(x: Map) -> Any do
+  writer = whp_str(lookup(x, :writer))
+  director = whp_str(lookup(x, :director))
+  companions = whp_names(lookup(x, :companions))
+  enemies = whp_names(lookup(x, :enemies))
+  setting = whp_str(lookup(x, :setting))
+  made = case {writer, director} do
+    {"", ""} -> []
+    {w, ""} -> ["Written by ", el("b", %{}, w), ". "]
+    {"", d} -> ["Directed by ", el("b", %{}, d), ". "]
+    {w, d} -> ["Written by ", el("b", %{}, w), ", directed by ", el("b", %{}, d), ". "]
+  end
+  cast = case {companions, enemies} do
+    {"", ""} -> []
+    {c, ""} -> ["With ", el("b", %{}, c), ". "]
+    {"", e} -> ["Against ", el("b", %{}, e), ". "]
+    {c, e} -> ["With ", el("b", %{}, c), "; against ", el("b", %{}, e), ". "]
+  end
+  place = case setting do
+    "" -> []
+    p -> ["Set in ", el("b", %{}, p), "."]
+  end
+  el("p", %{class: "who-lede"}, made, cast, place)
+end
+
+def whp_paragraphs(text: String) -> List do
+  map(filter(split(text, "\n"), fn(p: String) -> Bool do trim(p) != "" end), fn(p: String) -> Any do
+    el("p", %{class: "who-prose"}, trim(p))
+  end)
+end
+
+def whp_row(n: Map, label: String, cls: String) -> Any do
+  el("li", %{class: cls},
+    el("span", %{class: "rel"}, label),
+    el("button", %{class: "who-link", click: :inspect, with: whp_id_str(n)}, whp_str(lookup(n, :title))),
+    el("span", %{class: "type"}, whp_str(lookup(n, :type))))
+end
+
+def whp_relation_row(e: Map, arrow: String) -> Any do
+  title = case lookup(e, :title) do
+    nil -> concat("node ", whp_id_str(e))
+    t -> whp_str(t)
+  end
+  el("li", %{},
+    el("span", %{class: "rel"}, concat(arrow, " ", whp_str(lookup(e, :relation)))),
+    el("button", %{class: "who-link", click: :inspect, with: whp_id_str(e)}, title),
+    el("span", %{class: "type"}, whp_str(lookup(e, :type))))
+end
+
+def whp_chain_row(n: Map, i: Int, cls: String) -> Any do
+  label = case i < 0 do
+    true -> concat("−", to_string(0 - i))
+    false ->
+      case i == 0 do
+        true -> "·"
+        false -> concat("+", to_string(i))
+      end
+  end
+  el("li", %{class: cls},
+    el("span", %{class: "n"}, label),
+    el("button", %{class: "who-link", click: :inspect, with: whp_id_str(n)}, whp_str(lookup(n, :title))))
+end
+
+def whp_chain_rows(list: List, i: Int, step: Int, acc: List) -> List do
+  case list do
+    [] -> reverse(acc)
+    [n | rest] -> whp_chain_rows(rest, i + step, step, [whp_chain_row(n, i, "") | acc])
+  end
+end
+
+# The story's place in the graph: its relations, the chain, its Doctor.
+def whp_in_graph(x: Map) -> List do
+  relations = whp_maps(lookup(x, :relations))
+  before = reverse(whp_maps(lookup(x, :before)))
+  after = whp_maps(lookup(x, :after))
+  node = lookup(x, :node)
+  graph_rows = case type_of(node) == :map do
+    false -> [el("p", %{class: "who-empty"}, "This story has no node of its own in the graph yet; the wiki record above is all there is.")]
+    true ->
+      [el("ul", %{class: "who-rows"}, map(relations, fn(e: Map) -> Any do whp_relation_row(e, "→") end))]
+  end
+  chain = case type_of(node) == :map and (before != [] or after != []) do
+    false -> []
+    true ->
+      here = whp_chain_row(node, 0, "here")
+      [el("h3", %{}, "Before and after, in broadcast order"),
+       el("ul", %{class: "who-rows"},
+         whp_chain_rows(before, 0 - length(before), 1, []),
+         here,
+         whp_chain_rows(after, 1, 1, []))]
+  end
+  doctor = case lookup(x, :doctor_card) do
+    nil -> []
+    d -> [el("p", %{class: "who-doctor-line"}, "Filed under ",
+      el("button", %{class: "who-link", click: :inspect, with: whp_id_str(d)}, whp_str(lookup(d, :title))), ".")]
+  end
+  whp_append([el("h3", %{}, "In the graph")], whp_append(graph_rows, whp_append(doctor, chain)))
+end
+
+def whp_node_card(s: Map) -> List do
+  case s.node do
+    nil -> []
+    n ->
+      [el("section", %{class: "who-node", id: concat("who-node-", whp_id_str(n))},
+        el("div", %{class: "who-node-head"},
+          el("span", %{class: "who-label"}, concat("node ", whp_id_str(n), " · ", whp_str(lookup(n, :type)))),
+          el("h4", %{}, whp_str(lookup(n, :title))),
+          el("button", %{class: "x", click: :close_node}, "close")),
+        el("ul", %{class: "who-rows"},
+          map(s.outgoing, fn(e: Map) -> Any do whp_relation_row(e, "→") end),
+          map(s.incoming, fn(e: Map) -> Any do whp_relation_row(e, "←") end)),
+        el("div", %{class: "bar"},
+          el("button", %{class: "who-btn sm", click: :ask_about, disabled: s.loading or not(s.unlocked)}, "Ask about this")))]
+  end
+end
+
+def whp_body(s: Map) -> Any do
+  case s.exhibit do
+    nil -> el("div", %{class: "who-body"}, el("div", %{class: "who-kicker"}, "Choosing a story…"))
+    x ->
+      wiki = case whp_str(lookup(x, :wiki_url)) do
+        "" -> []
+        u -> [el("p", %{class: "who-fine"}, el("a", %{href: u, target: "_blank", rel: "noopener"}, "The record on the Tardis wiki ↗"))]
+      end
+      # the "synopsis" that parsed as an infobox is shown as facts; one
+      # that did not is prose
+      body_text = case whp_maps(lookup(x, :facts)) do
+        [] -> whp_paragraphs(whp_str(lookup(x, :synopsis)))
+        _ -> whp_facts(x)
+      end
+      el("div", %{class: "who-body"},
+        whp_kicker(x),
+        el("h1", %{}, whp_str(lookup(x, :title))),
+        whp_lede(x),
+        body_text,
+        wiki,
+        whp_node_card(s),
+        whp_in_graph(x))
+  end
+end
+
+# ── the margin ─────────────────────────────────────────────────────────
+
+def whp_note(m: Map) -> Any do
+  role = whp_str(lookup(m, :role))
+  content = whp_str(lookup(m, :content))
+  case role do
+    "assistant" ->
+      el("div", %{class: "who-note"},
+        el("span", %{class: "by"}, "The TARDIS"),
+        el("div", %{inner_html: whp_str(lookup(m, :html))}))
+    _ -> el("div", %{class: "who-note you"}, el("span", %{class: "by"}, "You"), content)
+  end
+end
+
+def whp_notes(s: Map) -> Any do
+  notes = map(s.messages, fn(m: Map) -> Any do whp_note(m) end)
+  thinking = case s.loading do
+    true -> [el("div", %{class: "who-thinking"}, el("span", %{class: "who-dot"}), el("span", %{class: "who-dot"}), el("span", %{class: "who-dot"}), " reading the graph")]
+    false -> []
+  end
+  presets = case length(s.messages) <= 1 and not(s.loading) do
+    true -> [el("div", %{class: "who-presets"},
+      map(who_presets, fn(q: String) -> Any do el("button", %{class: "who-preset", click: :ask_preset, with: q}, q) end))]
+    false -> []
+  end
+  el("div", %{class: "who-notes", id: "who-notes", scroll: :end}, whp_append(notes, whp_append(thinking, presets)))
+end
+
+def whp_compose(s: Map) -> Any do
+  el("form", %{class: "who-compose", submit: :send, reset_on_submit: true},
+    el("textarea", %{name: "message", id: "who-chat-input", rows: "3", placeholder: "Answer it, or ask your own…",
+      disabled: s.loading, submit_on_enter: true}),
+    el("div", %{class: "row"},
+      el("button", %{type: "submit", class: "who-btn sm", disabled: s.loading}, "Ask"),
+      el("span", %{class: "hint"}, "Enter sends · Shift+Enter for a new line")))
+end
+
+def whp_lock(s: Map) -> Any do
+  err = case s.error do
+    "" -> []
+    e -> [el("div", %{class: "err"}, e)]
+  end
+  el("div", %{class: "who-lock"},
+    el("span", %{class: "who-label"}, "Locked"),
+    el("p", %{}, "This deploy keeps the chat behind a password. The story and the graph are open."),
+    el("form", %{submit: :unlock},
+      el("input", %{type: "password", name: "password", placeholder: "Password", autocomplete: "current-password"}),
+      el("button", %{type: "submit", class: "who-btn sm"}, "Unlock")),
+    err)
+end
+
+def whp_rail(s: Map) -> Any do
+  inner = case s.locked do
+    nil -> [el("div", %{class: "who-lock"}, el("p", %{}, "Connecting…"))]
+    _ ->
+      case s.unlocked do
+        true -> [whp_notes(s), whp_compose(s)]
+        false -> [whp_lock(s)]
+      end
+  end
+  el("aside", %{class: "who-rail"}, inner)
+end
+
+# ── browsing the whole graph ───────────────────────────────────────────
+
+def whp_results(s: Map) -> List do
+  case trim(s.query) do
+    "" -> []
+    _ ->
+      case s.searching do
+        true -> [el("p", %{class: "who-empty"}, "Searching…")]
+        false ->
+          case s.results do
+            [] -> [el("p", %{class: "who-empty"}, "Nothing in the graph matches those words.")]
+            _ -> [el("ul", %{class: "who-rows"}, map(s.results, fn(n: Map) -> Any do whp_row(n, "", "") end))]
+          end
+      end
+  end
+end
+
+def whp_eras(s: Map) -> Any do
+  el("div", %{class: "who-eras"},
+    map(s.eras, fn(e: Map) -> Any do
+      el("button", %{class: "who-era", click: :inspect, with: whp_id_str(e)},
+        whp_str(lookup(e, :title)), el("span", %{class: "n"}, to_string(whp_num(lookup(e, :size)))))
+    end))
+end
+
+def whp_doctor_row(s: Map, d: Map) -> Any do
+  id = whp_num(lookup(d, :id))
+  cls = case s.doctor != nil and whp_num(lookup(s.doctor, :id)) == id do
+    true -> "on"
+    false -> ""
+  end
+  el("li", %{},
+    el("button", %{class: cls, click: :pick_doctor, with: to_string(id)},
+      concat("The ", whp_str(lookup(d, :ordinal)), " Doctor"),
+      el("span", %{class: "a"}, concat(whp_str(lookup(d, :actor)), " · ", whp_str(lookup(d, :years))))))
+end
+
+def whp_stories(s: Map) -> List do
+  case s.doctor do
+    nil -> []
+    d ->
+      heading = case s.stories do
+        [] -> "fetching the stories…"
+        _ -> concat(to_string(length(s.stories)), " stories filed under the ", whp_str(lookup(d, :ordinal)), " Doctor")
+      end
+      [el("div", %{class: "who-stories"},
+        el("span", %{class: "who-label"}, heading),
+        el("ul", %{class: "who-rows"}, map(s.stories, fn(n: Map) -> Any do whp_row(n, "", "") end)))]
+  end
+end
+
+def whp_browse(s: Map) -> List do
+  case s.browse_open do
+    false -> []
+    true ->
+      [el("section", %{class: "who-browse", id: "who-browse"},
+        el("div", %{class: "who-browse-grid"},
+          el("div", %{},
+            el("h3", %{}, "Search the graph"),
+            el("input", %{type: "text", name: "q", value: s.query, placeholder: "Daleks, Rose, Gallifrey, Virgin NA…",
+              autocomplete: "off", input: :typed, debounce: 300, id: "who-search", class: "who-search"}),
+            whp_eras(s),
+            whp_results(s)),
+          el("div", %{},
+            el("h3", %{}, "The Doctors"),
+            el("ul", %{class: "who-doctors"}, map(s.doctors, fn(d: Map) -> Any do whp_doctor_row(s, d) end)),
+            whp_stories(s))))]
+  end
+end
+
+def whp_page(s: Map) -> Any do
+  el("div", %{class: "who"},
+    whp_bar(s),
+    el("div", %{class: "who-read"}, whp_body(s), el("div", %{class: "who-leader"}), whp_rail(s)),
+    whp_browse(s))
+end
+
+actor WhoPage do
+  state stats: String :: ""
+  state doctors: List :: []
+  state eras: List :: []
+  # the story on the page, as the server built it (see who_exhibit)
+  state exhibit: Any :: nil
+  state browse_open: Bool :: false
+  # the picked Doctor (%{id, ordinal, title}) and the stories heard back
+  state doctor: Any :: nil
+  state stories: List :: []
+  state query: String :: ""
+  state searching: Bool :: false
+  state results: List :: []
+  # the inspected node and its edges
+  state node: Any :: nil
+  state outgoing: List :: []
+  state incoming: List :: []
+  # nil until the server says whether this deploy has a password
+  state locked: Any :: nil
+  state unlocked: Bool :: false
+  state error: String :: ""
+  state messages: List :: []
+  state loading: Bool :: false
+  state outbox: List :: []
+
+  on :toggle_browse do
+    become browse_open: not(browse_open)
+    reply :ok
+  end
+
+  # Another story: the server picks and says something about it.
+  on :shuffle do
+    case loading do
+      true -> reply :ignored
+      false ->
+        become outbox: whp_append(outbox, [json_encode(%{t: "shuffle"})]), node: nil, outgoing: [], incoming: []
+        reply :asked
+    end
+  end
+
+  # The socket is (again) open. The server's conversation and exhibit for
+  # this page went with the old socket: both start again.
+  on :connected do
+    become locked: nil, unlocked: false, error: "", messages: [], loading: false, exhibit: nil
+    reply :ok
+  end
+
+  on :offline do
+    become loading: false, searching: false
+    reply :ok
+  end
+
+  on :frame(text: String) do
+    msg = whp_decode(text)
+    case lookup(msg, :t) do
+      "hello" ->
+        is_locked = lookup(msg, :locked) == true
+        become locked: is_locked, unlocked: not(is_locked), stats: whp_stats_text(lookup(msg, :stats)),
+          doctors: whp_maps(lookup(msg, :doctors)), eras: whp_maps(lookup(msg, :eras))
+        reply :hello
+      "exhibit" ->
+        become exhibit: msg, node: nil, outgoing: [], incoming: []
+        reply :exhibit
+      "unlock" ->
+        case lookup(msg, :ok) == true do
+          true -> become unlocked: true, error: ""
+          false -> become error: whp_str(lookup(msg, :error))
+        end
+        reply :unlock
+      "chat" ->
+        become messages: whp_maps(lookup(msg, :messages)), loading: lookup(msg, :loading) == true
+        reply :chat
+      "doctor" ->
+        case doctor != nil and whp_int(lookup(msg, :id)) == whp_num(lookup(doctor, :id)) do
+          true -> become stories: whp_maps(lookup(msg, :stories))
+          false -> :stale
+        end
+        reply :doctor
+      "results" ->
+        # an answer to an older search is not the answer to this one
+        case whp_str(lookup(msg, :q)) == trim(query) do
+          true -> become results: whp_maps(lookup(msg, :results)), searching: false
+          false -> :stale
+        end
+        reply :results
+      "node" ->
+        case type_of(lookup(msg, :node)) == :map do
+          true -> become node: lookup(msg, :node), outgoing: whp_maps(lookup(msg, :outgoing)), incoming: whp_maps(lookup(msg, :incoming))
+          false -> :no_node
+        end
+        reply :node
+      _ -> reply :ignored
+    end
+  end
+
+  # A Doctor in the browser: picked, or picked again to put away.
+  on :pick_doctor(id: Any) do
+    want = whp_int(id)
+    case doctor != nil and whp_num(lookup(doctor, :id)) == want do
+      true ->
+        become doctor: nil, stories: []
+        reply :unpicked
+      false ->
+        found = head(filter(doctors, fn(d: Map) -> Bool do whp_int(lookup(d, :id)) == want end))
+        case found do
+          nil -> reply :unknown
+          d ->
+            become doctor: d, stories: [], outbox: whp_append(outbox, [json_encode(%{t: "doctor", id: want})])
+            reply :picked
+        end
+    end
+  end
+
+  # The search box, 300ms after the last keystroke.
+  on :typed(q: String) do
+    case trim(q) do
+      "" ->
+        become query: q, results: [], searching: false
+        reply :cleared
+      t ->
+        become query: q, searching: true, outbox: whp_append(outbox, [json_encode(%{t: "search", q: t})])
+        reply :searching
+    end
+  end
+
+  on :inspect(id: Any) do
+    want = whp_int(id)
+    case want do
+      nil -> reply :ignored
+      _ ->
+        become outbox: whp_append(outbox, [json_encode(%{t: "node", id: want})])
+        reply :asked
+    end
+  end
+
+  on :close_node do
+    become node: nil, outgoing: [], incoming: []
+    reply :ok
+  end
+
+  on :unlock(fields: Map) do
+    pw = whp_str(lookup(fields, :password))
+    become outbox: whp_append(outbox, [json_encode(%{t: "unlock", password: pw})])
+    reply :ok
+  end
+
+  # The form (the Ask button, or Enter in the textarea). The server trims
+  # it and ignores an empty one.
+  on :send(fields: Map) do
+    text = whp_str(lookup(fields, :message))
+    case trim(text) == "" or loading or not(unlocked) do
+      true -> reply :ignored
+      false ->
+        become outbox: whp_append(outbox, [json_encode(%{t: "ask", text: text})])
+        reply :sent
+    end
+  end
+
+  on :ask_preset(q: String) do
+    reply (self <- :send(%{message: q}))
+  end
+
+  # The inspector's button: the chat is asked about the node.
+  on :ask_about do
+    case node do
+      nil -> reply :ignored
+      n -> reply (self <- :send(%{message: who_ask_about(whp_str(lookup(n, :title)))}))
+    end
+  end
+
+  on :outbox do
+    out = outbox
+    become outbox: []
+    reply out
+  end
+
+  on :view do
+    reply whp_page(%{stats: stats, doctors: doctors, eras: eras, exhibit: exhibit, browse_open: browse_open, doctor: doctor,
+      stories: stories, query: query, searching: searching, results: results, node: node, outgoing: outgoing, incoming: incoming,
+      locked: locked, unlocked: unlocked, error: error, messages: messages, loading: loading})
+  end
+end
+
+who = spawn WhoPage
+who <- :view
