@@ -64,6 +64,8 @@ EXCLUDES=(
   --exclude '_build' --exclude 'deps' --exclude 'node_modules'
   --exclude '.env' --exclude '.git' --exclude '.elixir_ls'
   --exclude '.deciduous' --exclude '.claude'
+  # Walkthrough run artifacts: gitignored screenshots, >100 MB, no use on the box.
+  --exclude 'walkthrough/runs' --exclude 'walkthrough/test-results'
   # Written on the box by this script; it has no local counterpart, so without
   # this --delete would wipe the stamp on the very next deploy.
   --exclude '.deployed'
@@ -81,9 +83,14 @@ probe() {
     | sed -E 's/^[^[:space:]]+[[:space:]]+//' || true
 }
 
+# --inplace: the Caddyfile is bind-mounted into the caddy container as a
+# file, and a mount follows the inode. rsync's default writes a temp file
+# and renames it over the old one, so the container kept reading the old
+# Caddyfile and `caddy reload` said "config is unchanged" while the box's
+# file had the new route. Written in place, the mounted file is the new one.
 push() {
   local src="$1" dst="$2"; shift 2
-  rsync -az --delete "${EXCLUDES[@]}" ${@+"$@"} "$src/" "$HOST:$dst/"
+  rsync -az --inplace --delete "${EXCLUDES[@]}" ${@+"$@"} "$src/" "$HOST:$dst/"
 }
 
 touches() { grep -qE "$2" <<<"$1"; }
@@ -103,7 +110,11 @@ if wants blog; then
   if [ -z "$BLOG_CHANGES" ] && [ $FORCE -eq 0 ]; then
     skip "no changes"
   else
-    [ -n "$BLOG_CHANGES" ] && sed 's/^/      /' <<<"$BLOG_CHANGES" | head -12
+    # awk, not `sed | head`: head exits after 12 lines, whoever is still
+    # writing takes SIGPIPE, and under `set -eo pipefail` that aborts the
+    # deploy right here, before the sync, with nothing printed to say so. A
+    # change list longer than a pipe buffer killed the shell this way (141).
+    [ -n "$BLOG_CHANGES" ] && awk 'NR <= 12 { print "      " $0 }' <<<"$BLOG_CHANGES"
     [ "${n:-0}" -gt 12 ] && skip "… and $((n - 12)) more"
 
     rebuild=0; migrate=0; caddy=0

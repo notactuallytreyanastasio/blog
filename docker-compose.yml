@@ -37,9 +37,14 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.1}
       ZIGGY_CHAT_PASSWORD: ${ZIGGY_CHAT_PASSWORD:-}
-      # /aim's bobbbyBot (src/99_aim.blimp): DeepSeek, and a day's request budget
-      AIM_API_KEY: ${DEEPSEEK_API_KEY:-}
-      AIM_DAILY_LIMIT: ${AIM_DAILY_LIMIT:-600}
+      LOLLY_CHAT_PASSWORD: ${LOLLY_CHAT_PASSWORD:-}
+      ROOTED_CHAT_PASSWORD: ${ROOTED_CHAT_PASSWORD:-}
+      # /who ("Ask the TARDIS") runs on Blog.LLM, DeepSeek by default; the same
+      # key marginalia and blimp-blog below already read from .env. The
+      # password falls back to ZIGGY_CHAT_PASSWORD in config/runtime.exs.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      WHO_CHAT_PASSWORD: ${WHO_CHAT_PASSWORD:-}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-}
       S3_BUCKET: ${S3_BUCKET:-bobbby-media}
@@ -72,6 +77,99 @@ services:
       PORT: "4000"
       POOL_SIZE: "10"
       BLINKS_API_TOKEN: ${BLINKS_API_TOKEN:-}
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
+  # Marginalia — the writers' product. Own source tree at /opt/marginalia and
+  # own database, but shares this stack's Postgres and Caddy.
+  marginalia:
+    build:
+      context: /opt/marginalia
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/marginalia_prod
+      SECRET_KEY_BASE: ${MARGINALIA_SECRET_KEY_BASE}
+      PHX_HOST: marginalia.bobbby.online
+      PORT: "4000"
+      POOL_SIZE: "10"
+      # Marginalia defaults to DeepSeek and reads DEEPSEEK_API_KEY. Without
+      # this line the container had only the OpenAI key, so every read failed
+      # on a provider whose key was sitting unused in .env.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_PROVIDER: ${MARGINALIA_LLM_PROVIDER:-deepseek}
+      OWNER_EMAIL: ${MARGINALIA_OWNER_EMAIL:-bobbbygrayson@gmail.com}
+      # Each draft's git history. Must be on a volume: the container is
+      # rebuilt on every deploy, so a repo written to its own filesystem is
+      # destroyed by the next one and the loss looks like success.
+      DRAFT_REPO_ROOT: /data/drafts
+    volumes:
+      - marginalia_drafts:/data/drafts
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
+  # Tyler — a finder for Disability Rights Oregon's public documents, forked
+  # from marginalia. Own source tree at /opt/tyler/app (shipped by the tyler
+  # repo's deploy.sh) and own database, sharing this stack's Postgres and
+  # Caddy. The crawl's downloaded PDFs are mounted read-only from
+  # /opt/tyler/data; the app serves them as the "original file" links.
+  tyler:
+    build:
+      context: /opt/tyler/app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/tyler_prod
+      SECRET_KEY_BASE: ${TYLER_SECRET_KEY_BASE}
+      PHX_HOST: tyler.bobbby.online
+      PORT: "4000"
+      POOL_SIZE: "10"
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      LLM_PROVIDER: deepseek
+      TYLER_DATA: /data
+    volumes:
+      - /opt/tyler/data:/data:ro
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
+  # Dave — the classroom music viewer for Dave's music class. Imports scores
+  # from Noteflight Learning URLs (no login needed on those endpoints) and
+  # syncs a moving cursor across every kid's iPad via Phoenix Channels (the
+  # server is the master clock, see lib/dave/sessions.ex there). Own source
+  # tree at /opt/dave (rsynced by the dave repo's deploy.sh), own database,
+  # shares this stack's Postgres and Caddy (dave.bobbby.online).
+  dave:
+    build:
+      context: /opt/dave
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/dave_prod
+      SECRET_KEY_BASE: ${DAVE_SECRET_KEY_BASE}
+      PHX_HOST: dave.bobbby.online
+      PORT: "4000"
+      POOL_SIZE: "10"
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
+  # Shared decision graph. One Postgres database behind an MCP endpoint, one
+  # workspace per project, serving every graph on the laptop. Caddy proxies
+  # bobbby.online/deciduous-mcp/* here. See /opt/deciduous-mcp/DEPLOY.md.
+  deciduous-mcp:
+    build:
+      context: /opt/deciduous-mcp
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/deciduous_mcp_prod
+      DECIDUOUS_MCP_TOKEN: ${DECIDUOUS_MCP_TOKEN}
+      PORT: "4000"
+      POOL_SIZE: "10"
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
   nathan:
@@ -183,7 +281,50 @@ services:
       - /opt/downloader:/srv/downloader:ro  # Framecut Grabber landing page (nathan_for_us site/, via deploy.sh)
       - /opt/lumines:/srv/lumines:ro  # LUMINES HD static build (lumines_hd repo dist/, via its scripts/deploy.sh)
 
+  # The blog, served by a server written in Blimp: blimp_site/ in the blog
+  # repo, shipped to /opt/blimp-blog by blimp_site/deploy.sh. Caddy sends it
+  # /, /blog, /post/* and its stylesheets, and gives Phoenix anything it
+  # answers 404. It forks four workers that each exit after 200 requests;
+  # the cap is there in case that arithmetic is ever wrong.
+  blimp-blog:
+    build:
+      context: /opt/blimp-blog
+    restart: always
+    mem_limit: 1536m
+    # The homepage museum and Finder are read from the blog database.
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/blog_prod
+      MTA_API_KEY: ${MTA_API_KEY}
+      ICLOUD_ALBUM_TOKEN: ${ICLOUD_ALBUM_TOKEN}
+      OPENAI_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_BASE_URL: https://api.deepseek.com
+      OPENAI_MODEL: deepseek-chat
+      OPENAI_AUTOCOMPLETE_MODEL: deepseek-chat
+      ZIGGY_CHAT_PASSWORD: ${ZIGGY_CHAT_PASSWORD:-}
+      # /who's chat (blimp_site/src/99_who.blimp) falls back to the Ziggy one
+      WHO_CHAT_PASSWORD: ${WHO_CHAT_PASSWORD:-}
+      # /aim's bobbbyBot (blimp_site/src/99_aim.blimp)
+      AIM_API_KEY: ${DEEPSEEK_API_KEY:-}
+      AIM_DAILY_LIMIT: ${AIM_DAILY_LIMIT:-600}
+      BLINKS_API_TOKEN: ${BLINKS_API_TOKEN:-}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://bobbby.online}
+      FINDER_ADMIN_PASSWORD: ${FINDER_ADMIN_PASSWORD:-}
+      CURATE_PASSWORD: ${CURATE_PASSWORD:-}
+      RECEIPT_PRINTER_API_TOKEN: ${RECEIPT_PRINTER_API_TOKEN:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-bobbby-media}
+    # Not exposed to host - Caddy proxies to port 4100 via Docker network
+
 volumes:
+  marginalia_drafts:
   pgdata:
   caddy_data:
   caddy_config:
