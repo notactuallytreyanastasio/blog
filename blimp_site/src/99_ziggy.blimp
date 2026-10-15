@@ -44,7 +44,12 @@
 # OPENAI_API_KEY; DeepSeek until it went down on 2026-10-14), and a laptop
 # can point it at a stub. The suggestion's length cap is max_tokens, which
 # OpenAI, DeepSeek and Fireworks all take; max_completion_tokens is
-# OpenAI's alone.
+# OpenAI's alone. On GLM 5.3, a thinking-only model, the reasoning counts
+# against max_tokens: the suggestion's old cap of 30 came back empty
+# (finish_reason "length", 30 reasoning tokens, no content), so the cap is
+# 200 with reasoning_effort "low", which answered in 15 completion tokens;
+# the prompt keeps the suggestion short. Both requests say "low"; the
+# chat's asks carry ZG_ASK_TIMEOUT_S, since http_start's own 15s is less.
 # Without a password the chat says
 # it is not configured; without a key every question is answered with the
 # LiveView's "OPENAI_API_KEY is not configured".
@@ -335,13 +340,13 @@ end
 # ── talking to OpenAI ──────────────────────────────────────────────────
 
 def zg_request_body(model: String, messages: List) -> String do
-  json_encode(%{model: model, messages: messages, tools: ZG_TOOLS, tool_choice: "auto", temperature: 0.5})
+  json_encode(%{model: model, messages: messages, tools: ZG_TOOLS, tool_choice: "auto", temperature: 0.5, reasoning_effort: "low"})
 end
 
 def zg_suggest_body(model: String, partial: String) -> String do
   json_encode(%{model: model,
     messages: [%{role: "system", content: zg_autocomplete_prompt}, %{role: "user", content: partial}],
-    max_tokens: 30})
+    max_tokens: 200, reasoning_effort: "low"})
 end
 
 def zg_headers(key: String) -> Map do
@@ -585,7 +590,7 @@ actor ZiggyChat do
     case key do
       "" -> reply (self <- :finish(fd, {:error, "OPENAI_API_KEY is not configured"}))
       _ ->
-        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), zg_request_body(model, messages))
+        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), zg_request_body(model, messages), %{timeout_ms: ZG_ASK_TIMEOUT_S * 1000})
         case h < 0 do
           true -> reply (self <- :finish(fd, {:error, "OpenAI request failed: every HTTP slot is busy"}))
           false ->
