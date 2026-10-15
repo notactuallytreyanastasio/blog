@@ -52,8 +52,12 @@
 # The model is reached as the Ziggy Account reaches it: OPENAI_BASE_URL,
 # OPENAI_API_KEY and OPENAI_MODEL, which production points at Fireworks'
 # GLM 5.3 (1M context; DeepSeek, deepseek-chat, until it went down on
-# 2026-10-14). GLM 5.3 always thinks; the request sets no effort, and
-# a search round came back in under a second with 0 reasoning tokens.
+# 2026-10-14). GLM 5.3 always thinks, and left to itself it thought for
+# 3.5s and 194 tokens a round, 35s to an answer; with reasoning_effort
+# "low" a round took 0.7s and 0 reasoning tokens. http_start's own
+# timeout is 15s, which a thinking round went past (the opener answered
+# "could not reach the model (timeout)"), so an ask carries
+# WHO_ASK_TIMEOUT_S.
 #
 # Two things about this graph the Ziggy graph does not share, which
 # Blog.Who's doc noted: no node has a description, every fact is in the
@@ -637,7 +641,7 @@ end
 # answer. A reply that hits that cap was Blog.LLM's :truncated error, not
 # a shorter answer; who_classify keeps that.
 def who_request_body(model: String, messages: List) -> String do
-  json_encode(%{model: model, messages: messages, tools: WHO_TOOLS, tool_choice: "auto", temperature: 0.7, max_tokens: 2000})
+  json_encode(%{model: model, messages: messages, tools: WHO_TOOLS, tool_choice: "auto", temperature: 0.7, max_tokens: 2000, reasoning_effort: "low"})
 end
 
 def who_finish_reason(body: String) -> String do
@@ -913,7 +917,7 @@ actor WhoChat do
     case key do
       "" -> reply :unkeyed
       _ ->
-        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), who_request_body(model, messages))
+        h = http_start("POST", concat(base, "/chat/completions"), zg_headers(key), who_request_body(model, messages), %{timeout_ms: WHO_ASK_TIMEOUT_S * 1000})
         case h < 0 do
           true -> reply (self <- :finish(fd, {:error, "could not reach the model (every HTTP slot is busy)"}))
           false ->
