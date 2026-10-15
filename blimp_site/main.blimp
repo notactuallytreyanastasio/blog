@@ -924,7 +924,7 @@ def refresh_desk(db: Any, opts: Map) -> Tuple do
     {:error, reason} -> {:error, reason, nil}
     {:ok, live} ->
       case load_desk_db(live) do
-        {:ok, museum, finder, next} -> {:ok, build_desktop(museum, finder, ICONS, posts), next}
+        {:ok, museum, finder, layout, next} -> {:ok, build_desktop(museum, finder, ICONS, posts, layout), next}
         {:error, reason, next} -> {:error, reason, next}
       end
   end
@@ -960,7 +960,10 @@ actor Site do
     n = length(elem(live, 0))
     METER <- :sample
     rt = push_runtime(elem(live, 1), elem(live, 0), rt_pending, rt_at, rt_seen)
-    case db_opts != nil and now() - desk_at >= DESK_REFRESH_S do
+    # /curate saved a new order (src/99_curate.blimp): "/" is rebuilt now,
+    # not at the next DESK_REFRESH_S
+    curated = CURATE <- :take
+    case db_opts != nil and (curated or now() - desk_at >= DESK_REFRESH_S) do
       false ->
         become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2)
         reply n
@@ -1018,7 +1021,7 @@ routes = blog_tag_routes(routes, posts)
 # src/99_guest_posts.blimp: guest posts and their comments
 # src/99_receipts.blimp: the receipt printer's POSTs
 # src/99_collage.blimp: /collage-maker, /collage/:token and the download
-WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes()), receipt_routes()), collage_routes())
+WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes()), curate_routes()), receipt_routes()), collage_routes())
 WEB_SECRET = web_session_secret()
 case RECEIPT_TOKEN do
   "" -> puts("receipts: RECEIPT_PRINTER_API_TOKEN is not set, so every POST /api/receipt_messages/* is 401")

@@ -1,0 +1,441 @@
+# /curate: the homepage's right-hand cards, rearranged. The cards, in the
+# column's order, and the "Things I made" cards' tiles come from
+# /curate/layout.json (src/99_curate.blimp), as the homepage shows them
+# now. A move is shown at once and written through the outbox
+# (static/admin/common.blimp) as POST /curate/layout, which answers the
+# cards again as "/" will now show them. A drag between or within cards is
+# static/curate/curate.js's, which sends :moved; the arrows and the card
+# menu on each tile do the same without a mouse, and the arrows on a
+# card's title move the card up or down the column.
+
+CUP_LAYOUT = "/curate/layout"
+
+def cup_tiles(g: Map) -> List do
+  t = lookup(g, "tiles")
+  case type_of(t) do
+    :list -> t
+    _ -> []
+  end
+end
+
+def cup_group(g: Map) -> String do
+  adp_text(lookup(g, "group"))
+end
+
+def cup_path(t: Map) -> String do
+  adp_text(lookup(t, "path"))
+end
+
+# Every card's tiles in page order, each told its card.
+def cup_flat(groups: List) -> List do
+  reduce(groups, [], fn(acc: List, g: Map) -> List do
+    adp_concat(acc, map(cup_tiles(g), fn(t: Map) -> Map do put(t, "group", cup_group(g)) end))
+  end)
+end
+
+# What the server is sent: {path, group} in page order.
+def cup_entries(groups: List) -> List do
+  map(cup_flat(groups), fn(t: Map) -> Map do %{path: cup_path(t), group: lookup(t, "group")} end)
+end
+
+def cup_find(groups: List, path: String) -> Any do
+  got = filter(cup_flat(groups), fn(t: Map) -> Bool do cup_path(t) == path end)
+  case got do
+    [] -> nil
+    [t | _] -> t
+  end
+end
+
+def cup_has_group(groups: List, group: String) -> Bool do
+  filter(groups, fn(g: Map) -> Bool do cup_group(g) == group end) != []
+end
+
+def cup_without(groups: List, path: String) -> List do
+  map(groups, fn(g: Map) -> Map do
+    put(g, "tiles", filter(cup_tiles(g), fn(t: Map) -> Bool do cup_path(t) != path end))
+  end)
+end
+
+def cup_has_tile(tiles: List, path: String) -> Bool do
+  filter(tiles, fn(t: Map) -> Bool do cup_path(t) == path end) != []
+end
+
+# tile before or after `target` in these tiles; at the end when target is
+# "" or not here (a stale drop)
+def cup_insert_at(tiles: List, tile: Map, target: String, after: Bool) -> List do
+  case target != "" and cup_has_tile(tiles, target) do
+    false -> adp_concat(tiles, [tile])
+    true ->
+      reduce(reverse(tiles), [], fn(acc: List, t: Map) -> List do
+        case cup_path(t) == target do
+          false -> [t | acc]
+          true ->
+            case after do
+              true -> [t | [tile | acc]]
+              false -> [tile | [t | acc]]
+            end
+        end
+      end)
+  end
+end
+
+def cup_place(groups: List, tile: Map, group: String, target: String, after: Bool) -> List do
+  map(groups, fn(g: Map) -> Map do
+    case cup_group(g) == group do
+      true -> put(g, "tiles", cup_insert_at(cup_tiles(g), tile, target, after))
+      false -> g
+    end
+  end)
+end
+
+# The tile `path` into the card `group`, before or after `target`.
+def cup_move(groups: List, path: String, group: String, target: String, after: Bool) -> List do
+  tile = cup_find(groups, path)
+  case tile == nil or path == target or not(cup_has_group(groups, group)) do
+    true -> groups
+    false -> cup_place(cup_without(groups, path), tile, group, target, after)
+  end
+end
+
+# the tile `path` and the one after it trade places
+def cup_swap_next(tiles: List, path: String) -> List do
+  case tiles do
+    [] -> []
+    [a | rest] ->
+      case cup_path(a) == path do
+        true ->
+          case rest do
+            [] -> [a]
+            [b | more] -> [b | [a | more]]
+          end
+        false -> [a | cup_swap_next(rest, path)]
+      end
+  end
+end
+
+# the tile `path` and the one before it trade places
+def cup_swap_prev(tiles: List, path: String) -> List do
+  case tiles do
+    [] -> []
+    [a | rest] ->
+      case rest do
+        [] -> [a]
+        [b | more] ->
+          case cup_path(b) == path do
+            true -> [b | [a | more]]
+            false -> [a | cup_swap_prev(rest, path)]
+          end
+      end
+  end
+end
+
+def cup_step(groups: List, i: Int, up: Bool) -> List do
+  flat = cup_flat(groups)
+  case i >= 0 and i < length(flat) do
+    false -> groups
+    true ->
+      tile = elem_at(flat, i)
+      path = cup_path(tile)
+      group = adp_text(lookup(tile, "group"))
+      map(groups, fn(g: Map) -> Map do
+        case cup_group(g) == group do
+          false -> g
+          true ->
+            case up do
+              true -> put(g, "tiles", cup_swap_prev(cup_tiles(g), path))
+              false -> put(g, "tiles", cup_swap_next(cup_tiles(g), path))
+            end
+        end
+      end)
+  end
+end
+
+# the group `group`'s tiles, from the cards' groups
+def cup_group_tiles(groups: List, group: String) -> List do
+  got = filter(groups, fn(g: Map) -> Bool do cup_group(g) == group end)
+  case got do
+    [] -> []
+    [g | _] -> cup_tiles(g)
+  end
+end
+
+# where the group's first tile falls counting every card's tiles before
+# it, which is what :up and :down are told: the cards before it, not every
+# other card (a reduce that kept adding past the match sent the arrows of
+# every card but the last into another card's tiles)
+def cup_base(groups: List, group: String) -> Int do
+  case groups do
+    [] -> 0
+    [g | rest] ->
+      case cup_group(g) == group do
+        true -> 0
+        false -> length(cup_tiles(g)) + cup_base(rest, group)
+      end
+  end
+end
+
+def cup_card_keys(cards: List) -> List do
+  map(cards, fn(c: Map) -> String do adp_text(lookup(c, "key")) end)
+end
+
+# the i-th and the next trade places
+def cup_swap_at(list: List, i: Int) -> List do
+  case list do
+    [] -> []
+    [a | rest] ->
+      case i == 0 do
+        true ->
+          case rest do
+            [] -> [a]
+            [b | more] -> [b | [a | more]]
+          end
+        false -> [a | cup_swap_at(rest, i - 1)]
+      end
+  end
+end
+
+def cup_names(groups: List) -> List do
+  map(groups, fn(g: Map) -> List do [cup_group(g), adp_text(lookup(g, "label"))] end)
+end
+
+def cup_write(outbox: List, seq: Int, groups: List, cards: List) -> List do
+  adp_concat(outbox, [adp_http(seq, "write", "POST", CUP_LAYOUT, %{tiles: cup_entries(groups), cards: cup_card_keys(cards)})])
+end
+
+# ---------------------------------------------------------------- view
+
+def cup_tile_rows(tiles: List, group: String, names: List, base: Int, j: Int, acc: List) -> List do
+  case tiles do
+    [] -> reverse(acc)
+    [t | rest] ->
+      path = cup_path(t)
+      row = el("li", %{class: "cu-tile", draggable: "true", "data-path": path, "data-group": group, key: path},
+        el("span", %{class: "cu-handle", "aria-hidden": "true"}, "☰"),
+        el("span", %{class: "cu-icon", inner_html: adp_text(lookup(t, "icon"))}),
+        el("span", %{class: "cu-text"},
+          el("span", %{class: "cu-name"}, adp_text(lookup(t, "name"))),
+          el("span", %{class: "cu-pitch"}, adp_text(lookup(t, "pitch")))),
+        el("span", %{class: "cu-tools"},
+          el("button", %{type: "button", class: "cu-tool", click: :up, with: base + j, disabled: j == 0, "aria-label": "Up one"}, "▲"),
+          el("button", %{type: "button", class: "cu-tool", click: :down, with: base + j, disabled: rest == [], "aria-label": "Down one"}, "▼"),
+          el("select", %{class: "cu-to", change: :regroup, value: concat(group, " ", path), "aria-label": "Card"},
+            map(names, fn(n: List) -> Any do
+              el("option", %{value: concat(head(n), " ", path), selected: head(n) == group}, last(n))
+            end))))
+      cup_tile_rows(rest, group, names, base, j + 1, [row | acc])
+  end
+end
+
+def cup_card_tools(i: Int, n: Int) -> Any do
+  el("span", %{class: "cu-tools cu-card-tools"},
+    el("button", %{type: "button", class: "cu-tool", click: :card_up, with: i, disabled: i == 0, "aria-label": "Card up one"}, "▲"),
+    el("button", %{type: "button", class: "cu-tool", click: :card_down, with: i, disabled: i == n - 1, "aria-label": "Card down one"}, "▼"))
+end
+
+# The column's cards in order, numbered as the homepage numbers them. A
+# hangar card lists its tiles; the others (Writing, the museum,
+# Photographs, Everything else) are only moved.
+def cup_cards(cards: List, groups: List, names: List, i: Int, acc: List) -> List do
+  case cards do
+    [] -> reverse(acc)
+    [c | rest] ->
+      key = adp_text(lookup(c, "key"))
+      label = adp_text(lookup(c, "label"))
+      number = concat(to_string(i + 1), " / ", to_string(i + length(rest) + 1))
+      card = case lookup(c, "group") == true do
+        true ->
+          tiles = cup_group_tiles(groups, key)
+          el("section", %{class: "cu-card", "data-group": key, key: key},
+            el("h2", %{class: "cu-label"}, el("span", %{class: "cu-number"}, number), label, el("span", %{}, to_string(length(tiles))), cup_card_tools(i, i + length(rest) + 1)),
+            el("ul", %{class: "cu-list", "data-group": key}, cup_tile_rows(tiles, key, names, cup_base(groups, key), 0, [])))
+        false ->
+          el("section", %{class: "cu-card cu-fixed", "data-card": key, key: key},
+            el("h2", %{class: "cu-label"}, el("span", %{class: "cu-number"}, number), label, el("span", %{}, ""), cup_card_tools(i, i + length(rest) + 1)),
+            el("p", %{class: "cu-fixed-note"}, "This card's contents are not arranged here; only its place in the column is."))
+      end
+      cup_cards(rest, groups, names, i + 1, [card | acc])
+  end
+end
+
+def cup_state_line(saved: Bool) -> String do
+  case saved do
+    true -> "The homepage shows your arrangement."
+    false -> "The homepage shows the file's order; nothing is saved yet."
+  end
+end
+
+actor Curator do
+  # :loading until the first fetch answers, :login on a 401, then :ready
+  state phase: Atom :: :loading
+  state groups: List :: []
+  state cards: List :: []
+  state saved: Bool :: false
+  state flash: String :: ""
+  state asking: Bool :: true
+  state outbox: List :: []
+  state seq: Int :: 0
+
+  on :loaded(status: Int, body: String) do
+    case status do
+      200 ->
+        data = adp_json(body)
+        become phase: :ready, groups: adp_get(data, "groups", []), cards: adp_get(data, "cards", []), saved: adp_get(data, "saved", false) == true, asking: false, flash: ""
+      401 -> become phase: :login, asking: false
+      _ -> become asking: false, flash: concat("Could not load the cards (", to_string(status), ")")
+    end
+    reply :ok
+  end
+
+  on :login(fields: Map) do
+    pw = adp_text(adp_get(fields, "password", ""))
+    become outbox: adp_concat(outbox, [adp_http(seq, "login", "POST", "/curate/login", %{password: pw})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :logout do
+    become outbox: adp_concat(outbox, [adp_http(seq, "logout", "POST", "/curate/logout", %{})]), seq: seq + 1
+    reply :ok
+  end
+
+  on :clear_flash do
+    become flash: ""
+    reply :ok
+  end
+
+  # a drag (curate.js): `path` dropped before or after `target` in the
+  # card `group`; target "" is the card's empty space, its end
+  on :moved(path: String, target: String, after: Int, group: String) do
+    fresh = cup_move(groups, path, group, target, after == 1)
+    case fresh == groups do
+      true -> :ok
+      false -> become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
+    end
+    reply :ok
+  end
+
+  # the arrows: `i` is the tile's place counting every card
+  on :up(i: Int) do
+    fresh = cup_step(groups, i, true)
+    become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
+    reply :ok
+  end
+
+  on :down(i: Int) do
+    fresh = cup_step(groups, i, false)
+    become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
+    reply :ok
+  end
+
+  # the arrows on a card's title: `i` is the card's place in the column
+  on :card_up(i: Int) do
+    case i > 0 and i < length(cards) do
+      false -> :ok
+      true ->
+        fresh = cup_swap_at(cards, i - 1)
+        become cards: fresh, outbox: cup_write(outbox, seq, groups, fresh), seq: seq + 1
+    end
+    reply :ok
+  end
+
+  on :card_down(i: Int) do
+    case i >= 0 and i < length(cards) - 1 do
+      false -> :ok
+      true ->
+        fresh = cup_swap_at(cards, i)
+        become cards: fresh, outbox: cup_write(outbox, seq, groups, fresh), seq: seq + 1
+    end
+    reply :ok
+  end
+
+  # the card menu: "<group> <path>", to the end of that card
+  on :regroup(v: String) do
+    sp = index_of(v, " ")
+    case sp > 0 do
+      false -> :ok
+      true ->
+        fresh = cup_move(groups, drop(v, sp + 1), take(v, sp), "", true)
+        case fresh == groups do
+          true -> :ok
+          false -> become groups: fresh, outbox: cup_write(outbox, seq, fresh, cards), seq: seq + 1
+        end
+    end
+    reply :ok
+  end
+
+  on :reset do
+    become outbox: adp_concat(outbox, [adp_confirm(seq, "Back to the file's order? Your arrangement is deleted.", CUP_LAYOUT)]), seq: seq + 1
+    reply :ok
+  end
+
+  on :done(n: Int, status: Int, body: String) do
+    entry = adp_find(outbox, n)
+    rest = adp_without(outbox, n)
+    case entry do
+      nil -> become outbox: rest
+      _ ->
+        case entry.kind do
+          "login" ->
+            case status do
+              200 -> become outbox: rest, asking: true, flash: ""
+              _ -> become outbox: rest, flash: adp_answer(status, body, "groups").flash
+            end
+          "logout" -> become outbox: rest, phase: :login, groups: []
+          "delete?" ->
+            case status do
+              1 -> become outbox: adp_concat(rest, [adp_http(seq, "write", "DELETE", entry.arg, nil)]), seq: seq + 1
+              _ -> become outbox: rest
+            end
+          _ ->
+            a = adp_answer(status, body, "groups")
+            fresh = case a.rows do
+              nil -> groups
+              r -> r
+            end
+            data = adp_json(body)
+            fresh_cards = case type_of(adp_get(data, "cards", nil)) do
+              :list -> adp_get(data, "cards", cards)
+              _ -> cards
+            end
+            phase_now = case status do
+              401 -> :login
+              _ -> phase
+            end
+            become outbox: rest, groups: fresh, cards: fresh_cards, saved: adp_get(data, "saved", saved) == true, flash: a.flash, phase: phase_now
+        end
+    end
+    reply :ok
+  end
+
+  on :view do
+    ask = case asking do
+      true -> [fetch("/curate/layout.json", :loaded)]
+      false -> []
+    end
+    page = case phase do
+      :loading -> adp_loading_view(flash)
+      :login -> el("div", %{}, adp_flash_view(flash), adp_login_view("Arrange the homepage"))
+      _ ->
+        reset = case saved do
+          true -> [el("button", %{type: "button", class: "cu-btn", click: :reset}, "Back to the file's order")]
+          false -> []
+        end
+        el("div", %{class: "cu-page"},
+          el("header", %{class: "cu-head"},
+            el("div", %{class: "cu-title"},
+              el("p", %{class: "cu-kicker"}, "bobbby.online"),
+              el("h1", %{}, "Arrange the homepage"),
+              el("p", %{class: "cu-lede"}, "The homepage's right-hand cards, in its order. The arrows on a card's title move the card; drag a page up or down its card, or into another one. The homepage follows at once.")),
+            el("div", %{class: "cu-actions"},
+              el("a", %{href: "/#work", class: "cu-btn"}, "See the homepage"),
+              reset,
+              el("button", %{type: "button", class: "cu-btn cu-quiet", click: :logout}, "Log out"))),
+          adp_flash_view(flash),
+          el("p", %{class: "cu-state"}, cup_state_line(saved)),
+          el("div", %{class: "cu-cards"}, cup_cards(cards, groups, cup_names(groups), 0, [])))
+    end
+    reply el("div", %{}, page, adp_outbox_view(outbox), ask)
+  end
+end
+
+curate = spawn Curator
+curate <- :view

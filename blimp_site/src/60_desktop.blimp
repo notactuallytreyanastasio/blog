@@ -218,22 +218,23 @@ end
 # (load_desktop_db) and from the data/*.tsv snapshot in tests and offline
 # (load_desktop); the pixel icons are always icons.txt, which is taken from
 # the Phoenix source, not the database.
+# layout is the order /curate saved (desk_arrange), nil for the file's.
 def load_desktop(dir: String, posts: List) -> Map do
   loaded = desk_load_museum(desk_read(concat(dir, "/museum.tsv")), desk_read(concat(dir, "/museum_repos.tsv")))
   finder = desk_load_finder(desk_read(concat(dir, "/finder_sections.tsv")), desk_read(concat(dir, "/finder_items.tsv")))
-  build_desktop(loaded, finder, desk_load_icons(desk_read(concat(dir, "/icons.txt"))), posts)
+  build_desktop(loaded, finder, desk_load_icons(desk_read(concat(dir, "/icons.txt"))), posts, nil)
 end
 
-def build_desktop(loaded: List, finder: List, icons: Map, posts: List) -> Map do
-  icon_text = concat(desk_read("data/hangar_icons.txt"), "\n", desk_read("data/icons.txt"))
-  own = desk_path_entries(desk_lines(icon_text), "", [], %{})
-  hangar = desk_load_hangar(desk_read("data/hangar.tsv"), own, %{})
+def build_desktop(loaded: List, finder: List, icons: Map, posts: List, layout: Any) -> Map do
+  own = desk_hangar_icons()
+  hangar = desk_arrange(desk_load_hangar(desk_read("data/hangar.tsv"), own, %{}), layout)
   museum = map(loaded, fn(p: Map) -> Map do
     put(put(p, "row_html", desk_ex_row(p, own)), "detail_html", desk_detail_inner(p, icons))
   end)
   groups = desk_hangar_groups(hangar)
   desk_check_notes(groups)
   %{
+    card_order: desk_card_order(desk_card_keys(groups), desk_layout_cards(layout)),
     museum: museum,
     categories: desk_categories(museum),
     finder_html: desk_finder_sections(finder),
@@ -458,11 +459,21 @@ def desk_path_entries(lines: List, slug: String, rows: List, acc: Map) -> Map do
   end
 end
 
+# A tile goes to a page of this site (a plain /path) or to another site
+# (an https:// address, for the "sites" card). Either is put in an href
+# escaped, so the only check on an address is its scheme.
+def desk_hangar_href_ok(href: String) -> Bool do
+  case starts_with(href, "/") do
+    true -> desk_url_safe(drop(href, 1))
+    false -> starts_with(href, "https://") and length(href) > 8
+  end
+end
+
 def desk_load_hangar(tsv: String, own: Map, museum_icons: Map) -> List do
   map(desk_lines(tsv), fn(l: String) -> Map do
     f = split(l, "\t")
-    case length(f) == 5 and starts_with(desk_field(f, 1), "/") and desk_url_safe(drop(desk_field(f, 1), 1)) do
-      false -> desk_die(concat("data/hangar.tsv: expected 5 fields and a plain /path in ", l))
+    case length(f) == 5 and desk_hangar_href_ok(desk_field(f, 1)) do
+      false -> desk_die(concat("data/hangar.tsv: expected 5 fields and a plain /path or https:// address in ", l))
       true ->
         slug = desk_field(f, 3)
         mine = lookup(own, slug)
@@ -487,6 +498,162 @@ def desk_hangar_groups(pages: List) -> List do
     tiles = join(map(mine, fn(p: Map) -> String do desk_hangar_tile(p.path, p.icon, p.name, p.pitch) end), "")
     %{group: g, label: desk_hangar_label(g), count: length(mine), tiles: tiles}
   end)
+end
+
+# ── /curate: the saved order over the file's ───────────────────────────
+#
+# homepage_layout's one row (src/99_curate.blimp) is JSON: {"tiles": [...],
+# "cards": [...]}, or (the first rows) just the tiles list. tiles is
+# {path, group}: the tiles in the order chosen, each in the card it was
+# put in. Each card shows its saved tiles in the saved order, then any
+# page the file has and the row does not, in the file's order. A saved
+# path the file no longer has, or a card the file does not have, is
+# dropped: the page can only show what the file vouches for. nil (nothing
+# saved, or no database) is the file's order.
+#
+# cards is the right-hand column's order, by key: "writing", "museum",
+# one key a hangar group, "photos", "more" (desk_card_keys). Keys the
+# page does not have are dropped, and the cards not named follow in the
+# page's own order, so a row written before a card existed still places
+# every card.
+
+def desk_layout_tiles(layout: Any) -> Any do
+  case type_of(layout) do
+    :list -> layout
+    :map -> lookup(layout, "tiles")
+    _ -> nil
+  end
+end
+
+def desk_layout_cards(layout: Any) -> Any do
+  case type_of(layout) do
+    :map -> lookup(layout, "cards")
+    _ -> nil
+  end
+end
+
+# The cards' keys in the page's own order: Writing, the museum, the hangar
+# groups in data/hangar.tsv's order, photographs, everything else.
+def desk_card_keys(groups: List) -> List do
+  list_append(list_append(["writing", "museum"], map(groups, fn(g: Map) -> String do g.group end)), ["photos", "more"])
+end
+
+def desk_card_order(keys: List, saved: Any) -> List do
+  case type_of(saved) do
+    :list ->
+      named = desk_uniq(filter(saved, fn(k: Any) -> Bool do type_of(k) == :string and desk_member(keys, k) end), [])
+      list_append(named, filter(keys, fn(k: String) -> Bool do not(desk_member(named, k)) end))
+    _ -> keys
+  end
+end
+
+def desk_hangar_icons() -> Map do
+  icon_text = concat(desk_read("data/hangar_icons.txt"), "\n", desk_read("data/icons.txt"))
+  desk_path_entries(desk_lines(icon_text), "", [], %{})
+end
+
+# data/hangar.tsv's pages with their icons, in the file's order.
+def desk_hangar_pages() -> List do
+  desk_load_hangar(desk_read("data/hangar.tsv"), desk_hangar_icons(), %{})
+end
+
+def desk_find_page(pages: List, path: String) -> Any do
+  case pages do
+    [] -> nil
+    [p | rest] ->
+      case p.path == path do
+        true -> p
+        false -> desk_find_page(rest, path)
+      end
+  end
+end
+
+# One saved entry as {path, group}, or nil when it is not that shape.
+def desk_layout_entry(e: Any) -> Any do
+  case type_of(e) do
+    :map ->
+      path = lookup(e, "path")
+      group = lookup(e, "group")
+      case type_of(path) == :string and type_of(group) == :string do
+        true -> %{path: path, group: group}
+        false -> nil
+      end
+    _ -> nil
+  end
+end
+
+# The row's entries the file vouches for; the first mention of a path wins.
+def desk_layout_entries(layout: List, pages: List, groups: List, seen: List, acc: List) -> List do
+  case layout do
+    [] -> reverse(acc)
+    [raw | rest] ->
+      e = desk_layout_entry(raw)
+      ok = case e do
+        nil -> false
+        _ -> desk_find_page(pages, e.path) != nil and desk_member(groups, e.group) and not(desk_member(seen, e.path))
+      end
+      case ok do
+        true -> desk_layout_entries(rest, pages, groups, [e.path | seen], [e | acc])
+        false -> desk_layout_entries(rest, pages, groups, seen, acc)
+      end
+  end
+end
+
+def desk_arrange(pages: List, layout: Any) -> List do
+  tiles = desk_layout_tiles(layout)
+  case type_of(tiles) do
+    :list ->
+      groups = desk_uniq(map(pages, fn(p: Map) -> String do p.group end), [])
+      entries = desk_layout_entries(tiles, pages, groups, [], [])
+      placed = map(entries, fn(e: Map) -> Map do put(desk_find_page(pages, e.path), "group", e.group) end)
+      taken = map(entries, fn(e: Map) -> String do e.path end)
+      left = filter(pages, fn(p: Map) -> Bool do not(desk_member(taken, p.path)) end)
+      reduce(groups, [], fn(acc: List, g: String) -> List do
+        list_append(acc, list_append(
+          filter(placed, fn(p: Map) -> Bool do p.group == g end),
+          filter(left, fn(p: Map) -> Bool do p.group == g end)))
+      end)
+    _ -> pages
+  end
+end
+
+# The saved order from Postgres: {:ok, layout | nil, db} or
+# {:error, reason, db}. The table is made by the first save
+# (src/99_curate.blimp), so a site never curated has none; pg_tables is
+# asked before the row, because selecting from a table that is not there
+# is an error, and that would keep the whole desktop from loading.
+DESK_LAYOUT_EXISTS_Q = ["select count(*) as n from pg_tables where schemaname = 'public' and tablename = 'homepage_layout'"]
+DESK_LAYOUT_Q = ["select layout from homepage_layout where id = 1"]
+
+def desk_layout_json(rows: List) -> Any do
+  case rows do
+    [] -> nil
+    [r | _] ->
+      got = json_decode(r.layout)
+      case elem(got, 0) do
+        :ok -> elem(got, 1)
+        _ -> nil
+      end
+  end
+end
+
+def desk_layout_db(db: Map) -> Tuple do
+  case pg_query(db, head(DESK_LAYOUT_EXISTS_Q), tail(DESK_LAYOUT_EXISTS_Q)) do
+    {:error, reason, next} -> {:error, reason, next}
+    {:ok, rows, next} ->
+      there = case rows do
+        [] -> false
+        [r | _] -> r.n > 0
+      end
+      case there do
+        false -> {:ok, nil, next}
+        true ->
+          case pg_query(next, head(DESK_LAYOUT_Q), tail(DESK_LAYOUT_Q)) do
+            {:error, reason, db2} -> {:error, reason, db2}
+            {:ok, found, db2} -> {:ok, desk_layout_json(found), db2}
+          end
+      end
+  end
 end
 
 # The Blimp commit the server binary was built from: deploy.sh writes it to
@@ -564,7 +731,8 @@ end
 #
 # The same rows data/export.sh snapshots, as the same maps the snapshot
 # loader makes, so build_desktop cannot tell them apart.
-# {:ok, museum, finder, db} or {:error, reason, db}. A row the page could
+# {:ok, museum, finder, layout, db} or {:error, reason, db}; layout is
+# /curate's saved order or nil (desk_layout_db). A row the page could
 # not show honestly (a slug that needs URL escaping, a Finder action with
 # no script-free equivalent) is an error for the whole load, never a
 # skipped row: the caller keeps the desktop it has and says why.
@@ -613,7 +781,10 @@ def load_desk_db(db: Map) -> Tuple do
           finder = map(elem_at(sets, 2), fn(s: Map) -> Map do
             %{name: s.name, label: s.label, items: filter(items, fn(i: Map) -> Bool do i.section == s.name end)}
           end)
-          {:ok, museum, finder, next}
+          case desk_layout_db(next) do
+            {:ok, layout, db2} -> {:ok, museum, finder, layout, db2}
+            {:error, reason, db2} -> {:error, reason, db2}
+          end
         {[p | _], _} -> {:error, concat("museum project ", p.slug, " has a slug or category (", p.category, ") that would need URL escaping"), next}
         {_, [i | _]} -> {:error, concat("finder item ", i.name, " has action ", i.action, ", which has no script-free equivalent"), next}
       end
@@ -853,11 +1024,11 @@ def desk_detail(st: Map, desk: Map) -> String do
   end
 end
 
-def desk_museum(st: Map, desk: Map) -> String do
+def desk_museum(st: Map, desk: Map, n: Int) -> String do
   rows = desk_museum_rows(desk.museum, st, [])
   join([
     "<section class=\"card archive\" id=\"museum\" aria-labelledby=\"museum-h\">",
-    desk_card_kicker("Older projects", 2, desk_card_total(desk)),
+    desk_card_kicker("Older projects", n, desk_card_total(desk)),
     "<header class=\"sec-head\">", desk_gloss_sec("sec-museum", "<h2 id=\"museum-h\">The museum</h2>"), "<span class=\"sec-count\">", plural(length(rows), "exhibit", "exhibits"), "</span></header>",
     "<p class=\"sec-note\">Older projects: hardware, maps, music, machine learning, social experiments. Pick one to read about it.</p>",
     "<nav class=\"tabs\" aria-label=\"Museum categories\">",
@@ -967,8 +1138,9 @@ end
 
 # ── The cards: the right-hand column ────────────────────────────────────
 #
-# Writing, the museum, the four groups of things to use, photographs and
-# everything else, in that order, one card each. On a wide screen the page
+# Writing, the museum, the groups of things to use, photographs and
+# everything else, one card each, in desk.card_order (the page's own order,
+# or the one /curate saved: desk_card_order). On a wide screen the page
 # scrolls through them with scroll-snap (desktop.css) while the intro and
 # the scope stay put on the left; on a phone they follow the scope. Each
 # says where it is in the run, so the position needs no script.
@@ -981,10 +1153,10 @@ def desk_card_kicker(label: String, n: Int, total: Int) -> String do
   concat("<p class=\"plate-label card-kicker\">", label, " <span>", desk_pad(n, 2), " / ", desk_pad(total, 2), "</span></p>")
 end
 
-def desk_log(desk: Map) -> String do
+def desk_log(desk: Map, n: Int) -> String do
   join([
     "<section class=\"card log\" id=\"writing\" aria-labelledby=\"log-h\">",
-    desk_card_kicker("The newest posts", 1, desk_card_total(desk)),
+    desk_card_kicker("The newest posts", n, desk_card_total(desk)),
     "<header class=\"sec-head\">", desk_gloss_sec("sec-writing", "<h2 id=\"log-h\">Writing</h2>"), "<a class=\"sec-count\" href=\"/blog\">all ", to_string(desk.post_count), " posts &#x2192;</a></header>",
     "<ol class=\"log-list\">", desk.blog_html, "</ol>",
     journal_desk_line(),
@@ -992,32 +1164,72 @@ def desk_log(desk: Map) -> String do
   ], "")
 end
 
-# The first group's card is #work, the anchor "Things I made" has always
-# gone to.
-def desk_hangar_cards(groups: List, n: Int, total: Int, acc: List) -> List do
+# The group card that comes first in the column is #work, the anchor
+# "Things I made" has always gone to.
+def desk_hangar_card(g: Map, n: Int, total: Int, first: Bool) -> String do
+  id = case first do
+    true -> "work"
+    false -> concat("work-", g.group)
+  end
+  join([
+    "<section class=\"card manifest\" id=\"", id, "\" aria-labelledby=\"", id, "-h\">",
+    desk_card_kicker("Things I made that you can use", n, total),
+    "<header class=\"sec-head\">", desk_gloss_sec(concat("sec-", g.group), concat("<h2 id=\"", id, "-h\">", escape_html(g.label), "</h2>")), "<span class=\"sec-count\">", desk_pad(g.count, 2), "</span></header>",
+    "<ul class=\"mf-list\">", g.tiles, "</ul>",
+    "</section>"
+  ], "")
+end
+
+def desk_find_group(groups: List, key: String) -> Any do
   case groups do
-    [] -> reverse(acc)
+    [] -> nil
     [g | rest] ->
-      id = case n == 3 do
-        true -> "work"
-        false -> concat("work-", g.group)
+      case g.group == key do
+        true -> g
+        false -> desk_find_group(rest, key)
       end
-      card = join([
-        "<section class=\"card manifest\" id=\"", id, "\" aria-labelledby=\"", id, "-h\">",
-        desk_card_kicker("Things I made that you can use", n, total),
-        "<header class=\"sec-head\">", desk_gloss_sec(concat("sec-", g.group), concat("<h2 id=\"", id, "-h\">", escape_html(g.label), "</h2>")), "<span class=\"sec-count\">", desk_pad(g.count, 2), "</span></header>",
-        "<ul class=\"mf-list\">", g.tiles, "</ul>",
-        "</section>"
-      ], "")
-      desk_hangar_cards(rest, n + 1, total, [card | acc])
   end
 end
 
-def desk_photos(st: Map, desk: Map) -> String do
+# The first hangar group in the column's order.
+def desk_work_group(order: List, groups: List) -> String do
+  case order do
+    [] -> ""
+    [k | rest] ->
+      case desk_find_group(groups, k) do
+        nil -> desk_work_group(rest, groups)
+        _ -> k
+      end
+  end
+end
+
+# The card `key` as the n-th of the column.
+def desk_card(key: String, n: Int, st: Map, desk: Map, work: String) -> String do
+  case key do
+    "writing" -> desk_log(desk, n)
+    "museum" -> desk_museum(st, desk, n)
+    "photos" -> desk_photos(st, desk, n)
+    "more" -> desk_more(st, desk, n)
+    _ ->
+      case desk_find_group(desk.hangar_groups, key) do
+        nil -> ""
+        g -> desk_hangar_card(g, n, desk_card_total(desk), key == work)
+      end
+  end
+end
+
+def desk_cards(order: List, n: Int, st: Map, desk: Map, work: String, acc: List) -> List do
+  case order do
+    [] -> reverse(acc)
+    [k | rest] -> desk_cards(rest, n + 1, st, desk, work, [desk_card(k, n, st, desk, work) | acc])
+  end
+end
+
+def desk_photos(st: Map, desk: Map, n: Int) -> String do
   total = desk_card_total(desk)
   join([
     "<section class=\"card photos\" id=\"photographs\" aria-labelledby=\"photos-h\">",
-    desk_card_kicker("From the Leica", total - 1, total),
+    desk_card_kicker("From the Leica", n, total),
     "<header class=\"sec-head\">", desk_gloss_sec("sec-photos", "<h2 id=\"photos-h\">Photographs</h2>"), "<span class=\"sec-count\">110 MB</span></header>",
     "<p class=\"sec-note\">My favourite shots from the Leica, in one very large image. It is 110 megabytes, so the link asks before it loads.</p>",
     "<p class=\"ex-actions\"><a class=\"btn primary\" href=\"", desk_href(put(st, "leica", "1")), "\">See the photographs &#x25B6;</a><a class=\"btn\" href=\"/gallery\">The gallery</a></p>",
@@ -1025,11 +1237,11 @@ def desk_photos(st: Map, desk: Map) -> String do
   ], "")
 end
 
-def desk_more(st: Map, desk: Map) -> String do
+def desk_more(st: Map, desk: Map, n: Int) -> String do
   total = desk_card_total(desk)
   join([
     "<section class=\"card more\" id=\"more\" aria-labelledby=\"more-h\">",
-    desk_card_kicker("The old desktop&#8217;s Finder", total, total),
+    desk_card_kicker("The old desktop&#8217;s Finder", n, total),
     "<header class=\"sec-head\">", desk_gloss_sec("sec-more", "<h2 id=\"more-h\">Everything else</h2>"), "<span class=\"sec-count\">", to_string(desk.item_count), " items</span></header>",
     "<div class=\"more-rows\">", desk.finder_html, "</div>",
     desk_foot(st),
@@ -1041,7 +1253,7 @@ def desk_foot(st: Map) -> String do
   join([
     "<footer class=\"foot\">",
     "<p><strong>Phoenix</strong> served this site until September 2026. It has been retired, not scrapped: it still takes visitors at <a href=\"https://old.bobbby.online\">old.bobbby.online</a>.</p>",
-    "<p class=\"foot-links\"><a href=\"/very_direct_message\">Print on my desk</a><a href=\"", desk_href(put(st, "leica", "1")), "\">My favourite Leica shots (110 MB)</a><a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp on GitHub</a><a href=\"/\">Replay the boot screen</a></p>",
+    "<p class=\"foot-links\"><a href=\"/very_direct_message\">Print on my desk</a><a href=\"", desk_href(put(st, "leica", "1")), "\">My favourite Leica shots (110 MB)</a><a href=\"https://github.com/notactuallytreyanastasio/blimp\">Blimp on GitHub</a><a href=\"/curate\">Arrange the cards above</a><a href=\"/\">Replay the boot screen</a></p>",
     "</footer>"
   ], "")
 end
@@ -1067,13 +1279,11 @@ def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, pr
     "" -> ""
     _ -> desk_leica_dialog(desk_href(put(st, "leica", "")))
   end
-  museum = desk_museum(st, desk)
-  more = desk_more(st, desk)
+  cards = join(desk_cards(desk.card_order, 1, st, desk, desk_work_group(desk.card_order, desk.hangar_groups), []), "")
   render = case prebuilt do
     true -> "prebuilt at boot"
     false -> concat(to_string(now_ms() - t0), " ms")
   end
-  total = desk_card_total(desk)
   body = join([
     desk.art_html,
     HOME_ART_TAG,
@@ -1084,11 +1294,7 @@ def desktop_page_with(query: String, desk: Map, epoch_s: Int, counts: String, pr
     desk_scope(desk_live_html(counts, render)),
     "</div>",
     "<main class=\"cards\">",
-    desk_log(desk),
-    museum,
-    join(desk_hangar_cards(desk.hangar_groups, 3, total, []), ""),
-    desk_photos(st, desk),
-    more,
+    cards,
     "</main>",
     "</div>",
     warning,

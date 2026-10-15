@@ -1,0 +1,363 @@
+# /curate: the homepage's "Things I made" cards, rearranged from the site.
+#
+# The cards and their tiles are data/hangar.tsv's (src/60_desktop.blimp:
+# the manifest), which a deploy ships and the tests read, so the order is
+# not written back into it: it is one row, homepage_layout id 1, JSON
+# {"tiles": [{path, group}, ...], "cards": [key, ...]}: the tiles in the
+# order chosen, each in its card, and the right-hand column's cards by key
+# (desk_card_keys), which desk_arrange and desk_card_order lay over the
+# file. The page is a Blimp program in the browser
+# (static/curate/curate.blimp) and these JSON routes:
+#
+#   GET    /curate               the page (and the session's CSRF token)
+#   GET    /curate/layout.json   the cards as the homepage shows them now
+#   POST   /curate/layout        {tiles: [...], cards: [...]} -> the row
+#   DELETE /curate/layout        the row gone: the file's order again
+#   POST   /curate/login, /curate/logout
+#
+# Every answer is the cards again, as "/" will now show them ({"groups":
+# [...], "cards": [...], "saved": true}); a refused save says why
+# ({"error": ..., ...}, 400).
+#
+# The password is CURATE_PASSWORD. A login is kept in the signed session
+# as a MAC of the password, as /admin's is (src/99_admin.blimp), for
+# CUR_LOGIN_S or until the password changes; unset, nobody can log in.
+#
+# "/" is prebuilt and refreshed every DESK_REFRESH_S; a save also sets a
+# flag (the Curate actor) the Site actor reads every tick, so the homepage
+# is rebuilt within a tick of the save, not within a minute.
+
+CUR_PASSWORD = case getenv("CURATE_PASSWORD") do
+  nil -> ""
+  p -> p
+end
+CUR_LOGIN_S = 43200
+
+# The file's pages, read once: the file does not change while the site runs.
+CUR_PAGES = desk_hangar_pages()
+CUR_GROUPS = desk_uniq(map(CUR_PAGES, fn(p: Map) -> String do p.group end), [])
+# the column's cards, in the page's own order
+CUR_CARDS = desk_card_keys(map(CUR_GROUPS, fn(g: String) -> Map do %{group: g} end))
+
+def cur_card_label(key: String) -> String do
+  case key do
+    "writing" -> "Writing"
+    "museum" -> "The museum"
+    "photos" -> "Photographs"
+    "more" -> "Everything else"
+    _ -> desk_hangar_label(key)
+  end
+end
+
+actor Curate do
+  state dirty: Bool :: false
+
+  on :changed do
+    become dirty: true
+    reply :ok
+  end
+
+  # true once after each change
+  on :take do
+    was = dirty
+    become dirty: false
+    reply was
+  end
+end
+
+CURATE = spawn Curate
+
+# ---------------------------------------------------------------- login
+
+def cur_login_mac(secret: String, password: String, at: Int) -> String do
+  hmac_sha256(secret, concat("blimp-curate.", to_string(at), ".", password))
+end
+
+def cur_session_ok(conn: Map, password: String, t: Int) -> Bool do
+  at = web_get_session(conn, "curate_at")
+  mac = web_get_session(conn, "curate")
+  case password == "" or type_of(at) != :integer or type_of(mac) != :string do
+    true -> false
+    false -> t - at < CUR_LOGIN_S and web_secure_eq(mac, cur_login_mac(conn.secret, password, at), conn.secret)
+  end
+end
+
+def cur_authed(conn: Map) -> Bool do
+  cur_session_ok(conn, CUR_PASSWORD, now())
+end
+
+def cur_require_login(conn: Map) -> Map do
+  case cur_authed(conn) do
+    true -> conn
+    false -> web_halt(web_json(conn, 401, %{error: "Log in first"}))
+  end
+end
+
+def cur_login(conn: Map) -> Map do
+  sent = adm_param(conn, "password")
+  ok = CUR_PASSWORD != "" and sent != nil and web_secure_eq(sent, CUR_PASSWORD, conn.secret)
+  case ok do
+    false ->
+      puts(concat("curate: a wrong password from ", web_header(conn, "x-real-ip")))
+      web_json(conn, 403, %{error: "Wrong password"})
+    true ->
+      at = now()
+      c = web_put_session(web_put_session(conn, "curate_at", at), "curate", cur_login_mac(conn.secret, CUR_PASSWORD, at))
+      web_json(c, 200, %{ok: true})
+  end
+end
+
+def cur_logout(conn: Map) -> Map do
+  c = web_put_session(web_put_session(conn, "curate_at", 0), "curate", "")
+  web_json(c, 200, %{ok: true})
+end
+
+# ---------------------------------------------------------------- the row
+
+CUR_CREATE_Q = "create table homepage_layout (id integer primary key, layout text not null, updated_at timestamptz not null default now())"
+CUR_UPSERT_Q = "insert into homepage_layout (id, layout, updated_at) values (1, $1, now()) on conflict (id) do update set layout = excluded.layout, updated_at = now()"
+CUR_DELETE_Q = "delete from homepage_layout where id = 1"
+
+def cur_table_exists() -> Bool do
+  case DB <- :query(head(DESK_LAYOUT_EXISTS_Q), []) do
+    {:ok, rows} ->
+      case rows do
+        [] -> false
+        [r | _] -> r.n > 0
+      end
+    _ -> false
+  end
+end
+
+# Made on the first save, and only then: `create table if not exists` on
+# a table that is there answers a notice, which the Postgres client does
+# not read outside the login.
+def cur_ensure_table() -> Any do
+  case cur_table_exists() do
+    true -> {:ok, []}
+    false -> DB <- :query(CUR_CREATE_Q, [])
+  end
+end
+
+# The saved order, or nil.
+def cur_saved() -> Any do
+  case cur_table_exists() do
+    false -> nil
+    true ->
+      case DB <- :query(head(DESK_LAYOUT_Q), []) do
+        {:ok, rows} -> desk_layout_json(rows)
+        _ -> nil
+      end
+  end
+end
+
+# ---------------------------------------------------------------- checking
+
+def cur_groups_of(pages: List) -> List do
+  desk_uniq(map(pages, fn(p: Map) -> String do p.group end), [])
+end
+
+def cur_entry_ok(t: Any, groups: List) -> Bool do
+  e = desk_layout_entry(t)
+  case e do
+    nil -> false
+    _ -> desk_find_page(CUR_PAGES, e.path) != nil and desk_member(groups, e.group)
+  end
+end
+
+def cur_entries(tiles: List) -> List do
+  map(tiles, fn(t: Map) -> Map do %{path: lookup(t, "path"), group: lookup(t, "group")} end)
+end
+
+# "" when the tiles can be saved, else why not. Every card must keep a
+# page: a card with none is not drawn, and desk_check_notes then stops
+# the desktop build over its unused note (data/explainers.tsv's
+# sec-<group>). A path listed twice would be shown once and saved twice.
+def cur_check(tiles: Any) -> String do
+  case type_of(tiles) do
+    :list ->
+      groups = cur_groups_of(CUR_PAGES)
+      bad = filter(tiles, fn(t: Any) -> Bool do not(cur_entry_ok(t, groups)) end)
+      case bad do
+        [t | _] -> concat("Not a page and card of this site: ", take(json_encode(t), 120))
+        [] ->
+          paths = map(tiles, fn(t: Map) -> String do lookup(t, "path") end)
+          case length(desk_uniq(paths, [])) == length(paths) do
+            false -> "A page is listed twice"
+            true ->
+              arranged = desk_arrange(CUR_PAGES, tiles)
+              empty = filter(groups, fn(g: String) -> Bool do filter(arranged, fn(p: Map) -> Bool do p.group == g end) == [] end)
+              case empty do
+                [] -> ""
+                [g | _] -> concat("Every card needs at least one page; ", desk_hangar_label(g), " would have none")
+              end
+          end
+      end
+    _ -> "tiles must be a list of {path, group}"
+  end
+end
+
+# "" when the cards can be saved: nil (no order chosen) or a list of the
+# column's keys, none twice. A key the column does not have is refused
+# rather than dropped, so a typo in a hand-made request is heard.
+def cur_check_cards(cards: Any) -> String do
+  case type_of(cards) do
+    :nil -> ""
+    :list ->
+      bad = filter(cards, fn(k: Any) -> Bool do type_of(k) != :string or not(desk_member(CUR_CARDS, k)) end)
+      case bad do
+        [k | _] -> concat("Not a card of this site: ", take(json_encode(k), 120))
+        [] ->
+          case length(desk_uniq(cards, [])) == length(cards) do
+            false -> "A card is listed twice"
+            true -> ""
+          end
+      end
+    _ -> "cards must be a list of card names"
+  end
+end
+
+def cur_cards_or_none(cards: Any) -> List do
+  case type_of(cards) do
+    :list -> cards
+    _ -> []
+  end
+end
+
+# ---------------------------------------------------------------- answers
+
+# The cards as "/" shows them: label, and each tile with its icon's SVG.
+def cur_groups(pages: List) -> List do
+  map(cur_groups_of(pages), fn(g: String) -> Map do
+    mine = filter(pages, fn(p: Map) -> Bool do p.group == g end)
+    %{
+      group: g,
+      label: desk_hangar_label(g),
+      tiles: map(mine, fn(p: Map) -> Map do
+        %{path: p.path, name: p.name, pitch: p.pitch, icon: p.icon, group: p.group}
+      end)
+    }
+  end)
+end
+
+# The column's cards in the order "/" shows them: key, label, and whether
+# it is a hangar card (one with tiles).
+def cur_cards(saved: Any) -> List do
+  map(desk_card_order(CUR_CARDS, desk_layout_cards(saved)), fn(k: String) -> Map do
+    %{key: k, label: cur_card_label(k), group: desk_member(CUR_GROUPS, k)}
+  end)
+end
+
+def cur_state() -> Map do
+  saved = cur_saved()
+  %{groups: cur_groups(desk_arrange(CUR_PAGES, saved)), cards: cur_cards(saved), saved: saved != nil}
+end
+
+def cur_ok(conn: Map) -> Map do
+  web_json(conn, 200, cur_state())
+end
+
+def cur_err(conn: Map, status: Int, message: String) -> Map do
+  web_json(conn, status, put(cur_state(), "error", message))
+end
+
+def cur_db_err(conn: Map, reason: String) -> Map do
+  puts(concat("curate: a write failed: ", reason))
+  cur_err(conn, 500, concat("The database refused it: ", reason))
+end
+
+def cur_layout(conn: Map) -> Map do
+  cur_ok(conn)
+end
+
+def cur_layout_save(conn: Map) -> Map do
+  tiles = lookup(conn.body_params, "tiles")
+  cards = lookup(conn.body_params, "cards")
+  why = case cur_check(tiles) do
+    "" -> cur_check_cards(cards)
+    bad -> bad
+  end
+  case why do
+    "" ->
+      case cur_ensure_table() do
+        {:error, reason} -> cur_db_err(conn, reason)
+        _ ->
+          row = json_encode(%{tiles: cur_entries(tiles), cards: cur_cards_or_none(cards)})
+          case DB <- :query(CUR_UPSERT_Q, [row]) do
+            {:error, reason} -> cur_db_err(conn, reason)
+            _ ->
+              CURATE <- :changed
+              cur_ok(conn)
+          end
+      end
+    _ -> cur_err(conn, 400, why)
+  end
+end
+
+def cur_layout_reset(conn: Map) -> Map do
+  case cur_table_exists() do
+    false -> cur_ok(conn)
+    true ->
+      case DB <- :query(CUR_DELETE_Q, []) do
+        {:error, reason} -> cur_db_err(conn, reason)
+        _ ->
+          CURATE <- :changed
+          cur_ok(conn)
+      end
+  end
+end
+
+# ---------------------------------------------------------------- the page
+
+CUR_SCRIPTS = list_append(ADM_SCRIPTS, ["/curate/curate.js"])
+
+def cur_page(conn: Map) -> Map do
+  c = web_ensure_csrf(conn)
+  body = join([
+    "<div id=\"blimp-app\" data-program=\"/curate.blimp\" data-actor=\"curate\" data-csrf=\"", escape_html(c.csrf_token), "\"></div>\n",
+    "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
+    "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter; that needs JavaScript to start.</p></noscript>\n",
+    script_tags(CUR_SCRIPTS)
+  ], "")
+  html = page_layout_html("Arrange the homepage", "The homepage's cards, in the order their owner chose.", "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css", "/assets/curate.css"], body, "")
+  web_send(put(c, :cache, "no-store"), 200, "text/html; charset=utf-8", html)
+end
+
+CUR_PROGRAM = adm_asset("_build/curate.blimp")
+CUR_JS = adm_asset("static/curate/curate.js")
+CUR_CSS = adm_asset("assets/curate.css")
+
+def cur_program(conn: Map) -> Map do
+  adm_file(conn, "text/plain; charset=utf-8", CUR_PROGRAM)
+end
+
+def cur_js(conn: Map) -> Map do
+  adm_file(conn, "text/javascript; charset=utf-8", CUR_JS)
+end
+
+def cur_css(conn: Map) -> Map do
+  adm_file(conn, "text/css; charset=utf-8", CUR_CSS)
+end
+
+# ---------------------------------------------------------------- routes
+
+CUR_PIPE = [web_fetch_session, web_protect_from_forgery, cur_require_login]
+
+def curate_routes() -> List do
+  [
+    web_route("GET", "/curate", WEB_BROWSER, cur_page),
+    web_route("GET", "/curate.blimp", [], cur_program),
+    web_route("GET", "/curate/curate.js", [], cur_js),
+    web_route("GET", "/assets/curate.css", [], cur_css),
+    web_route("POST", "/curate/login", WEB_BROWSER, cur_login),
+    web_route("POST", "/curate/logout", WEB_BROWSER, cur_logout),
+    web_route("GET", "/curate/layout.json", CUR_PIPE, cur_layout),
+    web_route("POST", "/curate/layout", CUR_PIPE, cur_layout_save),
+    web_route("DELETE", "/curate/layout", CUR_PIPE, cur_layout_reset)
+  ]
+end
+
+case CUR_PASSWORD do
+  "" -> puts("curate: CURATE_PASSWORD is not set, so nobody can log in to /curate")
+  _ -> :ok
+end

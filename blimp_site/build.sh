@@ -170,6 +170,8 @@ with_temper _build/cameras.blimp src/40_http.blimp static/cameras/cameras.blimp
 # then each page's program.
 with_temper _build/admin-museum.blimp static/admin/common.blimp static/admin/museum.blimp
 with_temper _build/admin-finder.blimp static/admin/common.blimp static/admin/finder.blimp
+# /curate: the homepage's cards rearranged; the same outbox and login as /admin
+with_temper _build/curate.blimp static/admin/common.blimp static/curate/curate.blimp
 # /collage-maker: the steps and the template are Blimp; the pixels are the
 # page's canvas (static/collage/collage.js).
 with_temper _build/collage.blimp static/collage/collage.blimp
