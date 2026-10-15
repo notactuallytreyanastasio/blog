@@ -13,9 +13,16 @@
 # chapter after it took them out. The cache also turned out to be keyed on
 # the thinking setting, below.)
 #
-# Thinking is off. With reasoning_effort "low" deepseek-flash twice spent
-# all of max_tokens (600) reasoning and answered nothing; with thinking
-# disabled it answered in the posts' voice in 3.4s.
+# The model is reached through AIM_BASE_URL, AIM_API_KEY and AIM_MODEL, in
+# OpenAI's chat.completions dialect. It ran on DeepSeek (deepseek-flash,
+# thinking off: with reasoning_effort "low" deepseek-flash twice spent all
+# of max_tokens (600) reasoning and answered nothing). DeepSeek went down
+# on 2026-10-14 and it moved to Fireworks' GLM 5.3 Flash (1M context),
+# which is a thinking-only model: `thinking: {type: "disabled"}` and
+# reasoning_effort "none" are refused with a 400, so the request says
+# reasoning_effort "low". Checked against Fireworks: a search round and
+# its answer came back in 0.6s and 1.0s with 0 reasoning tokens, and the
+# prefix cache reports as usage.prompt_tokens_details.cached_tokens.
 #
 # The archive is personal data and the blog repo is public: build.sh
 # copies it from outside the repo (AIM_ARCHIVE, default
@@ -52,7 +59,7 @@
 # People who have signed on are on each other's Buddy Lists and IM each
 # other through AIM, which keeps the last AIM_DM_KEEP lines of each pair's
 # conversation and drops them when either signs off. Nothing goes to
-# DeepSeek, nothing is saved.
+# the model, nothing is saved.
 #
 # The Party Line is one chat room everyone signed on is in, the way AOL's
 # rooms were: it says who entered and left, keeps its last AIM_PARTY_KEEP
@@ -75,7 +82,7 @@
 # program never sees them.
 #
 # Spending is capped twice: aim_max_questions per page, and AIM_DAILY_LIMIT
-# (default 600) requests to DeepSeek a day, tool rounds included, for
+# (default 600) requests to the model a day, tool rounds included, for
 # everyone together.
 
 AIM_ARCHIVE_FILE = "_build/aim-posts.tsv"
@@ -190,10 +197,10 @@ def aim_run_tool(chunks: List, call: Any) -> Map do
   %{role: "tool", tool_call_id: lookup(call, :id), content: json_encode(result)}
 end
 
-# ── talking to DeepSeek ────────────────────────────────────────────────
+# ── talking to the model ────────────────────────────────────────────────
 
 def aim_body(model: String, rest: List) -> String do
-  json_encode(%{model: model, thinking: %{type: "disabled"}, temperature: 0.9, max_tokens: AIM_MAX_TOKENS,
+  json_encode(%{model: model, reasoning_effort: "low", temperature: 0.9, max_tokens: AIM_MAX_TOKENS,
     tools: AIM_TOOLS, tool_choice: "auto", messages: [%{role: "system", content: aim_system_prompt} | rest]})
 end
 
@@ -204,12 +211,22 @@ def aim_rest(name: String, today: String, history: List) -> List do
   [%{role: "system", content: aim_session_prompt(name, today)} | turns]
 end
 
-# {cache hit tokens, cache miss tokens} of an answer, or {0, 0}
+# {cache hit tokens, cache miss tokens} of an answer, or {0, 0}. Fireworks
+# (and OpenAI) say usage.prompt_tokens_details.cached_tokens of
+# prompt_tokens; DeepSeek said prompt_cache_hit_tokens and
+# prompt_cache_miss_tokens.
 def aim_usage(body: String) -> Tuple do
   u = lookup(zg_decode_map(body), :usage)
   case type_of(u) == :map do
     false -> {0, 0}
-    true -> {aim_int(lookup(u, :prompt_cache_hit_tokens)), aim_int(lookup(u, :prompt_cache_miss_tokens))}
+    true ->
+      d = lookup(u, :prompt_tokens_details)
+      case type_of(d) == :map do
+        true ->
+          hit = aim_int(lookup(d, :cached_tokens))
+          {hit, aim_int(lookup(u, :prompt_tokens)) - hit}
+        false -> {aim_int(lookup(u, :prompt_cache_hit_tokens)), aim_int(lookup(u, :prompt_cache_miss_tokens))}
+      end
   end
 end
 
@@ -220,29 +237,28 @@ def aim_int(v: Any) -> Int do
   end
 end
 
-# What one answer means for a question in flight, as zg_classify, with
-# DeepSeek's name on the errors.
+# What one answer means for a question in flight, as zg_classify.
 def aim_classify(result: Any) -> Tuple do
   case result do
     {:ok, 200, body} ->
       msg = zg_message(body)
       case msg do
-        nil -> {:error, "DeepSeek sent something unexpected"}
+        nil -> {:error, "the model sent something unexpected"}
         _ ->
           calls = zg_list(lookup(msg, :tool_calls))
           case calls do
             [] ->
               content = zg_str(lookup(msg, :content))
               case trim(content) do
-                "" -> {:error, "DeepSeek answered with nothing"}
+                "" -> {:error, "the model answered with nothing"}
                 _ -> {:final, content}
               end
             _ -> {:tools, msg}
           end
       end
-    {:ok, status, body} -> {:error, concat("DeepSeek said ", to_string(status), ": ", slice(body, 0, 200))}
-    {:error, why} -> {:error, concat("the request to DeepSeek failed: ", to_string(why))}
-    _ -> {:error, "the request to DeepSeek failed"}
+    {:ok, status, body} -> {:error, concat("the model said ", to_string(status), ": ", slice(body, 0, 200))}
+    {:error, why} -> {:error, concat("the request to the model failed: ", to_string(why))}
+    _ -> {:error, "the request to the model failed"}
   end
 end
 
@@ -931,8 +947,8 @@ end
 
 actor AimChat do
   state key: String :: ""
-  state base: String :: "https://api.deepseek.com"
-  state model: String :: "deepseek-flash"
+  state base: String :: "https://api.fireworks.ai/inference/v1"
+  state model: String :: "accounts/fireworks/models/glm-5p3-flash"
   state daily_limit: Int :: 600
   state rows: List :: []
   state chunks: List :: []

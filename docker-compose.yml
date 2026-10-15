@@ -40,8 +40,8 @@ services:
       LOLLY_CHAT_PASSWORD: ${LOLLY_CHAT_PASSWORD:-}
       ROOTED_CHAT_PASSWORD: ${ROOTED_CHAT_PASSWORD:-}
       # /who ("Ask the TARDIS") runs on Blog.LLM, DeepSeek by default; the same
-      # key marginalia and blimp-blog below already read from .env. The
-      # password falls back to ZIGGY_CHAT_PASSWORD in config/runtime.exs.
+      # key marginalia below reads from .env. The password falls back to
+      # ZIGGY_CHAT_PASSWORD in config/runtime.exs.
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
       WHO_CHAT_PASSWORD: ${WHO_CHAT_PASSWORD:-}
@@ -299,15 +299,22 @@ services:
       DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/blog_prod
       MTA_API_KEY: ${MTA_API_KEY}
       ICLOUD_ALBUM_TOKEN: ${ICLOUD_ALBUM_TOKEN}
-      OPENAI_API_KEY: ${DEEPSEEK_API_KEY:-}
-      OPENAI_BASE_URL: https://api.deepseek.com
-      OPENAI_MODEL: deepseek-chat
-      OPENAI_AUTOCOMPLETE_MODEL: deepseek-chat
+      # The site's three bots (/ziggy, /who, /aim) speak OpenAI's
+      # chat.completions dialect to Fireworks: GLM 5.3 (1M context) for the
+      # chats, GLM 5.3 Flash for /ziggy's suggestions and /aim's bobbbyBot.
+      # They ran on DeepSeek until it went down on 2026-10-14. The key is
+      # the pi harness's (~/.pi/agent/auth.json), copied into .env.
+      OPENAI_API_KEY: ${FIREWORKS_API_KEY:-}
+      OPENAI_BASE_URL: https://api.fireworks.ai/inference/v1
+      OPENAI_MODEL: accounts/fireworks/models/glm-5p3
+      OPENAI_AUTOCOMPLETE_MODEL: accounts/fireworks/models/glm-5p3-flash
       ZIGGY_CHAT_PASSWORD: ${ZIGGY_CHAT_PASSWORD:-}
       # /who's chat (blimp_site/src/99_who.blimp) falls back to the Ziggy one
       WHO_CHAT_PASSWORD: ${WHO_CHAT_PASSWORD:-}
       # /aim's bobbbyBot (blimp_site/src/99_aim.blimp)
-      AIM_API_KEY: ${DEEPSEEK_API_KEY:-}
+      AIM_API_KEY: ${FIREWORKS_API_KEY:-}
+      AIM_BASE_URL: https://api.fireworks.ai/inference/v1
+      AIM_MODEL: accounts/fireworks/models/glm-5p3-flash
       AIM_DAILY_LIMIT: ${AIM_DAILY_LIMIT:-600}
       BLINKS_API_TOKEN: ${BLINKS_API_TOKEN:-}
       SESSION_SECRET: ${SESSION_SECRET}
