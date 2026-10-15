@@ -96,9 +96,30 @@ stage() {
   du -sh "$DIST"
 }
 
+# One process serves bobbby.online and `ship` rsyncs the staged tree with
+# --delete, so whichever checkout ships last is the whole site: two
+# sessions shipping their own branches took each other's pages down
+# (2026-10-14, /who and /curate). A ship therefore comes only from a
+# clean main that has everything origin has. SHIP_ANYWAY=1 overrides,
+# for the box's own sake in an emergency, and says so.
+ship_guard() {
+  local branch dirty behind
+  branch=$(git rev-parse --abbrev-ref HEAD)
+  dirty=$(git status --porcelain --untracked-files=no)
+  git fetch origin main --quiet
+  behind=$(git rev-list --count HEAD..origin/main)
+  if [ "$branch" != "main" ] || [ -n "$dirty" ] || [ "$behind" != "0" ]; then
+    echo "ship refused: on '$branch'${dirty:+, with uncommitted changes}${behind:+, $behind commit(s) behind origin/main}." >&2
+    echo "Merge to main, pull it, and ship from a main checkout; other sessions' pages go with the tree. (SHIP_ANYWAY=1 overrides.)" >&2
+    [ "${SHIP_ANYWAY:-}" = "1" ] || exit 2
+    echo "SHIP_ANYWAY=1: shipping from '$branch' regardless" >&2
+  fi
+}
+
 case "${1:-stage}" in
   stage) stage ;;
   ship)
+    ship_guard
     stage
     say "rsync to $HOST:/opt/blimp-blog"
     rsync -a --delete "$DIST/" "$HOST:/opt/blimp-blog/"
