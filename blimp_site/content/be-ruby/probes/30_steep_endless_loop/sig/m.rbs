@@ -1,0 +1,7 @@
+module M
+  def self.bare_while: (Integer n) -> String
+  def self.loop_do: (Integer n) -> String
+  def self.while_then_raise: (Integer n) -> String
+  def self.while_then_panic: (Integer n) -> String
+  def self.panic: () -> bot
+end

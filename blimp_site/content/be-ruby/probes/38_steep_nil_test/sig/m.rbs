@@ -1,0 +1,7 @@
+module M
+  def self.dot_nil: [T] (T? x) -> bool
+  def self.nil_eq: [T] (T? x) -> bool
+  def self.case_eq: [T] (T? x) -> bool
+  def self.pattern: [T] (T? x) -> bool
+  def self.narrowed: (String? s) -> Integer
+end

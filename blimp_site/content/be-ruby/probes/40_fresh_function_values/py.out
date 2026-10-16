@@ -1,0 +1,3 @@
+module function: [42]
+generic as Int: [5]
+generic as String: [s]

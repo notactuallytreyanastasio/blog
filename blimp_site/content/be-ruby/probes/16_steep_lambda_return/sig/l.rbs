@@ -1,0 +1,5 @@
+module L
+  def self.typed: (Integer value) -> Integer
+  def self.with_return: (Integer j) -> ^(Integer) -> Integer
+  def self.with_next: (Integer j) -> ^(Integer) -> Integer
+end

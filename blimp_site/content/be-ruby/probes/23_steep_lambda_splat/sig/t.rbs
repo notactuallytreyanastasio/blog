@@ -1,0 +1,5 @@
+module T
+  def self.add: (Integer n) -> Integer
+  BLOCK_LAMBDA: ^(Array[String]) -> Integer
+  IT: ^(Array[String]) -> Integer
+end

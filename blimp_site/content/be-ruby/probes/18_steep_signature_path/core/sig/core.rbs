@@ -1,0 +1,3 @@
+module Core
+  def self.twice: (Integer n) -> Integer
+end

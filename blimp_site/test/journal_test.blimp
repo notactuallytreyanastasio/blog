@@ -1,86 +1,104 @@
 actor JournalTests do
-  test "every page in content/be-elixir is a route" do
+  test "every page in each journal's directory is a route" do
     routes = journal_routes(%{})
-    files = journal_files(JOURNAL_DIR)
-    assert(length(files) >= 3)
-    each(files, fn(f: String) do assert(lookup(routes, journal_route_for(f)) != nil) end)
+    each(journals(), fn(j: Map) do
+      files = journal_files(j.dir)
+      assert(length(files) >= 3)
+      each(files, fn(f: String) do assert(lookup(routes, journal_route_for(j, f)) != nil) end)
+    end)
     assert(contains(lookup(routes, "/be-elixir"), "be-elixir: a journal"))
     assert(contains(lookup(routes, "/be-elixir/guide"), "How be-elixir works"))
+    assert(contains(lookup(routes, "/be-ruby"), "be-ruby: a journal"))
+    assert(contains(lookup(routes, "/be-ruby/guide"), "How be-ruby works"))
   end
 
   test "no page links anywhere relative: every href is a route, a URL or an anchor" do
     routes = journal_routes(%{})
-    pages = map(journal_files(JOURNAL_DIR), fn(f: String) -> String do lookup(routes, journal_route_for(f)) end)
-    each(pages, fn(page: String) do
-      each(drop_list(split(page, "href=\""), 1), fn(rest: String) do
-        ok = starts_with(rest, "/") or starts_with(rest, "http") or starts_with(rest, "#")
-        case ok do
-          true -> nil
-          false -> assert_eq(take(rest, 40), "an absolute href")
-        end
+    each(journals(), fn(j: Map) do
+      pages = map(journal_files(j.dir), fn(f: String) -> String do lookup(routes, journal_route_for(j, f)) end)
+      each(pages, fn(page: String) do
+        each(drop_list(split(page, "href=\""), 1), fn(rest: String) do
+          ok = starts_with(rest, "/") or starts_with(rest, "http") or starts_with(rest, "#")
+          case ok do
+            true -> nil
+            false -> assert_eq(take(rest, 40), "an absolute href")
+          end
+        end)
       end)
     end)
   end
 
   test "links to the journal's own files are rewritten, and nothing else is" do
     html = "<a href=\"guide.md\">g</a> <a href=\"probes/04_numbers.exs\">p</a> <a href=\"probes/\">ps</a> <a href=\"https://x/guide.md\">x</a> <a href=\"README.md\">r</a>"
-    assert_eq(journal_links(html, ["README.md", "guide.md"]), "<a href=\"/be-elixir/guide\">g</a> <a href=\"/be-elixir/probes/04_numbers.exs\">p</a> <a href=\"/be-elixir/probes\">ps</a> <a href=\"https://x/guide.md\">x</a> <a href=\"/be-elixir\">r</a>")
+    assert_eq(journal_links(be_elixir_journal(), html, ["README.md", "guide.md"]), "<a href=\"/be-elixir/guide\">g</a> <a href=\"/be-elixir/probes/04_numbers.exs\">p</a> <a href=\"/be-elixir/probes\">ps</a> <a href=\"https://x/guide.md\">x</a> <a href=\"/be-elixir\">r</a>")
+    assert_eq(journal_links(be_ruby_journal(), "<a href=\"guide.md\">g</a>", ["guide.md"]), "<a href=\"/be-ruby/guide\">g</a>")
   end
 
   test "every probe is served whole, as text, and listed" do
     routes = journal_routes(%{})
-    probes = journal_probes(JOURNAL_DIR)
-    assert(length(probes) >= 6)
-    listing = lookup(routes, "/be-elixir/probes")
-    each(probes, fn(p: String) do
-      served = lookup(routes, concat("/be-elixir/probes/", p))
-      assert(contains(served, "Content-Type: text/plain; charset=utf-8\r\n"))
-      assert_eq(drop(served, index_of(served, "\r\n\r\n") + 4), read_file(concat(JOURNAL_DIR, "/probes/", p)))
-      assert(contains(listing, concat("href=\"/be-elixir/probes/", p, "\"")))
+    each(journals(), fn(j: Map) do
+      probes = journal_probes(j.dir)
+      assert(length(probes) >= 5)
+      listing = lookup(routes, concat(j.route, "/probes"))
+      each(probes, fn(p: String) do
+        served = lookup(routes, concat(j.route, "/probes/", p))
+        assert(contains(served, "Content-Type: text/plain; charset=utf-8\r\n"))
+        assert_eq(drop(served, index_of(served, "\r\n\r\n") + 4), read_file(concat(j.dir, "/probes/", p)))
+        assert(contains(listing, concat("href=\"", j.route, "/probes/", p, "\"")))
+      end)
     end)
   end
 
-  test "the footer names the temper-blimp commit the copy came from" do
+  test "the footer names the commit the copy came from" do
     routes = journal_routes(%{})
-    commit = journal_commit(JOURNAL_DIR)
-    assert_eq(length(commit), 40)
-    assert(contains(lookup(routes, "/be-elixir"), concat("/tree/", commit, "/journal")))
+    elixir = journal_commit(be_elixir_journal().dir)
+    assert_eq(length(elixir), 40)
+    assert(contains(lookup(routes, "/be-elixir"), concat("/tree/", elixir, "/journal")))
+    ruby = journal_commit(be_ruby_journal().dir)
+    assert_eq(length(ruby), 40)
+    assert(contains(lookup(routes, "/be-ruby"), concat("temper, branch ruby@", take(ruby, 7))))
   end
 
   test "a probe that is a directory is served file by file, and the directory is not a probe" do
-    probes = journal_probes(JOURNAL_DIR)
-    each(probes, fn(p: String) do assert(list_dir(concat(JOURNAL_DIR, "/probes/", p)) == nil) end)
+    probes = journal_probes(be_elixir_journal().dir)
+    each(probes, fn(p: String) do assert(list_dir(concat(be_elixir_journal().dir, "/probes/", p)) == nil) end)
     nested = filter(probes, fn(p: String) -> Bool do contains(p, "/") end)
     assert(length(nested) >= 1)
   end
 
-  test "links into examples/ go to GitHub at the copied commit" do
+  test "links into examples/ go to GitHub at the copied commit, when there is a repo" do
     html = "<a href=\"examples/loopcond/\">l</a> <a href=\"https://x/examples/y\">x</a>"
-    assert_eq(journal_example_links(html, "abc"), "<a href=\"https://github.com/notactuallytreyanastasio/temper-blimp/tree/abc/journal/examples/loopcond/\">l</a> <a href=\"https://x/examples/y\">x</a>")
+    assert_eq(journal_example_links(be_elixir_journal(), html, "abc"), "<a href=\"https://github.com/notactuallytreyanastasio/temper-blimp/tree/abc/journal/examples/loopcond/\">l</a> <a href=\"https://x/examples/y\">x</a>")
+    assert_eq(journal_example_links(be_ruby_journal(), html, "abc"), html)
   end
 
   test "a page's title is its first heading" do
-    assert_eq(journal_title("intro\n# The title\n## Sub\n"), "The title")
-    assert_eq(journal_title("no heading"), "be-elixir")
+    assert_eq(journal_title(be_elixir_journal(), "intro\n# The title\n## Sub\n"), "The title")
+    assert_eq(journal_title(be_elixir_journal(), "no heading"), "be-elixir")
+    assert_eq(journal_title(be_ruby_journal(), "no heading"), "be-ruby")
   end
 
   test "the newest dated entry is what /blog and the homepage link to" do
-    latest = journal_latest(JOURNAL_DIR)
-    newest = head(reverse(journal_entries_listed(journal_read(concat(JOURNAL_DIR, "/README.md")))))
-    assert_eq(latest.route, journal_route_for(newest))
     row = journal_blog_row()
-    assert(contains(row, "href=\"/be-elixir\""))
-    assert(contains(row, escape_html(latest.title)))
     line = journal_desk_line()
-    assert(contains(line, concat("href=\"", latest.route, "\"")))
+    each(journals(), fn(j: Map) do
+      latest = journal_latest(j)
+      newest = head(reverse(journal_entries_listed(journal_read(concat(j.dir, "/README.md")))))
+      assert_eq(latest.route, journal_route_for(j, newest))
+      assert(contains(row, concat("href=\"", j.route, "\"")))
+      assert(contains(row, escape_html(latest.title)))
+      assert(contains(line, concat("href=\"", latest.route, "\"")))
+    end)
     refute(journal_is_dated("README.md"))
     refute(journal_is_dated("guide.md"))
     assert(journal_is_dated("2026-10-01-loops-without-loops.md"))
   end
 
-  test "/blog lists the journal above the posts" do
+  test "/blog lists both journals above the posts, the newer journal first" do
     page = blog_index_page([])
     assert(contains(page, "be-elixir: a Temper backend for Elixir, a running journal"))
+    assert(contains(page, "be-ruby: a typed Temper backend for Ruby, a running journal"))
+    assert(index_of(page, "be-ruby: a typed") < index_of(page, "be-elixir: a Temper"))
   end
 
   test "the newest entry is the README's last, not the last file name" do

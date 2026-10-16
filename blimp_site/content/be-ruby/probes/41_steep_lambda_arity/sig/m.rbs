@@ -1,0 +1,6 @@
+module M
+  def self.greet: (String name, ?String? punctuation) -> String
+  GREET: ^(String, ?String?) -> String
+  GREET_DEFAULTED: ^(String, ?String?) -> String
+  def self.run: () -> void
+end

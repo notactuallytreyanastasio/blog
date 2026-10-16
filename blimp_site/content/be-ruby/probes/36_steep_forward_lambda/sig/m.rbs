@@ -1,0 +1,8 @@
+module M
+  def self.no_forward: (Array[Integer] x) -> Array[Integer]
+  def self.nil_forward: (Array[Integer] x) -> Array[Integer]
+  def self.untyped_forward: (Array[Integer] x) -> Array[Integer]
+  def self.typed_nil_forward: (Array[Integer] x) -> Array[Integer]
+  def self.asserted_forward: (Array[Integer] x) -> Array[Integer]
+  def self.asserted_forward_checked: () -> void
+end
