@@ -1,0 +1,26 @@
+# What is worked out once instead of every time: the stylesheets' ?v=
+# hashes (src/50_pages.blimp, at start) and the day's background picture
+# (src/60_desktop.blimp's DeskArt, once a day).
+
+actor BootMemoTests do
+  test "a stylesheet's ?v= is the start of its sha256, worked out at start" do
+    assert_eq(asset_href("/assets/base.css"), concat("/assets/base.css?v=", take(sha256(read_file("assets/base.css")), 10)))
+    assert_eq(asset_href("/assets/desktop.css"), concat("/assets/desktop.css?v=", take(sha256(read_file("assets/desktop.css")), 10)))
+    # every file in assets/ has one
+    assert_eq(length(keys(ASSET_VERSIONS)), length(asset_files(list_dir("assets"))))
+    # one it cannot read, and anything not under /assets/, is left as it is
+    assert_eq(asset_href("/assets/app-3cfac71d5552d1426de906087a8be2fe.css"), "/assets/app-3cfac71d5552d1426de906087a8be2fe.css")
+    assert_eq(asset_href("/images/x.png"), "/images/x.png")
+    assert_eq(asset_files(nil), [])
+    assert_eq(asset_files([".", "..", ".DS_Store", "a.css"]), ["a.css"])
+  end
+
+  test "the day's picture is the one desk_art draws, drawn once for the day" do
+    a = DESK_ART <- :for(20000)
+    assert_eq(a, desk_art(20000))
+    assert_eq(DESK_ART <- :for(20000), a)
+    b = DESK_ART <- :for(20001)
+    assert_eq(b, desk_art(20001))
+    assert(a != b)
+  end
+end
