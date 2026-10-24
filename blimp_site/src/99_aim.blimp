@@ -104,7 +104,7 @@ def aim_row(line: String) -> Any do
       source = head(cols)
       date = head(tail(cols))
       text = join(tail(tail(cols)), " ")
-      %{source: source, date: date, text: text, line: aim_post_line(source, date, text), lower: downcase(text)}
+      %{source: source, date: date, text: text, lower: downcase(text)}
   end
 end
 
@@ -114,59 +114,52 @@ def aim_rows(text: String) -> List do
   filter(map(split(text, "\n"), fn(line: String) -> Any do aim_row(line) end), fn(r: Any) -> Bool do r != nil end)
 end
 
-# The archive as tools/aim_corpus.py wrote it, a chunk of 256 posts between
-# form feeds: %{rows, lower}, lower being the chunk's posts lower-cased in
-# one string, for one native `contains` to say whether any of them can
-# match. A loop over every post is ~3us a post here, ~200ms for the
-# archive, and the site answers nobody while it runs.
+# The archive as tools/aim_corpus.py wrote it is chunks of 256 posts
+# between form feeds, and the search reads whole chunks (below).
 # (a form feed by its code: Blimp's strings have no \f)
 AIM_CHUNK_BREAK = concat("\n", from_char_code(12), "\n")
 
-def aim_chunks(text: String) -> List do
-  map(split(text, AIM_CHUNK_BREAK), fn(block: String) -> Map do
+# The archive lives in SQLite, not on the heap. As ~75,000 row maps plus a
+# lower-cased copy of every chunk it was ~70MB of the site's ~106MB live
+# heap, all of it old space the collector walked for nothing. Here it is
+# one table in a :memory: database, built from the TSV at boot (a chunk
+# per INSERT, in one transaction), and a search is two queries. The rows
+# made to fill it are garbage as soon as :load returns.
+#
+#   aim_posts(id, chunk, source, date, ymd, text, lower)
+#   aim_chunks(id, lower)    a chunk's posts' lower, a line each
+#
+# id is the post's place in the file and chunk its chunk's, both from 0;
+# lower is downcase(text), done here and not by SQLite's lower(), which
+# folds only ASCII and so would not match what the search lower-cases.
+# {db, posts, chunks}; db 0 when there is no archive.
+def aim_open(text: String) -> Tuple do
+  db = sqlite_open(":memory:")
+  sqlite_exec(db, "CREATE TABLE aim_posts (id INTEGER PRIMARY KEY, chunk INTEGER NOT NULL, source TEXT NOT NULL, date TEXT NOT NULL, ymd INTEGER NOT NULL, text TEXT NOT NULL, lower TEXT NOT NULL); BEGIN")
+  blocks = split(text, AIM_CHUNK_BREAK)
+  n = reduce(blocks, {0, 0}, fn(acc: Tuple, block: String) -> Tuple do
     rows = aim_rows(block)
-    %{rows: rows, lower: join(map(rows, fn(r: Map) -> String do r.lower end), "\n")}
+    case rows do
+      [] -> {elem(acc, 0) + 1, elem(acc, 1)}
+      _ ->
+        aim_insert(db, elem(acc, 0), elem(acc, 1), rows)
+        {elem(acc, 0) + 1, elem(acc, 1) + length(rows)}
+    end
   end)
+  sqlite_exec(db, "COMMIT; CREATE INDEX aim_posts_chunk ON aim_posts (chunk); CREATE TABLE aim_chunks AS SELECT chunk AS id, group_concat(lower, char(10)) AS lower FROM aim_posts GROUP BY chunk")
+  {db, elem(n, 1), elem(n, 0)}
 end
 
-
-# The chunks one search reads at most: ~10,000 posts, ~40ms.
-AIM_SCAN_CHUNKS = 40
-
-# search_posts: the posts with the most of the query's words, newest first
-# among equals, from the chunks that hold its rarest word (the newest
-# AIM_SCAN_CHUNKS of them). source is "bluesky", "twitter" or anything
-# else for both.
-def aim_search(chunks: List, query: String, source: String) -> List do
-  terms = aim_drop_stop_words(zg_terms(downcase(query)))
-  hits = map(terms, fn(t: String) -> List do filter(chunks, fn(c: Map) -> Bool do contains(c.lower, t) end) end)
-  found = filter(hits, fn(h: List) -> Bool do h != [] end)
-  case found do
-    [] -> []
-    _ ->
-      fewest = head(sort_by_keys(found, map(found, fn(h: List) -> Int do length(h) end)))
-      scan = reverse(zg_take(reverse(fewest), AIM_SCAN_CHUNKS))
-      rows = filter(flat(map(scan, fn(c: Map) -> List do c.rows end)), fn(r: Map) -> Bool do aim_from(r, source) end)
-      all = map(rows, fn(r: Map) -> Map do %{score: aim_score(terms, r.lower), date: r.date, line: r.line} end)
-      scored = filter(all, fn(x: Map) -> Bool do x.score > 0 end)
-      # ascending: the most words first, then the newest (a tweet, undated, last)
-      ranked = sort_by_keys(scored, map(scored, fn(x: Map) -> Int do 0 - (x.score * 100000000 + aim_ymd(x.date)) end))
-      map(zg_take(ranked, AIM_SEARCH_LIMIT), fn(x: Map) -> String do x.line end)
-  end
-end
-
-def aim_from(r: Map, source: String) -> Bool do
-  case source do
-    "bluesky" -> r.source != "twitter"
-    "twitter" -> r.source == "twitter"
-    _ -> true
-  end
-end
-
-# How many of the words a post has (native contains, not zg_score: the
-# Temper one is ~5x slower here).
-def aim_score(terms: List, lower: String) -> Int do
-  length(filter(terms, fn(t: String) -> Bool do contains(lower, t) end))
+# One chunk's rows, ids from `first`, in one statement (256 rows is 1,792
+# parameters; SQLite allows 32,766).
+def aim_insert(db: Int, chunk: Int, first: Int, rows: List) -> Any do
+  marks = join(map(rows, fn(r: Map) -> String do "(?,?,?,?,?,?,?)" end), ",")
+  ids = range(first, first + length(rows) - 1)
+  params = flat(map(zip(ids, rows), fn(p: Any) -> List do
+    r = elem(p, 1)
+    [elem(p, 0), chunk, r.source, r.date, aim_ymd(r.date), r.text, r.lower]
+  end))
+  sqlite_query(db, concat("INSERT INTO aim_posts (id, chunk, source, date, ymd, text, lower) VALUES ", marks), params)
 end
 
 # 2025-03-02 -> 20250302; a tweet (no date) 0
@@ -177,6 +170,77 @@ def aim_ymd(d: String) -> Int do
   end
 end
 
+def aim_close(db: Int) -> Any do
+  case db > 0 do
+    true -> sqlite_close(db)
+    false -> nil
+  end
+end
+
+# The rows of a sqlite_query answer, less its header.
+def aim_cells(result: List) -> List do
+  tail(result)
+end
+
+# The chunks one search reads at most: ~10,000 posts.
+AIM_SCAN_CHUNKS = 40
+
+# search_posts: the posts with the most of the query's words, newest first
+# among equals, from the chunks that hold its rarest word (the newest
+# AIM_SCAN_CHUNKS of them). source is "bluesky", "twitter" or anything
+# else for both. "Holds" is a substring of the lower-cased text, as it was
+# when this was a native `contains` over each chunk; FTS5 would match
+# whole tokens and so answer differently ("knick" would stop finding
+# "knicks").
+def aim_search(db: Int, query: String, source: String) -> List do
+  terms = aim_drop_stop_words(zg_terms(downcase(query)))
+  case db > 0 and terms != [] do
+    false -> []
+    true -> aim_search_terms(db, terms, source)
+  end
+end
+
+def aim_search_terms(db: Int, terms: List, source: String) -> List do
+  hits = aim_term_chunks(db, terms)
+  found = filter(hits, fn(h: List) -> Bool do h != [] end)
+  case found do
+    [] -> []
+    _ ->
+      fewest = head(sort_by_keys(found, map(found, fn(h: List) -> Int do length(h) end)))
+      scan = reverse(zg_take(reverse(fewest), AIM_SCAN_CHUNKS))
+      # (instr(lower, ?1) > 0) + ... : how many of the words a post has
+      score = join(map(range(1, length(terms)), fn(i: Int) -> String do concat("(instr(lower, ?", to_string(i), ") > 0)") end), " + ")
+      sql = concat("SELECT source, date, text FROM (SELECT source, date, text, ymd, id, ", score, " AS score FROM aim_posts WHERE chunk IN (",
+        join(map(scan, fn(c: Int) -> String do to_string(c) end), ","), ")", aim_source_sql(source),
+        ") WHERE score > 0 ORDER BY score DESC, ymd DESC, id LIMIT ", to_string(AIM_SEARCH_LIMIT))
+      map(aim_cells(sqlite_query(db, sql, terms)), fn(r: List) -> String do
+        aim_post_line(elem_at(r, 0), elem_at(r, 1), elem_at(r, 2))
+      end)
+  end
+end
+
+# For each term, the chunks (ascending) with a post that holds it: one
+# pass over aim_chunks for all of them. Over aim_posts it is the same
+# answer, but 75,000 rows grouped by chunk took 33ms on the real archive
+# for one word; ~300 chunk strings take 9ms, and an FTS5 trigram index
+# (0ms) took 528ms to build at boot.
+def aim_term_chunks(db: Int, terms: List) -> List do
+  idx = range(1, length(terms))
+  cols = join(map(idx, fn(i: Int) -> String do concat("instr(lower, ?", to_string(i), ") > 0") end), ", ")
+  rows = aim_cells(sqlite_query(db, concat("SELECT id, ", cols, " FROM aim_chunks ORDER BY id"), terms))
+  map(idx, fn(i: Int) -> List do
+    map(filter(rows, fn(r: List) -> Bool do elem_at(r, i) == "1" end), fn(r: List) -> Int do to_int(head(r)) end)
+  end)
+end
+
+def aim_source_sql(source: String) -> String do
+  case source do
+    "bluesky" -> " AND source != 'twitter'"
+    "twitter" -> " AND source = 'twitter'"
+    _ -> ""
+  end
+end
+
 AIM_TOOLS = [%{type: "function", function: %{name: "search_posts",
   description: "Search all ~75,000 of Bobby's posts (Bluesky and Twitter) for words. Returns up to 30 posts, the ones with the most matching words first, newest first among equals.",
   parameters: %{type: "object",
@@ -184,13 +248,13 @@ AIM_TOOLS = [%{type: "function", function: %{name: "search_posts",
       source: %{type: "string", enum: ["any", "bluesky", "twitter"], description: "Where to look (default any)."}},
     required: ["query"]}}}]
 
-def aim_run_tool(chunks: List, call: Any) -> Map do
+def aim_run_tool(db: Int, call: Any) -> Map do
   f = lookup(call, :function)
   name = zg_str(lookup(f, :name))
   args = zg_decode_map(lookup(f, :arguments))
   result = case name do
     "search_posts" ->
-      found = aim_search(chunks, zg_str(lookup(args, :query)), zg_str(lookup(args, :source)))
+      found = aim_search(db, zg_str(lookup(args, :query)), zg_str(lookup(args, :source)))
       %{count: length(found), posts: found}
     _ -> %{error: concat("no tool named ", name)}
   end
@@ -950,8 +1014,10 @@ actor AimChat do
   state base: String :: "https://api.fireworks.ai/inference/v1"
   state model: String :: "accounts/fireworks/models/glm-5p3-flash"
   state daily_limit: Int :: 600
-  state rows: List :: []
-  state chunks: List :: []
+  # the archive: aim_open's database (0: none), how many posts and chunks
+  state db: Int :: 0
+  state post_count: Int :: 0
+  state chunks: Int :: 0
   # socket (as a string) -> aim_new_person's map
   # job: nil | %{h, round, messages, at}
   state people: Map :: %{}
@@ -979,26 +1045,26 @@ actor AimChat do
   state last_error: String :: ""
 
   on :load(text: Any) do
+    aim_close(db)
     case type_of(text) == :string do
       false ->
-        become rows: [], chunks: []
+        become db: 0, post_count: 0, chunks: 0
         reply 0
       true ->
-        c = aim_chunks(text)
-        r = flat(map(c, fn(x: Map) -> List do x.rows end))
-        become rows: r, chunks: c
-        reply length(r)
+        a = aim_open(text)
+        become db: elem(a, 0), post_count: elem(a, 1), chunks: elem(a, 2)
+        reply elem(a, 1)
     end
   end
 
   on :config(k: String, b: String, m: String, limit: Int) do
     become key: k, base: b, model: m, daily_limit: limit
-    reply %{keyed: k != "", posts: length(rows)}
+    reply %{keyed: k != "", posts: post_count}
   end
 
   on :join(fd: Int) do
     become people: put(people, to_string(fd), aim_new_person(fd))
-    self <- :tell(fd, json_encode(%{t: "hello", online: key != "" and rows != [], posts: length(rows), bot: aim_bot_name}))
+    self <- :tell(fd, json_encode(%{t: "hello", online: key != "" and post_count > 0, posts: post_count, bot: aim_bot_name}))
     reply :ok
   end
 
@@ -1348,7 +1414,7 @@ actor AimChat do
 
   # One request to the model for a person's message, round `round`.
   on :request(fd: Int, rest: List, round: Int, t: Int) do
-    case key == "" or rows == [] do
+    case key == "" or post_count == 0 do
       true ->
         why = case key do
           "" -> "AIM_API_KEY is not set"
@@ -1398,7 +1464,7 @@ actor AimChat do
         case elem(what, 0) do
           :tools ->
             msg = elem(what, 1)
-            results = map(zg_list(lookup(msg, :tool_calls)), fn(c: Any) -> Map do aim_run_tool(chunks, c) end)
+            results = map(zg_list(lookup(msg, :tool_calls)), fn(c: Any) -> Map do aim_run_tool(db, c) end)
             next = job.round + 1
             case next >= AIM_MAX_TOOL_ROUNDS do
               true -> reply (self <- :finish(fd, {:error, "too many searches for one message"}))
@@ -1430,8 +1496,13 @@ actor AimChat do
     end
   end
 
+  # Nobody on /aim and nothing given up on: nothing to do, and no new
+  # state made to say so (it was a `become` and four filters every tick).
   on :step do
-    reply (self <- :step_at(now()))
+    case abandoned == [] and keys(people) == [] do
+      true -> reply 0
+      false -> reply (self <- :step_at(now()))
+    end
   end
 
   # From the Site's tick: every answer that has come, and every request
@@ -1475,7 +1546,7 @@ actor AimChat do
 
   # For a test, or the prompt: what a search would hand the model.
   on :search(query: String, source: String) do
-    reply aim_search(chunks, query, source)
+    reply aim_search(db, query, source)
   end
 
   on :body(name: String, history: List) do
@@ -1487,8 +1558,8 @@ actor AimChat do
   end
 
   on :stats do
-    reply %{fds: map(values(people), fn(p: Map) -> Int do p.fd end), pages: length(keys(people)), signed_on: length(aim_signed(people)), conversations: length(keys(dms)), dms: dms_sent, party_lines: length(party), board: length(board), board_db: board_db, keyed: key != "", model: model, posts: length(rows),
-      chunks: length(chunks), asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
+    reply %{fds: map(values(people), fn(p: Map) -> Int do p.fd end), pages: length(keys(people)), signed_on: length(aim_signed(people)), conversations: length(keys(dms)), dms: dms_sent, party_lines: length(party), board: length(board), board_db: board_db, keyed: key != "", model: model, posts: post_count,
+      chunks: chunks, asked: asked, requests: requests, today: today_requests, daily_limit: daily_limit,
       failures: failures, last_error: last_error, cache_hit_tokens: cache_hit, cache_miss_tokens: cache_miss}
   end
 end
