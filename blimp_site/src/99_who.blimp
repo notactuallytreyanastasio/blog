@@ -986,8 +986,12 @@ actor WhoChat do
     end
   end
 
+  # Nobody on /who and nothing given up on: nothing to do (ZG's :step says why).
   on :step do
-    reply (self <- :step_at(now()))
+    case abandoned == [] and keys(people) == [] do
+      true -> reply 0
+      false -> reply (self <- :step_at(now()))
+    end
   end
 
   # From the Site's tick: every answer that has come, and every request
