@@ -98,16 +98,20 @@ end
 # thread: the due list, then one UPDATE per blink checked, one after
 # another inside a single :step, so a sweep of a few hundred links held
 # every page and socket for as long as Postgres took to answer them all.
-BLC_PG_OPTS = %{timeout_ms: 15000}
+# db_start/db_poll (src/85_db.blimp) rather than pg_start/pg_result bare:
+# pg_start answers -1 when every slot is busy, and pg_result(-1) raises,
+# which would have stopped the sweep's actor; db_start makes that an error
+# like any other.
+BLC_PG_MS = 15000
 
-# Start writing one result. The pg handle.
+# Start writing one result: the query in flight (db_start).
 def blc_write_start(db: Any, row: Map, verdict: String) -> Any do
   rec = blc_record(verdict, row.fail_count)
   fails = case head(rec) < 0 do
     true -> nil
     false -> head(rec)
   end
-  pg_start(db, BLC_RECORD_SQL, [row.id, fails, head(tail(rec))], BLC_PG_OPTS)
+  db_start(db, BLC_RECORD_SQL, [row.id, fails, head(tail(rec))], BLC_PG_MS)
 end
 
 # A finished write: 1 if the link is dead afterwards.
@@ -193,12 +197,12 @@ actor BlinksLinkCheck do
                 become next_at: t + BLC_EVERY_S
                 reply :failed
               false ->
-                become phase: :due, pg: pg_start(db, BLC_DUE_SQL, [], BLC_PG_OPTS)
+                become phase: :due, pg: db_start(db, BLC_DUE_SQL, [], BLC_PG_MS)
                 reply :due
             end
         end
       :due ->
-        got = pg_result(pg)
+        got = db_poll(pg)
         case got do
           nil -> reply :due
           _ ->
@@ -282,7 +286,7 @@ actor BlinksLinkCheck do
         end
       # the results written, BLC_IN_FLIGHT at a time; flying is {id, handle}
       :writing ->
-        polled = map(flying, fn(f: Tuple) -> Tuple do {elem(f, 0), elem(f, 1), pg_result(elem(f, 1))} end)
+        polled = map(flying, fn(f: Tuple) -> Tuple do {elem(f, 0), elem(f, 1), db_poll(elem(f, 1))} end)
         done = filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) != nil end)
         still = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) == nil end), fn(p: Tuple) -> Tuple do {elem(p, 0), elem(p, 1)} end)
         dead = died + sum(map(done, fn(p: Tuple) -> Int do blc_dead_of(elem(p, 0), elem(p, 2)) end))

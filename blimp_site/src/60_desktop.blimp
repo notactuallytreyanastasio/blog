@@ -639,8 +639,7 @@ def desk_arrange(pages: List, layout: Any) -> List do
   end
 end
 
-# The saved order from Postgres: {:ok, layout | nil, db} or
-# {:error, reason, db}. The table is made by the first save
+# The saved order from Postgres. The table is made by the first save
 # (src/99_curate.blimp), so a site never curated has none; pg_tables is
 # asked before the row, because selecting from a table that is not there
 # is an error, and that would keep the whole desktop from loading.
@@ -655,25 +654,6 @@ def desk_layout_json(rows: List) -> Any do
       case elem(got, 0) do
         :ok -> elem(got, 1)
         _ -> nil
-      end
-  end
-end
-
-def desk_layout_db(db: Map) -> Tuple do
-  case pg_query(db, head(DESK_LAYOUT_EXISTS_Q), tail(DESK_LAYOUT_EXISTS_Q)) do
-    {:error, reason, next} -> {:error, reason, next}
-    {:ok, rows, next} ->
-      there = case rows do
-        [] -> false
-        [r | _] -> r.n > 0
-      end
-      case there do
-        false -> {:ok, nil, next}
-        true ->
-          case pg_query(next, head(DESK_LAYOUT_Q), tail(DESK_LAYOUT_Q)) do
-            {:error, reason, db2} -> {:error, reason, db2}
-            {:ok, found, db2} -> {:ok, desk_layout_json(found), db2}
-          end
       end
   end
 end
@@ -757,64 +737,135 @@ end
 # ── Loading the museum and the Finder from Postgres ─────────────────────
 #
 # The same rows data/export.sh snapshots, as the same maps the snapshot
-# loader makes, so build_desktop cannot tell them apart.
-# {:ok, museum, finder, layout, db} or {:error, reason, db}; layout is
-# /curate's saved order or nil (desk_layout_db). A row the page could
-# not show honestly (a slug that needs URL escaping, a Finder action with
-# no script-free equivalent) is an error for the whole load, never a
+# loader makes, so build_desktop cannot tell them apart. A row the page
+# could not show honestly (a slug that needs URL escaping, a Finder action
+# with no script-free equivalent) is an error for the whole load, never a
 # skipped row: the caller keeps the desktop it has and says why.
+#
+# The load is a value the Site's tick moves along (desk_load_start, then
+# desk_load_poll until it is not {:wait, _}), never a wait: the queries run
+# on pg_start's worker threads (src/85_db.blimp). The four row queries and
+# the layout table's existence go out together, on separate pooled
+# connections; the layout row, when there is a table, after them. It used
+# to be the same six queries one after another on the tick, over a
+# blocking socket with no timeout, so a Postgres that stopped answering
+# stopped the site at the next refresh until it answered again.
 
 # The four queries are Alloy's (temper/src/db/desktop.temper.md), built
 # once, here: [sql, params...] each, and none of them takes a parameter.
-DESK_QUERIES = [desk_museum_q(), desk_repos_q(), desk_sections_q(), desk_items_q()]
+# The fifth is whether there is a saved layout to read.
+DESK_QUERIES = [desk_museum_q(), desk_repos_q(), desk_sections_q(), desk_items_q(), DESK_LAYOUT_EXISTS_Q]
 
-def desk_db_rows(db: Map, queries: List, acc: List) -> Tuple do
-  case queries do
-    [] -> {:ok, reverse(acc), db}
-    [q | rest] ->
-      case pg_query(db, head(q), tail(q)) do
-        {:ok, rows, next} -> desk_db_rows(next, rest, [rows | acc])
-        {:error, reason, next} -> {:error, reason, next}
+# Each query's deadline. Nothing waits for these: a slow load only delays
+# the refresh, and the desktop "/" shows meanwhile is the last one. The
+# deadline is there so a query Postgres is stuck on is cancelled and its
+# connection given back long before the next refresh (DESK_REFRESH_S,
+# 60s) would start another; the queries are a few dozen rows each.
+DESK_LOAD_MS = 10000
+
+def desk_load_start(opts: Any) -> Map do
+  pend = map(DESK_QUERIES, fn(q: List) -> Tuple do db_start(opts, head(q), tail(q), DESK_LOAD_MS) end)
+  %{step: :rows, opts: opts, pend: pend, got: map(pend, fn(p: Tuple) -> Any do nil end), sets: []}
+end
+
+# Ask each query not yet answered; a finished one is never asked again
+# (its slot is gone once it has answered).
+def desk_poll_all(pend: List, got: List, acc: List) -> List do
+  case pend do
+    [] -> reverse(acc)
+    [p | rest] ->
+      g = head(got)
+      r = case g do
+        nil -> db_poll(p)
+        _ -> g
+      end
+      desk_poll_all(rest, tail(got), [r | acc])
+  end
+end
+
+def desk_first_error(results: List) -> Any do
+  case results do
+    [] -> nil
+    [r | rest] ->
+      case r do
+        {:error, reason} -> reason
+        _ -> desk_first_error(rest)
       end
   end
 end
 
-def load_desk_db(db: Map) -> Tuple do
-  case desk_db_rows(db, DESK_QUERIES, []) do
-    {:error, reason, next} -> {:error, reason, next}
-    {:ok, sets, next} ->
-      projects = elem_at(sets, 0)
-      repos = elem_at(sets, 1)
-      items = elem_at(sets, 3)
-      bad_project = filter(projects, fn(p: Map) -> Bool do not(desk_url_safe(p.slug) and desk_url_safe(p.category)) end)
-      bad_item = filter(items, fn(i: Map) -> Bool do not(i.action == "" or i.action == "toggle_phish") end)
-      case {bad_project, bad_item} do
-        {[], []} ->
-          museum = map(projects, fn(p: Map) -> Map do
-            %{
-              slug: p.slug,
-              title: p.title,
-              tagline: p.tagline,
-              description: p.description,
-              category: p.category,
-              tech: desk_split_tech(p.tech),
-              internal_path: p.internal_path,
-              external_url: p.external_url,
-              repos: map(filter(repos, fn(r: Map) -> Bool do r.slug == p.slug end), fn(r: Map) -> Map do
-                %{name: r.name, full_name: r.full_name}
-              end)
-            }
-          end)
-          finder = map(elem_at(sets, 2), fn(s: Map) -> Map do
-            %{name: s.name, label: s.label, items: filter(items, fn(i: Map) -> Bool do i.section == s.name end)}
-          end)
-          case desk_layout_db(next) do
-            {:ok, layout, db2} -> {:ok, museum, finder, layout, db2}
-            {:error, reason, db2} -> {:error, reason, db2}
+# {:wait, load} while a query is out; then {:ok, museum, finder, layout}
+# or {:error, reason}. Every query started is waited for, an error or not,
+# so no handle is left unread.
+def desk_load_poll(load: Map) -> Tuple do
+  got = desk_poll_all(load.pend, load.got, [])
+  case filter(got, fn(r: Any) -> Bool do r == nil end) do
+    [_ | _] -> {:wait, put(load, "got", got)}
+    [] ->
+      case desk_first_error(got) do
+        nil ->
+          case load.step do
+            :rows ->
+              sets = map(got, fn(r: Tuple) -> List do elem(r, 1) end)
+              there = case elem_at(sets, 4) do
+                [] -> false
+                [r | _] -> r.n > 0
+              end
+              case there do
+                false -> desk_from_rows(sets, nil)
+                true ->
+                  p = db_start(load.opts, head(DESK_LAYOUT_Q), tail(DESK_LAYOUT_Q), DESK_LOAD_MS)
+                  {:wait, %{step: :layout, opts: load.opts, pend: [p], got: [nil], sets: sets}}
+              end
+            :layout -> desk_from_rows(load.sets, desk_layout_json(elem(head(got), 1)))
           end
-        {[p | _], _} -> {:error, concat("museum project ", p.slug, " has a slug or category (", p.category, ") that would need URL escaping"), next}
-        {_, [i | _]} -> {:error, concat("finder item ", i.name, " has action ", i.action, ", which has no script-free equivalent"), next}
+        reason -> {:error, reason}
       end
+  end
+end
+
+# The load waited for, for the boot, which has nothing to show until it
+# has a desktop: a millisecond's sleep between asks.
+def desk_load_wait(load: Map) -> Tuple do
+  case desk_load_poll(load) do
+    {:wait, next} ->
+      sleep_ms(1)
+      desk_load_wait(next)
+    done -> done
+  end
+end
+
+# The rows, as the snapshot loader's maps: {:ok, museum, finder, layout}
+# or {:error, reason}.
+def desk_from_rows(sets: List, layout: Any) -> Tuple do
+  projects = elem_at(sets, 0)
+  repos = elem_at(sets, 1)
+  items = elem_at(sets, 3)
+  bad_project = filter(projects, fn(p: Map) -> Bool do not(desk_url_safe(p.slug) and desk_url_safe(p.category)) end)
+  bad_item = filter(items, fn(i: Map) -> Bool do not(i.action == "" or i.action == "toggle_phish") end)
+  case {bad_project, bad_item} do
+    {[], []} ->
+      museum = map(projects, fn(p: Map) -> Map do
+        %{
+          slug: p.slug,
+          title: p.title,
+          tagline: p.tagline,
+          description: p.description,
+          category: p.category,
+          tech: desk_split_tech(p.tech),
+          internal_path: p.internal_path,
+          external_url: p.external_url,
+          repos: map(filter(repos, fn(r: Map) -> Bool do r.slug == p.slug end), fn(r: Map) -> Map do
+            %{name: r.name, full_name: r.full_name}
+          end)
+        }
+      end)
+      finder = map(elem_at(sets, 2), fn(s: Map) -> Map do
+        %{name: s.name, label: s.label, items: filter(items, fn(i: Map) -> Bool do i.section == s.name end)}
+      end)
+      {:ok, museum, finder, layout}
+    {[p | _], _} -> {:error, concat("museum project ", p.slug, " has a slug or category (", p.category, ") that would need URL escaping")}
+    {_, [i | _]} -> {:error, concat("finder item ", i.name, " has action ", i.action, ", which has no script-free equivalent")}
   end
 end
 

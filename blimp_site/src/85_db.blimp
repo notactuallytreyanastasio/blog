@@ -1,62 +1,224 @@
-# DB: the site's Postgres connection, as an actor.
+# DB: the site's Postgres, through the interpreter's pg_start/pg_result
+# (Blimp's chunks/lang/src/pg.zig): every query runs on a worker thread of
+# its own, over a pooled connection, with a deadline at which the worker
+# sends Postgres a CancelRequest and pg_result answers {:error, "timeout"}.
+#
+# Two ways in, for two kinds of caller.
+#
+# A request handler, which needs the rows before it can answer:
 #
 #   case DB <- :query("select ... where x = $1", [x]) do
 #     {:ok, rows} -> ...
 #     {:error, reason} -> ...
 #   end
 #
-# A connection is a value that changes with every query (pg_query returns
-# the one to use next), so it cannot sit in a top-level binding that
-# request handlers read. The actor holds it: every query is a message, it
-# answers with the rows, and keeps the connection for the next one. It
-# connects on the first query after :open, and again on the query after a
-# connection fails, so a restart of Postgres costs one failed query.
+# This still waits in place. Blimp's handlers are synchronous and the HTTP
+# loop cannot park a request, so while the query runs the tick is stopped,
+# exactly as it was with the Blimp client this replaces
+# (80_postgres.blimp, a blocking socket with no timeout). What changed is
+# that the wait has an end: DB_QUERY_MS, after which the caller gets
+# {:error, "timeout"} and Postgres stops running the statement. A database
+# that stops answering now costs each request that needs it DB_QUERY_MS,
+# not the whole site for as long as the database is gone.
 #
-# One connection, one query at a time: the site is one process, and
-# requests are answered one after another anyway.
+# Work driven from the tick (refresh_desk, BKW, the cameras' check), which
+# can come back for its rows on a later tick, starts the query and polls:
+#
+#   p = db_start(DB <- :opts, sql, params, ms)   # never waits
+#   ...
+#   case db_poll(p) do                           # never waits
+#     nil -> still running, ask again next tick
+#     {:ok, rows} -> ...
+#     {:error, reason} -> ...
+#   end
+#
+# and the tick never waits on Postgres at all. A finished db_poll frees the
+# query's slot: poll a pending query until it answers, then drop it.
+#
+# Rows are what 80_postgres.blimp made of them, key for key: a map per row
+# from column name to value; bool, int2/4/8 and oid decoded, json and jsonb
+# through json_decode, NULL as nil, everything else its text. A server error
+# is "ERROR <sqlstate>: <message>", as it was.
+
+# A request waits at most this long for its rows (connecting and logging
+# in included). The request-path queries are index lookups and short
+# writes that take single milliseconds locally; 5s is far past any of
+# them, and short of the point where the browser and Cloudflare (100s)
+# give up on their own, so a stuck database answers each request with an
+# error page in 5s instead of holding it.
+DB_QUERY_MS = 5000
+
+# db_wait asks without pause for DB_SPIN_MS, then sleeps a millisecond
+# between asks. The thread is waiting either way (it waited in recv
+# before); a sleep from the first ask made a local one-row query 1.1ms ->
+# 2.3ms, because macOS's sleep_ms(1) is closer to 1.2ms than to 1, and most
+# queries are back long before that.
+DB_SPIN_MS = 5
+
+def db_wait(h: Int, spin_until: Int) -> Any do
+  case pg_result(h) do
+    nil ->
+      case now_ms() < spin_until do
+        true -> db_wait(h, spin_until)
+        false ->
+          sleep_ms(1)
+          db_wait(h, 0)
+      end
+    r -> r
+  end
+end
+
+# A query in flight: {:pg, handle}, or {:done, result} when it could not
+# be started (no database, or every slot taken), so the caller polls both
+# the same way.
+def db_start(opts: Any, sql: String, params: List, ms: Int) -> Tuple do
+  case opts do
+    nil -> {:done, {:error, "no database is configured (DATABASE_URL)"}}
+    _ ->
+      h = pg_start(opts, sql, params, %{timeout_ms: ms})
+      case h < 0 do
+        true -> {:done, {:error, "every Postgres slot is busy (32 queries in flight)"}}
+        false -> {:pg, h}
+      end
+  end
+end
+
+# nil while it runs, then {:ok, rows} or {:error, reason}, once.
+def db_poll(p: Tuple) -> Any do
+  case p do
+    {:done, r} -> r
+    {:pg, h} -> pg_result(h)
+  end
+end
+
+# The query, waited for: {:ok, rows} or {:error, reason} within ms.
+def db_now(opts: Any, sql: String, params: List, ms: Int) -> Any do
+  p = db_start(opts, sql, params, ms)
+  case p do
+    {:done, r} -> r
+    {:pg, h} -> db_wait(h, now_ms() + DB_SPIN_MS)
+  end
+end
+
+# A statement's error ("ERROR 42P01: ...") came from a session that was up;
+# anything else (a timeout, a refused or cut connection, a login refused
+# with "FATAL ...") means there was none, which is what the old actor's
+# `connected: false` said.
+def db_answered(reason: String) -> Bool do
+  starts_with(reason, "ERROR ")
+end
 
 actor Db do
   state opts: Any :: nil
-  state conn: Any :: nil
   state queries: Int :: 0
   state failures: Int :: 0
+  state timeouts: Int :: 0
   state last_error: String :: ""
+  # false once a query found no server to answer it, true again when one does
+  state reachable: Bool :: false
 
   on :open(o: Any) do
-    become opts: o, conn: nil
+    become opts: o
     reply :ok
   end
 
+  # The connection options, for code that starts its own queries (db_start).
+  on :opts do
+    reply opts
+  end
+
   on :query(sql: String, params: List) do
-    case opts do
-      nil ->
-        become failures: failures + 1, last_error: "no database is configured (DATABASE_URL)"
-        reply {:error, "no database is configured (DATABASE_URL)"}
-      _ ->
-        connected = case conn do
-          nil -> pg_connect(opts)
-          _ -> {:ok, conn}
-        end
-        case connected do
-          {:error, reason} ->
-            become conn: nil, failures: failures + 1, last_error: reason
-            reply {:error, reason}
-          {:ok, live} ->
-            case pg_query(live, sql, params) do
-              {:ok, rows, next} ->
-                become conn: next, queries: queries + 1
-                reply {:ok, rows}
-              {:error, reason, next} ->
-                become conn: next, queries: queries + 1, failures: failures + 1, last_error: reason
-                reply {:error, reason}
-            end
-        end
-    end
+    r = db_now(opts, sql, params, DB_QUERY_MS)
+    become queries: queries + 1, failures: failures + db_failed(r), timeouts: timeouts + db_timed_out(r), last_error: db_error_of(r, last_error), reachable: db_reachable(r)
+    reply r
+  end
+
+  # The same with its own deadline, for a caller that knows its query is
+  # slower (or must be quicker) than DB_QUERY_MS.
+  on :query_ms(sql: String, params: List, ms: Int) do
+    r = db_now(opts, sql, params, ms)
+    become queries: queries + 1, failures: failures + db_failed(r), timeouts: timeouts + db_timed_out(r), last_error: db_error_of(r, last_error), reachable: db_reachable(r)
+    reply r
   end
 
   on :stats do
-    reply %{queries: queries, failures: failures, last_error: last_error, connected: conn != nil}
+    reply merge(%{queries: queries, failures: failures, timeouts: timeouts, last_error: last_error, connected: reachable}, pg_stats())
+  end
+end
+
+def db_failed(r: Any) -> Int do
+  case r do
+    {:ok, _} -> 0
+    _ -> 1
+  end
+end
+
+def db_timed_out(r: Any) -> Int do
+  case r do
+    {:error, "timeout"} -> 1
+    _ -> 0
+  end
+end
+
+def db_error_of(r: Any, was: String) -> String do
+  case r do
+    {:error, reason} -> reason
+    _ -> was
+  end
+end
+
+def db_reachable(r: Any) -> Bool do
+  case r do
+    {:ok, _} -> true
+    {:error, reason} -> db_answered(reason)
   end
 end
 
 DB = spawn Db
+
+# "ecto://user:pass@host:5432/name" (or postgres://) -> the connection map
+# pg_start takes, or nil for anything else. The password may be
+# percent-encoded. pg_start reads the URL itself too; main.blimp parses it
+# here so a malformed DATABASE_URL stops the boot with a sentence.
+def pg_parse_url(url: String) -> Any do
+  scheme = index_of(url, "://")
+  rest = drop(url, scheme + 3)
+  at = pg_last_index(rest, "@", 0, -1)
+  slash = index_of_from(rest, "/", at + 1)
+  case scheme > 0 and at > 0 and slash > at do
+    false -> nil
+    true ->
+      userinfo = take(rest, at)
+      hostport = slice(rest, at + 1, slash - at - 1)
+      path = drop(rest, slash + 1)
+      user_end = pg_or_length(index_of(userinfo, ":"), userinfo)
+      host_end = pg_or_length(index_of(hostport, ":"), hostport)
+      port = case host_end < length(hostport) do
+        true -> to_int(drop(hostport, host_end + 1))
+        false -> 5432
+      end
+      %{
+        user: url_decode(take(userinfo, user_end)),
+        password: url_decode(drop(userinfo, user_end + 1)),
+        host: take(hostport, host_end),
+        port: port,
+        database: take(path, pg_or_length(index_of(path, "?"), path))
+      }
+  end
+end
+
+def pg_last_index(s: String, find: String, from: Int, found: Int) -> Int do
+  i = index_of_from(s, find, from)
+  case i < 0 do
+    true -> found
+    false -> pg_last_index(s, find, i + 1, i)
+  end
+end
+
+# `i`, or the length of `s` when `i` is -1 (not found).
+def pg_or_length(i: Int, s: String) -> Int do
+  case i < 0 do
+    true -> length(s)
+    false -> i
+  end
+end

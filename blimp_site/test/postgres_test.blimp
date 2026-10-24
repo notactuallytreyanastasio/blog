@@ -1,45 +1,7 @@
+# The wire protocol, SCRAM and row decoding are the interpreter's now
+# (pg.zig, with its own tests, among them replays of a real Postgres);
+# what is the site's is the URL it reads and how DB and db_start wait.
 actor PostgresTests do
-  test "integers go out big-endian, two's complement below zero" do
-    assert_eq(hex_encode(pg_int32(196608)), "00030000")
-    assert_eq(hex_encode(pg_int32(-1)), "ffffffff")
-    assert_eq(hex_encode(pg_int16(258)), "0102")
-    assert_eq(pg_read_int32(pg_int32(-1), 0), -1)
-    assert_eq(pg_read_int32(pg_int32(2147483647), 0), 2147483647)
-    assert_eq(pg_read_int16(pg_int16(65535), 0), 65535)
-  end
-
-  test "a message counts its own length but not its type byte" do
-    assert_eq(hex_encode(pg_message("S", "")), "5300000004")
-    assert_eq(hex_encode(pg_message("Q", "x")), "510000000578")
-  end
-
-  # RFC 7677, section 3: user "user", password "pencil".
-  test "SCRAM-SHA-256 reproduces RFC 7677's worked example" do
-    bare = "n=user,r=rOprNGfwEbeRWgbNEkqO"
-    server_first = "r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096"
-    pair = pg_scram_answer("pencil", bare, server_first)
-    client_final = elem(pair, 0)
-    expect = elem(pair, 1)
-    assert_eq(client_final, "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=")
-    assert_eq(expect, "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=")
-  end
-
-  test "parameters: NULL is length -1, the rest are text" do
-    assert_eq(hex_encode(pg_param(nil)), "ffffffff")
-    assert_eq(pg_param(true), concat(pg_int32(1), "t"))
-    assert_eq(pg_param(-42), concat(pg_int32(3), "-42"))
-    assert_eq(pg_param("ü"), concat(pg_int32(2), "ü"))
-  end
-
-  test "column values decode by type" do
-    assert_eq(pg_decode(16, "t"), true)
-    assert_eq(pg_decode(16, "f"), false)
-    assert_eq(pg_decode(20, "-9000000000"), -9000000000)
-    assert_eq(pg_decode(3802, "{\"k\": [1, 2]}"), %{k: [1, 2]})
-    assert_eq(pg_decode(1700, "3.10"), "3.10")
-    assert_eq(pg_decode(1184, "2026-09-29 17:00:00+00"), "2026-09-29 17:00:00+00")
-  end
-
   test "DATABASE_URL, as the Phoenix app is given it" do
     o = pg_parse_url("ecto://blog:p%40ss:w@rd@db/blog_prod")
     assert_eq(o.user, "blog")
@@ -52,5 +14,37 @@ actor PostgresTests do
     assert_eq(o2.password, "")
     assert_eq(o2.database, "site_test")
     assert_eq(pg_parse_url("not a url"), nil)
+  end
+
+  test "no database: db_start answers at once, and db_poll gives the same error" do
+    p = db_start(nil, "select 1", [], 1000)
+    assert_eq(db_poll(p), {:error, "no database is configured (DATABASE_URL)"})
+  end
+
+  # A listener nobody accepts on: the kernel finishes the handshake, then
+  # nothing is ever said, as with a Postgres that has stopped answering.
+  # The old client waited on that socket for good.
+  test "a server that never answers: DB's wait ends at the deadline" do
+    port = 47000 + rem(now_ms(), 900)
+    s = tcp_listen(port)
+    d = spawn Db
+    d <- :open(%{host: "127.0.0.1", port: port, user: "u", password: "p", database: "x"})
+    t0 = now_ms()
+    assert_eq(d <- :query_ms("select 1", [], 200), {:error, "timeout"})
+    took = now_ms() - t0
+    assert_eq(took >= 200 and took < 1000, true)
+    st = d <- :stats
+    assert_eq({st.timeouts, st.failures, st.connected}, {1, 1, false})
+    tcp_close(s)
+  end
+
+  test "a server that never answers: db_poll says nil until the deadline, then timeout" do
+    port = 47000 + rem(now_ms() + 450, 900)
+    s = tcp_listen(port)
+    p = db_start(%{host: "127.0.0.1", port: port, user: "u", password: "p", database: "x"}, "select 1", [], 150)
+    assert_eq(db_poll(p), nil)
+    sleep_ms(250)
+    assert_eq(db_poll(p), {:error, "timeout"})
+    tcp_close(s)
   end
 end
