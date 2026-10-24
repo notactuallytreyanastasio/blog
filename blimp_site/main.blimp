@@ -439,13 +439,23 @@ def answer_resp(raw: String, req: Map, resp0: Map) -> Tuple do
   case tag == nil or resp0.status != 200 do
     true -> {serialize(resp0, req.method), resp0.status, req}
     false ->
-      resp = case edge_versioned(req.query, resp0.ver) do
-        true -> put(resp0, :cache, CACHE_IMMUTABLE)
-        false -> resp0
+      # the bytes prebuilt serialized at boot, never a fresh copy
+      imm = edge_versioned(req.query, resp0.ver) and length(resp0.wire_imm) > 0
+      wire = case imm do
+        true -> resp0.wire_imm
+        false -> resp0.wire
+      end
+      cache = case imm do
+        true -> CACHE_IMMUTABLE
+        false -> resp0.cache
       end
       case etag_matches(header_value(raw, "If-None-Match"), tag) do
-        true -> {not_modified(tag, resp.cache), 304, req}
-        false -> {serialize(resp, req.method), resp.status, req}
+        true -> {not_modified(tag, cache), 304, req}
+        false ->
+          case req.method == "HEAD" do
+            true -> {head_of(wire), 200, req}
+            false -> {wire, 200, req}
+          end
       end
   end
 end
@@ -701,12 +711,10 @@ end
 # Every parked response whose socket has room, offered more; then every
 # connection past its time, answered with what came or dropped.
 # {answered, socks, conns}
-def conns_write(conns: Map, socks: Map, desk: Map, home: Map, t: Int) -> Tuple do
-  writing = conn_fds(conns, :write)
-  room = case writing do
-    [] -> []
-    _ -> tcp_poll_write(writing, 0)
-  end
+# room: the parked fds the tick's tcp_poll_rw found writable. A response
+# parked during this tick (accepted and offered once above) is not in it;
+# its socket was just filled, and the next tick's poll waits on it.
+def conns_write(conns: Map, room: List, socks: Map, desk: Map, home: Map, t: Int) -> Tuple do
   wrote = reduce(room, conns, fn(acc: Map, fd: Int) -> Map do
     c = lookup(acc, conn_key(fd))
     case c == nil do
@@ -1024,8 +1032,8 @@ def socket_fds(socks: Map) -> List do
 end
 
 # One tick's worth of the network: wait up to 100ms for the listener, any
-# WebSocket or any connection still sending its request (10ms while a
-# response is parked: CONN_WRITE_POLL_MS), accept what is waiting, read
+# WebSocket, any connection still sending its request, or any parked
+# response's socket to have room (one tcp_poll_rw), accept what is waiting, read
 # what is ready, let every room have its say, write it all out without
 # waiting, and offer parked responses more. Nothing here waits on a peer.
 # {requests answered, socks, games, dirty, pushed_at, conns}
@@ -1050,17 +1058,21 @@ def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool
   COLLAGE_STORE <- :step
   # work_log_commits from GitHub, when WORK_LOG_POLL is on (src/99_work_log_poll.blimp)
   WL <- :step
-  wait = case conn_fds(conns, :write) do
-    [] -> 100
-    _ -> CONN_WRITE_POLL_MS
-  end
+  # one wait for both directions (tcp_poll_rw, blimp#107): a request
+  # arriving or a parked response's socket draining, whichever is first.
+  # It used to wait on reads with a 10ms timeout and then ask about
+  # writes, which put 10ms under every refill: /sky/points.json.gz went
+  # from 2ms to 25ms to a reader that could take it at once.
+  writing = conn_fds(conns, :write)
   # at CONN_MAX the listener is left out, or its backlog would wake every
   # poll at once and the tick would spin until a connection finished
   listen = case length(keys(conns)) >= CONN_MAX do
     true -> []
     false -> [fd]
   end
-  ready = tcp_poll(list_append(list_append(listen, socket_fds(socks)), conn_fds(conns, :read)), wait)
+  polled = tcp_poll_rw(list_append(list_append(listen, socket_fds(socks)), conn_fds(conns, :read)), writing, 100)
+  ready = elem(polled, 0)
+  room = elem(polled, 1)
   t0 = now_ms()
   # requests that were waiting on more bytes, then new connections
   heard = conns_read(ready, {[], socks, conns}, desk, home, t0)
@@ -1089,7 +1101,7 @@ def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool
   flushed = ROOMS <- :flush
   kicked = rooms_kick(flushed.kicked, read)
   # parked responses, and connections past their time
-  wrote = conns_write(elem(accepted, 2), elem(kicked, 0), desk, home, now_ms())
+  wrote = conns_write(elem(accepted, 2), room, elem(kicked, 0), desk, home, now_ms())
   answered = list_append(elem(wrote, 0), elem(accepted, 0))
   case gods do
     true -> {answered, elem(wrote, 1), elem(kicked, 1), false, t, elem(wrote, 2)}

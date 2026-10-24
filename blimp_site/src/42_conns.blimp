@@ -17,7 +17,7 @@
 #            costs nothing until it comes.
 #   :write   the response, offered with tcp_write_some, which takes what
 #            the kernel has room for. What it does not take waits for the
-#            fd to be writable (tcp_poll_write in the tick) and is offered
+#            fd to be writable (the tick's tcp_poll_rw) and is offered
 #            again. All of it taken: the fd is closed.
 #
 # Bounds, so a peer cannot keep one forever:
@@ -47,10 +47,6 @@ CONN_STALL_MS = 10000
 CONN_WRITE_MS = 300000
 CONN_MAX = 512
 ACCEPT_PER_TICK = 64
-# A tick's poll waits at most this long while a response is parked, so a
-# reader that drains its socket buffer is offered more within this, not
-# within the 100ms an idle tick waits.
-CONN_WRITE_POLL_MS = 10
 # Reads a turn: a socket that has 10MB waiting gives it 64KB a read; this
 # many reads, then the next connection's turn.
 CONN_READS_PER_TURN = 16
