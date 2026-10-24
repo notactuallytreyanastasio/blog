@@ -81,7 +81,7 @@ def temper_snake_page() -> String do
     "<div class=\"max-w-2xl mx-auto px-4 py-10 space-y-6\">",
     "<div><h1 class=\"text-2xl font-semibold tracking-tight\">Snake, by way of Temper and Blimp</h1></div>",
     "<link rel=\"stylesheet\" href=\"", base, "embed.css\">",
-    "<div id=\"snake-host\"><div id=\"snake-app\" class=\"blimp-host\"><span class=\"text-sm text-gray-500\">loading…</span></div>",
+    "<div id=\"snake-host\"><div id=\"snake-app\" class=\"blimp-host\" data-programs=\"", base, "snake.blimp ", base, "harness.blimp\"><span class=\"text-sm text-gray-500\">loading…</span></div>",
     "<div id=\"snake-status\" class=\"mt-3 text-xs text-gray-400\"></div></div>",
     "<link rel=\"stylesheet\" href=\"/assets/blimp-window.css\">",
     script_tags(["/blimp/blimp.js", "/blimp/blimp-view.js", "/blimp/canvas.js", "/blimp/page-canvas.js", "/snake/play.js"]),

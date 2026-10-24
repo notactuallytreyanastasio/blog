@@ -18,11 +18,18 @@
   // keeps /blimp/* for hours, and a deploy must not meet last week's copy.
   var rt = document.querySelector('script[data-blimp-wasm]')
   if (!rt) return fail('no script[data-blimp-wasm] on this page: it was not built with script_tags')
+  // The game and its runner, as the page names them (data-programs, which
+  // its <head> preloads), asked for while the interpreter is instantiated.
+  var urls = (host.dataset.programs || (base + 'snake.blimp ' + base + 'harness.blimp')).split(' ')
+  var sources = Promise.all(urls.map(function (u) {
+    return fetch(u).then(function (r) {
+      if (!r.ok) throw new Error(u + ' is ' + r.status)
+      return r.text()
+    })
+  }))
+  sources.catch(function () {})
   new Blimp().init(rt.getAttribute('data-blimp-wasm')).then(function (blimp) {
-    return Promise.all([
-      fetch(base + 'snake.blimp').then(function (r) { return r.text() }),
-      fetch(base + 'harness.blimp').then(function (r) { return r.text() }),
-    ]).then(function (parts) {
+    return sources.then(function (parts) {
       var source = parts[0] + '\n' + parts[1] + '\napp <- :view\n'
       var frames = 0, worst = 0, t0 = 0
       var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null

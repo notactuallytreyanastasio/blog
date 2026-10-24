@@ -345,4 +345,17 @@ actor DesktopTests do
     assert(contains(p, "href=\"/?leica=1\""))
     refute(contains(downcase(p), "instagram"))
   end
+
+  test "every icon the page uses is a symbol in the sprite, and the page draws none inline" do
+    html = dt_page("")
+    uses = drop_list(split(html, concat("<use href=\"", DESK_SPRITE_HREF, "#")), 1)
+    assert(length(uses) > 40)
+    each(uses, fn(u: String) do
+      id = take(u, index_of(u, "\""))
+      assert(contains(DESK_SPRITE, concat("<symbol id=\"", id, "\" viewBox=\"0 0 32 20\"><path d=\"M")))
+    end)
+    refute(contains(html, "viewBox=\"0 0 32 20\" shape-rendering=\"crispEdges\"><path"))
+    assert_eq(DESK_SPRITE_HREF, concat("/blimp/icons.svg?v=", edge_sums(DESK_SPRITE).ver))
+  end
 end
+

@@ -101,10 +101,72 @@ def page_layout_full(title: String, description: String, og_type: String, styles
     meta_tag("name", "twitter:description", description),
     "<link rel=\"icon\" href=\"/favicon.ico\">\n",
     links,
+    blimp_preloads(body),
     "</head>\n<body>\n",
     with_runtime(body),
     "\n</body>\n</html>\n"
   ], "")
+end
+
+# What a Blimp page fetches only after its scripts have run, asked for from
+# the <head> instead. A page loaded in series: the HTML, then blimp.js and
+# the page's host script (app.js, play.js), and only when they ran did the
+# host ask for blimp.wasm (617KB), and only when that was instantiated, the
+# program. On /who the wasm started 213ms into the load with 40ms of
+# emulated round trip, after every stylesheet and script. A preload starts
+# both with the stylesheets. The URLs are read off the page itself, from
+# the attributes its host reads them from, so they are the same strings
+# and the preload is the one the host's fetch() is given:
+#   data-wasm, else data-blimp-wasm      the interpreter (app.js's order)
+#   data-program, ?v=data-blimp-build    app.js's program, versioned as it
+#                                        versions it (not when it has a ?)
+#   data-programs                        a host that fetches several
+#                                        (static/snake/play.js), as written
+#   data-renderer                        the post window's worker's program
+# crossorigin because fetch() is a CORS-mode request, which a preload
+# without it does not match. A post's worker fetches in its own context,
+# which no preload serves; it finds them in the HTTP cache (they are named
+# by content, so kept a year), and the article comes first, so a post's
+# are fetchpriority="low".
+def blimp_preloads(body: String) -> String do
+  wasm = page_attr(body, "data-wasm")
+  interp = case wasm do
+    "" -> page_attr(body, "data-blimp-wasm")
+    _ -> wasm
+  end
+  program = page_attr(body, "data-program")
+  build = page_attr(body, "data-blimp-build")
+  versioned = case program == "" or build == "" or contains(program, "?") do
+    true -> program
+    false -> concat(program, "?v=", build)
+  end
+  renderer = page_attr(body, "data-renderer")
+  several = filter(split(page_attr(body, "data-programs"), " "), fn(u: String) -> Bool do u != "" end)
+  urls = filter(flat([[interp, versioned, renderer], several]), fn(u: String) -> Bool do u != "" end)
+  prio = case renderer == "" do
+    true -> ""
+    false -> " fetchpriority=\"low\""
+  end
+  join(map(urls, fn(u: String) -> String do
+    concat("<link rel=\"preload\" href=\"", u, "\" as=\"fetch\" crossorigin", prio, ">\n")
+  end), "")
+end
+
+# The value of the first `name="..."` in html, as written (still escaped),
+# or "".
+def page_attr(html: String, name: String) -> String do
+  key = concat(" ", name, "=\"")
+  at = index_of(html, key)
+  case at < 0 do
+    true -> ""
+    false ->
+      from = at + length(key)
+      stop = index_of_from(html, "\"", from)
+      case stop < 0 do
+        true -> ""
+        false -> slice(html, from, stop - from)
+      end
+  end
 end
 
 # Blimp's canvas, drawing the one Blimp process serving this site, as it
@@ -242,6 +304,11 @@ def blimp_window(slug: String) -> String do
 end
 
 def not_found_page(path: String) -> String do
+  not_found_page_for(concat("<code>", escape_html(path), "</code>"))
+end
+
+# `where` is HTML: the path in <code>, or words.
+def not_found_page_for(where: String) -> String do
   body = join([
     "<div class=\"mac-blog\">",
     menu_bar("", "served by Blimp"),
@@ -249,9 +316,21 @@ def not_found_page(path: String) -> String do
     "<div class=\"mac-title-bar\"><a href=\"/\" class=\"mac-close-box\"></a>",
     "<div class=\"mac-title\">Not Found</div><div class=\"mac-resize-box\"></div></div>",
     "<div class=\"mac-window-content\" style=\"padding: 24px;\">",
-    "<p>There is nothing at <code>", escape_html(path), "</code>.</p>",
+    "<p>There is nothing at ", where, ".</p>",
     "<p style=\"margin-top: 12px;\"><a href=\"/blog\">All posts</a></p>",
     "</div></div></div></div>"
   ], "")
   page_layout("Not Found", site_description(), "website", ["/assets/base.css", "/assets/blog.css"], body)
 end
+
+# The answer to every GET no route has (static_or_404, main.blimp), made
+# once: the response dynamic() hands back, with its wire, which answer_resp
+# sends as it is. It was a page rendered per request, naming the path, after
+# the whole fallback chain; in production Caddy answers any Blimp 404 with a
+# 308 to old.bobbby.online and drops the body unread, so nobody saw the path
+# and every scanner's probe paid for it. The page says "this address".
+def not_found_prebuilt() -> Map do
+  resp = html_response(404, not_found_page_for("this address"))
+  put(resp, :wire, serialize(resp, "GET"))
+end
+NOT_FOUND = not_found_prebuilt()

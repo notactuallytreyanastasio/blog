@@ -343,6 +343,43 @@ def web_find_in(routes: List, method: String, parts: List, allowed: List) -> Any
   end
 end
 
+# The routes a GET or HEAD of `path` can be claimed by, from an index made
+# once (web_get_index). web_find claims a GET or HEAD only with a GET route,
+# and a route can match only when its first segment is the path's or a
+# :param, so the rest of the table cannot change the answer: web_find over
+# these is web_find over all of them, in the same order. The site's table is
+# about a hundred routes, and walking it was 62us of every GET that missed
+# the fixed routes (every 404, and every page dynamic() holds, /who and
+# /aim among them), measured over 2000 handle() calls at the prompt.
+def web_get_index(routes: List) -> Map do
+  gets = filter(routes, fn(r: Map) -> Bool do r.method == "GET" end)
+  wild = filter(gets, fn(r: Map) -> Bool do web_first_wild(r.segs) end)
+  firsts = uniq(map(filter(gets, fn(r: Map) -> Bool do not(web_first_wild(r.segs)) end), fn(r: Map) -> String do web_first_seg(r.segs) end))
+  index = reduce(firsts, %{}, fn(acc: Map, f: String) -> Map do
+    put(acc, f, filter(gets, fn(r: Map) -> Bool do web_first_wild(r.segs) or web_first_seg(r.segs) == f end))
+  end)
+  %{index: index, wild: wild}
+end
+
+def web_first_seg(segs: List) -> String do
+  case segs do
+    [] -> ""
+    [s | _] -> s
+  end
+end
+
+def web_first_wild(segs: List) -> Bool do
+  starts_with(web_first_seg(segs), ":")
+end
+
+def web_get_candidates(ix: Map, path: String) -> List do
+  got = lookup(ix.index, web_first_seg(drop_list(split(path, "/"), 1)))
+  case got do
+    nil -> ix.wild
+    _ -> got
+  end
+end
+
 def web_allow(allowed: List) -> String do
   with_head = case has_string(allowed, "GET") and not(has_string(allowed, "HEAD")) do
     true -> list_append(allowed, ["HEAD"])

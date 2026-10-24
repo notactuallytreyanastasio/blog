@@ -15,17 +15,21 @@ function literal(s) {
 self.onmessage = async function (ev) {
   var slug = ev.data.slug
   try {
-    importScripts(ev.data.js)
-    var blimp = new Blimp()
-    blimp.onPrint(function () {})
-    await blimp.init(ev.data.wasm)
-    var [program, source] = await Promise.all([
+    // the renderer and the post's source are asked for first, so they
+    // download while blimp.js loads and the interpreter is instantiated
+    var texts = Promise.all([
       fetch(ev.data.renderer).then(function (r) { return r.text() }),
       fetch("/post/" + slug + ".md").then(function (r) {
         if (!r.ok) throw new Error("/post/" + slug + ".md is " + r.status)
         return r.text()
       }),
     ])
+    texts.catch(function () {})
+    importScripts(ev.data.js)
+    var blimp = new Blimp()
+    blimp.onPrint(function () {})
+    await blimp.init(ev.data.wasm)
+    var [program, source] = await texts
     var loaded = blimp.eval(program)
     if (!loaded.ok) throw new Error(loaded.error)
     self.postMessage({ step: "loaded", state: blimp.getState() })
