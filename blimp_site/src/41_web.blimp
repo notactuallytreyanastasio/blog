@@ -40,8 +40,9 @@ WEB_MAX_UPLOAD = 10485760
 # on to the fixed table or dynamic(), are not held to it (a GET is read
 # once, at most 64KiB).
 WEB_MAX_HEAD = 16384
-# How long the one server thread waits for the rest of a request. The
-# server answers nobody else meanwhile, so this is short.
+# How long a request's body may take to arrive once its headers have
+# (src/42_conns.blimp). Nobody waits on it now; a client that is slower
+# than this is answered 408 with what it sent.
 WEB_READ_MS = 2000
 WEB_SESSION_COOKIE = "_blimp_session"
 WEB_MAX_COOKIE = 4000
@@ -49,12 +50,13 @@ WEB_DEV_SECRET = "blimp-dev-session-secret-not-for-production-use-000"
 
 # ---------------------------------------------------------------- reading
 
-# serve_client reads a socket once. One tcp_read is one read(2) of at most
-# 64KiB that does not wait, so a body larger than that, or one sent after
-# its headers (curl with Expect: 100-continue, a proxy streaming), arrives
-# in part or not at all. For anything but GET and HEAD, read until the
-# headers and Content-Length bytes of body are in, or the body is known to
-# be refused, or WEB_READ_MS pass. A GET is returned as it was read.
+# A request arrives in pieces, as the socket gives them (src/42_conns.blimp
+# reads them, a tcp_read at a time, and never waits). web_need says, of
+# what has come so far, whether there is a request to answer yet. For
+# anything but GET and HEAD that is the headers and Content-Length bytes of
+# body, or as soon as the body is known to be refused; a GET or HEAD needs
+# its headers, or 64KiB of them (what one read gave it before, when it was
+# read once). The conn's deadline answers what never completes.
 #
 # The cap is the route's (web_max_body): 1 MiB unless the route that will
 # take the body says more, so a 10 MB upload route does not let every other
@@ -62,13 +64,41 @@ WEB_DEV_SECRET = "blimp-dev-session-secret-not-for-production-use-000"
 # once. Joining as it arrives copied everything read so far on every read:
 # 160 reads for 10 MB is about 800 MB copied, none of it reclaimed until
 # the tick returns.
-def web_read_rest(c: Int, raw: Any, routes: List) -> Any do
-  case raw do
-    nil -> nil
-    _ ->
-      case starts_with(raw, "GET ") or starts_with(raw, "HEAD ") do
-        true -> raw
-        false -> web_read_more(c, raw, now_ms() + WEB_READ_MS, web_cap_for(routes, raw))
+#
+#   web_need(got, routes) -> :done | :more | {:need, bytes, expect_continue}
+#
+# {:need, n, _} is a request whose headers are in, with n bytes in all to
+# come; the reader stops looking at it and counts. expect_continue is
+# whether it asked for "100 Continue" before sending its body.
+def web_need(got: String, routes: List) -> Any do
+  hend = index_of(got, "\r\n\r\n")
+  case starts_with(got, "GET ") or starts_with(got, "HEAD ") do
+    true ->
+      case hend >= 0 or index_of(got, "\n\n") >= 0 or length(got) >= 65536 do
+        true -> :done
+        false -> :more
+      end
+    false ->
+      case hend < 0 do
+        true ->
+          case length(got) > WEB_MAX_HEAD do
+            true -> :done
+            false -> :more
+          end
+        false ->
+          headers = web_headers(take(got, hend))
+          cl = web_content_length(headers)
+          cap = web_cap_for(routes, got)
+          # refused whatever the body is: web_frame_error says so, unread
+          case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > cap do
+            true -> :done
+            false ->
+              need = hend + 4 + max(cl, 0)
+              case length(got) >= need do
+                true -> :done
+                false -> {:need, need, downcase(web_or(lookup(headers, "expect"), "")) == "100-continue"}
+              end
+          end
       end
   end
 end
@@ -81,78 +111,6 @@ def web_cap_for(routes: List, raw: String) -> Int do
   case found do
     {:ok, route, _} -> route.max_body
     _ -> WEB_MAX_BODY
-  end
-end
-
-def web_read_more(c: Int, got: String, deadline: Int, cap: Int) -> String do
-  hend = index_of(got, "\r\n\r\n")
-  case hend < 0 do
-    true ->
-      case length(got) > WEB_MAX_HEAD do
-        true -> got
-        false -> web_read_wait(c, got, deadline, cap)
-      end
-    false ->
-      headers = web_headers(take(got, hend))
-      cl = web_content_length(headers)
-      # refused whatever the body is: web_frame_error says so, unread
-      case hend > WEB_MAX_HEAD or lookup(headers, "transfer-encoding") != nil or cl < -1 or cl > cap do
-        true -> got
-        false ->
-          need = hend + 4 + max(cl, 0)
-          case length(got) >= need do
-            true -> got
-            false ->
-              expect = downcase(web_or(lookup(headers, "expect"), ""))
-              case expect == "100-continue" do
-                true -> tcp_write(c, "HTTP/1.1 100 Continue\r\n\r\n")
-                false -> :ok
-              end
-              web_read_body(c, [got], length(got), need, deadline)
-          end
-      end
-  end
-end
-
-# Headers not all in yet: one more read, then look again.
-def web_read_wait(c: Int, got: String, deadline: Int, cap: Int) -> String do
-  more = web_read_once(c, deadline)
-  case more do
-    nil -> web_read_more(c, got, deadline, cap)
-    "" -> got
-    _ -> web_read_more(c, concat(got, more), deadline, cap)
-  end
-end
-
-# The body: reads kept newest first and joined once there are `need`
-# bytes, or the deadline passes, or the client closes. What is short is
-# web_frame_error's 408.
-def web_read_body(c: Int, parts: List, have: Int, need: Int, deadline: Int) -> String do
-  case have >= need do
-    true -> join(reverse(parts), "")
-    false ->
-      more = web_read_once(c, deadline)
-      case more do
-        nil -> web_read_body(c, parts, have, need, deadline)
-        "" -> join(reverse(parts), "")
-        _ -> web_read_body(c, [more | parts], have + length(more), need, deadline)
-      end
-  end
-end
-
-# One read, waiting at most until the deadline: the bytes, nil when the
-# socket was ready but had nothing (read again), or "" when the time is up
-# or the client has closed its side.
-def web_read_once(c: Int, deadline: Int) -> Any do
-  left = deadline - now_ms()
-  case left <= 0 do
-    true -> ""
-    false ->
-      ready = tcp_poll([c], left)
-      case length(ready) > 0 do
-        false -> ""
-        true -> tcp_read(c)
-      end
   end
 end
 

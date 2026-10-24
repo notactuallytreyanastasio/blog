@@ -34,10 +34,12 @@ MAP_SNAPSHOT = "data/tag_ins.json"
 # The queries are Alloy's (temper/src/db/pages.temper.md): [sql, params...].
 MAP_TAGS_Q = map_tags_q()
 
+# By way of ROOMS (src/89_rooms.blimp), which writes with a send that never
+# waits: tcp_write here held the only thread for a page that stopped reading.
 def map_send(fd: Int, frame: String) -> Any do
   case fd < 0 do
     true -> :test
-    false -> tcp_write(fd, frame)
+    false -> ROOMS <- :send_raw(fd, frame)
   end
 end
 

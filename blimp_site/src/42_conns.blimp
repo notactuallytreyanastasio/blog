@@ -1,0 +1,193 @@
+# HTTP connections, read and written without waiting.
+#
+# The server is one thread. It used to take a connection, wait up to 2s
+# for its request (tcp_poll), read the rest of a body with more waits, and
+# write the response with tcp_write, which takes all of it or gives up after
+# 10s in which the peer took nothing. Each of those waits held every other
+# client. One reader of /sky/points.json.gz (4.8MB) at 100KB/s made a
+# request for /assets/base.css, 0.3ms on its own, take 31s: tcp_write sat
+# with the slow reader until it had nearly all of it.
+#
+# Now a connection is a value the Site keeps between ticks, in one of two
+# phases, and every step on it is one call that returns at once:
+#
+#   :read    bytes gathered as tcp_read gives them, until web_need
+#            (src/41_web.blimp) says there is a request. The tick polls
+#            these fds with the listener, so a request that comes late
+#            costs nothing until it comes.
+#   :write   the response, offered with tcp_write_some, which takes what
+#            the kernel has room for. What it does not take waits for the
+#            fd to be writable (tcp_poll_write in the tick) and is offered
+#            again. All of it taken: the fd is closed.
+#
+# Bounds, so a peer cannot keep one forever:
+#   CONN_READ_MS   from accept to the request's first bytes, and to its
+#                  headers (serve_client's 2s, no longer waited out). A body
+#                  then has WEB_READ_MS from its headers. Past either, what
+#                  came is answered (web_frame_error's 408 for a short body),
+#                  or the fd closed if nothing did.
+#   CONN_STALL_MS  writing: nothing taken for this long and it is dropped.
+#                  10s, what tcp_write allowed, so a client that lived
+#                  through a slow patch before does now.
+#   CONN_WRITE_MS  writing: all of it within this, however steadily it is
+#                  read. 5 minutes is the 4.8MB map at 16KB/s.
+#   CONN_MAX       connections being read or written at once. At CONN_MAX
+#                  the tick accepts no more; the kernel's listen queue holds
+#                  them, and accepts resume as these finish.
+#   ACCEPT_PER_TICK how many a tick accepts at most, so a flood of
+#                  connections waits its turn behind the tick, not the tick
+#                  behind it.
+#
+# A response is not copied as it goes: slice is a view of the same bytes,
+# so the part not yet taken costs nothing to name, and a 4.8MB body offered
+# a hundred times is not a hundred copies.
+
+CONN_READ_MS = 2000
+CONN_STALL_MS = 10000
+CONN_WRITE_MS = 300000
+CONN_MAX = 512
+ACCEPT_PER_TICK = 64
+# A tick's poll waits at most this long while a response is parked, so a
+# reader that drains its socket buffer is offered more within this, not
+# within the 100ms an idle tick waits.
+CONN_WRITE_POLL_MS = 10
+# Reads a turn: a socket that has 10MB waiting gives it 64KB a read; this
+# many reads, then the next connection's turn.
+CONN_READS_PER_TURN = 16
+
+def conn_key(fd: Int) -> String do
+  to_string(fd)
+end
+
+def conn_reading(fd: Int, t: Int) -> Map do
+  %{fd: fd, phase: :read, t0: t, parts: [], have: 0, need: -1, cont: false, deadline: t + CONN_READ_MS, raw: ""}
+end
+
+# A response for fd, not yet offered. line is what the log and the runtime
+# window call it ("GET /blog").
+def conn_writing(fd: Int, t0: Int, bytes: String, line: String, t: Int) -> Map do
+  %{fd: fd, phase: :write, t0: t0, out: bytes, off: 0, since: t, deadline: t + CONN_WRITE_MS, line: line}
+end
+
+# What has come, in the order it came.
+def conn_got(c: Map) -> String do
+  join(reverse(c.parts), "")
+end
+
+# Read what fd has, up to CONN_READS_PER_TURN reads. {verdict, conn}:
+#   :more     nothing to answer yet
+#   :request  conn.raw is the request
+#   :closed   the client went before sending anything; close fd
+def conn_read(c: Map, routes: List, t: Int) -> Tuple do
+  conn_read_n(c, routes, t, CONN_READS_PER_TURN)
+end
+
+def conn_read_n(c: Map, routes: List, t: Int, n: Int) -> Tuple do
+  data = tcp_read(c.fd)
+  case data do
+    nil -> {:more, c}
+    "" ->
+      case c.have > 0 do
+        true -> {:request, put(c, :raw, conn_got(c))}
+        false -> {:closed, c}
+      end
+    _ ->
+      got = conn_took(merge(c, %{parts: [data | c.parts], have: c.have + length(data)}), routes, t)
+      case elem(got, 0) == :more and n > 1 do
+        true -> conn_read_n(elem(got, 1), routes, t, n - 1)
+        false -> got
+      end
+  end
+end
+
+# Whether what has come is a request yet. Once the headers are in and the
+# body's length known, only the count is looked at; before, what came is
+# joined and kept as one piece, which the headers' cap keeps small.
+def conn_took(c: Map, routes: List, t: Int) -> Tuple do
+  case c.need >= 0 do
+    true ->
+      case c.have >= c.need do
+        true -> {:request, put(c, :raw, conn_got(c))}
+        false -> {:more, c}
+      end
+    false ->
+      got = conn_got(c)
+      verdict = web_need(got, routes)
+      case verdict do
+        :done -> {:request, put(c, :raw, got)}
+        :more -> {:more, put(c, :parts, [got])}
+        {:need, n, cont} ->
+          case cont and not(c.cont) do
+            # 25 bytes to a socket that has been sent nothing: the kernel
+            # takes them, and a client that never reads them still sends
+            # its body after its own timeout (curl's is 1s)
+            true -> tcp_write_some(c.fd, "HTTP/1.1 100 Continue\r\n\r\n")
+            false -> :ok
+          end
+          {:more, merge(c, %{parts: [got], need: n, cont: true, deadline: t + WEB_READ_MS})}
+      end
+  end
+end
+
+# Offer what is left of a response once. {verdict, conn}: :done (all of
+# it taken), :more, or {:drop, why}.
+def conn_write(c: Map, t: Int) -> Tuple do
+  left = length(c.out) - c.off
+  took = tcp_write_some(c.fd, slice(c.out, c.off, left))
+  case took == :error do
+    true -> {{:drop, "gone"}, c}
+    false ->
+      case took == left do
+        true -> {:done, put(c, :off, length(c.out))}
+        false ->
+          since = case took > 0 do
+            true -> t
+            false -> c.since
+          end
+          next = merge(c, %{off: c.off + took, since: since})
+          case conn_overdue(next, t) do
+            nil -> {:more, next}
+            why -> {{:drop, why}, next}
+          end
+      end
+  end
+end
+
+# Why a connection has had its time, or nil.
+def conn_overdue(c: Map, t: Int) -> Any do
+  case c.phase do
+    :read ->
+      case t >= c.deadline do
+        true -> "read"
+        false -> nil
+      end
+    :write ->
+      case t - c.since >= CONN_STALL_MS do
+        true -> concat("nothing taken for ", to_string(t - c.since), "ms")
+        false ->
+          case t >= c.deadline do
+            true -> concat("not done in ", to_string(CONN_WRITE_MS), "ms")
+            false -> nil
+          end
+      end
+  end
+end
+
+def conn_fds(conns: Map, phase: Atom) -> List do
+  reduce(values(conns), [], fn(acc: List, c: Map) -> List do
+    case c.phase == phase do
+      true -> [c.fd | acc]
+      false -> acc
+    end
+  end)
+end
+
+def conn_without(conns: Map, fd: Int) -> Map do
+  k = conn_key(fd)
+  reduce(keys(conns), %{}, fn(acc: Map, j: Any) -> Map do
+    case j == k do
+      true -> acc
+      false -> put(acc, j, lookup(conns, j))
+    end
+  end)
+end

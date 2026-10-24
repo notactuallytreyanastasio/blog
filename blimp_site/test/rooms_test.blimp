@@ -266,7 +266,7 @@ actor RoomsTests do
     hub <- :open("big", %{diffs: false})
     hub <- :join("big", -1, "ada", %{})
     hub <- :join("big", -2, "bob", %{})
-    chunk = doubled_to("x", 70000)
+    chunk = slice(doubled_to("x", (ROOMS_MAX_BYTES / 4) + 1000), 0, (ROOMS_MAX_BYTES / 4) + 1000)
     hub <- :send(-1, chunk)
     hub <- :send(-1, chunk)
     hub <- :send(-1, chunk)
@@ -289,7 +289,7 @@ actor RoomsTests do
     assert_eq(rt_sent(hub, -9), [%{t: "hello"}])
     assert_eq((hub <- :stats).sockets, [])
     # over the per-socket bound it is kicked, as a member would be
-    hub <- :send(-9, rt_rep("x", 18))
+    hub <- :send(-9, slice(doubled_to("x", ROOMS_MAX_BYTES + 1), 0, ROOMS_MAX_BYTES + 1))
     assert_eq((hub <- :flush).kicked, [-9])
     assert_eq(hub <- :sent(-9), [])
   end
@@ -404,7 +404,7 @@ actor RoomsTests do
     hub <- :join("room", -1, "ada", %{})
     f = rt_fill(hub, "room", 1, 60, [], 0)
     # owing, but under the bound: 64KB more a flush until it is over
-    r = elem(rt_fill_kick(hub, 1, 20), 1)
+    r = elem(rt_fill_kick(hub, 1, 2 * (ROOMS_MAX_BYTES / 65536) + 8), 1)
     assert_eq(r.kicked, [s])
     assert_eq(rt_whos(hub <- :list("room")), ["ada"])
     assert_eq(hub <- :list("other"), [])

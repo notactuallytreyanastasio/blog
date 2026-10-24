@@ -23,6 +23,8 @@
 #   :member(topic, fd) / :list(topic)
 #   :broadcast(topic, text) / :broadcast_from(fd, topic, text)
 #   :send(fd, text)               to fd, joined to a topic or not
+#   :send_raw(fd, bytes)          the same, bytes already on the wire's
+#                                 terms (a frame made elsewhere, the 101)
 #   :inbound(fd)                  -> :ok | :limited, for every frame received
 #   :flush                        -> %{sockets, frames, bytes, kicked,
 #                                      written, owed, behind}
@@ -80,7 +82,16 @@
 
 ROOMS_RATE = 30
 ROOMS_BURST = 60
-ROOMS_MAX_BYTES = 262144
+# 2 MiB, not the 256KB it was: every page's own pushes (the MTA map's,
+# the firehose's, Ziggy's answers) come through here now, not tcp_write,
+# and one MTA frame for a page watching the whole city is 1.27MB
+# (src/99_mta.blimp). At 256KB that page was kicked on the tick it was sent
+# its first frame by any kernel that did not take a megabyte at once. A
+# peer that stops reading is still kicked by the stall bound, 10s after it
+# last took a byte; this bound is for one that reads, slowly. Its cost is
+# LIVE_MAX_SOCKETS (256) * 2 MiB in the worst case of every socket a slow
+# reader at once.
+ROOMS_MAX_BYTES = 2097152
 # 10s is what tcp_write itself allowed a socket that took nothing before it
 # gave up, so no page that lived through a stall before is kicked now; the
 # difference is that the thread no longer waits those 10s with it.
@@ -179,6 +190,11 @@ end
 
 def rooms_entry(to: Any, topic: String, except: Any, text: String) -> Map do
   %{to: to, topic: topic, except: except, text: text, frame: ws_frame(1, text)}
+end
+
+# bytes to fd as they are: a frame another file made, or the handshake.
+def rooms_raw(to: Int, bytes: String) -> Map do
+  %{to: to, topic: "", except: nil, text: bytes, frame: bytes}
 end
 
 # The presence diffs a flush sends, one per topic that changed.
@@ -655,6 +671,15 @@ actor Rooms do
   # not :send to fd again, since the number may be a new connection's.
   on :send(fd: Int, text: String) do
     become outbox: [rooms_entry(fd, "", nil, text) | outbox]
+    reply :ok
+  end
+
+  # bytes to fd unframed, in order with everything else fd is sent: a
+  # frame made by a room that frames its own (src/98_firehose.blimp and
+  # the rest that used to tcp_write), or the 101 that opens a WebSocket,
+  # which must reach the page before the room it joins does.
+  on :send_raw(fd: Int, bytes: String) do
+    become outbox: [rooms_raw(fd, bytes) | outbox]
     reply :ok
   end
 

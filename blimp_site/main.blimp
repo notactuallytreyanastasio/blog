@@ -14,10 +14,11 @@
 #          holds them with its database connection, and reloads them every
 #          DESK_REFRESH_S seconds, so an edit in /admin/museum reaches "/"
 #          without a deploy.
-#   tick   wait up to 100ms for connections, answer every one that is
-#          waiting, return. Returning is what lets the host collect garbage
-#          and serve the prompt: nothing on the stack points into the heap
-#          between ticks.
+#   tick   wait up to 100ms for connections, answer every one whose request
+#          has come, write what each socket will take, return. Nothing in a
+#          tick waits on a peer (src/42_conns.blimp, src/89_rooms.blimp).
+#          Returning is what lets the host collect garbage and serve the
+#          prompt: nothing on the stack points into the heap between ticks.
 #
 # This replaced a prefork server whose workers died every 200 requests,
 # because the interpreter never freed anything. That held memory down but
@@ -471,39 +472,46 @@ def head_of(wire: String) -> String do
   concat(take(wire, index_of(wire, "\r\n\r\n")), "\r\n\r\n")
 end
 
-# One connection: wait briefly for its request (a socket accepted from a
-# non-blocking listener is non-blocking itself on some systems), answer it,
-# close it, log a line.
-def serve_client(c: Int, desk: Map, home: Map, room: Bool) -> Any do
-  t0 = now_ms()
-  ready = tcp_poll([c], 2000)
-  raw = case length(ready) > 0 do
-    # the rest of a body that did not come with its headers, up to the
-    # cap of the route that will take it (src/41_web.blimp)
-    true -> web_read_rest(c, tcp_read(c), WEB_ROUTES)
-    false -> nil
-  end
-  case raw do
-    nil ->
-      tcp_close(c)
-      ""
-    _ ->
-      case is_upgrade(raw) do
-        true -> upgrade(c, raw, room)
-        false ->
-          result = handle(raw, routes, posts, desk, home)
-          tcp_write(c, elem(result, 0))
-          tcp_close(c)
-          req = elem(result, 2)
-          puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
-          concat(req.method, " ", req.path)
+# A connection whose request has come (src/42_conns.blimp): answer it.
+# %{line, sock, conn}: line is what was answered ("GET /blog", "" for
+# nothing worth a ray), sock a WebSocket to keep, conn the response still
+# being written, to keep until it is. The response is offered once here;
+# what the kernel takes at once is most of them, and that fd is closed now.
+def respond(c: Int, raw: String, desk: Map, home: Map, room: Bool, t0: Int) -> Map do
+  case is_upgrade(raw) do
+    true ->
+      got = upgrade(c, raw, room)
+      case type_of(got) do
+        :map -> %{line: "", sock: got, conn: nil}
+        _ -> http_out(c, elem(got, 0), elem(got, 1), t0)
       end
+    false ->
+      result = handle(raw, routes, posts, desk, home)
+      req = elem(result, 2)
+      puts(concat(req.method, " ", req.path, " ", to_string(elem(result, 1)), " ", to_string(now_ms() - t0), "ms"))
+      http_out(c, elem(result, 0), concat(req.method, " ", req.path), t0)
+  end
+end
+
+# A response's first offer: closed when it all went, kept when it did not.
+# The usual case, all of it taken, makes no conn at all.
+def http_out(c: Int, bytes: String, line: String, t0: Int) -> Map do
+  took = tcp_write_some(c, bytes)
+  case took == length(bytes) or took == :error do
+    true ->
+      tcp_close(c)
+      case took == :error do
+        true -> puts(concat(line, " dropped, gone"))
+        false -> :ok
+      end
+      %{line: line, sock: nil, conn: nil}
+    false -> %{line: line, sock: nil, conn: put(conn_writing(c, t0, bytes, line, now_ms()), :off, took)}
   end
 end
 
 # A WebSocket for /live/pong?game=<id> (a game reporting) or /live/pong-god
-# (a page watching all of them): the socket, to be kept, or 1 when the
-# request was answered and closed instead.
+# (a page watching all of them): the socket, to be kept, or {response,
+# line} when it is refused instead.
 def upgrade(c: Int, raw: String, room: Bool) -> Any do
   req = parse_request(raw)
   game = query_param(req.query, "game")
@@ -539,12 +547,12 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
         true -> 404
         false -> 503
       end
-      tcp_write(c, serialize(response(status, "text/plain", "no-cache", "no such socket\n"), "GET"))
-      tcp_close(c)
       puts(concat("WS ", req.path, " ", to_string(status)))
-      concat("WS ", req.path)
+      {serialize(response(status, "text/plain", "no-cache", "no such socket\n"), "GET"), concat("WS ", req.path)}
     false ->
-      tcp_write(c, ws_handshake(raw))
+      # by way of ROOMS, so it goes out before anything a room sends the
+      # page on joining, and without waiting
+      ROOMS <- :send_raw(c, ws_handshake(raw))
       puts(concat("WS ", req.path, " 101 ", game))
       # a blackjack player sits down in the lobby, and is sent it at once
       case kind == :blackjack do
@@ -602,24 +610,143 @@ def upgrade(c: Int, raw: String, room: Bool) -> Any do
   end
 end
 
-# Every connection that is waiting now, then stop: the tick must return.
-# Every connection that is waiting now, then stop: the tick must return.
-# {what was answered, newest first ("GET /blog"), sockets}, the sockets
-# with any new WebSockets added.
-def accept_all(fd: Int, answered: List, desk: Map, home: Map, socks: Map) -> Tuple do
-  c = live_accept(fd)
-  case c do
-    nil -> {answered, socks}
-    _ ->
-      got = serve_client(c, desk, home, length(keys(socks)) < LIVE_MAX_SOCKETS)
-      case type_of(got) do
-        :map -> accept_all(fd, answered, desk, home, put(socks, to_string(got.fd), got))
+# The connections waiting now, up to ACCEPT_PER_TICK and while fewer than
+# CONN_MAX are open, each tried for its request at once (it has usually
+# come with the connection). {what was answered, newest first ("GET /blog"),
+# socks, conns}
+def accept_some(fd: Int, n: Int, answered: List, desk: Map, home: Map, socks: Map, conns: Map) -> Tuple do
+  case n <= 0 or length(keys(conns)) >= CONN_MAX do
+    true -> {answered, socks, conns}
+    false ->
+      c = live_accept(fd)
+      case c do
+        nil -> {answered, socks, conns}
         _ ->
-          case got do
-            "" -> accept_all(fd, answered, desk, home, socks)
-            _ -> accept_all(fd, [got | answered], desk, home, socks)
-          end
+          t = now_ms()
+          r = accept_one(c, answered, desk, home, socks, conns, t)
+          accept_some(fd, n - 1, elem(r, 0), desk, home, elem(r, 1), elem(r, 2))
       end
+  end
+end
+
+# A connection just accepted. Most come with the whole request in their
+# first read, and are answered from it with no conn made; the rest become
+# a conn and wait their turn. {answered, socks, conns}
+def accept_one(c: Int, answered: List, desk: Map, home: Map, socks: Map, conns: Map, t: Int) -> Tuple do
+  data = tcp_read(c)
+  case data == nil or data == "" do
+    true -> conn_turn(conn_reading(c, t), answered, desk, home, socks, conns, t)
+    false ->
+      case web_need(data, WEB_ROUTES) == :done do
+        true -> conn_answer(%{fd: c, raw: data, t0: t}, answered, desk, home, socks, conns)
+        false -> conn_after_read(conn_took(merge(conn_reading(c, t), %{parts: [data], have: length(data)}), WEB_ROUTES, t), answered, desk, home, socks, conns)
+      end
+  end
+end
+
+# One reading connection's turn: read what it has, and answer it if that
+# makes a request. {answered, socks, conns}
+def conn_turn(c: Map, answered: List, desk: Map, home: Map, socks: Map, conns: Map, t: Int) -> Tuple do
+  conn_after_read(conn_read(c, WEB_ROUTES, t), answered, desk, home, socks, conns)
+end
+
+# What a read's verdict ({verdict, conn}) does to the tick's state.
+def conn_after_read(r: Tuple, answered: List, desk: Map, home: Map, socks: Map, conns: Map) -> Tuple do
+  c = elem(r, 1)
+  case elem(r, 0) do
+    :more -> {answered, socks, put(conns, conn_key(c.fd), c)}
+    :closed ->
+      tcp_close(c.fd)
+      {answered, socks, conn_without(conns, c.fd)}
+    :request -> conn_answer(c, answered, desk, home, socks, conns)
+  end
+end
+
+def conn_answer(c: Map, answered: List, desk: Map, home: Map, socks: Map, conns: Map) -> Tuple do
+  got = respond(c.fd, c.raw, desk, home, length(keys(socks)) < LIVE_MAX_SOCKETS, c.t0)
+  ans = case got.line do
+    "" -> answered
+    l -> [l | answered]
+  end
+  s2 = case got.sock == nil do
+    true -> socks
+    false -> put(socks, to_string(got.sock.fd), got.sock)
+  end
+  c2 = case got.conn == nil do
+    true ->
+      case lookup(conns, conn_key(c.fd)) == nil do
+        true -> conns
+        false -> conn_without(conns, c.fd)
+      end
+    false -> put(conns, conn_key(c.fd), got.conn)
+  end
+  {ans, s2, c2}
+end
+
+# Every reading connection that poll said is ready. {answered, socks, conns}
+def conns_read(ready: List, acc: Tuple, desk: Map, home: Map, t: Int) -> Tuple do
+  reduce(ready, acc, fn(a: Tuple, fd: Int) -> Tuple do
+    c = lookup(elem(a, 2), conn_key(fd))
+    case c == nil do
+      true -> a
+      false ->
+        case c.phase == :read do
+          true -> conn_turn(c, elem(a, 0), desk, home, elem(a, 1), elem(a, 2), t)
+          false -> a
+        end
+    end
+  end)
+end
+
+# Every parked response whose socket has room, offered more; then every
+# connection past its time, answered with what came or dropped.
+# {answered, socks, conns}
+def conns_write(conns: Map, socks: Map, desk: Map, home: Map, t: Int) -> Tuple do
+  writing = conn_fds(conns, :write)
+  room = case writing do
+    [] -> []
+    _ -> tcp_poll_write(writing, 0)
+  end
+  wrote = reduce(room, conns, fn(acc: Map, fd: Int) -> Map do
+    c = lookup(acc, conn_key(fd))
+    case c == nil do
+      true -> acc
+      false -> conn_settle(acc, c, conn_write(c, t), t)
+    end
+  end)
+  reduce(values(wrote), {[], socks, wrote}, fn(acc: Tuple, c: Map) -> Tuple do
+    why = conn_overdue(c, t)
+    case why == nil do
+      true -> acc
+      false ->
+        case c.phase == :read and c.have > 0 do
+          # what came, answered as it is: web_frame_error's 408 for a body
+          # that stopped short
+          true -> conn_answer(put(c, :raw, conn_got(c)), elem(acc, 0), desk, home, elem(acc, 1), elem(acc, 2))
+          false ->
+            tcp_close(c.fd)
+            case c.phase == :write do
+              true -> puts(concat(c.line, " dropped, ", why, ", ", to_string(length(c.out) - c.off), " of ", to_string(length(c.out)), " bytes unsent"))
+              false -> :ok
+            end
+            {elem(acc, 0), elem(acc, 1), conn_without(elem(acc, 2), c.fd)}
+        end
+    end
+  end)
+end
+
+# conns after a write's verdict on c.
+def conn_settle(conns: Map, c: Map, w: Tuple, t: Int) -> Map do
+  case elem(w, 0) do
+    :more -> put(conns, conn_key(c.fd), elem(w, 1))
+    :done ->
+      tcp_close(c.fd)
+      puts(concat(c.line, " sent ", to_string(length(c.out)), " bytes in ", to_string(t - c.t0), "ms"))
+      conn_without(conns, c.fd)
+    {:drop, why} ->
+      tcp_close(c.fd)
+      puts(concat(c.line, " dropped, ", why, ", ", to_string(length(c.out) - elem(w, 1).off), " of ", to_string(length(c.out)), " bytes unsent"))
+      conn_without(conns, c.fd)
   end
 end
 
@@ -703,7 +830,9 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
   case ws_next(sock.buf) do
     :more -> {put(socks, to_string(sock.fd), sock), games, changed}
     {:bad, reason} ->
-      tcp_write(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(234))))
+      # a close frame is a courtesy to a socket about to be closed: one
+      # send that does not wait, and whatever the kernel takes of it
+      tcp_write_some(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(234))))
       after_drop = drop_socket(sock, socks, games, reason)
       {elem(after_drop, 0), elem(after_drop, 1), true}
     {:frame, op, payload, rest} ->
@@ -715,7 +844,7 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
               report = pong_report(sock.game, payload)
               case report do
                 nil ->
-                  tcp_write(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(235))))
+                  tcp_write_some(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(235))))
                   after_bad = drop_socket(sock, socks, games, "a report that is not one")
                   {elem(after_bad, 0), elem(after_bad, 1), true}
                 _ -> live_frames(next, socks, put(games, sock.game, report), true)
@@ -762,22 +891,22 @@ def live_frames(sock: Map, socks: Map, games: Map, changed: Bool) -> Tuple do
               case taken do
                 true -> live_frames(next, socks, games, changed)
                 false ->
-                  tcp_write(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(235))))
+                  tcp_write_some(sock.fd, ws_frame(8, concat(from_char_code(3), from_char_code(235))))
                   after_wd = drop_socket(sock, socks, games, "a wordle report that is not one")
                   {elem(after_wd, 0), elem(after_wd, 1), changed}
               end
             :wordle_god ->
               said = WORDLE <- :command(payload)
-              tcp_write(sock.fd, ws_frame(1, json_encode(%{message: said})))
+              ROOMS <- :send(sock.fd, json_encode(%{message: said}))
               live_frames(next, socks, games, changed)
             _ -> live_frames(next, socks, games, changed)
           end
         8 ->
-          tcp_write(sock.fd, ws_frame(8, ""))
+          tcp_write_some(sock.fd, ws_frame(8, ""))
           after_close = drop_socket(sock, socks, games, "with a close frame")
           {elem(after_close, 0), elem(after_close, 1), true}
         9 ->
-          tcp_write(sock.fd, ws_frame(10, payload))
+          ROOMS <- :send_raw(sock.fd, ws_frame(10, payload))
           live_frames(next, socks, games, changed)
         10 -> live_frames(next, socks, games, changed)
         _ ->
@@ -894,11 +1023,13 @@ def socket_fds(socks: Map) -> List do
   map(values(socks), fn(s: Map) -> Int do s.fd end)
 end
 
-# One tick's worth of the network: wait up to 100ms for the listener or any
-# socket, accept every connection waiting, read every socket that is ready,
-# and send the god pages the games if they changed (at most every 50ms).
-# {requests answered, socks, games, dirty, pushed_at}
-def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
+# One tick's worth of the network: wait up to 100ms for the listener, any
+# WebSocket or any connection still sending its request (10ms while a
+# response is parked: CONN_WRITE_POLL_MS), accept what is waiting, read
+# what is ready, let every room have its say, write it all out without
+# waiting, and offer parked responses more. Nothing here waits on a peer.
+# {requests answered, socks, games, dirty, pushed_at, conns}
+def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool, pushed_at: Int, conns: Map) -> Tuple do
   # the work that waits on other servers, a step at a time
   HN <- :step
   MTA <- :step
@@ -919,29 +1050,50 @@ def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool
   COLLAGE_STORE <- :step
   # work_log_commits from GitHub, when WORK_LOG_POLL is on (src/99_work_log_poll.blimp)
   WL <- :step
-  ready = tcp_poll([fd | socket_fds(socks)], 100)
+  wait = case conn_fds(conns, :write) do
+    [] -> 100
+    _ -> CONN_WRITE_POLL_MS
+  end
+  # at CONN_MAX the listener is left out, or its backlog would wake every
+  # poll at once and the tick would spin until a connection finished
+  listen = case length(keys(conns)) >= CONN_MAX do
+    true -> []
+    false -> [fd]
+  end
+  ready = tcp_poll(list_append(list_append(listen, socket_fds(socks)), conn_fds(conns, :read)), wait)
+  t0 = now_ms()
+  # requests that were waiting on more bytes, then new connections
+  heard = conns_read(ready, {[], socks, conns}, desk, home, t0)
   accepted = case has_fd(ready, fd) do
-    true -> accept_all(fd, [], desk, home, socks)
-    false -> {[], socks}
+    true -> accept_some(fd, ACCEPT_PER_TICK, elem(heard, 0), desk, home, elem(heard, 1), elem(heard, 2))
+    false -> heard
   end
   joined = length(keys(elem(accepted, 1))) > length(keys(socks))
   read = live_read_all(ready, elem(accepted, 1), games, dirty or joined)
   WORDLE <- :push(elem(read, 0))
   CURSORS <- :push(now_ms(), now())
-  # what the rooms said this tick goes out, one write a socket that never
-  # waits (src/89_rooms.blimp); a socket too far behind is closed
-  flushed = ROOMS <- :flush
-  read = rooms_kick(flushed.kicked, read)
   # the Bluesky relays: drain what arrived, push to the firehose pages
   FIREHOSE <- :tick(now_ms())
   # /stumble's links from Graze's turbostream, when STUMBLE_INGEST is on
   STI <- :tick(now_ms())
   t = now_ms()
-  case elem(read, 2) and t - pushed_at >= 50 do
-    true ->
-      push_gods(elem(read, 0), elem(read, 1))
-      {elem(accepted, 0), elem(read, 0), elem(read, 1), false, t}
-    false -> {elem(accepted, 0), elem(read, 0), elem(read, 1), elem(read, 2), pushed_at}
+  gods = elem(read, 2) and t - pushed_at >= 50
+  case gods do
+    true -> push_gods(elem(read, 0), elem(read, 1))
+    false -> 0
+  end
+  # what the rooms said this tick goes out, one write a socket that never
+  # waits (src/89_rooms.blimp); a socket too far behind is closed. After
+  # every room above has had its say, so nothing said this tick waits for
+  # the next one.
+  flushed = ROOMS <- :flush
+  kicked = rooms_kick(flushed.kicked, read)
+  # parked responses, and connections past their time
+  wrote = conns_write(elem(accepted, 2), elem(kicked, 0), desk, home, now_ms())
+  answered = list_append(elem(wrote, 0), elem(accepted, 0))
+  case gods do
+    true -> {answered, elem(wrote, 1), elem(kicked, 1), false, t, elem(wrote, 2)}
+    false -> {answered, elem(wrote, 1), elem(kicked, 1), elem(kicked, 2), pushed_at, elem(wrote, 2)}
   end
 end
 
@@ -980,6 +1132,8 @@ actor Site do
   state rt_pending: List :: []
   state rt_at: Int :: 0
   state rt_seen: List :: []
+  # HTTP connections being read or written (src/42_conns.blimp)
+  state conns: Map :: %{}
 
   on :start(port: Int, first: Map, conn: Any, opts: Any) do
     s = tcp_listen(port)
@@ -989,7 +1143,7 @@ actor Site do
   end
 
   on :tick do
-    live = live_tick(fd, desk, home, socks, games, dirty, pushed_at)
+    live = live_tick(fd, desk, home, socks, games, dirty, pushed_at, conns)
     n = length(elem(live, 0))
     METER <- :sample
     rt = push_runtime(elem(live, 1), elem(live, 0), rt_pending, rt_at, rt_seen)
@@ -998,16 +1152,16 @@ actor Site do
     curated = CURATE <- :take
     case db_opts != nil and (curated or now() - desk_at >= DESK_REFRESH_S) do
       false ->
-        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2)
+        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2)
         reply n
       true ->
         case refresh_desk(db, db_opts) do
           {:ok, fresh, next} ->
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: fresh, home: home_entry(fresh), db: next, desk_at: now(), desk_error: ""
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: fresh, home: home_entry(fresh), db: next, desk_at: now(), desk_error: ""
             reply n
           {:error, reason, next} ->
             puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), db: next, desk_at: now(), desk_error: reason
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), db: next, desk_at: now(), desk_error: reason
             reply n
         end
     end
@@ -1016,6 +1170,16 @@ actor Site do
   # From the prompt: the games /pong/god is being sent, and the sockets.
   on :games do
     reply games
+  end
+
+  # From the prompt: the HTTP connections still being read or written.
+  on :conns do
+    reply map(values(conns), fn(c: Map) -> Map do
+      case c.phase == :write do
+        true -> %{fd: c.fd, phase: c.phase, line: c.line, sent: c.off, of: length(c.out), ms: now_ms() - c.t0}
+        false -> %{fd: c.fd, phase: c.phase, have: c.have, ms: now_ms() - c.t0}
+      end
+    end)
   end
 
   on :sockets do
@@ -1078,6 +1242,9 @@ DB_OPTS = case getenv("DATABASE_URL") do
       _ -> parsed
     end
 end
+# the dead-link sweep queries with pg_start, off this thread
+# (src/99_blinkscheck.blimp), so it is handed the options, not DB
+BLC <- :db(DB_OPTS)
 first = case DB_OPTS do
   nil -> {:ok, load_desktop("data", posts), nil}
   _ -> refresh_desk(nil, DB_OPTS)

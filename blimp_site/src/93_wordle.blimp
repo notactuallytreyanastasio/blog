@@ -140,6 +140,15 @@ def wordle_clean_duplicates(games: Map) -> Map do
   kept.games
 end
 
+# A frame to one page, by way of ROOMS (src/89_rooms.blimp), which writes
+# it with a send that never waits; a test's negative fd is not written.
+def wordle_send(fd: Int, frame: String) -> Any do
+  case fd < 0 do
+    true -> :test
+    false -> ROOMS <- :send_raw(fd, frame)
+  end
+end
+
 def wordle_json(games: List, t: Int) -> String do
   json_encode(%{games: map(games, fn(g: Map) -> Map do wordle_wire(g, t) end)})
 end
@@ -235,13 +244,13 @@ actor WordleStore do
           [] -> :ok
           _ ->
             frame = ws_frame(1, wordle_json(wordle_first(newest, 13), t))
-            each(players, fn(s: Map) do tcp_write(s.fd, frame) end)
+            each(players, fn(s: Map) do wordle_send(s.fd, frame) end)
         end
         case gods do
           [] -> :ok
           _ ->
             frame = ws_frame(1, wordle_json(newest, t))
-            each(gods, fn(s: Map) do tcp_write(s.fd, frame) end)
+            each(gods, fn(s: Map) do wordle_send(s.fd, frame) end)
         end
         become games: kept, dirty: false, pushed_at: now_ms(), refreshed_at: t, fds: open, cleaned_at: cleaned
         reply length(open)

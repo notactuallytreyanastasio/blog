@@ -376,7 +376,7 @@ def bjt_push(people: Map, order: List, tables: Map) -> Int do
     p = lookup(people, k)
     case p.fd < 0 do
       true -> :test
-      false -> tcp_write(p.fd, ws_frame(1, bjt_view(people, order, tables, k)))
+      false -> ROOMS <- :send(p.fd, bjt_view(people, order, tables, k))
     end
   end)
   length(order)
