@@ -3,6 +3,14 @@
 // timer and keys), and ten times a second sends the server what
 // `pong <- :report` answers, so /pong/god can draw this game too.
 (async function () {
+  // The interpreter by its content (/blimp/blimp.wasm?v=...), as blimp.js's
+  // tag names it: Cloudflare keeps /blimp/* for hours, and a deploy must not
+  // run this page on last week's interpreter.
+  function blimpWasmHref() {
+    var rt = document.querySelector('script[data-blimp-wasm]')
+    if (!rt) throw new Error('no script[data-blimp-wasm] on this page: it was not built with script_tags')
+    return rt.getAttribute('data-blimp-wasm')
+  }
   var el = document.getElementById('pong')
   var status = document.getElementById('pong-status')
   function say(text, bad) {
@@ -12,7 +20,7 @@
   try {
     var blimp = new Blimp()
     blimp.onPrint(function () {})
-    await blimp.init('/blimp/blimp.wasm')
+    await blimp.init(blimpWasmHref())
     var res = await fetch('/pong/pong.blimp')
     if (!res.ok) throw new Error('pong.blimp is ' + res.status)
     var source = await res.text()

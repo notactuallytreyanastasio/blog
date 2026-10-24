@@ -239,6 +239,20 @@ BLIMP_WASM_HREF = script_href("/blimp/blimp.wasm")
 # data- attributes: the site's pages have no inline script.
 BLIMP_BUILD = take(sha256(concat(read_file("static/blimp/blimp-view.js"), read_file("static/blimp/blimp.wasm"))), 10)
 
+# A post page's Blimp window (blimp_window, src/50_pages.blimp): its two
+# scripts, and the worker, runtime and renderer post.js hands the worker,
+# each by content. Made once here, not once per post.
+POST_WINDOW_URLS = %{
+  scripts: concat(
+    "<script src=\"", script_href("/blimp/canvas.js"), "\"></script>",
+    "<script src=\"", desk_script_href("/blimp/post.js", "static/post/post.js"), "\"></script>"),
+  attrs: concat(
+    " data-worker=\"", desk_script_href("/blimp/post-worker.js", "static/post/post-worker.js"),
+    "\" data-blimp-js=\"", script_href("/blimp/blimp.js"),
+    "\" data-blimp-wasm=\"", BLIMP_WASM_HREF,
+    "\" data-renderer=\"", desk_script_href("/blimp/post-renderer.blimp", "_build/post-renderer.blimp"), "\"")
+}
+
 def script_tags(srcs: List) -> String do
   join(map(srcs, fn(src: String) -> String do
     extra = case src == "/blimp/blimp.js" do

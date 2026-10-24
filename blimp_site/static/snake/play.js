@@ -14,7 +14,11 @@
     host.innerHTML = '<pre class="blimp-error"></pre>'
     host.querySelector('.blimp-error').textContent = String(message)
   }
-  new Blimp().init('/blimp/blimp.wasm').then(function (blimp) {
+  // The interpreter by its content, as blimp.js's tag names it: Cloudflare
+  // keeps /blimp/* for hours, and a deploy must not meet last week's copy.
+  var rt = document.querySelector('script[data-blimp-wasm]')
+  if (!rt) return fail('no script[data-blimp-wasm] on this page: it was not built with script_tags')
+  new Blimp().init(rt.getAttribute('data-blimp-wasm')).then(function (blimp) {
     return Promise.all([
       fetch(base + 'snake.blimp').then(function (r) { return r.text() }),
       fetch(base + 'harness.blimp').then(function (r) { return r.text() }),

@@ -270,7 +270,7 @@ blog #93 (lines from `wc -l`, tests from `./build.sh test`).
       ["j_loaders", "js", "play.js, god.js, live.js, ...", "Per-page WebSocket plumbing: Pong, Wordle, Blackjack, the cursor room, and firehose.js for the three firehose pages."],
       ["j_maps", "js", "map.js, mta.js + Leaflet", "What a program cannot be: Leaflet 1.x with marker clusters for /map, /nyc_census_and_pluto and /mta-bus-map, driven by the page's actor (`wook <- :clicked(json)`)."],
       ["j_deck", "js", "sky/sky.js + deck.gl 9.2.9", "deck.gl draws Fill The Sky's 545,173 points and the camera; which communities, where and in what colour is the program's to say."],
-      ["j_wasm_src", "js", "blimp/blimp.wasm", "Committed build of the interpreter for browsers: 437 KB, Blimp 91f5978 (#66), with #64-#66."],
+      ["j_wasm_src", "js", "blimp/blimp.wasm", "Committed build of the interpreter for browsers: 616 KB, Blimp e1f2942 (#95-#105), which collects dead actors."],
     ];
 
 ### Build, test and deploy
@@ -317,7 +317,7 @@ blog #93 (lines from `wc -l`, tests from `./build.sh test`).
       ["a_mta", "artifact", "_build/mta.blimp", "33 KB."],
       ["a_stack", "artifact", "_build/stack.blimp", "147 KB: this page's program after the Temper it calls, most of it the boxes' text."],
       ["a_native", "artifact", "blimp (macOS arm64)", "blimp-for-blog/chunks/lang/zig-out/bin/blimp."],
-      ["a_linux", "artifact", "bin/blimp (linux-musl)", "Static x86_64 binary plus BLIMP_COMMIT: 896614f, blimp#68."],
+      ["a_linux", "artifact", "bin/blimp (linux-musl)", "Static x86_64 binary plus BLIMP_COMMIT: e1f2942 or later (blimp#95-#105), which deploy.sh stage insists on."],
       ["a_snake", "artifact", "static/temper-snake/", "snake.blimp, harness.blimp and its own blimp.wasm, copied into every deploy."],
       ["a_dist", "artifact", "_build/dist/", "Exactly what the container needs; the layout matches the repo so ../priv/static/posts resolves in both."],
       ["a_image", "artifact", "image blog-blimp-blog", "FROM alpine; COPY bin, priv/static, blimp_site. CMD blimp --serve _build/site.blimp --tick \"site <- :tick\" --control site.sock."],

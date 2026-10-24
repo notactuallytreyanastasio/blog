@@ -24,7 +24,14 @@
     return page.slice(start, end)
   })
 
-  var worker = new Worker("/blimp/post-worker.js")
+  // Every URL the worker loads is the page's, named by content: a worker,
+  // blimp.js or blimp.wasm cached from before a deploy is never mixed with
+  // this one.
+  var urls = { js: box.dataset.blimpJs, wasm: box.dataset.blimpWasm, renderer: box.dataset.renderer }
+  if (!box.dataset.worker || !urls.js || !urls.wasm || !urls.renderer) {
+    return say("Blimp stopped: this page does not name its worker, blimp.js, blimp.wasm and renderer", "bad")
+  }
+  var worker = new Worker(box.dataset.worker)
   worker.onmessage = function (ev) {
     var m = ev.data
     if (m.step === "error") return say("Blimp stopped: " + m.error, "bad")
@@ -39,5 +46,5 @@
     }
   }
   say("loading Blimp...")
-  worker.postMessage({ slug: slug })
+  worker.postMessage({ slug: slug, js: urls.js, wasm: urls.wasm, renderer: urls.renderer })
 })()

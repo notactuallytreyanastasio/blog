@@ -63,7 +63,15 @@ actor PageTests do
       # exactly the two external scripts, nothing inline, no handlers
       assert_eq(length(split(lower, "<script")) - 1, 2)
       assert_eq(length(split(lower, "\"></script>")) - 1, 2)
-      assert(contains(html, "<script src=\"/blimp/canvas.js\"></script><script src=\"/blimp/post.js\"></script>"))
+      assert(contains(html, "<script src=\"/blimp/canvas.js?v="))
+      assert(contains(html, "\"></script><script src=\"/blimp/post.js?v="))
+      # and every URL the worker loads is named by content, the interpreter
+      # most of all: Cloudflare keeps /blimp/* across a deploy
+      assert(contains(html, " data-worker=\"/blimp/post-worker.js?v="))
+      assert(contains(html, " data-blimp-js=\"/blimp/blimp.js?v="))
+      assert(contains(html, concat(" data-blimp-wasm=\"", BLIMP_WASM_HREF, "\"")))
+      assert(contains(BLIMP_WASM_HREF, "/blimp/blimp.wasm?v="))
+      assert(contains(html, " data-renderer=\"/blimp/post-renderer.blimp?v="))
       refute(contains(lower, "javascript:"))
       refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
       # the article is cut where post.js cuts it

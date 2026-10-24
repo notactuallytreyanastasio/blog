@@ -2,8 +2,9 @@
 // renderer (the same Blimp files the server rendered this post with), then
 // renders the post's markdown again and reports each step: the runtime's
 // actors and message log for the canvas, and the HTML for the page to
-// compare with what the server sent.
-importScripts("/blimp/blimp.js")
+// compare with what the server sent. The page names, by content, the
+// blimp.js, blimp.wasm and renderer to load (post.js sends them), so a copy
+// cached from before a deploy is never mixed with this one.
 
 // A Blimp string literal holding `s`: the escapes Blimp reads, plus \#{ so
 // Elixir's own #{...} in a code block is text, not interpolation.
@@ -14,11 +15,12 @@ function literal(s) {
 self.onmessage = async function (ev) {
   var slug = ev.data.slug
   try {
+    importScripts(ev.data.js)
     var blimp = new Blimp()
     blimp.onPrint(function () {})
-    await blimp.init("/blimp/blimp.wasm")
+    await blimp.init(ev.data.wasm)
     var [program, source] = await Promise.all([
-      fetch("/blimp/post-renderer.blimp").then(function (r) { return r.text() }),
+      fetch(ev.data.renderer).then(function (r) { return r.text() }),
       fetch("/post/" + slug + ".md").then(function (r) {
         if (!r.ok) throw new Error("/post/" + slug + ".md is " + r.status)
         return r.text()
