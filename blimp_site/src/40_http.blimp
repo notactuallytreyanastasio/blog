@@ -143,12 +143,18 @@ def serialize(resp: Map, method: String) -> String do
     nil -> ""
     hs -> join(map(hs, fn(h: List) -> String do concat(head(h), ": ", head(tail(h)), "\r\n") end), "")
   end
+  # a response built once at boot carries its validator (prebuilt, below)
+  etag = case lookup(resp, :etag) do
+    nil -> ""
+    tag -> concat("ETag: ", tag, "\r\n")
+  end
   join([
     "HTTP/1.1 ", to_string(resp.status), " ", status_text(resp.status), "\r\n",
     "Content-Type: ", resp.content_type, "\r\n",
     "Content-Length: ", to_string(length(resp.body)), "\r\n",
     "Cache-Control: ", resp.cache, "\r\n",
     location,
+    etag,
     extra,
     "X-Served-By: blimp\r\n",
     "Connection: close\r\n\r\n",
@@ -192,4 +198,158 @@ def plain_segments(segments: List) -> Bool do
     [] -> true
     [s | rest] -> length(s) > 0 and not(starts_with(s, ".")) and plain_segments(rest)
   end
+end
+
+# ── The edge cache ──────────────────────────────────────────────────────
+#
+# Cloudflare sits in front of the site, and it held nothing: every page said
+# no-cache or max-age=300, no response had an ETag, and a revalidation was a
+# full download. Answering takes this process under a millisecond; the trip
+# through Cloudflare to the box added 20-100 ms. So a response that is the
+# same for everyone says how long it stays the same, by kind:
+#
+#   CACHE_IMMUTABLE    a URL that names its content (?v=<the first 10 hex of
+#                      its sha256>, what asset_href and desk_script_href
+#                      write): it can never change, so a year.
+#   CACHE_FILES_HTML   a page that is a function of the deploy's files (a
+#                      post, /blog, a tag, a snapshot page, the journal): a
+#                      browser asks again after a minute, Cloudflare keeps it
+#                      a day, and deploy.sh purges Cloudflare after a ship.
+#   CACHE_FILES        the same for everything else built at boot (a
+#                      stylesheet or script asked for without ?v=, a program
+#                      fetched with the runtime's build as its ?v=, which
+#                      names the runtime, not the program): five minutes in
+#                      a browser, as before, a day at the edge.
+#   CACHE_HOME         the bare homepage: one page for everyone, but /curate
+#                      and the museum refresh can change it at any minute, so
+#                      the edge asks again every minute too. It asks with
+#                      If-None-Match, so asking is a 304 while it has not.
+#
+# Pages that differ per visitor or per request keep no-cache.
+CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
+CACHE_FILES_HTML = "public, max-age=60, s-maxage=86400"
+CACHE_FILES = "public, max-age=300, s-maxage=86400"
+CACHE_HOME = "public, max-age=60, s-maxage=60, stale-while-revalidate=300"
+
+def edge_cache_for(content_type: String) -> String do
+  case starts_with(content_type, "text/html") do
+    true -> CACHE_FILES_HTML
+    false -> CACHE_FILES
+  end
+end
+
+# The validator and the version of a body, from one sha256: the ETag is its
+# first 16 hex in quotes, the version the first 10 (what ?v= carries).
+def edge_sums(body: String) -> Map do
+  sha = sha256(body)
+  %{etag: concat("\"", take(sha, 16), "\""), ver: take(sha, 10)}
+end
+
+# A prebuilt wire (serialize's bytes, built at boot) as an entry the edge
+# cache serves: the same bytes with an ETag and the Cache-Control `cache`,
+# plus where that Cache-Control line sits, so a request that names the
+# content (?v=) can be given CACHE_IMMUTABLE instead without parsing.
+# %{wire, etag, ver, cut, cut_end}; a wire that is not a 200 is kept as it
+# is, with no ETag.
+def edge_entry(wire: String, cache: String) -> Map do
+  hend = index_of(wire, "\r\n\r\n")
+  head_text = take(wire, hend)
+  case starts_with(head_text, "HTTP/1.1 200 ") do
+    false -> %{wire: wire, etag: "", ver: "", cut: -1, cut_end: -1}
+    true ->
+      body = drop(wire, hend + 4)
+      sums = edge_sums(body)
+      lines = map(split(head_text, "\r\n"), fn(l: String) -> String do
+        case starts_with(l, "Cache-Control: ") do
+          true -> concat("Cache-Control: ", cache, "\r\nETag: ", sums.etag)
+          false -> l
+        end
+      end)
+      out = concat(join(lines, "\r\n"), "\r\n\r\n", body)
+      cut = index_of(out, "\r\nCache-Control: ") + 2
+      cut_end = index_of_from(out, "\r\n", cut) + 2
+      %{wire: out, etag: sums.etag, ver: sums.ver, cut: cut, cut_end: cut_end}
+  end
+end
+
+# The route's Cache-Control for a prebuilt wire: by its Content-Type.
+def edge_route(wire: String) -> Map do
+  html = contains(take(wire, index_of(wire, "\r\n\r\n")), "\r\nContent-Type: text/html")
+  case html do
+    true -> edge_entry(wire, CACHE_FILES_HTML)
+    false -> edge_entry(wire, CACHE_FILES)
+  end
+end
+
+# Every fixed route, path -> wire, as path -> entry.
+def edge_routes(routes: Map) -> Map do
+  reduce(keys(routes), %{}, fn(acc: Map, path: String) -> Map do
+    put(acc, path, edge_route(lookup(routes, path)))
+  end)
+end
+
+# The entry's bytes for this query: CACHE_IMMUTABLE when ?v= is its own
+# version, else as built. A ?v= that is some other version (a page from
+# before the deploy, or a program fetched by the runtime's build) is not a
+# promise about these bytes, so it gets the ordinary answer.
+def edge_versioned(query: String, ver: String) -> Bool do
+  length(ver) > 0 and length(query) > 0 and query_param(query, "v") == ver
+end
+
+def edge_wire(entry: Map, query: String) -> String do
+  case edge_versioned(query, entry.ver) and entry.cut > 0 do
+    false -> entry.wire
+    true -> concat(take(entry.wire, entry.cut), "Cache-Control: ", CACHE_IMMUTABLE, "\r\n", drop(entry.wire, entry.cut_end))
+  end
+end
+
+# If-None-Match against an ETag: "*", or any tag in the list, compared
+# weakly (Cloudflare turns a strong ETag weak when it compresses). Caddy's
+# encode sends the browser "<tag>-gzip" and takes the suffix off again on
+# the way in, so the tag reaching here is this one (checked with caddy:2,
+# v2.11.7, in front of this server).
+def etag_matches(header: String, etag: String) -> Bool do
+  length(etag) > 0 and length(header) > 0 and (trim(header) == "*" or etag_in(split(header, ","), etag))
+end
+
+def etag_in(tags: List, etag: String) -> Bool do
+  case tags do
+    [] -> false
+    [t | rest] ->
+      bare = trim(t)
+      plain = case starts_with(bare, "W/") do
+        true -> drop(bare, 2)
+        false -> bare
+      end
+      plain == etag or etag_in(rest, etag)
+  end
+end
+
+# 304: the validator and the freshness the 200 would have had, and no body
+# (RFC 9110 15.4.5).
+def not_modified(etag: String, cache: String) -> String do
+  join([
+    "HTTP/1.1 304 Not Modified\r\n",
+    "Cache-Control: ", cache, "\r\n",
+    "ETag: ", etag, "\r\n",
+    "X-Served-By: blimp\r\n",
+    "Connection: close\r\n\r\n"
+  ], "")
+end
+
+# The Cache-Control a wire was built with.
+def wire_cache(wire: String, cut: Int, cut_end: Int) -> String do
+  slice(wire, cut + 15, cut_end - cut - 17)
+end
+
+# A response Map built once at boot (a page or file a src/ module holds as a
+# constant and dynamic() returns): with its ETag and version, and the
+# edge's Cache-Control for its kind unless it said no-cache or no-store.
+def prebuilt(resp: Map) -> Map do
+  sums = edge_sums(resp.body)
+  cache = case starts_with(resp.cache, "public") do
+    true -> edge_cache_for(resp.content_type)
+    false -> resp.cache
+  end
+  merge(resp, %{etag: sums.etag, ver: sums.ver, cache: cache})
 end

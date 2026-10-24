@@ -474,7 +474,7 @@ end
 # is the Blimp canvas every server-rendered page carries.
 GALLERY <- :start(gal_token(), gal_read("static/gallery/gallery.css"), RUNTIME_TAGS)
 
-GAL_JS = response(200, "text/javascript; charset=utf-8", "public, max-age=300", gal_read("static/gallery/gallery.js"))
+GAL_JS = prebuilt(response(200, "text/javascript; charset=utf-8", "public, max-age=300", gal_read("static/gallery/gallery.js")))
 
 # /gallery, and /gallery/img/:guid/:size; nil for any other path
 def gallery_route(path: String) -> Any do

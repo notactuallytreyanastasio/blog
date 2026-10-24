@@ -763,8 +763,8 @@ def zg_page() -> String do
   page_layout_html("The Ziggy Account", "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome.", "website", [APP_CSS, "/assets/blimp-window.css", "/ziggy/ziggy.css"], body, "h-full bg-gray-100")
 end
 
-ZG_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", zg_page())
+ZG_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", zg_page()))
 ZG_PROGRAM = map_asset(["_build/ziggy.blimp"], "text/plain; charset=utf-8")
 ZG_JS = map_asset(["static/ziggy/ziggy.js"], "text/javascript; charset=utf-8")
 ZG_CSS = map_asset(["static/ziggy/ziggy.css"], "text/css; charset=utf-8")
-ZG_GRAPH_JSON = response(200, "application/json; charset=utf-8", "public, max-age=300", json_encode(zg_export(ZG_GRAPH)))
+ZG_GRAPH_JSON = prebuilt(response(200, "application/json; charset=utf-8", "public, max-age=300", json_encode(zg_export(ZG_GRAPH))))

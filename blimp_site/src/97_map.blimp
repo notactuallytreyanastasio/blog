@@ -241,10 +241,10 @@ def map_read(file: String) -> String do
 end
 
 def map_asset(files: List, content_type: String) -> Map do
-  response(200, content_type, "public, max-age=300", join(map(files, fn(f: String) -> String do map_read(f) end), "\n"))
+  prebuilt(response(200, content_type, "public, max-age=300", join(map(files, fn(f: String) -> String do map_read(f) end), "\n")))
 end
 
-MAP_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", map_page())
+MAP_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", map_page()))
 MAP_PROGRAM = map_asset(["_build/map.blimp"], "text/plain; charset=utf-8")
 MAP_JS = map_asset(["static/map/leaflet/leaflet.js", "static/map/leaflet/leaflet.markercluster.js", "static/map/map.js"], "text/javascript; charset=utf-8")
 MAP_CSS = map_asset(["static/map/leaflet/leaflet.css", "static/map/leaflet/MarkerCluster.css", "static/map/leaflet/MarkerCluster.Default.css", "static/map/map.css"], "text/css; charset=utf-8")

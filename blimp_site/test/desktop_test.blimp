@@ -234,18 +234,22 @@ actor DesktopTests do
     assert_eq(length(split(html, "<section class=\"card")) - 1, 9)
   end
 
-  test "the counters are fixed width, so the prebuilt / can be spliced" do
+  test "the bare / is the same for everyone: no clock, no counters" do
     assert_eq(desk_pad(7, 3), "007")
     assert_eq(desk_pad(1234, 3), "1234")
     assert_eq(desk_uptime(90061), "001d 01h 01m")
-    assert_eq(length(desk_live_counts(33, 217, 90061)), length(DESK_LIVE_MARK))
-    assert_eq(length(desk_live_counts(999, 99999999, 86400 * 999)), length(DESK_LIVE_MARK))
-    refute(length(desk_live_counts(1000, 0, 0)) == length(DESK_LIVE_MARK))
     bare = dt_page("")
-    assert(contains(bare, DESK_LIVE_MARK))
+    # rendered at two different times, the same bytes
+    assert_eq(desktop_page("", load_desktop("data", dt_posts()), 1790640000), desktop_page("", load_desktop("data", dt_posts()), 1790643723))
+    assert(contains(bare, DESK_LIVE_BLANK))
+    assert(contains(bare, "<p class=\"rail-clock\"><span>UTC</span> &#8212;</p>"))
+    # the ids home.js fills
+    each(["id=\"g-actors\"", "id=\"g-served\"", "id=\"g-up\""], fn(id: String) do assert(contains(bare, id)) end)
     assert(contains(bare, "<dt>this page</dt><dd>prebuilt at boot</dd>"))
     booted = dt_page("booted=1")
     refute(contains(booted, "prebuilt at boot"))
+    refute(contains(booted, DESK_LIVE_BLANK))
+    assert(contains(booted, "<p class=\"rail-clock\"><span>UTC</span> "))
     assert(contains(booted, " ms</dd></div></dl>"))
   end
 

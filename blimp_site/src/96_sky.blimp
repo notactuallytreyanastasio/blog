@@ -31,11 +31,11 @@ def sky_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-SKY_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", sky_page_html())
+SKY_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", sky_page_html()))
 SKY_PROGRAM = sky_asset("_build/sky.blimp", "text/plain; charset=utf-8")
 SKY_JS = sky_asset("static/sky/sky.js", "text/javascript; charset=utf-8")
 SKY_DECK = sky_asset("static/sky/deck.gl-9.2.9.min.js", "text/javascript; charset=utf-8")

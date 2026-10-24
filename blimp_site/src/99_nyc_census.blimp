@@ -124,6 +124,6 @@ def nyc_census_page() -> String do
     "website", [APP_CSS, "/assets/apps.css", "/assets/blimp-window.css"], body)
 end
 
-NYC_CENSUS_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", nyc_census_page())
+NYC_CENSUS_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", nyc_census_page()))
 NYC_CENSUS_PROGRAM = bjt_asset("_build/nyc_census.blimp", "text/plain; charset=utf-8")
 NYC_CENSUS_JS = bjt_asset("static/nyc_census/map.js", "text/javascript; charset=utf-8")

@@ -206,11 +206,11 @@ def stumble_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-ST_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", stumble_page())
+ST_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", stumble_page()))
 ST_PROGRAM = stumble_asset("_build/stumble.blimp", "text/plain; charset=utf-8")
 ST_JS = stumble_asset("static/stumble/stumble.js", "text/javascript; charset=utf-8")
 ST_CSS = stumble_asset("assets/stumble.css", "text/css; charset=utf-8")

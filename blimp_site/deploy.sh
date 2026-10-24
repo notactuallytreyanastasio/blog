@@ -3,7 +3,8 @@
 #
 #   ./deploy.sh stage     build + test + stage into _build/dist (no network)
 #   ./deploy.sh ship      stage, rsync to $HOST:/opt/blimp-blog, rebuild the
-#                         blimp-blog compose service
+#                         blimp-blog compose service, purge Cloudflare
+#                         (when CF_ZONE_ID and CF_API_TOKEN are set)
 #
 # BLIMP_SRC is a checkout of blimp's main. The interpreter is cross-compiled
 # here and shipped as a static binary; bin/BLIMP_COMMIT says which commit.
@@ -129,6 +130,37 @@ ship_guard() {
   fi
 }
 
+# Cloudflare keeps the site's pages now (src/40_http.blimp's edge cache:
+# a day for anything that is a function of the deploy's files), so a ship
+# that changed them has to tell it. With CF_ZONE_ID and CF_API_TOKEN (a
+# token with Zone > Cache Purge on bobbby.online's zone) this waits for the
+# new process to say it is listening, then purges the zone; without them it
+# says so, and pages stay as they were at the edge for up to a day (or until
+# a purge from the dashboard). It purges everything in the zone, which
+# includes blimp.bobbby.online's docs: they refill on their next request.
+purge_edge() {
+  if [ -z "${CF_ZONE_ID:-}" ] || [ -z "${CF_API_TOKEN:-}" ]; then
+    say "not purging Cloudflare: CF_ZONE_ID and CF_API_TOKEN are not both set; the edge keeps the old pages for up to a day"
+    return 0
+  fi
+  say "wait for the new blimp-blog to listen"
+  if ! ssh "$HOST" 'cd /opt/blog && id=$(docker compose ps -q blimp-blog) && for i in $(seq 1 90); do docker logs "$id" 2>&1 | grep -q "listening on :" && exit 0; sleep 2; done; exit 1'; then
+    echo "blimp-blog did not say it was listening within 3 minutes; not purging Cloudflare (purge by hand once it is up)" >&2
+    return 1
+  fi
+  say "purge Cloudflare's cache for zone $CF_ZONE_ID"
+  local out
+  out=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache" \
+    -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+    --data '{"purge_everything":true}')
+  if printf '%s' "$out" | grep -q '"success": *true'; then
+    say "Cloudflare purged"
+  else
+    echo "Cloudflare purge failed: $out" >&2
+    return 1
+  fi
+}
+
 case "${1:-stage}" in
   stage) stage ;;
   ship)
@@ -138,6 +170,7 @@ case "${1:-stage}" in
     rsync -a --delete "$DIST/" "$HOST:/opt/blimp-blog/"
     say "rebuild blimp-blog"
     ssh "$HOST" 'cd /opt/blog && docker compose up -d --build blimp-blog && sleep 2 && docker compose logs --tail 5 blimp-blog'
+    purge_edge
     ;;
   *) echo "usage: $0 [stage|ship]" >&2; exit 2 ;;
 esac
