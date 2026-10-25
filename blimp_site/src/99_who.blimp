@@ -1063,7 +1063,7 @@ def who_page() -> String do
   page_layout_html("Doctor Who: ask the graph", "A fan-built knowledge graph of the whole of Doctor Who, to browse and to ask: every Doctor, every story across television, audio, novels and comics, and the show's own decisions.", "website", [APP_CSS, "/assets/blimp-window.css", "/who/who.css"], body, "h-full")
 end
 
-WHO_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", who_page())
+WHO_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", who_page()))
 WHO_PROGRAM = map_asset(["_build/who.blimp"], "text/plain; charset=utf-8")
 WHO_JS = map_asset(["static/who/who.js"], "text/javascript; charset=utf-8")
 WHO_CSS = map_asset(["static/who/who.css"], "text/css; charset=utf-8")

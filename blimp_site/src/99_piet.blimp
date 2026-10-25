@@ -35,11 +35,11 @@ def piet_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-PIET_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", piet_page_html())
+PIET_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", piet_page_html()))
 PIET_PROGRAM = piet_asset("_build/piet.blimp", "text/plain; charset=utf-8")
 PIET_JS = piet_asset("static/piet/piet.js", "text/javascript; charset=utf-8")
 PIET_CSS = piet_asset("assets/piet.css", "text/css; charset=utf-8")
@@ -66,6 +66,6 @@ def piet_life_page_html() -> String do
     "website", ["/assets/piet.css"], body, "piet-life-page")
 end
 
-PIET_LIFE_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", piet_life_page_html())
+PIET_LIFE_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", piet_life_page_html()))
 PIET_ART_JS = piet_asset("static/piet/art.js", "text/javascript; charset=utf-8")
 PIET_LIFE_JS = piet_asset("static/piet/life.js", "text/javascript; charset=utf-8")

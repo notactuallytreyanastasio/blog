@@ -143,12 +143,18 @@ def serialize(resp: Map, method: String) -> String do
     nil -> ""
     hs -> join(map(hs, fn(h: List) -> String do concat(head(h), ": ", head(tail(h)), "\r\n") end), "")
   end
+  # a response built once at boot carries its validator (prebuilt, below)
+  etag = case lookup(resp, :etag) do
+    nil -> ""
+    tag -> concat("ETag: ", tag, "\r\n")
+  end
   join([
     "HTTP/1.1 ", to_string(resp.status), " ", status_text(resp.status), "\r\n",
     "Content-Type: ", resp.content_type, "\r\n",
     "Content-Length: ", to_string(length(resp.body)), "\r\n",
     "Cache-Control: ", resp.cache, "\r\n",
     location,
+    etag,
     extra,
     "X-Served-By: blimp\r\n",
     "Connection: close\r\n\r\n",

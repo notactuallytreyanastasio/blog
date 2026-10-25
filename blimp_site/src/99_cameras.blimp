@@ -353,11 +353,11 @@ def cam_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-CAM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", cameras_page())
+CAM_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", cameras_page()))
 CAM_PROGRAM = cam_asset("_build/cameras.blimp", "text/plain; charset=utf-8")
 CAM_JS = cam_asset("static/cameras/cameras.js", "text/javascript; charset=utf-8")
 CAM_CSS = cam_asset("static/cameras/cameras.css", "text/css; charset=utf-8")

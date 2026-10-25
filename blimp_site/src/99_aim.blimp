@@ -1543,7 +1543,7 @@ AIM_CARD = %{
   alt: "An old AOL-style triangle over \"Bobbby Online\", the yellow AIM running man, and a Windows 98 Buddy List with SmarterChild and bobbbyBot signed on"
 }
 
-AIM_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", aim_page())
+AIM_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", aim_page()))
 AIM_PROGRAM = map_asset(["_build/aim.blimp"], "text/plain; charset=utf-8")
 AIM_CSS = map_asset(["static/aim/aim.css"], "text/css; charset=utf-8")
 # Bobby's cats, at the end of SmarterChild's riddles (AIM_CATS_SRC). Not

@@ -6,8 +6,10 @@
 # `blimp --attach site.sock` for a prompt on the running site).
 #
 #   boot   read every post, render it, and build the full HTTP response for
-#          every fixed route, once. These are top-level bindings (posts,
-#          routes), so the prompt can read and replace them live. The
+#          every fixed route, once, with its ETag and the Cache-Control
+#          that lets Cloudflare keep it (src/40_http.blimp's edge cache).
+#          These are top-level bindings (posts, routes), so the prompt can
+#          read and replace them live. The
 #          homepage's museum and Finder are Postgres rows: the Site actor
 #          holds them with its database connection, and reloads them every
 #          DESK_REFRESH_S seconds, so an edit in /admin/museum reaches "/"
@@ -379,7 +381,7 @@ def static_or_404(path: String) -> Map do
 end
 
 # The response bytes for one raw request, and its status for the log line.
-def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
+def handle(raw: String, routes: Map, posts: List, desk: Map, home: Map) -> Tuple do
   req0 = parse_request(raw)
   # /blinks-next's pages moved to Phoenix's paths (src/99_blinks.blimp)
   moved = blinks_next_moved(req0)
@@ -389,13 +391,15 @@ def handle(raw: String, routes: Map, posts: List, desk: Map, home: List) -> Tupl
   end
 end
 
-def handle_req(raw: String, req: Map, routes: Map, posts: List, desk: Map, home: List) -> Tuple do
+def handle_req(raw: String, req: Map, routes: Map, posts: List, desk: Map, home: Map) -> Tuple do
   case req.method == "GET" or req.method == "HEAD" do
     # POST, PATCH, PUT, DELETE: src/41_web.blimp's routes, else 405 with Allow
     false -> web_handle(raw, req)
     true ->
+      # a fixed route is an entry (edge_routes, src/40_http.blimp), and so is
+      # the bare homepage (home_entry)
       fixed = case req.path == "/" and req.query == "" do
-        true -> bare_home(home, desk)
+        true -> home
         false -> lookup(routes, req.path)
       end
       case fixed do
@@ -405,14 +409,42 @@ def handle_req(raw: String, req: Map, routes: Map, posts: List, desk: Map, home:
           case web do
             nil ->
               resp = blinks_cors(req.path, dynamic(req, routes, posts, desk))
-              {serialize(resp, req.method), resp.status, req}
+              answer_resp(raw, req, resp)
             _ -> web
           end
-        _ ->
-          case req.method == "HEAD" do
-            true -> {head_of(fixed), 200, req}
-            false -> {fixed, 200, req}
-          end
+        _ -> answer_entry(raw, req, fixed)
+      end
+  end
+end
+
+# A prebuilt entry: 304 when the browser or Cloudflare already has these
+# bytes, else the bytes (CACHE_IMMUTABLE when the URL named them).
+def answer_entry(raw: String, req: Map, entry: Map) -> Tuple do
+  wire = edge_wire(entry, req.query)
+  case etag_matches(header_value(raw, "If-None-Match"), entry.etag) do
+    true -> {not_modified(entry.etag, wire_cache(wire, entry.cut, index_of_from(wire, "\r\n", entry.cut) + 2)), 304, req}
+    false ->
+      case req.method == "HEAD" do
+        true -> {head_of(wire), 200, req}
+        false -> {wire, 200, req}
+      end
+  end
+end
+
+# A response dynamic() made or held: the same, for one built at boot
+# (prebuilt, src/40_http.blimp), which carries an ETag and a version.
+def answer_resp(raw: String, req: Map, resp0: Map) -> Tuple do
+  tag = lookup(resp0, :etag)
+  case tag == nil or resp0.status != 200 do
+    true -> {serialize(resp0, req.method), resp0.status, req}
+    false ->
+      resp = case edge_versioned(req.query, resp0.ver) do
+        true -> put(resp0, :cache, CACHE_IMMUTABLE)
+        false -> resp0
+      end
+      case etag_matches(header_value(raw, "If-None-Match"), tag) do
+        true -> {not_modified(tag, resp.cache), 304, req}
+        false -> {serialize(resp, req.method), resp.status, req}
       end
   end
 end
@@ -421,38 +453,17 @@ def web_handle(raw: String, req: Map) -> Any do
   web_dispatch(raw, req, WEB_ROUTES, WEB_SECRET)
 end
 
-# The homepage with no query string is most of the traffic to "/", and all
-# of it is the same page except the clock in the menu bar and the Hangar's
-# live counters. Rendering it per request cost a worker about 0.8MB of
-# garbage, so it is rendered once at boot, cut at the clock and at the
-# counters, and both are put back per request. The clock is always eight
-# bytes ("%I:%M %p") and the counters are zero-padded to a fixed width, so
-# the prebuilt Content-Length holds; a counter that outgrows its width
-# (a hundred million requests) gets the page rendered in full instead.
-def home_parts(desk: Map) -> List do
-  marker = desk_clock(0)
-  wire = serialize(html_response(200, desktop_page("", desk, 0)), "GET")
-  parts = split(wire, marker)
-  ok = length(parts) == 2 and length(desk_clock(now())) == length(marker)
-  rest = case ok do
-    true -> split(last(parts), DESK_LIVE_MARK)
-    false -> []
-  end
-  case ok and length(rest) == 2 do
-    true -> [head(parts), head(rest), last(rest)]
-    false ->
-      print("the homepage clock and counters are not unique, fixed-width markers; cannot prebuild /")
-      exit(1)
-  end
-end
-
-def bare_home(parts: List, desk: Map) -> String do
-  t = now()
-  counts = desk_live_now(t)
-  case length(counts) == length(DESK_LIVE_MARK) do
-    true -> join([elem_at(parts, 0), desk_clock(t), elem_at(parts, 1), counts, elem_at(parts, 2)], "")
-    false -> serialize(html_response(200, desktop_page_with("", desk, t, counts, false)), "GET")
-  end
+# The homepage with no query string is most of the traffic to "/", and it
+# is one page for everyone: it used to differ per request by the clock in
+# the rail and the Hangar's live counters, spliced into a page prebuilt at
+# boot, which made it the one page Cloudflare could not keep. Now the page
+# carries neither (a dash where each goes) and static/blimp/home.js fills
+# them in: the clock from the browser's own, the counters from the
+# /live/runtime feed it already reads. So it is built once, when the
+# desktop is (boot, a museum refresh, a /curate save), with an ETag like
+# every fixed route, and CACHE_HOME. /?query renders per request as before.
+def home_entry(desk: Map) -> Map do
+  edge_entry(serialize(html_response(200, desktop_page("", desk, 0)), "GET"), CACHE_HOME)
 end
 
 # A prebuilt response with its body cut off, for HEAD.
@@ -463,7 +474,7 @@ end
 # One connection: wait briefly for its request (a socket accepted from a
 # non-blocking listener is non-blocking itself on some systems), answer it,
 # close it, log a line.
-def serve_client(c: Int, desk: Map, home: List, room: Bool) -> Any do
+def serve_client(c: Int, desk: Map, home: Map, room: Bool) -> Any do
   t0 = now_ms()
   ready = tcp_poll([c], 2000)
   raw = case length(ready) > 0 do
@@ -595,7 +606,7 @@ end
 # Every connection that is waiting now, then stop: the tick must return.
 # {what was answered, newest first ("GET /blog"), sockets}, the sockets
 # with any new WebSockets added.
-def accept_all(fd: Int, answered: List, desk: Map, home: List, socks: Map) -> Tuple do
+def accept_all(fd: Int, answered: List, desk: Map, home: Map, socks: Map) -> Tuple do
   c = live_accept(fd)
   case c do
     nil -> {answered, socks}
@@ -887,7 +898,7 @@ end
 # socket, accept every connection waiting, read every socket that is ready,
 # and send the god pages the games if they changed (at most every 50ms).
 # {requests answered, socks, games, dirty, pushed_at}
-def live_tick(fd: Int, desk: Map, home: List, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
+def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool, pushed_at: Int) -> Tuple do
   # the work that waits on other servers, a step at a time
   HN <- :step
   MTA <- :step
@@ -957,7 +968,7 @@ actor Site do
   state served: Int :: 0
   state booted_at: Int :: 0
   state desk: Map :: %{}
-  state home: List :: []
+  state home: Map :: %{}
   state db: Any :: nil
   state db_opts: Any :: nil
   state desk_at: Int :: 0
@@ -973,7 +984,7 @@ actor Site do
   on :start(port: Int, first: Map, conn: Any, opts: Any) do
     s = tcp_listen(port)
     tcp_set_nonblocking(s)
-    become fd: s, booted_at: now(), desk: first, home: home_parts(first), db: conn, db_opts: opts, desk_at: now()
+    become fd: s, booted_at: now(), desk: first, home: home_entry(first), db: conn, db_opts: opts, desk_at: now()
     reply s
   end
 
@@ -992,7 +1003,7 @@ actor Site do
       true ->
         case refresh_desk(db, db_opts) do
           {:ok, fresh, next} ->
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: fresh, home: home_parts(fresh), db: next, desk_at: now(), desk_error: ""
+            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: fresh, home: home_entry(fresh), db: next, desk_at: now(), desk_error: ""
             reply n
           {:error, reason, next} ->
             puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
@@ -1029,11 +1040,15 @@ end
 t_boot = now_ms()
 posts = load_posts(POSTS_DIR, read_file("data/posts.txt"))
 ICONS = desk_load_icons(desk_read("data/icons.txt"))
-routes = build_routes(posts)
-routes = stack_routes(routes)
-# /static/* from data/static_files.txt, and /blog/tag/<tag> (src/96_static.blimp)
-routes = static_file_routes(routes, STATIC_DIR)
-routes = blog_tag_routes(routes, posts)
+# Every fixed route: build_routes and /stack, /static/* from
+# data/static_files.txt and /blog/tag/<tag> (src/96_static.blimp), then each
+# with its ETag and Cache-Control (src/40_http.blimp's edge cache). One
+# expression, not `routes = ...` four times: a top-level name bound again
+# keeps what it was bound to before alive, and edge_routes makes every wire
+# anew, so the steps' maps bound by name kept a second copy of all of them
+# (5.4MB) for as long as the site ran. From here on a route is an entry, not
+# a wire: to replace one from the prompt, put(routes, path, edge_route(wire)).
+routes = edge_routes(blog_tag_routes(static_file_routes(stack_routes(build_routes(posts)), STATIC_DIR), posts))
 # src/41_web.blimp: the routes that take methods, bodies and sessions, and
 # the key their sessions are signed with (a production site without
 # SESSION_SECRET stops here).

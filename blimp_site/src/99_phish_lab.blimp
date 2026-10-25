@@ -35,11 +35,11 @@ def phish_lab_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-PL_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", phish_lab_page_html())
+PL_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", phish_lab_page_html()))
 PL_PROGRAM = phish_lab_asset("_build/phish_lab.blimp", "text/plain; charset=utf-8")
 PL_JS = phish_lab_asset("static/phish_lab/phish_lab.js", "text/javascript; charset=utf-8")
 PL_CSS = phish_lab_asset("assets/phish_lab.css", "text/css; charset=utf-8")

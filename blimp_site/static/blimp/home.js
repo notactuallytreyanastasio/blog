@@ -2,7 +2,9 @@
 // serves this site, fed over /live/runtime (push_runtime in main.blimp).
 // It is runtime.js's corner window made the page's centrepiece: the same
 // feed into the same BlimpCanvas, into a canvas the page already has, and
-// it keeps the page's gauges (server-rendered, zero-padded) current.
+// it fills in the page's gauges (a dash each on the bare homepage, which is
+// the same for everyone; the server's numbers on a /?query page) and keeps
+// them current.
 // The margin notes (src/60_desktop.blimp, desktop.css). They work with no
 // script: CSS shows a note while its word is hovered, focused or open. This
 // only tidies up: one open at a time, Escape or a click elsewhere closes
@@ -58,6 +60,22 @@
       if (byPointer && s && document.activeElement === s) s.blur()
     })
   })
+})()
+
+;(function () {
+  // The rail's clock, "%I:%M %p" in UTC like the server's desk_clock. The
+  // bare homepage is one page for everyone, so Cloudflare can keep it, and
+  // carries a dash here instead of the time it was built; a /?query page
+  // has the server's time, which this keeps current too.
+  var clock = document.querySelector('.rail-clock')
+  if (!clock || !clock.lastChild || clock.lastChild.nodeType !== 3) return
+  function two(n) { return n < 10 ? '0' + n : String(n) }
+  function tick() {
+    var d = new Date(), h = d.getUTCHours(), h12 = h % 12 || 12
+    clock.lastChild.nodeValue = ' ' + two(h12) + ':' + two(d.getUTCMinutes()) + ' ' + (h < 12 ? 'AM' : 'PM')
+    setTimeout(tick, 60000 - d.getUTCSeconds() * 1000 - d.getUTCMilliseconds() + 50)
+  }
+  tick()
 })()
 
 ;(function () {

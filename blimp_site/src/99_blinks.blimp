@@ -485,8 +485,8 @@ def blk_page_html(title: String, program: String) -> String do
 end
 
 
-BLK_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks: Bobbby's links", "/blinks/blinks.blimp"))
-BLK_READER_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks reader", "/blinks/reader.blimp"))
+BLK_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks: Bobbby's links", "/blinks/blinks.blimp")))
+BLK_READER_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", blk_page_html("Blinks reader", "/blinks/reader.blimp")))
 BLK_PROGRAM = bjt_asset("_build/blinks.blimp", "text/plain; charset=utf-8")
 BLK_READER_PROGRAM = bjt_asset("_build/blinks-reader.blimp", "text/plain; charset=utf-8")
 BLK_CSS = bjt_asset("assets/blinks.css", "text/css; charset=utf-8")

@@ -177,11 +177,11 @@ def role_call_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-RC_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", role_call_page())
+RC_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", role_call_page()))
 RC_PROGRAM = role_call_asset("_build/role_call.blimp", "text/plain; charset=utf-8")
 RC_JS = role_call_asset("static/role_call/role_call.js", "text/javascript; charset=utf-8")
 RC_SUNFLOWER = role_call_asset("static/role_call/sunflower.blimp", "text/plain; charset=utf-8")

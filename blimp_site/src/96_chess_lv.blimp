@@ -10,7 +10,7 @@ def chess_lv_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
@@ -20,6 +20,6 @@ def chess_lv_page() -> String do
     [APP_CSS, "/chess-lv/chess_lv.css"], "", "/chess-lv/chess_lv.blimp", "chess")
 end
 
-CHESS_LV_PAGE = response(200, "text/html; charset=utf-8", "no-cache", chess_lv_page())
+CHESS_LV_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "no-cache", chess_lv_page()))
 CHESS_LV_PROGRAM = chess_lv_asset("_build/chess_lv.blimp", "text/plain; charset=utf-8")
 CHESS_LV_CSS = chess_lv_asset("assets/chess_lv.css", "text/css; charset=utf-8")

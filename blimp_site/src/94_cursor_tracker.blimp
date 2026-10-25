@@ -248,10 +248,10 @@ def ct_asset(file: String, content_type: String) -> Map do
     nil ->
       print(concat("cannot read ", file))
       exit(1)
-    _ -> response(200, content_type, "public, max-age=300", body)
+    _ -> prebuilt(response(200, content_type, "public, max-age=300", body))
   end
 end
 
-CT_PAGE = response(200, "text/html; charset=utf-8", "public, max-age=300", cursor_tracker_page())
+CT_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", cursor_tracker_page()))
 CT_PROGRAM = ct_asset("_build/cursors.blimp", "text/plain; charset=utf-8")
 CT_JS = ct_asset("static/cursors/cursors.js", "text/javascript; charset=utf-8")

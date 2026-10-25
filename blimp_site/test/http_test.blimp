@@ -60,4 +60,56 @@ actor HttpTests do
     assert_eq(content_type_for("/tetris/play.js"), "text/javascript; charset=utf-8")
     assert_eq(content_type_for("/tetris/tetris.blimp"), "text/plain; charset=utf-8")
   end
+
+  test "a prebuilt route gets an ETag and the edge's Cache-Control, body untouched" do
+    body = "<p>héllo</p>"
+    wire = serialize(html_response(200, body), "GET")
+    e = edge_route(wire)
+    assert_eq(e.etag, concat("\"", take(sha256(body), 16), "\""))
+    assert_eq(e.ver, take(sha256(body), 10))
+    assert(contains(e.wire, concat("\r\nCache-Control: ", CACHE_FILES_HTML, "\r\nETag: ", e.etag, "\r\n")))
+    refute(contains(e.wire, "no-cache"))
+    assert(ends_with(e.wire, concat("\r\n\r\n", body)))
+    assert(contains(e.wire, concat("Content-Length: ", to_string(length(body)), "\r\n")))
+    css = edge_route(serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", "a{}"), "GET"))
+    assert(contains(css.wire, concat("Cache-Control: ", CACHE_FILES, "\r\n")))
+    assert_eq(wire_cache(css.wire, css.cut, css.cut_end), CACHE_FILES)
+  end
+
+  test "a URL that names its content is immutable; any other ?v= is not" do
+    e = edge_route(serialize(response(200, "text/css; charset=utf-8", "public, max-age=300", "a{}"), "GET"))
+    imm = edge_wire(e, concat("v=", e.ver))
+    assert(contains(imm, concat("\r\nCache-Control: ", CACHE_IMMUTABLE, "\r\nETag: ")))
+    assert(ends_with(imm, "\r\n\r\na{}"))
+    assert_eq(edge_wire(e, "v=0123456789"), e.wire)
+    assert_eq(edge_wire(e, ""), e.wire)
+  end
+
+  test "If-None-Match: exact, weak, in a list, or *" do
+    assert(etag_matches("\"abc\"", "\"abc\""))
+    assert(etag_matches("W/\"abc\"", "\"abc\""))
+    assert(etag_matches("\"x\", W/\"abc\"", "\"abc\""))
+    assert(etag_matches("*", "\"abc\""))
+    refute(etag_matches("\"abd\"", "\"abc\""))
+    refute(etag_matches("", "\"abc\""))
+    refute(etag_matches("*", ""))
+  end
+
+  test "304 has the validator and the freshness, and no body" do
+    nm = not_modified("\"abc\"", CACHE_FILES)
+    assert(starts_with(nm, "HTTP/1.1 304 Not Modified\r\n"))
+    assert(contains(nm, "ETag: \"abc\"\r\n"))
+    assert(contains(nm, concat("Cache-Control: ", CACHE_FILES, "\r\n")))
+    assert(ends_with(nm, "\r\n\r\n"))
+    refute(contains(nm, "Content-Length"))
+  end
+
+  test "a response built at boot carries its ETag through serialize" do
+    r = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", "<p>x</p>"))
+    assert_eq(r.cache, CACHE_FILES_HTML)
+    assert(contains(serialize(r, "GET"), concat("ETag: ", r.etag, "\r\n")))
+    kept = prebuilt(response(200, "text/html; charset=utf-8", "no-cache", "<p>x</p>"))
+    assert_eq(kept.cache, "no-cache")
+    refute(contains(serialize(response(200, "text/plain", "no-cache", "x"), "GET"), "ETag"))
+  end
 end
