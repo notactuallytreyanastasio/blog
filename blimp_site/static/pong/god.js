@@ -2,6 +2,14 @@
 // hands the program to BlimpView, and gives it every message the server
 // sends as `god <- :games(json)`.
 (async function () {
+  // The interpreter by its content (/blimp/blimp.wasm?v=...), as blimp.js's
+  // tag names it: Cloudflare keeps /blimp/* for hours, and a deploy must not
+  // run this page on last week's interpreter.
+  function blimpWasmHref() {
+    var rt = document.querySelector('script[data-blimp-wasm]')
+    if (!rt) throw new Error('no script[data-blimp-wasm] on this page: it was not built with script_tags')
+    return rt.getAttribute('data-blimp-wasm')
+  }
   var el = document.getElementById('god')
   var status = document.getElementById('god-status')
 
@@ -14,7 +22,7 @@
   try {
     var blimp = new Blimp()
     blimp.onPrint(function () {})
-    await blimp.init('/blimp/blimp.wasm')
+    await blimp.init(blimpWasmHref())
     var res = await fetch('/pong/god.blimp')
     if (!res.ok) throw new Error('god.blimp is ' + res.status)
     var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null

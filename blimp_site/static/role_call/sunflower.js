@@ -74,7 +74,11 @@
   async function start() {
     var blimp = new Blimp()
     blimp.onPrint(function () {})
-    await blimp.init('/blimp/blimp.wasm')
+    // The interpreter by its content, as blimp.js's tag names it: Cloudflare
+    // keeps /blimp/* for hours, and a deploy must not meet last week's copy.
+    var rt = document.querySelector('script[data-blimp-wasm]')
+    if (!rt) throw new Error('no script[data-blimp-wasm] on this page: it was not built with script_tags')
+    await blimp.init(rt.getAttribute('data-blimp-wasm'))
     var res = await fetch('/role-call/sunflower.blimp')
     if (!res.ok) throw new Error('/role-call/sunflower.blimp is ' + res.status)
     var loaded = blimp.eval(await res.text())

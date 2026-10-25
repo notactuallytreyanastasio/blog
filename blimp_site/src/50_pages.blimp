@@ -202,19 +202,22 @@ end
 # Blimp's canvas draws it doing so; the status line says whether the bytes
 # match what the server sent. The two scripts are Blimp's canvas and that
 # starter; neither is needed to read the post, which is all above.
-POST_SCRIPTS = ["/blimp/canvas.js", "/blimp/post.js"]
+# Every URL in it is named by content (POST_WINDOW_URLS, beside
+# script_href in src/90_live.blimp): the worker, the blimp.js it imports
+# and the blimp.wasm that runs, so a cached copy from before a deploy is
+# never mixed with this one.
 
 def blimp_window(slug: String) -> String do
   join([
     "<span id=\"blimp-closed\"></span>",
-    "<div id=\"blimp-window\" class=\"blimp-window\" data-slug=\"", escape_html(slug), "\">",
+    "<div id=\"blimp-window\" class=\"blimp-window\" data-slug=\"", escape_html(slug), "\"", POST_WINDOW_URLS.attrs, ">",
     "<div class=\"mac-title-bar\"><a href=\"#blimp-closed\" class=\"mac-close-box\" title=\"close\"></a>",
     "<div class=\"mac-title\">Blimp: this post, rendered again</div></div>",
     "<div id=\"blimp-viz-wrap\"><canvas id=\"blimp-viz\"></canvas></div>",
     "<div id=\"blimp-status\" class=\"blimp-status\">This post was rendered by a server written in Blimp. ",
     "With scripts on, your browser renders it again here, with the same Blimp code.</div>",
     "</div>",
-    join(map(POST_SCRIPTS, fn(src: String) -> String do concat("<script src=\"", src, "\"></script>") end), "")
+    POST_WINDOW_URLS.scripts
   ], "")
 end
 
