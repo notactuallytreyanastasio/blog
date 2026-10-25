@@ -21,13 +21,19 @@
     // this deploy's interpreter and runtime name, from blimp.js's own tag
     var rt = document.querySelector('script[data-blimp-build]')
     var build = rt ? rt.getAttribute('data-blimp-build') : ''
-    await blimp.init(el.dataset.wasm || (rt && rt.getAttribute('data-blimp-wasm')) || '/blimp/blimp.wasm')
     // the program as of this deploy's runtime (data-blimp-build, from script_tags)
     var program = el.dataset.program
     if (build && program.indexOf('?') < 0) program += '?v=' + build
-    var res = await fetch(program)
-    if (!res.ok) throw new Error(el.dataset.program + ' is ' + res.status)
-    var source = await res.text()
+    // Asked for before the interpreter is instantiated, not after: the two
+    // downloads overlap instead of following each other. Not preloaded from
+    // the <head>: that delayed first paint (src/50_pages.blimp says by how much).
+    var text = fetch(program).then(function (res) {
+      if (!res.ok) throw new Error(el.dataset.program + ' is ' + res.status)
+      return res.text()
+    })
+    text.catch(function () {})
+    await blimp.init(el.dataset.wasm || (rt && rt.getAttribute('data-blimp-wasm')) || '/blimp/blimp.wasm')
+    var source = await text
     var canvas = window.BlimpPageCanvas ? new BlimpPageCanvas(blimp) : null
     var view = new BlimpView(blimp, el, { send: true, onError: fail, onRender: function () { if (canvas) canvas.feed() } })
     var seeded = blimp.eval('seed(' + Date.now() + ')')

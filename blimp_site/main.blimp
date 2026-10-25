@@ -58,7 +58,9 @@ def build_routes(posts: List) -> Map do
   r6a = load_asset(r5, "/assets/desktop.css", "assets/desktop.css")
   r6 = load_asset(r6a, "/favicon.ico", concat(STATIC_DIR, "/favicon.ico"))
   r7 = load_asset(r6, "/robots.txt", concat(STATIC_DIR, "/robots.txt"))
-  blinks_pwa_routes(STATIC_DIR, app_routes(wordle_routes(pong_routes(static_page_routes(journal_routes(tetris_routes(r7)))))))
+  # the homepage's icons, one file (DESK_SPRITE, src/60_desktop.blimp)
+  r8 = put(r7, "/blimp/icons.svg", serialize(response(200, "image/svg+xml", "public, max-age=300", DESK_SPRITE), "GET"))
+  blinks_pwa_routes(STATIC_DIR, app_routes(wordle_routes(pong_routes(static_page_routes(journal_routes(tetris_routes(r8)))))))
 end
 
 # Pages that were LiveViews with nothing for a server to do, and two that
@@ -370,13 +372,13 @@ def static_or_404(path: String) -> Map do
     true ->
       body = read_file(concat(STATIC_DIR, path))
       case body do
-        nil -> html_response(404, not_found_page(path))
+        nil -> NOT_FOUND
         _ -> response(200, content_type_for(path), "public, max-age=3600", body)
       end
     false ->
       case ends_with(path, "/") and length(path) > 1 do
         true -> redirect(take(path, length(path) - 1))
-        false -> html_response(404, not_found_page(path))
+        false -> NOT_FOUND
       end
   end
 end
@@ -436,6 +438,19 @@ end
 # (prebuilt, src/40_http.blimp), which carries an ETag and a version.
 def answer_resp(raw: String, req: Map, resp0: Map) -> Tuple do
   tag = lookup(resp0, :etag)
+  wire = lookup(resp0, :wire)
+  case wire != nil and lookup(resp0, :headers) == nil do
+    # prebuilt bytes (NOT_FOUND): sent as they are, cut for a HEAD
+    true ->
+      case req.method == "HEAD" do
+        true -> {head_of(wire), resp0.status, req}
+        false -> {wire, resp0.status, req}
+      end
+    false -> answer_built(raw, req, resp0, tag)
+  end
+end
+
+def answer_built(raw: String, req: Map, resp0: Map, tag: Any) -> Tuple do
   case tag == nil or resp0.status != 200 do
     true -> {serialize(resp0, req.method), resp0.status, req}
     false ->
@@ -460,8 +475,14 @@ def answer_resp(raw: String, req: Map, resp0: Map) -> Tuple do
   end
 end
 
+# A GET or HEAD is dispatched over the routes that could claim it
+# (web_get_candidates, src/41_web.blimp), which answer as the whole table
+# would; any other method over the whole table, for its 405 and Allow.
 def web_handle(raw: String, req: Map) -> Any do
-  web_dispatch(raw, req, WEB_ROUTES, WEB_SECRET)
+  case req.method == "GET" or req.method == "HEAD" do
+    true -> web_dispatch(raw, req, web_get_candidates(WEB_GET_INDEX, req.path), WEB_SECRET)
+    false -> web_dispatch(raw, req, WEB_ROUTES, WEB_SECRET)
+  end
 end
 
 # The homepage with no query string is most of the traffic to "/", and it
@@ -1259,6 +1280,7 @@ routes = edge_routes(blog_tag_routes(static_file_routes(stack_routes(build_route
 # src/99_receipts.blimp: the receipt printer's POSTs
 # src/99_collage.blimp: /collage-maker, /collage/:token and the download
 WEB_ROUTES = list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes(STATIC_DIR)), blinks_live_routes()), guest_post_routes()), admin_routes()), curate_routes()), receipt_routes()), collage_routes())
+WEB_GET_INDEX = web_get_index(WEB_ROUTES)
 WEB_SECRET = web_session_secret()
 case RECEIPT_TOKEN do
   "" -> puts("receipts: RECEIPT_PRINTER_API_TOKEN is not set, so every POST /api/receipt_messages/* is 401")

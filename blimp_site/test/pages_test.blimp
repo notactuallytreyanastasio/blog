@@ -49,6 +49,16 @@ actor PageTests do
     assert(script_free("<p>turn it on and off, on=off</p>"))
   end
 
+  test "the prebuilt 404 is a whole 404 response, its Content-Length its body's" do
+    w = NOT_FOUND.wire
+    assert(starts_with(w, "HTTP/1.1 404 Not Found\r\n"))
+    body = drop(w, index_of(w, "\r\n\r\n") + 4)
+    assert_eq(body, NOT_FOUND.body)
+    assert(contains(w, concat("\r\nContent-Length: ", to_string(length(body)), "\r\n")))
+    assert(contains(body, "There is nothing at this address."))
+    assert(runtime_once(body))
+  end
+
   test "the index and 404 have only the runtime window; posts have only Blimp's window" do
     posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
     assert(runtime_once(blog_index_page(posts)))
@@ -184,4 +194,13 @@ actor PageTests do
       assert(contains(downcase(html), "</html>"))
     end)
   end
+
+  test "a Blimp page names its program for the host and preloads nothing (see 50_pages)" do
+    html = app_page("T", "d", [], "", "/x/x.blimp", "x")
+    assert(contains(html, "data-program=\"/x/x.blimp\""))
+    assert(contains(html, concat("data-blimp-wasm=\"", BLIMP_WASM_HREF, "\"")))
+    refute(contains(html, "rel=\"preload\""))
+    refute(contains(temper_snake_page(), "rel=\"preload\""))
+  end
 end
+

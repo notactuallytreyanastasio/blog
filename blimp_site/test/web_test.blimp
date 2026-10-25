@@ -478,4 +478,41 @@ actor WebTests do
       assert_eq(web_utf8_valid_json(s), last(c))
     end)
   end
+
+  test "a GET or HEAD finds over its candidates what it finds over the whole table" do
+    all = list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(list_append(web_demo_routes(), blinks_write_routes()), blinks_anon_routes()), blinks_push_routes("../priv/static")), blinks_live_routes()), guest_post_routes()), admin_routes()), curate_routes()), receipt_routes()), collage_routes())
+    ix = web_get_index(all)
+    # every route's own path with its :params filled, a level deeper, a
+    # level shallower, and paths no route has
+    own = map(all, fn(r: Map) -> String do
+      concat("/", join(map(r.segs, fn(s: String) -> String do
+        case starts_with(s, ":") do
+          true -> "7"
+          false -> s
+        end
+      end), "/"))
+    end)
+    paths = list_append(list_append(own, map(own, fn(p: String) -> String do concat(p, "/x") end)), ["/", "", "/nope", "/nope/not/here", "/wp-login.php", "/api", "/api/", "/admin", "//", "/7"])
+    assert(length(all) > 50)
+    reduce(paths, 0, fn(n: Int, p: String) -> Int do
+      reduce(["GET", "HEAD"], n, fn(m: Int, method: String) -> Int do
+        whole = web_find(all, method, p)
+        some = web_find(web_get_candidates(ix, p), method, p)
+        assert_eq(wt_found(some), wt_found(whole))
+        m + 1
+      end)
+    end)
+  end
+end
+
+# What web_find answered, without the handler (functions do not compare).
+def wt_found(got: Any) -> Any do
+  case got do
+    nil -> nil
+    _ ->
+      case elem(got, 0) do
+        :ok -> {:ok, elem(got, 1).method, elem(got, 1).pattern, elem(got, 2)}
+        _ -> got
+      end
+  end
 end

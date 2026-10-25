@@ -107,6 +107,18 @@ def page_layout_full(title: String, description: String, og_type: String, styles
   ], "")
 end
 
+# No <link rel=preload> for a Blimp page's interpreter or program. They
+# were tried: preloading blimp.wasm (617KB) and the program from the <head>
+# drew /who's program 170ms sooner with 40ms of round trip, but the wasm
+# then shared the link with the render-blocking stylesheets, and the first
+# paint came later everywhere: +30-110ms at 40ms, and on a 150ms, 1.5Mbps
+# link /who 1.86s -> 2.83s and /temper-snake 1.79s -> 3.39s. fetchpriority=
+# "low" changed nothing measurable. What stays is the hosts (static/blimp/
+# app.js, static/snake/play.js) asking for the program while the
+# interpreter is instantiated, not after: first paint as before on every
+# page and link, and the program drawn 50-110ms sooner at 40ms and 100-
+# 300ms sooner on the slow link.
+
 # Blimp's canvas, drawing the one Blimp process serving this site, as it
 # runs: a small window in the corner of every page, fed by /live/runtime
 # (static/blimp/runtime.js). A page that already loads the canvas to draw
@@ -242,6 +254,11 @@ def blimp_window(slug: String) -> String do
 end
 
 def not_found_page(path: String) -> String do
+  not_found_page_for(concat("<code>", escape_html(path), "</code>"))
+end
+
+# `where` is HTML: the path in <code>, or words.
+def not_found_page_for(where: String) -> String do
   body = join([
     "<div class=\"mac-blog\">",
     menu_bar("", "served by Blimp"),
@@ -249,9 +266,21 @@ def not_found_page(path: String) -> String do
     "<div class=\"mac-title-bar\"><a href=\"/\" class=\"mac-close-box\"></a>",
     "<div class=\"mac-title\">Not Found</div><div class=\"mac-resize-box\"></div></div>",
     "<div class=\"mac-window-content\" style=\"padding: 24px;\">",
-    "<p>There is nothing at <code>", escape_html(path), "</code>.</p>",
+    "<p>There is nothing at ", where, ".</p>",
     "<p style=\"margin-top: 12px;\"><a href=\"/blog\">All posts</a></p>",
     "</div></div></div></div>"
   ], "")
   page_layout("Not Found", site_description(), "website", ["/assets/base.css", "/assets/blog.css"], body)
 end
+
+# The answer to every GET no route has (static_or_404, main.blimp), made
+# once: the response dynamic() hands back, with its wire, which answer_resp
+# sends as it is. It was a page rendered per request, naming the path, after
+# the whole fallback chain; in production Caddy answers any Blimp 404 with a
+# 308 to old.bobbby.online and drops the body unread, so nobody saw the path
+# and every scanner's probe paid for it. The page says "this address".
+def not_found_prebuilt() -> Map do
+  resp = html_response(404, not_found_page_for("this address"))
+  put(resp, :wire, serialize(resp, "GET"))
+end
+NOT_FOUND = not_found_prebuilt()

@@ -459,14 +459,14 @@ def desk_path_rows(rows: List, y: Int, acc: List) -> List do
   end
 end
 
-def desk_path_icon(rows: List) -> String do
-  concat("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 20\" shape-rendering=\"crispEdges\"><path d=\"", join(desk_path_rows(rows, 0, []), ""), "\"/></svg>")
+def desk_path_d(rows: List) -> String do
+  join(desk_path_rows(rows, 0, []), "")
 end
 
 def desk_path_done(slug: String, rows: List, acc: Map) -> Map do
   case slug do
     "" -> acc
-    _ -> put(acc, slug, desk_path_icon(reverse(rows)))
+    _ -> put(acc, slug, desk_path_d(reverse(rows)))
   end
 end
 
@@ -569,9 +569,48 @@ def desk_card_order(keys: List, saved: Any) -> List do
   end
 end
 
-def desk_hangar_icons() -> Map do
+# Every one-path icon, slug -> its path data: data/hangar_icons.txt's,
+# then data/icons.txt's (a slug in both is icons.txt's).
+def desk_icon_paths() -> Map do
   icon_text = concat(desk_read("data/hangar_icons.txt"), "\n", desk_read("data/icons.txt"))
   desk_path_entries(desk_lines(icon_text), "", [], %{})
+end
+
+# ── The icons, one file ─────────────────────────────────────────────────
+#
+# The homepage's Hangar tiles and museum rows drew each icon inline: 83
+# <svg>s, 58KB of a 101KB page, sent again on every visit that was not a
+# 304. Now each icon is a <symbol> in one SVG, served at DESK_SPRITE_HREF
+# (named by its content, so a browser and Cloudflare keep it a year; main.blimp
+# adds the route), and a tile is a 32x20 <svg> that <use>s it. The paths
+# carry no fill, so they take the page's `fill: currentColor` through the
+# <use> as they took it before; shape-rendering is inherited the same way.
+# It is under /blimp/ beside home.js, not /assets/, because Caddy already
+# sends /blimp/* to this server and names /assets/ files one by one.
+def desk_sprite(paths: Map) -> String do
+  join([
+    "<svg xmlns=\"http://www.w3.org/2000/svg\">",
+    join(map(sort(keys(paths)), fn(slug: String) -> String do
+      concat("<symbol id=\"i-", slug, "\" viewBox=\"0 0 32 20\"><path d=\"", lookup(paths, slug), "\"/></symbol>")
+    end), ""),
+    "</svg>\n"
+  ], "")
+end
+
+def desk_icon_use(href: String, slug: String) -> String do
+  concat("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 20\" shape-rendering=\"crispEdges\"><use href=\"", href, "#i-", slug, "\"/></svg>")
+end
+
+DESK_ICON_PATHS = desk_icon_paths()
+DESK_SPRITE = desk_sprite(DESK_ICON_PATHS)
+DESK_SPRITE_HREF = concat("/blimp/icons.svg?v=", edge_sums(DESK_SPRITE).ver)
+DESK_OWN_ICONS = reduce(keys(DESK_ICON_PATHS), %{}, fn(acc: Map, slug: String) -> Map do
+  put(acc, slug, desk_icon_use(DESK_SPRITE_HREF, slug))
+end)
+
+# slug -> the markup that draws it, for a tile or a museum row
+def desk_hangar_icons() -> Map do
+  DESK_OWN_ICONS
 end
 
 # data/hangar.tsv's pages with their icons, in the file's order.
