@@ -225,6 +225,28 @@ def load_desktop(dir: String, posts: List) -> Map do
   build_desktop(loaded, finder, desk_load_icons(desk_read(concat(dir, "/icons.txt"))), posts, nil)
 end
 
+# The day's picture, drawn once a day. build_desktop runs every
+# DESK_REFRESH_S seconds when the museum is Postgres rows, and drew the
+# same picture again every time (50ms and more of this interpreter, and
+# all of it garbage but the last few KB): the seed only changes at
+# midnight UTC.
+actor DeskArt do
+  state seed: Int :: -1
+  state html: String :: ""
+
+  on :for(day: Int) do
+    case day == seed do
+      true -> reply html
+      false ->
+        drawn = desk_art(day)
+        become seed: day, html: drawn
+        reply drawn
+    end
+  end
+end
+
+DESK_ART = spawn DeskArt
+
 def build_desktop(loaded: List, finder: List, icons: Map, posts: List, layout: Any) -> Map do
   own = desk_hangar_icons()
   hangar = desk_arrange(desk_load_hangar(desk_read("data/hangar.tsv"), own, %{}), layout)
@@ -244,7 +266,7 @@ def build_desktop(loaded: List, finder: List, icons: Map, posts: List, layout: A
     post_count: length(posts),
     hangar_groups: groups,
     hangar_count: length(hangar),
-    art_html: desk_art(desk_art_seed(now()))
+    art_html: DESK_ART <- :for(desk_art_seed(now()))
   }
 end
 

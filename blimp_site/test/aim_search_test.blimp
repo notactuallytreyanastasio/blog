@@ -1,0 +1,157 @@
+# /aim's archive moved from the heap into SQLite (src/99_aim.blimp,
+# aim_open and aim_search). This checks the new search against the one it
+# replaced, kept below as aimr_*, word for word as it was: the chunks as
+# row maps and lower-cased strings, a native contains per chunk, a sort in
+# Blimp. Both must hand the model the same posts in the same order.
+#
+# The archive is personal data and this repo is public, so the archive
+# here is made up: aimr_archive builds one of 60 chunks from a few words,
+# enough chunks for AIM_SCAN_CHUNKS to cut, with undated tweets, replies,
+# shared dates (the tie order), words inside words ("knick" in
+# "knicks"), capitals and non-ASCII. Against the real one, locally only:
+#
+#   AIM_REAL_ARCHIVE=~/code/aim-corpus/aim-posts.tsv ./build.sh test
+#
+# which also compares every query made of a word sampled from it (at run
+# time; none of it is written down here) and prints only counts.
+
+def aimr_chunks(text: String) -> List do
+  map(split(text, AIM_CHUNK_BREAK), fn(block: String) -> Map do
+    rows = map(aim_rows(block), fn(r: Map) -> Map do put(r, :line, aim_post_line(r.source, r.date, r.text)) end)
+    %{rows: rows, lower: join(map(rows, fn(r: Map) -> String do r.lower end), "\n")}
+  end)
+end
+
+def aimr_search(chunks: List, query: String, source: String) -> List do
+  terms = aim_drop_stop_words(zg_terms(downcase(query)))
+  hits = map(terms, fn(t: String) -> List do filter(chunks, fn(c: Map) -> Bool do contains(c.lower, t) end) end)
+  found = filter(hits, fn(h: List) -> Bool do h != [] end)
+  case found do
+    [] -> []
+    _ ->
+      fewest = head(sort_by_keys(found, map(found, fn(h: List) -> Int do length(h) end)))
+      scan = reverse(zg_take(reverse(fewest), AIM_SCAN_CHUNKS))
+      rows = filter(flat(map(scan, fn(c: Map) -> List do c.rows end)), fn(r: Map) -> Bool do aimr_from(r, source) end)
+      all = map(rows, fn(r: Map) -> Map do %{score: aimr_score(terms, r.lower), date: r.date, line: r.line} end)
+      scored = filter(all, fn(x: Map) -> Bool do x.score > 0 end)
+      ranked = sort_by_keys(scored, map(scored, fn(x: Map) -> Int do 0 - (x.score * 100000000 + aim_ymd(x.date)) end))
+      map(zg_take(ranked, AIM_SEARCH_LIMIT), fn(x: Map) -> String do x.line end)
+  end
+end
+
+def aimr_from(r: Map, source: String) -> Bool do
+  case source do
+    "bluesky" -> r.source != "twitter"
+    "twitter" -> r.source == "twitter"
+    _ -> true
+  end
+end
+
+def aimr_score(terms: List, lower: String) -> Int do
+  length(filter(terms, fn(t: String) -> Bool do contains(lower, t) end))
+end
+
+AIMR_WORDS = ["Knicks", "knick", "phish", "MSG", "leica", "grilled", "cheese", "butter", "mayo", "sourdough",
+  "elixir", "blimp", "train", "Café", "naïve", "smoking", "candy", "cigarette", "photo", "night",
+  "the", "and", "was", "rain", "brain", "cheesecake", "bar", "barn", "photograph", "über"]
+AIMR_SOURCES = ["twitter", "bsky", "reply"]
+
+# A fixed pseudo-random sequence (an LCG), so the archive is the same every run.
+def aimr_next(x: Int) -> Int do
+  rem(x * 1103515245 + 12345, 2147483648)
+end
+
+# Post i: a source, a date from a small set (so many share one), and 3-8 words.
+def aimr_post(i: Int) -> String do
+  x1 = aimr_next(i * 7919 + 17)
+  source = elem_at(AIMR_SOURCES, rem(x1 / 16, 3))
+  date = case source == "twitter" and rem(x1 / 64, 2) == 0 do
+    true -> ""
+    false -> concat("202", to_string(rem(x1 / 128, 7)), "-0", to_string(1 + rem(x1 / 1024, 9)), "-1", to_string(rem(x1 / 8192, 10)))
+  end
+  n = 3 + rem(x1 / 65536, 6)
+  words = map(range(1, n), fn(k: Int) -> String do
+    elem_at(AIMR_WORDS, rem(aimr_next(x1 + k * 31) / 256, length(AIMR_WORDS)))
+  end)
+  concat(source, "\t", date, "\t", join(words, " "))
+end
+
+# 60 chunks of 25 posts, with one broken line and one chunk with no posts.
+def aimr_archive() -> String do
+  chunks = map(range(0, 59), fn(c: Int) -> String do
+    case c == 30 do
+      true -> "broken line"
+      false -> join(map(range(c * 25, c * 25 + 24), fn(i: Int) -> String do aimr_post(i) end), "\n")
+    end
+  end)
+  join(chunks, AIM_CHUNK_BREAK)
+end
+
+AIMR_QUERIES = ["knicks", "knick", "KNICKS phish", "phish msg", "grilled cheese", "cheese", "cheesecake butter",
+  "leica photo", "photograph", "café", "naïve smoking", "candy cigarette", "the", "the and was", "rain", "brain rain",
+  "bar", "barn bar", "über", "elixir blimp train", "zzzz", "a b", "", "grilled cheese sourdough butter mayo",
+  "night night", "smoking smoking candy"]
+
+# The {query, source} pairs the two searches answer differently.
+def aimr_diff(db: Int, chunks: List, queries: List) -> List do
+  pairs = flat(map(queries, fn(q: String) -> List do map(["any", "bluesky", "twitter"], fn(s: String) -> Tuple do {q, s} end) end))
+  aimr_diff_pairs(db, chunks, pairs)
+end
+
+def aimr_diff_pairs(db: Int, chunks: List, pairs: List) -> List do
+  filter(pairs, fn(p: Tuple) -> Bool do
+    aim_search(db, elem(p, 0), elem(p, 1)) != aimr_search(chunks, elem(p, 0), elem(p, 1))
+  end)
+end
+
+actor AimSearchTests do
+  test "the SQLite archive searches as the chunks did, on a made-up archive" do
+    text = aimr_archive()
+    a = aim_open(text)
+    chunks = aimr_chunks(text)
+    assert_eq(elem(a, 1), length(flat(map(chunks, fn(c: Map) -> List do c.rows end))))
+    assert_eq(elem(a, 2), length(chunks))
+    assert_eq(elem(a, 1), 59 * 25)
+    assert_eq(aimr_diff(elem(a, 0), chunks, AIMR_QUERIES), [])
+    # the archive is big enough that the scan is cut and the limit reached
+    assert(length(aim_search(elem(a, 0), "cheese", "any")) == AIM_SEARCH_LIMIT)
+    assert(length(filter(chunks, fn(c: Map) -> Bool do contains(c.lower, "cheese") end)) > AIM_SCAN_CHUNKS)
+    aim_close(elem(a, 0))
+  end
+
+  test "no archive, no posts" do
+    assert_eq(aim_search(0, "knicks", "any"), [])
+  end
+
+  test "the real archive, when AIM_REAL_ARCHIVE names it (never in git)" do
+    path = getenv("AIM_REAL_ARCHIVE")
+    case path == nil or path == "" do
+      true -> assert(true)
+      false ->
+        text = read_file(path)
+        a = aim_open(text)
+        chunks = aimr_chunks(text)
+        # a word from every 4999th post, its longest of three or more
+        # letters, alone and with the next one's, each query against one
+        # source in turn. More runs the old search out of heap: it makes
+        # ~20MB of row maps a query, and nothing is collected while a test
+        # runs.
+        sampled = map(filter(range(0, elem(a, 1) - 1), fn(i: Int) -> Bool do rem(i, 4999) == 0 end), fn(i: Int) -> String do
+          r = tail(sqlite_query(elem(a, 0), "SELECT lower FROM aim_posts WHERE id = ?", [i]))
+          ws = zg_terms(head(head(r)))
+          case ws do
+            [] -> "zzzz"
+            _ -> head(sort_by_keys(ws, map(ws, fn(w: String) -> Int do 0 - length(w) end)))
+          end
+        end)
+        pairs = map(range(0, length(sampled) - 2), fn(i: Int) -> String do concat(elem_at(sampled, i), " ", elem_at(sampled, i + 1)) end)
+        queries = list_append(list_append(AIMR_QUERIES, sampled), pairs)
+        asked = map(range(0, length(queries) - 1), fn(i: Int) -> Tuple do {elem_at(queries, i), elem_at(["any", "bluesky", "twitter"], rem(i, 3))} end)
+        t0 = now_ms()
+        bad = aimr_diff_pairs(elem(a, 0), chunks, asked)
+        puts(concat("real archive: ", to_string(elem(a, 1)), " posts, ", to_string(length(asked)), " searches compared, ", to_string(length(bad)), " differ (", to_string(now_ms() - t0), "ms for both)"))
+        assert_eq(length(bad), 0)
+        aim_close(elem(a, 0))
+    end
+  end
+end

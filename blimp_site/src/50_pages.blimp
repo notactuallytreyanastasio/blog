@@ -15,6 +15,15 @@ def meta_tag(attr: String, name: String, content: String) -> String do
   concat("<meta ", attr, "=\"", name, "\" content=\"", escape_html(content), "\">\n")
 end
 
+# The names list_dir gives that are files to hash (it may answer nil, or
+# give "." and "..").
+def asset_files(names: Any) -> List do
+  case type_of(names) == :list do
+    false -> []
+    true -> filter(names, fn(n: String) -> Bool do not(starts_with(n, ".")) end)
+  end
+end
+
 # A stylesheet under /assets/ is linked with ?v= and the start of its
 # content's sha256, so a changed file is a new URL. Cloudflare caches
 # /assets/* for four hours (max-age=14400) and kept serving the old
@@ -23,15 +32,26 @@ end
 # nothing but the cache key. A link it cannot read (Phoenix's digested
 # app-*.css, served from priv) is left as it is; its name is already its
 # version.
+#
+# The hashes are taken once, when the program starts: every file in
+# assets/, read and hashed when this file is evaluated, not on every page
+# built (every post page, the blog index, the 404s and the rest each read
+# and hashed their stylesheets again). A stylesheet changed under a running
+# site keeps its old ?v= until the next start, as its route keeps its old
+# body (main.blimp's load_asset reads it once too).
+ASSET_VERSIONS = reduce(asset_files(list_dir("assets")), %{}, fn(acc: Map, name: String) -> Map do
+  body = read_file(concat("assets/", name))
+  case body do
+    nil -> acc
+    _ -> put(acc, concat("/assets/", name), take(sha256(body), 10))
+  end
+end)
+
 def asset_href(href: String) -> String do
-  case starts_with(href, "/assets/") do
-    false -> href
-    true ->
-      body = read_file(concat("assets/", drop(href, 8)))
-      case body do
-        nil -> href
-        _ -> concat(href, "?v=", take(sha256(body), 10))
-      end
+  v = lookup(ASSET_VERSIONS, href)
+  case v do
+    nil -> href
+    _ -> concat(href, "?v=", v)
   end
 end
 

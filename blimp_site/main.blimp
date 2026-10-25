@@ -956,12 +956,12 @@ RUNTIME_PUSH_MS = 250
 RUNTIME_MAX_RAYS = 80
 
 # What a runtime window is sent: runtime_snapshot()'s actors, and as its
-# messages the sends since the last push plus one ray per request answered
-# (to the Site, from outside it: "GET /blog"). {pending rays, pushed_at}
+# messages the sends logged this tick plus one ray per request answered
+# since the last push (to the Site, from outside it: "GET /blog").
 # A window that has just connected is sent the meter's last two minutes
 # first, so the homepage's graph starts full; after that every push carries
 # the latest sample. `seen` is the runtime sockets that have had the
-# history. {pending rays, pushed_at, seen}
+# history. {pending request lines, pushed_at, seen}
 def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int, seen: List) -> Tuple do
   watchers = sockets_of(socks, :runtime)
   fds = map(watchers, fn(s: Map) -> Int do s.fd end)
@@ -974,18 +974,26 @@ def push_runtime(socks: Map, answered: List, pending: List, pushed_at: Int, seen
   {elem(pushed, 0), elem(pushed, 1), fds}
 end
 
+# runtime_snapshot() is ~40 actors' state summarised into fresh maps, so it
+# is taken only on a tick that pushes, one in two or three: it was taken
+# on every tick while any homepage was open, and two of every three were
+# garbage. What that costs is the sends between actors on the ticks that
+# do not push (the host clears its message log before every tick), so a
+# window sees a sample of them; requests answered on those ticks are kept
+# as lines in `pending` and all drawn.
 def push_runtime_rays(watchers: List, answered: List, pending: List, pushed_at: Int) -> Tuple do
   case watchers do
     [] -> {[], pushed_at}
     _ ->
-      snap = runtime_snapshot()
-      site_ref = runtime_site_ref(snap.actors)
-      asked = map(reverse(answered), fn(line: String) -> Map do %{target: site_ref, from: nil, message: line} end)
-      rays = take_rays(list_append(pending, list_append(snap.messages, asked)), RUNTIME_MAX_RAYS)
+      lines = take_rays(list_append(pending, reverse(answered)), RUNTIME_MAX_RAYS)
       t = now_ms()
       case t - pushed_at >= RUNTIME_PUSH_MS do
-        false -> {rays, pushed_at}
+        false -> {lines, pushed_at}
         true ->
+          snap = runtime_snapshot()
+          site_ref = runtime_site_ref(snap.actors)
+          asked = map(lines, fn(line: String) -> Map do %{target: site_ref, from: nil, message: line} end)
+          rays = take_rays(list_append(snap.messages, asked), RUNTIME_MAX_RAYS)
           live_push(ROOMS, map(watchers, fn(s: Map) -> Int do s.fd end), json_encode(%{actors: snap.actors, messages: rays, meter: METER <- :latest}))
           {[], t}
       end

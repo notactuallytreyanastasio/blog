@@ -464,6 +464,16 @@ actor Pusher do
   # One tick: settle what has finished, warn about what will not, start
   # what there is room for.
   on :step(t: Int) do
+    case flying == [] and queue == [] do
+      # nothing out and nothing to send: no new state. This ran every tick
+      # (ten a second) and its `become` of eight fields was the most
+      # garbage any idle step made.
+      true -> reply 0
+      false -> reply (self <- :step_busy(t))
+    end
+  end
+
+  on :step_busy(t: Int) do
     polled = map(flying, fn(f: Map) -> Tuple do {f, bkp_poll(io, f.handle)} end)
     waiting = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 1) == nil end), fn(p: Tuple) -> Map do
       f = elem(p, 0)

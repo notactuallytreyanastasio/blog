@@ -494,7 +494,16 @@ actor BlinksEnricher do
     end
   end
 
+  # Nothing queued, working or to backfill: nothing to do. The step below
+  # makes two closures and a `become` even then, every tick.
   on :step do
+    case queue == [] and jobs == [] and not(backfill) do
+      true -> reply 0
+      false -> reply (self <- :step_busy)
+    end
+  end
+
+  on :step_busy do
     t = now_ms()
     q0 = case backfill do
       false -> queue
