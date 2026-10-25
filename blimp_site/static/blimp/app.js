@@ -25,9 +25,8 @@
     var program = el.dataset.program
     if (build && program.indexOf('?') < 0) program += '?v=' + build
     // Asked for before the interpreter is instantiated, not after: the two
-    // downloads overlap instead of following each other. The page's <head>
-    // preloads both under these same URLs (blimp_preloads), so each fetch
-    // here is usually handed what is already on its way.
+    // downloads overlap instead of following each other. Not preloaded from
+    // the <head>: that delayed first paint (src/50_pages.blimp says by how much).
     var text = fetch(program).then(function (res) {
       if (!res.ok) throw new Error(el.dataset.program + ' is ' + res.status)
       return res.text()

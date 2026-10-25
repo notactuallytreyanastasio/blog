@@ -18,8 +18,8 @@
   // keeps /blimp/* for hours, and a deploy must not meet last week's copy.
   var rt = document.querySelector('script[data-blimp-wasm]')
   if (!rt) return fail('no script[data-blimp-wasm] on this page: it was not built with script_tags')
-  // The game and its runner, as the page names them (data-programs, which
-  // its <head> preloads), asked for while the interpreter is instantiated.
+  // The game and its runner, as the page names them (data-programs), asked
+  // for while the interpreter is instantiated.
   var urls = (host.dataset.programs || (base + 'snake.blimp ' + base + 'harness.blimp')).split(' ')
   var sources = Promise.all(urls.map(function (u) {
     return fetch(u).then(function (r) {

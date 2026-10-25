@@ -195,14 +195,12 @@ actor PageTests do
     end)
   end
 
-  test "a Blimp page preloads the interpreter and the program under the URLs its host fetches" do
+  test "a Blimp page names its program for the host and preloads nothing (see 50_pages)" do
     html = app_page("T", "d", [], "", "/x/x.blimp", "x")
-    assert(contains(html, concat("<link rel=\"preload\" href=\"", BLIMP_WASM_HREF, "\" as=\"fetch\" crossorigin>")))
-    assert(contains(html, concat("<link rel=\"preload\" href=\"/x/x.blimp?v=", BLIMP_BUILD, "\" as=\"fetch\" crossorigin>")))
-    assert(index_of(html, "rel=\"preload\"") < index_of(html, "</head>"))
-    snake = temper_snake_page()
-    assert(contains(snake, "<link rel=\"preload\" href=\"/static/temper-snake/harness.blimp\" as=\"fetch\" crossorigin>"))
-    refute(contains(blog_index_page([]), "rel=\"preload\""))
+    assert(contains(html, "data-program=\"/x/x.blimp\""))
+    assert(contains(html, concat("data-blimp-wasm=\"", BLIMP_WASM_HREF, "\"")))
+    refute(contains(html, "rel=\"preload\""))
+    refute(contains(temper_snake_page(), "rel=\"preload\""))
   end
 end
 
