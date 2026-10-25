@@ -66,6 +66,27 @@ def bkw_events(was: Map, now_sig: Map, new_ids: List) -> List do
   end
 end
 
+# The queries go out with db_start and are read with db_poll
+# (src/85_db.blimp) on later steps, so a look never stops the tick: a step
+# starts the signature query, the steps after ask whether it is back, and
+# when the largest id has grown one more round trip fetches the new ids.
+# It was DB <- :query, twice, inside one :step: every three seconds the
+# whole site waited on a sequential scan, and on a Postgres that had stopped
+# answering it waited for good. Each query is cancelled at BKW_PG_MS. The
+# scan is milliseconds; one still running after 2s means Postgres is in
+# trouble, and this is the most expendable query the site makes, so it is
+# cancelled rather than left to pile on (one look at a time, never two).
+BKW_PG_MS = 2000
+
+def bkw_failed(failing: Bool, reason: String) -> Atom do
+  # said once when it starts failing, and once when it stops
+  case failing do
+    false -> puts(concat("blinks watch: ", reason))
+    true -> :ok
+  end
+  :ok
+end
+
 actor BlinksWatch do
   state every: Int :: 0
   state due: Int :: 0
@@ -77,6 +98,13 @@ actor BlinksWatch do
   state ms: Int :: 0
   state failing: Bool :: false
   state last_error: String :: ""
+  # :idle, :sig (the signature query is out) or :new (the new ids' query is
+  # out); the query in flight; the signature it is the second half of; when
+  # the look started
+  state phase: Atom :: :idle
+  state pend: Any :: nil
+  state sig_now: Any :: nil
+  state t0: Int :: 0
 
   on :config(every_ms: Int, h: Any) do
     become every: every_ms, hub: h
@@ -84,19 +112,21 @@ actor BlinksWatch do
   end
 
   on :step(t: Int) do
-    case every > 0 and t >= due do
-      false -> reply :idle
-      true ->
-        t0 = now_ms()
-        got = DB <- :query(BKW_SIG_SQL, [])
+    case phase do
+      :idle ->
+        case every > 0 and t >= due do
+          false -> reply :idle
+          true ->
+            become phase: :sig, pend: db_start(DB <- :opts, BKW_SIG_SQL, [], BKW_PG_MS), t0: now_ms()
+            reply :started
+        end
+      :sig ->
+        got = db_poll(pend)
         case got do
+          nil -> reply :waiting
           {:error, reason} ->
-            # said once when it starts failing, and once when it stops
-            case failing do
-              false -> puts(concat("blinks watch: ", to_string(reason)))
-              true -> :ok
-            end
-            become due: t + every, failing: true, last_error: to_string(reason), looks: looks + 1
+            bkw_failed(failing, to_string(reason))
+            become phase: :idle, pend: nil, due: t + every, failing: true, last_error: to_string(reason), looks: looks + 1
             reply :error
           {:ok, rows} ->
             case failing do
@@ -105,22 +135,36 @@ actor BlinksWatch do
             end
             r = head(rows)
             sig = %{n: r.n, max_id: r.max_id, sig: r.sig}
-            events = case seen do
-              nil -> []
-              _ ->
-                grew = to_int(sig.max_id) > to_int(seen.max_id)
-                ids = case grew do
-                  false -> []
-                  true ->
-                    case DB <- :query(BKW_NEW_SQL, [seen.max_id]) do
-                      {:ok, id_rows} -> elem(json_decode(head(id_rows).ids), 1)
-                      _ -> []
-                    end
-                end
-                bkw_events(seen, sig, ids)
+            grew = case seen do
+              nil -> false
+              _ -> to_int(sig.max_id) > to_int(seen.max_id)
             end
+            case grew do
+              true ->
+                become phase: :new, pend: db_start(DB <- :opts, BKW_NEW_SQL, [seen.max_id], BKW_PG_MS), sig_now: sig, failing: false
+                reply :waiting
+              false ->
+                events = case seen do
+                  nil -> []
+                  _ -> bkw_events(seen, sig, [])
+                end
+                each(events, fn(e: Tuple) -> Any do bkl_broadcast_on(hub, elem(e, 0), elem(e, 1)) end)
+                become phase: :idle, pend: nil, seen: sig, due: t + every, failing: false, looks: looks + 1, said: said + length(events), ms: now_ms() - t0
+                reply length(events)
+            end
+        end
+      :new ->
+        got = db_poll(pend)
+        case got do
+          nil -> reply :waiting
+          _ ->
+            ids = case got do
+              {:ok, id_rows} -> elem(json_decode(head(id_rows).ids), 1)
+              _ -> []
+            end
+            events = bkw_events(seen, sig_now, ids)
             each(events, fn(e: Tuple) -> Any do bkl_broadcast_on(hub, elem(e, 0), elem(e, 1)) end)
-            become seen: sig, due: t + every, failing: false, looks: looks + 1, said: said + length(events), ms: now_ms() - t0
+            become phase: :idle, pend: nil, sig_now: nil, seen: sig_now, due: t + every, looks: looks + 1, said: said + length(events), ms: now_ms() - t0
             reply length(events)
         end
     end
@@ -128,7 +172,7 @@ actor BlinksWatch do
 
   # at the prompt: BKW <- :stats
   on :stats do
-    reply %{every: every, looks: looks, said: said, last_ms: ms, failing: failing, last_error: last_error, seen: seen}
+    reply %{every: every, looks: looks, said: said, last_ms: ms, failing: failing, last_error: last_error, seen: seen, phase: phase}
   end
 end
 

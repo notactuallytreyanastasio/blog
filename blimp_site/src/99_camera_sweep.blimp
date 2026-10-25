@@ -482,7 +482,7 @@ end
 # an offset, "array" for a list as varchar[], and "null_timestamp",
 # "null_varchar" with no value).
 
-# A value as the text src/80_postgres.blimp's pg_param sends for it, nil
+# A value as the text pg_start sends for it (pg.zig, as 80_postgres.blimp's pg_param did), nil
 # for NULL: what the Blimp version bound, now bound by Alloy's [sql,
 # params...].
 def cs_param(v: Any) -> Any do

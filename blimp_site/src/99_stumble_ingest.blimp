@@ -360,7 +360,7 @@ end
 # Ecto's on_conflict: :nothing: a url already stored (by url_hash) is
 # skipped, and so is a second row with the same hash in this batch.
 
-# A value as the text src/80_postgres.blimp's pg_param sends for it (langs
+# A value as the text pg_start sends for it (pg.zig, as 80_postgres.blimp's pg_param did) (langs
 # as a JSON array), nil for NULL.
 def sti_param(v: Any) -> Any do
   case v do

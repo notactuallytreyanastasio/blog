@@ -11,9 +11,9 @@
 #          These are top-level bindings (posts, routes), so the prompt can
 #          read and replace them live. The
 #          homepage's museum and Finder are Postgres rows: the Site actor
-#          holds them with its database connection, and reloads them every
-#          DESK_REFRESH_S seconds, so an edit in /admin/museum reaches "/"
-#          without a deploy.
+#          holds them, and reloads them every DESK_REFRESH_S seconds (the
+#          queries started on one tick and read on a later one), so an edit
+#          in /admin/museum reaches "/" without a deploy.
 #   tick   wait up to 100ms for connections, answer every one whose request
 #          has come, write what each socket will take, return. Nothing in a
 #          tick waits on a peer (src/42_conns.blimp, src/89_rooms.blimp).
@@ -1117,21 +1117,22 @@ def live_tick(fd: Int, desk: Map, home: Map, socks: Map, games: Map, dirty: Bool
   end
 end
 
-# The museum and Finder from Postgres, built into a desktop:
-# {:ok, desk, db} or {:error, reason, db}, where db is nil once the
-# connection is gone (the next refresh connects again).
-def refresh_desk(db: Any, opts: Map) -> Tuple do
-  conn = case db do
-    nil -> pg_connect(opts)
-    _ -> {:ok, db}
+# The museum and Finder from Postgres, built into a desktop, a step at a
+# time (src/60_desktop.blimp's desk_load_*): {:wait, load} while its
+# queries are out, then {:ok, desk} or {:error, reason}.
+def refresh_desk(load: Map) -> Tuple do
+  case desk_load_poll(load) do
+    {:wait, next} -> {:wait, next}
+    {:ok, museum, finder, layout} -> {:ok, build_desktop(museum, finder, ICONS, posts, layout)}
+    {:error, reason} -> {:error, reason}
   end
-  case conn do
-    {:error, reason} -> {:error, reason, nil}
-    {:ok, live} ->
-      case load_desk_db(live) do
-        {:ok, museum, finder, layout, next} -> {:ok, build_desktop(museum, finder, ICONS, posts, layout), next}
-        {:error, reason, next} -> {:error, reason, next}
-      end
+end
+
+# The boot's load, waited for.
+def refresh_desk_now(opts: Map) -> Tuple do
+  case desk_load_wait(desk_load_start(opts)) do
+    {:ok, museum, finder, layout} -> {:ok, build_desktop(museum, finder, ICONS, posts, layout)}
+    {:error, reason} -> {:error, reason}
   end
 end
 
@@ -1141,8 +1142,11 @@ actor Site do
   state booted_at: Int :: 0
   state desk: Map :: %{}
   state home: Map :: %{}
-  state db: Any :: nil
   state db_opts: Any :: nil
+  # a refresh in flight (refresh_desk), nil between them; again: /curate
+  # saved while one was out, so another starts as soon as it lands
+  state desk_load: Any :: nil
+  state desk_again: Bool :: false
   state desk_at: Int :: 0
   state desk_error: String :: ""
   state socks: Map :: %{}
@@ -1155,10 +1159,10 @@ actor Site do
   # HTTP connections being read or written (src/42_conns.blimp)
   state conns: Map :: %{}
 
-  on :start(port: Int, first: Map, conn: Any, opts: Any) do
+  on :start(port: Int, first: Map, opts: Any) do
     s = tcp_listen(port)
     tcp_set_nonblocking(s)
-    become fd: s, booted_at: now(), desk: first, home: home_entry(first), db: conn, db_opts: opts, desk_at: now()
+    become fd: s, booted_at: now(), desk: first, home: home_entry(first), db_opts: opts, desk_at: now()
     reply s
   end
 
@@ -1170,21 +1174,33 @@ actor Site do
     # /curate saved a new order (src/99_curate.blimp): "/" is rebuilt now,
     # not at the next DESK_REFRESH_S
     curated = CURATE <- :take
-    case db_opts != nil and (curated or now() - desk_at >= DESK_REFRESH_S) do
-      false ->
-        become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2)
-        reply n
-      true ->
-        case refresh_desk(db, db_opts) do
-          {:ok, fresh, next} ->
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: fresh, home: home_entry(fresh), db: next, desk_at: now(), desk_error: ""
-            reply n
-          {:error, reason, next} ->
+    # "/" from Postgres every DESK_REFRESH_S, started on one tick and
+    # finished on a later one: the queries run on pg_start's threads, so
+    # this tick (and every page and socket it serves) never waits for them.
+    # {desk, home, desk_at, desk_error, desk_load, desk_again}
+    d = case desk_load do
+      nil ->
+        case db_opts != nil and (curated or now() - desk_at >= DESK_REFRESH_S) do
+          false -> {desk, home, desk_at, desk_error, nil, false}
+          true -> {desk, home, desk_at, desk_error, desk_load_start(db_opts), false}
+        end
+      load ->
+        again = desk_again or curated
+        case refresh_desk(load) do
+          {:wait, next} -> {desk, home, desk_at, desk_error, next, again}
+          {:ok, fresh} ->
+            at = case again do
+              true -> 0
+              false -> now()
+            end
+            {fresh, home_entry(fresh), at, "", nil, false}
+          {:error, reason} ->
             puts(concat("museum refresh failed, still showing the one from ", format_time(desk_at, "%H:%M:%S"), ": ", reason))
-            become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), db: next, desk_at: now(), desk_error: reason
-            reply n
+            {desk, home, now(), reason, nil, false}
         end
     end
+    become served: served + n, socks: elem(live, 1), games: elem(live, 2), dirty: elem(live, 3), pushed_at: elem(live, 4), conns: elem(live, 5), rt_pending: elem(rt, 0), rt_at: elem(rt, 1), rt_seen: elem(rt, 2), desk: elem(d, 0), home: elem(d, 1), desk_at: elem(d, 2), desk_error: elem(d, 3), desk_load: elem(d, 4), desk_again: elem(d, 5)
+    reply n
   end
 
   # From the prompt: the games /pong/god is being sent, and the sockets.
@@ -1266,11 +1282,11 @@ end
 # (src/99_blinkscheck.blimp), so it is handed the options, not DB
 BLC <- :db(DB_OPTS)
 first = case DB_OPTS do
-  nil -> {:ok, load_desktop("data", posts), nil}
-  _ -> refresh_desk(nil, DB_OPTS)
+  nil -> {:ok, load_desktop("data", posts)}
+  _ -> refresh_desk_now(DB_OPTS)
 end
 case first do
-  {:error, reason, _} -> desk_die(concat("cannot load the museum from Postgres: ", reason))
+  {:error, reason} -> desk_die(concat("cannot load the museum from Postgres: ", reason))
   _ -> :ok
 end
 DB <- :open(DB_OPTS)
@@ -1337,7 +1353,7 @@ puts(WL <- :config(wl_boot_config(wl_env_config(), DB_OPTS != nil)))
 # /collage-maker's cleanup (src/99_collage.blimp): off unless COLLAGE_CLEANUP=1
 puts(COLLAGE_STORE <- :config(getenv("COLLAGE_CLEANUP") == "1" and DB_OPTS != nil))
 site = spawn Site
-site <- :start(PORT, elem(first, 1), elem(first, 2), DB_OPTS)
+site <- :start(PORT, elem(first, 1), DB_OPTS)
 desk_source = case DB_OPTS do
   nil -> "museum from data/*.tsv"
   _ -> concat("museum from postgres ", DB_OPTS.host, "/", DB_OPTS.database)

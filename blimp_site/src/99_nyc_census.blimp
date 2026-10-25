@@ -29,6 +29,11 @@ NYC_TRACTS_Q = nyc_tracts_q()
 # browser that then has to draw a marker for each; Manhattan below 59th
 # Street is about 26,000.
 NYC_MAX_LOTS = 40000
+# These two build their JSON in Postgres, tens of thousands of rows (the
+# lots) and every tract's outline, megabytes either way: 15s rather than
+# DB's 5s, so a cold, busy Postgres is not cut off half way through the one
+# query the page needs. The request still waits that long at worst.
+NYC_PG_MS = 15000
 
 actor NycCensusStore do
   state tracts: Any :: nil
@@ -37,7 +42,7 @@ actor NycCensusStore do
   on :tracts do
     case tracts do
       nil ->
-        case DB <- :query(head(NYC_TRACTS_Q), tail(NYC_TRACTS_Q)) do
+        case DB <- :query_ms(head(NYC_TRACTS_Q), tail(NYC_TRACTS_Q), NYC_PG_MS) do
           {:ok, rows} ->
             body = head(rows).body
             become tracts: body
@@ -90,7 +95,7 @@ def nyc_lots_response(query: String) -> Map do
       q = case box do
         [min_lat, max_lat, min_lng, max_lng] -> nyc_lots_q(min_lat, max_lat, min_lng, max_lng, NYC_MAX_LOTS)
       end
-      case DB <- :query(head(q), tail(q)) do
+      case DB <- :query_ms(head(q), tail(q), NYC_PG_MS) do
         {:error, reason} ->
           puts(concat("nyc census: ", reason))
           nyc_json(503, "no-cache", "{\"error\": \"the database did not answer\"}")

@@ -91,9 +91,12 @@ end
 
 # The query is Alloy's (temper/src/db/pages.temper.md): [sql, params...].
 MOON_SHOWS_Q = moon_shows_q()
+# Every show, once, for a cache: longer than DB's 5s, as the NYC census's
+# whole-table queries are.
+MOON_PG_MS = 15000
 
 def moon_build() -> Any do
-  case DB <- :query(head(MOON_SHOWS_Q), tail(MOON_SHOWS_Q)) do
+  case DB <- :query_ms(head(MOON_SHOWS_Q), tail(MOON_SHOWS_Q), MOON_PG_MS) do
     {:error, reason} ->
       puts(concat("moon_phish: ", reason))
       nil

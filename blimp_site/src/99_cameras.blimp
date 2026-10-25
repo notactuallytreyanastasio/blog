@@ -62,6 +62,8 @@ CAM_TOKEN = case getenv("BLINKS_API_TOKEN") do
   t -> trim(t)
 end
 CAM_POLL_CHECK_S = 60
+# The sweep check's deadline: one max() over camera_listings.
+CAM_CHECK_MS = 5000
 
 # Plug.Crypto.secure_compare(key, token), by comparing digests: the time
 # taken says nothing about how much of the key was right.
@@ -215,6 +217,8 @@ actor CameraRoom do
   state sweeps: Int :: 0
   state writes: Int :: 0
   state refused: Int :: 0
+  # the sweep check in flight (db_start), nil between checks
+  state pend: Any :: nil
 
   on :join(fd: Int) do
     become people: put(people, to_string(fd), fd)
@@ -272,16 +276,26 @@ actor CameraRoom do
   end
 
   # From the Site's tick: once a minute, while anyone is looking, whether
-  # a sweep has finished since the last look.
+  # a sweep has finished since the last look. The query is started on one
+  # step and read on a later one (db_start/db_poll, src/85_db.blimp), so the
+  # tick never waits for it; CAM_CHECK_MS cancels one Postgres is stuck on,
+  # far inside the minute before the next check.
   on :step do
     t = now()
-    case length(keys(people)) > 0 and t - checked_at >= CAM_POLL_CHECK_S do
-      false -> reply :idle
-      true ->
-        case DB <- :query(head(CAM_LAST_SEEN_Q), tail(CAM_LAST_SEEN_Q)) do
+    case pend do
+      nil ->
+        case length(keys(people)) > 0 and t - checked_at >= CAM_POLL_CHECK_S do
+          false -> reply :idle
+          true ->
+            become pend: db_start(DB <- :opts, head(CAM_LAST_SEEN_Q), tail(CAM_LAST_SEEN_Q), CAM_CHECK_MS), checked_at: t
+            reply :checking
+        end
+      q ->
+        case db_poll(q) do
+          nil -> reply :checking
           {:error, reason} ->
             puts(concat("cameras: cannot check for a sweep: ", reason))
-            become checked_at: t
+            become pend: nil, checked_at: t
             reply :error
           {:ok, rows} ->
             seen = head(rows).t
@@ -294,7 +308,7 @@ actor CameraRoom do
               true -> sweeps + 1
               false -> sweeps
             end
-            become checked_at: t, last_seen: seen, sweeps: n
+            become pend: nil, checked_at: t, last_seen: seen, sweeps: n
             reply swept
         end
     end
