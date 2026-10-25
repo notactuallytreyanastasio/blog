@@ -9,11 +9,13 @@
 # BLIMP_SRC is a checkout of blimp's main. The interpreter is cross-compiled
 # here and shipped as a static binary; bin/BLIMP_COMMIT says which commit.
 #
-# The site needs blimp e1f2942 or later (blimp#95-#105), and stage refuses an
-# older checkout. Production ran 01b5e2c until then. What the newer one is
+# The site needs blimp 7ca9150 or later (blimp#95-#107: #107's tcp_poll_rw is
+# what src/42_conns.blimp waits on), and stage refuses an older checkout.
+# Production ran 01b5e2c until then. What the newer one is
 # for: an old space, so a collection no longer copies the ~106MB that boot
 # built (posts, routes, the AIM archive) and the 177ms pause every 28s
-# becomes a fraction of a millisecond; an evaluator about 2.5x faster; and
+# becomes about a millisecond (0.3-2ms, 10ms worst under ab); an evaluator
+# about 2.5x faster; and
 # the browser's blimp.wasm (static/blimp, synced from the same commit by
 # static/blimp/sync.sh) collecting dead actors, which /temper-snake makes by
 # the thousand. On 01b5e2c the site still boots, but every one of those is
@@ -26,14 +28,14 @@ cd "$(dirname "$0")"
 HOST="${DEPLOY_HOST:-root@5.161.181.91}"
 BLIMP_SRC="${BLIMP_SRC:-$HOME/code/blimp-for-blog}"
 LANG_DIR="$BLIMP_SRC/chunks/lang"
-BLIMP_MIN=e1f2942
+BLIMP_MIN=7ca9150
 DIST=_build/dist
 
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 
 stage() {
   git -C "$BLIMP_SRC" cat-file -e "$BLIMP_MIN^{commit}" 2>/dev/null && git -C "$BLIMP_SRC" merge-base --is-ancestor "$BLIMP_MIN" HEAD || {
-    echo "BLIMP_SRC ($BLIMP_SRC) is at $(git -C "$BLIMP_SRC" rev-parse --short HEAD), which does not contain blimp $BLIMP_MIN (blimp#95-#105): pull blimp's main" >&2
+    echo "BLIMP_SRC ($BLIMP_SRC) is at $(git -C "$BLIMP_SRC" rev-parse --short HEAD), which does not contain blimp $BLIMP_MIN (blimp#95-#107): pull blimp's main" >&2
     exit 1
   }
   say "native interpreter for the tests"

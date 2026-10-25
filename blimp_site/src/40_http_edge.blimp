@@ -149,11 +149,30 @@ end
 # A response Map built once at boot (a page or file a src/ module holds as a
 # constant and dynamic() returns): with its ETag and version, and the
 # edge's Cache-Control for its kind unless it said no-cache or no-store.
+#
+# Its wire is serialized here, once, and kept: answer_resp sends these bytes
+# as they are. It used to serialize per request, so every GET of the 4.8MB
+# /sky/points.json.gz built a fresh 4.8MB string, and a response parked
+# behind a slow reader (src/42_conns.blimp) kept its own copy alive between
+# ticks: 150 slow readers were 720MB, past BLIMP_HEAP_LIMIT, and every tick
+# after that failed at its first allocation. Now a parked response is a
+# slice of these shared bytes and costs only its conn.
+# wire_imm, the same with CACHE_IMMUTABLE for a ?v= that names it, is kept
+# only for a body under PREBUILT_IMM_MAX: a big file asked for by its
+# version gets the ordinary answer (a day at the edge, an ETag) rather than
+# a second copy of itself in the old space.
+PREBUILT_IMM_MAX = 262144
+
 def prebuilt(resp: Map) -> Map do
   sums = edge_sums(resp.body)
   cache = case starts_with(resp.cache, "public") do
     true -> edge_cache_for(resp.content_type)
     false -> resp.cache
   end
-  merge(resp, %{etag: sums.etag, ver: sums.ver, cache: cache})
+  tagged = merge(resp, %{etag: sums.etag, ver: sums.ver, cache: cache})
+  imm = case resp.status == 200 and length(resp.body) < PREBUILT_IMM_MAX do
+    true -> serialize(put(tagged, :cache, CACHE_IMMUTABLE), "GET")
+    false -> ""
+  end
+  merge(tagged, %{wire: serialize(tagged, "GET"), wire_imm: imm})
 end

@@ -431,10 +431,12 @@ def zg_messages(history: List) -> List do
   [%{role: "system", content: zg_system_prompt} | map(history, fn(e: Map) -> Map do %{role: e.role, content: e.content} end)]
 end
 
+# By way of ROOMS (src/89_rooms.blimp), which writes with a send that never
+# waits: tcp_write here held the only thread for a page that stopped reading.
 def zg_send(fd: Int, frame: String) -> Any do
   case fd < 0 do
     true -> :test
-    false -> tcp_write(fd, ws_frame(1, frame))
+    false -> ROOMS <- :send(fd, frame)
   end
 end
 

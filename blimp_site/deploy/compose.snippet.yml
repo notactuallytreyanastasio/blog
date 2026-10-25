@@ -19,6 +19,26 @@
         condition: service_healthy
     environment:
       DATABASE_URL: ecto://blog:<the app service's password>@db/blog_prod
+      # The interpreter's own ceiling on what the program may allocate
+      # (heap_limit.zig in Blimp), 1.4 GB. Its default is 2 GiB, above
+      # mem_limit, so the first sign of a runaway was the kernel's OOM
+      # killer: SIGKILL, nothing in the log. Under the ceiling an allocation
+      # that would pass it fails as OutOfMemory instead: that tick is
+      # abandoned with a located error in the log, the collection after it
+      # frees its garbage, and the next tick serves.
+      # Why not lower: boot is the peak, not serving. Boot builds every page
+      # with no collection (575MB of heap by the end, measured with this
+      # repo's posts and the /aim archive), then promotes what is live to
+      # the old space, a copy that needs about twice that. Measured with the
+      # e1f2942 interpreter: at 1.15e9 promotion fails ("[serve] PROMOTION
+      # FAILED ... no old space") and every collection copies the whole
+      # heap again, 23ms pauses instead of 0.5ms; at 1.22e9 it succeeds;
+      # at 4e8 boot itself dies. 1.4e9 is that plus 15%. Peak RSS at boot is
+      # ~390MB, well under mem_limit (1536m = 1.61e9): this counts address
+      # space the allocator handed out, not pages touched. If boot grows
+      # (more posts, a bigger archive), look for PROMOTION FAILED in the log
+      # and raise this, staying under mem_limit.
+      BLIMP_HEAP_LIMIT: "1400000000"
       # Signs session cookies (src/41_web.blimp). With DATABASE_URL set, the
       # site refuses to start without it, or with one under 32 bytes:
       # `openssl rand -base64 48`, kept in /opt/blog/.env.

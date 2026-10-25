@@ -55,6 +55,28 @@ def ut_routes() -> List do
   ]
 end
 
+# The Site's tick in miniature for one connection (src/42_conns.blimp):
+# poll, read what came, until it is a request or its time is up.
+def ut_read(s: Int, routes: List) -> String do
+  tcp_set_nonblocking(s)
+  ut_read_loop(conn_reading(s, now_ms()), routes)
+end
+
+def ut_read_loop(c: Map, routes: List) -> String do
+  tcp_poll([c.fd], 20)
+  t = now_ms()
+  r = conn_read(c, routes, t)
+  case elem(r, 0) do
+    :request -> elem(r, 1).raw
+    :closed -> ""
+    :more ->
+      case conn_overdue(elem(r, 1), t) do
+        nil -> ut_read_loop(elem(r, 1), routes)
+        _ -> conn_got(elem(r, 1))
+      end
+  end
+end
+
 def ut_send(raw: String) -> Tuple do
   web_dispatch(raw, parse_request(raw), ut_routes(), UT_SECRET)
 end
@@ -167,7 +189,7 @@ actor UploadTests do
   end
 
   test "the read loop: a body in pieces over 64 KiB is read whole, and nothing past it" do
-    pair = ut_pair(47301)
+    pair = ut_pair(42931)
     s = elem(pair, 0)
     c = elem(pair, 1)
     body = ut_double("0123456789abcdef", 13)
@@ -176,7 +198,7 @@ actor UploadTests do
     tcp_write(c, take(body, 70000))
     tcp_write(c, concat(drop(body, 70000), "EXTRA"))
     tcp_poll([s], 1000)
-    raw = web_read_rest(s, tcp_read(s), ut_routes())
+    raw = ut_read(s, ut_routes())
     assert(ends_with(raw, "EXTRA") or ends_with(raw, "cdef"))
     got = web_dispatch(raw, parse_request(raw), [web_max_body(web_route("POST", "/t/upload", [], ut_size_handler), WEB_MAX_UPLOAD)], UT_SECRET)
     assert_eq(ut_body(got), "131072")
@@ -186,13 +208,13 @@ actor UploadTests do
   end
 
   test "a client that stops sending is cut off at WEB_READ_MS and answered 408; Expect gets 100 Continue" do
-    pair = ut_pair(47302)
+    pair = ut_pair(42932)
     s = elem(pair, 0)
     c = elem(pair, 1)
     tcp_write(c, "POST /t/small HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 100\r\n\r\nonly this")
     tcp_poll([s], 1000)
     t0 = now_ms()
-    raw = web_read_rest(s, tcp_read(s), ut_routes())
+    raw = ut_read(s, ut_routes())
     waited = now_ms() - t0
     assert(waited >= WEB_READ_MS - 50 and waited < WEB_READ_MS + 500)
     assert_eq(elem(ut_send(raw), 1), 408)
@@ -204,17 +226,75 @@ actor UploadTests do
   end
 
   test "a body over the route's cap is not waited for" do
-    pair = ut_pair(47303)
+    pair = ut_pair(42933)
     s = elem(pair, 0)
     c = elem(pair, 1)
     tcp_write(c, "POST /t/tiny HTTP/1.1\r\nHost: x\r\nContent-Length: 5000\r\n\r\n")
     tcp_poll([s], 1000)
     t0 = now_ms()
-    raw = web_read_rest(s, tcp_read(s), ut_routes())
+    raw = ut_read(s, ut_routes())
     assert(now_ms() - t0 < 100)
     assert_eq(elem(ut_send(raw), 1), 413)
     tcp_close(c)
     tcp_close(s)
     tcp_close(elem(pair, 2))
   end
+
+  test "web_need: a GET is done at its blank line, a POST at its Content-Length, a refused body at once" do
+    assert_eq(web_need("GET / HTTP/1.1\r\nHo", ut_routes()), :more)
+    assert_eq(web_need("GET / HTTP/1.1\r\nHost: x\r\n\r\n", ut_routes()), :done)
+    assert_eq(web_need("POST /t/small HTTP/1.1\r\nHost: x\r\n", ut_routes()), :more)
+    assert_eq(web_need("POST /t/small HTTP/1.1\r\nContent-Length: 4\r\n\r\nab", ut_routes()), {:need, 49, false})
+    assert_eq(web_need("POST /t/small HTTP/1.1\r\nContent-Length: 4\r\n\r\nabcd", ut_routes()), :done)
+    assert_eq(web_need("POST /t/tiny HTTP/1.1\r\nContent-Length: 5000\r\n\r\n", ut_routes()), :done)
+    assert_eq(elem(web_need("POST /t/small HTTP/1.1\r\nExpect: 100-continue\r\nContent-Length: 4\r\n\r\n", ut_routes()), 2), true)
+  end
+
+  test "a request that comes a byte at a time is read across turns, never waited for" do
+    pair = ut_pair(42934)
+    s = elem(pair, 0)
+    c = elem(pair, 1)
+    tcp_set_nonblocking(s)
+    conn = conn_reading(s, now_ms())
+    tcp_write(c, "GET /x HTTP/1.1\r\nHo")
+    tcp_poll([s], 1000)
+    t0 = now_ms()
+    r1 = conn_read(conn, ut_routes(), t0)
+    assert_eq(elem(r1, 0), :more)
+    # nothing more has come: a read that returns at once
+    r2 = conn_read(elem(r1, 1), ut_routes(), t0)
+    assert_eq(elem(r2, 0), :more)
+    assert(now_ms() - t0 < 50)
+    tcp_write(c, "st: x\r\n\r\n")
+    tcp_poll([s], 1000)
+    r3 = conn_read(elem(r2, 1), ut_routes(), now_ms())
+    assert_eq(elem(r3, 0), :request)
+    assert_eq(elem(r3, 1).raw, "GET /x HTTP/1.1\r\nHost: x\r\n\r\n")
+    tcp_close(c)
+    tcp_close(s)
+    tcp_close(elem(pair, 2))
+  end
+
+  test "a response to a peer that does not read is parked, not waited on, and dropped after CONN_STALL_MS" do
+    pair = ut_pair(42935)
+    s = elem(pair, 0)
+    c = elem(pair, 1)
+    big = ut_double("0123456789abcdef", 18)
+    t0 = now_ms()
+    w = conn_write(conn_writing(s, t0, big, "GET /big", t0), t0)
+    assert(now_ms() - t0 < 100)
+    assert_eq(elem(w, 0), :more)
+    parked = elem(w, 1)
+    assert(parked.off > 0 and parked.off < length(big))
+    # nothing read: the next offer takes nothing, and returns at once
+    w2 = conn_write(parked, t0 + 1000)
+    assert_eq(elem(w2, 0), :more)
+    assert_eq(elem(w2, 1).since, t0)
+    w3 = conn_write(elem(w2, 1), t0 + CONN_STALL_MS)
+    assert_eq(elem(elem(w3, 0), 0), :drop)
+    tcp_close(c)
+    tcp_close(s)
+    tcp_close(elem(pair, 2))
+  end
+
 end

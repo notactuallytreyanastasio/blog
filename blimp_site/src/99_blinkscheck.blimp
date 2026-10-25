@@ -9,7 +9,8 @@
 #   2. the canaries, example.com then www.cloudflare.com: if neither is ok,
 #      the network is ours to fix, and nothing is checked or written
 #   3. every due url, the results gathered before any is written
-#   4. discard the lot if over 30% failed (with 5 or more), else write each
+#   4. discard the lot if over 30% failed (with 5 or more), else write each,
+#      BLC_IN_FLIGHT at a time, a :step polling them (pg_start, below)
 #
 # LinkCheck checks one url at a time; this keeps BLC_IN_FLIGHT going, of the
 # 32 http_start slots the site shares. Each request is a GET with 15s for
@@ -91,36 +92,48 @@ def blc_poll(result: Any, h: Int) -> Any do
   end
 end
 
-# Write one result; 1 if the link is dead afterwards.
-def blc_write(row: Map, verdict: String) -> Int do
+# The database work is pg_start/pg_result (Blimp's pg.zig): each query
+# runs on a thread of its own and :step asks whether it is done, as it asks
+# http_result about a check. It was DB <- :query, which waits on the only
+# thread: the due list, then one UPDATE per blink checked, one after
+# another inside a single :step, so a sweep of a few hundred links held
+# every page and socket for as long as Postgres took to answer them all.
+BLC_PG_OPTS = %{timeout_ms: 15000}
+
+# Start writing one result. The pg handle.
+def blc_write_start(db: Any, row: Map, verdict: String) -> Any do
   rec = blc_record(verdict, row.fail_count)
   fails = case head(rec) < 0 do
     true -> nil
     false -> head(rec)
   end
-  case DB <- :query(BLC_RECORD_SQL, [row.id, fails, head(tail(rec))]) do
+  pg_start(db, BLC_RECORD_SQL, [row.id, fails, head(tail(rec))], BLC_PG_OPTS)
+end
+
+# A finished write: 1 if the link is dead afterwards.
+def blc_dead_of(id: Any, r: Any) -> Int do
+  case r do
     {:ok, rows} ->
       case rows do
-        [r | _] -> to_int(to_string(r.dead))
+        [x | _] -> to_int(to_string(x.dead))
         [] -> 0
       end
     {:error, reason} ->
-      blc_log(concat("write failed for ", to_string(row.id), ": ", reason))
+      blc_log(concat("write failed for ", to_string(id), ": ", reason))
       0
   end
 end
 
-# commit_sweep/1: {checked, died}
-def blc_commit(results: List) -> Tuple do
+# commit_sweep/1's first half: {0, 0} when the sweep is thrown away, nil
+# when its results are to be written (the :writing phase does that).
+def blc_commit(results: List) -> Any do
   total = length(results)
   failed = length(filter(results, fn(x: Tuple) -> Bool do elem(x, 1) != "ok" end))
   case blc_discard(total, failed) do
     true ->
       blc_log(concat(to_string(failed), "/", to_string(total), " links failed, discarding sweep — that ratio means something broke on our side, not theirs"))
       {0, 0}
-    false ->
-      died = sum(map(results, fn(x: Tuple) -> Int do blc_write(elem(x, 0), elem(x, 1)) end))
-      {total, died}
+    false -> nil
   end
 end
 
@@ -137,9 +150,20 @@ actor BlinksLinkCheck do
   state start: Any :: nil
   state result: Any :: nil
   state last: Any :: nil
+  # the connection options pg_start is given (main.blimp's DB_OPTS), nil
+  # without DATABASE_URL; the handle of the due list's query; the dead
+  # counted so far while writing
+  state db: Any :: nil
+  state pg: Any :: nil
+  state died: Int :: 0
 
   on :config(want: Bool, first_at: Int) do
     become enabled: want, next_at: first_at
+    reply :ok
+  end
+
+  on :db(o: Any) do
+    become db: o
     reply :ok
   end
 
@@ -163,19 +187,34 @@ actor BlinksLinkCheck do
         case enabled and t >= next_at do
           false -> reply :idle
           true ->
-            case DB <- :query(BLC_DUE_SQL, []) do
+            case db == nil do
+              true ->
+                blc_log("cannot read the blinks: no database is configured (DATABASE_URL)")
+                become next_at: t + BLC_EVERY_S
+                reply :failed
+              false ->
+                become phase: :due, pg: pg_start(db, BLC_DUE_SQL, [], BLC_PG_OPTS)
+                reply :due
+            end
+        end
+      :due ->
+        got = pg_result(pg)
+        case got do
+          nil -> reply :due
+          _ ->
+            case got do
               {:error, reason} ->
                 blc_log(concat("cannot read the blinks: ", reason))
-                become next_at: t + BLC_EVERY_S
+                become phase: :idle, pg: nil, next_at: t + BLC_EVERY_S
                 reply :failed
               {:ok, rows} ->
                 case rows do
                   [] ->
                     blc_log("0 checked, 0 dead")
-                    become next_at: t + BLC_EVERY_S, last: %{checked: 0, died: 0, at: t}
+                    become phase: :idle, pg: nil, next_at: t + BLC_EVERY_S, last: %{checked: 0, died: 0, at: t}
                     reply :nothing_due
                   _ ->
-                    become phase: :canary, due: rows, canaries: BLC_CANARIES, handle: -1
+                    become phase: :canary, pg: nil, due: rows, canaries: BLC_CANARIES, handle: -1
                     reply :canary
                 end
             end
@@ -231,9 +270,34 @@ actor BlinksLinkCheck do
             become queue: rest, flying: flying_now, results: all
             reply :checking
           true ->
-            out = blc_commit(all)
-            blc_log(concat(to_string(elem(out, 0)), " checked, ", to_string(elem(out, 1)), " dead"))
-            become phase: :idle, due: [], queue: [], flying: [], results: [], next_at: now() + BLC_EVERY_S, last: %{checked: elem(out, 0), died: elem(out, 1), at: now(), verdicts: map(all, fn(x: Tuple) -> List do [elem(x, 0).url, elem(x, 1)] end)}
+            case blc_commit(all) do
+              nil ->
+                become phase: :writing, queue: all, flying: [], results: all, died: 0
+                reply :writing
+              out ->
+                blc_log(concat(to_string(elem(out, 0)), " checked, ", to_string(elem(out, 1)), " dead"))
+                become phase: :idle, due: [], queue: [], flying: [], results: [], next_at: now() + BLC_EVERY_S, last: %{checked: elem(out, 0), died: elem(out, 1), at: now(), verdicts: map(all, fn(x: Tuple) -> List do [elem(x, 0).url, elem(x, 1)] end)}
+                reply :swept
+            end
+        end
+      # the results written, BLC_IN_FLIGHT at a time; flying is {id, handle}
+      :writing ->
+        polled = map(flying, fn(f: Tuple) -> Tuple do {elem(f, 0), elem(f, 1), pg_result(elem(f, 1))} end)
+        done = filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) != nil end)
+        still = map(filter(polled, fn(p: Tuple) -> Bool do elem(p, 2) == nil end), fn(p: Tuple) -> Tuple do {elem(p, 0), elem(p, 1)} end)
+        dead = died + sum(map(done, fn(p: Tuple) -> Int do blc_dead_of(elem(p, 0), elem(p, 2)) end))
+        starting = bke_take(queue, BLC_IN_FLIGHT - length(still), [])
+        launched = map(starting, fn(x: Tuple) -> Tuple do {elem(x, 0).id, blc_write_start(db, elem(x, 0), elem(x, 1))} end)
+        rest = drop_list(queue, length(starting))
+        flying_now = list_append(still, launched)
+        case rest == [] and flying_now == [] do
+          false ->
+            become queue: rest, flying: flying_now, died: dead
+            reply :writing
+          true ->
+            checked = length(results)
+            blc_log(concat(to_string(checked), " checked, ", to_string(dead), " dead"))
+            become phase: :idle, due: [], queue: [], flying: [], results: [], died: 0, next_at: now() + BLC_EVERY_S, last: %{checked: checked, died: dead, at: now(), verdicts: map(results, fn(x: Tuple) -> List do [elem(x, 0).url, elem(x, 1)] end)}
             reply :swept
         end
     end
