@@ -244,6 +244,22 @@ bobbby.online, www.bobbby.online {
 			lb_try_interval 250ms
 		}
 	}
+	# Tennis Potatoes (/tennis-potatoes): TennisPotatoesController serves the
+	# Vite shell from priv/static; hashed assets sit under /static/tennis-potatoes/.
+	# Same arrangement as hotel carbon, so bobbby.online serves it directly.
+	handle /tennis-potatoes* {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+	handle /static/tennis-potatoes/* {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+
 	@phoenix_write not method GET HEAD
 	handle @phoenix_write {
 		redir https://old.bobbby.online{uri} 308
