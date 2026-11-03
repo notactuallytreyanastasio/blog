@@ -253,8 +253,21 @@ POST_WINDOW_URLS = %{
     "\" data-renderer=\"", desk_script_href("/blimp/post-renderer.blimp", "_build/post-renderer.blimp"), "\"")
 }
 
+# A page lists page-canvas.js for its corner window, and canvas.js only for
+# that window's sake, so with the window off both go.
+def page_scripts(srcs: List) -> List do
+  case BLIMP_CORNER_WINDOW or not(list_has(srcs, "/blimp/page-canvas.js")) do
+    true -> srcs
+    false -> filter(srcs, fn(s: String) -> Bool do s != "/blimp/page-canvas.js" and s != "/blimp/canvas.js" end)
+  end
+end
+
+def list_has(xs: List, x: Any) -> Bool do
+  length(filter(xs, fn(y: Any) -> Bool do y == x end)) > 0
+end
+
 def script_tags(srcs: List) -> String do
-  join(map(srcs, fn(src: String) -> String do
+  join(map(page_scripts(srcs), fn(src: String) -> String do
     extra = case src == "/blimp/blimp.js" do
       true -> concat("\" data-blimp-wasm=\"", BLIMP_WASM_HREF, "\" data-blimp-build=\"", BLIMP_BUILD)
       false -> ""
