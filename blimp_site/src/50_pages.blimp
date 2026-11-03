@@ -125,8 +125,15 @@ end
 # a program of its own (a post, /tetris) keeps just that one.
 RUNTIME_TAGS = "<link rel=\"stylesheet\" href=\"/assets/blimp-window.css\">\n<script src=\"/blimp/canvas.js\"></script>\n<script src=\"/blimp/runtime.js\"></script>\n"
 
+# Whether any page gets a corner window: this one, the one a browser program
+# gets (static/blimp/page-canvas.js) or a post's (blimp_window). Off, a page
+# loads none of what they need: no canvas, no /live/runtime socket, and on a
+# post no worker or interpreter. The homepage's scope and /tetris's panel are
+# part of those pages, not corner windows, and stay.
+BLIMP_CORNER_WINDOW = false
+
 def with_runtime(body: String) -> String do
-  case contains(body, "/blimp/canvas.js") do
+  case not(BLIMP_CORNER_WINDOW) or contains(body, "/blimp/canvas.js") do
     true -> body
     false -> concat(body, "\n", RUNTIME_TAGS)
   end
@@ -136,9 +143,13 @@ end
 # content/pages), before its last </body>.
 def page_with_runtime(html: String) -> String do
   at = pg_last_index(html, "</body>", 0, -1)
-  case at < 0 do
-    true -> concat(html, RUNTIME_TAGS)
-    false -> concat(take(html, at), RUNTIME_TAGS, drop(html, at))
+  case BLIMP_CORNER_WINDOW do
+    false -> html
+    true ->
+      case at < 0 do
+        true -> concat(html, RUNTIME_TAGS)
+        false -> concat(take(html, at), RUNTIME_TAGS, drop(html, at))
+      end
   end
 end
 
@@ -240,6 +251,13 @@ end
 # never mixed with this one.
 
 def blimp_window(slug: String) -> String do
+  case BLIMP_CORNER_WINDOW do
+    true -> blimp_window_html(slug)
+    false -> ""
+  end
+end
+
+def blimp_window_html(slug: String) -> String do
   join([
     "<span id=\"blimp-closed\"></span>",
     "<div id=\"blimp-window\" class=\"blimp-window\" data-slug=\"", escape_html(slug), "\"", POST_WINDOW_URLS.attrs, ">",

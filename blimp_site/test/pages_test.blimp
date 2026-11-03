@@ -32,14 +32,10 @@ def word_counts(posts: List) -> Map do
   reduce(posts, %{}, fn(acc: Map, p: Map) -> Map do put(acc, p.slug, p.words) end)
 end
 
-# Every page has the runtime window (RUNTIME_TAGS) exactly once; what a
-# test says about a page's own scripts it says about the rest.
-def without_runtime(html: String) -> String do
-  replace_all(html, RUNTIME_TAGS, "")
-end
-
-def runtime_once(html: String) -> Bool do
-  length(split(html, RUNTIME_TAGS)) == 2
+# No page has a corner window (BLIMP_CORNER_WINDOW), nor loads what one needs.
+def no_corner_window(html: String) -> Bool do
+  gone = filter(["/blimp/runtime.js", "/blimp/page-canvas.js", "/blimp/canvas.js", "id=\"blimp-window\""], fn(s: String) -> Bool do contains(html, s) end)
+  gone == []
 end
 
 actor PageTests do
@@ -56,32 +52,23 @@ actor PageTests do
     assert_eq(body, NOT_FOUND.body)
     assert(contains(w, concat("\r\nContent-Length: ", to_string(length(body)), "\r\n")))
     assert(contains(body, "There is nothing at this address."))
-    assert(runtime_once(body))
+    assert(no_corner_window(body))
   end
 
-  test "the index and 404 have only the runtime window; posts have only Blimp's window" do
+  test "the index, the 404 and every post have no corner window and no script" do
     posts = load_posts("../priv/static/posts", read_file("data/posts.txt"))
-    assert(runtime_once(blog_index_page(posts)))
-    assert(script_free(without_runtime(blog_index_page(posts))))
-    assert(runtime_once(not_found_page("/<script>")))
-    assert(script_free(without_runtime(not_found_page("/<script>"))))
+    assert(no_corner_window(blog_index_page(posts)))
+    assert(script_free(blog_index_page(posts)))
+    assert(no_corner_window(not_found_page("/<script>")))
+    assert(script_free(not_found_page("/<script>")))
     each(posts, fn(p: Map) do
       html = post_page(p)
-      # a post draws its own program, so it has no runtime window
-      refute(contains(html, "/blimp/runtime.js"))
+      assert(no_corner_window(html))
       lower = downcase(html)
-      # exactly the two external scripts, nothing inline, no handlers
-      assert_eq(length(split(lower, "<script")) - 1, 2)
-      assert_eq(length(split(lower, "\"></script>")) - 1, 2)
-      assert(contains(html, "<script src=\"/blimp/canvas.js?v="))
-      assert(contains(html, "\"></script><script src=\"/blimp/post.js?v="))
-      # and every URL the worker loads is named by content, the interpreter
-      # most of all: Cloudflare keeps /blimp/* across a deploy
-      assert(contains(html, " data-worker=\"/blimp/post-worker.js?v="))
-      assert(contains(html, " data-blimp-js=\"/blimp/blimp.js?v="))
-      assert(contains(html, concat(" data-blimp-wasm=\"", BLIMP_WASM_HREF, "\"")))
-      assert(contains(BLIMP_WASM_HREF, "/blimp/blimp.wasm?v="))
-      assert(contains(html, " data-renderer=\"/blimp/post-renderer.blimp?v="))
+      # no worker, no interpreter: a post is its article
+      refute(contains(html, "/blimp/post.js"))
+      refute(contains(html, "/blimp/blimp.wasm"))
+      assert_eq(length(split(lower, "<script")) - 1, 0)
       refute(contains(lower, "javascript:"))
       refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
       # the article is cut where post.js cuts it
@@ -126,14 +113,13 @@ actor PageTests do
 
   test "/pong and /pong/god have Blimp's two scripts and their own, nothing inline" do
     each([[pong_page("pong_0123456789abcdef"), PONG_SCRIPTS], [pong_god_page(), GOD_SCRIPTS]], fn(pair: List) do
-      # the page draws its own program, so not the server's
-      refute(contains(head(pair), "/blimp/runtime.js"))
       html = head(pair)
+      assert(no_corner_window(html))
       lower = downcase(html)
-      n = length(elem_at(pair, 1))
+      n = length(page_scripts(elem_at(pair, 1)))
       assert_eq(length(split(lower, "<script")) - 1, n)
       assert_eq(length(split(lower, "\"></script>")) - 1, n)
-      each(elem_at(pair, 1), fn(src: String) do
+      each(page_scripts(elem_at(pair, 1)), fn(src: String) do
         assert(contains(html, concat("<script src=\"", script_href(src))))
       end)
       refute(contains(lower, "javascript:"))
@@ -146,11 +132,10 @@ actor PageTests do
 
   test "an app page names its program, runs only Blimp's scripts, and can class <html>" do
     html = app_page("2048", "d", [APP_CSS], "twenty48-page", "/2048/twenty48.blimp", "game")
-    refute(contains(html, "/blimp/runtime.js"))
-    assert(contains(html, concat("<script src=\"", script_href("/blimp/page-canvas.js"), "\"></script>")))
+    assert(no_corner_window(html))
     lower = downcase(html)
-    assert_eq(length(split(lower, "<script")) - 1, length(APP_SCRIPTS))
-    assert_eq(length(split(lower, "\"></script>")) - 1, length(APP_SCRIPTS))
+    assert_eq(length(split(lower, "<script")) - 1, length(page_scripts(APP_SCRIPTS)))
+    assert_eq(length(split(lower, "\"></script>")) - 1, length(page_scripts(APP_SCRIPTS)))
     assert(contains(html, "<html lang=\"en\" class=\"twenty48-page\">"))
     assert(contains(html, "data-program=\"/2048/twenty48.blimp\" data-actor=\"game\""))
     refute(has_handler_attr(drop_list(split(lower, " on"), 1)))
@@ -160,19 +145,19 @@ actor PageTests do
     file = read_file("src/96_mirror.blimp")
     assert_eq(concat(mirror_source(concat("x\n", file, "y\n")), "\n"), file)
     html = mirror_page(concat("x\n", file))
-    assert(runtime_once(html))
-    refute(contains(downcase(without_runtime(html)), "<script"))
+    assert(no_corner_window(html))
+    refute(contains(downcase(html), "<script"))
     # the file itself, escaped, and nothing in it animated
     assert(contains(html, concat("<code class=\"language-blimp\">", escape_html(mirror_source(concat("x\n", file))), "</code>")))
     refute(contains(html, "mirror-char"))
     refute(contains(html, "mirror-spin"))
   end
 
-  test "a snapshot page gets the runtime window before its own </body>" do
-    html = page_with_runtime("<html><body><p>x</p></body></html>\n")
-    assert_eq(html, concat("<html><body><p>x</p>", RUNTIME_TAGS, "</body></html>\n"))
+  test "a snapshot page is served as it was written" do
+    assert_eq(page_with_runtime("<html><body><p>x</p></body></html>\n"), "<html><body><p>x</p></body></html>\n")
     each(["privacy", "knicks", "chess"], fn(name: String) do
-      assert(runtime_once(page_with_runtime(read_file(concat("content/pages/", name, ".html")))))
+      file = read_file(concat("content/pages/", name, ".html"))
+      assert_eq(page_with_runtime(file), file)
     end)
   end
 
