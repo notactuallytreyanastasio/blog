@@ -1,0 +1,92 @@
+/* /mta-bus-map. The window fills the screen and the map takes whatever the
+   controls leave, on a phone most of all. */
+.mta-desktop { box-sizing: border-box; height: 100vh; height: 100dvh; min-height: 0; padding: 12px; }
+.mta-window { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: none; margin: 0; }
+.mta-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff; }
+.mta-map-box { flex: 1; min-height: 0; position: relative; }
+#mta-bus-map { position: absolute; inset: 0; z-index: 0; }
+#blimp-app-status:empty { display: none; }
+.mta-window .os-statusbar { flex: none; gap: 16px; padding: 0 8px; font-size: 12px; }
+.mta-window .os-statusbar span + span { border-left: 1px solid #aca899; padding-left: 16px; }
+
+.mta-controls { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.mta-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.mta-top h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.mta-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mta-btn {
+  min-height: 32px; padding: 4px 12px; font: inherit; color: #000; cursor: pointer;
+  background: linear-gradient(180deg, #fff 0%, #ece9d8 100%);
+  border: 1px solid #7f9db9; border-radius: 3px;
+}
+.mta-btn:hover { background: linear-gradient(180deg, #fff 0%, #fdf1c8 100%); }
+.mta-btn:focus-visible, .mta-search:focus-visible { outline: 2px solid #245edb; outline-offset: 1px; }
+.mta-btn[disabled] { color: #808080; cursor: wait; }
+.mta-btn-primary { background: linear-gradient(180deg, #4d8ae8 0%, #245edb 100%); border-color: #1941a5; color: #fff; font-weight: 700; }
+.mta-btn-primary:hover { background: linear-gradient(180deg, #5b98f0 0%, #2b69e8 100%); }
+.mta-btn-on { background: #245edb; border-color: #1941a5; color: #fff; }
+.mta-btn-on:hover { background: #245edb; }
+.mta-note { color: #555; font-size: 13px; margin: 0; }
+.mta-error { color: #b00020; font-size: 13px; margin: 0; }
+
+.mta-chip {
+  --route: #666; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 2px 8px;
+  font: inherit; font-size: 13px; color: #000; cursor: pointer; background: #fff;
+  border: 1px solid #bbb; border-left: 5px solid var(--route); border-radius: 3px;
+}
+.mta-chip:hover { background: #f4f4f4; text-decoration: line-through; }
+.mta-chip b { font-weight: 700; }
+.mta-chip-none { color: #777; border-left-style: dashed; }
+
+/* the markers */
+.mta-marker { background: none; border: 0; }
+.mta-bus { position: relative; width: 14px; height: 14px; }
+.mta-dot {
+  position: absolute; inset: 0; box-sizing: border-box; border-radius: 50%;
+  background: var(--route); border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.6);
+}
+/* Unrotated, the arrow points east: that is Bus Time's 0 degrees. */
+.mta-moving::after {
+  content: ""; position: absolute; top: 50%; left: 100%; margin: -5px 0 0 -1px;
+  border-left: 7px solid var(--route); border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+}
+.mta-name {
+  position: absolute; left: 19px; top: -3px; padding: 1px 4px; white-space: nowrap;
+  font: 700 11px/16px Tahoma, "Segoe UI", sans-serif; color: #fff; background: var(--route);
+  border-radius: 3px; box-shadow: 0 0 2px rgba(0,0,0,.5);
+}
+.mta-far .mta-name { display: none; }
+.mta-farther .mta-bus { transform: scale(.6); }
+.mta-farther .mta-moving::after { display: none; }
+
+.mta-pop { min-width: 180px; font: 13px/1.35 Tahoma, "Segoe UI", sans-serif; }
+.mta-pop-route { display: inline-block; padding: 1px 6px; color: #fff; font-weight: 700; background: var(--route); border-radius: 3px; }
+.mta-pop-desc { color: #555; margin-top: 3px; }
+.mta-pop-to { font-weight: 700; margin-top: 6px; }
+.mta-pop-meta { color: #555; margin-top: 6px; font-size: 12px; }
+
+/* the chooser */
+.mta-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,.45); }
+.mta-panel { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 760px; max-height: 100%; box-sizing: border-box; padding: 12px; background: #fff; border: 1px solid #0054e3; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.mta-panel h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.mta-search { box-sizing: border-box; width: 100%; min-height: 36px; padding: 4px 8px; font: inherit; font-size: 16px; border: 1px solid #7f9db9; border-radius: 3px; }
+.mta-list { flex: 1; min-height: 120px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); align-content: start; gap: 2px 12px; }
+.mta-pick { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 4px; cursor: pointer; border-radius: 3px; }
+.mta-pick:hover { background: #eef3fd; }
+.mta-pick input { flex: none; width: 16px; height: 16px; margin: 0; }
+.mta-swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.mta-pick b { flex: none; font-weight: 700; }
+.mta-pick span.mta-desc { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #666; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .mta-desktop { padding: 0; }
+  .mta-window { border-radius: 0; }
+  .mta-controls { padding: 6px 8px; gap: 6px; }
+  .mta-top h1 { font-size: 16px; }
+  /* one line of boroughs that scrolls, not three that take the map's room */
+  .mta-boroughs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -8px; padding: 0 8px; }
+  .mta-boroughs .mta-btn { flex: none; }
+  .mta-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -8px; padding: 0 8px; }
+  .mta-chip { flex: none; }
+  .mta-modal { padding: 0; }
+  .mta-panel { max-width: none; height: 100%; border: 0; border-radius: 0; }
+}

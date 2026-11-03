@@ -12,9 +12,8 @@
 #
 # The buses are not here: the server's MtaPoller (src/99_mta.blimp) asks
 # Bus Time for every route any page watches and sends each page its own.
-# This is MtaBusMapLive's template and MTAComponents' chooser, element for
-# element and class for class; the routes, labels, colours and marker HTML
-# are Temper (temper/src/mta).
+# The routes, labels and marker HTML are Temper (temper/src/mta), the styles
+# static/mta/mta.css.
 
 def mb_decode(text: String) -> Map do
   case json_decode(text) do
@@ -46,29 +45,44 @@ def mb_append(a: List, b: List) -> List do
   reduce(reverse(a), b, fn(acc: List, x: Any) -> List do [x | acc] end)
 end
 
-def mb_manhattan() -> List do
-  mb_append(mta_crosstown, mb_append(mta_north_south, mb_append(mta_limited, mta_manhattan_unlisted)))
+def mb_row(r: List) -> Map do
+  rest = tail(tail(r))
+  %{group: head(r), name: head(tail(r)), color: head(tail(rest)), desc: head(tail(tail(rest)))}
 end
 
-def mb_brooklyn() -> List do
-  mb_append(mta_brooklyn_local, mta_brooklyn_sbs)
-end
+MB_ROUTES = map(mta_routes, fn(r: List) -> Map do mb_row(r) end)
+# name -> row. A marker needs its route's row and there can be thousands of
+# markers, so not by walking the list.
+MB_BY_NAME = reduce(MB_ROUTES, %{}, fn(acc: Map, r: Map) -> Map do put(acc, r.name, r) end)
 
-def mb_queens() -> List do
-  mb_append(mta_queens_local, mta_queens_sbs)
-end
-
-# Routes.for_borough/1
-def mb_for_borough(b: String) -> List do
+def mb_in_borough(b: String) -> List do
   case b do
-    "manhattan" -> mb_manhattan()
-    "brooklyn" -> mb_brooklyn()
-    "queens" -> mb_queens()
-    _ -> mb_append(mb_manhattan(), mb_append(mb_brooklyn(), mb_queens()))
+    "all" -> MB_ROUTES
+    _ -> filter(MB_ROUTES, fn(r: Map) -> Bool do r.group == b end)
   end
 end
 
-# Routes.toggle_route/2
+def mb_for_borough(b: String) -> List do
+  map(mb_in_borough(b), fn(r: Map) -> String do r.name end)
+end
+
+def mb_color(route: String) -> String do
+  row = lookup(MB_BY_NAME, route)
+  case row do
+    nil -> "#666666"
+    _ -> row.color
+  end
+end
+
+# The chooser's rows: the tab's, or with a search every route it matches.
+def mb_rows(b: String, query: String) -> List do
+  q = downcase(trim(query))
+  case q do
+    "" -> mb_in_borough(b)
+    _ -> filter(MB_ROUTES, fn(r: Map) -> Bool do contains(downcase(concat(r.name, " ", r.desc)), q) end)
+  end
+end
+
 def mb_toggle(xs: List, r: String) -> List do
   case mb_has(xs, r) do
     true -> filter(xs, fn(y: Any) -> Bool do y != r end)
@@ -88,161 +102,247 @@ def mb_routes(v: Any, selected: List) -> List do
   end
 end
 
-def mb_marker(route: String, b: Map) -> Map do
-  id = mb_str(lookup(b, :id), "")
-  dest = mb_str(lookup(b, :destination), "")
-  dir = mb_str(lookup(b, :direction), "")
-  sp = lookup(b, :speed)
-  speed = case mb_num(sp) do
-    true -> sp * 1.0
-    false -> 0.0
+def mb_nth(xs: List, i: Int) -> Any do
+  case i <= 0 do
+    true -> head(xs)
+    false -> mb_nth(tail(xs), i - 1)
   end
+end
+
+# Bus Time's bearing is degrees anticlockwise from east.
+def mb_heading(bearing: Any) -> String do
+  case mb_num(bearing) do
+    false -> ""
+    true ->
+      compass = rem(round(90 - bearing) + 720, 360)
+      concat("Heading ", mb_nth(["N", "NE", "E", "SE", "S", "SW", "W", "NW"], rem(round(compass / 45.0), 8)))
+  end
+end
+
+# "2026-11-03T18:10:23.149-05:00", already New York's time, as "6:10 PM"
+def mb_clock(at: String) -> String do
+  parts = split(at, "T")
+  case length(parts) == 2 do
+    false -> ""
+    true ->
+      hm = split(mb_nth(parts, 1), ":")
+      h = to_int(head(hm))
+      twelve = case rem(h, 12) do
+        0 -> 12
+        n -> n
+      end
+      half = case h < 12 do
+        true -> "AM"
+        false -> "PM"
+      end
+      concat(to_string(twelve), ":", mb_nth(hm, 1), " ", half)
+  end
+end
+
+# "MTABC_9085" is bus 9085
+def mb_vehicle(id: String) -> String do
+  parts = split(id, "_")
+  concat("Bus ", mb_nth(parts, length(parts) - 1))
+end
+
+def mb_next(stop: String, away: String, layover: Bool) -> String do
+  case stop do
+    "" -> ""
+    _ ->
+      case layover do
+        true -> concat("On layover at ", stop)
+        false ->
+          case away do
+            "" -> concat("Next stop: ", stop)
+            _ -> concat("Next stop: ", stop, " (", away, ")")
+          end
+      end
+  end
+end
+
+def mb_marker(route: String, color: String, desc: String, b: Map) -> Map do
+  id = mb_str(lookup(b, :id), "")
+  bearing = lookup(b, :bearing)
+  layover = lookup(b, :layover) == true
+  turn = case mb_num(bearing) and not(layover) do
+    true -> to_string(0 - bearing)
+    false -> ""
+  end
+  heading = case layover do
+    true -> ""
+    false -> mb_heading(bearing)
+  end
+  seen = case mb_clock(mb_str(lookup(b, :recorded_at), "")) do
+    "" -> ""
+    t -> concat("Seen ", t)
+  end
+  detail = join(filter([heading, mb_vehicle(id), seen], fn(x: String) -> Bool do x != "" end), " · ")
   %{key: mta_bus_key(route, id), lat: b.lat, lng: b.lng,
-    icon: mta_icon_html(route, dest, dir),
-    popup: mta_popup_html(route, id, speed, dest, dir, b.lat * 1.0, b.lng * 1.0)}
+    icon: mta_icon_html(route, color, turn),
+    popup: mta_popup_html(route, color, desc, mb_str(lookup(b, :destination), ""),
+      mb_next(mb_str(lookup(b, :stop), ""), mb_str(lookup(b, :away), ""), layover), detail)}
 end
 
 def mb_markers(routes: List) -> List do
   flat(map(routes, fn(r: Map) -> List do
+    row = lookup(MB_BY_NAME, r.route)
     good = filter(r.buses, fn(b: Any) -> Bool do type_of(b) == :map and mb_num(lookup(b, :lat)) and mb_num(lookup(b, :lng)) end)
-    map(good, fn(b: Map) -> Map do mb_marker(r.route, b) end)
+    map(good, fn(b: Map) -> Map do mb_marker(r.route, row.color, row.desc, b) end)
   end))
+end
+
+def mb_bus_count(routes: List) -> Int do
+  reduce(routes, 0, fn(n: Int, r: Map) -> Int do n + length(r.buses) end)
+end
+
+def mb_count(n: Int, one: String, many: String) -> String do
+  case n == 1 do
+    true -> concat("1 ", one)
+    false -> concat(to_string(n), " ", many)
+  end
+end
+
+# What a borough's button shows of the map: [[south, west], [north, east]].
+def mb_bounds(b: String) -> List do
+  case b do
+    "manhattan" -> [[40.70, -74.02], [40.88, -73.91]]
+    "brooklyn" -> [[40.57, -74.04], [40.74, -73.85]]
+    "queens" -> [[40.54, -73.96], [40.80, -73.70]]
+    "bronx" -> [[40.79, -73.93], [40.92, -73.77]]
+    "staten" -> [[40.49, -74.26], [40.65, -74.05]]
+    _ -> [[40.49, -74.26], [40.92, -73.70]]
+  end
+end
+
+# The routes a saved visit chose, less any that have since gone.
+def mb_restored(text: String) -> List do
+  case json_decode(text) do
+    {:ok, v} ->
+      case type_of(v) == :list do
+        true -> uniq(filter(v, fn(r: Any) -> Bool do type_of(r) == :string and lookup(MB_BY_NAME, r) != nil end))
+        false -> []
+      end
+    _ -> []
+  end
 end
 
 # ── the template ────────────────────────────────────────────────────────
 
-SPINNER_PATH = "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-CLOSE_PATH = "M6 18L18 6M6 6l12 12"
+BOROUGHS = ["all", "manhattan", "brooklyn", "queens", "bronx", "staten", "express"]
 
-def mb_spinner(size: String, extra: String) -> Any do
-  el("svg", %{class: concat("animate-spin ", size, " ", extra), xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24"},
-    el("circle", %{class: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", "stroke-width": "4"}),
-    el("path", %{class: "opacity-75", fill: "currentColor", d: SPINNER_PATH}))
-end
+# Past this many a row of chips is a wall; the status bar has the count.
+MB_MAX_CHIPS = 12
 
 def mb_header(borough: String, loading: Bool) -> Any do
-  update_class = case loading do
-    true -> "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base flex items-center gap-1 opacity-75 cursor-not-allowed"
-    false -> "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base flex items-center gap-1"
-  end
-  update_label = case loading do
-    true -> el("span", %{class: "flex items-center gap-1"}, mb_spinner("h-4 w-4", ""), " Loading...")
+  update = case loading do
+    true -> "Loading..."
     false -> "Update"
   end
-  el("div", %{class: "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2"},
-    el("h1", %{class: "text-xl sm:text-2xl font-bold"}, mta_title(borough)),
-    el("div", %{class: "flex flex-wrap gap-2"},
-      el("button", %{click: :toggle_modal, class: "bg-purple-500 hover:bg-purple-700 text-white font-bold py-1.5 px-3 rounded text-sm sm:text-base"}, "CHOOSE BUSES"),
-      el("button", %{click: :fetch_buses, class: update_class, disabled: loading}, update_label)))
+  el("div", %{class: "mta-top"},
+    el("h1", %{}, mta_title(borough)),
+    el("div", %{class: "mta-row"},
+      el("button", %{click: :toggle_modal, class: "mta-btn mta-btn-primary"}, "Choose routes"),
+      el("button", %{click: :fetch_buses, class: "mta-btn", disabled: loading}, update)))
 end
 
-BOROUGH_BUTTONS = [["all", ""], ["manhattan", "bg-red-500"], ["brooklyn", "bg-purple-500"], ["queens", "bg-green-500"]]
-
-def mb_borough_button(key: String, color: String, active: String, loading: Bool) -> Any do
-  base = case active == key do
-    true -> "px-3 py-1.5 text-sm font-medium rounded bg-blue-600 text-white"
-    false -> "px-3 py-1.5 text-sm font-medium rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
+def mb_borough_button(key: String, active: String) -> Any do
+  cls = case active == key do
+    true -> "mta-btn mta-btn-on"
+    false -> "mta-btn"
   end
-  cls = case loading do
-    true -> concat(base, " opacity-75 cursor-wait")
-    false -> base
-  end
-  dot = case color do
-    "" -> ""
-    _ -> el("div", %{class: concat("w-3 h-3 rounded-full ", color, " mr-1.5")})
-  end
-  label = case loading and active == key do
-    true -> el("span", %{class: "flex items-center"}, mb_spinner("h-3 w-3", "mr-1"), mta_borough_name(key))
-    false -> mta_borough_name(key)
-  end
-  el("button", %{click: :select_borough, with: key, class: cls, disabled: loading},
-    el("div", %{class: "flex items-center"}, dot, label))
+  el("button", %{click: :select_borough, with: key, class: cls}, mta_borough_name(key))
 end
 
-def mb_borough_selector(active: String, loading: Bool) -> Any do
-  select_label = case loading do
-    true -> el("span", %{class: "flex items-center"}, mb_spinner("h-3 w-3", "mr-1"), " Loading...")
-    false -> mta_select_borough_label(active)
-  end
-  el("div", %{class: "mb-4"},
-    el("div", %{class: "text-sm text-gray-500 mb-1"}, "Select Borough:"),
-    el("div", %{class: "flex flex-wrap gap-1"},
-      map(BOROUGH_BUTTONS, fn(b: List) -> Any do mb_borough_button(head(b), head(tail(b)), active, loading) end)),
-    el("div", %{class: "mt-2"},
-      el("button", %{click: :select_all_borough_routes, with: active, class: "px-4 py-1.5 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded transition-colors", disabled: loading}, select_label)))
+def mb_boroughs(active: String) -> Any do
+  el("div", %{class: "mta-row mta-boroughs"},
+    map(BOROUGHS, fn(b: String) -> Any do mb_borough_button(b, active) end),
+    el("button", %{click: :select_all_borough_routes, with: active, class: "mta-btn"}, mta_select_label(active)))
 end
 
-def mb_checkbox(route: String, selected: List) -> Any do
-  el("label", %{class: "flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base"},
-    el("input", %{type: "checkbox", checked: mb_has(selected, route), click: :toggle_route, with: route, class: "form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-blue-600"}),
-    el("span", %{}, route))
+# A selected route, which is the map's legend too. How many buses it has out
+# is on it, so a route with none says so instead of looking broken; nil is
+# not yet heard, which is different from none.
+def mb_chip(route: String, counts: Map) -> Any do
+  n = lookup(counts, route)
+  cls = case n do
+    0 -> "mta-chip mta-chip-none"
+    _ -> "mta-chip"
+  end
+  note = case n do
+    nil -> "..."
+    0 -> "no buses out"
+    _ -> to_string(n)
+  end
+  el("button", %{click: :toggle_route, with: route, class: cls, style: concat("--route:", mb_color(route)), title: concat("Stop showing ", route)},
+    el("b", %{}, route), note)
 end
 
-def mb_section(title: String, routes: List, selected: List) -> List do
-  [el("div", %{class: "col-span-full mb-1 sm:mb-2 font-bold text-base sm:text-lg"}, title) | map(routes, fn(r: String) -> Any do mb_checkbox(r, selected) end)]
+def mb_chips(selected: List, counts: Map) -> Any do
+  case selected do
+    [] -> el("p", %{class: "mta-note"}, "No routes chosen. Choose some to see their buses.")
+    _ ->
+      case length(selected) > MB_MAX_CHIPS do
+        true ->
+          el("div", %{class: "mta-row"},
+            el("span", %{class: "mta-note"}, concat(mb_count(length(selected), "route", "routes"), " chosen")),
+            el("button", %{click: :clear_routes, class: "mta-btn"}, "Clear"))
+        false ->
+          el("div", %{class: "mta-row mta-chips"},
+            map(selected, fn(r: String) -> Any do mb_chip(r, counts) end),
+            el("button", %{click: :clear_routes, class: "mta-btn"}, "Clear"))
+      end
+  end
 end
 
-def mb_group(sections: List) -> Any do
-  el("div", %{}, el("div", %{class: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4"}, flat(sections)))
+def mb_pick(r: Map, selected: List) -> Any do
+  el("label", %{class: "mta-pick"},
+    el("input", %{type: "checkbox", checked: mb_has(selected, r.name), click: :toggle_route, with: r.name}),
+    el("span", %{class: "mta-swatch", style: concat("background:", r.color)}),
+    el("b", %{}, r.name),
+    el("span", %{class: "mta-desc", title: r.desc}, r.desc))
 end
 
-def mb_tab(key: String, label: String, active: String) -> Any do
-  cls = case key == active do
-    true -> "w-1/4 py-2 px-1 border-b-2 text-sm font-medium border-blue-500 text-blue-600"
-    false -> "w-1/4 py-2 px-1 border-b-2 text-sm font-medium border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+def mb_modal(active: String, selected: List, query: String) -> Any do
+  rows = mb_rows(active, query)
+  list = case rows do
+    [] -> el("p", %{class: "mta-note"}, concat("No route matches \"", query, "\"."))
+    _ -> el("div", %{class: "mta-list"}, map(rows, fn(r: Map) -> Any do mb_pick(r, selected) end))
   end
-  el("button", %{click: :select_borough, with: key, class: cls}, label)
+  # a search spans every tab, so no tab is the one being shown
+  tabs = case trim(query) do
+    "" -> el("div", %{class: "mta-row mta-boroughs"}, map(BOROUGHS, fn(b: String) -> Any do mb_borough_button(b, active) end))
+    _ -> ""
+  end
+  el("div", %{class: "mta-modal"},
+    el("div", %{class: "mta-panel", role: "dialog", "aria-label": "Choose routes"},
+      el("div", %{class: "mta-top"},
+        el("h2", %{}, "Choose routes"),
+        el("button", %{click: :toggle_modal, class: "mta-btn mta-btn-primary"}, "Done")),
+      el("input", %{type: "search", class: "mta-search", value: query, input: :search, debounce: 120,
+        placeholder: "Search by route or place, like M15 or Jamaica", "aria-label": "Search routes"}),
+      tabs,
+      list,
+      el("div", %{class: "mta-row"},
+        el("button", %{click: :select_all_borough_routes, with: active, class: "mta-btn"}, mta_select_label(active)),
+        el("button", %{click: :clear_routes, class: "mta-btn"}, "Clear"),
+        el("span", %{class: "mta-note"}, concat(mb_count(length(selected), "route", "routes"), " chosen")))))
 end
 
-def mb_modal(active: String, selected: List) -> Any do
-  manhattan = case active == "manhattan" or active == "all" do
-    true -> mb_group([mb_section("Manhattan Crosstown Routes", mta_crosstown, selected), mb_section("Manhattan North-South Routes", mta_north_south, selected), mb_section("Manhattan Limited & Express", mta_limited, selected)])
-    false -> ""
-  end
-  brooklyn = case active == "brooklyn" or active == "all" do
-    true -> mb_group([mb_section("Brooklyn Routes", mta_brooklyn_local, selected), mb_section("Brooklyn SBS Routes", mta_brooklyn_sbs, selected)])
-    false -> ""
-  end
-  queens = case active == "queens" or active == "all" do
-    true -> mb_group([mb_section("Queens Routes", mta_queens_local, selected), mb_section("Queens SBS Routes", mta_queens_sbs, selected)])
-    false -> ""
-  end
-  el("div", %{class: "fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-50"},
-    el("div", %{class: "fixed inset-0 z-50 overflow-y-auto"},
-      el("div", %{class: "flex min-h-full items-end justify-center p-2 sm:p-4 text-center sm:items-center sm:p-0"},
-        el("div", %{class: "relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl w-full"},
-          el("div", %{class: "bg-white px-2 sm:px-4 pb-2 sm:pb-4 pt-3 sm:pt-5"},
-            el("div", %{class: "absolute top-0 right-0 pt-2 sm:pt-4 pr-2 sm:pr-4"},
-              el("button", %{click: :toggle_modal, class: "rounded-md bg-white text-gray-400 hover:text-gray-500"},
-                el("span", %{class: "sr-only"}, "Close"),
-                el("svg", %{class: "h-5 w-5 sm:h-6 sm:w-6", fill: "none", viewBox: "0 0 24 24", "stroke-width": "1.5", stroke: "currentColor"},
-                  el("path", %{"stroke-linecap": "round", "stroke-linejoin": "round", d: CLOSE_PATH})))),
-            el("div", %{class: "sm:flex sm:items-start"},
-              el("div", %{class: "mt-2 sm:mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full"},
-                el("div", %{class: "flex justify-between items-center mb-2 sm:mb-4"},
-                  el("h3", %{class: "text-lg sm:text-xl font-semibold leading-6 text-gray-900"}, "Select Bus Routes"),
-                  el("div", %{class: "flex gap-2"},
-                    el("button", %{click: :select_all_borough_routes, with: active, class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs sm:text-sm"}, mta_modal_select_label(active)),
-                    el("button", %{click: :select_all_routes, class: "bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-xs sm:text-sm"}, "Select All"))),
-                el("div", %{class: "border-b border-gray-200 mb-4"},
-                  el("nav", %{class: "-mb-px flex flex-wrap", "aria-label": "Borough tabs"},
-                    mb_tab("manhattan", "Manhattan", active), mb_tab("brooklyn", "Brooklyn", active),
-                    mb_tab("queens", "Queens", active), mb_tab("all", "All Routes", active))),
-                el("div", %{class: "mt-2"}, manhattan, brooklyn, queens)))),
-          el("div", %{class: "bg-gray-50 px-2 sm:px-4 py-2 sm:py-3 sm:flex sm:flex-row-reverse sm:px-6"},
-            el("button", %{type: "button", click: :toggle_modal, class: "mt-2 sm:mt-3 inline-flex w-full justify-center rounded-md bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"}, "Close"))))))
+def mb_counts(routes: List) -> Map do
+  reduce(routes, %{}, fn(acc: Map, r: Map) -> Map do put(acc, r.route, length(r.buses)) end)
 end
 
 def mb_page(s: Map) -> Any do
   err = case s.error do
     "" -> ""
-    _ -> el("p", %{class: "text-red-500 text-sm mb-2"}, s.error)
+    _ -> el("p", %{class: "mta-error"}, s.error)
   end
   modal = case s.modal do
-    true -> mb_modal(s.borough, s.selected)
+    true -> mb_modal(s.borough, s.selected, s.query)
     false -> ""
   end
-  el("div", %{}, mb_header(s.borough, s.loading), mb_borough_selector(s.borough, s.loading), err, modal)
+  el("div", %{class: "mta-controls"},
+    mb_header(s.borough, s.loading), mb_boroughs(s.borough), mb_chips(s.selected, mb_counts(s.routes)), err, modal)
 end
 
 # ── the program ─────────────────────────────────────────────────────────
@@ -254,6 +354,7 @@ actor MtaPage do
   state titled: Bool :: false
   state selected: List :: mta_initial
   state modal: Bool :: false
+  state query: String :: ""
   state loading: Bool :: false
   state error: String :: ""
   state routes: List :: []
@@ -268,8 +369,23 @@ actor MtaPage do
 
   # the socket is (again) open: say what this page watches
   on :connected do
-    become outbox: mb_append(outbox, [json_encode(mb_watch(selected))])
+    become error: "", outbox: mb_append(outbox, [json_encode(mb_watch(selected))])
     reply :ok
+  end
+
+  on :disconnected do
+    become error: "Lost the connection to the server. These buses may be out of date until it comes back."
+    reply :ok
+  end
+
+  # what this visitor chose last time, before the socket opens
+  on :restore(text: String) do
+    case mb_restored(text) do
+      [] -> reply :nothing
+      xs ->
+        become selected: xs
+        reply length(xs)
+    end
   end
 
   on :frame(text: String) do
@@ -302,13 +418,22 @@ actor MtaPage do
     reply (self <- :choose(mb_for_borough(b)))
   end
 
+  on :clear_routes do
+    reply (self <- :choose([]))
+  end
+
   on :select_borough(b: String) do
     become borough: b, titled: true
     reply :ok
   end
 
+  on :search(value: String) do
+    become query: value
+    reply :ok
+  end
+
   on :toggle_modal do
-    become modal: not(modal)
+    become modal: not(modal), query: ""
     reply :ok
   end
 
@@ -331,11 +456,11 @@ actor MtaPage do
       true -> mta_title(borough)
       false -> "MTA Bus Map Tracker"
     end
-    reply %{routes: mta_routes_status(length(selected)), borough: mta_borough_status(borough), title: title}
+    reply %{routes: mb_count(length(selected), "route", "routes"), buses: mb_count(mb_bus_count(routes), "bus", "buses"), title: title, borough: borough, bounds: mb_bounds(borough)}
   end
 
   on :view do
-    reply mb_page(%{borough: borough, selected: selected, modal: modal, loading: loading, error: error})
+    reply mb_page(%{borough: borough, selected: selected, modal: modal, query: query, loading: loading, error: error, routes: routes})
   end
 end
 

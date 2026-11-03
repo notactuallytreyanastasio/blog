@@ -1,10 +1,9 @@
 # /mta-bus-map: where New York's buses are, on a map, route by route.
 #
 # MtaBusMapLive asked MTA Bus Time itself, from each open page's process:
-# every 30 seconds, one request per route that page had chosen (four to
-# start with, all 189 after "Select All"), and again at once whenever its
-# visitor ticked a box. Ten open pages watching the same four routes made
-# forty requests every 30 seconds for the same forty answers.
+# every 30 seconds, one request per route that page had chosen, and again at
+# once whenever its visitor ticked a box. Ten open pages watching the same
+# four routes made forty requests every 30 seconds for the same forty answers.
 #
 # Here there is one poller, MTA, stepped by the Site's tick like
 # HackerNews (src/99_hacker_news.blimp), so no request ever holds the one
@@ -26,12 +25,17 @@
 #         {"t":"refresh"}                    the Update button
 #   down  {"t":"buses","updated":"23:12:59","routes":[{"route","buses":[bus..]}..]}
 #         {"t":"error","message":..}         no key, or Bus Time failing
-#   bus = {"id","lat","lng","direction","destination","speed","recorded_at"},
-#         what Blog.Mta.Client.parse_vehicle/1 kept, flattened
+#   bus = {"id","lat","lng","bearing","layover","destination","stop","away","recorded_at"}
+#
+# bearing is Bus Time's, degrees anticlockwise from east, not a compass
+# heading: measured against 61 moving buses on 2026-11-03 it is off by a
+# median of 6.6 degrees read that way and 75.8 read as a compass. stop and
+# away are the next stop and how far off it is, in Bus Time's words.
 #
 # The key is Bus Time's, read from MTA_API_KEY; without it the page says
 # so and nothing is asked. Which routes there are, the request's URL and
-# what the page makes of a bus are Temper (temper/src/mta).
+# what the page makes of a bus are Temper (temper/src/mta); the routes are
+# written from Bus Time's own lists by tools/mta_routes.py.
 
 MTA_EVERY_S = 30
 MTA_GIVE_UP_S = 25
@@ -40,6 +44,15 @@ MTA_IN_FLIGHT = 16
 MTA_FRESH_S = 45
 # the Update button asks again only if the last round is older than this
 MTA_REFRESH_S = 10
+
+# route name -> line reference, Bus Time's id for it
+MTA_REFS = reduce(mta_routes, %{}, fn(acc: Map, row: List) -> Map do
+  put(acc, head(tail(row)), head(tail(tail(row))))
+end)
+
+def mta_known(route: String) -> Bool do
+  lookup(MTA_REFS, route) != nil
+end
 
 def mta_key() -> String do
   k = getenv("MTA_API_KEY")
@@ -91,15 +104,17 @@ def mta_bus(activity: Any) -> Any do
   case mta_is_number(lat) and mta_is_number(lng) and type_of(ref) == :string do
     false -> nil
     true ->
-      v = mta_get(journey, :Velocity)
-      speed = case mta_is_number(v) do
-        true -> v
-        false -> 0
+      call = mta_get(journey, :MonitoredCall)
+      raw = mta_get(journey, :Bearing)
+      bearing = case mta_is_number(raw) do
+        true -> raw
+        false -> nil
       end
-      %{id: ref, lat: lat, lng: lng,
-        direction: mta_str(mta_get(journey, :DirectionRef), ""),
+      %{id: ref, lat: lat, lng: lng, bearing: bearing,
+        layover: mta_first(mta_get(journey, :ProgressStatus)) == "layover",
         destination: mta_str(mta_first(mta_get(journey, :DestinationName)), "Unknown"),
-        speed: speed,
+        stop: mta_str(mta_first(mta_get(call, :StopPointName)), ""),
+        away: mta_str(mta_get(call, :ArrivalProximityText), ""),
         recorded_at: mta_str(mta_get(activity, :RecordedAtTime), "")}
   end
 end
@@ -321,7 +336,7 @@ actor MtaPoller do
         room = MTA_IN_FLIGHT - length(still)
         starting = mta_take(queue, room)
         launched = map(starting, fn(r: String) -> Any do
-          {http_start("GET", mta_url(key, r), %{}, ""), r}
+          {http_start("GET", mta_url(key, lookup(MTA_REFS, r)), %{}, ""), r}
         end)
         rest = mta_drop(queue, length(starting))
         flying_now = list_append(still, launched)
@@ -358,38 +373,40 @@ MTA = spawn MtaPoller
 
 # ── the page ────────────────────────────────────────────────────────────
 
-MTA_PROGRAM_PATH = "/mta-bus-map/mta.blimp"
-MTA_SCRIPTS = list_append(APP_SCRIPTS, ["/mta-bus-map/mta.js"])
+# Each by content. Cloudflare keeps unversioned assets for a day with nothing
+# to purge them, and the program, this hook and the server's frames change
+# together: a new page must never run a day-old program.
+MTA_PROGRAM_PATH = desk_script_href("/mta-bus-map/mta.blimp", "_build/mta.blimp")
+MTA_JS_PATH = desk_script_href("/mta-bus-map/mta.js", "static/mta/mta.js")
+MTA_CSS_PATH = desk_script_href("/mta-bus-map/mta.css", "static/mta/mta.css")
+MTA_SCRIPTS = list_append(APP_SCRIPTS, [MTA_JS_PATH])
 
-# MtaBusMapLive's window, as the app layout wrapped it (<main class="flex-1
-# overflow-y-auto px-4">), less the layout's sidebar, which /map left out
-# too. The program draws the controls and the chooser; the map is
-# Leaflet's, in #mta-bus-map, which the program must not own; the status
-# bar under it is filled in by mta.js from the program.
+# The program draws the controls and the chooser; the map is Leaflet's, in
+# #mta-bus-map, which the program must not own; the status bar under it is
+# filled in by mta.js from the program.
 def mta_page() -> String do
   body = join([
-    "<div class=\"flex h-full font-mono\"><main class=\"flex-1 overflow-y-auto px-4\"><div class=\"min-h-screen\">\n",
-    "<div class=\"os-desktop-winxp\">\n",
-    "<div class=\"os-window os-window-winxp mta-bus-window\">\n",
+    "<div class=\"os-desktop-winxp mta-desktop\">\n",
+    "<div class=\"os-window os-window-winxp mta-window\">\n",
     "<div class=\"os-titlebar\"><span class=\"os-titlebar-title\">MTA Bus Map - Live Transit Tracker</span>",
     "<div class=\"os-titlebar-buttons\"><div class=\"os-btn-min\"></div><div class=\"os-btn-max\"></div><a href=\"/\" class=\"os-btn-close\"></a></div></div>\n",
-    "<div class=\"os-menubar\"><span>File</span><span>View</span><span>Routes</span><span>Help</span></div>\n",
-    "<div class=\"os-content mta-bus-content\"><div class=\"h-full flex flex-col\"><div class=\"p-2 sm:p-4 bg-white\">\n",
+    "<div class=\"mta-body\">\n",
     "<div id=\"blimp-app\" data-program=\"", MTA_PROGRAM_PATH, "\" data-actor=\"mta\"></div>\n",
     "<p id=\"blimp-app-status\" class=\"blimp-app-status\">loading Blimp...</p>\n",
     "<noscript><p>This page is a program written in Blimp, which your browser runs in Blimp's WebAssembly interpreter, beside a Leaflet map; ",
-    "both need JavaScript. The program is <a href=\"", MTA_PROGRAM_PATH, "\">", MTA_PROGRAM_PATH, "</a>.</p></noscript>\n",
-    "<div class=\"flex-1 relative mta-bus-map-container\"><div id=\"mta-bus-map\" class=\"absolute inset-0 z-0\"></div></div>\n",
-    "</div></div></div>\n",
-    "<div class=\"os-statusbar\"><span id=\"mta-status-routes\">Routes: 4</span><span id=\"mta-status-borough\">Borough: Manhattan</span></div>\n",
-    "</div></div>\n",
-    "</div></main></div>\n",
+    "both need JavaScript. The program is <a href=\"", MTA_PROGRAM_PATH, "\">/mta-bus-map/mta.blimp</a>.</p></noscript>\n",
+    "<div class=\"mta-map-box\"><div id=\"mta-bus-map\"></div></div>\n",
+    "</div>\n",
+    "<div class=\"os-statusbar\"><span id=\"mta-status-routes\"></span><span id=\"mta-status-buses\"></span><span id=\"mta-status-updated\"></span></div>\n",
+    "</div>\n",
+    "</div>\n",
     script_tags(MTA_SCRIPTS)
   ], "")
-  page_layout_html("MTA Bus Map Tracker", "The blog of a very creative but also very odd programmer in New York City. Matters discussed may be technical or absurd. All are welcome.", "website", [APP_CSS, "/assets/blimp-window.css"], body, "h-full bg-gray-100")
+  page_layout_html("MTA Bus Map Tracker", "Every New York City bus on one map, live, route by route.", "website", [APP_CSS, "/assets/blimp-window.css", MTA_CSS_PATH], body, "h-full bg-gray-100")
 end
 
 MTA_PAGE = prebuilt(response(200, "text/html; charset=utf-8", "public, max-age=300", mta_page()))
 MTA_PROGRAM = map_asset(["_build/mta.blimp"], "text/plain; charset=utf-8")
 # Leaflet 1.9.4, /map's vendored copy (its css is in the app css), then the hook
 MTA_JS = map_asset(["static/map/leaflet/leaflet.js", "static/mta/mta.js"], "text/javascript; charset=utf-8")
+MTA_CSS = map_asset(["static/mta/mta.css"], "text/css; charset=utf-8")

@@ -222,6 +222,7 @@ def dynamic(req: Map, routes: Map, posts: List, desk: Map) -> Map do
     "/mta-bus-map" -> MTA_PAGE
     "/mta-bus-map/mta.blimp" -> MTA_PROGRAM
     "/mta-bus-map/mta.js" -> MTA_JS
+    "/mta-bus-map/mta.css" -> MTA_CSS
     # Phish Lab (src/99_phish_lab.blimp): the page, its program, pointer
     # script and css, and the two datasets it charts
     "/phish_lab" -> PL_PAGE
