@@ -1,0 +1,37 @@
+{
+  "name": "Smart Steps",
+  "description": "Every Smart Steps page: the landing page, the facilitator dashboard, the scenario designer, the join-a-session form and the demo. Nothing is submitted.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open the landing page",
+      "action": { "type": "goto", "url": "/smart-steps" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Real Scenarios" }]
+    },
+    {
+      "do": "Open the facilitator dashboard",
+      "action": { "type": "goto", "url": "/smart-steps/dashboard" },
+      "expect": [{ "type": "visible", "target": "text:Facilitator Dashboard" }]
+    },
+    {
+      "do": "Open the scenario designer",
+      "action": { "type": "goto", "url": "/smart-steps/designer" },
+      "expect": [{ "type": "visible", "target": "text:Scenario Designer" }]
+    },
+    {
+      "do": "Open the join form",
+      "action": { "type": "goto", "url": "/smart-steps/connect" },
+      "expect": [{ "type": "visible", "target": "text:Join a Session" }]
+    },
+    {
+      "do": "Type a session code without joining",
+      "action": { "type": "fill", "target": "placeholder:000000", "value": "123456" },
+      "expect": [{ "type": "value", "target": "placeholder:000000", "equals": "123456" }]
+    },
+    {
+      "do": "Open the demo",
+      "action": { "type": "goto", "url": "/smart-steps/demo" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Demo Mode" }]
+    }
+  ]
+}

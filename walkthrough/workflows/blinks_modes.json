@@ -1,0 +1,48 @@
+{
+  "name": "Blinks modes",
+  "description": "The link-blog's reading modes: surf, walk, TV, the reader's search, and the review page (which redirects when not signed in).",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open surf mode",
+      "action": { "type": "goto", "url": "/blinks/surf" },
+      "expect": [{ "type": "visible", "target": "id:surf-page" }]
+    },
+    {
+      "do": "Stumble",
+      "action": { "type": "click", "target": "role:button:STUMBLE!" },
+      "expect": [{ "type": "visible", "target": "id:surf-page" }]
+    },
+    {
+      "do": "Open walk mode",
+      "action": { "type": "goto", "url": "/blinks/walk" },
+      "expect": [{ "type": "visible", "target": "id:walk-page" }]
+    },
+    {
+      "do": "Open TV mode",
+      "action": { "type": "goto", "url": "/blinks/tv" },
+      "expect": [{ "type": "visible", "target": "id:tv-page" }]
+    },
+    {
+      "do": "Next channel item",
+      "action": { "type": "click", "target": "role:button:NEXT ⏭" },
+      "expect": [{ "type": "visible", "target": "id:tv-page" }]
+    },
+    {
+      "do": "Search the reader",
+      "action": { "type": "goto", "url": "/blinks-reader" },
+      "expect": [{ "type": "visible", "target": "placeholder:search links" }]
+    },
+    {
+      "do": "Type a search",
+      "action": { "type": "fill", "target": "placeholder:search links", "value": "elixir" },
+      "expect": [{ "type": "visible", "target": "id:blinks-reader" }]
+    },
+    {
+      "do": "The review page redirects when signed out",
+      "action": { "type": "goto", "url": "/blinks/review" },
+      "expect": [{ "type": "url", "contains": "/blinks" }]
+    }
+  ]
+}

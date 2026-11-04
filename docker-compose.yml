@@ -40,8 +40,8 @@ services:
       LOLLY_CHAT_PASSWORD: ${LOLLY_CHAT_PASSWORD:-}
       ROOTED_CHAT_PASSWORD: ${ROOTED_CHAT_PASSWORD:-}
       # /who ("Ask the TARDIS") runs on Blog.LLM, DeepSeek by default; the same
-      # key marginalia below reads from .env. The password falls back to
-      # ZIGGY_CHAT_PASSWORD in config/runtime.exs.
+      # key marginalia and blimp-blog below already read from .env. The
+      # password falls back to ZIGGY_CHAT_PASSWORD in config/runtime.exs.
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
       WHO_CHAT_PASSWORD: ${WHO_CHAT_PASSWORD:-}
@@ -172,6 +172,17 @@ services:
       POOL_SIZE: "10"
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
+  dtree-ai:
+    # DeepSeek proxy for the MBA-or-DJ classroom site (github.com/notactuallytreyanastasio/mba-vs-dj, proxy/).
+    # Holds the key so the static site does not; rate-limited per IP and per day.
+    build:
+      context: /opt/dtree-ai
+    restart: always
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      PORT: "8080"
+    # Not exposed to host - Caddy proxies to port 8080 via Docker network
+
   nathan:
     build:
       context: /opt/nathan
@@ -241,6 +252,23 @@ services:
       - /opt/slides-relay:/app:ro
     # Not exposed to host - Caddy proxies to port 8787 via Docker network
 
+  # The casino host's relay for Skee Skee Skee: holds the DeepSeek key so the
+  # iOS app doesn't have to, and caps what the public can spend. Bind-mounted
+  # like slides-relay; skee_skee_skee/relay/deploy.sh rsyncs it to
+  # /opt/skee-relay. Caddy proxies bobbby.online/skee-host/* to it.
+  skee-relay:
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: ["node", "relay.mjs"]
+    environment:
+      PORT: "8788"
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+    expose:
+      - "8788"
+    volumes:
+      - /opt/skee-relay:/app:ro
+
   # LUMINES HD rooms server — matchmaking + shared-board input/snapshot relay
   # (lumines_hd repo, server/ bundled to a single server.cjs by esbuild). Like
   # slides-relay this is BIND-MOUNTED, not built: lumines_hd/scripts/deploy.sh
@@ -280,6 +308,7 @@ services:
       - /opt/slides:/srv/slides:ro  # RevealSlides static build (slides repo dist/, via deploy-slides.sh)
       - /opt/downloader:/srv/downloader:ro  # Framecut Grabber landing page (nathan_for_us site/, via deploy.sh)
       - /opt/lumines:/srv/lumines:ro  # LUMINES HD static build (lumines_hd repo dist/, via its scripts/deploy.sh)
+      - /opt/gaming:/srv/gaming:ro  # Pastel Garden Massacre (whats_going_through_your_mind repo, via its scripts/deploy.sh)
 
   # The blog, served by a server written in Blimp: blimp_site/ in the blog
   # repo, shipped to /opt/blimp-blog by blimp_site/deploy.sh. Caddy sends it
@@ -296,25 +325,21 @@ services:
       db:
         condition: service_healthy
     environment:
+      # Blimp unwinds a tick that would pass this (heap_limit.zig) instead of
+      # letting the kernel kill the process at mem_limit (1536m). blog#217.
+      BLIMP_HEAP_LIMIT: "1400000000"
       DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/blog_prod
       MTA_API_KEY: ${MTA_API_KEY}
       ICLOUD_ALBUM_TOKEN: ${ICLOUD_ALBUM_TOKEN}
-      # The site's three bots (/ziggy, /who, /aim) speak OpenAI's
-      # chat.completions dialect to Fireworks: GLM 5.3 (1M context) for the
-      # chats, GLM 5.3 Flash for /ziggy's suggestions and /aim's bobbbyBot.
-      # They ran on DeepSeek until it went down on 2026-10-14. The key is
-      # the pi harness's (~/.pi/agent/auth.json), copied into .env.
-      OPENAI_API_KEY: ${FIREWORKS_API_KEY:-}
-      OPENAI_BASE_URL: https://api.fireworks.ai/inference/v1
-      OPENAI_MODEL: accounts/fireworks/models/glm-5p3
-      OPENAI_AUTOCOMPLETE_MODEL: accounts/fireworks/models/glm-5p3-flash
+      OPENAI_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_BASE_URL: https://api.deepseek.com
+      OPENAI_MODEL: deepseek-chat
+      OPENAI_AUTOCOMPLETE_MODEL: deepseek-chat
       ZIGGY_CHAT_PASSWORD: ${ZIGGY_CHAT_PASSWORD:-}
       # /who's chat (blimp_site/src/99_who.blimp) falls back to the Ziggy one
       WHO_CHAT_PASSWORD: ${WHO_CHAT_PASSWORD:-}
       # /aim's bobbbyBot (blimp_site/src/99_aim.blimp)
-      AIM_API_KEY: ${FIREWORKS_API_KEY:-}
-      AIM_BASE_URL: https://api.fireworks.ai/inference/v1
-      AIM_MODEL: accounts/fireworks/models/glm-5p3-flash
+      AIM_API_KEY: ${DEEPSEEK_API_KEY:-}
       AIM_DAILY_LIMIT: ${AIM_DAILY_LIMIT:-600}
       BLINKS_API_TOKEN: ${BLINKS_API_TOKEN:-}
       SESSION_SECRET: ${SESSION_SECRET}

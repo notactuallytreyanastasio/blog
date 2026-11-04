@@ -2,6 +2,9 @@
 	servers {
 		protocols h1 h2
 		trusted_proxies static 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 104.16.0.0/13 104.24.0.0/14 108.162.192.0/18 131.0.72.0/22 141.101.64.0/18 162.158.0.0/15 172.64.0.0/13 173.245.48.0/20 188.114.96.0/20 190.93.240.0/20 197.234.240.0/22 198.41.128.0/17 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		# Read X-Forwarded-For from the right. Cloudflare appends the real
+		# client, so the leftmost entry is whatever the client typed.
+		trusted_proxies_strict
 	}
 }
 
@@ -37,6 +40,21 @@ bobbby.online, www.bobbby.online {
 	}
 	handle_path /arena/* {
 		reverse_proxy soldat:8901
+	}
+
+	# DeepSeek proxy for the MBA-or-DJ classroom site (dtree-ai service).
+	# handle_path strips the prefix: the app serves /edit, /explain, /health.
+	handle_path /dtree-ai/* {
+		reverse_proxy dtree-ai:8080
+	}
+
+	# Skee Skee Skee's casino host relay (skee-relay service). X-Real-IP is
+	# the resolved client, set here so the client can't choose it: behind
+	# Cloudflare, X-Forwarded-For ends in the edge, not the player.
+	handle_path /skee-host/* {
+		reverse_proxy skee-relay:8788 {
+			header_up X-Real-IP {client_ip}
+		}
 	}
 
 	# Shared decision graph MCP server. handle_path strips the prefix, so the
@@ -244,6 +262,42 @@ bobbby.online, www.bobbby.online {
 			lb_try_interval 250ms
 		}
 	}
+	# The hotel carbon programme (/hotel-carbon, /studio, /storylines, /map,
+	# /library): Phoenix routes (HotelCarbonController serves priv/static pages; the
+	# stylesheet, script and data sit under /static/hotel-carbon/ and D3 at
+	# /static/d3.v7.min.js, which the @blimp list below already routes to
+	# Blimp - same file, either origin). Plain handle before the method-routed
+	# and Blimp blocks so bobbby.online serves it directly instead of
+	# redirecting to old.bobbby.online.
+	handle /hotel-carbon* {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+	handle /static/hotel-carbon/* {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+
+	# Tennis Potatoes (/tennis-potatoes): TennisPotatoesController serves the
+	# Vite shell from priv/static; hashed assets sit under /static/tennis-potatoes/.
+	# Same arrangement as hotel carbon, so bobbby.online serves it directly.
+	handle /tennis-potatoes* {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+	handle /static/tennis-potatoes/* {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}
+
 	@phoenix_write not method GET HEAD
 	handle @phoenix_write {
 		redir https://old.bobbby.online{uri} 308
@@ -414,6 +468,22 @@ blimp.bobbby.online {
 
 	header {
 		Cache-Control "public, max-age=300"
+	}
+}
+
+# Pastel Garden Massacre, a three.js hack-and-slash with no build step: ES modules
+# served as-is (whats_going_through_your_mind repo, via its scripts/deploy.sh).
+gaming.bobbby.online {
+	root * /srv/gaming
+	file_server
+
+	encode gzip zstd
+
+	# no-cache, not max-age: the game is ES modules importing each other, and a
+	# cached old module next to a fresh one breaks the page after a deploy. ETags
+	# keep the revalidation a 304.
+	header {
+		Cache-Control "no-cache"
 	}
 }
 

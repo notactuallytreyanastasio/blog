@@ -1,0 +1,54 @@
+{
+  "name": "Tools",
+  "description": "The interactive utilities: markdown editor, the in-browser Python runner, the typewriter, the cursor tracker and the very-direct-message window. Nothing is sent.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open the markdown editor",
+      "action": { "type": "goto", "url": "/markdown-editor" },
+      "expect": [{ "type": "visible", "target": "id:markdown-editor" }]
+    },
+    {
+      "do": "Open the Python demo",
+      "action": { "type": "goto", "url": "/python-demo" },
+      "expect": [{ "type": "visible", "target": "id:code" }]
+    },
+    {
+      "do": "Run the sample code",
+      "action": { "type": "click", "target": "css:form button[type=submit]" },
+      "expect": [{ "type": "visible", "target": "id:code" }],
+      "timeoutMs": 60000
+    },
+    {
+      "do": "Open the typewriter",
+      "action": { "type": "goto", "url": "/typewriter" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Pressing:" }]
+    },
+    {
+      "do": "Press a key",
+      "action": { "type": "press", "key": "a" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Pressing: a" }]
+    },
+    {
+      "do": "Open the cursor tracker",
+      "action": { "type": "goto", "url": "/cursor-tracker" },
+      "expect": [
+        { "type": "visible", "target": "id:cursor-tracker" },
+        { "type": "visible", "target": "id:visualization-area" }
+      ]
+    },
+    {
+      "do": "Draw a point",
+      "action": { "type": "click", "target": "id:visualization-area" },
+      "expect": [{ "type": "visible", "target": "id:system-log" }]
+    },
+    {
+      "do": "Open the very direct message window",
+      "action": { "type": "goto", "url": "/very_direct_message" },
+      "expect": [
+        { "type": "visible", "target": "id:dm-window" },
+        { "type": "text", "target": "id:dm-window", "contains": "Write your message below" }
+      ]
+    }
+  ]
+}

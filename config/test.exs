@@ -50,3 +50,15 @@ config :blog, :start_blinks_link_check, false
 config :blog, :start_push_notifier, false
 config :blog, :start_camera_browser_poller, false
 config :blog, start_gallery: false
+
+# Blog.LLM: no key, and nowhere to send it. 127.0.0.1:1 refuses instantly
+# rather than reaching the internet, and there is no backing off from a port
+# that is closed on purpose.
+config :blog, :deepseek_api_key, nil
+
+config :blog, :llm_endpoints, %{
+  deepseek_api_key: "http://127.0.0.1:1/chat/completions",
+  openai_api_key: "http://127.0.0.1:1/v1/chat/completions"
+}
+
+config :blog, :llm_backoff_ms, 0

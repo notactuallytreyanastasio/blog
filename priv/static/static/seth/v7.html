@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SEE Right Through Consulting — Seth Eisenstein</title>
+<meta name="description" content="Seth Eisenstein embeds with senior B2B sales teams and makes the stack they already pay for get used — on live accounts, next to the reps.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SEE Right Through Consulting — Seth Eisenstein">
+<meta property="og:description" content="You already bought the stack. I make your team run it. Embedded GTM and enablement work for senior B2B sellers.">
+<meta property="og:site_name" content="SEE Right Through Consulting">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SEE Right Through Consulting — Seth Eisenstein">
+<meta name="twitter:description" content="You already bought the stack. I make your team run it. Embedded GTM and enablement work for senior B2B sellers.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230D1130'/%3E%3Crect x='6' y='8' width='20' height='3.5' fill='%23EFB93F'/%3E%3Crect x='6' y='14.25' width='13' height='3.5' fill='%23F1F2F5'/%3E%3Crect x='6' y='20.5' width='7' height='3.5' fill='%23EFB93F'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Schibsted+Grotesk:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0D1130;
+  --blue:#2233CC;
+  --chalk:#F1F2F5;
+  --gold:#EFB93F;
+  --gold-hi:#FFD479;
+  --peri:#9AA3C9;
+  --disp:"Bricolage Grotesque","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --text:"Schibsted Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{
+  scroll-snap-type:y mandatory;
+  scroll-behavior:smooth;
+  background:var(--ink);
+  -webkit-text-size-adjust:100%;
+}
+@media (max-height:700px){
+  html{scroll-snap-type:y proximity}
+}
+html.snap-loose{scroll-snap-type:y proximity}
+body{
+  margin:0;
+  position:relative;
+  font-family:var(--text);
+  font-size:clamp(1rem,2.4vw,1.1875rem);
+  line-height:1.5;
+  color:var(--chalk);
+  background:var(--ink);
+  overflow-wrap:break-word;
+}
+
+/* ---------- masthead (static, sits on card one) ---------- */
+.mast{
+  position:absolute;top:0;left:0;right:0;z-index:5;
+  display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap;
+  padding:1.15rem max(clamp(1.15rem,5vw,4.5rem),calc((100% - 1180px) / 2));
+  color:var(--chalk);
+}
+.mast b{
+  font-family:var(--disp);font-weight:800;font-size:.95rem;
+  font-variation-settings:"wdth" 82,"opsz" 14;
+  letter-spacing:.005em;
+}
+.mast span{font-size:.8125rem;color:var(--peri)}
+
+/* ---------- the feed ---------- */
+.card{
+  min-height:100vh;
+  min-height:100svh;
+  scroll-snap-align:start;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  gap:1.25rem;
+  padding:4.75rem 0 clamp(1.6rem,4vh,3rem);
+  padding-left:max(clamp(1.15rem,5vw,4.5rem),calc((100% - 1180px) / 2));
+  padding-right:max(2.5rem,clamp(1.15rem,5vw,4.5rem),calc((100% - 1180px) / 2));
+  background:var(--ground);
+  color:var(--fg);
+  perspective:1100px;
+  border:0;
+}
+.card[data-tone="ink"]{--ground:var(--ink);--fg:var(--chalk);--fg2:var(--peri);--accent:var(--gold);--ring:var(--gold);--rule:#2A3060}
+.card[data-tone="blue"]{--ground:var(--blue);--fg:#FFFFFF;--fg2:#DCE0FA;--accent:var(--gold);--ring:#FFFFFF;--rule:#4E5CDD}
+.card[data-tone="chalk"]{--ground:var(--chalk);--fg:var(--ink);--fg2:#464B60;--accent:var(--blue);--ring:var(--blue);--rule:#C9CCDA}
+.wrap{width:100%}
+.mid{display:grid;align-content:center;gap:1.15rem}
+.foot{align-self:end}
+
+/* ---------- sequence marker ---------- */
+.seq{
+  font-family:var(--disp);font-weight:700;font-size:.85rem;
+  font-variation-settings:"wdth" 80,"opsz" 14;
+  font-variant-numeric:tabular-nums;color:var(--fg2);margin:0;
+}
+.seq em{font-style:normal;color:var(--fg)}
+
+/* ---------- type ---------- */
+h1,h2,h3{font-family:var(--disp);margin:0;font-weight:800;text-wrap:balance}
+h1,.claim{
+  font-size:clamp(2.5rem,10.5vw,7.5rem);
+  line-height:.9;
+  letter-spacing:-.022em;
+  font-variation-settings:"wdth" 76,"opsz" 96;
+  max-width:15ch;
+}
+.claim--sm{font-size:clamp(2rem,7.6vw,4.6rem);max-width:19ch;line-height:.95}
+.lede{font-size:clamp(1.0625rem,2.7vw,1.3125rem);max-width:44ch;color:var(--fg2);margin:0}
+.kick{
+  font-family:var(--disp);font-weight:800;
+  font-size:clamp(1.35rem,4.4vw,2.4rem);
+  font-variation-settings:"wdth" 80,"opsz" 40;
+  line-height:1.02;letter-spacing:-.015em;color:var(--accent);margin:0;max-width:20ch;
+}
+.cap{font-size:.875rem;line-height:1.45;color:var(--fg2);margin:0;max-width:48ch}
+p{margin:0}
+
+/* ---------- actions ---------- */
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:.85rem 1.1rem}
+.btn{
+  display:inline-block;
+  font-family:var(--disp);font-weight:800;font-size:1.0625rem;
+  font-variation-settings:"wdth" 84,"opsz" 18;
+  letter-spacing:.002em;
+  background:var(--gold);color:var(--ink);
+  padding:.85rem 1.35rem;border-radius:2px;text-decoration:none;
+  transition:background .15s linear,transform .15s ease;
+}
+.btn:hover{background:var(--gold-hi)}
+.btn:active{transform:translateY(1px)}
+.alt{color:var(--fg);text-decoration:underline;text-underline-offset:.22em;text-decoration-thickness:1px;font-size:.9375rem}
+.alt:hover{text-decoration-thickness:2px}
+a:focus-visible,.tick:focus-visible{outline:2px solid var(--ring);outline-offset:3px}
+
+/* ---------- figures ---------- */
+.figs{margin:0;display:grid;gap:.9rem}
+.fig{display:grid;grid-template-columns:minmax(5.4rem,auto) 1fr;gap:.2rem .95rem;align-items:baseline;
+  border-top:1px solid var(--rule);padding-top:.55rem}
+.fig dt{
+  font-family:var(--disp);font-weight:800;
+  font-size:clamp(1.5rem,5.2vw,2.6rem);
+  font-variation-settings:"wdth" 78,"opsz" 40;
+  line-height:1;letter-spacing:-.02em;color:var(--accent);font-variant-numeric:tabular-nums;
+}
+.fig dd{margin:0;font-size:.875rem;line-height:1.35;color:var(--fg2)}
+
+/* ---------- quotes / blocks ---------- */
+.quotes{display:grid;gap:1.4rem}
+figure{margin:0}
+blockquote{
+  margin:0;font-family:var(--disp);font-weight:500;
+  font-size:clamp(1.0625rem,3.1vw,1.5rem);
+  font-variation-settings:"wdth" 92,"opsz" 24;
+  line-height:1.2;letter-spacing:-.01em;
+}
+figcaption{margin-top:.5rem;font-size:.8125rem;color:var(--fg2)}
+.blocks{display:grid;gap:1.15rem}
+.blocks h3{
+  font-size:clamp(1.15rem,3.4vw,1.6rem);line-height:1.05;letter-spacing:-.015em;
+  font-variation-settings:"wdth" 82,"opsz" 24;color:var(--accent);
+}
+.blocks p{font-size:.9375rem;line-height:1.45;color:var(--fg2);margin-top:.3rem;max-width:40ch}
+.blocks > div{border-top:1px solid var(--rule);padding-top:.7rem}
+.qa{display:grid;gap:1.2rem}
+.qa h3{font-size:clamp(1.05rem,3.1vw,1.45rem);line-height:1.1;font-variation-settings:"wdth" 86,"opsz" 22}
+.qa p{font-size:.9375rem;line-height:1.45;color:var(--fg2);margin-top:.35rem;max-width:42ch}
+
+/* ---------- progress rail ---------- */
+.rail{position:fixed;right:4px;top:50%;transform:translateY(-50%);z-index:6;display:none}
+html.js .rail{display:block}
+.rail ol{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.tick{display:block;width:26px;height:22px;position:relative}
+/* difference blending keeps the rail legible on every ground, with no JS */
+.tick::after{
+  content:"";position:absolute;right:8px;top:9px;width:11px;height:3px;border-radius:1px;
+  background:rgba(255,255,255,.72);mix-blend-mode:difference;
+  transition:width .2s ease,background .2s linear;
+}
+.tick[aria-current="true"]::after{background:#FFFFFF;width:19px}
+@media (forced-colors:active){
+  .tick::after{background:CanvasText;mix-blend-mode:normal}
+  .tick[aria-current="true"]::after{background:Highlight}
+}
+
+/* ---------- footer ---------- */
+footer{font-size:.8125rem;color:var(--fg2);border-top:1px solid var(--rule);padding-top:.7rem}
+footer a{color:var(--fg)}
+
+/* ---------- entrance (JS only) ---------- */
+html.js .rise{opacity:0;transform:translate3d(0,-1.6rem,0);transform-origin:top center}
+html.js .rise-1{transform:translate3d(0,-2.2rem,0) rotateX(-9deg)}
+html.js .rise{transition:opacity .26s linear,transform .34s cubic-bezier(.17,.89,.32,1)}
+html.js .is-live .rise{opacity:1;transform:none}
+html.js .is-live .rise:nth-child(2){transition-delay:.05s}
+html.js .is-live .rise:nth-child(3){transition-delay:.1s}
+html.js .is-live .rise:nth-child(4){transition-delay:.14s}
+html.js .is-live .rise:nth-child(5){transition-delay:.18s}
+
+/* ---------- desktop composition ---------- */
+@media (min-width:900px){
+  .card{grid-template-rows:auto 1fr auto;padding-top:5.5rem}
+  .seq{text-align:right}
+  .figs{grid-template-columns:repeat(5,1fr);gap:1.25rem}
+  .fig{grid-template-columns:1fr;gap:.35rem;padding-top:.75rem}
+  .quotes{grid-template-columns:1fr 1fr;gap:2.5rem}
+  .blocks{grid-template-columns:repeat(3,1fr);gap:1.75rem}
+  .qa{grid-template-columns:1fr 1fr;gap:2.5rem}
+  .mid{gap:1.5rem}
+  .cap{font-size:.9375rem}
+}
+@media (min-width:1200px){
+  h1,.claim{font-variation-settings:"wdth" 74,"opsz" 96}
+}
+
+/* ---------- short viewports: tighten, loosen the snap ---------- */
+@media (max-height:700px){
+  .card{padding-top:3.9rem;gap:.9rem}
+  .mid{gap:.85rem}
+  .figs{gap:.55rem}
+  .fig{padding-top:.4rem}
+  .cap{font-size:.8125rem}
+  .quotes{gap:1rem}
+  .blocks{gap:.8rem}
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-snap-type:none;scroll-behavior:auto}
+  html.snap-loose{scroll-snap-type:none}
+  html.js .rise,html.js .rise-1{opacity:1;transform:none;transition:none}
+  .btn,.tick::after{transition:none}
+}
+</style>
+</head>
+<body>
+<script>document.documentElement.className+=" js";</script>
+
+<header class="mast">
+  <b>SEE Right Through</b>
+  <span>Seth Eisenstein — New York</span>
+</header>
+
+<nav class="rail" aria-label="Page sections">
+  <ol>
+    <li><a class="tick" href="#c1" aria-label="1. Opening"></a></li>
+    <li><a class="tick" href="#c2" aria-label="2. Every tool came with a CSM"></a></li>
+    <li><a class="tick" href="#c3" aria-label="3. Nobody owns it"></a></li>
+    <li><a class="tick" href="#c4" aria-label="4. Track record"></a></li>
+    <li><a class="tick" href="#c5" aria-label="5. What people say"></a></li>
+    <li><a class="tick" href="#c6" aria-label="6. What I build"></a></li>
+    <li><a class="tick" href="#c7" aria-label="7. Who it is for"></a></li>
+    <li><a class="tick" href="#c8" aria-label="8. Questions"></a></li>
+    <li><a class="tick" href="#c9" aria-label="9. Get in touch"></a></li>
+  </ol>
+</nav>
+
+<main>
+
+  <section class="card" id="c1" data-tone="ink" aria-label="Opening">
+    <p class="seq wrap"><em>01</em>/09</p>
+    <div class="mid wrap">
+      <h1 class="rise rise-1">You already bought the stack. I make your team run it.</h1>
+      <p class="lede rise">I embed with senior B2B sales teams on live accounts and real deals.</p>
+      <div class="cta rise">
+        <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=Starting%20a%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat%27s%20going%20on%3A%20">Start a conversation</a><!--/email_off-->
+        <!--email_off--><a class="alt" href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off-->
+      </div>
+    </div>
+    <p class="cap wrap foot">Sales Navigator, ZoomInfo, Apollo, engagement, conversation intelligence. Paid for. Half used.</p>
+  </section>
+
+  <section class="card" id="c2" data-tone="blue" aria-label="Every tool came with a CSM">
+    <p class="seq wrap"><em>02</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim rise rise-1">Every tool you pay for came with a Customer Success Manager.</h2>
+    </div>
+    <p class="cap wrap foot rise">You have never met most of them twice.</p>
+  </section>
+
+  <section class="card" id="c3" data-tone="ink" aria-label="Nobody owns it">
+    <p class="seq wrap"><em>03</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim claim--sm rise rise-1">That seat turns over before anyone learns your business.</h2>
+      <p class="lede rise">Tenure is short, ramp is long. So how your stack should work for your team is knowledge nobody owns.</p>
+      <p class="kick rise">I own it, and I stay long enough for it to stick.</p>
+    </div>
+  </section>
+
+  <section class="card" id="c4" data-tone="chalk" aria-label="Track record">
+    <p class="seq wrap"><em>04</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim claim--sm rise rise-1">Twenty years carrying the number, not describing it.</h2>
+      <dl class="figs rise">
+        <div class="fig"><dt>$11M+</dt><dd>annual active pipeline directed through an outsourced SDR partnership</dd></div>
+        <div class="fig"><dt>$900K</dt><dd>average opportunity size in core ICP</dd></div>
+        <div class="fig"><dt>$6.5M</dt><dd>one enterprise opportunity sourced, closed, grown into a multi-year strategic account</dd></div>
+        <div class="fig"><dt>20 yrs</dt><dd>enterprise SaaS, rewards and HR tech across BD, sales and enablement</dd></div>
+        <div class="fig"><dt>40+</dt><dd>working sessions built and facilitated for senior BD teams</dd></div>
+      </dl>
+    </div>
+    <p class="cap wrap foot rise">Five years leading enablement and GTM strategy at HALO Branded Solutions.</p>
+  </section>
+
+  <section class="card" id="c5" data-tone="blue" aria-label="What people say">
+    <p class="seq wrap"><em>05</em>/09</p>
+    <div class="mid wrap">
+      <div class="quotes rise">
+        <figure>
+          <blockquote>&ldquo;Seth led our organization in adapting AI-driven automation to drive measurable business results.&rdquo;</blockquote>
+          <figcaption>Matt Skiko, Director of Business Development, 7+ years working together</figcaption>
+        </figure>
+        <figure>
+          <blockquote>&ldquo;Seth doesn&rsquo;t just understand sales enablement, GTM, and AI in isolation. He knows how to connect them to drive measurable business impact.&rdquo;</blockquote>
+          <figcaption>Danielle Tuck, Director of Business Development, 7+ years working together</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="c6" data-tone="ink" aria-label="What I build">
+    <p class="seq wrap"><em>06</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim claim--sm rise rise-1">Three ways in.</h2>
+      <div class="blocks rise">
+        <div>
+          <h3>Senior AE Engagements</h3>
+          <p>Embedded 1:1 on one seller&rsquo;s real book. Launch Kits to open target accounts, ABR briefs to grow the ones you have, talk tracks reps will say out loud.</p>
+        </div>
+        <div>
+          <h3>GTM Operating Partner</h3>
+          <p>A retained senior operator inside your GTM org, turning vendor releases into work the team uses.</p>
+        </div>
+        <div>
+          <h3>Working Sessions</h3>
+          <p>Your team, your accounts, your stack, in one room. A clinic or a standing cadence.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="c7" data-tone="chalk" aria-label="Who it is for">
+    <p class="seq wrap"><em>07</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim claim--sm rise rise-1">Built for veteran teams, not new hires.</h2>
+      <p class="lede rise">Sales leaders whose reps are excellent and under-tooled, RevOps owners answering for stack ROI, and growing companies that want senior GTM ownership without the headcount.</p>
+      <p class="kick rise">&ldquo;I work with senior reps and teams who want their next 5&ndash;10 years to be their best.&rdquo;</p>
+    </div>
+    <p class="cap wrap foot rise">Also select growth and positioning work for relationship-led service businesses, and a few solo senior sellers.</p>
+  </section>
+
+  <section class="card" id="c8" data-tone="ink" aria-label="Questions">
+    <p class="seq wrap"><em>08</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim claim--sm rise rise-1">Two fair questions.</h2>
+      <div class="qa rise">
+        <div>
+          <h3>What does a week look like?</h3>
+          <p>I&rsquo;m in your accounts with your reps &mdash; research the entry, then work the live deal beside them. No curriculum.</p>
+        </div>
+        <div>
+          <h3>What does it cost?</h3>
+          <p>Scoped per engagement after the first conversation. No packages, and I&rsquo;ll say so if it isn&rsquo;t a fit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="c9" data-tone="blue" aria-label="Get in touch">
+    <p class="seq wrap"><em>09</em>/09</p>
+    <div class="mid wrap">
+      <h2 class="claim rise rise-1">Tell me what&rsquo;s going on.</h2>
+      <div class="cta rise">
+        <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=Starting%20a%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat%27s%20going%20on%3A%20">Start a conversation</a><!--/email_off-->
+        <!--email_off--><a class="alt" href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off-->
+        <a class="alt" href="https://www.linkedin.com/in/setheisenstein/">LinkedIn</a>
+      </div>
+    </div>
+    <footer class="wrap foot rise">SEE Right Through Consulting LLC — New York City</footer>
+  </section>
+
+</main>
+
+<script>
+(function(){
+  var html=document.documentElement;
+  var cards=[].slice.call(document.querySelectorAll('.card'));
+  var ticks=[].slice.call(document.querySelectorAll('.tick'));
+  var reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function mark(i){
+    for(var t=0;t<ticks.length;t++){
+      if(t===i){ticks[t].setAttribute('aria-current','true');}
+      else{ticks[t].removeAttribute('aria-current');}
+    }
+  }
+
+  // Safety net: whatever happens to the observer, anything on screen is readable.
+  function sweep(){
+    var vh=window.innerHeight,best=-1,bestArea=0;
+    for(var i=0;i<cards.length;i++){
+      var r=cards[i].getBoundingClientRect();
+      var vis=Math.min(r.bottom,vh)-Math.max(r.top,0);
+      if(vis>vh*0.15){cards[i].classList.add('is-live');}
+      if(vis>bestArea){bestArea=vis;best=i;}
+    }
+    if(best>-1){mark(best);}
+  }
+  var ticking=false;
+  function onScroll(){
+    if(ticking)return;ticking=true;
+    requestAnimationFrame(function(){ticking=false;sweep();});
+  }
+
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          e.target.classList.add('is-live');
+          if(e.intersectionRatio>0.45){mark(cards.indexOf(e.target));}
+        }
+      });
+    },{threshold:[0.2,0.5]});
+    cards.forEach(function(c){io.observe(c);});
+  }else{
+    cards.forEach(function(c){c.classList.add('is-live');});
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('hashchange',function(){setTimeout(sweep,60);});
+  setTimeout(sweep,80);
+  setTimeout(sweep,400);
+  setTimeout(sweep,1200);
+  window.addEventListener('load',sweep);
+
+  // Never trap the reader: if a card is taller than the viewport, loosen snapping.
+  var t;
+  function fit(){
+    var vh=window.innerHeight,tall=false;
+    for(var i=0;i<cards.length;i++){if(cards[i].getBoundingClientRect().height>vh+2){tall=true;break;}}
+    html.classList.toggle('snap-loose',tall||reduce.matches);
+  }
+  function later(){clearTimeout(t);t=setTimeout(fit,150);}
+  window.addEventListener('resize',later);
+  window.addEventListener('load',fit);
+  fit();
+})();
+</script>
+</body>
+</html>

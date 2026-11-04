@@ -1,0 +1,114 @@
+{
+  "name": "Maps and data",
+  "description": "The heavy pages: the wook map, the MTA bus map, the NYC census and PLUTO map, the Bluesky sky map, the Knicks finals deck and the tree-law timeline. Each one gets a generous timeout because they load data on mount.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the wook map",
+      "action": {
+        "type": "goto",
+        "url": "/map"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:mapid"
+        },
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Tag a Wook"
+        }
+      ]
+    },
+    {
+      "do": "Open the MTA bus map",
+      "action": {
+        "type": "goto",
+        "url": "/mta-bus-map"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:main h1"
+        }
+      ]
+    },
+    {
+      "do": "Open the NYC census and PLUTO map",
+      "action": {
+        "type": "goto",
+        "url": "/nyc_census_and_pluto"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "How Many People Live Here?"
+        },
+        {
+          "type": "visible",
+          "target": "id:nyc-map"
+        }
+      ]
+    },
+    {
+      "do": "Open the sky map",
+      "action": {
+        "type": "goto",
+        "url": "/sky"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:sky-map"
+        }
+      ]
+    },
+    {
+      "do": "Open the Knicks finals deck",
+      "action": {
+        "type": "goto",
+        "url": "/knicks"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:kx-deck"
+        }
+      ]
+    },
+    {
+      "do": "Advance the deck",
+      "action": {
+        "type": "press",
+        "key": "ArrowRight"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:kx-deck"
+        }
+      ]
+    },
+    {
+      "do": "Open the tree-law timeline",
+      "action": {
+        "type": "goto",
+        "url": "/trees"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "History"
+        },
+        {
+          "type": "visible",
+          "target": "id:timeline"
+        }
+      ]
+    }
+  ]
+}

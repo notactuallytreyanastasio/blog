@@ -1,0 +1,38 @@
+{
+  "name": "Makers",
+  "description": "The creative tools with their own layouts: the GIF maker, the collage maker, the Phish jam charts, Moon Phish and the Phish lab. Opens each one and checks its main control is there; nothing is uploaded or generated.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the GIF maker",
+      "action": { "type": "goto", "url": "/gif-maker" },
+      "expect": [{ "type": "visible", "target": "css:input[placeholder^='https://youtube.com']" }]
+    },
+    {
+      "do": "Open the collage maker",
+      "action": { "type": "goto", "url": "/collage-maker" },
+      "expect": [{ "type": "visible", "target": "id:upload-form" }]
+    },
+    {
+      "do": "Open phangraphs",
+      "action": { "type": "goto", "url": "/phish" },
+      "expect": [{ "type": "visible", "target": "id:phish-chart" }]
+    },
+    {
+      "do": "Search for a song",
+      "action": { "type": "fill", "target": "placeholder:Song name...", "value": "Tweezer" },
+      "expect": [{ "type": "value", "target": "placeholder:Song name...", "equals": "Tweezer" }]
+    },
+    {
+      "do": "Open Moon Phish",
+      "action": { "type": "goto", "url": "/moon_phish" },
+      "expect": [{ "type": "url", "contains": "/moon_phish" }]
+    },
+    {
+      "do": "Open the Phish lab",
+      "action": { "type": "goto", "url": "/phish_lab" },
+      "expect": [{ "type": "url", "contains": "/phish_lab" }]
+    }
+  ]
+}

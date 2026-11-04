@@ -1,0 +1,93 @@
+{
+  "name": "A chess move on the nine boards",
+  "description": "Closes the rules, selects a white pawn on the centre board, checks the legal-move overlays appear, moves it two squares and checks the last-move overlay. The bot then replies.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the chess variant",
+      "action": {
+        "type": "goto",
+        "url": "/chess-lv"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:rules-modal"
+        }
+      ]
+    },
+    {
+      "do": "Close the rules",
+      "action": {
+        "type": "click",
+        "target": "role:button:play →"
+      },
+      "expect": [
+        {
+          "type": "hidden",
+          "target": "id:rules-modal"
+        }
+      ]
+    },
+    {
+      "do": "All nine boards are on screen",
+      "expect": [
+        {
+          "type": "count",
+          "target": "css:.board-cell",
+          "equals": 9
+        },
+        {
+          "type": "count",
+          "target": "css:.sq",
+          "equals": 576
+        }
+      ]
+    },
+    {
+      "do": "Select the e-pawn on the centre board",
+      "action": {
+        "type": "click",
+        "target": "css:[data-sq='12,14']"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:[data-sq='12,14'][data-selected='1']"
+        },
+        {
+          "type": "visible",
+          "target": "css:[data-sq='12,12'][data-legal='1']"
+        }
+      ]
+    },
+    {
+      "do": "Move it two squares forward",
+      "action": {
+        "type": "click",
+        "target": "css:[data-sq='12,12']"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.overlay-last-move"
+        }
+      ]
+    },
+    {
+      "do": "Wait for the bot's reply",
+      "action": {
+        "type": "waitFor",
+        "target": "text:your turn (white)",
+        "timeoutMs": 30000
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.overlay-last-move"
+        }
+      ]
+    }
+  ]
+}

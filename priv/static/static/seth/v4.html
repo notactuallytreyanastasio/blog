@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#E9E6EF">
+<meta name="robots" content="noindex, nofollow">
+<title>Nobody owns your sales stack — SEE Right Through Consulting, Seth Eisenstein</title>
+<meta name="description" content="Every tool you pay for shipped with a customer success manager, and none of them stay long enough to learn your business. Seth Eisenstein embeds with senior B2B sales teams and makes Sales Navigator, ZoomInfo, Apollo and the rest of the stack get used on live accounts.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23E9E6EF'/%3E%3Cpath d='M5 21 L16 8 L27 21' fill='none' stroke='%237C1D4F' stroke-width='3.6'/%3E%3Crect x='5' y='24' width='22' height='2' fill='%2317121F'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://seerightthrough.co/">
+<meta property="og:site_name" content="SEE Right Through Consulting">
+<meta property="og:title" content="Nobody owns your sales stack.">
+<meta property="og:description" content="Seth Eisenstein embeds with senior B2B sales teams and makes the stack they already pay for get used — on live accounts, next to the reps.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Nobody owns your sales stack.">
+<meta name="twitter:description" content="Seth Eisenstein embeds with senior B2B sales teams and makes the stack they already pay for get used — on live accounts, next to the reps.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;600;700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9E6EF;
+  --ink:#17121F;
+  --mute:#4E4760;
+  --quiet:#5A5370;
+  --strike:#8B839B;
+  --rule:#C9C3D4;
+  --accent:#7C1D4F;
+
+  --dark:#1B1526;
+  --dark-ink:#DDD7E5;
+  --dark-mute:#A79EB4;
+  --dark-accent:#F3A9CA;
+  --dark-rule:#3A3049;
+
+  --u:0.5rem;
+  --serif:'Spectral',Georgia,'Times New Roman',serif;
+  --sans:'Chivo','Helvetica Neue',Arial,sans-serif;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:var(--paper)}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.dark :focus-visible{outline-color:var(--dark-accent)}
+
+/* ---------- sheets of paper ---------- */
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth;scroll-snap-type:y proximity}
+}
+@media (max-height:640px){
+  html{scroll-snap-type:none}
+}
+
+.sheet{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-height:100vh;
+  min-height:100svh;
+  padding:calc(var(--u)*9) 0 calc(var(--u)*9);
+  scroll-snap-align:start;
+  border-top:1px solid var(--rule);
+}
+.sheet > *{width:100%}
+.sheet::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:5px;
+  background:linear-gradient(rgba(23,18,31,.07),rgba(23,18,31,0));
+  pointer-events:none;
+}
+.sheet:first-of-type{border-top:none;padding-top:0;justify-content:flex-start}
+.sheet:first-of-type > .wrap{margin-top:auto;margin-bottom:auto}
+.sheet:first-of-type::before{display:none}
+.dark{background:var(--dark);color:var(--dark-ink);border-top-color:var(--dark-rule)}
+.dark::before{background:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,0))}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(1.15rem,4vw,3.25rem)}
+.col{max-width:37rem}
+
+/* ---------- masthead ---------- */
+.mast{border-bottom:1px solid var(--rule);margin-bottom:calc(var(--u)*8)}
+.mast .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-top:.85rem;padding-bottom:.85rem}
+.mark{font-family:var(--sans);font-weight:600;font-size:.98rem;letter-spacing:-.01em;text-decoration:none;display:inline-flex;align-items:center;gap:.55rem}
+.mark svg{display:block;flex:none}
+.mast-link{font-family:var(--sans);font-size:.9rem;font-weight:500;color:var(--accent);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+.mast-link:hover{color:var(--ink)}
+
+/* ---------- type ---------- */
+h1{
+  font-family:var(--serif);font-weight:600;
+  font-size:clamp(2.35rem,7.2vw,4.5rem);
+  line-height:.98;letter-spacing:-.025em;
+  max-width:14ch;text-wrap:balance;
+}
+h2{
+  font-family:var(--serif);font-weight:600;
+  font-size:clamp(1.65rem,4vw,2.5rem);
+  line-height:1.06;letter-spacing:-.02em;text-wrap:balance;
+}
+.lede{margin-top:calc(var(--u)*4);font-size:clamp(1.06rem,1.6vw,1.2rem);line-height:1.58;color:var(--mute);max-width:36rem}
+.lede strong{font-weight:600;color:var(--ink)}
+.said{margin-top:calc(var(--u)*3);font-size:1.02rem;line-height:1.55;color:var(--mute)}
+.said strong{font-weight:600;color:var(--ink)}
+
+/* ---------- the revision ---------- */
+.rev{margin-top:calc(var(--u)*5)}
+.rev + .rev{margin-top:calc(var(--u)*5)}
+.rev del,
+.rev ins{display:block;padding-left:1.45rem;text-decoration:none}
+.rev del{
+  font-weight:300;font-size:clamp(1.12rem,2.1vw,1.42rem);line-height:1.34;
+  color:var(--mute);letter-spacing:-.005em;
+  text-decoration:line-through;
+  text-decoration-thickness:1px;
+  text-decoration-color:var(--strike);
+  text-underline-offset:0;
+}
+.rev ins{
+  position:relative;
+  margin-top:calc(var(--u)*1.5);
+  font-weight:600;font-size:clamp(1.24rem,2.5vw,1.7rem);line-height:1.22;
+  letter-spacing:-.022em;color:var(--ink);text-wrap:balance;
+}
+.rev ins::before{
+  content:"";position:absolute;left:.12rem;top:.52em;
+  width:.46rem;height:.46rem;
+  border-left:2px solid var(--accent);border-top:2px solid var(--accent);
+  transform:rotate(45deg);
+}
+.rev ins .then{
+  display:block;margin-top:calc(var(--u)*1.25);
+  font-weight:300;font-size:.72em;line-height:1.5;letter-spacing:0;color:var(--mute);
+  text-wrap:pretty;
+}
+.dark .rev del{color:var(--dark-mute);text-decoration-color:#7B7189}
+.dark .rev ins{color:#F4F1F7}
+.dark .rev ins::before{border-left-color:var(--dark-accent);border-top-color:var(--dark-accent)}
+.dark .rev ins .then{color:var(--dark-mute)}
+
+/* ---------- actions ---------- */
+.act{margin-top:calc(var(--u)*7);display:flex;align-items:center;gap:1.25rem 1.75rem;flex-wrap:wrap}
+.btn{
+  display:inline-block;font-family:var(--sans);font-weight:600;font-size:.98rem;
+  background:var(--accent);color:#FFFFFF;text-decoration:none;
+  padding:.95rem 1.6rem;line-height:1.2;letter-spacing:-.005em;
+}
+.btn:hover{background:var(--ink)}
+.dark .btn{background:var(--paper);color:var(--ink)}
+.dark .btn:hover{background:#FFFFFF;color:var(--accent)}
+.fallback{font-family:var(--sans);font-size:.9rem;line-height:1.5;color:var(--quiet)}
+.fallback a{color:var(--accent);text-decoration:underline;text-underline-offset:3px;word-break:break-word}
+.fallback a:hover{color:var(--ink)}
+.dark .fallback{color:var(--dark-mute)}
+.dark .fallback a{color:var(--dark-accent)}
+.dark .fallback a:hover{color:#FFFFFF}
+
+/* ---------- the record ---------- */
+.note{margin-top:calc(var(--u)*3);max-width:38rem;font-size:1rem;line-height:1.55;color:var(--dark-mute)}
+.figs{
+  margin-top:calc(var(--u)*7);
+  display:grid;grid-template-columns:repeat(5,1fr);gap:calc(var(--u)*4) 1.5rem;
+}
+.fig{border-top:1px solid var(--dark-rule);padding-top:calc(var(--u)*2)}
+.fig b{
+  display:block;font-family:var(--sans);font-weight:700;
+  font-size:clamp(1.85rem,3.3vw,2.5rem);line-height:1;letter-spacing:-.035em;
+  color:#F4F1F7;font-variant-numeric:tabular-nums;
+}
+.fig b span{font-style:normal;font-size:.5em;font-weight:600;letter-spacing:-.01em;color:var(--dark-accent);margin-left:.1em}
+.fig span{display:block;margin-top:calc(var(--u)*1.5);font-size:.9rem;line-height:1.4;color:var(--dark-mute)}
+
+.voices{
+  margin-top:calc(var(--u)*7);padding-top:calc(var(--u)*5);
+  border-top:1px solid var(--dark-rule);
+  display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--u)*4) 3.5rem;
+}
+.voices q{display:block;quotes:'\201C' '\201D';font-style:italic;font-weight:400;font-size:1.1rem;line-height:1.45;color:#F4F1F7}
+.voices figcaption{margin-top:calc(var(--u)*2);font-family:var(--sans);font-size:.85rem;line-height:1.45;color:var(--dark-mute)}
+.voices figcaption b{font-weight:600;color:var(--dark-ink)}
+
+/* ---------- questions ---------- */
+.for{margin-top:calc(var(--u)*4);font-size:1.06rem;line-height:1.55;color:var(--mute);max-width:36rem}
+.qa{margin-top:calc(var(--u)*7);max-width:38rem}
+.qa dt{font-family:var(--sans);font-weight:600;font-size:1rem;color:var(--ink);letter-spacing:-.01em}
+.qa dd{margin-top:var(--u);font-size:1.04rem;line-height:1.55;color:var(--mute)}
+.qa dd + dt{margin-top:calc(var(--u)*4);padding-top:calc(var(--u)*4);border-top:1px solid var(--rule)}
+
+/* ---------- close ---------- */
+.close-rev{margin-top:calc(var(--u)*4)}
+.close-rev del{
+  display:block;padding-left:1.45rem;font-weight:300;
+  font-size:clamp(1.3rem,3.2vw,2rem);line-height:1.14;letter-spacing:-.02em;
+  color:var(--dark-mute);text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:#7B7189;
+}
+.close-rev ins{
+  position:relative;display:block;padding-left:1.45rem;margin-top:calc(var(--u)*2);
+  font-weight:600;font-size:clamp(1.65rem,4.4vw,2.85rem);line-height:1.04;
+  letter-spacing:-.028em;color:#F4F1F7;text-decoration:none;text-wrap:balance;
+}
+.close-rev ins::before{
+  content:"";position:absolute;left:.1rem;top:.42em;width:.52rem;height:.52rem;
+  border-left:2px solid var(--dark-accent);border-top:2px solid var(--dark-accent);
+  transform:rotate(45deg);
+}
+.tail{margin-top:calc(var(--u)*4);max-width:34rem;font-size:1.04rem;line-height:1.55;color:var(--dark-mute)}
+.also{margin-top:calc(var(--u)*8);padding-top:calc(var(--u)*3);border-top:1px solid var(--dark-rule);max-width:40rem;font-size:.92rem;line-height:1.55;color:var(--dark-mute)}
+.foot{margin-top:calc(var(--u)*4);display:flex;justify-content:space-between;gap:.75rem 1.5rem;flex-wrap:wrap;font-family:var(--sans);font-size:.83rem;color:var(--dark-mute)}
+.foot a{color:var(--dark-accent);text-decoration:underline;text-underline-offset:3px}
+.foot a:hover{color:#FFFFFF}
+
+/* ---------- narrow ---------- */
+@media (max-width:1040px){
+  .figs{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:820px){
+  .voices{grid-template-columns:1fr;gap:calc(var(--u)*4)}
+}
+@media (max-width:680px){
+  .sheet{padding:calc(var(--u)*6) 0}
+  .mast{margin-bottom:calc(var(--u)*5)}
+  .figs{grid-template-columns:repeat(2,1fr);gap:calc(var(--u)*3) 1.15rem;margin-top:calc(var(--u)*5)}
+  .voices{margin-top:calc(var(--u)*5);padding-top:calc(var(--u)*4)}
+  .act{margin-top:calc(var(--u)*5);gap:1rem}
+  .btn{width:100%;text-align:center}
+  .rev,.rev + .rev{margin-top:calc(var(--u)*4)}
+  .qa{margin-top:calc(var(--u)*5)}
+  .also{margin-top:calc(var(--u)*6)}
+}
+@media (max-width:390px){
+  .mark{font-size:.92rem}
+  h1{font-size:2.15rem}
+}
+</style>
+</head>
+<body>
+
+<main>
+
+<section class="sheet" id="top" aria-labelledby="h1">
+  <header class="mast" role="banner">
+    <div class="wrap">
+      <a class="mark" href="#top">
+        <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 21 L16 8 L27 21" fill="none" stroke="#7C1D4F" stroke-width="3.6"/><rect x="5" y="24" width="22" height="2" fill="#17121F"/></svg>
+        SEE Right Through
+      </a>
+      <!--email_off--><a class="mast-link" href="mailto:seth@seerightthrough.co?subject=A%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%0D%0ACompany%3A%0D%0AWhat%27s%20going%20on%3A%0D%0A">Email Seth</a><!--/email_off-->
+    </div>
+  </header>
+
+  <div class="wrap"><div class="col body">
+    <h1 id="h1">Nobody owns your sales stack.</h1>
+    <p class="lede">Every seat you pay for shipped with a customer success manager. Tenure is short and ramp is long, so the seat turns over before anyone learns how your team sells. The knowledge of how <strong>Sales Navigator, ZoomInfo, Apollo</strong> and the rest should work here never gets an owner.</p>
+
+    <p class="rev">
+      <del role="deletion">Buy the seats, book the vendor training, hope it takes.</del>
+      <ins role="insertion">Work the live book beside your reps until the motion is theirs.</ins>
+    </p>
+
+    <p class="said">I'm <strong>Seth Eisenstein</strong>, and that is the job I take.</p>
+
+    <div class="act">
+      <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=A%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%0D%0ACompany%3A%0D%0AWhat%27s%20going%20on%3A%0D%0A">Book a 30-minute conversation</a><!--/email_off-->
+      <p class="fallback">Or write to <!--email_off--><a href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off--></p>
+    </div>
+  </div></div>
+</section>
+
+<section class="sheet dark" id="record" aria-labelledby="record-h">
+  <div class="wrap">
+    <h2 id="record-h">Before consulting, I carried the number.</h2>
+    <p class="note">Most recently, five years leading sales enablement and GTM strategy at HALO Branded Solutions.</p>
+
+    <div class="figs">
+      <div class="fig"><b>20<span>yrs</span></b><span>Enterprise SaaS, rewards and HR tech</span></div>
+      <div class="fig"><b>$11<span>M+</span></b><span>Annual active pipeline directed through an outsourced SDR partnership</span></div>
+      <div class="fig"><b>$900<span>K</span></b><span>Average opportunity size in the core ICP</span></div>
+      <div class="fig"><b>$6.5<span>M</span></b><span>One enterprise opportunity sourced, closed and grown into a multi-year account</span></div>
+      <div class="fig"><b>40<span>+</span></b><span>Working sessions built and facilitated for senior BD teams</span></div>
+    </div>
+
+    <div class="voices">
+      <figure>
+        <q>Seth led our organization in adapting AI-driven automation to drive measurable business results.</q>
+        <figcaption><b>Matt Skiko</b>, Director of Business Development</figcaption>
+      </figure>
+      <figure>
+        <q>He knows how to connect [sales enablement, GTM and AI] to drive measurable business impact.</q>
+        <figcaption><b>Danielle Tuck</b>, Director of Business Development</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="sheet" id="work" aria-labelledby="work-h">
+  <div class="wrap"><div class="col body">
+    <h2 id="work-h">What I build.</h2>
+
+    <p class="rev">
+      <del role="deletion">Forty target accounts and no way into any of them.</del>
+      <ins role="insertion">Senior AE engagements.<span class="then">I sit with one seller on their real book and build the entry plans, account reviews and talk tracks they will actually use.</span></ins>
+    </p>
+
+    <p class="rev">
+      <del role="deletion">Your customer success manager is new again this year.</del>
+      <ins role="insertion">GTM operating partner.<span class="then">On retainer, I hold how the stack should work here and turn each vendor release into work the team does.</span></ins>
+    </p>
+
+    <p class="rev">
+      <del role="deletion">A webinar on demo data, filed and never opened.</del>
+      <ins role="insertion">Working sessions.<span class="then">The team works its own accounts in the room and leaves with the work finished.</span></ins>
+    </p>
+  </div></div>
+</section>
+
+<section class="sheet" id="questions" aria-labelledby="q-h">
+  <div class="wrap"><div class="col body">
+    <h2 id="q-h">Who this is for.</h2>
+    <p class="for">Sales leaders with veteran teams, RevOps owners accountable for a stack the reps avoid, and growing companies that need senior GTM ownership without the headcount.</p>
+
+    <dl class="qa">
+      <dt>What does it cost?</dt>
+      <dd>Every engagement is scoped after the first conversation. There are no tiers and no packages to talk you out of.</dd>
+      <dt>What does a week look like?</dt>
+      <dd>Live accounts with your reps: research, sequences, call prep, and whatever the team needs built next. Never a training day on demo data.</dd>
+    </dl>
+  </div></div>
+</section>
+
+<section class="sheet dark" id="contact" aria-labelledby="close-h">
+  <div class="wrap"><div class="col body">
+    <h2 class="close-rev" id="close-h">
+      <del role="deletion">Next year, same stack, bigger renewal.</del>
+      <ins role="insertion">One operator who stays until it works.</ins>
+    </h2>
+    <p class="tail">Tell me what your team is stuck on. If I am not the right person, I will say so in the first half hour.</p>
+
+    <div class="act">
+      <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=A%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%0D%0ACompany%3A%0D%0AWhat%27s%20going%20on%3A%0D%0A">Book a 30-minute conversation</a><!--/email_off-->
+      <p class="fallback">Or write to <!--email_off--><a href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off-->, or find me on <a href="https://www.linkedin.com/in/setheisenstein/" rel="noopener">LinkedIn</a>.</p>
+    </div>
+
+    <p class="also">SEE Right Through also takes select growth and positioning engagements for relationship-led service businesses, and a limited number of 1:1 engagements with senior sellers working solo.</p>
+  </div></div>
+
+  <footer class="wrap" role="contentinfo"><div class="col foot">
+    <span>&copy; 2026 SEE Right Through Consulting LLC</span>
+    <span>Seth Eisenstein, New York City</span>
+  </div></footer>
+</section>
+
+</main>
+
+</body>
+</html>

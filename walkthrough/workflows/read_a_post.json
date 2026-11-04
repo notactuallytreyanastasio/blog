@@ -1,0 +1,37 @@
+{
+  "name": "Read a post",
+  "description": "Opens the blog index, opens the newest post, checks the article rendered and the comment form is there, then goes back to the list. Read-only: writes nothing.",
+  "onFailure": "stop",
+  "steps": [
+    {
+      "do": "Open the blog index",
+      "action": { "type": "goto", "url": "/blog" },
+      "expect": [
+        { "type": "text", "target": "css:.mac-title", "contains": "Blog" },
+        { "type": "visible", "target": "css:.blog-post-row" }
+      ]
+    },
+    {
+      "do": "Open the newest post",
+      "action": { "type": "click", "target": "css:.blog-post-row" },
+      "expect": [
+        { "type": "url", "contains": "/post/" },
+        { "type": "visible", "target": "id:post-content" }
+      ]
+    },
+    {
+      "do": "The post has a title, a date and a comment form",
+      "expect": [
+        { "type": "visible", "target": "css:.mac-title" },
+        { "type": "visible", "target": "css:.post-date" },
+        { "type": "visible", "target": "id:author_name" },
+        { "type": "visible", "target": "role:button:Post Comment" }
+      ]
+    },
+    {
+      "do": "Go back to the list",
+      "action": { "type": "click", "target": "role:link:← Back to all posts" },
+      "expect": [{ "type": "url", "contains": "/blog" }]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "Static pages",
+  "description": "The pages served as plain HTML rather than LiveView: the nine-board chess app, the annotated frontier-models post and the SEE Right Through piece.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open Chess-9",
+      "action": { "type": "goto", "url": "/chess" },
+      "expect": [
+        { "type": "title", "contains": "Chess-9" },
+        { "type": "visible", "target": "id:rules-modal" }
+      ]
+    },
+    {
+      "do": "Close the rules",
+      "action": { "type": "click", "target": "id:rules-close" },
+      "expect": [
+        { "type": "hidden", "target": "id:rules-modal" },
+        { "type": "visible", "target": "id:app" }
+      ]
+    },
+    {
+      "do": "Open the annotated frontier post",
+      "action": { "type": "goto", "url": "/frontier" },
+      "expect": [{ "type": "text", "target": "css:h1", "contains": "Notes on Dario, Altman, Elmo" }]
+    },
+    {
+      "do": "Toggle the tl;dr bubbles",
+      "action": { "type": "click", "target": "id:tldr-toggle" },
+      "expect": [{ "type": "visible", "target": "id:tldr-toggle" }]
+    },
+    {
+      "do": "Open SEE Right Through",
+      "action": { "type": "goto", "url": "/seth" },
+      "expect": [
+        { "type": "title", "contains": "SEE Right Through" },
+        { "type": "visible", "target": "id:stage" }
+      ]
+    }
+  ]
+}

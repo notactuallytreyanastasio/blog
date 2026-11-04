@@ -1,0 +1,96 @@
+{
+  "name": "Home desktop",
+  "description": "The Mac-desktop home page: the boot splash, the first-visit tour, the blog window and the AIM chat room. Read-only apart from opening windows. Ends with the tour open: its Next and close controls sit underneath the museum filter row and the sidebar toggle at 1440x900, so a click on them is intercepted (a site bug, recorded 2026-10-14).",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open the home page and land on the boot splash",
+      "action": {
+        "type": "goto",
+        "url": "/"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:.boot-hint",
+          "contains": "Click anywhere to skip"
+        }
+      ]
+    },
+    {
+      "do": "Skip the boot sequence",
+      "action": {
+        "type": "click",
+        "target": "css:.boot-hint"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.menu-bar"
+        },
+        {
+          "type": "visible",
+          "target": "id:blog-window"
+        }
+      ]
+    },
+    {
+      "do": "Open the chat room",
+      "action": {
+        "type": "click",
+        "target": "role:button:Chat Room"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:chat-window"
+        }
+      ]
+    },
+    {
+      "do": "Skip the name prompt",
+      "action": {
+        "type": "click",
+        "target": "role:button:Skip"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:aim-chat-messages"
+        }
+      ]
+    },
+    {
+      "do": "Close the chat room",
+      "action": {
+        "type": "click",
+        "target": {
+          "css": ".aim-control-btn",
+          "hasText": "×"
+        }
+      },
+      "expect": [
+        {
+          "type": "hidden",
+          "target": "id:chat-window"
+        }
+      ]
+    },
+    {
+      "do": "Start the tour from the menu bar",
+      "action": {
+        "type": "click",
+        "target": {
+          "css": ".menu-item",
+          "hasText": "Tour"
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "role:button:Next"
+        }
+      ]
+    }
+  ]
+}

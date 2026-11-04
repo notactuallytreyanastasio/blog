@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hotel Carbon Studio — bobbby.online</title>
+<meta name="description" content="Bottom-up hotel carbon model: knobs for property, end uses, amenities, food, laundry, waste and levers; results sliced by amenity, end use, scope and carrier against benchmarks and NYC LL97.">
+<style>
+/* Layout: a control rail (knobs, grouped) beside a results board that stays in view; the board comes first on phones. */
+:root{
+  --bg:#f3f6f4; --surface:#ffffff; --ink:#15201c; --ink-2:#4f5e5a; --ink-3:#7a8884; --rule:#d9e0dd; --rule-soft:#e8edeb;
+  --accent:#0d6b6b; --accent-soft:#dcecea; --accent-ink:#0d6b6b;
+  --warn:#8a5a00; --warn-soft:#f7ecd2; --bad:#b4322f; --good:#1f7a3a;
+  --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c6:#008300; --c7:#6250d6; --c8:#e34948;
+  --display:"Fraunces",Georgia,"Times New Roman",serif; --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif; --mono:"IBM Plex Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#131917; --surface:#1b2320; --ink:#edf2ef; --ink-2:#b4c0bb; --ink-3:#8a9893; --rule:#2d3834; --rule-soft:#232d29;
+  --accent:#4fb8b1; --accent-soft:#163533; --accent-ink:#7fd0ca; --warn:#e2b45a; --warn-soft:#3a2d12; --bad:#ef7a76; --good:#5fc48a;
+  --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#008300; --c7:#9085e9; --c8:#e66767; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#131917; --surface:#1b2320; --ink:#edf2ef; --ink-2:#b4c0bb; --ink-3:#8a9893; --rule:#2d3834; --rule-soft:#232d29;
+  --accent:#4fb8b1; --accent-soft:#163533; --accent-ink:#7fd0ca; --warn:#e2b45a; --warn-soft:#3a2d12; --bad:#ef7a76; --good:#5fc48a;
+  --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#008300; --c7:#9085e9; --c8:#e66767; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;margin:0}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 56px}
+header.top{padding-block:30px 18px;border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-content:space-between}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:8px 0 6px;letter-spacing:-.01em}
+.lede{color:var(--ink-2);margin:0;max-width:66ch}
+.top a{color:var(--accent-ink);font-size:14px}
+.layout{display:grid;grid-template-columns:380px minmax(0,1fr);gap:28px;align-items:start;padding-top:22px}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}.rail{order:2}.board{order:1}}
+.rail{min-width:0}
+.board{min-width:0;position:sticky;top:env(safe-area-inset-top,0px);display:flex;flex-direction:column;gap:16px;max-height:calc(100vh - 8px);overflow:auto;padding-bottom:8px}
+@media (max-width:900px){.board{position:static;max-height:none;overflow:visible}}
+/* controls */
+details.grp{background:var(--surface);border:1px solid var(--rule);border-radius:6px;margin-bottom:10px}
+details.grp summary{cursor:pointer;padding:11px 14px;font-weight:600;display:flex;justify-content:space-between;align-items:center;list-style:none}
+details.grp summary::-webkit-details-marker{display:none}
+details.grp summary .sum{font-family:var(--mono);font-size:12px;color:var(--ink-3);font-weight:400}
+details.grp summary::after{content:"+";font-family:var(--mono);color:var(--ink-3);margin-left:10px}
+details.grp[open] summary::after{content:"–"}
+.grp-body{padding:4px 14px 12px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--rule-soft)}
+.knob label{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:var(--ink-2)}
+.knob label .v{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.knob .row{display:flex;gap:8px;align-items:center;margin-top:3px}
+.knob input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.knob input[type=number]{width:84px;font:inherit;font-family:var(--mono);font-size:13px;padding:3px 6px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--ink)}
+.knob .src{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.knob select,.sel{font:inherit;font-size:13.5px;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--ink);max-width:100%}
+.knob.chk label{justify-content:flex-start;align-items:center;gap:8px;color:var(--ink)}
+.knob.chk input{accent-color:var(--accent)}
+.assume{color:var(--warn)}
+.rail-tools{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+button.ghost{font:inherit;font-size:13px;color:var(--accent-ink);background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:5px 10px;cursor:pointer}
+button.ghost:hover,button.ghost:focus-visible{border-color:var(--accent)}
+button.primary{font:inherit;font-size:13px;color:#fff;background:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:5px 10px;cursor:pointer}
+/* board */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px}
+.card h2{font-family:var(--display);font-weight:600;font-size:20px;margin:0 0 8px}
+.card h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px;font-weight:600}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:10px}
+.toolbar label{font-size:13px;color:var(--ink-2);display:flex;gap:6px;align-items:center}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{border:1px solid var(--rule-soft);border-radius:6px;padding:10px 12px;background:var(--bg)}
+.tile .v{font-family:var(--mono);font-size:26px;line-height:1.05;font-weight:500;font-variant-numeric:tabular-nums}
+.tile .u{font-size:12px;color:var(--ink-3);margin-top:3px}
+.tile .d{font-family:var(--mono);font-size:12px;margin-top:4px}
+.d.up{color:var(--bad)} .d.down{color:var(--good)} .d.flat{color:var(--ink-3)}
+.tile.hero{background:var(--accent-soft);border-color:transparent}
+.tile.hero .v{font-size:34px;color:var(--accent-ink)}
+.bar{display:flex;height:26px;gap:2px;border-radius:4px;overflow:hidden;background:var(--rule-soft)}
+.bar span{display:block;height:100%;min-width:0}
+.bar span:first-child{border-radius:4px 0 0 4px}.bar span:last-child{border-radius:0 4px 4px 0}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{color:var(--ink-3);font-weight:600;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:-1px}
+.tbl-wrap{overflow-x:auto}
+svg.strip{width:100%;height:auto;display:block;overflow:visible}
+svg.strip text{font-family:var(--body);font-size:12px;fill:var(--ink-2)}
+svg.strip .tick{font-family:var(--mono);font-size:11px;fill:var(--ink-3)}
+svg.strip line.axis{stroke:var(--rule);stroke-width:1} svg.strip line.grid{stroke:var(--rule-soft)}
+svg.strip .b1{fill:var(--c1)} svg.strip .b2{fill:var(--c2)} svg.strip .me{stroke:var(--ink);stroke-width:2}
+svg.strip .melbl{fill:var(--ink);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-2);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.ll97{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.pill{display:inline-block;font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--rule)}
+.pill.ok{color:var(--good);border-color:var(--good)} .pill.over{color:var(--bad);border-color:var(--bad)}
+.note{font-size:12.5px;color:var(--ink-3);margin:8px 0 0}
+.note b{color:var(--ink-2)}
+textarea{width:100%;font-family:var(--mono);font-size:11.5px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--ink);padding:8px;min-height:90px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<style>
+/* site facelift: paper, ink, one highlight; system fonts */
+:root{--bg:#ffffff;--surface:#ffffff;--ink:#111111;--ink-2:#444444;--ink-3:#777777;--rule:#e2e2e2;--rule-soft:#f0f0f0;--accent:#111111;--accent-soft:#ffe866;--accent-ink:#111111;--warn:#8a5a00;--warn-soft:#fff6d6;--revisit:#6a1b9a;--revisit-soft:#f3e8f8;--brass:#111;--brass-ink:#111;--brass-soft:#ffe866;
+ --display:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111214;--surface:#17181b;--ink:#f1f1f1;--ink-2:#c3c3c3;--ink-3:#8c8c8c;--rule:#2a2b2e;--rule-soft:#1f2023;--accent:#f1f1f1;--accent-soft:#5a4d12;--accent-ink:#f1f1f1;--warn:#e2b45a;--warn-soft:#3a2d12;--revisit:#cf8fde;--revisit-soft:#33203a;--brass:#f1f1f1;--brass-ink:#f1f1f1;--brass-soft:#5a4d12}}
+:root[data-theme="dark"]{--bg:#111214;--surface:#17181b;--ink:#f1f1f1;--ink-2:#c3c3c3;--ink-3:#8c8c8c;--rule:#2a2b2e;--rule-soft:#1f2023;--accent:#f1f1f1;--accent-soft:#5a4d12;--accent-ink:#f1f1f1;--warn:#e2b45a;--warn-soft:#3a2d12;--revisit:#cf8fde;--revisit-soft:#33203a;--brass:#f1f1f1;--brass-ink:#f1f1f1;--brass-soft:#5a4d12}
+h1,h2,section h2,.card h2,.tool h3,.stat .v,.tile .v,.tile.hero .v,.readout .num,.hero .num{letter-spacing:-.025em;font-weight:800}
+.sitebar{font-family:var(--mono);font-size:13px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule);margin-bottom:6px}
+.sitebar a{color:var(--ink);text-decoration:none}.sitebar .sep,.sitebar .here{color:var(--ink-3)}.sitebar nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}.sitebar nav a{color:var(--ink-3);padding:2px 7px;border-radius:3px}.sitebar nav a.on{background:var(--accent-soft);color:#111}
+button.primary,.tool a.go{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.callout{background:var(--accent-soft);color:#111;border-left-color:#111}.callout .k{color:#111}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="sitebar"><a href="/">bobbby.online</a><span class="sep">/</span><span class="here">hotel-carbon</span><nav><a href="/hotel-carbon">Essay</a><a href="/hotel-carbon/studio" class="on">Studio</a><a href="/hotel-carbon/storylines">Storylines</a><a href="/hotel-carbon/map">Evidence map</a><a href="/hotel-carbon/library">Library</a><a href="/hotel-carbon/ledger">Ledger</a></nav></div>
+<header class="top">
+  <div>
+    <div class="eyebrow">Measurement studio · built on the hotel_carbon evidence graph</div>
+    <h1>Hotel Carbon Studio</h1>
+    <p class="lede">A bottom-up model of one hotel's operational footprint. Turn the knobs on the left; the board recomputes per occupied room-night, per guest-night and per square metre, sliced by amenity, scope or energy carrier, against the benchmarks the graph verified. Defaults reproduce a New York luxury hotel of about 375 keys; the base building is split into CBECS 2018 lodging end uses so each lever acts on its own slice. Scenarios can be saved for everyone who opens the page.</p>
+  </div>
+  <div class="links" style="display:flex;gap:14px;flex-wrap:wrap"><a href="/hotel-carbon/storylines">Storylines (events over time) →</a><a href="/hotel-carbon">The essay: One Night at the Waldorf →</a><a href="/hotel-carbon/library">Portal →</a><a href="/hotel-carbon/map">Evidence map →</a></div>
+</header>
+
+<div class="layout">
+<aside class="rail" aria-label="Model inputs">
+  <div class="rail-tools">
+    <button class="primary" id="setBase" type="button">Set current as baseline</button>
+    <button class="ghost" id="reset" type="button">Reset to defaults</button>
+    <button class="ghost" id="copy" type="button">Copy assumptions</button>
+  </div>
+  <div id="controls"></div>
+</aside>
+
+<section class="board" aria-label="Results">
+  <div class="card">
+    <div class="toolbar">
+      <label>Boundary <select class="sel" id="boundary">
+        <option value="hcmi">HCMI: Scope 1 + 2 + laundry</option>
+        <option value="full" selected>Operational Scope 1–3: adds food, waste, transfers</option>
+        <option value="s12">Scope 1 + 2 only</option>
+      </select></label>
+      <label>Allocate to room-nights by <select class="sel" id="alloc">
+        <option value="hcmi" selected>HCMI floor-area share (rooms vs meeting space)</option>
+        <option value="activity">Activity-based (events carry only their own area)</option>
+        <option value="all">Nothing carved out (all to rooms)</option>
+      </select></label>
+      <label>Scope 2 <select class="sel" id="s2mode">
+        <option value="location" selected>Location-based</option>
+        <option value="market">Market-based (renewable share applied)</option>
+      </select></label>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <p class="note" id="dual"></p>
+  </div>
+
+  <div class="card">
+    <div class="toolbar"><h2 style="margin:0">Slice the footprint</h2>
+      <label style="margin-left:auto">Group by <select class="sel" id="groupby">
+        <option value="amenity" selected>Amenity</option>
+        <option value="enduse">Building end use (CBECS split)</option>
+        <option value="scope">GHG Protocol scope</option>
+        <option value="carrier">Energy carrier</option>
+      </select></label></div>
+    <div class="bar" id="bar" role="img" aria-label="Share of footprint by group"></div>
+    <div class="tbl-wrap"><table id="slice"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Against the benchmarks</h2>
+    <p class="note" style="margin:0 0 6px">kg CO<sub>2</sub>e per occupied room-night. Your figure uses the boundary selected above; benchmark boundaries are as published.</p>
+    <div id="strip"></div>
+    <div class="legend"><span><i style="background:var(--c1)"></i>Energy-only benchmark</span><span><i style="background:var(--c2)"></i>Food-inclusive benchmark</span><span><i style="background:var(--ink);border-radius:1px;width:3px"></i>This model</span></div>
+  </div>
+
+  <div class="card">
+    <h2>NYC Local Law 97</h2>
+    <div class="ll97" id="ll97"></div>
+    <p class="note">Hotel (R-1) limits 0.00987 tCO<sub>2</sub>e/ft² for 2024–29 (106.2 kg/m²) and 0.00526 for 2030–34 (56.6 kg/m²); penalty $268 per tCO<sub>2</sub>e over the limit. Uses the LL97 coefficients (electricity 0.289 then 0.145 kg/kWh; gas 0.181 kg/kWh; steam 0.147 kg/kWh) regardless of the factor chosen above. Scope 3 is outside LL97.</p>
+  </div>
+
+  <div class="card" id="scen-card">
+    <h2>Saved scenarios</h2>
+    <p class="note" id="scen-status" style="margin:0 0 8px">Checking whether shared storage is available for this view…</p>
+    <div class="toolbar" id="scen-tools" hidden>
+      <input class="sel" id="scen-name" type="text" placeholder="Scenario name, e.g. Baseline 2025" aria-label="Scenario name" style="min-width:220px">
+      <button class="primary" id="scen-save" type="button">Save current knobs</button>
+    </div>
+    <div class="tbl-wrap"><table id="scen-list"></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Assumptions snapshot</h3>
+    <textarea id="json" readonly aria-label="Assumptions as JSON"></textarea>
+  </div>
+</section>
+</div>
+</div>
+
+<script>
+(function(){
+  /* ---------- control spec ---------- */
+  var SPEC = [
+    {g:'Property', id:'rooms', l:'Guest rooms (keys)', min:20, max:2000, step:5, d:375, u:'', s:'Waldorf Astoria New York reopened with 375 keys (Jul 2025).'},
+    {g:'Property', id:'occ', l:'Annual occupancy', min:30, max:100, step:1, d:76, u:'%', s:'Manhattan luxury H1 2025: 76.4% (PwC/STR).'},
+    {g:'Property', id:'gpr', l:'Guests per occupied room', min:1, max:3, step:0.1, d:1.6, u:'', s:'Attari 2026 Irish sample: 1.7–2.3; luxury city hotels run lower.'},
+    {g:'Property', id:'m2key', l:'Gross floor area per key', min:40, max:250, step:5, d:90, u:'m²', s:'90 is implied by CHSB CY2023 NYC luxury (322 kWh/m², 102 kWh per occupied room). The Waldorf itself is about 250 m²/key if ~1.0M ft² of its 1.67M ft² lot is hotel; hotel-only area is not disclosed (theory insight I4).'},
+    {g:'Property', id:'meet', l:'Meeting and event floor area', min:0, max:20000, step:100, d:4000, u:'m²', s:'Waldorf: 43,000 ft² of event space. Used by the HCMI allocation.'},
+    {g:'Property', id:'eui', l:'Base building energy intensity', min:80, max:600, step:5, d:240, u:'kWh/m²·yr', s:'Whole building minus the amenity loads modelled below. CHSB NYC luxury total 322 kWh/m²; HES Europe 200–400.'},
+    {g:'Base-building end uses', id:'eu_heat', l:'Space heating', min:0, max:60, step:0.5, d:20.6, u:'%', s:'CBECS 2018 lodging, Table E2: 15.7 of 76.1 kBtu/ft² non-cooking end uses. Shares are normalised to 100%.'},
+    {g:'Base-building end uses', id:'eu_cool', l:'Space cooling', min:0, max:60, step:0.5, d:7.9, u:'%', s:'CBECS 2018: 6.0 kBtu/ft².'},
+    {g:'Base-building end uses', id:'eu_vent', l:'Ventilation', min:0, max:60, step:0.5, d:16.4, u:'%', s:'CBECS 2018: 12.5 kBtu/ft².'},
+    {g:'Base-building end uses', id:'eu_dhw', l:'Water heating', min:0, max:60, step:0.5, d:21.7, u:'%', s:'CBECS 2018: 16.5 kBtu/ft², the largest lodging end use; PNNL 2010: DHW was 51% of one hotel\'s gas.'},
+    {g:'Base-building end uses', id:'eu_light', l:'Lighting', min:0, max:60, step:0.5, d:9.5, u:'%', s:'CBECS 2018: 7.2 kBtu/ft²; HES 2011 Europe 12–18%.'},
+    {g:'Base-building end uses', id:'eu_refrig', l:'Refrigeration (non-kitchen)', min:0, max:60, step:0.5, d:5.5, u:'%', s:'CBECS 2018: 4.2 kBtu/ft².'},
+    {g:'Base-building end uses', id:'eu_plug', l:'Plug loads and computing', min:0, max:60, step:0.5, d:2.1, u:'%', s:'CBECS 2018: office equipment 0.4 + computing 1.2 kBtu/ft².'},
+    {g:'Base-building end uses', id:'eu_other', l:'Other (elevators excluded, modelled below)', min:0, max:60, step:0.5, d:16.3, u:'%', s:'CBECS 2018: 12.4 kBtu/ft². Split half electricity, half thermal.'},
+    {g:'Base-building end uses', id:'grhvac', l:'Guestroom share of heating, cooling and ventilation', min:10, max:100, step:1, d:60, u:'%', s:'PNNL 2010: guestroom PTHP units dominated metered electricity. Sets what the occupancy-controls lever can touch.'},
+    {g:'Property', id:'heat', l:'Thermal carrier', type:'select', d:'gas', opts:[['gas','Natural gas (0.183 kg/kWh, SEAI)'],['steam','Con Edison district steam (0.170 kg/kWh)'],['lpg','LPG (0.221 kg/kWh)'],['elec','Electric heat pumps (electricity factor)']], s:'Waldorf CY2024 filing shows zero district steam; 8 gas condensing boilers and a 555 kW CHP are documented.'},
+
+    {g:'Emission factors', id:'ef', l:'Electricity factor', type:'select', d:'0.392', opts:[['0.392','eGRID 2023 NYCW location-based 0.392 kg/kWh'],['0.289','LL97 2024–29 coefficient 0.289 kg/kWh'],['0.145','LL97 2030–34 coefficient 0.145 kg/kWh'],['0.226','Ireland SEAI 2023 0.226 kg/kWh'],['0.276','EU average 0.276 kg/kWh'],['0.58','UK 2008 (Filimonau) 0.58 kg/kWh']], s:'CHSB benchmarks are location-based; LL97 compliance uses its own coefficients (see LL97 card).'},
+    {g:'Emission factors', id:'ren', l:'Renewable electricity (market-based)', min:0, max:100, step:1, d:0, u:'%', s:'Hilton 2025: ~2% of managed energy in the US; 35% of EMEA managed hotels on renewable contracts. Only Tier 4 RECs count under LL97.'},
+
+    {g:'Pool and wellness', id:'poolws', l:'Pool water surface', min:0, max:600, step:5, d:100, u:'m²', s:'Set 0 for no pool.'},
+    {g:'Pool and wellness', id:'poolint', l:'Pool energy per m² water surface', min:800, max:5200, step:50, d:2500, u:'kWh/m²·yr', s:'Norwegian facilities ~1,000–11,000 (Kampel 2013); Swedish mean 1,303; Greek audits ~1,540; literature 4,300–5,200 (Trianti-Stourna 1998, unsourced).'},
+    {g:'Pool and wellness', id:'poolel', l:'Pool electricity share (pumps, dehumidification)', min:10, max:100, step:5, d:30, u:'%', s:'Remainder is thermal: water and hall heating. Evaporation is 46–60% of pool heat loss.'},
+    {g:'Pool and wellness', id:'poolsave', l:'Pool lever: cover, setpoint, heat recovery', min:0, max:50, step:1, d:0, u:'% saved', s:'Kampel 2016: efficient Norwegian facilities recover heat from exhaust air and water; national saving potential ~28%.'},
+    {g:'Pool and wellness', id:'saunakw', l:'Sauna heaters, total nameplate', min:0, max:60, step:0.5, d:12.5, u:'kW', s:'Harvia Club commercial heaters 10–15 kW; full power 30–40 min then ~50%.'},
+    {g:'Pool and wellness', id:'saunah', l:'Sauna hours per day', min:0, max:24, step:0.5, d:10, u:'h', s:''},
+    {g:'Pool and wellness', id:'steamkw', l:'Steam generators, total nameplate', min:0, max:40, step:0.5, d:11.4, u:'kW', s:'Cleopatra 11.4 kW at 16 h/day ≈ 36,500 kWh/yr at 55% duty.'},
+    {g:'Pool and wellness', id:'steamh', l:'Steam hours per day', min:0, max:24, step:0.5, d:16, u:'h', s:''},
+    {g:'Pool and wellness', id:'duty', l:'Sauna/steam duty cycle', min:20, max:100, step:5, d:55, u:'%', s:''},
+    {g:'Pool and wellness', id:'gym', l:'Fitness centre area', min:0, max:2000, step:10, d:200, u:'m²', s:'Equipment loads are small (treadmill 96–712 W); the space conditioning dominates.'},
+    {g:'Pool and wellness', id:'gymeui', l:'Fitness centre intensity', min:60, max:600, step:10, d:160, u:'kWh/m²·yr', s:'ENERGY STAR 2024 US median, recreation group: 160 kWh/m².'},
+    {g:'Pool and wellness', id:'spa', l:'Spa treatment area', min:0, max:5000, step:50, d:2000, u:'m²', s:'Waldorf: 22,000 ft² Guerlain spa.'},
+    {g:'Pool and wellness', id:'spaeui', l:'Spa area intensity', min:60, max:800, step:10, d:250, u:'kWh/m²·yr', s:'ASSUMPTION: no spa treatment-room benchmark exists in the literature reached. CIBSE fitness & health centre 600 kWh/m² total; hotel 435.', a:true},
+
+    {g:'Laundry', id:'linen', l:'Linen and towels per occupied room-night', min:0, max:15, step:0.25, d:6, u:'kg', s:'Filimonau 2011: 1 kg ≈ 4 pieces; daily change of 3 linen pieces + towel per guest.'},
+    {g:'Laundry', id:'lkwh', l:'Laundry energy per kg', min:0.5, max:3, step:0.05, d:1.57, u:'kWh/kg', s:'TRSA 2018, 132 US plants: 2,422 Btu/lb = 1.57 kWh/kg. UK trade 1.6–1.7 typical, 0.8–1.0 attainable.'},
+    {g:'Laundry', id:'lwater', l:'Laundry water per kg', min:3, max:35, step:0.5, d:12.3, u:'L/kg', s:'TRSA 2018 12.3 L/kg; on-site hotel machines 15–30 L/kg; tunnel washers ≤17.'},
+    {g:'Laundry', id:'onsite', l:'Laundry done on site (Scope 1+2) rather than outsourced (Scope 3)', type:'check', d:false, s:'HCMI includes outsourced laundry in the room-night figure either way.'},
+    {g:'Laundry', id:'towel', l:'Towel-reuse lever: share of guests reusing', min:0, max:100, step:1, d:30, u:'%', s:'Goldstein 2008: descriptive-norm card lifted reuse from 35% to 44–49%. Towels taken as 35% of linen mass.'},
+    {g:'Laundry', id:'optout', l:'Housekeeping opt-out: share of stay-over nights skipped', min:0, max:80, step:1, d:0, u:'%', s:'Sheraton Boston: each skipped night saves 0.19 kWh, 25,000 BTU gas and 37.2 gal water. ASSUMPTION: stay-over nights taken as those beyond a 2.2-night average stay; length of stay is not in the evidence base.', a:true},
+
+    {g:'Food and beverage', id:'meals', l:'Meals served per occupied room-night (all outlets, events)', min:0, max:6, step:0.1, d:2.0, u:'', s:'Dolder Grand: F&B is 48–56% of whole-hotel CO2e; Attari 2026: food procurement 40–58%.'},
+    {g:'Food and beverage', id:'kgmeal', l:'Purchased-food footprint per meal', min:0.5, max:9, step:0.1, d:4.5, u:'kg CO₂e', s:'Accor 2023 1.66–6.57 kg/meal; Dolder 5.4–6.1 per restaurant guest; WRI Cool Food thresholds 3.59 breakfast, 5.38 lunch/dinner.'},
+    {g:'Food and beverage', id:'menu', l:'Menu lever: low-carbon menu shift', min:0, max:50, step:1, d:0, u:'% cut per meal', s:'Brunner 2018 labels: −3.6% emissions; beef 28.7 vs chicken 4.1 kg CO2e/kg (Clune 2017 medians).'},
+    {g:'Food and beverage', id:'kel', l:'Kitchen electricity per meal', min:0, max:4, step:0.05, d:1.28, u:'kWh', s:'Institutional audit 1.28 kWh elec per meal; Mudie 2016 pub kitchens 1.52–3.32.'},
+    {g:'Food and beverage', id:'kgas', l:'Kitchen gas per meal', min:0, max:4, step:0.05, d:1.67, u:'kWh', s:'Institutional audit 1.67 kWh gas per meal.'},
+    {g:'Food and beverage', id:'fw', l:'Food waste per cover', min:0, max:800, step:10, d:360, u:'g', s:'EPA Ireland: ~360 g per cover daily service, ~530 g at functions; Papargyropoulou 2019: 0.53 kg per customer.'},
+    {g:'Food and beverage', id:'fwt', l:'Food waste treatment', type:'select', d:'0.627', opts:[['0.627','Landfill 0.627 kg CO₂e/kg (DEFRA)'],['0.396','Biological treatment 0.396 (Attari 2026, DEFRA)'],['0.009','Composting 0.009 (DEFRA)']], s:'Embodied emissions of the wasted food stay in the purchases bucket (graph decision).'},
+    {g:'Food and beverage', id:'minibar', l:'Minibar energy per stocked room', min:0, max:400, step:5, d:250, u:'kWh/yr', s:'Dometic absorption units 236–265 kWh/yr; compressor ~1/3 of that; ~70% of travellers never use one.'},
+    {g:'Food and beverage', id:'stocked', l:'Rooms with a stocked minibar', min:0, max:100, step:5, d:90, u:'%', s:''},
+
+    {g:'Waste, water and transfers', id:'waste', l:'Other solid waste per occupied room-night', min:0, max:12, step:0.1, d:4.8, u:'kg', s:'CHSB 2025 luxury 5.49 kg per occupied room (all waste) vs midscale 0.78; food waste counted separately above.'},
+    {g:'Waste, water and transfers', id:'divert', l:'Recycling diversion', min:0, max:90, step:1, d:30, u:'%', s:'Attari 2026 Irish hotels 22–45%.'},
+    {g:'Waste, water and transfers', id:'wlf', l:'Landfill factor for mixed waste', min:0.1, max:1.2, step:0.01, d:0.87, u:'kg CO₂e/kg', s:'Attari 2026 (DEFRA): landfill 0.87, dry recyclables 0.021 kg/kg.'},
+    {g:'Waste, water and transfers', id:'water', l:'Water per guest-night (information only)', min:50, max:1200, step:10, d:594, u:'L', s:'5-star 594 L vs 394 L average (Hamele/Ecologic); Marriott managed 788 L per occupied room; Puig 2017 5-star 580 L.'},
+    {g:'Waste, water and transfers', id:'transfers', l:'Include guest ground transfers (Scope 3, optional)', type:'check', d:false, s:'Hotel groups do not report guest travel; shown only when switched on.'},
+    {g:'Waste, water and transfers', id:'km', l:'Chauffeured km per occupied room-night', min:0, max:100, step:1, d:20, u:'km', s:''},
+    {g:'Waste, water and transfers', id:'kmf', l:'Vehicle factor', type:'select', d:'0.319', opts:[['0.319','Luxury petrol 0.319 kg/km (DEFRA 2024)'],['0.207','Luxury diesel 0.207'],['0.258','Luxury hybrid 0.258'],['0.121','Luxury PHEV 0.121'],['0','Battery electric, tailpipe 0']], s:''},
+
+    {g:'Levers on the building', id:'obc', l:'Occupancy-based guestroom HVAC controls installed', type:'check', d:false, s:'DOE/PNNL 2012 Marriott demo: 18.4% mean saving on guestroom HVAC (10.8–26.5%), 167–589 kWh/room/yr. Graph decision: use this over vendor 33–50% claims.'},
+    {g:'Levers on the building', id:'lights', l:'Bathroom lighting on occupancy sensors', type:'check', d:false, s:'PG&E ET 0609: saves 76–154 kWh per room per year.'},
+    {g:'Levers on the building', id:'elev', l:'Elevators as share of electricity', min:0, max:4, step:0.1, d:1, u:'%', s:'PNNL 2010: 141 kWh/day, about 1% of hotel electricity; office literature 2–8%.'}
+  ];
+  var ORDER = ['Property','Base-building end uses','Emission factors','Pool and wellness','Laundry','Food and beverage','Waste, water and transfers','Levers on the building'];
+  var EF_HEAT = {gas:0.183, steam:0.170, lpg:0.221};
+  var GROUPS = [['rooms','Rooms and common areas','--c1'],['wellness','Pool and wellness','--c2'],['laundry','Laundry','--c3'],['kitchen','Kitchen energy','--c4'],['food','Food procurement','--c5'],['waste','Waste','--c6'],['small','Minibar and elevators','--c7'],['transfers','Guest transfers','--c8']];
+  var SCOPES = [['s1','Scope 1: on-site fuel','--c2'],['s2','Scope 2: purchased electricity','--c1'],['s3','Scope 3: laundry, food, waste, transfers','--c5']];
+  var ENDUSE = [['heat','Space heating','--c2'],['coolvent','Cooling and ventilation','--c1'],['dhw','Water heating','--c3'],['light','Lighting','--c4'],['bother','Refrigeration, plug and other building loads','--c7'],['wellness','Pool and wellness','--c5'],['lk','Laundry and kitchen energy','--c6'],['s3','Food, waste and transfers (Scope 3)','--c8']];
+  var EU_MAP = {eu_heat:'heat', eu_cool:'coolvent', eu_vent:'coolvent', eu_dhw:'dhw', eu_light:'light', eu_refrig:'bother', eu_plug:'bother', eu_other:'bother', minibar:'bother', elev:'bother', pool:'wellness', sauna:'wellness', gym:'wellness', spa:'wellness', laundry:'lk', kitchen:'lk', food:'s3', foodwaste:'s3', waste:'s3', transfers:'s3'};
+  var CARRIERS = [['elec','Electricity','--c1'],['fuel','Thermal fuel','--c2'],['goods','Purchased goods and services','--c5']];
+  var BENCH = [
+    {l:'Puig 2017 Spain 4★', v:12, t:1},{l:'CHSB CY2023 NYC luxury', v:28.4, t:1},{l:'CHSB CY2023 US luxury', v:32.1, t:1},{l:'Brighter Planet upscale', v:32, t:1, r:[26,38]},{l:'Huang 2015 Taiwan luxury', v:50, t:1},
+    {l:'Attari 2026 Ireland 5★ full scope', v:56.14, t:2},{l:'Attari 2026 Ireland 3★ full scope', v:15.87, t:2},{l:'Dolder Grand incl. F&B', v:38.5, t:2}
+  ];
+
+  var state = {}, base = null;
+  var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var fmt = function(n, d){ if (!isFinite(n)) return '–'; d = d===undefined ? (Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2) : d; return n.toLocaleString('en-US',{minimumFractionDigits:d, maximumFractionDigits:d}); };
+  function defaults(){ var o={}; SPEC.forEach(function(k){ o[k.id]=k.d; }); return o; }
+  function load(){ try{ var s = localStorage.getItem('hcs-state'); var b = localStorage.getItem('hcs-base'); if (s) state = Object.assign(defaults(), JSON.parse(s)); if (b) base = JSON.parse(b); }catch(e){} if (!Object.keys(state).length) state = defaults(); }
+  function save(){ try{ localStorage.setItem('hcs-state', JSON.stringify(state)); if (base) localStorage.setItem('hcs-base', JSON.stringify(base)); }catch(e){} }
+
+  /* ---------- render controls ---------- */
+  function renderControls(){
+    var root = document.getElementById('controls'); root.innerHTML = '';
+    ORDER.forEach(function(g, gi){
+      var d = document.createElement('details'); d.className='grp'; if (gi < 1) d.open = true;
+      var items = SPEC.filter(function(k){ return k.g===g; });
+      d.innerHTML = '<summary>'+esc(g)+'<span class="sum">'+items.length+' knobs</span></summary><div class="grp-body"></div>';
+      var body = d.querySelector('.grp-body');
+      items.forEach(function(k){
+        var w = document.createElement('div'); w.className = 'knob' + (k.type==='check' ? ' chk' : '');
+        if (k.type==='select'){
+          w.innerHTML = '<label for="k-'+k.id+'">'+esc(k.l)+'</label><select id="k-'+k.id+'">'+k.opts.map(function(o){ return '<option value="'+o[0]+'"'+(String(state[k.id])===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'; }).join('')+'</select>'+(k.s?'<div class="src">'+esc(k.s)+'</div>':'');
+          w.querySelector('select').addEventListener('change', function(e){ state[k.id]=e.target.value; update(); });
+        } else if (k.type==='check'){
+          w.innerHTML = '<label><input type="checkbox" id="k-'+k.id+'"'+(state[k.id]?' checked':'')+'> '+esc(k.l)+'</label>'+(k.s?'<div class="src">'+esc(k.s)+'</div>':'');
+          w.querySelector('input').addEventListener('change', function(e){ state[k.id]=e.target.checked; update(); });
+        } else {
+          w.innerHTML = '<label for="k-'+k.id+'">'+esc(k.l)+'<span class="v" id="v-'+k.id+'"></span></label><div class="row"><input type="range" id="k-'+k.id+'" min="'+k.min+'" max="'+k.max+'" step="'+k.step+'" value="'+state[k.id]+'"><input type="number" id="n-'+k.id+'" min="'+k.min+'" max="'+k.max+'" step="'+k.step+'" value="'+state[k.id]+'" aria-label="'+esc(k.l)+' exact value"></div>'+(k.s?'<div class="src'+(k.a?' assume':'')+'">'+esc(k.s)+'</div>':'');
+          var r = w.querySelector('input[type=range]'), n = w.querySelector('input[type=number]');
+          r.addEventListener('input', function(){ state[k.id]=+r.value; n.value=r.value; update(); });
+          n.addEventListener('change', function(){ var v = Math.min(k.max, Math.max(k.min, +n.value||0)); state[k.id]=v; r.value=v; n.value=v; update(); });
+        }
+        body.appendChild(w);
+      });
+      root.appendChild(d);
+    });
+  }
+
+  /* ---------- model ---------- */
+  function model(s){
+    var roomNights = s.rooms*365*s.occ/100, guestNights = roomNights*s.gpr, gfa = s.rooms*s.m2key;
+    var efE = +s.ef, efH = s.heat==='elec' ? efE : EF_HEAT[s.heat];
+    var comps = [];
+    function add(key, group, label, elec, fuel, s3kg, s3carrier, water){ comps.push({key:key, group:group, label:label, elec:elec||0, fuel:fuel||0, s3:s3kg||0, s3c:s3carrier||'goods', water:water||0}); }
+    /* base building */
+    var baseE = gfa*s.eui;
+    var shares = {heat:s.eu_heat, cool:s.eu_cool, vent:s.eu_vent, dhw:s.eu_dhw, light:s.eu_light, refrig:s.eu_refrig, plug:s.eu_plug, other:s.eu_other};
+    var shareSum = Object.keys(shares).reduce(function(a,k){ return a+shares[k]; },0) || 1;
+    var eu = {}; Object.keys(shares).forEach(function(k){ eu[k] = baseE*shares[k]/shareSum; });
+    var hvac = eu.heat + eu.cool + eu.vent;
+    var obcSave = s.obc ? 0.184*s.grhvac/100 : 0;          /* fraction of each HVAC end use saved */
+    var lightSave = s.lights ? Math.min(eu.light, s.rooms*115) : 0; /* 76–154 kWh/room/yr */
+    var optNights = roomNights*(1-1/2.2)*s.optout/100;     /* stay-over nights at a 2.2-night average stay */
+    var optE = optNights*0.19, optG = optNights*7.33;
+    var thermalIsElec = s.heat==='elec';
+    /* each end use becomes a component in the rooms group; heating, DHW and half of other ride the thermal carrier */
+    add('eu_heat','rooms','Space heating', 0, eu.heat*(1-obcSave));
+    add('eu_cool','rooms','Space cooling', eu.cool*(1-obcSave), 0);
+    add('eu_vent','rooms','Ventilation', eu.vent*(1-obcSave), 0);
+    add('eu_dhw','rooms','Water heating (guest DHW)', 0, Math.max(0, eu.dhw - optG), 0, null, guestNights*s.water);
+    add('eu_light','rooms','Lighting', Math.max(0, eu.light - lightSave - optE), 0);
+    add('eu_refrig','rooms','Refrigeration (non-kitchen)', eu.refrig, 0);
+    add('eu_plug','rooms','Plug loads and computing', eu.plug, 0);
+    add('eu_other','rooms','Other building loads', eu.other*0.5, eu.other*0.5);
+    var baseElecShare = (eu.cool+eu.vent+eu.light+eu.refrig+eu.plug+eu.other*0.5)/Math.max(baseE,1);
+    var eshare = thermalIsElec ? 1 : baseElecShare;
+    var meetE = (s.meet/Math.max(gfa,1))*baseE; /* meeting area's base energy, for activity allocation */
+    /* wellness */
+    var poolE = s.poolws*s.poolint*(1-s.poolsave/100);
+    add('pool','wellness','Pool (water and hall)', poolE*s.poolel/100, poolE*(1-s.poolel/100));
+    var saunaE = (s.saunakw*s.saunah + s.steamkw*s.steamh)*365*s.duty/100;
+    add('sauna','wellness','Sauna and steam', saunaE, 0);
+    add('gym','wellness','Fitness centre', s.gym*s.gymeui*0.7, s.gym*s.gymeui*0.3);
+    add('spa','wellness','Spa treatment areas', s.spa*s.spaeui*0.6, s.spa*s.spaeui*0.4);
+    /* laundry */
+    var linenKg = roomNights*s.linen*(1 - 0.35*s.towel/100) - optNights*s.linen*0.6;
+    linenKg = Math.max(0, linenKg);
+    var lE = linenKg*s.lkwh;
+    if (s.onsite) add('laundry','laundry','Laundry (on site)', lE*0.25, lE*0.75, 0, null, linenKg*s.lwater);
+    else add('laundry','laundry','Laundry (outsourced, Scope 3)', 0, 0, lE*0.25*efE + lE*0.75*EF_HEAT.gas, 'goods', linenKg*s.lwater);
+    /* F&B */
+    var meals = roomNights*s.meals;
+    add('kitchen','kitchen','Kitchen and bar energy', meals*s.kel, meals*s.kgas);
+    add('food','food','Purchased food and beverage', 0, 0, meals*s.kgmeal*(1-s.menu/100));
+    var fwKg = meals*s.fw/1000;
+    add('foodwaste','waste','Food waste disposal', 0, 0, fwKg*(+s.fwt));
+    var otherKg = roomNights*s.waste;
+    add('waste','waste','Other solid waste', 0, 0, otherKg*((1-s.divert/100)*s.wlf + (s.divert/100)*0.021));
+    add('minibar','small','Minibars', s.rooms*s.stocked/100*s.minibar, 0);
+    var elecSoFar = comps.reduce(function(a,c){ return a+c.elec; },0);
+    add('elev','small','Elevators', elecSoFar*s.elev/100*(1/(1-Math.min(0.5,s.elev/100))), 0);
+    if (s.transfers) add('transfers','transfers','Guest ground transfers', 0, 0, roomNights*s.km*(+s.kmf));
+    /* emissions */
+    var efE_market = efE*(1-s.ren/100);
+    comps.forEach(function(c){
+      c.co2_s1 = c.fuel*(s.heat==='elec' ? 0 : efH);
+      c.co2_s2_loc = c.elec*efE + (s.heat==='elec' ? c.fuel*efE : 0);
+      c.co2_s2_mkt = c.elec*efE_market + (s.heat==='elec' ? c.fuel*efE_market : 0);
+      c.co2_s3 = c.s3;
+    });
+    return {comps:comps, roomNights:roomNights, guestNights:guestNights, gfa:gfa, meetE:meetE, baseE:baseE, eshare:eshare, efE:efE, efH:efH, water: comps.reduce(function(a,c){return a+c.water;},0)};
+  }
+  function totals(m, opts){
+    var inB = function(c){ if (opts.boundary==='s12') return c.key!=='laundry' || state.onsite ? (c.group!=='food' && c.group!=='waste' && c.group!=='transfers' && !(c.key==='laundry' && !state.onsite)) : false; if (opts.boundary==='hcmi') return c.group!=='food' && c.group!=='waste' && c.group!=='transfers'; return true; };
+    var s2 = function(c){ return opts.s2mode==='market' ? c.co2_s2_mkt : c.co2_s2_loc; };
+    var rows = m.comps.filter(inB).map(function(c){ return {c:c, kg: c.co2_s1 + s2(c) + c.co2_s3, s1:c.co2_s1, s2:s2(c), s3:c.co2_s3}; });
+    var total = rows.reduce(function(a,r){ return a+r.kg; },0);
+    /* allocation */
+    var share = 1, carve = 0;
+    if (opts.alloc==='hcmi') share = Math.max(0, 1 - state.meet/Math.max(m.gfa,1));
+    if (opts.alloc==='activity'){ var meetKg = m.meetE*(m.eshare*(opts.s2mode==='market'? m.efE*(1-state.ren/100): m.efE) + (1-m.eshare)*(state.heat==='elec'?m.efE:m.efH)); carve = meetKg; }
+    var toRooms = opts.alloc==='hcmi' ? total*share : total - carve;
+    return {rows:rows, total:total, toRooms:toRooms, perRoom: toRooms/m.roomNights, perGuest: toRooms/m.guestNights, perM2: total/m.gfa};
+  }
+  function ll97(m){
+    var e = m.comps.reduce(function(a,c){ return a + c.elec + (state.heat==='elec'? c.fuel:0); },0);
+    var f = m.comps.reduce(function(a,c){ return a + (state.heat==='elec'?0:c.fuel); },0);
+    var hf = state.heat==='steam' ? 0.147 : 0.181;
+    var a = (e*0.289 + f*hf)/m.gfa, b = (e*0.145 + f*hf)/m.gfa;
+    return {p1:a, p2:b, cap1:106.2, cap2:56.6, pen1: Math.max(0,a-106.2)*m.gfa/1000*268, pen2: Math.max(0,b-56.6)*m.gfa/1000*268};
+  }
+
+  /* ---------- render ---------- */
+  function opts(){ return {boundary:document.getElementById('boundary').value, alloc:document.getElementById('alloc').value, s2mode:document.getElementById('s2mode').value}; }
+  function delta(cur, prev, unit){ if (prev===null || prev===undefined) return '<div class="d flat">no baseline set</div>'; var d = cur-prev; if (Math.abs(d) < 0.005) return '<div class="d flat">= baseline</div>'; var p = prev ? (d/prev*100) : 0; return '<div class="d '+(d>0?'up':'down')+'">'+(d>0?'+':'−')+fmt(Math.abs(d))+' '+unit+' ('+(d>0?'+':'−')+fmt(Math.abs(p),1)+'%)</div>'; }
+  function update(){
+    save();
+    var m = model(state), o = opts(), t = totals(m, o);
+    var b = base ? totals(model(base), o) : null;
+    var tiles = document.getElementById('tiles');
+    tiles.innerHTML =
+      '<div class="tile hero"><div class="v">'+fmt(t.perRoom,1)+'</div><div class="u">kg CO₂e per occupied room-night</div>'+delta(t.perRoom, b&&b.perRoom, 'kg')+'</div>'+
+      '<div class="tile"><div class="v">'+fmt(t.perGuest,1)+'</div><div class="u">kg CO₂e per guest-night</div>'+delta(t.perGuest, b&&b.perGuest, 'kg')+'</div>'+
+      '<div class="tile"><div class="v">'+fmt(t.perM2,1)+'</div><div class="u">kg CO₂e per m² per year (whole building)</div>'+delta(t.perM2, b&&b.perM2, 'kg')+'</div>'+
+      '<div class="tile"><div class="v">'+fmt(t.total/1000,0)+'</div><div class="u">tonnes CO₂e per year</div>'+delta(t.total/1000, b&&b.total/1000, 't')+'</div>'+
+      '<div class="tile"><div class="v">'+fmt(m.roomNights,0)+'</div><div class="u">occupied room-nights · '+fmt(m.guestNights,0)+' guest-nights</div></div>'+
+      '<div class="tile"><div class="v">'+fmt(m.comps.reduce(function(a,c){return a+c.elec+c.fuel;},0)/m.roomNights,0)+'</div><div class="u">kWh per occupied room-night · '+fmt(m.comps.reduce(function(a,c){return a+c.elec+c.fuel;},0)/m.gfa,0)+' kWh/m²</div></div>'+
+      '<div class="tile"><div class="v">'+fmt(m.water/m.guestNights,0)+'</div><div class="u">litres per guest-night (incl. laundry)</div></div>'+
+      '<div class="tile"><div class="v">'+fmt(m.eshare*100,0)+'%</div><div class="u">electricity share of base-building energy (derived from the end-use split)</div></div>';
+    var loc = totals(m, Object.assign({}, o, {s2mode:'location'})), mkt = totals(m, Object.assign({}, o, {s2mode:'market'}));
+    document.getElementById('dual').innerHTML = 'Dual reporting: <b>'+fmt(loc.perRoom,1)+'</b> kg location-based vs <b>'+fmt(mkt.perRoom,1)+'</b> kg market-based per room-night at '+state.ren+'% renewable electricity. Allocation to rooms: <b>'+fmt(t.toRooms/Math.max(t.total,1)*100,0)+'%</b> of the boundary total; the rest is carried by meeting and event space.';
+    /* slice */
+    var gb = document.getElementById('groupby').value;
+    var defs = gb==='amenity' ? GROUPS : gb==='enduse' ? ENDUSE : gb==='scope' ? SCOPES : CARRIERS;
+    var agg = {}; defs.forEach(function(d){ agg[d[0]] = {kg:0, kwh:0}; });
+    t.rows.forEach(function(r){
+      if (gb==='amenity'){ agg[r.c.group].kg += r.kg; agg[r.c.group].kwh += r.c.elec + r.c.fuel; }
+      else if (gb==='enduse'){ var k = EU_MAP[r.c.key] || 's3'; agg[k].kg += r.kg; agg[k].kwh += r.c.elec + r.c.fuel; }
+      else if (gb==='scope'){ agg.s1.kg += r.s1; agg.s2.kg += r.s2; agg.s3.kg += r.s3; agg.s1.kwh += state.heat==='elec'?0:r.c.fuel; agg.s2.kwh += r.c.elec + (state.heat==='elec'?r.c.fuel:0); }
+      else { agg.elec.kg += (state.heat==='elec' ? r.s2 : r.c.elec*(o.s2mode==='market'? m.efE*(1-state.ren/100): m.efE)); agg.fuel.kg += state.heat==='elec' ? 0 : r.s1; agg.goods.kg += r.s3; agg.elec.kwh += r.c.elec + (state.heat==='elec'?r.c.fuel:0); agg.fuel.kwh += state.heat==='elec'?0:r.c.fuel; }
+    });
+    var bar = document.getElementById('bar'); bar.innerHTML = defs.filter(function(d){ return agg[d[0]].kg > 0; }).map(function(d){ return '<span style="flex:'+(agg[d[0]].kg/Math.max(t.total,1))+';background:var('+d[2]+')" title="'+esc(d[1])+'"></span>'; }).join('');
+    var tbl = '<thead><tr><th>Group</th><th class="num">t CO₂e / yr</th><th class="num">kg / room-night</th><th class="num">Share</th><th class="num">MWh / yr</th>'+(b?'<th class="num">vs baseline</th>':'')+'</tr></thead><tbody>';
+    var bagg = null;
+    if (b){ bagg = {}; defs.forEach(function(d){ bagg[d[0]]=0; }); var bm = model(base); b.rows.forEach(function(r){ if (gb==='amenity') bagg[r.c.group]+=r.kg; else if (gb==='enduse') bagg[EU_MAP[r.c.key]||'s3']+=r.kg; else if (gb==='scope'){ bagg.s1+=r.s1; bagg.s2+=r.s2; bagg.s3+=r.s3; } else { bagg.elec += (base.heat==='elec'? r.s2 : r.c.elec*(o.s2mode==='market'? bm.efE*(1-base.ren/100): bm.efE)); bagg.fuel += base.heat==='elec'?0:r.s1; bagg.goods += r.s3; } }); }
+    defs.forEach(function(d){ var a = agg[d[0]]; if (a.kg<=0 && !(bagg && bagg[d[0]]>0)) return; tbl += '<tr><td><span class="sw" style="background:var('+d[2]+')"></span>'+esc(d[1])+'</td><td class="num">'+fmt(a.kg/1000,0)+'</td><td class="num">'+fmt(a.kg*(t.toRooms/Math.max(t.total,1))/m.roomNights,1)+'</td><td class="num">'+fmt(a.kg/Math.max(t.total,1)*100,0)+'%</td><td class="num">'+(a.kwh? fmt(a.kwh/1000,0):'–')+'</td>'+(b?'<td class="num">'+(function(){ var dd=(a.kg-bagg[d[0]])/1000; return (dd>0?'+':dd<0?'−':'')+fmt(Math.abs(dd),0)+' t'; })()+'</td>':'')+'</tr>'; });
+    tbl += '<tr><td><b>Total in boundary</b></td><td class="num"><b>'+fmt(t.total/1000,0)+'</b></td><td class="num"><b>'+fmt(t.perRoom,1)+'</b></td><td class="num">100%</td><td class="num">'+fmt(m.comps.reduce(function(a,c){return a+c.elec+c.fuel;},0)/1000,0)+'</td>'+(b?'<td class="num">'+(function(){ var dd=(t.total-b.total)/1000; return (dd>0?'+':dd<0?'−':'')+fmt(Math.abs(dd),0)+' t'; })()+'</td>':'')+'</tr></tbody>';
+    document.getElementById('slice').innerHTML = tbl;
+    /* benchmark strip */
+    var W=720, L=16, R=16, H=92, XMAX = Math.max(60, Math.ceil(t.perRoom/10)*10+10);
+    var x = function(v){ return L + (v/XMAX)*(W-L-R); };
+    var s = '<svg class="strip" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Benchmark strip">';
+    for (var k=0;k<=XMAX;k+=10){ s += '<line class="grid" x1="'+x(k)+'" x2="'+x(k)+'" y1="30" y2="62"/><text class="tick" x="'+x(k)+'" y="78" text-anchor="middle">'+k+'</text>'; }
+    s += '<line class="axis" x1="'+x(0)+'" x2="'+x(XMAX)+'" y1="62" y2="62"/>';
+    BENCH.forEach(function(bm){ var y = bm.t===1 ? 40 : 52; if (bm.r) s += '<line x1="'+x(bm.r[0])+'" x2="'+x(bm.r[1])+'" y1="'+y+'" y2="'+y+'" stroke="var(--c1)" stroke-width="3" stroke-linecap="round" opacity=".5"/>'; s += '<circle class="b'+bm.t+'" cx="'+x(Math.min(bm.v,XMAX))+'" cy="'+y+'" r="5"><title>'+esc(bm.l)+': '+bm.v+' kg</title></circle>'; });
+    s += '<line class="me" x1="'+x(t.perRoom)+'" x2="'+x(t.perRoom)+'" y1="24" y2="66"/><text class="melbl" x="'+x(t.perRoom)+'" y="16" text-anchor="'+(t.perRoom > XMAX*0.8 ? 'end' : t.perRoom < XMAX*0.15 ? 'start':'middle')+'">This model '+fmt(t.perRoom,1)+' kg</text>';
+    s += '<text x="'+x(XMAX)+'" y="90" text-anchor="end" class="tick">kg CO₂e per room-night; hover a dot for its study</text></svg>';
+    document.getElementById('strip').innerHTML = s;
+    /* LL97 */
+    var q = ll97(m);
+    document.getElementById('ll97').innerHTML =
+      '<div class="tile"><div class="v">'+fmt(q.p1,1)+'</div><div class="u">kg CO₂e/m² · 2024–29 coefficients</div><div class="d"><span class="pill '+(q.p1<=q.cap1?'ok':'over')+'">'+(q.p1<=q.cap1?'under cap 106.2':'over cap 106.2')+'</span></div></div>'+
+      '<div class="tile"><div class="v">'+fmt(q.p2,1)+'</div><div class="u">kg CO₂e/m² · 2030–34 coefficients</div><div class="d"><span class="pill '+(q.p2<=q.cap2?'ok':'over')+'">'+(q.p2<=q.cap2?'under cap 56.6':'over cap 56.6')+'</span></div></div>'+
+      '<div class="tile"><div class="v">$'+fmt(q.pen1,0)+'</div><div class="u">annual penalty exposure 2024–29</div></div>'+
+      '<div class="tile"><div class="v">$'+fmt(q.pen2,0)+'</div><div class="u">annual penalty exposure 2030–34</div></div>';
+    /* json */
+    document.getElementById('json').value = JSON.stringify({inputs:state, view:o, results:{kg_per_room_night:+t.perRoom.toFixed(2), kg_per_guest_night:+t.perGuest.toFixed(2), kg_per_m2_yr:+t.perM2.toFixed(1), t_per_yr:Math.round(t.total/1000), ll97_kg_per_m2_2024_29:+q.p1.toFixed(1), ll97_kg_per_m2_2030_34:+q.p2.toFixed(1)}}, null, 1);
+    /* value readouts */
+    SPEC.forEach(function(k){ if (!k.type){ var v = document.getElementById('v-'+k.id); if (v) v.textContent = fmt(state[k.id], (String(k.step).indexOf('.')>-1 ? String(k.step).split('.')[1].length : 0)) + (k.u? ' '+k.u : ''); } });
+  }
+
+  load(); renderControls(); update();
+
+  /* ---------- shared scenarios (db capability; absent outside the viewer) ---------- */
+  (function(){
+    var status = document.getElementById('scen-status'), tools = document.getElementById('scen-tools'), list = document.getElementById('scen-list');
+    var use = (typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function') ? function(n){ return window.claude.use(n); } : null;
+    if (!use){ status.textContent = 'Scenarios are saved in this browser.'; return; }
+    var dbp = use('db'), userp = use('user');
+    Promise.all([dbp, userp]).then(function(res){
+      var db = res[0], user = res[1];
+      if (!db){ status.textContent = 'Scenarios are saved in this browser.'; return; }
+      var canWrite = true;
+      var ready = function(){
+        tools.hidden = !canWrite;
+        status.textContent = canWrite ? 'Scenarios are saved in this browser.' : 'You can load shared scenarios; saving needs Contributor access.';
+      };
+      if (user && user.can){ Promise.resolve(user.can('data.write')).then(function(v){ if (v === false) canWrite = false; ready(); }, ready); } else ready();
+      var col = db.collection('scenarios');
+      var render = function(snap){
+        if (snap.empty){ list.innerHTML = '<tbody><tr><td class="note" style="padding:6px 0">No shared scenarios yet. Set the knobs, name the scenario and save it.</td></tr></tbody>'; return; }
+        var h = '<thead><tr><th>Scenario</th><th class="num">kg / room-night</th><th>Saved</th><th></th></tr></thead><tbody>';
+        snap.docs.forEach(function(d){ var v = d.data() || {}; h += '<tr data-id="'+esc(d.id)+'"><td>'+esc(v.name||'(unnamed)')+'</td><td class="num">'+(v.kgPerRoomNight!=null? fmt(+v.kgPerRoomNight,1):'–')+'</td><td class="note" style="margin:0">'+esc((v.savedAt||'').slice(0,16).replace('T',' '))+'</td><td style="white-space:nowrap"><button class="ghost" data-act="load" type="button">Load</button> <button class="ghost" data-act="base" type="button">As baseline</button>'+(canWrite?' <button class="ghost" data-act="del" type="button">Delete</button>':'')+'</td></tr>'; });
+        list.innerHTML = h + '</tbody>';
+      };
+      col.orderBy('savedAt','desc').limit(50).onSnapshot(render, function(e){ status.textContent = 'Saved scenarios are unavailable right now ('+e.code+'). Knob settings are still remembered in this browser.'; tools.hidden = true; });
+      var busy = false;
+      document.getElementById('scen-save').addEventListener('click', function(){
+        if (busy) return; var name = document.getElementById('scen-name').value.trim() || ('Scenario '+new Date().toISOString().slice(0,10));
+        var m = model(state), t = totals(m, opts()); busy = true;
+        var body = {name:name, savedAt:new Date().toISOString(), state:JSON.parse(JSON.stringify(state)), view:opts(), kgPerRoomNight:+t.perRoom.toFixed(2), kgPerGuestNight:+t.perGuest.toFixed(2), tPerYear:Math.round(t.total/1000)};
+        var finish = function(msg){ busy = false; status.textContent = msg; };
+        var write = user && user.id ? Promise.resolve(user.id()).then(function(id){ body.by = id || null; return col.add(body); }) : col.add(body);
+        write.then(function(){ finish('Saved "'+name+'".'); document.getElementById('scen-name').value=''; }, function(e){ if (e && e.code==='invalid_argument'){ canWrite=false; ready(); finish('Saving needs Contributor access; the owner can grant it from Share.'); } else finish('Could not save ('+(e&&e.code||'error')+'). Try again in a moment.'); });
+      });
+      list.addEventListener('click', function(ev){
+        var btn = ev.target.closest('button[data-act]'); if (!btn) return; var tr = btn.closest('tr'); var id = tr && tr.getAttribute('data-id'); if (!id) return;
+        var act = btn.getAttribute('data-act');
+        if (act==='del'){ if (btn.getAttribute('data-arm')!=='1'){ btn.setAttribute('data-arm','1'); btn.textContent='Confirm delete'; return; } col.doc(id).delete().then(null, function(e){ status.textContent='Could not delete ('+(e&&e.code||'error')+').'; }); return; }
+        col.doc(id).get().then(function(d){ if (!d.exists) return; var v = d.data(); if (!v || !v.state) return;
+          if (act==='load'){ state = Object.assign(defaults(), v.state); renderControls(); if (v.view){ ['boundary','alloc','s2mode'].forEach(function(k){ if (v.view[k]) document.getElementById(k).value = v.view[k]; }); } update(); status.textContent='Loaded "'+(v.name||'scenario')+'".'; }
+          if (act==='base'){ base = Object.assign(defaults(), v.state); save(); update(); status.textContent='Baseline set from "'+(v.name||'scenario')+'".'; }
+        });
+      });
+    });
+  })();
+  ['boundary','alloc','s2mode','groupby'].forEach(function(id){ document.getElementById(id).addEventListener('change', update); });
+  document.getElementById('setBase').addEventListener('click', function(){ base = JSON.parse(JSON.stringify(state)); save(); update(); this.textContent = 'Baseline set'; var self=this; setTimeout(function(){ self.textContent='Set current as baseline'; }, 1500); });
+  document.getElementById('reset').addEventListener('click', function(){ state = defaults(); renderControls(); update(); });
+  document.getElementById('copy').addEventListener('click', function(){ var ta = document.getElementById('json'), btn=this; var done = function(){ btn.textContent='Copied'; setTimeout(function(){ btn.textContent='Copy assumptions'; },1500); }; if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(ta.value).then(done, function(){ ta.focus(); ta.select(); }); } else { ta.focus(); ta.select(); } });
+})();
+</script>
+</body>
+</html>

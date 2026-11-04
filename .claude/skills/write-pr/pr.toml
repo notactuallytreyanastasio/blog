@@ -1,0 +1,18 @@
+# Repo-specific settings for the write-pr skill. The one file the next repo
+# swaps; gather.sh, lint-body.py and open.sh read it and nothing else.
+
+# Base branch when the branch name is not a numbered chapter.
+base = "main"
+
+# Where bodies and titles are written, relative to the repo root. Must be
+# ignored by git; open.sh adds it to .git/info/exclude if it is not.
+body_dir = ".prs"
+
+# The last line of every body. The only line where an emoji is allowed.
+attribution = "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+
+# How the suite is run, so the count line in the body comes from a real run.
+test_command = "mix test"
+
+# Characters of diff gather.sh prints inline before pointing at the file.
+diff_inline_limit = 60000

@@ -1,0 +1,2483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hotel Carbon Evidence Map — bobbby.online</title>
+<meta name="description" content="The hotel carbon decision graph distilled: six research facets, the theory track, three deliverables, and where a luxury room-night&#x27;s footprint lands.">
+<style>
+/* Layout: a reading column with a sticky section index on the left at desktop width; one column on phones. */
+:root{
+  --bg:#f3f6f4; --surface:#ffffff; --ink:#15201c; --ink-2:#4f5e5a; --ink-3:#7a8884; --rule:#d9e0dd; --rule-soft:#e8edeb;
+  --accent:#0d6b6b; --accent-soft:#dcecea; --accent-ink:#0d6b6b;
+  --warn:#8a5a00; --warn-soft:#f7ecd2; --revisit:#7a2e8a; --revisit-soft:#efe2f3;
+  --s1:#2a78d6; --s2:#eb6834;
+  --display:"Fraunces",Georgia,"Times New Roman",serif; --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif; --mono:"IBM Plex Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#131917; --surface:#1b2320; --ink:#edf2ef; --ink-2:#b4c0bb; --ink-3:#8a9893; --rule:#2d3834; --rule-soft:#232d29;
+  --accent:#4fb8b1; --accent-soft:#163533; --accent-ink:#7fd0ca;
+  --warn:#e2b45a; --warn-soft:#3a2d12; --revisit:#cf8fde; --revisit-soft:#33203a;
+  --s1:#3987e5; --s2:#d95926; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#131917; --surface:#1b2320; --ink:#edf2ef; --ink-2:#b4c0bb; --ink-3:#8a9893; --rule:#2d3834; --rule-soft:#232d29;
+  --accent:#4fb8b1; --accent-soft:#163533; --accent-ink:#7fd0ca;
+  --warn:#e2b45a; --warn-soft:#3a2d12; --revisit:#cf8fde; --revisit-soft:#33203a;
+  --s1:#3987e5; --s2:#d95926; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+header.top{padding-block:40px 24px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(34px,5vw,56px);line-height:1.05;margin:10px 0 14px;text-wrap:balance;letter-spacing:-.01em}
+.lede{font-size:18px;max-width:62ch;color:var(--ink-2);margin:0}
+.lede strong{color:var(--ink)}
+.grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px;align-items:start;padding-top:28px}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr);gap:20px}}
+nav.index{position:sticky;top:env(safe-area-inset-top,0px);padding-top:8px}
+@media (max-width:860px){nav.index{position:static;border-bottom:1px solid var(--rule);padding-bottom:12px}}
+nav.index ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+@media (max-width:860px){nav.index ol{flex-direction:row;flex-wrap:wrap;gap:6px 14px}}
+nav.index a{color:var(--ink-2);text-decoration:none;font-size:14px;display:block;padding:5px 0;border-left:2px solid transparent;padding-left:10px}
+@media (max-width:860px){nav.index a{border-left:0;padding-left:0}}
+nav.index a:hover,nav.index a:focus-visible{color:var(--accent-ink);border-left-color:var(--accent)}
+nav.index .n{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-right:6px}
+main{min-width:0;display:flex;flex-direction:column;gap:56px}
+section h2{font-family:var(--display);font-weight:600;font-size:30px;line-height:1.15;margin:0 0 6px;text-wrap:balance}
+section h3{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:26px 0 10px;font-weight:600}
+.sub{color:var(--ink-2);margin:0 0 18px;max-width:70ch}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px}
+.stat .v{font-family:var(--mono);font-size:30px;line-height:1;font-weight:500;font-variant-numeric:tabular-nums}
+.stat .l{color:var(--ink-3);font-size:13px;margin-top:6px}
+.flow{font-family:var(--mono);font-size:13px;color:var(--ink-2);margin-top:14px}
+.flow b{color:var(--accent-ink);font-weight:500}
+/* chart */
+.viz{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:18px 18px 10px}
+.viz-head{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+.viz-title{font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.legend .s1 i{background:var(--s1)} .legend .s2 i{background:var(--s2)}
+.panel{margin-top:10px}
+.panel-title{font-size:13px;color:var(--ink-3);margin:12px 0 2px}
+svg.chart{width:100%;height:auto;display:block;overflow:visible}
+svg.chart text{font-family:var(--body);font-size:12.5px;fill:var(--ink-2)}
+svg.chart .lbl{fill:var(--ink)}
+svg.chart .tick{fill:var(--ink-3);font-family:var(--mono);font-size:11px}
+svg.chart line.grid{stroke:var(--rule-soft);stroke-width:1}
+svg.chart line.axis{stroke:var(--rule);stroke-width:1}
+svg.chart .rng{stroke-width:6;stroke-linecap:round;opacity:.9}
+svg.chart .dot{stroke:var(--surface);stroke-width:2}
+svg.chart .hit{fill:transparent;cursor:default}
+svg.chart .s1 .rng{stroke:var(--s1)} svg.chart .s1 .dot{fill:var(--s1)}
+svg.chart .s2 .rng{stroke:var(--s2)} svg.chart .s2 .dot{fill:var(--s2)}
+svg.chart .val{font-family:var(--mono);font-size:11px;fill:var(--ink-2)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12.5px;line-height:1.4;padding:8px 10px;border-radius:4px;max-width:280px;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.tip[hidden]{display:none}
+.viz-foot{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:center;margin-top:10px;font-size:12.5px;color:var(--ink-3)}
+button.ghost{font:inherit;font-size:13px;color:var(--accent-ink);background:none;border:1px solid var(--rule);border-radius:4px;padding:4px 10px;cursor:pointer}
+button.ghost:hover,button.ghost:focus-visible{border-color:var(--accent)}
+.tbl-wrap{overflow-x:auto;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{color:var(--ink-3);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* facets */
+.facet{border-top:1px solid var(--rule);padding-top:28px}
+.facet .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--mono);font-size:12px;color:var(--ink-3);margin:0 0 14px}
+.callout{background:var(--accent-soft);border-left:3px solid var(--accent);padding:12px 16px;border-radius:0 6px 6px 0;margin:0}
+.callout .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink);font-weight:600;display:block;margin-bottom:4px}
+.decision{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px;margin-bottom:10px}
+.decision .t{font-weight:600;margin:0 0 8px}
+.decision ul{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.decision li{font-size:14px;color:var(--ink-2);padding-left:22px;position:relative}
+.decision li::before{position:absolute;left:0;top:0;font-family:var(--mono);font-size:12px}
+.decision li.ch::before{content:"✓";color:var(--accent-ink)} .decision li.rj::before{content:"✕";color:var(--ink-3)} .decision li.op::before{content:"·";color:var(--ink-3)}
+.revisit{background:var(--revisit-soft);border-left:3px solid var(--revisit);padding:12px 16px;border-radius:0 6px 6px 0;margin:10px 0}
+.revisit .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--revisit);font-weight:600;display:block;margin-bottom:4px}
+.revisit .was{font-size:13px;color:var(--ink-3);margin-top:6px}
+.obs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.obs li{padding:9px 0;border-bottom:1px solid var(--rule-soft);font-size:14.5px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}
+.obs li .src{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;padding-top:3px}
+.obs li.hide{display:none}
+.obs-tools{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 6px}
+.obs-tools input{font:inherit;font-size:14px;padding:6px 10px;border:1px solid var(--rule);border-radius:4px;background:var(--surface);color:var(--ink);min-width:0;width:min(100%,320px)}
+.obs-tools .count{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.more{margin-top:8px}
+.unv{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.unv li{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 6px 6px 0;font-size:14.5px}
+.unv li b{color:var(--warn)}
+.method p{max-width:70ch;color:var(--ink-2)}
+code{font-family:var(--mono);font-size:13px;background:var(--rule-soft);padding:1px 5px;border-radius:3px}
+a{color:var(--accent-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.obs li{transition:background .15s}}
+</style>
+
+<style>
+/* site facelift: paper, ink, one highlight; system fonts */
+:root{--bg:#ffffff;--surface:#ffffff;--ink:#111111;--ink-2:#444444;--ink-3:#777777;--rule:#e2e2e2;--rule-soft:#f0f0f0;--accent:#111111;--accent-soft:#ffe866;--accent-ink:#111111;--warn:#8a5a00;--warn-soft:#fff6d6;--revisit:#6a1b9a;--revisit-soft:#f3e8f8;--brass:#111;--brass-ink:#111;--brass-soft:#ffe866;
+ --display:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111214;--surface:#17181b;--ink:#f1f1f1;--ink-2:#c3c3c3;--ink-3:#8c8c8c;--rule:#2a2b2e;--rule-soft:#1f2023;--accent:#f1f1f1;--accent-soft:#5a4d12;--accent-ink:#f1f1f1;--warn:#e2b45a;--warn-soft:#3a2d12;--revisit:#cf8fde;--revisit-soft:#33203a;--brass:#f1f1f1;--brass-ink:#f1f1f1;--brass-soft:#5a4d12}}
+:root[data-theme="dark"]{--bg:#111214;--surface:#17181b;--ink:#f1f1f1;--ink-2:#c3c3c3;--ink-3:#8c8c8c;--rule:#2a2b2e;--rule-soft:#1f2023;--accent:#f1f1f1;--accent-soft:#5a4d12;--accent-ink:#f1f1f1;--warn:#e2b45a;--warn-soft:#3a2d12;--revisit:#cf8fde;--revisit-soft:#33203a;--brass:#f1f1f1;--brass-ink:#f1f1f1;--brass-soft:#5a4d12}
+h1,h2,section h2,.card h2,.tool h3,.stat .v,.tile .v,.tile.hero .v,.readout .num,.hero .num{letter-spacing:-.025em;font-weight:800}
+.sitebar{font-family:var(--mono);font-size:13px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule);margin-bottom:6px}
+.sitebar a{color:var(--ink);text-decoration:none}.sitebar .sep,.sitebar .here{color:var(--ink-3)}.sitebar nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}.sitebar nav a{color:var(--ink-3);padding:2px 7px;border-radius:3px}.sitebar nav a.on{background:var(--accent-soft);color:#111}
+button.primary,.tool a.go{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.callout{background:var(--accent-soft);color:#111;border-left-color:#111}.callout .k{color:#111}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="sitebar"><a href="/">bobbby.online</a><span class="sep">/</span><span class="here">hotel-carbon</span><nav><a href="/hotel-carbon">Essay</a><a href="/hotel-carbon/studio">Studio</a><a href="/hotel-carbon/storylines">Storylines</a><a href="/hotel-carbon/map" class="on">Evidence map</a><a href="/hotel-carbon/library">Library</a><a href="/hotel-carbon/ledger">Ledger</a></nav></div>
+<header class="top">
+  <div class="eyebrow">Decision graph · workspace hotel_carbon · branch main · exported 24 Oct 2026 (refreshed after the theory track) · <a href="/hotel-carbon/library">Portal</a></div>
+  <h1>Hotel Carbon Evidence Map</h1>
+  <p class="lede">What the research graph has established so far about the carbon footprint of a luxury hotel stay and its amenities, organised the way the graph is: <strong>six facet goals</strong>, the <strong>options weighed and decisions taken</strong> under each, the <strong>observations</strong> that carry the numbers, and the <strong>revisits</strong> where earlier conclusions were corrected. The case property is the renovated Waldorf Astoria New York. The ideas are presented as an interactive essay at <a href="/hotel-carbon">bobbby.online/hotel-carbon</a>. Two companion tools use these figures: <a href="/hotel-carbon/studio">Hotel Carbon Studio</a> (knobs for the property and its amenities; results sliced by amenity, end use, scope and carrier) and <a href="/hotel-carbon/storylines">Hotel Carbon Storylines</a> (dated events and grid paths to 2040, Monte Carlo bands, stories compared, theories recorded). The theory track's rules, guidelines, intervention library and hypotheses are being written in the project's <code>theory/</code> notes.</p>
+</header>
+
+<div class="grid">
+<nav class="index" aria-label="Sections">
+  <ol id="toc"></ol>
+</nav>
+
+<main>
+<section id="overview">
+  <h2>What the graph holds</h2>
+  <p class="sub">Every node below was logged during the literature and data review and the build of the two deliverables; the counts are read from the graph export itself.</p>
+  <div class="stats" id="stats"></div>
+  <div class="flow">goal → <b>options</b> → <b>decision</b> → actions → <b>outcomes</b>, with observations attached where the evidence sits and revisits where it changed.</div>
+</section>
+
+<section id="benchmarks">
+  <h2>Where a luxury room-night lands</h2>
+  <p class="sub">Peer-reviewed and benchmark figures for the carbon footprint of one hotel night, read from the sources named in the graph. The boundary matters more than the hotel: studies that include purchased food roughly double the energy-only figure.</p>
+  <div class="viz" id="viz">
+    <div class="viz-head">
+      <div class="viz-title">kg CO<sub>2</sub>e per night, by study and system boundary</div>
+      <div class="legend"><span class="s1"><i></i>Energy only (Scope 1+2, sometimes laundry)</span><span class="s2"><i></i>Includes purchased food or wider life cycle</span></div>
+    </div>
+    <div class="panel"><div class="panel-title">Per occupied room-night</div><div id="chart-room"></div></div>
+    <div class="panel"><div class="panel-title">Per guest-night (or per guest overnight stay)</div><div id="chart-guest"></div></div>
+    <div class="viz-foot"><span>Ranges are study minima to maxima across hotels or categories; a single mark is a reported mean or median. Hover a mark for the source and boundary.</span><button class="ghost" id="tbl-toggle" type="button" aria-expanded="false">Show as table</button></div>
+    <div class="tbl-wrap" id="tbl" hidden></div>
+  </div>
+  <div class="tip" id="tip" hidden></div>
+</section>
+
+<div id="facets"></div>
+
+<section id="unverified">
+  <h2>Still unverified</h2>
+  <p class="sub">Figures that circulate in the hotel-carbon literature but could not be read in a primary text during verification. They are carried in the graph with that status, not dropped.</p>
+  <ul class="unv">
+    <li><b>Deng &amp; Burnett 2000, 564 kWh/m²/yr.</b> The publisher abstract gives no number; the value is consistent across two peer-reviewed citing papers (Priyadarsini 2009, Filimonau 2011) but was not read in the original.</li>
+    <li><b>Bohdanowicz &amp; Martinac 2007 per-guest-night kWh.</b> 184 Hilton and Scandic hotels; the abstract reports determinants only, and no open copy of the full text exists.</li>
+    <li><b>Trianti-Stourna 1998, 1,094.5 kWh/m² of water surface.</b> Not found in any accessible text. Kampel 2013/2016 read the paper and report 4,300 (Mediterranean) and 5,200 (continental) kWh/m² WS as unsourced literature values, and 450.1 kWh/m² of floor area as the audited Greek sample mean.</li>
+    <li><b>Kampel 2016 kWh per visitor statistics</b> (mean 26, median about 22, range 10–80) come from Smedegård 2021, not from the 2016 abstract or thesis text searched.</li>
+    <li><b>Goldstein, Cialdini &amp; Griskevicius 2008 reuse rates</b> (35.1% → 44.1% → 49.3%) are not in the abstract; the full text is paywalled.</li>
+    <li><b>Point, Tyedmers &amp; Naugler 2012 kg CO<sub>2</sub>e per bottle.</b> Functional unit confirmed as one 750 mL bottle; the number itself was not read.</li>
+    <li><b>Rosselló-Batle 2010 per-night values</b> (20–31 kg CO<sub>2</sub>e per guest-night; 650/720 MJ/m²) are known only through Attari &amp; Hanrahan 2026 and Filimonau 2011.</li>
+    <li><b>Spa treatment rooms and commercial hot tubs</b> have no measured hotel energy benchmark in the literature reached; only residential hot-tub data and an unsourced "up to 35% of hotel energy for additional services" claim exist.</li>
+  </ul>
+</section>
+
+<section id="method" class="method">
+  <h2>How this page was built</h2>
+  <p>Companion tools: <a href="/hotel-carbon/studio">Hotel Carbon Studio</a> and <a href="/hotel-carbon/storylines">Hotel Carbon Storylines</a>.</p>
+  <p>The graph lives in the <code>deciduous</code> decision-graph tool. Each researcher logged a verified source as an <em>observation</em> under the facet goal it informs; approaches were logged as <em>options</em>, the choice between them as a <em>decision</em> with <code>chosen</code> and <code>rejected</code> edges, and each facet's closing state as an <em>outcome</em>. A <em>revisit</em> is attached to the node it corrects.</p>
+  <p>Bibliographic records were resolved through Crossref and OpenAlex; abstracts came from Europe PMC, CORE, or Wayback Machine captures of publisher pages where the live site refuses automated access; full texts were read from open repository copies where they exist. Titles on this page are the node titles as logged, so each carries its number and unit. The companion notes files (01 to 07) in the project hold the verbatim abstracts and table references.</p>
+</section>
+</main>
+</div>
+</div>
+
+<script type="application/json" id="graph-data">{
+"generated": {
+"workspace_id": "80a3de01-1a16-4b97-be91-ad4cd5faebeb",
+"deleted_node_count": 0,
+"edge_count": 347,
+"exported_at": "2026-10-24T12:38:33.233481Z",
+"node_count": 323
+},
+"facets": [
+{
+"id": "cafd6b5a-e5d4-4d83-9c04-d5460c6dedd2",
+"title": "Facet 1: Whole-stay carbon baseline per guest-night and allocation methodology (CHSB, HCMI, CBECS, LCAs)",
+"kind": "facet",
+"observations": [
+{
+"id": "c3cca264-8eb8-41a0-a23e-17add5cf2fe7",
+"title": "CHSB 2025 (CY2023): NYC luxury non-resort median 28.4 kgCO2e/occupied room (HCMI M1); US luxury median 32.1",
+"created": "2026-10-24T05:34",
+"type": "observation"
+},
+{
+"id": "3ff8f754-3da7-449b-bac3-34aa97a30b3e",
+"title": "CHSB 2025: NYC luxury non-resort 102 kWh/occupied room, 322 kWh/m2, 88.7 kgCO2e/m2 (medians, CY2023)",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "6ad12c1f-5237-493c-9172-48d0a54fa572",
+"title": "HCMI v2.0 apportions whole-hotel scope 1+2 (+outsourced laundry) to rooms vs meeting space by conditioned-floor-area ratio, assuming equal intensity everywhere",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "f44b24b9-8ce1-4cc8-b9eb-1b5b8bb9c992",
+"title": "CBECS 2018: US lodging 85.7 kBtu/sqft site energy (2012: 96.9); water heating 16.5 and space heating 15.7 kBtu/sqft are the largest end uses",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "3fec965c-73f5-45c8-bd69-278952e6dd52",
+"title": "ENERGY STAR hotel score (Aug 2018, CBECS 2012, n=139): source EUI = 146.5 + 103.7 x rooms/1000 sqft + 34.9 x workers/1000 sqft + 178.7 x commercial refrigeration/1000 sqft + HDD/CDD terms; R2 0.27 (0.91 in absolute energy)",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "1d5d2281-5c5a-4804-9682-a60e2e2560a5",
+"title": "Attari & Hanrahan 2026 preprint (4 Irish hotels, full scope 1-3): 15.9–56.1 kgCO2e per room-night; food procurement 40–58% of footprint; scope 1+2 only gives 9.4–32.3",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "e9a6a569-359d-49fd-8748-57a014ceae0f",
+"title": "Puig et al. 2017 (14 Spanish coastal hotels, LCA per overnight stay): 22 kgCO2e for 5-star, 12 for 4-star, 23 for 2-star; electricity 6–30 kWh and fuels 24–127 MJ per stay",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "b294de95-52c7-489b-a014-a3d04f7d2d10",
+"title": "Hilton 2024: scope 1 0.44 MtCO2e, scope 2 2.06 Mt (market), franchise scope 3 3.99 Mt; intensity 0.0814 tCO2e/m2 managed; no per-occupied-room metric published",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "0957996d-a2b3-4bb8-a755-9e60acda199b",
+"title": "Marriott 2023 (CDP 2024): scope 1 1.23 Mt, scope 2 5.13 Mt (market), franchise scope 3 4.69 Mt, purchased goods 3.85 Mt (spend-based), FERA 1.98 Mt; intensity 100.3 kgCO2e/m2 (US 81.8)",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "2cf2fd11-06af-4507-bf38-df70ddcc4b0a",
+"title": "Brighter Planet/Kling 2012 (46,000 US hotels modelled): upscale chains 229–309 MJ and 26–38 kgCO2e per room-night vs budget 184–245 MJ and 22–31; floor area per room is the dominant property-level driver",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "6b615c7e-3030-4d1b-b561-9dc7cff63b0c",
+"title": "ITP Global Hotel Decarbonisation Report 2017: 2010 baseline 9.227 tCO2 per room per year; 66% per-room cut by 2030 and 90% by 2050 (3.115 and 0.966 t/room/yr)",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "d68d31f1-d2a3-4040-9656-f2b6c52ade61",
+"title": "NYC LL97 hotel (R-1) limit 0.00987 tCO2e/sqft 2024–29 (106 kgCO2e/m2) and 0.00526 for 2030–34; LL84 2019 hotel site fuel EUI 72 kBtu/sqft pre-1980 vs 48 post-1980, electricity 14–15 kWh/sqft",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "65c1f60a-ca2e-4a53-9470-e2e9105891b5",
+"title": "CHSB trend CY2016–CY2023: US luxury non-resort HCMI median fell 43.3 → 39.4 → 32.0 → 32.3 → (CY2021 n/a) → 32.4 → 32.1 kgCO2e/occupied room; NYC luxury 28.9 → 27.5 → n/a → 21.8 → n/a → 26.2 → 28.4",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "fd2402e6-f977-4e15-bed3-99637ed31b07",
+"title": "CHSB 2025 cross-country luxury non-resort HCMI medians (kgCO2e/occupied room, CY2023): India 84.0, UAE 68.5, China 66.6, Japan 52.1, Singapore 36.2, Germany 33.3, US 32.1, UK 23.3, Canada 20.6, Spain 17.7, France 15.6",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "3b04497b-8319-492c-83ad-52364127d172",
+"title": "Driver literature: Singapore 29 hotels 427 kWh/m2 (3-star significantly lower, 4≈5-star); Hong Kong 16 hotels 564 kWh/m2 (1995); Taiwan ITH 280 kWh/m2 and 26.7 MWh/room/yr; Lijiang 4-star 180.8 vs 1-star 70.2 kWh/m2; SLR of 1,494 hotels mean 273.9 kWh/m2, city 305.9 vs countryside 182.4",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "cbdf950f-adda-41f2-bc5f-f25a5fbe8271",
+"title": "Tourism-scale context: Lenzen et al. 2018 tourism 4.5 GtCO2e (8% of global, 2013); Gössling & Peeters 2015 tourism 16,700 PJ and 1.12 GtCO2 (2010); Greenview HFT 2026 room coefficient example 76.71 kgCO2e/room-night, meetings 0.0729 kgCO2e/m2-h",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "59b90390-36dc-45e9-b943-8cb1013922fe",
+"title": "Accor 2023: scope 1+2 3,643 kt and scope 3 3,526 ktCO2e (global scope); spend-based scope 3 method abandoned in 2023 for Gaïa 2.0 energy data; CHSB 2025 luxury waste 5.49 kg/occupied room vs midscale 0.78",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "6e3d8c3a-6b1c-4811-a022-e28e801ce654",
+"title": "Priyadarsini, Xuchao & Lee 2009 (29 Singapore hotels): mean total EUI 427 kWh/m2/yr (electricity 361, fossil 66); 30.474 MWh per room per year; occupancy 66-88%",
+"created": "2026-10-24T06:22",
+"type": "observation"
+},
+{
+"id": "c00f274a-da89-4ec1-b672-8faa94dd4e26",
+"title": "Filimonau et al. 2011 (two Poole UK hotels, LCEA): operational 15.2 and 11.2 kWh per guest-night = 7.5 and 4.5 kg CO2e; total incl. breakfast, laundry and 15% embodied = 11.65 / 8.25 kg CO2e per guest-night; EUI 206 / 220 kWh/m2/yr",
+"created": "2026-10-24T06:22",
+"type": "observation"
+},
+{
+"id": "92e2bc03-0c11-4693-a266-cedf2fdb737a",
+"title": "Bohdanowicz & Martinac 2007 (184 Hilton International and Scandic hotels in Europe, 2004 data): energy and water use driven by hotel standard, floor area, guest-nights sold and food covers sold; abstract reports no per-room-night figure",
+"created": "2026-10-24T06:23",
+"type": "observation"
+},
+{
+"id": "80a2371e-3d34-45a1-8241-840b666abd15",
+"title": "Deng & Burnett 2000 (16 Hong Kong quality hotels, 1995 data): average EUI 564 kWh/m2/yr, about one-third of energy for air-conditioning, electricity dominant",
+"created": "2026-10-24T06:23",
+"type": "observation"
+},
+{
+"id": "7d44681f-1f01-4e31-8e09-2330822427cf",
+"title": "Xuchao, Priyadarsini & Lee 2010 (Singapore hotels): regression-based energy benchmark; \"a hotel's carbon intensity ranking is rather sensitive to the normalizing denominator chosen\" - no per-room figure in abstract",
+"created": "2026-10-24T06:23",
+"type": "observation"
+},
+{
+"id": "c6c0b5de-8af9-4c25-9533-2fbe2e708976",
+"title": "Lu et al. 2013 (27 starred hotels, Hainan, tropical China): climate-adjusted EUI model; electricity share, guestrooms and equivalent guestrooms are the key drivers; double glazing significant - abstract gives no kWh/m2 value; no Shanghai hotel paper by these authors found",
+"created": "2026-10-24T06:23",
+"type": "observation"
+},
+{
+"id": "1729b497-5502-4f67-9cf5-13c9845d577c",
+"title": "Huang, Wang & Wang 2015 (58 Taiwanese luxury hotels): 132 kg CO2e/m2/yr; 29 kg CO2e per guest-night; 50 kg CO2e per room-night sold (CO2, N2O, CH4; energy-based)",
+"created": "2026-10-24T06:25",
+"type": "observation"
+},
+{
+"id": "931639ac-1439-48e0-9360-b1986d665e61",
+"title": "Rosselló-Batle et al. 2010 (Balearic hotels, 50-year life cycle): operating phase 70-80% of life-cycle energy; materials manufacture about one fifth; electricity main CO2 source; per-night values only via citing papers (20-31 kg CO2e/guest-night; 650/720 MJ/m2 for 3*/4*)",
+"created": "2026-10-24T06:25",
+"type": "observation"
+},
+{
+"id": "413a60c8-356b-49dd-bc0b-5bff529544d4",
+"title": "Becken, Frampton & Simmons 2001 (NZ accommodation): hotels are 67% of the sector's 1.74 PJ (1999) and the largest per-capita consumers; hotel benchmark 155 MJ per visitor-night and 571 MJ/m2 (via Filimonau 2011 Table 4)",
+"created": "2026-10-24T06:25",
+"type": "observation"
+},
+{
+"id": "c27e13f1-d141-4f81-bee7-f03a28e90a26",
+"title": "Pieri, Tzouvadakis & Santamouris 2015 (35 Attica hotels energy audit): three energy classes by clustering on heating, cooling and electricity; factor F1 indexes saving potential - correct citation is Energy and Buildings 94:252-262, not 102:81-93",
+"created": "2026-10-24T06:25",
+"type": "observation"
+},
+{
+"id": "98316f5f-e79c-45e7-8fb4-e2d2617ecda0",
+"title": "Gössling 2002 (Global environmental consequences of tourism): ~700 million international arrivals in 2000; five impact domains incl. energy use; per-night accommodation figures (20.6 kg CO2/guest-night hotel) only via Filimonau 2011 citing Gössling et al. 2005",
+"created": "2026-10-24T06:25",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "60ec6e7c-54fa-4115-9854-e62e89badf30",
+"title": "Allocation option A: HCMI floor-area apportionment (rooms vs meeting space, equal intensity, scope 1+2+laundry)",
+"created": "2026-10-24T05:40",
+"type": "option"
+},
+{
+"id": "eb6fdf51-9b3d-4aba-900e-b7ade0f6e34c",
+"title": "Allocation option B: activity/end-use based allocation (sub-metered or CBECS end-use split, amenity-specific intensities, revenue or guest-count for shared services)",
+"created": "2026-10-24T05:40",
+"type": "option"
+},
+{
+"id": "52efe713-553d-4c17-9a41-d5fc9b336085",
+"title": "Allocation option C: LCA/ISO 14067 product footprint per guest-night with extended boundary (food, laundry, waste, consumables, embodied)",
+"created": "2026-10-24T05:40",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "ae05e756-8caa-4995-80b8-410d8376a0a7",
+"title": "Recommend dual reporting: activity-based allocation (option B) layered on an HCMI-comparable baseline (option A), rather than a stand-alone LCA per guest-night (option C)",
+"created": "2026-10-24T05:46",
+"type": "decision",
+"chosen": [
+"Allocation option A: HCMI floor-area apportionment (rooms vs meeting space, equal intensity, scope 1+2+laundry)",
+"Allocation option B: activity/end-use based allocation (sub-metered or CBECS end-use split, amenity-specific intensities, revenue or guest-count for shared services)"
+],
+"rejected": [
+"Allocation option C: LCA/ISO 14067 product footprint per guest-night with extended boundary (food, laundry, waste, consumables, embodied)"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "db6fff52-f73c-4d5b-a1c0-ef9a1998a0c8",
+"title": "Facet 1 established: NYC luxury baseline 28.4 kgCO2e/occupied room (CHSB CY2023, IQR 24–38), US luxury 32.1 vs upper-midscale 14.0; HCMI allocation fully documented; full-scope room-night evidence limited to one 2026 preprint",
+"created": "2026-10-24T05:47",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": []
+},
+{
+"id": "1504117e-45d1-492e-8ede-46723780d7e7",
+"title": "Facet 2: Wellness amenities footprint (pools, hot tubs, saunas, spa/massage, gyms, towel laundry)",
+"kind": "facet",
+"observations": [
+{
+"id": "70692f2c-95ca-4e1a-ada3-364e39e1e8e2",
+"title": "CIBSE TM46:2008 benchmarks: swimming pool centre 245 elec + 1,130 fossil kWh/m2 floor/yr; fitness & health centre 160 + 440; hotel 105 + 330",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "d0ade7e8-c47d-4280-b8b7-97c7ebe4b0cf",
+"title": "Kampel 2016 (via Smedegård 2021): Norwegian swimming facilities EPI mean 26, median ~22, range 10–80 kWh/visitor; specific energy 400–1,600 kWh/m2·a; 28% excess",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "2aaab734-2200-4377-a080-6b6c1fbdd4a0",
+"title": "Nitter et al. NTNU survey (2017 data): Norwegian pool facilities 6.7–35 kWh/bather climate-corrected; bathers + opening days explain 77%; ACH 2.65 (water parks) vs 4.81 (conventional)",
+"created": "2026-10-24T05:35",
+"type": "observation"
+},
+{
+"id": "b11d6859-4acf-4117-bd7a-e7e3a249429d",
+"title": "Trianti-Stourna 1998 (Greek pools, secondhand): 450 kWh/m2 floor, 1,094.5 kWh/m2 water surface, 57.5 kWh/m2 electricity — but also quoted as 4,300 (Mediterranean) / 5,200 (continental) kWh/m2 water surface; inconsistent",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "0d2d2eb0-3e58-4afc-920e-69bedcb4986d",
+"title": "Borowski et al. 2022 (Kraków hotel, metered): pool-area heating 399.6–657.4 kWh/day (June–May), peak 63.7 kWh/h; hotel 4,620 m2, 51 rooms",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "e2a63dc6-1403-4bc7-ab1b-602d0a5bc0c1",
+"title": "Evaporation is the dominant pool heat loss: 46–54% of total pool losses (Thermal Science 2014 simulation); \"at least 60% of heat loss in the water\" (Benakcha 2025 collating 4 studies)",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "fa30d234-ff5b-4108-95c7-d89134eec6bd",
+"title": "Sport England 2013 pool design conditions: water 27–30°C (hydrotherapy 35, spa pools 40), hall air ~30°C (1°C above water), RH 60±10%, 4–10 ACH, make-up 30 L/swimmer",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "be1e7362-b439-42f6-9714-b2d7b9d587fb",
+"title": "Darlington (UK) sports centre with pool + sauna + dry sports, measured: 1,220 kWh/m2/yr total, 480 kWh/m2/yr technical equipment; remainder mostly lighting",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "dbe3b9cb-52a4-4744-b439-48b7f511e34f",
+"title": "ENERGY STAR 2024 US median site EUI: Recreation group (incl. Fitness Center/Health Club/Gym, pools, rinks) 50.8 kBtu/ft2 = 160 kWh/m2/yr; Hotel 63.0 kBtu/ft2 = 199 kWh/m2/yr",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "1653add8-9a37-4590-98dc-8da8788977fd",
+"title": "ENERGY STAR hotel score model (CBECS 2012, Aug 2018) has no pool/spa/gym term; laundry, occupancy and conference space were tested and found not statistically significant",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "6d7213de-7e40-417f-aef2-0e8301455a4c",
+"title": "Hotel EUI regressions without amenity terms: Chan 2005 (17 HK hotels) 313 kWh/m2/yr, only CDD and occupied rooms significant; Wang 2012 (Taiwan) area/rooms/occupancy/age, adj R2 0.928 total, 0.612 EUI; Wang & Huang 2013: 83–408 MJ/guest-night",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "291f8634-4e21-4aa0-8823-21ac27514db8",
+"title": "Santiago 2021 (six Gran Canaria hotels): pool volume is a significant explanatory variable of total hotel energy among 31 characteristics; F&B >50% of energy, DHW next",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "1546fcf3-5f6b-410b-8ee2-42abda6cc7f6",
+"title": "TRSA 2018 (132 US laundry plants): 1.47 gal/lb water = 12.3 L/kg; 2,422 Btu/lb in-plant energy = 1.57 kWh/kg; 0.413 lb CO2/lb = 0.41 kg CO2/kg; hotel/lodging only 1.2% of pounds",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "5a67c79b-1d4f-4cd2-bcb4-d702691f069a",
+"title": "Laundry water/energy per kg: Bobák 2010 professional 5–6 L/kg vs home >20 L/kg, wash-heat 0.21–0.875 kWh/kg (theoretical); UK trade 1.6–1.7 kWh/kg typical, 0.8–1.0 attainable; on-site hotel machines 15–30 L/kg vs 3 L/kg central",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "f3043a5e-c7f5-4239-995b-0eb41f16b1b8",
+"title": "Euro Chlor eco-profile (2011 data, pub. 2013), cradle-to-gate GWP: 0.90 kg CO2e/kg chlorine, 0.93 kg CO2e/kg sodium hypochlorite, 0.86 NaOH, 0.06 NaCl",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "9c0bec74-9697-461d-9425-8c8039387fe9",
+"title": "Pool make-up water standard 30 L/bather (Sport England; PWTAG incl. backwash; WHO via Nova Scotia; DIN 19643); Polish measurement 40.6 L/bather/day; one sand-filter backwash ~16 m3 (38 L/s × 7 min)",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "ad598737-f48a-4c52-9143-d82b42dfba17",
+"title": "Hot tubs: only residential data — NSPI 2000 average 2,514 kWh/yr; CA-compliant 334-gal spa ~200 W standby ≈ 1,900 kWh/yr; French 2023 study 2,500–7,500 kWh/yr; heater 6 kW (240 V), pump 1.5 kW; no commercial hotel whirlpool measurement found",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "1f8c0250-2608-4b5e-9780-569dba14769f",
+"title": "Sauna/steam loads (manufacturer nameplates only): Harvia Club 10/12.5/15 kW and Virta Pro HL200E 20 kW; Tylo Commercial 20 kW; Mr Steam CU750 18 kW (CU series 'for continuous or near continuous use', up to 750 ft3); Harvia guidance full power 30-40 min then ~50%; Cleopatra 11.4 kW steam generator at 16 h/day = 66,393 kWh/yr nameplate, ~36,516 at 55% duty. No manufacturer or audit publishes a measured commercial duty cycle; no hotel spa sub-metered sauna/steam/whirlpool study found",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "417084c6-c6c3-48ba-a184-43b5fd0ee816",
+"title": "Gym equipment loads are small: metered 2 HP treadmill 712 W at 10 mph, 96 W at 1 mph, 3.76 W idle; Horizon plans 1,200–1,800 W; SportsArt ECO-POWR max 200–250 Wh per machine-hour, Bloomberg test 24 W over 30 min",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "d770bd22-728b-45d0-b2f6-9116164a4313",
+"title": "No spa treatment-room energy benchmark exists; only \"up to 35% of hotel energy for additional services such as a spa\" (Spanish hotels, unsourced) and PwC cost share 4% (basic) vs 25% (spa + heated pools) of hotel management costs",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "d5cc496f-4139-4709-bc6d-20944ef379bc",
+"title": "Towel mass from Standard Textile catalogue weights (lb per dozen): hospitality bath towel 27x54 in 15-17 lb/dz = 570-640 g; 25x54 13.5 lb/dz = 510 g; 24x50 10.5 lb/dz = 400 g; hand towel 16x27/16x30 3-4.5 lb/dz = 115-170 g; washcloth 1-1.5 lb/dz = 40-55 g; bath mat 20x30 7 lb/dz = 265 g, 20x34 10.5 lb/dz = 400 g. A spa/pool visit issuing 2 bath + 1 hand towel weighs about 1.3-1.5 kg dry",
+"created": "2026-10-24T06:12",
+"type": "observation"
+},
+{
+"id": "cf22103b-d642-4fac-9f01-3ccafbdd7ad1",
+"title": "Hotel laundry mass per occupied room-night: industry range 8-55 lb (3.6-25 kg) PPOR, ~10 PPOR on group-heavy days and ~17 PPOR on high-turnover days, 83 PPOR peak at a 400-room 5-diamond resort (Western State Design, 2017); 12 lb (5.4 kg)/room/day cited for a full-service hotel with pool and banquets; TRSA 44-property benchmark (clean lb per occupied room) is members-only",
+"created": "2026-10-24T06:12",
+"type": "observation"
+},
+{
+"id": "7b1d942c-b9b5-4301-bbd8-3faf1b3e5960",
+"title": "Only metered hotel-spa electricity benchmark found: Novotel Bali Ngurah Rai Airport spa, Jan-Jun 2024 audit (Politeknik Negeri Bali thesis, I Gde Bagus Arya Putra): 7.24-11.22 kWh/m2/month (87-135 kWh/m2/yr) covering lighting, air conditioning and equipment; AC found oversized in several rooms; no kWh per treatment published",
+"created": "2026-10-24T06:13",
+"type": "observation"
+},
+{
+"id": "09aecb1f-7311-4fc8-ad19-0a54e5e82721",
+"title": "Kampel, Aas & Bruland 2013 (Norwegian swimming halls): delivered energy about 1,000 to nearly 11,000 kWh/m2 water surface per year across facilities; literature comparators 4,300/5,200 (Trianti-Stourna), 5,984 (German spa), 4,475 (Finland) kWh/m2 WS; 725/1,573 kWh/m2 floor UK good/typical practice",
+"created": "2026-10-24T06:24",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "93ab1107-7c15-4c83-9cac-c23fae493bff",
+"title": "Attribute pool energy via published per-m2 water-surface intensity benchmarks (1,100–5,200 kWh/m2 WS/yr)",
+"created": "2026-10-24T05:38",
+"type": "option"
+},
+{
+"id": "f9a77493-2f43-4297-91e6-91a4f4951a69",
+"title": "Attribute amenities via regression marginal effect on whole-hotel EUI",
+"created": "2026-10-24T05:38",
+"type": "option"
+},
+{
+"id": "98a8a714-64f6-4129-afbe-953ed7abc595",
+"title": "Attribute amenities bottom-up: sub-metered loads (Kraków 400–660 kWh/day pool heating) plus engineering build-up from design conditions, evaporation physics, nameplate duty cycles and per-kg laundry factors",
+"created": "2026-10-24T05:38",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "1c627474-588b-4a8a-a8d3-1d1ed4f17b76",
+"title": "Bottom-up sub-metered/engineering attribution beats per-m2 water-surface benchmarks and regression marginal effects for wellness amenities",
+"created": "2026-10-24T05:39",
+"type": "decision",
+"chosen": [
+"Attribute amenities bottom-up: sub-metered loads (Kraków 400–660 kWh/day pool heating) plus engineering build-up from design conditions, evaporation physics, nameplate duty cycles and per-kg laundry factors"
+],
+"rejected": [
+"Attribute pool energy via published per-m2 water-surface intensity benchmarks (1,100–5,200 kWh/m2 WS/yr)",
+"Attribute amenities via regression marginal effect on whole-hotel EUI"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "a6013a16-3628-49bb-b2a1-8d17949da4fa",
+"title": "Facet 2 established: pool benchmarks, evaporation share, design conditions, one metered hotel pool, gym/hotel EUIs, laundry and chlorine factors; not found: commercial hot tub/sauna/steam audits, spa per-treatment benchmarks, towel kg per visit, pool chemical CO2e studies",
+"created": "2026-10-24T05:39",
+"type": "outcome"
+}
+],
+"revisits": [
+{
+"id": "aadce2a5-e8cf-4d7a-b59a-a7406fbea6f4",
+"title": "Trianti-Stourna 1998 resolved: 4,300/5,200 kWh/m2 water surface are unsourced climate-zone literature values; the five audited Greek pools averaged 450.1 kWh/m2 usable area (Kampel 2013/2016)",
+"created": "2026-10-24T06:22",
+"type": "revisit",
+"revisits": [
+"Trianti-Stourna 1998 (Greek pools, secondhand): 450 kWh/m2 floor, 1,094.5 kWh/m2 water surface, 57.5 kWh/m2 electricity — but also quoted as 4,300 (Mediterranean) / 5,200 (continental) kWh/m2 water surface; inconsistent"
+]
+}
+],
+"actions": []
+},
+{
+"id": "8a60446f-1fc5-4f00-bbd0-2bbc2b34eeb8",
+"title": "Facet 3: Food and beverage footprint (restaurants, bars, buffets, room service, banquets, minibars, food waste)",
+"kind": "facet",
+"observations": [
+{
+"id": "7151f797-e958-4267-b4c5-aa560c77abb5",
+"title": "Dolder Grand 2023-25: F&B = 48/52/56% of whole-hotel CO2e; 5.4-6.1 kgCO2e per restaurant guest; 38-39 kg per overnight stay",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "99d8f8ba-de73-4caa-ba7b-8014e37c472a",
+"title": "Accor URD 2024: catering & drinks 19% (1,229 kt) vs energy 65% of group footprint; 1.66-6.57 kgCO2e per meal (2023)",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "d1b8cae6-1ede-4bb4-9b00-788801aaf132",
+"title": "SHA 2024: hotel food systems 185 MtCO2e/yr; sourcing 62%, kitchen energy 19%, food waste 17%, packaging 2%; hotel meal ~3x global-average meal",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "5ff69709-6df1-4e74-a863-9976dc31776f",
+"title": "ADEME 2020 (France): breakfast = 30% of per-night hotel footprint; 5-star 17.11 vs average 9.91 kgCO2e/night",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "a675dc58-94f5-455b-90c2-c9e84a492e31",
+"title": "Poore & Nemecek 2018 (OWID dataset): beef herd 99.5, dairy-herd beef 33.3, lamb 39.7, cheese 23.9, pork 12.3, poultry 9.9, eggs 4.7, vegetables ~0.5 kgCO2e/kg",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "3b052635-d96c-4f24-97f7-4185550c5d31",
+"title": "Clune, Crossin & Verghese 2017 medians: beef 28.7, lamb 27.9, cheese 8.9, pork 5.9, chicken 4.1, eggs 3.4, milk 1.4, field vegetables 0.47 kgCO2e/kg",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "dc35e487-d912-4759-acbf-d3845bf63208",
+"title": "Scarborough et al. 2014 (UK): high meat-eaters 7.19 vs vegans 2.89 kgCO2e per 2,000 kcal day",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "6445ba9a-3c4d-4d37-862f-8552bc3fe22d",
+"title": "WRI Cool Food Meals thresholds (US 2020): 3.59 kgCO2e/portion breakfast, 5.38 lunch/dinner; pledge -25% absolute or -38% per kcal by 2030",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "fbe8a5e1-ae7d-45e1-b0de-2c767eeda0d3",
+"title": "Mudie et al. 2016 (UK pub-restaurant kitchens): 1.52-3.32 kWh electricity per meal; 294 kWh/day/kitchen; refrigeration 41%, catering 63% of premises electricity",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "fe1acc30-c8bc-4262-a1b0-77103c10ea10",
+"title": "Kitchen energy benchmarks: ENERGY STAR 2014 restaurant split food prep 35/HVAC 28/sanitation 18/lighting 13/refrigeration 6%; audits 0.38-0.58 kWh elec per main meal (cooking only) and 1.28 kWh elec + 1.67 kWh gas per meal (institutional)",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "ac642f57-78fc-40ea-9273-1e49ffefd42c",
+"title": "EPA Ireland hotel benchmarks: ~360 g food waste per cover (daily service), ~530 g per cover (functions), 263 g (restaurants); buffet breakfast 300 g vs plated 130 g per customer (unsourced)",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "65d1d5a3-d070-4983-a353-89cdbbc6de2e",
+"title": "Papargyropoulou et al. 2019 (Malaysia): 0.53 kg food waste per customer avg; 5-star hotel restaurant 8x a canteen; buffets most wasteful; banquet hall prepares 30% extra by policy",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "d96cfef2-1892-4892-949d-a0884216bb1f",
+"title": "Camilleri-Fenech et al. 2020 (Malta 5-star): plate waste buffet dinner 0.48 vs a la carte dinner 0.16 / lunch 0.21 kg per person; prep waste 0.08 kg/person",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "94cece79-1f13-44c4-8716-95256996efa4",
+"title": "Juvan et al. 2021 (Slovenia): breakfast-buffet plate waste 1.8 g (7-8am) -> 31.8 g (9-10am), avg 14.3 g/person; 4-star 14.3 vs budget 9.2 g; dinner late sitting 71-114 g vs early 27-32 g",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "b7f05831-57bc-4200-9efb-5d3b93e31148",
+"title": "Champions 12.3 / WRI / WRAP 2018: 42 hotel sites, 15 countries; -21% food waste by weight in 12 months; benefit-cost ratio avg 6.8:1, median 4.7:1; waste ~5% of COGS",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "a69d4bb4-cede-44c5-aa6f-2cf58cdfa683",
+"title": "Food-waste emission factors: DEFRA ~627 kgCO2e/t landfill vs ~9 kgCO2e/t composting; cradle-to-grave 1.9 kgCO2e/kg (BIO Intelligence 2010); WARM v16 compost-vs-landfill net 0.61 MTCO2e/short ton",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "6dc32434-27b9-496a-af5b-b7730dfb1830",
+"title": "Beverage LCAs: beer 510-842 gCO2e/L by packaging (Amienyo & Azapagic 2016, UK); wine 0.9-2.0 kgCO2e per 0.75 L bottle; single malt Scotch 2.83 kgCO2e per 70 cl (2025); gin 0.57 kg/70 cl; cocktails 152-690 g/drink (marketing)",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "270dd243-bf3a-4445-9181-81fe31865aa1",
+"title": "Bar/kitchen equipment energy (ENERGY STAR certified): ice machines 3.6-5.6 kWh per 100 lb (~0.08-0.12 kWh/kg); high-temp door dishwashers 0.17-0.61 kWh per rack plus 0.45-1.0 kW idle",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "2b48abd6-ab86-4b6d-acbe-d03c8715609b",
+"title": "Minibars: Dometic HiPro absorption units 0.53-0.70 kWh/24h (236-265 kWh/yr, EN 62552-3); compressor ~1/3 of absorption (Tefcold claim); catalogue range 55-292 kWh/yr; ~70% of travellers never use one",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "3d7b492e-228c-4bd4-b9dd-30b126fb1136",
+"title": "Events: Dolder 7.8-8 kgCO2e per event guest (2023-24), 19.7 kg (2025); MeetGreen ~1.9 kg waste per attendee-day; GBTA 2023 532 kgCO2e/attendee (travel 42%); Hilton Cardiff 8 kgCO2 per person per full day of meals",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "3d583edf-7764-484e-9d09-0311035f9c89",
+"title": "Greek 5-star resort (CEST 2025): energy 81%, food waste 11%, other waste 5%, kitchen propane 3% of guest-night CO2e - operational boundary only, excludes purchased food",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "3478cf71-f17b-4080-9765-66aea0996a11",
+"title": "Gössling, Garrod, Aall, Hille & Peeters 2011 \"carbon foodprint\": review of food GHG intensity for tourism foodservice; abstract contains no kg CO2 per meal figure and notes \"a lack of dependable data on the GHG intensity of foodstuffs\"",
+"created": "2026-10-24T06:23",
+"type": "observation"
+},
+{
+"id": "d2dc6ea1-725d-44bf-8a6b-2a5b19da2b45",
+"title": "Pirani & Arafat 2014 (hospitality solid-waste review) and 2016 (UAE food waste, 45 hotels/restaurants, FRESH indicator): bibliography and abstracts verified; neither abstract gives kg waste per room-night",
+"created": "2026-10-24T06:24",
+"type": "observation"
+},
+{
+"id": "fb1c7692-e35d-4456-a89e-61be797a213a",
+"title": "Point, Tyedmers & Naugler 2012 (Nova Scotia wine LCA, functional unit one 750 mL bottle): viticulture and consumer transport dominate impacts; lighter bottles beat organic viticulture; third author is Naugler C, not \"Theodore C\"; abstract gives no kg CO2e per bottle",
+"created": "2026-10-24T06:24",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "c0c2989d-7a10-4c1c-8d47-d60e2b988ff9",
+"title": "Option A: derive F&B share from a hotel-level Scope 3 inventory (Dolder 48-56%) rather than group disclosure (Accor 19%) or top-down sector split (SHA 62/19/17/2)",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "5465c23e-8500-4ba9-b2e1-d0706f9f33b3",
+"title": "Option B1: count wasted food's embodied CO2e inside purchased-food Scope 3 and apply a disposal-only factor (DEFRA ~627 kgCO2e/t landfill, ~9 kg/t compost) to the waste line",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "0e19eab4-bed4-4962-ac89-3744a9ca8bdd",
+"title": "Option B2: net purchases of wasted food and apply a cradle-to-grave waste factor (1.9 kgCO2e/kg BIO Intelligence 2010; Winnow-implied ~4.35 kgCO2e/kg) to the waste line",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "c2788c5f-10f8-43c6-ac49-44f03d171553",
+"title": "Option C: estimate kitchen/bar energy per cover bottom-up from measured kWh/meal (Mudie 1.5-3.3 kWh elec + ~1.7 kWh gas) vs top-down as 15-25% of whole-hotel energy (SHA, interview-based)",
+"created": "2026-10-24T05:39",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "fbddd1f2-b6ca-46ee-ab98-f00e991a6a09",
+"title": "Carry embodied emissions of wasted food in the purchases bucket and use disposal-only waste factors (beats cradle-to-grave waste factor, which double counts with Scope 3 purchases)",
+"created": "2026-10-24T05:40",
+"type": "decision",
+"chosen": [
+"Option B1: count wasted food's embodied CO2e inside purchased-food Scope 3 and apply a disposal-only factor (DEFRA ~627 kgCO2e/t landfill, ~9 kg/t compost) to the waste line"
+],
+"rejected": [
+"Option B2: net purchases of wasted food and apply a cradle-to-grave waste factor (1.9 kgCO2e/kg BIO Intelligence 2010; Winnow-implied ~4.35 kgCO2e/kg) to the waste line"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "c954e09b-012b-49d3-a29d-12c69fdf1fce",
+"title": "Facet 3 established: F&B = 48-56% of a luxury urban hotel's CO2e (Dolder, full Scope 3) vs 19% at group level (Accor); 5-6 kgCO2e per restaurant cover; 1.5-3.3 kWh elec per meal; 0.3-0.5 kg waste per cover; beverages 0.15-0.33 kgCO2e per serve. Not found: hotel-kitchen kWh/cover, WRAP UK per-cover benchmark, Point 2012 bottle value, Filimonau 2011 breakfast figure, in-room coffee, glasswasher energy",
+"created": "2026-10-24T05:40",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": []
+},
+{
+"id": "530baeb4-6061-4258-a60e-d0a7a65683e0",
+"title": "Facet 4: Guestroom and guest services footprint (HVAC, hot water, housekeeping/laundry, amenities, elevators, transport, behaviour levers)",
+"kind": "facet",
+"observations": [
+{
+"id": "5dd0b2ae-48a6-46ef-b217-7120c5f49eee",
+"title": "PNNL 2010 sub-metered hotel: guestroom PTHP 4,016 kWh/day vs lights/TV 193 and minibar fridge 196 kWh/day (~300 rooms); DHW = 51% of gas; elevators 141 kWh/day (~1% of electricity)",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "75f08c89-3ac1-4cc6-9774-cda865b87071",
+"title": "CBECS 2018 lodging: 85.7 kBtu/ft2 total; water heating largest end use at 16.5 kBtu/ft2 (~20%); space heating ~20%; lighting, cooling each <=10%",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "71bbad1d-7078-43f2-9ecf-9fa96782f854",
+"title": "HES/UNWTO 2011 European meta-analysis: hotels 200-400 kWh/m2/yr (avg 305-330); space conditioning ~50%, DHW up to 15%, lighting 12-18% (to 40%); no significant EUI difference by star rating",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "fb75bc0b-304b-4ceb-8c33-6e96aa32f2cd",
+"title": "DOE/PNNL 2012 Marriott demo: occupancy-based guestroom HVAC controls saved 10.8-26.5% (mean 18.4%), 167-589 kWh/room/yr, payback 5.3-17.9 yr; prior utility studies 5.6-28% (62-462 kWh/room/yr)",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "31b33186-f18f-4b20-9ae6-0433172c6b6d",
+"title": "Goldstein, Cialdini & Griskevicius 2008: descriptive-norm towel card raised reuse from 35.1% to 44.1% (same-room norm 49.3%); German replication (Bohner & Schlüter 2014) baseline 64.3%, messages 69-93%",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "fe4c371f-ed0d-4cb3-8530-24e435f87ae7",
+"title": "Sheraton Boston opt-out housekeeping night saves 37.2 gal water, 0.19 kWh electricity, 25,000 BTU gas, 7 oz cleaning products; Hyatt Centric optional linen change cut linen output 18%",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "7dab3d45-8b34-4adb-90da-f1bf87ec45d0",
+"title": "EPA WaterSense: washer-extractors 17-33 L/kg, tunnel washers <=17 L/kg; heating water = 0.048 kWh/L for a 41.7 K rise (before heater efficiency); water heating ~90% of washer energy",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "4348a883-aa57-44bb-9134-707ec67d43c4",
+"title": "Hotel water per guest-night: 140 L European frontrunner benchmark (Styles 2015); 419 L weighted average across 1,667 hotels (Schick & Redlein 2025); 5-star 594 L vs 394 L average (Ecologic 2007/Hamele 2006); Marriott managed 788 L/occupied room (2022)",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "927768cd-4964-4063-93d3-edfd56abbb32",
+"title": "CHSB 2023 (2021 data, 25,576 hotels): luxury energy screened at 50-700 kWh/occupied room vs midscale 20-300; 5-star water per occupied room +23.3% 2019-21 vs 2-star +4.0%; luxury uses more water per room but not per m2",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "f145f9ab-831f-4674-b6fa-0e7a60eb1d5f",
+"title": "Gleick & Cooley 2009: bottled water 5.6-10.2 MJ per litre (1.6-2.8 kWh/L), dominated by PET bottle manufacture for short-haul water",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "9dd6e551-8a53-43dd-aa25-4f5c2246116e",
+"title": "No independent LCA of miniature toiletries vs bulk dispensers exists in accessible literature; chain claims are plastic-mass only (1 pump bottle = 10-12 minis; '95% less plastic'; Groupe GM '600 tCO2e')",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "7e58d2df-ddcc-43e6-ae44-604dbbf63ce8",
+"title": "DEFRA 2024 cars by market segment (kgCO2e/km): Luxury petrol 0.319, diesel 0.207, hybrid 0.258, PHEV 0.121; Executive petrol 0.208, diesel 0.170, hybrid 0.179, PHEV 0.086; BEV tailpipe 0",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "219fb2ff-3823-49ae-bf3d-b665a656e7df",
+"title": "Hotel groups report no guest-travel Scope 3 category: Marriott 2022 lists purchased goods 4.13 Mt, capital goods 0.78, fuel/energy 1.65, waste 0.16, business travel 0.055, commuting 0.59, franchises 4.61 MtCO2e; Hilton franchises + waste + business travel; IHG SBT = Category 14",
+"created": "2026-10-24T05:38",
+"type": "observation"
+},
+{
+"id": "ec58c0d9-890c-44b9-b56b-d7a82e80764e",
+"title": "Elevators: ~1% of hotel electricity measured (PNNL 141 kWh/day, 12 storeys); 2-8% literature range for offices (Sachs 2005); hotels = ISO 'medium' usage ~300 trips/day; 22-135 Wh per empty reference cycle, 50-900 W standby",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "0452a0f5-6a2c-4191-be73-075ee0db3731",
+"title": "Bathroom lights left on 24 h = ~600 kWh/room/yr (4 x 60 W); motion-sensor control saves ~50% of bathroom lighting, 76-154 kWh/room/yr (PG&E ET 0609)",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "6c6687dd-0176-4737-ace4-73ea430a0283",
+"title": "Deyà Tortella & Tirado 2011 (Mallorca hotel water): hierarchical regression of hotel water use; higher-category, low-season and all-inclusive models raise water consumption; management system and saving initiatives significant - abstract gives no L per guest-night",
+"created": "2026-10-24T06:24",
+"type": "observation"
+},
+{
+"id": "65efcb27-ada8-48e3-bde3-0f8e8765b25e",
+"title": "Gössling et al. 2012 (Tourism and water use review): direct tourism water use \"considerably less than 1% of global consumption\"; indirect use (food, materials, energy) likely larger than direct; no per-guest-night figure in abstract",
+"created": "2026-10-24T06:24",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "e69fa3e7-c9ac-4721-bf3e-1c2cf42e1b63",
+"title": "Guestroom end-use split from PNNL 2010 sub-metered data (measured, one DC-area hotel), with CBECS 2018 for the DHW share",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "b7143a34-7b18-41a9-b885-e8e0cc185abf",
+"title": "Guestroom end-use split from survey/meta-analysis shares (CBECS 2018 or HES 2011) applied to a whole-building EUI",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "a4b5624a-434f-4946-b847-785c2d9c1d70",
+"title": "Guestroom end-use split from DOE Prototype Large Hotel / ASHRAE AEDG modelled end uses (not yet retrieved)",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "1f56aead-eeed-498f-a5ce-e9729c915eb4",
+"title": "Occupancy-control savings from independent DOE/PNNL 2012 measurement (18.4% mean, 167-589 kWh/room/yr)",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "193f5300-f526-42c9-b1e3-43116661cd9c",
+"title": "Occupancy/key-card savings from vendor-linked case studies (33% Verde/Wyndham on 4 rooms; 45-50% Aqua Aloha Surf uncontrolled)",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "b135d4b3-cf5c-4016-a72d-7bdf41e48bd9",
+"title": "Luxury water per guest-night from segment-specific sources (594-800 L: Ecologic/Hamele 5-star, Morote 2018 Spain 5-star, Marriott managed 2022)",
+"created": "2026-10-24T05:39",
+"type": "option"
+},
+{
+"id": "f8611faa-efe7-42e7-b0fa-f8cdf58f3c80",
+"title": "Luxury water per guest-night from segment-neutral averages (419 L SLR weighted mean; 394 L Hamele average) on the finding that quality level is not significant",
+"created": "2026-10-24T05:39",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "b21e5837-00d7-46b4-b2bf-ad869b3f8c8e",
+"title": "Use independent DOE/PNNL 2012 occupancy-control savings (18.4%, 167-589 kWh/room/yr) over vendor 33-50% claims for the key-card/occupancy lever",
+"created": "2026-10-24T05:40",
+"type": "decision",
+"chosen": [
+"Occupancy-control savings from independent DOE/PNNL 2012 measurement (18.4% mean, 167-589 kWh/room/yr)"
+],
+"rejected": [
+"Occupancy/key-card savings from vendor-linked case studies (33% Verde/Wyndham on 4 rooms; 45-50% Aqua Aloha Surf uncontrolled)"
+],
+"from_options": []
+},
+{
+"id": "dce656a1-6167-434a-bc51-369a0a2a2a33",
+"title": "Use CBECS 2018 lodging end-use intensities (Table E2) as the base-building split in the measurement app, with PNNL 2010 sub-metering as a cross-check; reject the single-hotel PNNL split as primary and the DOE prototype split as not retrieved",
+"created": "2026-10-24T08:25",
+"type": "decision",
+"chosen": [
+"Guestroom end-use split from survey/meta-analysis shares (CBECS 2018 or HES 2011) applied to a whole-building EUI"
+],
+"rejected": [
+"Guestroom end-use split from PNNL 2010 sub-metered data (measured, one DC-area hotel), with CBECS 2018 for the DHW share",
+"Guestroom end-use split from DOE Prototype Large Hotel / ASHRAE AEDG modelled end uses (not yet retrieved)"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "7561d961-4197-4689-bb25-54c0286c4812",
+"title": "Facet 4 evidence base written: 15 verified sources give per-room HVAC/plug/DHW, laundry L and kWh per kg, water per guest-night, OBC and towel-reuse effect sizes, transfer emission factors; no data found for toiletries LCA, room service, luxury elevators, or Bohdanowicz 2007 primary figures",
+"created": "2026-10-24T05:40",
+"type": "outcome"
+},
+{
+"id": "90f46369-bb72-4d0f-ac2b-d900dae6e6fd",
+"title": "Studio v2 published with db + user capabilities (/hotel-carbon/studio); functional check: ArtifactData list of \"scenarios\" returns an empty collection as expected before any viewer saves; defaults unchanged at 36.3 kgCO2e per room-night",
+"created": "2026-10-24T08:30",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": [
+{
+"id": "0f5ce222-8040-4317-9cac-17e6cda7ab8f",
+"title": "Studio v2: base building split into eight CBECS 2018 lodging end uses (normalised share sliders, guestroom HVAC share knob), new \"Building end use\" grouping, electricity share derived from the split, and shared scenarios (save/load/baseline/delete) stored in the artifact database with user attribution",
+"created": "2026-10-24T08:28",
+"type": "action"
+}
+]
+},
+{
+"id": "5c2b0a18-178f-494d-911f-9e847b755196",
+"title": "Facet 5: Corporate climate targets (Hilton Travel with Purpose, SBTi) and offset / green-package strategies and their integrity",
+"kind": "facet",
+"observations": [
+{
+"id": "d1a2340c-165b-4563-ab40-f1d3fe584fc1",
+"title": "Hilton SBTi targets: -75% Scope 1+2 intensity (managed) and -56% Scope 3 intensity (franchised) by 2030 vs 2008, MT CO2e/m2; validated June 2022 as 1.5C-aligned",
+"created": "2026-10-24T05:42",
+"type": "observation"
+},
+{
+"id": "580e5886-023a-409a-910a-937b3798cc19",
+"title": "Hilton 2025 Performance Tables (DEKRA-assured): -50.9% managed / -36.0% franchised intensity vs 2008, but absolute market-based Scope 1+2 2,443,342 tCO2e (+9.6% vs 2008's 2,229,587) and franchise Scope 3 4,011,353 (+84% vs 2008's 2,180,912); location-based minus market-based Scope 2 gap 118,530 tCO2e = effect of green tariffs/EACs",
+"created": "2026-10-24T05:42",
+"type": "observation"
+},
+{
+"id": "f13ee6ac-8224-43c5-935d-79b3b1866eb4",
+"title": "Hilton LightStay: mandatory brand-standard monthly utility data from 7,500+ hotels; DEKRA limited assurance (ISO 14064-3, 5% materiality); progress tracked on market-based Scope 2; no credits in inventory",
+"created": "2026-10-24T05:42",
+"type": "observation"
+},
+{
+"id": "cba190ea-4bbe-41b6-b74c-ad46cb0b532c",
+"title": "Marriott SBTi (Apr 2024): absolute -46.2% Scope 1+2 and -27.5% Scope 3 by 2030 vs 2019; net zero 2050 (-90%); yet 2.92% of energy from renewables (2023)",
+"created": "2026-10-24T05:43",
+"type": "observation"
+},
+{
+"id": "f6321c78-c6f4-457e-8840-d89fa89706cf",
+"title": "Peer targets: Hyatt -27.5% Scope 1+2 by 2030 vs 2019 (SBTi 2021); Accor -46% Scope 1+2 vs 2019, net zero 2050; IHG -15% absolute/-46% per m2 franchise (submitted); Minor/NH validated net zero 2050",
+"created": "2026-10-24T05:43",
+"type": "observation"
+},
+{
+"id": "d364af9f-e99b-4f63-87b9-0dadf13d973e",
+"title": "Luxury independents: Six Senses -46% CO2 per occupied room by 2030 vs 2019; Iberostar 'carbon neutral' Scopes 1-3 by 2030 relying on nature offsets (SBTi-validated Oct 2022 but not 1.5C); Soneva 2% levy since 2008; Scandic neutrality-by-2025 goal (outcome unknown)",
+"created": "2026-10-24T05:43",
+"type": "observation"
+},
+{
+"id": "24ec45db-a6e8-4d38-b11c-c5e61d947315",
+"title": "SBTi CNZS V1.3.1 (Apr 2026, valid through 2026): carbon credits 'do not count as reductions toward meeting near-term or long-term science-based targets'; only neutralise residuals at net zero or fund BVCM",
+"created": "2026-10-24T05:43",
+"type": "observation"
+},
+{
+"id": "8db8664f-ded5-4ba1-86c5-f5f6d4c8e79c",
+"title": "SBTi CNZS V2.0 published 11 Jun 2026 (mandatory 31 Jan 2028): Ongoing Emissions Responsibility 1%/10%/100% at $20-80/t; removals mandatory from 2035 (1% rising to 100%); long-lived residuals need long-lived removals",
+"created": "2026-10-24T05:43",
+"type": "observation"
+},
+{
+"id": "753b5cb2-a154-4b02-95c7-9afe70fc5e56",
+"title": "SBTi V2.0 Scope 2 rules: PPAs/RECs allowed only from plants <=15 yrs in same deliverability region; large loads must report hourly matching; recognition at 50% (to 2030), 75% (to 2035), 90% (from 2035)",
+"created": "2026-10-24T05:43",
+"type": "observation"
+},
+{
+"id": "c1a0c275-181d-476c-9ad9-6fdb4abf0c07",
+"title": "Hilton renewable procurement 2025: 35% of EMEA managed hotels/offices on renewable contracts; US managed hotels ~152M kWh renewable (+88% YoY, ~2% of managed energy); Istanbul/Dubrovnik solar PPAs 8M+ kWh (70% of demand)",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "2de30893-bbb0-4ede-b419-a243bc1483cf",
+"title": "SBTi April 2024 EAC controversy: Board statement 9 Apr allowing EACs/credits for Scope 3 abatement; staff letter 11 Apr; Board 12 Apr: 'no changes have been made to SBTi current standards'",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "d2a342dc-1a76-41e9-8b1a-90e918b7bc1b",
+"title": "West et al. 2023 (Science 381:873-877, 24 Aug 2023): 18 REDD+ projects, only 6.1% of credits tied to additional reductions; 68% from projects with no significant deforestation reduction; Verra disputes",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "2f00582c-cfc7-4f6c-acca-5966f8cd1548",
+"title": "California/IFM forest offsets over-credited: Badgley et al. 2022 GCB 29.4% (30.0 Mt, 90% CI 20.5-38.6); Coffield et al. 2022 GCB 37 IFM projects 'generally not additional'; Haya et al. 2023 Frontiers protocols deviate from science",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "9612f65d-5d6c-4fb1-ad88-509922f20e53",
+"title": "ICVCM 15 Nov 2024: CCP label for ART TREES v2.0, VCS VM0048 v1.0, VCS JNR v4.1 only; legacy Verra REDD+ methodologies (majority of REDD+ credits, ~25% of all 2023 retirements) excluded; VCMI Claims Code tiers Silver 20-60%, Gold 60-100%, Platinum >100%",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "fb8028fa-372d-48cb-8bef-ccbbe5fa4603",
+"title": "Oxford Principles 2024 (Smith School, Feb 2024): 'most offsetting today is still not net zero aligned'; reach 100% removal credits by net-zero date; durable storage; 'carbon neutral' is a 'less rigorous, interim claim'",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "026905ad-7a2f-4b11-a891-baacef13e04b",
+"title": "CDR prices 2024-2025: durable removals ~$180/t vs ~$35/t nature-based; DAC median offtake ~$650/t ($100-989); biochar $50-150/t; weighted CDR avg $490 (2023) -> $320 (2024); Microsoft 93.8% of Q2 2025 volume (15.48 Mt record quarter)",
+"created": "2026-10-24T05:44",
+"type": "observation"
+},
+{
+"id": "1f80cc9c-f4ea-4f85-aa43-33fb5a936bcd",
+"title": "Hotel neutrality programmes documented: Radisson Carbon Neutral Meetings (late 2012, Carbon Footprint Ltd, free to planner; 30,300 t offset since 2019); Hilton Carbon Neutral Meetings (2012 SE Asia; now ClimeCo, >=10 rooms on peak); Hyatt 14 US hotels 2023; Bucuti & Tara CarbonNeutral certified 28 Aug 2018 (wind-farm credits)",
+"created": "2026-10-24T05:45",
+"type": "observation"
+},
+{
+"id": "b4e3b53b-0b0b-448f-8e0e-a43dc756596a",
+"title": "Populus Denver 'first carbon positive hotel' (2024): 6,675 tCO2e embodied carbon claimed offset via certified credits + 70,000 trees; CPR/Forest Service found 80% of spruce seedlings dead after one year (vs 46% avg)",
+"created": "2026-10-24T05:45",
+"type": "observation"
+},
+{
+"id": "53d548f2-1054-45e3-80bd-b231300b2c00",
+"title": "Green-hotel WTP evidence: Kang et al. 2012 IJHM luxury/mid-price guests more willing than economy; Nelson et al. 2021 PLOS ONE 72.7% willing but mean ~US$1.55/night; Kuminoff et al. 2010 hedonic premium $9-26/room; Damigos 2023 review ~5% premium",
+"created": "2026-10-24T05:45",
+"type": "observation"
+},
+{
+"id": "c423b57b-9474-4756-8574-c0d6112b0947",
+"title": "Revealed opt-in behaviour is weak: Expedia CEO (Fortune, 6 Oct 2023) travellers 'choose the cheaper [option] the overwhelming majority of the time'; 2025 systematic review: stated willingness high, actual engagement low; Expedia TerraPass opt-in since 2006 ($5.99/1,000 lb)",
+"created": "2026-10-24T05:45",
+"type": "observation"
+},
+{
+"id": "ab7ee844-64bd-46a4-b72e-5ec90f80e5e6",
+"title": "Menu carbon labels: Brunner et al. 2018 Ecol Econ +11.5% low-emission dishes, -4.8% red-labelled, -3.6% emissions; canteen trials 1.5-5.0% emission cuts (Lowrie & Lohmann 2025 BPP summary incl. Lohmann et al. 2022 JEEM); workplace trials null (Pechey 2022, 111,837 choices); Camilleri et al. 2018 NCC labels cut beef soup choice",
+"created": "2026-10-24T05:45",
+"type": "observation"
+},
+{
+"id": "09db621f-ed68-4da4-bbaa-f6f9e85ce3da",
+"title": "EU Directive 2024/825 (in force 26 Mar 2024; applies 27 Sep 2026): per se ban on 'neutral/reduced/positive impact' claims based on offsetting outside the value chain, unsubstantiated generic claims, and non-certified sustainability labels; Green Claims Directive stalled since June 2025",
+"created": "2026-10-24T05:46",
+"type": "observation"
+},
+{
+"id": "917b00db-02c9-4514-a8ac-96726f0a707c",
+"title": "Court rulings on offset-based neutrality: KLM (Amsterdam, 20 Mar 2024, 15/19 statements misleading); Eurowings (LG Koln Mar 2024 81 O 32/23; OLG Koln 13 Dec 2024 6 U 45/24; OLG Dusseldorf I-20 U 38/25); BGH 27 Jun 2024 I ZR 98/23 ('klimaneutral' must say reduce vs offset); Best Western Mannheim hotel stays (LG Berlin II)",
+"created": "2026-10-24T05:46",
+"type": "observation"
+},
+{
+"id": "5fac6001-7812-4381-b34b-4dd73148d665",
+"title": "Regulators on hotel labels/claims: Booking.com dropped 'Travel Sustainable' badge (500,000+ properties) from 25 Mar 2024 after Dutch ACM objection; UK CMA fines up to 10% global turnover from 6 Apr 2025, ASA banned 'Eco Hotel' ads 9 Sep 2026; US FTC Green Guides unrevised since 2012",
+"created": "2026-10-24T05:46",
+"type": "observation"
+},
+{
+"id": "bff55722-9e68-4817-87d1-c8cb35b39fc6",
+"title": "NYC Local Law 97 (2019): hotel (R-1) limits 0.00987 tCO2e/sf (2024-29) and 0.00526 tCO2e/sf (2030-34); penalty $268/tCO2e over limit; offsets max 10% of limit (AHRF only, $268/t); RECs deductible without cap but only Zone J-deliverable, same-year, utility electricity",
+"created": "2026-10-24T05:46",
+"type": "observation"
+},
+{
+"id": "bbfcd0a2-d40e-4cbe-9f62-060f809f831d",
+"title": "Physical decarbonisation precedents: Hotel Marcel New Haven (Tapestry by Hilton, May 2022) all-electric with >1,000 PV panels, LEED Platinum reported, Passive House status inconsistent; Hilton Garden Inn Brussels Airport 2025 geothermal + 600 PV, 100% renewable; Hilton Istanbul/Dubrovnik solar PPAs 70% of demand",
+"created": "2026-10-24T05:46",
+"type": "observation"
+},
+{
+"id": "6625c342-2a51-4abf-a549-6ff25bb049b4",
+"title": "Sustainable Hospitality Alliance 'Pathway to Net Positive Hospitality for the Planet': stages 1-2 launched Mar 2022, digital pathway with EY tracker at COP28 (Dec 2023), 10 ESG topics; membership stated as '30% of industry' or '>50,000 hotels' (inconsistent)",
+"created": "2026-10-24T05:47",
+"type": "observation"
+},
+{
+"id": "7e6a9298-d4dd-4063-9940-556e9ebaa8a4",
+"title": "Hilton's SBTi-validated targets are ABSOLUTE, not intensity: -46.2% Scope 1+2 and -27.5% Scope 3 (franchises) by 2030 from a 2019 base year (SBTi dashboard, updated 21 Jul 2022; CDP 2023 C4.1a). The -75%/-56% per-m2 goals vs 2008 are Hilton's Travel with Purpose framing, which Hilton itself calls 'equivalent' to 74.8%/55.5% per ft2",
+"created": "2026-10-24T06:10",
+"type": "observation"
+},
+{
+"id": "fb8a02ae-de00-48d6-b50d-44790f5675fb",
+"title": "Hilton has no net-zero target or SBTi net-zero commitment as of Oct 2026 (SBTi dashboard: long-term and net-zero status blank); FY2025 10-K (filed 11 Feb 2026) contains no 'net zero', 'carbon', 'greenhouse', 'science-based', 'Local Law 97' or 'building performance standard' language, only generic climate-change demand/weather risk and a 'sustainability matters' disclosure-regulation risk",
+"created": "2026-10-24T06:10",
+"type": "observation"
+},
+{
+"id": "c65d0787-5b15-44ae-aeef-0482bc1f13ff",
+"title": "Hilton CDP Climate 2023 (FY2022, 830 managed hotels, operational control): Scope 1 446,084; Scope 2 LB 1,922,844 / MB 1,904,610; Scope 3 franchises 4,020,579 tCO2e (65% primary LightStay data, rest extrapolated by brand-average intensity); 550 Gold Standard credits cancelled; no internal carbon price; low-carbon electricity = UK green-tariff contracts (66,136 MWh) + GOs in Portugal/Italy; purchased steam 119,386 MWh; CDP score not public",
+"created": "2026-10-24T06:11",
+"type": "observation"
+},
+{
+"id": "0bb84a24-f501-4e62-b224-94a02fd09e5a",
+"title": "Rosewood Hotel Group (2025 Impact & Sustainability Report, Jun 2026): net zero 2050; -87% absolute Scope 1+2 and -66% Scope 3 intensity (tCO2e/m2) by 2035 vs 2023 base; 50% renewable energy by 2035; targets 'aligned with SBTi' but 'not validated'; 2025 actuals: -17% Scope 1+2 intensity vs 2019, 4.27% of energy renewable; intensity reported per m2, not per room night",
+"created": "2026-10-24T06:11",
+"type": "observation"
+},
+{
+"id": "2c52dcb8-4cfa-4a14-af53-c2447db9a08c",
+"title": "HSH / The Peninsula Hotels (Sustainable Luxury Vision 2030): by 2030 -55% carbon and water intensity and -35% absolute carbon vs 2010; 2024 actual -33.6% absolute, -48.4% intensity, 110 kgCO2e/m2, group GHG 82 ktCO2e (Scope 1 21, Scope 2 61) vs 124 kt in 2010; RECs at Istanbul/Tokyo; Scope 3 inventory due 2025; no SBTi entry; net zero 2050 only via secondary summaries of the 2025 report",
+"created": "2026-10-24T06:11",
+"type": "observation"
+},
+{
+"id": "98c27f74-80ee-4ce5-b24a-dc4866dfbdd3",
+"title": "Mandarin Oriental 2030 Environmental Group Targets vs 2012: -30% energy intensity, -50% carbon intensity, -40% water, -50% waste (per m2); 2023: carbon intensity -22%, absolute Scope 1+2 up with floor area more than doubled since 2012, renewables 8%; 2024 (secondary): -30% carbon intensity, -21% energy, Scope 3 first quantified; no SBTi entry, no net-zero date",
+"created": "2026-10-24T06:11",
+"type": "observation"
+},
+{
+"id": "408956fc-bb6b-49ce-860c-dd0692c7bce1",
+"title": "IHG (Kimpton's parent) SBTi-validated: -46.2% absolute Scope 1+2+3 (FERA and franchised hotels) by 2030 vs 2019; 2025 Annual Report: off track, total carbon up 7.7% since 2019 while per-available-room carbon down 11.0%; Scope 2 MB 2,207,061 tCO2e; S1+2 0.0258 tCO2e per available room (2019: 0.0297); no IHG net-zero target; Kimpton has no brand-level climate target",
+"created": "2026-10-24T06:12",
+"type": "observation"
+},
+{
+"id": "ba48f969-6641-4c7c-b0fd-516e27a48027",
+"title": "Four Seasons (2024 Progress Report): no published portfolio-wide carbon reduction target, SBTi commitment or net-zero date; property-level annual energy/carbon targets tied to leaders' incentive pay since 2024, LEED Gold or equivalent mandatory for new builds and major renovations, food waste -50% by 2030 vs 2019, Scope 1+2 assurance-readiness review begun. Aman and 1 Hotels/SH Hotels publish no quantified climate target",
+"created": "2026-10-24T06:12",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "5928cf0c-1eee-444d-a703-0de6379ffd6e",
+"title": "Option A: Market-based Scope 2 instruments (RECs/EACs, green tariffs, PPAs) to cut reported Scope 2",
+"created": "2026-10-24T05:34",
+"type": "option"
+},
+{
+"id": "a8610aab-06c6-468b-8f6c-fb15acbcb9c1",
+"title": "Option B: Avoidance/reduction carbon credits to sell 'carbon-neutral stays' or meetings",
+"created": "2026-10-24T05:34",
+"type": "option"
+},
+{
+"id": "e5552d72-8be3-4b49-9d29-17da5213a2ec",
+"title": "Option C: Durable carbon removals (DAC, biochar, BECCS) as contribution / future neutralisation",
+"created": "2026-10-24T05:34",
+"type": "option"
+},
+{
+"id": "15e33fa3-2db8-4447-b27a-0d05fd0b354b",
+"title": "Option D: Guest-funded packages (levy, opt-in offset at booking, climate-positive rate)",
+"created": "2026-10-24T05:34",
+"type": "option"
+},
+{
+"id": "05ff75ce-dc43-4db1-982f-329d711e44cc",
+"title": "Option E: Amenity choice architecture and carbon labelling (opt-in service, menu labels, low-carbon rate)",
+"created": "2026-10-24T05:35",
+"type": "option"
+},
+{
+"id": "83b261c5-015c-41c0-84d7-7b5332af9ca6",
+"title": "Option F: Disclosure-only ('we measure and disclose, we do not neutralise') plus value-chain insetting",
+"created": "2026-10-24T05:35",
+"type": "option"
+},
+{
+"id": "b33491ea-225d-46ee-a5d8-b71281adfefb",
+"title": "Option G: Physical decarbonisation of the asset (electrification, efficiency, on-site renewables) under NYC LL97",
+"created": "2026-10-24T05:35",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "11d0368f-8d89-4ab0-a8e3-6976243a55a8",
+"title": "Facet 5 ruling: physical decarbonisation (G) plus disclosure-without-neutralisation and value-chain insetting (F), with amenity choice architecture (E) as the guest-facing lever; reject avoidance credits for \"carbon-neutral stays\" (B); treat market-based Scope 2 (A), durable removals (C) and guest-funded packages (D) as reporting or contribution instruments, not as the basis of any neutrality claim",
+"created": "2026-10-24T08:25",
+"type": "decision",
+"chosen": [
+"Option F: Disclosure-only ('we measure and disclose, we do not neutralise') plus value-chain insetting",
+"Option E: Amenity choice architecture and carbon labelling (opt-in service, menu labels, low-carbon rate)",
+"Option G: Physical decarbonisation of the asset (electrification, efficiency, on-site renewables) under NYC LL97"
+],
+"rejected": [
+"Option B: Avoidance/reduction carbon credits to sell 'carbon-neutral stays' or meetings",
+"Option A: Market-based Scope 2 instruments (RECs/EACs, green tariffs, PPAs) to cut reported Scope 2",
+"Option C: Durable carbon removals (DAC, biochar, BECCS) as contribution / future neutralisation",
+"Option D: Guest-funded packages (levy, opt-in offset at booking, climate-positive rate)"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "92f1621c-c669-407b-880b-810599b46db6",
+"title": "Facet 5 established: Hilton's SBTs are intensity-only (-75%/-56% per m2 vs 2008, 50.9%/36.0% achieved by 2025) with no credits in the inventory; credits cannot count toward SBTs (V1.3.1, V2.0); offset-based neutrality claims are banned in the EU from 27 Sep 2026 and already struck down in NL/DE courts; LL97 binds the NYC asset. Not found: Hilton net-zero target, CDP score, 10-K language, WA-NY data, Four Seasons/MO/Rosewood targets, any opt-in uptake rate",
+"created": "2026-10-24T05:47",
+"type": "outcome"
+}
+],
+"revisits": [
+{
+"id": "8ac4d885-2c1e-4a2a-8539-cee42670bf48",
+"title": "Revisit: 'Hilton's SBTs are intensity-only' is wrong; the validated SBTs are absolute (-46.2% S1+2, -27.5% S3 franchise vs 2019). The intensity goals are Hilton's own reporting metric and the franchise absolute target is moving the wrong way (+12.7% vs 2019 in 2022; 4.01 MtCO2e in 2025 vs 3.88 Mt 2019 base)",
+"created": "2026-10-24T06:10",
+"type": "revisit",
+"revisits": [
+"Hilton SBTi targets: -75% Scope 1+2 intensity (managed) and -56% Scope 3 intensity (franchised) by 2030 vs 2008, MT CO2e/m2; validated June 2022 as 1.5C-aligned"
+]
+}
+],
+"actions": []
+},
+{
+"id": "0e182406-5bf7-49ef-b1bd-4e8d1714272d",
+"title": "Facet 6: NYC regulatory, grid and Waldorf Astoria property context (LL97, LL84, Con Ed steam, NYISO Zone J)",
+"kind": "facet",
+"observations": [
+{
+"id": "c86e269b-5c18-464e-a3ba-d3a7bdb018ac",
+"title": "Waldorf Astoria BBL is 1-01304-7501 (condo lot), BIN 1084771; block 1304 lot 1 is MTA-owned rail land",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "7b1f6543-9f62-4424-b3c0-6aecf45904b0",
+"title": "Waldorf PRE-CLOSURE LL84 CY2013-2016: 1.6M ft2, 1,413 rooms, site EUI 125-141 kBtu/ft2, ENERGY STAR 23-30, GHG 15.4-17.9 ktCO2e/yr",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "40013cdc-8309-44c1-9ec6-a90bf75492d7",
+"title": "Waldorf LL84 CY2024 (pre-reopening, construction; re-pulled 24 Oct 2026): 1,666,763 ft2, site EUI 27.7, ES 97, 4,723 tCO2e, 10.74M kWh grid electricity, 9.50M kBtu gas (estimated), steam 0; no CY2022/2023 rows and no CY2025 disclosure published yet",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "383fa5fe-7246-4e17-a061-e0750b292db3",
+"title": "Waldorf POST-REOPENING: 375 keys, 372 residences, phased reopening 15 July 2025 (gala 6 Nov 2025), 43,000 ft2 events; Guerlain spa size conflicts 20,000 (Hilton) / 22,000 + 16 rooms (Leisure Media) / 30,000 ft2 (pre-opening); 25 m Starlight Pool is a residents-only 25th-floor amenity, Hilton lists no hotel pool",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "09487089-ed7e-4743-aa39-5dc20993c48a",
+"title": "NYC hotels LL84 CY2024 (n=667): median site EUI 86.4 kBtu/ft2, median GHG intensity 7.31 kgCO2e/ft2, median ENERGY STAR 49",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "6f60dfd6-8d06-4715-8d79-435a71aae158",
+"title": "eGRID 2023 NYCW subregion: 864.5 lb CO2/MWh (865.7 lb CO2e/MWh) = 0.392 kgCO2/kWh; NYUP 242; NYLI 1,181; US 767",
+"created": "2026-10-24T05:36",
+"type": "observation"
+},
+{
+"id": "945475ee-a7d5-41c9-9829-f316d61c082e",
+"title": "CHPE 1,250 MW Quebec-NYC line fully operational (2026); 10.4 TWh/yr, ~20% of NYC demand, claimed 3.9 MtCO2/yr avoided",
+"created": "2026-10-24T05:37",
+"type": "observation"
+},
+{
+"id": "58b1dcd5-54c9-41ca-b330-06702681d204",
+"title": "LL97 Hotel (ESPM) emissions limits: 0.00987 tCO2e/ft2 (2024-29), 0.003850668 (2030-34), 0.002640017 (2035-39), 0.001465772 (2040-49)",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "a2f580be-d65b-40f7-a25d-978157f43f8c",
+"title": "LL97 grid coefficient: 0.000288962 tCO2e/kWh (2024-29) -> 0.000145 tCO2e/kWh (2030-34, or hourly TOU option); gas 0.00005311, steam 0.0000432 tCO2e/kBtu (2030-34)",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "3a0a3308-7fd8-4b3c-9f5a-4c674314f587",
+"title": "LL97 penalties: $268 per tCO2e over limit per year; $0.50/ft2 per month for non-filing; AHRF offsets capped at 10% of limit; RECs electricity-only, Tier 4 (CHPE/CPNY) only",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "916192e2-53a0-458b-8466-6aa0efa40c22",
+"title": "LL97 year one (CY2024): 604 hotel properties = 5% of Article 320 BBLs; 97% filed, 91% met limit; citywide 470 of 10,437 filers over limit",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "e6426732-860c-441e-909b-e9c8078c14c9",
+"title": "Con Edison steam: ~1,500 accounts, 105 mi mains, 10.8 Mlb/hr capacity, 99% natural gas, 2018 EF 110 lb CO2/Mlb, net-zero Scope 1 target 2040 (cogen) / 2050",
+"created": "2026-10-24T05:39",
+"type": "observation"
+},
+{
+"id": "81a0c694-adef-4897-9475-92b4d51f7dda",
+"title": "Manhattan hotels LL84 CY2024 (n=448): median site EUI 94.2, GHGi 8.15 kgCO2e/ft2; 28% exceed 9.87 and 90% exceed 5.26 kg/ft2 (LL97 hotel caps)",
+"created": "2026-10-24T05:40",
+"type": "observation"
+},
+{
+"id": "7c2c2a63-fcda-4c7f-b2d4-ca1b59c028cf",
+"title": "Manhattan hotel market H1 2025 (PwC/STR): all-class occupancy 82.3%, ADR $310.51; luxury occupancy 76.4%, ADR $490.75, RevPAR $375 (+10.1% YoY)",
+"created": "2026-10-24T05:40",
+"type": "observation"
+},
+{
+"id": "c4fb885d-b69b-4eeb-8d45-d7cd80f0e9c3",
+"title": "Waldorf renovation energy systems: no public disclosure of HVAC design, engineer of record, steam retention, LEED or LL97 compliance statement found",
+"created": "2026-10-24T05:40",
+"type": "observation"
+},
+{
+"id": "a54cd4ea-921a-4fd8-8d02-bfd3495f9a3e",
+"title": "NYC hotel waste/organics: LL146 covers food service in hotels with 100+ rooms; Int. 31 (eff. 30 Jul 2026) ties organics compliance to Commercial Waste Zone rollout (Phase 5 of 10)",
+"created": "2026-10-24T05:40",
+"type": "observation"
+},
+{
+"id": "2462dec7-1a44-4a7e-9a05-65500071d3f6",
+"title": "Waldorf POST-REOPENING heating plant: eight Viessmann Vitocrossal 300 CA3B 6.0 natural-gas condensing boilers on the 7th floor (DEP CATS certificate to operate CW006321, 22 Jan 2025; DOB NOW M00336993/M00343495, Guth DeConzo PE)",
+"created": "2026-10-24T06:08",
+"type": "observation"
+},
+{
+"id": "6928cdbd-3c6e-4dfd-9b48-4376e7d3d77d",
+"title": "Waldorf POST-REOPENING cogeneration: 555 kW natural-gas combined heat and power plant in a 6th-floor CHP room (AKRF CEQR air-quality analysis; DOB NOW M00342203 Guth DeConzo, $2.6M, approved 5 Nov 2024; DEP gas certificate PW008621, 19 May 2025)",
+"created": "2026-10-24T06:08",
+"type": "observation"
+},
+{
+"id": "6c1286f2-1c01-4bd3-bad3-f91e67ece25a",
+"title": "Waldorf Con Edison district steam: PRE-CLOSURE CY2016 105.3M kBtu steam (53% of site energy); CY2018 shell 56.4M kBtu; POST-RENOVATION CY2024 LL84 reports 0 kBtu steam while gas rose to 6.16M kBtu in Dec 2024 as boilers came online. No Con Ed or Hilton statement; steam removal is inferred, not announced",
+"created": "2026-10-24T06:08",
+"type": "observation"
+},
+{
+"id": "10a12234-ffb6-4264-84b0-a4381f7e7823",
+"title": "Waldorf POST-REOPENING cooling and distribution: LPC-approved (25 Apr 2017) relocation of cooling towers into a Level-20 'cooling tower well' behind 32 open window frames; 4-pipe fan coils and baseboard heating (Stantec, DOB NOW M00516761/M00498351); new double-glazed windows (SOM). No LEED, ENERGY STAR, WELL or LL97 statement by owner, Hilton or SOM",
+"created": "2026-10-24T06:09",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "584a0898-3a39-4185-8858-e3cffad98cb9",
+"title": "Grid factor option A: LL97 prescribed coefficient (0.289 kgCO2e/kWh 2024-29; 0.145 kgCO2e/kWh 2030-34)",
+"created": "2026-10-24T05:41",
+"type": "option"
+},
+{
+"id": "065f8b98-677d-4ffa-a19f-ea2b34a5650e",
+"title": "Grid factor option B: EPA eGRID NYCW location-based factor (0.392 kgCO2/kWh, 2023 data)",
+"created": "2026-10-24T05:41",
+"type": "option"
+},
+{
+"id": "deaf8a69-c8cb-479d-b8b6-25b30a800a4a",
+"title": "Grid factor option C: NYISO Zone J hourly marginal factor (LL97 TOU method / MGC 0.247 -> 0.114 kgCO2e/kWh 2024-29)",
+"created": "2026-10-24T05:41",
+"type": "option"
+},
+{
+"id": "b8f67c6b-11d9-484d-a9d4-aec00f549930",
+"title": "LL84 baseline option 1: use pre-closure CY2013-2016 Waldorf filings (1,413 rooms, EUI 125-141) as the historical reference only",
+"created": "2026-10-24T05:41",
+"type": "option"
+},
+{
+"id": "53f3377a-9f96-4203-94d2-38db0a66e8ef",
+"title": "LL84 baseline option 2: use CY2024 Waldorf filing (EUI 27.7, construction year) as post-renovation data",
+"created": "2026-10-24T05:41",
+"type": "option"
+},
+{
+"id": "aeae6b81-cae3-4035-866d-c034a7cb1b05",
+"title": "LL84 baseline option 3: use CY2024 Manhattan luxury-hotel peer set (St Regis, Peninsula, Pierre, Carlyle, Four Seasons, Ritz-Carlton, Lotte, Mark, Aman, Conrad, Hilton Midtown) as the empirical benchmark",
+"created": "2026-10-24T05:41",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "862478b9-d431-478b-ba04-a439198fb9ee",
+"title": "Use the LL97 prescribed grid coefficient as the primary electricity factor, with eGRID NYCW as a location-based sensitivity; reject marginal/TOU factors for the footprint total",
+"created": "2026-10-24T05:43",
+"type": "decision",
+"chosen": [
+"Grid factor option A: LL97 prescribed coefficient (0.289 kgCO2e/kWh 2024-29; 0.145 kgCO2e/kWh 2030-34)"
+],
+"rejected": [
+"Grid factor option B: EPA eGRID NYCW location-based factor (0.392 kgCO2/kWh, 2023 data)",
+"Grid factor option C: NYISO Zone J hourly marginal factor (LL97 TOU method / MGC 0.247 -> 0.114 kgCO2e/kWh 2024-29)"
+],
+"from_options": []
+},
+{
+"id": "50ff3638-8ccc-4aec-a661-252145246c42",
+"title": "Benchmark the renovated Waldorf against the CY2024 Manhattan luxury peer set, keep pre-closure CY2013-2016 data only as labelled history, and reject the CY2024 Waldorf filing as performance data",
+"created": "2026-10-24T05:43",
+"type": "decision",
+"chosen": [
+"LL84 baseline option 3: use CY2024 Manhattan luxury-hotel peer set (St Regis, Peninsula, Pierre, Carlyle, Four Seasons, Ritz-Carlton, Lotte, Mark, Aman, Conrad, Hilton Midtown) as the empirical benchmark",
+"LL84 baseline option 1: use pre-closure CY2013-2016 Waldorf filings (1,413 rooms, EUI 125-141) as the historical reference only"
+],
+"rejected": [
+"LL84 baseline option 2: use CY2024 Waldorf filing (EUI 27.7, construction year) as post-renovation data"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "84665538-e82a-4f08-8c3d-a59d52118b6a",
+"title": "Facet 6 complete: ~40 sources verified; LL97 hotel caps/coefficients, LL84 Waldorf history (2010-2024) and 17-hotel peer set established; renovated Waldorf energy system and per-room-night comparators NOT found",
+"created": "2026-10-24T05:49",
+"type": "outcome"
+}
+],
+"revisits": [
+{
+"id": "c80b6b7c-c506-4de6-979e-1686cf29ac49",
+"title": "Revisit: the renovated Waldorf's energy system is now partly documented from public DOB, DEP and LL84 records (8 gas condensing boilers, 555 kW CHP, relocated cooling towers, steam reported at zero), even though no owner/Hilton/SOM disclosure or LEED/LL97 statement exists",
+"created": "2026-10-24T06:09",
+"type": "revisit",
+"revisits": [
+"Waldorf renovation energy systems: no public disclosure of HVAC design, engineer of record, steam retention, LEED or LL97 compliance statement found"
+]
+}
+],
+"actions": []
+},
+{
+"id": "a5567298-0a08-4ffc-9bd4-a06ebfac852f",
+"title": "Stand up an informational site that distills the hotel_carbon decision graphs",
+"kind": "deliverable",
+"observations": [],
+"options": [],
+"decisions": [],
+"outcomes": [
+{
+"id": "65e022cf-13c1-4223-b92b-1645116ac05e",
+"title": "Hotel Carbon Evidence Map published as a private Claude Artifact (version 1): /hotel-carbon/map",
+"created": "2026-10-24T06:39",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": [
+{
+"id": "badbc763-6a53-484f-8a7e-93dc13ec0d81",
+"title": "Built \"Hotel Carbon Evidence Map\": a self-contained HTML artifact generated from the deciduous graph export (204 nodes, 212 edges) with per-facet outcomes, decisions (chosen/rejected options), filterable observations, revisits, a two-panel kgCO2e-per-night range chart and an unverified-figures list",
+"created": "2026-10-24T06:39",
+"type": "action"
+}
+]
+},
+{
+"id": "d6df7ecf-7666-43a8-8166-580a759dd438",
+"title": "Build an interactive hotel-stay carbon measurement app with adjustable property/amenity knobs and slice-and-dice of the result (by amenity, scope, carrier, functional unit, boundary) against the graph's benchmarks",
+"kind": "deliverable",
+"observations": [],
+"options": [
+{
+"id": "5cd9af67-a93f-4384-8030-2c04f58c412c",
+"title": "App model option A: top-down scaling of a published whole-hotel benchmark (CHSB kgCO2e per occupied room) with percentage splits for amenities",
+"created": "2026-10-24T08:13",
+"type": "option"
+},
+{
+"id": "db248eb8-5d98-485c-b7d1-87e561f61505",
+"title": "App model option B: pure bottom-up engineering build-up of every end use from physics and equipment data",
+"created": "2026-10-24T08:13",
+"type": "option"
+},
+{
+"id": "8b3f2a31-78d9-404c-af72-b7ea7bcaef72",
+"title": "App model option C: hybrid - a base-building EUI knob for rooms/common areas plus bottom-up amenity, laundry, kitchen, food, waste and transfer components, each with a verified default and a cited source, defaults calibrated to CHSB NYC luxury (~100 kWh and ~28 kgCO2e per occupied room)",
+"created": "2026-10-24T08:14",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "4114ad1d-10c8-4971-8884-80666c597ce4",
+"title": "Hybrid model (option C) beats top-down benchmark scaling (A) and pure bottom-up build-up (B) for the measurement app: base-building EUI knob plus cited bottom-up components, with boundary, allocation and Scope 2 method as view toggles",
+"created": "2026-10-24T08:14",
+"type": "decision",
+"chosen": [],
+"rejected": [
+"App model option A: top-down scaling of a published whole-hotel benchmark (CHSB kgCO2e per occupied room) with percentage splits for amenities",
+"App model option B: pure bottom-up engineering build-up of every end use from physics and equipment data"
+],
+"from_options": [
+"App model option C: hybrid - a base-building EUI knob for rooms/common areas plus bottom-up amenity, laundry, kitchen, food, waste and transfer components, each with a verified default and a cited source, defaults calibrated to CHSB NYC luxury (~100 kWh and ~28 kgCO2e per occupied room)"
+]
+}
+],
+"outcomes": [
+{
+"id": "cac57d65-4c1b-4b1a-933f-29b60c15ef42",
+"title": "Hotel Carbon Studio published (version 1): /hotel-carbon/studio; defaults give 36.4 kgCO2e per occupied room-night (full operational boundary), 22.8 per guest-night, 127 kg/m2/yr, 4,296 t/yr; evidence map republished (v2) with cross-links",
+"created": "2026-10-24T08:15",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": [
+{
+"id": "1f1ec8b4-a373-49a4-a4a1-a8eba158702e",
+"title": "Built \"Hotel Carbon Studio\": 50 knobs in 7 groups (property, factors, pool/wellness, laundry, F&B, waste/water/transfers, building levers), each with its graph source; results board with headline tiles, baseline deltas, slice by amenity/scope/carrier, benchmark strip, LL97 compliance and penalty, dual location/market Scope 2, HCMI vs activity allocation, JSON export",
+"created": "2026-10-24T08:15",
+"type": "action"
+}
+]
+},
+{
+"id": "1677395a-c21c-4250-915b-a5236f4f42e8",
+"title": "Build a usable storyline simulator: compose sequences of events (interventions, policy and grid paths, shocks) for a hotel over 2025-2040, simulate emission paths with uncertainty, slice results by year and component, compare stories, and record theories tested against them",
+"kind": "deliverable",
+"observations": [],
+"options": [
+{
+"id": "02f019f5-f3e5-4901-a913-ef9cbfeda000",
+"title": "Simulator option A: add a time axis to the Studio itself (re-run its 50-knob model per year with scheduled knob changes)",
+"created": "2026-10-24T12:25",
+"type": "option"
+},
+{
+"id": "20ba51de-6645-4db1-917f-d9ba7fda0036",
+"title": "Simulator option B: a separate storyline app with a compact 18-slice model seeded from the Studio's calibrated NYC luxury defaults, dated events from a schema-defined intervention library (effect ranges, ramps, durations), exogenous grid and LL97 cap paths, triangular Monte Carlo, story comparison and a shared theory ledger",
+"created": "2026-10-24T12:26",
+"type": "option"
+},
+{
+"id": "5bd85199-1bf2-439e-ad38-46fca8c7c3f9",
+"title": "Simulator option C: agent-based or hourly building simulation (EnergyPlus-style) driven from the browser",
+"created": "2026-10-24T12:26",
+"type": "option"
+}
+],
+"decisions": [
+{
+"id": "6a8ebc73-e9ea-4372-aff2-8c4d0c3db601",
+"title": "Separate storyline app on a compact slice model (option B) beats a time axis bolted onto the Studio (A) and physics-based building simulation (C)",
+"created": "2026-10-24T12:26",
+"type": "decision",
+"chosen": [
+"Simulator option B: a separate storyline app with a compact 18-slice model seeded from the Studio's calibrated NYC luxury defaults, dated events from a schema-defined intervention library (effect ranges, ramps, durations), exogenous grid and LL97 cap paths, triangular Monte Carlo, story comparison and a shared theory ledger"
+],
+"rejected": [
+"Simulator option A: add a time axis to the Studio itself (re-run its 50-knob model per year with scheduled knob changes)",
+"Simulator option C: agent-based or hourly building simulation (EnergyPlus-style) driven from the browser"
+],
+"from_options": []
+}
+],
+"outcomes": [
+{
+"id": "cc7bed56-8fac-4ab2-a1fe-4aca880f225e",
+"title": "Hotel Carbon Storylines published (v1, db + user capabilities): /hotel-carbon/storylines; default stories at the median: BAU 49.2 kt 2025-40, Efficiency first 41.7 kt, Electrify by 2030 36.3 kt; every default story exceeds the 2035+ LL97 caps",
+"created": "2026-10-24T12:28",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": [
+{
+"id": "0a995a4c-a826-402b-aa5a-963c28fb7524",
+"title": "Built \"Hotel Carbon Storylines\": 18-slice annual model 2025-2040 with occupancy response, five grid paths, LL97 cap series and coefficients, 21-event library (effect ranges, ramps, durations, COP for electrification, market-only PPAs, occupancy shocks, cap amendment), triangular Monte Carlo (default 200 runs, p10/p50/p90), up to 8 stories with narrative, path and LL97 charts, story comparison tiles, stacked slices by year with table, and a theory ledger (hypothesis, story A vs B, metric, computed result, verdict) shared through the artifact database",
+"created": "2026-10-24T12:28",
+"type": "action"
+}
+]
+},
+{
+"id": "c90637cc-8014-40de-bc61-2230d607582e",
+"title": "Theory track: derive the general rules, measurement guidelines, an intervention library with effect sizes, and cross-facet insights and hypotheses from the verified evidence in the graph and research notes",
+"kind": "theory",
+"observations": [
+{
+"id": "95588327-b2e6-49a1-8203-bb25c148f4cc",
+"title": "Guideline: state functional unit, boundary tier, allocation key and factor basis on the same line as the number; the methodological envelope for one luxury night is about 4.5x (1.7-2.4x boundary, 1.8-1.9x denominator, 1.36x NYC electricity factor)",
+"created": "2026-10-24T12:26",
+"type": "observation"
+},
+{
+"id": "29e19cc8-d1fd-4104-934d-d59116ae5fce",
+"title": "Guideline: never report one denominator alone; rankings flip between per room-night, per guest-night and per m2 (CHSB US luxury 2.3x upper-midscale per OCRM but 1.43x per m2; Puig 2-star at 30% occupancy out-emits 5-star at 50%)",
+"created": "2026-10-24T12:26",
+"type": "observation"
+},
+{
+"id": "48e91cf3-3cb2-4f47-a671-1fbc1ca7847e",
+"title": "Guideline: four boundary tiers T0 Scope 1+2, T1 HCMI (+outsourced laundry), T2 operational Scope 3 (+food, waste, consumables), T3 life cycle; typical uplifts +5-10% (T0-T1), +40-130% (T1-T2), +15-43% (T2-T3)",
+"created": "2026-10-24T12:26",
+"type": "observation"
+},
+{
+"id": "f5303d8a-fee8-4e40-bde2-2dbcfbfec074",
+"title": "Guideline: a guest-facing per-stay figure must be at least T2 (food, laundry, waste included) or be labelled T1; the Berlin Best Western ruling struck a neutrality claim because laundry and waste were omitted",
+"created": "2026-10-24T12:26",
+"type": "observation"
+},
+{
+"id": "a972b31a-bfad-414e-86d9-88f29cb68ea8",
+"title": "Worked example on NYC luxury defaults (375 keys, 76.4% occupancy, CHSB medians): HCMI rooms 23.5 vs activity-based rooms 15.4 kgCO2e per occupied room-night; whole hotel 2,950 t, 28.2 per OCRM; T2 about 40 (+43%); benchmark hotel implies 955 ft2 per key vs about 2,700 at the Waldorf",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "123ed989-e211-4973-bb0b-0a7af53a82fc",
+"title": "Guideline: three electricity factors, three jobs - eGRID NYCW 0.392 for benchmarking, LL97 0.289 (0.145 from 2030) for compliance, market-based only beside location-based for target tracking; each 100 kWh/OCRM of electricity is worth 10.3 kgCO2e between the first two",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "cae24562-1c56-4d46-a7d3-aeb053685050",
+"title": "Guideline: from 2026-28 only Zone J-deliverable, same-year, solely-owned RECs on electricity count under both LL97 and SBTi V2.0 (plants up to 15 years old, same deliverability region, hourly matching 50/75/90%); nothing touches Scope 1 from a gas plant",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "bc2cebb4-0636-44da-9d71-ff7a551e5359",
+"title": "Guideline: metering priority is kitchens with cover counts, laundry with linen scales, a 10% guestroom HVAC sample with outdoor temperature, pool/thermal suite with heat meters and bather counts, elevators, zoned DHW; the evidence base has one metered guestroom set, one pool, one spa, zero kitchens or saunas",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "66c81af7-a565-411f-8432-cc0880b18358",
+"title": "Rule 1: Boundary choice moves a per-night footprint more than property choice; adding food, waste and laundry to Scope 1+2 raises a full-service room-night 70-130% (9-56 kgCO2e for the same hotels)",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "4027717d-e56d-415c-8578-20f46f6dfae9",
+"title": "Rule 2: Purchased food and drink is the largest single category once counted, 40-58% of a full-service room-night, and the share rises as the grid gets cleaner (Dolder 48-56% on Zurich grid vs Accor group 19%)",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "9f8c3a4a-2b0d-4bf4-acc3-f6409e34ba30",
+"title": "Guideline red flags: occupancy-insensitive electricity (Arenhart r=0.20 n.s., -0.21 upscale), EUI-only reporting (Waldorf ENERGY STAR 100 while closed, 97 under construction; GFA restatements +27-71%), vendor savings claims (33-50% vs 18.4% controlled), factor-set changes mid-series (eGRID 81.4-92.8-73.8; Dolder event figure 2.5x on database change)",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "8a927dab-5caf-47f2-af8a-81ada2006753",
+"title": "Guideline: a compliant per-stay disclosure carries seven items on one line (number + unit, tier, allocation method, factor basis and year, data quality, named reductions, contributions in a separate sentence without neutral/net zero/offset/compensate) - satisfies Directive 2024/825, BGH I ZR 98/23, DUH v Best Western and SBTi V2 at once",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "1a6d1786-ce43-4775-abd9-7170097d86f2",
+"title": "Rule 3: Energy-only luxury footprints cluster at 20-50 kgCO2e per occupied room-night in the US and Western Europe; Asia and the Gulf run 50-95",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "03cf61df-17e0-433c-92fe-a5376cac1df0",
+"title": "Guideline: pools and thermal suites are allocated per bather, not per m2 of water surface - 30 L make-up per bather = 0.66 kWh thermal; Nitter 6.7-35 kWh per bather; published per-m2 WS range 1,000-11,000 with the most-quoted 4,300/5,200 unsourced",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "f5ff29c5-3242-44eb-9b95-ccf4ae99082d",
+"title": "Rule 4: The normalising denominator changes rankings; per room-night, per guest-night (about half, at 1.80-1.92 guests/room) and per m2 give different orderings",
+"created": "2026-10-24T12:27",
+"type": "observation"
+},
+{
+"id": "351ff583-3afc-4fbb-a819-593a2ac29a4e",
+"title": "Rule 5: Luxury premium is 2.3-3.1x midscale per occupied room-night but only 1.4-1.5x per m2; about 60% of the per-room gap is floor area per occupied room, 40% intensity per m2",
+"created": "2026-10-24T12:28",
+"type": "observation"
+},
+{
+"id": "4ab49585-161e-49cd-a7a6-8c75f31cf23c",
+"title": "Rule 6: Occupancy inverts star-rating rankings in per-night metrics; a 2-star at 30% occupancy (23 kgCO2e) out-emits a 5-star at 50% (22), pooled occupancy r = 0.20 n.s. and -0.21 for upscale",
+"created": "2026-10-24T12:28",
+"type": "observation"
+},
+{
+"id": "77f4eaa3-8119-476c-85c3-ed3c632a7543",
+"title": "Rule 7: Area-based apportionment (HCMI) gives every room-night the same footprint regardless of amenity use, removes only ~5% from rooms in NYC luxury (28.39 vs 27.02), and no large benchmarking regression carries an amenity term",
+"created": "2026-10-24T12:28",
+"type": "observation"
+},
+{
+"id": "7c21f78d-1fdd-4d85-a9d4-9ccd34d6f4a8",
+"title": "Rule 8: Electricity factor choice moves a NYC hotel's energy-only footprint 36-50% (eGRID NYCW 0.392 vs LL97 0.289 vs LL97-2030 0.145 kgCO2e/kWh), more than any measured operational intervention",
+"created": "2026-10-24T12:28",
+"type": "observation"
+},
+{
+"id": "99ab2f87-ed62-4e20-901d-6e274a41c3be",
+"title": "Rule 9: Per-m2 intensity targets can be met while absolute emissions rise; chains reporting 11-51% intensity cuts show absolute emissions flat or up 8-84% (Hilton -50.9% intensity, +9.6% managed absolute, +84% franchise)",
+"created": "2026-10-24T12:28",
+"type": "observation"
+},
+{
+"id": "385e925f-0bcf-420e-9aa7-f67ba8044e76",
+"title": "Rule 10: Offset-based carbon-neutral stay claims have failed scientifically (6.1% of REDD+ credits additional; 29.4% over-crediting in California forests) and legally (KLM, Eurowings, BGH, Best Western Berlin; EU 2024/825 per se ban from 27 Sep 2026), and the one hotel ruling turned on omitted laundry and waste",
+"created": "2026-10-24T12:29",
+"type": "observation"
+},
+{
+"id": "cd51a568-23d4-4095-81d4-722e623b0c7b",
+"title": "Rule 11: Water heating is the largest single end use in US lodging at ~20% of site energy (16.5 kBtu/ft2 in 2018, 24.2 in 2012) and 51% of a full-service hotel's gas; only HVAC as a whole exceeds it",
+"created": "2026-10-24T12:29",
+"type": "observation"
+},
+{
+"id": "71a7d96b-109b-4175-af39-a547a8f7673f",
+"title": "Rule 12: Among wellness amenities only heated water (pools, hydrotherapy, thermal suites) carries a load of the order of guestroom HVAC and DHW (hotel pool-area heating 400-657 kWh/day vs DHW 299-1,574); treatment rooms and gyms add well under 1 kgCO2e per room-night",
+"created": "2026-10-24T12:29",
+"type": "observation"
+},
+{
+"id": "5b009693-3cd3-486b-af11-48d0abc2412e",
+"title": "Rule 13: Pool energy scales with bathers and water throughput (bathers + opening days explain 77%), climate is secondary, and evaporation is 46-60%+ of pool-water heat loss; allocate by visits or m2 of water, not degree-days or floor area",
+"created": "2026-10-24T12:29",
+"type": "observation"
+},
+{
+"id": "6ebad08f-6c7c-4abe-b596-f3928a16b0d8",
+"title": "Rule 14: A beef-centred main carries 8-11x a vegetarian main; a luxury-hotel restaurant cover runs 5.4-6.6 kgCO2e, about 3x a global-average meal and above the WRI Cool Food lunch/dinner threshold of 5.38",
+"created": "2026-10-24T12:29",
+"type": "observation"
+},
+{
+"id": "4476c31a-5aa1-4e73-8c0a-db0206e2a796",
+"title": "Rule 15: Hotel food waste runs 0.3-0.5 kg per cover with buffets 2-3x a la carte (Malta 0.48 vs 0.16-0.21 kg), and kitchens that weigh it cut it ~21% within a year at a 6.8:1 benefit-cost ratio",
+"created": "2026-10-24T12:29",
+"type": "observation"
+},
+{
+"id": "ea382ba2-29d7-4697-b4d1-2e447d75e867",
+"title": "Rule 16: Linen laundry adds ~6-10 kWh and ~2-3 kgCO2e per occupied room-night at a full-service hotel (5-7 kg linen x 1.6-1.7 kWh/kg x 0.41 kgCO2/kg), corroborated by Sheraton Boston's 7.3 kWh gas + 0.19 kWh per opted-out night",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "be786ab1-6f68-4bac-9d9f-92fd28cbaab4",
+"title": "I1: The F&B share of a hotel footprint is a property of the grid, not the hotel: 48-56% in Zurich, 19% at Accor group level, and it rises mechanically in NYC when the LL97 coefficient halves in 2030",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "3dd77109-10e1-4dd7-952e-52786c777152",
+"title": "Rule 17: Guest-behaviour and room-control levers each save at most 1-2 kgCO2e per occupied room-night (<10% of an energy-only luxury night); signage is cheap, hardware is not (5.3-17.9 yr paybacks), and 33-50% vendor claims fail controlled measurement",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "40f13262-4f67-4a3c-ab5c-d8c8d73ad0f2",
+"title": "I2: Boundary moves the luxury room-night more than segment does: full-scope is 1.7-2.4x energy-only while luxury is 2.3x upper-midscale",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "d61e325f-74d5-4043-83ce-cfa175d77143",
+"title": "I3: Denominator reverses the luxury verdict: 2.55x upper-midscale per room-night, 1.43x per m2; ~60% of the premium is area per key, and the Waldorf is at roughly 2,700 ft2 per key",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "a9e9a0d7-e584-4ad3-b20d-e632d1b81adb",
+"title": "Rule 18: Luxury hotels use 500-800 L water per occupied room-night (Marriott 788, Ecologic 5-star 594, Puig 580), 2-5x the 140 L frontrunner; the premium holds per room not per m2, and one 1,667-hotel review finds no quality effect",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "0c0b4eaf-f492-4672-9534-04cf45744d4f",
+"title": "I4: The single-lot filing makes LL97 cap and hotel-only GFA two unknowns with one equation; the Studio's logged defaults imply a hotel area (~364,000 ft2, ~86% occupancy) 2.7x smaller than the report's bounding case (~1.0M ft2, 76.4%)",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "cb8b18da-397a-4226-9227-25275ddcf983",
+"title": "Rule 19: The operating phase is 70-90% of a hotel's life-cycle energy and emissions (Rossello-Batle 2010 70-80%); a 10-20% uplift on operational figures bounds embodied and amenity-production carbon for an existing building",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "2b8a1222-f740-4e3e-b4cb-4737315a6188",
+"title": "I5: The 2030 LL97 cliff is a 61% cap cut against a 50% electricity-coefficient cut and 0% for gas; an all-electric Waldorf at the luxury peer EUI (135 kBtu/ft2) still exceeds the 2030 cap by ~49%",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "3a411a58-9718-42f5-9a19-2da0d5a14eee",
+"title": "I6: Gas heat loses to any heat pump with COP above 1.95 on eGRID, 1.44 on LL97 2024-29 and 0.72 on LL97 2030, so \"wait for the grid\" has no carbon case in NYC",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "48084dee-435e-4261-8ea0-014b078aaab3",
+"title": "Rule 20: Dry in-room and building services (minibar 0.1-0.3 kgCO2e, elevator ~0.5 kWh, ice, dishwashing, toiletries, bottled water) each add under 1 kgCO2e per room-night, but one chauffeured 40 km airport transfer (8-13 kgCO2e one way) can exceed the room's Scope 1+2 night and no hotel group reports it",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "d38bee2a-978e-43f6-ba68-84e00c911d52",
+"title": "I7: After 2030 a gas CHP cannot beat the LL97 grid coefficient on electricity alone (would need 125% electrical efficiency; 63% even today); its case rests entirely on recovered heat",
+"created": "2026-10-24T12:30",
+"type": "observation"
+},
+{
+"id": "d1b41c8b-c729-47f2-9b0e-651174cda1d6",
+"title": "I8: Hilton's validated target is absolute (-46.2% S1+2 vs 2019); managed absolute S1+2 rose 2.23 to 2.44 Mt (2008-2025), the 2019 base is undisclosed, and Hilton's 2030 intensity goal (~39 kg/m2) converges on the LL97 2030 cap (~41 kg/m2), both a third of the Manhattan peer median (~122)",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "4727dbd2-0ad3-46c5-acf2-21e86217af6a",
+"title": "I9: Pool energy is driven by visitors and water, not climate (Kampel 2016; bather load R2 0.77), while every hotel benchmark normalises by climate; the Waldorf's only pool is residents-only, so it is in the LL97 denominator but not the guest-night numerator",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "37928513-991c-47bb-a94a-e06eba529635",
+"title": "I10: The Waldorf's wellness load is thermal suites with no measured data anywhere; at CIBSE TM46 fitness intensities the 22,000 ft2 spa is ~257 t/yr, ~2.5 kgCO2e per room-night (9% of the NYC luxury median) if charged to rooms rather than to $75 day-pass visits",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "63d41c4d-cb9c-471e-b1a8-de27aa653008",
+"title": "I11: Claims law closes the offset route on 27 Sep 2026; the demand-side levers that remain legal move the footprint by 1.5-5% (menu labels) to 18.4% of guestroom HVAC (OBC), while the material levers (procurement, electrification, area per key) are invisible to guests",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "698bcd8d-a575-4380-b08b-627756860ec2",
+"title": "I12: The largest lines in a legally complete per-stay footprint are the ones no hotel group measures: a return luxury-car airport transfer (~25.6 kgCO2e) is 90% of the NYC luxury energy-only room-night (28.4)",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "3f9dcb21-7442-4952-b1bc-8dff80917fcc",
+"title": "I13: Cradle-to-grave food-waste factors (1.9-4.35 kg/kg) overstate the waste line 3-7x against disposal-only (0.627), and a 21% waste cut is ~4% of food carbon, not 21%",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "90b7bb78-9cf8-4761-9df0-2d6f44af7296",
+"title": "I14: Occupancy inverts the star ranking (Puig: 2-star at 30% = 23 kg vs 5-star at 50% = 22 kg) and the Waldorf's $1,500 rate (3x luxury ADR) trades occupancy for rate; a 10-point occupancy gap is a 13% change per room-night at constant load",
+"created": "2026-10-24T12:31",
+"type": "observation"
+},
+{
+"id": "7eb4d8a5-e4e5-4e64-913b-062514742a66",
+"title": "Lever: Occupancy-based guestroom HVAC controls - 18.4% of guestroom HVAC energy (10.8-26.5%) on heat, cool",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "3404fd6a-d270-4781-a899-a57deeed2a88",
+"title": "Lever: Bathroom lighting occupancy sensors - 50% of bathroom lighting, 76-154 kWh/room/yr (46-56%) on light",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "846efe44-519d-4799-a70d-7ea6ae9874a3",
+"title": "Lever: Heat-pump electrification of space heating - 80% of heating thermal load moved to electricity at COP 3 (50-100%, share is scenario) on heat",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "da577ac7-1d44-4bd8-8c6e-17f85a6eff78",
+"title": "Lever: Heat-pump electrification of DHW - 80% of hot-water thermal load at COP 3 (50-100%, share is scenario) on dhw",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "c29da3ca-a637-4cab-a1b9-3eecbebfcc9d",
+"title": "Lever: Pool cover and heat recovery - 31% of pool energy (28-33%) on pool",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "aee1ec94-5a01-4e77-9111-00f9f01d6c2a",
+"title": "Lever: Grey-water/backwash heat recovery - 50.5% of pool-preheat and DHW energy (34-67%) on pool, dhw",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "891696d1-370f-4225-a257-782662681100",
+"title": "Lever: Laundry outsourcing to central plant - 50% of laundry energy per kg (37.5-60%) on laundry",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "2d1bb9be-c334-423a-89bc-481627e0f9b1",
+"title": "Lever: Towel-reuse descriptive-norm cards - +9.0 percentage points of towel reuse (+5.6 to +12.1) on laundry",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "76676449-0f7a-4f13-a612-127eae2d6521",
+"title": "Lever: Housekeeping opt-out - 18% of linen mass hotel-wide (18%, single site); 7.5 kWh + 141 L per opted-out night on laundry, dhw",
+"created": "2026-10-24T12:32",
+"type": "observation"
+},
+{
+"id": "9464e19f-c2b6-49fe-b221-af2ff0539723",
+"title": "Lever: Menu carbon labels - 3.6% of purchased-food emissions (0-5%) on food",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "98749861-0236-4332-a11d-173b20202c9c",
+"title": "Lever: Low-carbon menu design and procurement - 21% of purchased-food emissions per plate (16-31%) on food",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "d8dd456a-aef7-463f-a601-0388755626d6",
+"title": "Lever: Food-waste measurement programme - 21% of food-waste mass in 12 months (10-38%), BCR 6.8:1 on foodwaste, food",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "c2177427-e8da-4d1a-9bea-a3bd4cf0fb76",
+"title": "Lever: Organics diversion to composting - disposal factor 0.0089 kg CO2e/kg replacing 0.627 landfill (0.0089-0.0090) on foodwaste",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "f091a4c1-d331-4f92-a066-f69d148fc27a",
+"title": "Lever: Plate-waste nudges (plate size, side plate, norm signs, stamps) - 20% of plate waste (14-34%) on foodwaste",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "8e2ae97f-c727-429e-87e4-ab1a084b8f64",
+"title": "Lever: Buffet to plated service - 61.5% of plate waste per cover (56-67%) on foodwaste",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "3f2edbd2-13cb-4cd2-b955-7fc8b5dba4db",
+"title": "Lever: High-efficiency kitchen equipment - 30% of kitchen energy per meal (20-40%) on kitchen",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "8e317f87-14db-4c54-8252-043ef28d484a",
+"title": "Lever: Demand-controlled kitchen ventilation - 50% of kitchen ventilation energy (>50%, two sites) on kitchen, vent",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "4f63ef85-bdb7-4993-a0f5-c55510af4c23",
+"title": "Lever: Eliminate kitchen hot-holding - 16% of kitchen electricity (16%, 14 UK pub kitchens) on kitchen",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "f870ebd8-89ee-4885-a74c-e2b138db188e",
+"title": "Lever: Minibar compressor swap - 67% of minibar energy (60-81%) on minibar",
+"created": "2026-10-24T12:33",
+"type": "observation"
+},
+{
+"id": "11996ecc-0f61-4f94-85bc-ad70448c1a68",
+"title": "Lever: Minibar removal - 100% of minibar energy, 0.53-0.70 kWh per room-night (100%) on minibar",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "18eb78d7-6f03-48e3-a181-be5cd247c3dd",
+"title": "Lever: Electrify guest-transfer fleet - 88% of transfer emissions vs luxury petrol (62% PHEV to 100% tailpipe BEV) on transfers",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "3bfe0f10-0fc5-4349-a39a-c063ca8f8e02",
+"title": "Lever: Renewable PPA or green contract - 85% of market-based electricity factor removed (70-100% of load covered) on all electric slices",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "05716b42-bedd-4b68-8134-8b78890c8511",
+"title": "Lever: Zone J Tier 4 RECs (CHPE/Clean Path NY) - 50% of utility-electricity emissions deducted for LL97 (0-100%, scenario; 10% if Intro 159 passes) on all electric slices",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "343643bc-96ed-4e49-b611-3691cdc5b010",
+"title": "Lever: Con Edison steam instead of on-site gas (counterfactual) - 20% of heating/DHW emissions per kBtu delivered (15.4-25%) on heat, dhw",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "fe74f95b-7ca8-443d-9229-9d254a05282b",
+"title": "Lever: Con Edison steam decarbonisation pathway - 36% of steam emissions by 2035-39 (3.9% in 2030-34 to 100% by 2050) on heat, dhw (only if steam retained)",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "0ac66fe3-09fc-4f25-b376-642c0d09e930",
+"title": "Lever: LL97 electricity coefficient step - 49.8% of the compliance electricity factor removed in 2030 (0.289 to 0.145 kgCO2e/kWh) on all electric slices",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "34cf48f1-196a-4d72-9399-6f8c23c042e6",
+"title": "Lever: LL97 hotel cap 2024-2029 - cap multiplier 1.0 at 106.2 kgCO2e/m2 (0.00987 tCO2e/ft2; ~16,450 t/yr for the Waldorf filing) on whole building",
+"created": "2026-10-24T12:34",
+"type": "observation"
+},
+{
+"id": "c15a1897-4e21-4c3d-99ae-7c7360f74334",
+"title": "Lever: LL97 hotel cap 2030-2034 - cap multiplier 0.390 (ESPM 41.4 kgCO2e/m2) vs 0.533 (statutory R-1 56.6 kg/m2); the two series conflict - on whole building",
+"created": "2026-10-24T12:35",
+"type": "observation"
+},
+{
+"id": "80643db0-c752-4785-bc0c-0b3f86ecb40b",
+"title": "Lever: LL97 hotel cap 2035-2039 - cap multiplier 0.268 (ESPM 0.00264 tCO2e/ft2 = 28.4 kgCO2e/m2; ~4,400 t/yr for the Waldorf filing) on whole building",
+"created": "2026-10-24T12:35",
+"type": "observation"
+},
+{
+"id": "f660b1b1-80e2-4f5e-acd9-3d91b3e9b700",
+"title": "Lever: LL97 hotel cap 2040-2049 - cap multiplier 0.149 (ESPM 0.00147 tCO2e/ft2 = 15.8 kgCO2e/m2) on whole building",
+"created": "2026-10-24T12:35",
+"type": "observation"
+},
+{
+"id": "c44c8cda-ff76-4918-80cd-88202a299cd7",
+"title": "Lever: LL97 AHRF offsets - effective cap multiplier 1.10 at USD 268/t (1.0-1.10; offsets capped at 10% of the limit) on whole building",
+"created": "2026-10-24T12:35",
+"type": "observation"
+},
+{
+"id": "cbc95731-9a63-40fa-8730-cf67ac687eaa",
+"title": "Lever: EU Directive 2024/825 claims ban - 0% emissions effect (policy event, applies 27 Sep 2026; bans offset-based 'carbon-neutral stay' marketing) on no slice",
+"created": "2026-10-24T12:35",
+"type": "observation"
+},
+{
+"id": "fd55da37-6392-4cc2-bdd1-359db31bab26",
+"title": "Lever: SBTi V2.0 Scope 2 rules - 0% direct emissions effect (policy event, mandatory 31 Jan 2028; gates which RECs/PPAs count: <=15-yr plants, same deliverability region, hourly matching 50/75/90%) on no slice",
+"created": "2026-10-24T12:35",
+"type": "observation"
+},
+{
+"id": "33dae67b-56aa-4d7e-8b73-aec32c9d80f1",
+"title": "Lever: Renovation closure - occupancy multiplier 0 for 8 years while building energy stays at 32-36% of operating (Waldorf 2017-2025; site EUI 44.8 vs 125-141) on whole model",
+"created": "2026-10-24T12:35",
+"type": "observation"
+}
+],
+"options": [
+{
+"id": "b7d13b09-06b9-4ce6-b075-f78f6e48211b",
+"title": "H1: Electrify heat before buying RECs; the reverse order pays more cumulative LL97 penalty 2030-2040",
+"created": "2026-10-24T12:31",
+"type": "option"
+},
+{
+"id": "c16a1801-a5d8-4b4e-b894-48633656e839",
+"title": "H2: Gas-side demand measures keep their carbon value through 2040 while electric-side measures lose half in 2030; sequence DHW, laundry and kitchen hot water before guestroom HVAC controls",
+"created": "2026-10-24T12:31",
+"type": "option"
+},
+{
+"id": "159485f9-cdfb-436d-8388-162b3686dfe9",
+"title": "H3: One opted-out housekeeping night saves 2-5x the carbon of one occupancy-controlled room-night today and 4-10x in 2030",
+"created": "2026-10-24T12:31",
+"type": "option"
+},
+{
+"id": "c7a40f18-c5ec-4de1-9dce-f6d75a2b3f12",
+"title": "H4: Procurement before kitchen: halving the meat share of food carbon beats full kitchen electrification on the full-scope guest-night in every year and has zero effect on LL97 exposure",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "f2cd45c0-6523-4872-9d5c-b458d5e38ec5",
+"title": "H5: Retire the CHP in 2030; keeping the 555 kW CHP running after 2030 raises LL97 emissions versus grid purchase unless heat utilisation exceeds a computable threshold",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "a8f34018-fad1-4002-919d-a826138cbcf6",
+"title": "H6: The full-scope multiplier on the Waldorf's energy-only night is below the Irish 1.7-2.4 under the 2024-29 LL97 factor and rises toward it under the 2030 factor with no change in the food knobs",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "d8684a37-a99d-48b6-9d47-ee4bbf067fff",
+"title": "H7: The Waldorf exceeds the CHSB NYC luxury upper quartile (38.19) per room-night at any hotel GFA per key above ~950 ft2 while sitting at the Manhattan peer median per m2",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "b059bdcc-a4b7-46f3-b9a0-b0a6e11376e7",
+"title": "H8: Splitting the single-lot LL84 filing into hotel and multifamily raises the hotel's LL97 penalty exposure and lowers the residences', because the hotel floors are more intense per ft2",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "38d39010-b0e0-4d35-8977-fe269c7ef732",
+"title": "H9: Per guest-night the Waldorf's full-scope figure is less sensitive to the guests-per-room ratio than the energy-only figure, and the Studio's implied 1.6 is below the measured full-service 1.80-1.92",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "e55a02a1-bf4e-44e3-873c-205bc84fd9d5",
+"title": "H10: Breakfast included in the rate adds 8-32% to an energy-only guest-night depending on the grid, and ADEME's 30% is the low-carbon-grid limit",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "45f9ba5e-7e91-4a94-b222-22ff782f4916",
+"title": "H11: No single lever reaches the Waldorf's 2030 LL97 cap; only electrified heat plus ~30% demand cut from the luxury peer EUI plus Zone J RECs is compliant in 2030-34, and that story fails the 2035 cap without further measures",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "f9e7d520-9e42-4172-83a3-31622301d120",
+"title": "H12: The Waldorf's first LL84 operating year (CY2026) will read 15-40% worse per room-night than steady state because of occupancy ramp, while the per-m2 figure reads close to steady state",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "4e48c98c-ede6-4348-a671-6702fc9188e9",
+"title": "H13: Monte Carlo variance of the full-scope guest-night is dominated by the food factor set (beef 16.0 / 28.73 / 99.48 kg/kg), not by any amenity assumption",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "dc009169-4a64-4643-beb3-0dc0a39c5f31",
+"title": "H14: The grid-factor choice (eGRID 0.392 vs LL97 0.289) changes the Scope 2 line by 36% and moves the F&B share more than any amenity knob at its full range",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "1c43bd34-ecc4-4de9-91b3-12b75b1ee010",
+"title": "H15 (unsettleable): Hotel-only floor area and the hotel/residence energy split determine both the per-room-night result and LL97 exposure, and no public record will supply them",
+"created": "2026-10-24T12:32",
+"type": "option"
+},
+{
+"id": "47494800-c953-4f73-90ce-c4057859f8f1",
+"title": "H16 (unsettleable): The Guerlain thermal suite's actual energy (infrared sauna, steam, hammam, snow cave, cryotherapy) is unknown within a factor of 3 and the simulator can only propagate the assumed range",
+"created": "2026-10-24T12:33",
+"type": "option"
+},
+{
+"id": "187e7d5b-d338-4efa-aeff-7c436a0fe44e",
+"title": "H17 (unsettleable): The food emission-factor set (Poore & Nemecek vs Clune vs Agribalyse/CONCITO, 3.5-6x apart on beef) moves the headline more than every building lever combined, and only supplier-specific data can resolve it",
+"created": "2026-10-24T12:33",
+"type": "option"
+}
+],
+"decisions": [],
+"outcomes": [],
+"revisits": [],
+"actions": []
+},
+{
+"id": "37a2ae7b-2837-4f39-9c25-f95f2e630cd6",
+"title": "Research paper + interactive site: carbon footprint of hotel amenities vs green goals (Waldorf Astoria NYC)",
+"kind": "deliverable",
+"observations": [],
+"options": [],
+"decisions": [],
+"outcomes": [
+{
+"id": "02987ec5-6b93-4117-82a1-f355d062ed6b",
+"title": "Phase 1 literature review saved to reports/Hotel amenity carbon footprint review.md: full-scope luxury room-night is 1.7-2.4x the Scope 1+2 figure (F&B 40-58%); NYC luxury HCMI median 28.4 kgCO2e/OCRM (IQR 24-38); Hilton SBTs corrected to absolute; LL97 2030 hotel cap (~41 kg/m2) is ~1/3 of Manhattan luxury peer median (~122 kg/m2); credible package = disclosed full-boundary footprint + physical/Zone J reductions + durable removals as contribution, no neutrality claim",
+"created": "2026-10-24T06:50",
+"type": "outcome"
+},
+{
+"id": "501f0128-4272-462f-b4b6-2d6f3132a751",
+"title": "Phase 1 complete: 13,600-word review report, 459-source verified bibliography (106 papers, 275 read in full text, 20 unverified), graph of ~200 evidence nodes with zero orphans",
+"created": "2026-10-24T07:05",
+"type": "outcome"
+}
+],
+"revisits": [],
+"actions": [
+{
+"id": "3e55d1ca-24df-4d39-bfad-96c5e6bebc04",
+"title": "Phase 1: systematic literature and data review across six strands (baseline, wellness, F&B, rooms, corporate targets/offsets, NYC context)",
+"created": "2026-10-24T05:17",
+"type": "action"
+},
+{
+"id": "a2721efc-ceb2-4b5c-8128-c87ad9a1329e",
+"title": "Structure the graph as six facet subgraphs; researchers log each verified source as an observation under its facet goal",
+"created": "2026-10-24T05:34",
+"type": "action"
+},
+{
+"id": "af7d13dc-592a-4058-bd4e-8aab292a6931",
+"title": "Synthesise eight research-note files into the Phase 1 literature review report and a shareable verified bibliography",
+"created": "2026-10-24T06:33",
+"type": "action"
+}
+]
+}
+],
+"unassigned": [],
+"root": {
+"id": "37a2ae7b-2837-4f39-9c25-f95f2e630cd6",
+"title": "Research paper + interactive site: carbon footprint of hotel amenities vs green goals (Waldorf Astoria NYC)"
+},
+"counts": {
+"goal": 11,
+"action": 7,
+"option": 53,
+"observation": 227,
+"decision": 10,
+"outcome": 12,
+"revisit": 3
+}
+}</script>
+<script>
+(function(){
+  var data = JSON.parse(document.getElementById('graph-data').textContent);
+  var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+
+  /* ---- stats ---- */
+  var c = data.counts || {};
+  var total = Object.keys(c).reduce(function(a,k){ return a + c[k]; }, 0);
+  var tiles = [['Nodes', total], ['Observations', c.observation||0], ['Options weighed', c.option||0], ['Decisions', c.decision||0], ['Facet outcomes', c.outcome||0], ['Revisits', c.revisit||0]];
+  document.getElementById('stats').innerHTML = tiles.map(function(t){ return '<div class="stat"><div class="v">'+t[1]+'</div><div class="l">'+t[0]+'</div></div>'; }).join('');
+
+  /* ---- facets ---- */
+  var shortNames = ['Baseline & allocation','Wellness amenities','Food & beverage','Guestroom & services','Corporate targets & offsets','NYC rules, grid & Waldorf'];
+  data.facets.forEach(function(f,i){ if (f.kind==='theory') { shortNames[i]='Theory: rules, levers, insights'; return; } if (!shortNames[i]) shortNames[i] = f.kind==='deliverable' ? (/site/i.test(f.title) ? 'Deliverable: evidence map' : /app/i.test(f.title) ? 'Deliverable: measurement app' : /Research paper/.test(f.title) ? 'Project: Phase 1 review' : /storyline/i.test(f.title) ? 'Deliverable: storylines' : f.title.slice(0,32)) : f.title.slice(0,32); });
+  var srcOf = function(t){ var m = t.match(/\b(19|20)\d{2}\b/); return m ? m[0] : ''; };
+  var facetsEl = document.getElementById('facets');
+  data.facets.forEach(function(f, i){
+    var title = f.title.replace(/^Facet \d+:\s*/, '');
+    var html = '<section class="facet" id="facet-'+(i+1)+'">';
+    html += '<div class="eyebrow">'+(f.kind==='theory' ? 'Theory track' : f.kind==='deliverable' ? (/Research paper/.test(f.title) ? 'Project' : 'Deliverable') : 'Facet '+(i+1))+'</div><h2>'+esc(title)+'</h2>';
+    html += '<p class="meta"><span>'+f.observations.length+' observations</span><span>'+f.options.length+' options</span><span>'+f.decisions.length+' decision'+(f.decisions.length===1?'':'s')+'</span>'+(f.revisits.length?'<span>'+f.revisits.length+' revisit'+(f.revisits.length===1?'':'s')+'</span>':'')+'</p>';
+    f.outcomes.forEach(function(o){ html += '<p class="callout"><span class="k">'+(f.kind==='deliverable'?'Shipped':'Established')+'</span>'+esc(o.title)+'</p>'; });
+    if ((f.kind==='deliverable'||f.kind==='theory') && f.actions && f.actions.length){ html += '<h3>Work done</h3><div class="decision"><ul>' + f.actions.map(function(a){ return '<li class="op">'+esc(a.title)+'</li>'; }).join('') + '</ul></div>'; }
+    f.revisits.forEach(function(r){ html += '<div class="revisit"><span class="k">Revisited</span>'+esc(r.title)+(r.revisits&&r.revisits.length?'<div class="was">Corrects: '+esc(r.revisits[0])+'</div>':'')+'</div>'; });
+    if (f.decisions.length){
+      html += '<h3>Decisions</h3>';
+      f.decisions.forEach(function(d){
+        html += '<div class="decision"><p class="t">'+esc(d.title)+'</p><ul>';
+        var seen = {};
+        d.chosen.forEach(function(o){ seen[o]=1; html += '<li class="ch">'+esc(o)+'</li>'; });
+        d.rejected.forEach(function(o){ seen[o]=1; html += '<li class="rj">'+esc(o)+'</li>'; });
+        d.from_options.forEach(function(o){ if(!seen[o]){ seen[o]=1; html += '<li class="op">'+esc(o)+'</li>'; } });
+        html += '</ul></div>';
+      });
+    } else if (f.options.length){
+      html += '<h3>Options on the table (no decision logged yet)</h3><div class="decision"><ul>' + f.options.map(function(o){ return '<li class="op">'+esc(o.title)+'</li>'; }).join('') + '</ul></div>';
+    }
+    if (f.observations.length) {
+    html += '<h3>Observations</h3>';
+    html += '<div class="obs-tools"><input type="search" id="q-'+i+'" placeholder="Filter this facet (e.g. kWh, CHSB, pool)" aria-label="Filter observations in '+esc(shortNames[i])+'"><span class="count" id="n-'+i+'"></span></div>';
+    html += '<ul class="obs" id="obs-'+i+'">' + f.observations.map(function(o, j){ return '<li'+(j>=8?' class="hide extra"':'')+'><span>'+esc(o.title)+'</span><span class="src">'+esc(srcOf(o.title))+'</span></li>'; }).join('') + '</ul>';
+    if (f.observations.length > 8) html += '<button class="ghost more" type="button" data-i="'+i+'" aria-expanded="false">Show all '+f.observations.length+' observations</button>';
+    }
+    html += '</section>';
+    facetsEl.insertAdjacentHTML('beforeend', html);
+  });
+
+  /* filter + show more */
+  data.facets.forEach(function(f, i){
+    var list = document.getElementById('obs-'+i), q = document.getElementById('q-'+i), n = document.getElementById('n-'+i);
+    if (!list) return;
+    var items = Array.prototype.slice.call(list.children);
+    var expanded = false;
+    var apply = function(){
+      var term = q.value.trim().toLowerCase(); var shown = 0;
+      items.forEach(function(li, j){
+        var match = !term || li.textContent.toLowerCase().indexOf(term) !== -1;
+        var vis = match && (term || expanded || j < 8);
+        li.classList.toggle('hide', !vis); if (vis) shown++;
+      });
+      n.textContent = term ? shown + ' of ' + items.length + ' match' : (expanded || items.length <= 8 ? items.length + ' total' : 'showing 8 of ' + items.length);
+    };
+    q.addEventListener('input', apply);
+    var btn = document.querySelector('button.more[data-i="'+i+'"]');
+    if (btn) btn.addEventListener('click', function(){ expanded = !expanded; btn.setAttribute('aria-expanded', String(expanded)); btn.textContent = expanded ? 'Show fewer' : 'Show all ' + items.length + ' observations'; apply(); });
+    apply();
+  });
+
+  /* ---- TOC ---- */
+  var toc = [['overview','What the graph holds'],['benchmarks','Where a room-night lands']].concat(data.facets.map(function(f,i){ return ['facet-'+(i+1), shortNames[i]]; })).concat([['unverified','Still unverified'],['method','How this was built']]);
+  document.getElementById('toc').innerHTML = toc.map(function(t, i){ return '<li><a href="#'+t[0]+'"><span class="n">'+String(i+1).padStart(2,'0')+'</span>'+esc(t[1])+'</a></li>'; }).join('');
+
+  /* ---- chart ---- */
+  var ROOM = [
+    {label:'CHSB CY2023, NYC luxury median', lo:28.4, hi:28.4, s:'s1', src:'Cornell Hotel Sustainability Benchmarking 2025, HCMI M1 (Scope 1+2+laundry), median of NYC luxury non-resort hotels', unit:'per occupied room'},
+    {label:'CHSB CY2023, US luxury median', lo:32.1, hi:32.1, s:'s1', src:'CHSB 2025, HCMI M1, US luxury non-resort median', unit:'per occupied room'},
+    {label:'Brighter Planet 2012, US upscale chains', lo:26, hi:38, s:'s1', src:'Kling 2012 model of 46,000 US hotels; energy-based; upscale chain range', unit:'per room-night'},
+    {label:'Huang, Wang & Wang 2015, Taiwan luxury (58 hotels)', lo:50, hi:50, s:'s1', src:'Int J Hospitality Management 51:56-66; energy-based CO2, N2O, CH4; 50 kg per room-night sold, 29 per guest-night', unit:'per room-night'},
+    {label:'Attari & Hanrahan 2026, Ireland 3-5★, Scope 1+2 only', lo:9.40, hi:32.32, s:'s1', src:'Research Square preprint, section 4.4; same four hotels with food excluded', unit:'per occupied room-night'},
+    {label:'Attari & Hanrahan 2026, Ireland 3-5★, full Scope 1-3', lo:15.87, hi:56.14, s:'s2', src:'Research Square preprint, Table 4; food procurement 40-58% of total; mean 39.87', unit:'per occupied room-night'}
+  ];
+  var GUEST = [
+    {label:'Filimonau 2011, two UK 3★ hotels, operational', lo:4.5, hi:7.5, s:'s1', src:'J Cleaner Production 19:1917-1930, Table 7; electricity + gas only', unit:'per guest-night'},
+    {label:'Filimonau 2011, same hotels incl. breakfast, laundry, 15% embodied', lo:8.25, hi:11.65, s:'s2', src:'Table 7 totals; breakfast 1.3 kg, laundry 1.75 kg', unit:'per guest-night'},
+    {label:'ADEME 2020, France, average and 5★', lo:9.91, hi:17.11, s:'s2', src:'ADEME 2020: breakfast is 30% of the per-night footprint', unit:'per night'},
+    {label:'Puig et al. 2017, 14 Spanish coastal hotels (4★ to 2★)', lo:12, hi:23, s:'s1', src:'Sci Total Environ 595:244-254, section 4.4: 12 (4★), 22 (5★), 23 (2★); electricity, fuels, water, waste; no food', unit:'per guest overnight stay'},
+    {label:'Attari & Hanrahan 2026, Ireland, full Scope 1-3', lo:8.81, hi:24.47, s:'s2', src:'Table 4, per guest-night; mean 17.91', unit:'per guest-night'},
+    {label:'Rosselló-Batle 2010, Balearic hotels (via Attari 2026)', lo:20, hi:31, s:'s2', src:'Life-cycle energy boundary, no food; values quoted from Attari & Hanrahan 2026 Table 6, not read in the original', unit:'per guest-night'},
+    {label:'Becken 2001, NZ hotels (converted by Filimonau 2011)', lo:24.6, hi:24.6, s:'s1', src:'155 MJ per visitor-night converted at 158.4 g CO2/MJ in Filimonau 2011 Table 6', unit:'per guest-night'},
+    {label:'Huang 2015, Taiwan luxury', lo:29, hi:29, s:'s1', src:'29 kg CO2e per accommodated guest-night (abstract)', unit:'per guest-night'},
+    {label:'Dolder Grand 2023-25, Zürich 5★ (whole hotel incl. F&B)', lo:38, hi:39, s:'s2', src:'Hotel disclosure: F&B is 48-56% of whole-hotel CO2e', unit:'per overnight stay'}
+  ];
+  var XMAX = 60, W = 760, LW = 300, RW = 60, ROWH = 30, TOP = 8;
+  var tip = document.getElementById('tip');
+  function draw(id, rows){
+    var H = TOP + rows.length*ROWH + 28;
+    var x = function(v){ return LW + (v/XMAX)*(W-LW-RW); };
+    var s = '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Range chart of kg CO2e per night by study">';
+    for (var t=0; t<=XMAX; t+=10){ s += '<line class="grid" x1="'+x(t)+'" x2="'+x(t)+'" y1="'+TOP+'" y2="'+(TOP+rows.length*ROWH)+'"/>'; s += '<text class="tick" x="'+x(t)+'" y="'+(TOP+rows.length*ROWH+18)+'" text-anchor="middle">'+t+'</text>'; }
+    s += '<line class="axis" x1="'+x(0)+'" x2="'+x(XMAX)+'" y1="'+(TOP+rows.length*ROWH)+'" y2="'+(TOP+rows.length*ROWH)+'"/>';
+    rows.forEach(function(r, i){
+      var y = TOP + i*ROWH + ROWH/2;
+      s += '<g class="'+r.s+'" data-i="'+i+'">';
+      s += '<text class="lbl" x="'+(LW-12)+'" y="'+(y+4)+'" text-anchor="end">'+esc(r.label.length>52? r.label.slice(0,50)+'…' : r.label)+'</text>';
+      if (r.hi > r.lo) s += '<line class="rng" x1="'+x(r.lo)+'" x2="'+x(r.hi)+'" y1="'+y+'" y2="'+y+'"/>';
+      s += '<circle class="dot" cx="'+x(r.lo)+'" cy="'+y+'" r="5"/>';
+      if (r.hi > r.lo) s += '<circle class="dot" cx="'+x(r.hi)+'" cy="'+y+'" r="5"/>';
+      s += '<text class="val" x="'+(x(r.hi)+10)+'" y="'+(y+4)+'">'+(r.hi>r.lo ? r.lo+'–'+r.hi : r.lo)+'</text>';
+      s += '<rect class="hit" x="0" y="'+(y-ROWH/2)+'" width="'+W+'" height="'+ROWH+'"/>';
+      s += '</g>';
+    });
+    s += '</svg>';
+    var el = document.getElementById(id); el.innerHTML = s;
+    var svg = el.firstChild;
+    Array.prototype.forEach.call(svg.querySelectorAll('g[data-i]'), function(g){
+      var r = rows[+g.getAttribute('data-i')];
+      var show = function(ev){
+        tip.innerHTML = '<b>'+esc(r.label)+'</b><br>'+(r.hi>r.lo? r.lo+'–'+r.hi : r.lo)+' kg CO<sub>2</sub>e '+esc(r.unit)+'<br><span style="opacity:.8">'+esc(r.src)+'</span>';
+        tip.hidden = false;
+        var px = ev.pageX + 14, py = ev.pageY + 14;
+        if (px + 290 > window.scrollX + document.documentElement.clientWidth) px = ev.pageX - 300;
+        tip.style.left = px+'px'; tip.style.top = py+'px';
+      };
+      g.addEventListener('mousemove', show); g.addEventListener('mouseenter', show);
+      g.addEventListener('mouseleave', function(){ tip.hidden = true; });
+      g.addEventListener('touchstart', function(ev){ var t = ev.touches[0]; show({pageX:t.pageX, pageY:t.pageY}); }, {passive:true});
+    });
+  }
+  draw('chart-room', ROOM); draw('chart-guest', GUEST);
+  document.addEventListener('touchstart', function(ev){ if (!ev.target.closest('svg.chart')) tip.hidden = true; }, {passive:true});
+  /* table view */
+  var tbl = document.getElementById('tbl'), tog = document.getElementById('tbl-toggle');
+  tbl.innerHTML = '<table><thead><tr><th>Study</th><th>Unit</th><th>kg CO₂e</th><th>Boundary</th><th>Source note</th></tr></thead><tbody>' + ROOM.concat(GUEST).map(function(r){ return '<tr><td>'+esc(r.label)+'</td><td>'+esc(r.unit)+'</td><td class="num">'+(r.hi>r.lo? r.lo+'–'+r.hi : r.lo)+'</td><td>'+(r.s==='s1'?'Energy only':'Incl. food / wider')+'</td><td>'+esc(r.src)+'</td></tr>'; }).join('') + '</tbody></table>';
+  tog.addEventListener('click', function(){ var open = tbl.hidden; tbl.hidden = !open; tog.setAttribute('aria-expanded', String(open)); tog.textContent = open ? 'Hide table' : 'Show as table'; });
+})();
+</script>
+</body>
+</html>

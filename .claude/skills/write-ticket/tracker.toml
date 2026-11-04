@@ -1,0 +1,40 @@
+# Tracker configuration for the write-ticket skill.
+#
+# This is the one app-specific file: the next repo replaces it and nothing
+# else. Placeholders only here; put real values in tracker.local.toml next to
+# this file (gitignored) or edit this file in a private repo. Tokens are never
+# written here: each adapter reads its token from the environment variable
+# named below.
+
+# Which file in adapters/ files the ticket: "jira", "github-projects", or the
+# name of one you add.
+adapter = "jira"
+
+[jira]
+# Jira Cloud site, no trailing slash.
+base_url = "https://your-domain.atlassian.net"
+project_key = "PROJ"
+# Issue type by name ("Task", "Bug", "Story"). The adapter sends it as
+# {"name": ...}; use issue_type_id instead if your site needs the id.
+issue_type = "Task"
+# Jira Cloud API tokens authenticate as Basic email:token. Name the variables
+# that hold them. Leave email_env empty to send the token as a Bearer header
+# (Jira Data Center personal access tokens).
+email_env = "JIRA_EMAIL"
+token_env = "JIRA_API_TOKEN"
+
+[github-projects]
+# The project's owner (a user or an organization login) and its number, as in
+# https://github.com/users/<owner>/projects/<number>.
+owner = "your-login"
+owner_type = "user"      # "user" or "organization"
+project_number = 1
+# Where the issue itself is created. Must be a repo the token can write to.
+repo = "your-login/your-repo"
+# Single-select field to set after the item is added, and the option name.
+status_field = "Status"
+status_value = "Todo"
+# gh's own token is used (gh auth status). Set token_env to override it with
+# a token that has the project scope; read:project is needed to look the
+# project up and project is needed to add to it.
+token_env = ""

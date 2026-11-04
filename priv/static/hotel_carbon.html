@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>One Night at the Waldorf — the carbon of a luxury hotel stay</title>
+<meta name="description" content="An interactive essay: what one night in a New York luxury hotel weighs in carbon depends on what you count, how you divide it, and which electricity factor you choose. Nine scenes you can push on.">
+<meta property="og:title" content="One Night at the Waldorf">
+<meta property="og:description" content="What a luxury hotel night weighs in carbon, and the nine decisions that move the number.">
+<link rel="stylesheet" href="/static/hotel-carbon/style.css">
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<header class="masthead">
+  <div class="mast-inner">
+    <a class="home" href="/">bobbby.online</a>
+    <span class="sep">/</span>
+    <span class="here">hotel-carbon</span>
+    <nav class="sitelinks" aria-label="Tools"><a href="/hotel-carbon/studio">Studio</a><a href="/hotel-carbon/storylines">Storylines</a><a href="/hotel-carbon/map">Evidence map</a><a href="/hotel-carbon/library">Library</a><a href="/hotel-carbon/ledger">Ledger</a></nav>
+    <nav class="scenenav" id="scenenav" aria-label="Scenes"></nav>
+  </div>
+</header>
+
+<main>
+<section class="hero" id="s0">
+  <p class="kicker">An interactive essay · hotel carbon programme · case: Waldorf Astoria New York · October 2026</p>
+  <h1>One night here weighs what you decide to count.</h1>
+  <div class="hero-grid">
+    <div>
+      <div class="bignum"><span id="heroNum">0.0</span><span class="unit">kg CO₂e<br>per occupied room-night</span></div>
+      <div class="chips" id="chips" role="group" aria-label="What counts"></div>
+      <p class="fine">Whole hotel divided by occupied room-nights, 375-key New York luxury hotel, 76% occupancy, gas heating, eGRID electricity factor. The industry's HCMI method carves meeting space out first and reports about 12% less.</p>
+    </div>
+    <div class="hero-chart"><svg id="heroStack" role="img" aria-label="Footprint by component"></svg><div class="legend" id="heroLegend"></div></div>
+  </div>
+  <p class="stand">Press the chips. The same hotel, the same guests, the same night. Count only the fuel burned and the electricity bought and it is a modest number. Count what the kitchen buys and what the bins hold and it nearly doubles. Nothing physical changed; the boundary did. That is the first rule the evidence taught us, and the rest of this page is what follows from it.</p>
+</section>
+
+<section class="scene" id="s1">
+  <header class="scene-head"><span class="num">01</span><h2>Divide by rooms, by guests, or by square metres and the verdict on luxury changes.</h2>
+    <p class="stand">A luxury hotel emits 2.3 to 3.1 times a midscale one per occupied room-night, but only 1.4 to 1.5 times per square metre. Most of the "luxury premium" is space per guest, not waste per square metre. Occupancy pulls the other way: an empty hotel is dirtier per night, so a two-star at 30% occupancy out-emits a five-star at 50%. Drag each archetype's occupancy; the bars re-sort. Then change the denominator.</p></header>
+  <div class="inst">
+    <div class="inst-main"><svg id="rank" role="img" aria-label="Archetype footprint by denominator"></svg></div>
+    <div class="inst-side">
+      <div class="seg" id="denomSeg"><button aria-pressed="true" data-d="room">per room-night</button><button aria-pressed="false" data-d="guest">per guest-night</button><button aria-pressed="false" data-d="m2">per m² · yr</button></div>
+      <div id="rankCtl"></div>
+      <p class="fine" id="rankNote"></p>
+    </div>
+  </div>
+  <p class="src">Puig et al. 2017 (14 Spanish coastal hotels, per overnight stay: 2★ 23, 5★ 22, 4★ 12 kg CO₂e at 30 / 50 / 90–100% occupancy); CHSB 2025 (US luxury 32.1 vs upper-midscale 14.0 per occupied room; 1.43× per m²); Xuchao et al. 2010 on denominators. The archetypes are stylised: a fixed load that does not care whether rooms sell, plus a variable load that does.</p>
+</section>
+
+<section class="scene" id="s2">
+  <header class="scene-head"><span class="num">02</span><h2>The factor you pick for electricity moves the number more than anything you can do to the building.</h2>
+    <p class="stand">eGRID's New York City factor is 0.392 kg per kWh. Local Law 97 prescribes 0.289 for compliance now and 0.145 from 2030. Same kilowatt-hours, three footprints, a 36 to 50% swing. The best-measured operational lever in the evidence base, occupancy-based guestroom controls, saves 0.3 to 1.0 kg a night. Turn the dial; the bar compares what the dial just did with what that lever can do.</p></header>
+  <div class="inst">
+    <div class="inst-main"><svg id="dial" role="img" aria-label="Electricity emission factor dial"></svg></div>
+    <div class="inst-side">
+      <label class="ctl"><span>Electricity factor <b id="efv"></b></span><input type="range" id="efr" min="0.02" max="0.6" step="0.001" value="0.392"></label>
+      <div class="presets" id="presets"></div>
+      <div class="leverbar"><div class="lb-l">Change from eGRID</div><svg id="leverSvg" role="img" aria-label="Dial change versus the best lever"></svg><div class="fine">Blue band: what occupancy-based HVAC controls save (0.3–1.0 kg). Black: how far the dial moved the energy-only night from the eGRID figure.</div></div>
+    </div>
+  </div>
+  <p class="src">EPA eGRID 2023 NYCW 864.5 lb CO₂/MWh; LL97 coefficients 0.000288962 and 0.000145 tCO₂e/kWh; SEAI Ireland 0.226; EU average 0.276; UK 2008 0.58 (Filimonau 2011); DOE/PNNL 2012: 18.4% (10.8–26.5%) of guestroom HVAC. Theory rule 8.</p>
+</section>
+
+<section class="scene" id="s3">
+  <header class="scene-head"><span class="num">03</span><h2>Walk through the hotel. Every floor is a slice; every slice has a lever with a measured size.</h2>
+    <p class="stand">Benchmarks give every room-night the same footprint whether or not the guest swam. Area-based allocation moves the figure by 0 to 5%; no large benchmark regression even has an amenity term. So the amenity question is answered from the bottom up: pool water surface × kWh per m², kilograms of linen × kWh per kg, covers × kWh per cover. Click a zone for its share and levers; flip the switches.</p></header>
+  <div class="inst">
+    <div class="inst-main building"><svg id="house" role="img" aria-label="Hotel cross-section"></svg><svg id="zonebars" role="img" aria-label="Zone footprint bars"></svg></div>
+    <div class="inst-side">
+      <div class="bignum sm"><span id="bldgNum">0</span><span class="unit">kg CO₂e per room-night<br>full operational boundary</span></div>
+      <div class="panel" id="panel"></div>
+      <div class="row"><button class="btn" id="allLevers" type="button">Every lever on</button><button class="btn ghost" id="noLevers" type="button">Reset</button></div>
+    </div>
+  </div>
+  <p class="src">Slices are the Studio's calibrated NYC luxury defaults (CBECS 2018 lodging end uses for the base building; Kampel 2013/2016 for pools; TRSA 2018 for laundry; institutional audits for kitchens). Lever ranges from the programme's intervention library (45 records). Theory rule 7; Facet 2 decision.</p>
+</section>
+
+<section class="scene" id="s4">
+  <header class="scene-head"><span class="num">04</span><h2>In 2030 the cap falls 61%, the electricity coefficient falls 50%, and gas gets nothing.</h2>
+    <p class="stand">Local Law 97 caps a hotel at 106 kg CO₂e per m² until 2029, then 57 (or 41 under the property-type series), then 28, then 16. Every tonne over costs $268. Ninety percent of Manhattan hotels already exceed the 2030 cap. A gas-heated hotel cannot ride the grid down; a heat pump with a COP above 1.44 beats gas on the LL97 coefficient from day one. Scrub the year. Decide when heat and hot water go electric, how much demand you cut, how much Zone J renewable power you buy.</p></header>
+  <div class="inst">
+    <div class="inst-main"><svg id="cliff" role="img" aria-label="LL97 position by year"></svg></div>
+    <div class="inst-side">
+      <label class="ctl"><span>Year <b id="yrv">2025</b></span><input type="range" id="yr" min="2025" max="2040" step="1" value="2025"></label>
+      <label class="ctl"><span>Heat pumps replace gas heating in <b id="hpyv">never</b></span><input type="range" id="hpy" min="2025" max="2041" step="1" value="2041"></label>
+      <label class="ctl"><span>Heat-pump water heating in <b id="dhwyv">never</b></span><input type="range" id="dhwy" min="2025" max="2041" step="1" value="2041"></label>
+      <label class="ctl"><span>Demand reduction <b id="cutv">0%</b></span><input type="range" id="cut" min="0" max="40" step="1" value="0"></label>
+      <label class="ctl"><span>Zone J renewable electricity (Tier-4 RECs) <b id="recsv">0%</b></span><input type="range" id="recs" min="0" max="100" step="5" value="0"></label>
+      <label class="ctl"><span>Cap series</span><select id="capsel"><option value="r1">R-1 statute to 2034, then ESPM</option><option value="espm">ESPM hotel from 2030</option></select></label>
+      <div class="kpis" id="cliffK"></div>
+    </div>
+  </div>
+  <p class="src">Local Law 97 of 2019; 1 RCNY 103-14. R-1 caps 0.00987 and 0.00526 tCO₂e/ft²; ESPM hotel 0.003850668, 0.002640017, 0.001465772. Manhattan LL84 CY2024, n=448. Theory insights I5–I7. Electrification at COP 3 is an assumption.</p>
+</section>
+
+<section class="scene" id="s5">
+  <header class="scene-head"><span class="num">05</span><h2>Once food is inside the boundary it is the largest line, and the menu is the largest lever.</h2>
+    <p class="stand">Four Irish hotels: food and beverage procurement was 40 to 58% of a full-scope room-night, the largest category at every property. The Dolder Grand in Zürich: 48 to 56%. A beef main carries 8 to 11 times the footprint of a vegetarian one; a buffet wastes three times what plated service does. Build a dinner. Switch the factor set. Change the service.</p></header>
+  <div class="inst">
+    <div class="inst-main"><div class="plate" id="plate"></div><svg id="mealBar" role="img" aria-label="Meal footprint breakdown"></svg></div>
+    <div class="inst-side">
+      <div class="seg" id="fsetSeg"><button aria-pressed="true" data-f="clune">Clune 2017</button><button aria-pressed="false" data-f="poore">Poore &amp; Nemecek 2018</button></div>
+      <div class="seg" id="svcSeg"><button aria-pressed="true" data-s="plated">Plated</button><button aria-pressed="false" data-s="buffet">Buffet</button></div>
+      <label class="ctl"><span>Main portion <b id="portionv">200 g</b></span><input type="range" id="portion" min="100" max="400" step="10" value="200"></label>
+      <div class="bignum sm"><span id="mealNum">0.0</span><span class="unit">kg CO₂e for this dinner<br>including plate waste</span></div>
+      <p class="fine" id="mealNote"></p>
+    </div>
+  </div>
+  <p class="src">Clune, Crossin &amp; Verghese 2017 medians (beef 28.7, lamb 27.9, cheese 8.9, pork 5.9, chicken 4.1, eggs 3.4, field vegetables 0.47 kg CO₂e/kg); Poore &amp; Nemecek 2018 (beef herd 99.5, lamb 39.7, cheese 23.9, pork 12.3, poultry 9.9); Camilleri-Fenech 2020 plate waste 0.48 buffet vs 0.16 plated kg; DEFRA landfill 0.627 kg/kg; Attari &amp; Hanrahan 2026; theory rules 2, 14, 15.</p>
+</section>
+
+<section class="scene" id="s6">
+  <header class="scene-head"><span class="num">06</span><h2>What a hotel may say about all this changes on a known date.</h2>
+    <p class="stand">From 27 September 2026 the EU bans claims that a product is climate-neutral on the strength of offsets bought outside the value chain. Courts got there first: KLM (Amsterdam, March 2024), Eurowings, the German Federal Court's <i>klimaneutral</i> ruling. Only 6% of REDD+ credits in one study were tied to real reductions. SBTi says credits do not count toward targets at all. Slide the date; click a claim.</p></header>
+  <div class="inst one">
+    <div class="datebar"><span>2024</span><input type="range" id="date" min="2024" max="2028" step="0.25" value="2025.8" aria-label="Date"><span>2028</span><b id="datev"></b></div>
+    <div class="claims" id="claims"></div>
+  </div>
+  <p class="src">Directive (EU) 2024/825; Rechtbank Amsterdam 20 Mar 2024 (KLM); BGH I ZR 98/23 (27 Jun 2024); West et al. 2023, Science 381:873; SBTi CNZS V1.3.1 and V2.0; Oxford Principles 2024; Facet 5 ruling (physical decarbonisation, disclosure without neutralisation, choice architecture chosen; avoidance credits rejected).</p>
+</section>
+
+<section class="scene" id="s7">
+  <header class="scene-head"><span class="num">07</span><h2>Twenty rules the evidence supports, each with its counterexample.</h2>
+    <p class="stand">Written from eight research notes and three hundred graph nodes. Ten are high confidence, ten medium; eleven candidates were rejected, among them "spas take 35% of hotel energy" and "behaviour levers are cheap". Flip a card for the evidence. Sort by confidence or filter by a word.</p></header>
+  <div class="inst one">
+    <div class="row"><input type="search" id="ruleq" placeholder="Filter rules: pool, food, LL97…" aria-label="Filter rules"><div class="seg" id="ruleSort"><button aria-pressed="true" data-k="n">By number</button><button aria-pressed="false" data-k="conf">By confidence</button></div><span class="fine" id="rulen"></span></div>
+    <div class="wall" id="wall"></div>
+  </div>
+</section>
+
+<section class="scene" id="s8">
+  <header class="scene-head"><span class="num">08</span><h2>Seventeen things we believe but have not yet run.</h2>
+    <p class="stand">Each hypothesis names the simulator test that would settle it and the result we expect. Mark the ones you believe or doubt; the marks stay in your browser. The first to run is H11: no single lever reaches the 2030 cap.</p></header>
+  <div class="inst one"><div class="hyps" id="hyps"></div></div>
+</section>
+
+<section class="finale" id="s9">
+  <h2>Now do it to a real hotel.</h2>
+  <div class="tools">
+    <a class="tool" href="/hotel-carbon/studio"><span class="k">Measure</span><strong>Hotel Carbon Studio</strong><span>Sixty knobs, one property, results sliced four ways against the benchmarks and LL97.</span></a>
+    <a class="tool" href="/hotel-carbon/storylines"><span class="k">Simulate</span><strong>Hotel Carbon Storylines</strong><span>Dated events on a grid path to 2040, Monte Carlo runs, stories compared, theories recorded.</span></a>
+    <a class="tool" href="/hotel-carbon/map"><span class="k">Read</span><strong>Evidence Map</strong><span>The decision graph distilled: every number with its source, every decision with the options it beat.</span></a>
+    <a class="tool" href="/hotel-carbon/ledger"><span class="k">Combine</span><strong>The Waldorf Ledger</strong><span>Every facet on one instrument: flows, the 2030 cliff, the levers, the evidence and the claims, linked by one year and one plan.</span></a>
+    <a class="tool" href="/hotel-carbon/library"><span class="k">Study</span><strong>Library</strong><span>Twenty rules, the measurement guidelines, the intervention library, the hypotheses, the Phase 1 report and the notes digested.</span></a>
+  </div>
+  <p class="colophon">Every number on this page is read from a primary source logged in the programme's decision graph; where a figure is an assumption (heat-pump COP, the archetypes in scene 1) the scene says so. The model behind scenes 3 and 4 is the programme's slice model: eighteen slices of a 375-key New York luxury hotel at 76% occupancy, 90 m² per key, gas heating, calibrated to the CHSB CY2023 New York luxury medians. Charts drawn with D3 v7.</p>
+</section>
+</main>
+
+<script src="/static/d3.v7.min.js"></script>
+<script src="/static/hotel-carbon/app.js" defer></script>
+</body>
+</html>

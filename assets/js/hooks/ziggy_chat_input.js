@@ -30,12 +30,17 @@ const ZiggyChatInput = {
       }
     });
 
-    this.handleEvent("ziggy-suggestion", ({ for: forText, suggestion }) => {
+    // Shared by every graph explorer that uses this input (Ziggy, Lolly);
+    // each LiveView pushes its own prefixed event name.
+    const applySuggestion = ({ for: forText, suggestion }) => {
       if (forText === this.el.value && suggestion) {
         this.currentSuggestion = suggestion;
         this.renderGhost();
       }
-    });
+    };
+    this.handleEvent("ziggy-suggestion", applySuggestion);
+    this.handleEvent("lolly-suggestion", applySuggestion);
+    this.handleEvent("rooted-suggestion", applySuggestion);
   },
 
   updated() {
@@ -53,7 +58,7 @@ const ZiggyChatInput = {
   },
 
   ghostEl() {
-    return this.el.parentElement.querySelector(".zg-ghost");
+    return this.el.parentElement.querySelector(".zg-ghost, .lg-ghost, .rg-ghost");
   },
 
   autoGrow() {

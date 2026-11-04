@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Waldorf Ledger — the hotel carbon programme on one instrument</title>
+<meta name="description" content="One page, one state: the footprint of a night at a New York luxury hotel, where it flows, how it meets the Local Law 97 cliff to 2040, which of 42 levers move it, the 323-node evidence graph behind it, and what a hotel may claim.">
+<meta property="og:title" content="The Waldorf Ledger">
+<meta property="og:description" content="The hotel carbon programme on one instrument: flows, the 2030 cliff, the levers, the evidence and the claims, all linked.">
+<link rel="stylesheet" href="/static/hotel-carbon/ledger.css">
+</head>
+<body>
+<header class="mast"><div class="mast-in">
+  <a class="home" href="/">bobbby.online</a><span class="dim">/</span><a class="dim" href="/hotel-carbon" style="text-decoration:none">hotel-carbon</a><span class="dim">/</span><span>ledger</span>
+  <nav aria-label="Programme"><a href="/hotel-carbon">Essay</a><a href="/hotel-carbon/studio">Studio</a><a href="/hotel-carbon/storylines">Storylines</a><a href="/hotel-carbon/map">Evidence map</a><a href="/hotel-carbon/library">Library</a></nav>
+</div></header>
+<main>
+<section class="hero">
+  <div>
+    <p class="kicker">Hotel carbon programme · Waldorf Astoria New York · 2025–2040</p>
+    <h1>The Waldorf <em>Ledger</em></h1>
+    <p class="deck">Everything the programme built, on one instrument. Pick a year, a boundary and a plan; the night's footprint, its flows, the Local Law 97 cliff, the levers, the evidence and the claims a hotel may make all move together.</p>
+    <div class="kpis" id="kpis" aria-live="polite"></div>
+    <div class="deco"></div>
+  </div>
+  <div class="rose-wrap">
+    <svg id="rose" viewBox="0 0 640 420" role="img" aria-label="The night's footprint by slice, drawn as a fan"></svg>
+    <div class="rose-cap" id="roseCap"></div>
+  </div>
+</section>
+
+<div class="console" id="console"><div class="console-in">
+  <div class="yearbox">
+    <button class="play" id="play" type="button" aria-label="Play years 2025 to 2040"><svg width="12" height="12" viewBox="0 0 12 12"><path id="playIcon" d="M2 1 L11 6 L2 11 Z" fill="currentColor"/></svg></button>
+    <span class="y" id="yearv">2025</span>
+    <input type="range" id="year" min="2025" max="2040" step="1" value="2025" aria-label="Year">
+  </div>
+  <div class="ctlgrp"><span>Boundary</span><div class="seg" id="boundSeg">
+    <button type="button" data-v="s12" title="Fuel burned on site and electricity bought (Scope 1 and 2)">Energy</button>
+    <button type="button" data-v="hcmi" title="Energy plus outsourced laundry: the industry HCMI basis">+ Laundry</button>
+    <button type="button" data-v="food" title="Plus purchased food and drink">+ Food</button>
+    <button type="button" data-v="full" title="Plus food waste, other waste and chauffeured transfers">Full</button></div></div>
+  <div class="ctlgrp"><span>Per</span><div class="seg" id="denomSeg">
+    <button type="button" data-v="room">room-night</button><button type="button" data-v="guest">guest-night</button><button type="button" data-v="m2">m² · yr</button></div></div>
+  <div class="ctlgrp"><span>Grid path</span><select id="gridSel" aria-label="Grid emission factor path"></select></div>
+  <div class="ctlgrp"><span>Building</span><select id="bldgSel" aria-label="Building energy intensity"></select></div>
+  <div class="ctlgrp"><span>Heat from</span><div class="seg" id="heatSeg"><button type="button" data-v="gas">gas boilers</button><button type="button" data-v="steam">Con Ed steam</button></div></div>
+  <div class="focuschip" id="focusChip"><span id="focusName"></span><button type="button" id="focusX" aria-label="Clear focus">×</button></div>
+</div></div>
+
+<section class="chapter" id="flow">
+  <div class="chead"><div class="numeral">I</div><div><h2>Where one night's carbon comes from, and whose books it lands in.</h2>
+    <p>Three carriers on the left (electricity from the grid, gas or steam burned for heat, and things the hotel buys), eighteen slices of the building in the middle, the three GHG Protocol scopes on the right. Change the boundary and whole slices disappear; scrub the year and electricity thins as the grid cleans up while gas does not. Electrified heat moves flow from the gas carrier to the electric one. Click a slice to follow it through every view on the page.</p></div>
+    <a class="deep" href="/hotel-carbon/studio">Sixty knobs in the Studio →</a></div>
+  <div class="grid2">
+    <div><svg id="sankey" class="fill sankey" viewBox="0 0 860 560" role="img" aria-label="Flows from carriers to slices to scopes"></svg></div>
+    <div>
+      <div class="panel"><h3>Against the benchmarks</h3><p class="fine">Per occupied room-night in the selected year. Solid brass line: this night on the boundary you chose. Dashed: the same night on the HCMI energy-plus-laundry basis most published benchmarks use. Dots are energy-basis benchmarks, diamonds full scope.</p><svg id="bench" class="fill" viewBox="0 0 320 340" role="img" aria-label="Benchmark ruler"></svg></div>
+      <div class="panel" style="margin-top:14px" id="focusPanel"></div>
+    </div>
+  </div>
+  <p class="src">Slices: the programme's calibrated NYC luxury defaults (375 keys, 76% occupancy, 90 m² per key, 33,750 m²; CBECS 2018 lodging end uses, Kampel 2013/2016 pools, TRSA 2018 laundry, Clune 2017 food). Gas 0.183 kg CO₂e/kWh, steam 0.170. Transfers: 20 km per room-night at 0.319 kg/km (assumption). Benchmarks: CHSB 2025, Puig 2017, Brighter Planet, Huang 2015, Attari &amp; Hanrahan 2026, Dolder Grand.</p>
+</section>
+
+<section class="chapter" id="road">
+  <div class="chead"><div class="numeral">II</div><div><h2>The road to 2040 runs over a cliff in 2030.</h2>
+    <p>Local Law 97 caps a hotel at 106 kg CO₂e per m² until 2029 and 57 from 2030, then 28 and 16, at $268 for every tonne over. The band is two hundred Monte Carlo runs of your plan, each drawing every lever's effect from its measured low–high range and the grid within ±15%. The dashed line is doing nothing. Drag the plan's dots to move a measure in time; drag the brass cursor or click any chart to change the year.</p></div>
+    <a class="deep" href="/hotel-carbon/storylines">Compare stories in Storylines →</a></div>
+  <div class="road-charts">
+    <svg id="fan" class="fill" viewBox="0 0 1240 320" role="img" aria-label="LL97 intensity against the cap, 2025 to 2040"></svg>
+    <svg id="pen" class="fill" viewBox="0 0 1240 74" role="img" aria-label="LL97 penalty by year"></svg>
+    <svg id="area" class="fill" viewBox="0 0 1240 250" role="img" aria-label="Footprint by group, 2025 to 2040"></svg>
+    <div class="legend" id="areaLegend"></div>
+    <svg id="lanes" class="fill lanes" viewBox="0 0 1240 60" role="img" aria-label="The plan"></svg>
+  </div>
+  <div class="presets" id="presets"><span class="fine" style="margin-right:4px">Start from a story:</span></div>
+  <p class="src">LL97 of 2019 and 1 RCNY 103-14: R-1 caps 0.00987 and 0.00526 tCO₂e/ft², ESPM hotel series thereafter; coefficients 0.000288962 tCO₂e/kWh to 2029 and 0.000145 from 2030, gas 0.00005311 tCO₂e/kBtu. Tier-4 Zone J RECs are deducted from the LL97 electricity line only. Grid paths: CLCPA, LL97 as written, and three stress scenarios; their shapes between anchors are assumptions. Monte Carlo: triangular draws on each lever's low/mid/high.</p>
+</section>
+
+<section class="chapter" id="levers">
+  <div class="chead"><div class="numeral">III</div><div><h2>Forty-two levers, measured, and most of them are small.</h2>
+    <p>Every quantified record in the intervention library, sized by what it would save in the selected year on top of the plan you already have, with the whisker running from the low to the high estimate in the evidence. Filled dots are in your plan. Click one to add it or take it out. Switch the measure to LL97 and watch renewable certificates jump from nothing to the top: they buy compliance, not a lower location-based footprint.</p></div>
+    <a class="deep" href="/hotel-carbon/library">The intervention library →</a></div>
+  <div class="grid2">
+    <div><svg id="lever" class="fill lv" viewBox="0 0 860 700" role="img" aria-label="Levers by saving"></svg></div>
+    <div>
+      <div class="panel">
+        <div class="h11" id="h11"></div>
+        <h4>Measure</h4><div class="seg" id="levMetric"><button type="button" data-v="night">footprint per night</button><button type="button" data-v="ll97">LL97 kg/m²</button></div>
+        <h4>Policy and shocks</h4><div class="chips" id="policy"></div>
+        <h4>Lever</h4><div id="levDetail"><p class="fine">Hover a lever for its source; click to add it to the plan in the selected year.</p></div>
+        <h4>Recorded, not quantified</h4><ul class="unq" id="unq"></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="chapter" id="evidence">
+  <div class="chead"><div class="numeral">IV</div><div><h2>Every number above stands on a node in the graph.</h2>
+    <p id="evDeck">The programme's decision graph: observations read from primary sources, the options weighed, the decisions taken and what they beat. Each dot is a node, gathered by research facet. Focus a slice or a lever and the nodes that speak to it light up; so do the rules derived from them.</p></div>
+    <a class="deep" href="/hotel-carbon/map">The full evidence map →</a></div>
+  <div class="grid2">
+    <div><svg id="const" class="fill const" viewBox="0 0 900 640" role="img" aria-label="Evidence graph nodes by facet"></svg><div class="legend" id="constLegend"></div></div>
+    <div>
+      <input type="search" id="evq" placeholder="Search the evidence: pool, LL97, beef, steam…" aria-label="Search the evidence">
+      <div class="panel detail" style="margin-top:12px" id="evDetail"><p class="fine">Click a dot to read the node.</p></div>
+      <div class="panel" style="margin-top:12px"><h3>Rules the evidence supports</h3><p class="fine" id="rulesNote"></p><ul class="rules" id="rules"></ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="chapter" id="claims">
+  <div class="chead"><div class="numeral">V</div><div><h2 id="claimsHead">What the hotel may say in 2025.</h2>
+    <p>The year on the console also sets the law. From 27 September 2026 the EU bans neutrality claims built on offsets bought outside the value chain; courts in the Netherlands and Germany got there first. LL97 does not care what is claimed, only what is burned. Open a claim for the reasoning.</p></div>
+    <a class="deep" href="/hotel-carbon">Read the essay →</a></div>
+  <div class="claims" id="claimList"></div>
+  <p class="src">Directive (EU) 2024/825; Rechtbank Amsterdam 20 Mar 2024 (KLM); BGH I ZR 98/23; West et al. 2023, Science 381:873; SBTi CNZS V1.3.1 and V2.0; Oxford Principles 2024; Goldstein 2008.</p>
+</section>
+</main>
+<footer class="colophon">
+  <div class="tools">
+    <a href="/hotel-carbon"><strong>One Night at the Waldorf</strong>The interactive essay: nine scenes, one idea each.</a>
+    <a href="/hotel-carbon/studio"><strong>Studio</strong>Sixty knobs for one property, sliced four ways.</a>
+    <a href="/hotel-carbon/storylines"><strong>Storylines</strong>Several stories side by side, theories recorded against them.</a>
+    <a href="/hotel-carbon/map"><strong>Evidence map</strong>Every number with its source, every decision with what it beat.</a>
+    <a href="/hotel-carbon/library"><strong>Library</strong>The theory documents, the notes digested, the open questions.</a>
+  </div>
+  <p>The model is the Storylines slice model and its 42-record intervention library, unchanged except that Tier-4 RECs are deducted on the LL97 line as the law allows. Where a figure is an assumption (heat-pump COP 3, grid shapes between anchors, transfers distance) the text beside it says so. The plan and settings live in the address bar, so a link reproduces the view. Drawn with D3 v7.</p>
+</footer>
+<script src="/static/d3.v7.min.js"></script>
+<script src="/static/hotel-carbon/ledger.js" defer></script>
+</body>
+</html>
