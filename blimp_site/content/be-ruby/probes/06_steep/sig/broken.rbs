@@ -1,0 +1,4 @@
+module Broken
+  def self.wrong_return: (Integer value) -> Integer
+  def self.caller: (Integer value) -> Integer
+end

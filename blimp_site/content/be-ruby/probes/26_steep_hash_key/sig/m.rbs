@@ -1,0 +1,25 @@
+module M
+  def self.plain: [K, V] (Hash[K, V] map, K key) -> V?
+  def self.bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> V?
+  def self.by_object: [K < Object, V] (Hash[K, V] map, K key) -> V?
+  def self.fetch_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> V
+  def self.fetch_by_object: [K < Object, V] (Hash[K, V] map, K key) -> V
+  def self.delete_by_object: [K < Object, V] (Hash[K, V] map, K key) -> V?
+  def self.to_h_by_object: [K < Object, V] (Array[[K, V]] pairs) -> Hash[K, V]
+end
+module M
+  def self.index_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> V
+  def self.key_p_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> bool
+  def self.fetch_default_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key, V fallback) -> V
+  def self.delete_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> V?
+  def self.to_h_bounded: [K < ::Hash::_Key, V] (Array[[K, V]] pairs) -> Hash[K, V]
+  def self.store_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key, V value) -> V
+end
+module M
+  def self.cast_key: [K, V] (Hash[K, V] map, K key) -> V
+  def self.calls_bounded: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> V?
+  def self.calls_plain: [K, V] (Hash[K, V] map, K key) -> V
+end
+module M
+  def self.bounded_calls_plain: [K < ::Hash::_Key, V] (Hash[K, V] map, K key) -> V
+end

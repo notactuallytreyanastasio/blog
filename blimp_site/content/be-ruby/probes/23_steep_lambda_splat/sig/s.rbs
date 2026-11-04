@@ -1,0 +1,10 @@
+module S
+  def self.count: (Array[String] list) -> Integer
+  STABBY: ^(Array[String]) -> Integer
+  ANNOTATED: ^(Array[String]) -> Integer
+  BLOCK_LAMBDA: ^(Array[String]) -> Integer
+  NUMBERED: ^(Array[String]) -> Integer
+  IT: ^(Array[String]) -> Integer
+  TO_PROC: ^(Array[String]) -> Integer
+  WITH_DEFAULT: ^(Array[String]) -> Integer
+end
