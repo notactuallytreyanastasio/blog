@@ -187,6 +187,7 @@ defmodule BlogWeb.Router do
     live "/art", ArtLive, :index
     get "/chess", ChessController, :index
     get "/frontier", FrontierController, :index
+    get "/tennis-potatoes", TennisPotatoesController, :index
     live "/chess-lv", ChessLive, :index
     live "/directory", DirectoryLive, :index
     live "/ziggy", ZiggyLive, :index
