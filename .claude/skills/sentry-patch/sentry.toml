@@ -1,0 +1,36 @@
+# Sentry configuration for the sentry-patch skill. The one app-specific
+# file. Placeholders here; real values go in sentry.local.toml next to this
+# file (gitignored) or in this file in a private repo. The token is never
+# written here: it is read from the environment variable named below.
+
+# Sentry API root. Self-hosted: your host. The mock in mock/ is
+# http://127.0.0.1:<port>.
+base_url = "https://sentry.io"
+org = "your-org"
+project = "your-project"
+# Needs event:read on the org (an organization auth token or a user token).
+token_env = "SENTRY_AUTH_TOKEN"
+
+# Hard cap on PRs opened in one run, after the determinism rule, so a bad
+# day in production does not become twenty branches. --max lowers it.
+max_prs = 3
+# Clause 1 of the rule needs more than one event to say "every event": an
+# issue with fewer than this many is reported, not patched.
+min_events = 2
+# Events fetched per issue (full bodies; Sentry caps a full page at 10).
+events_per_issue = 10
+
+# Frames whose filename starts with one of these count as in-app when the
+# SDK did not mark any frame inApp (some SDKs do not).
+in_app_prefixes = ["lib/", "src/", "app/"]
+
+# Labels for the PRs; must exist on the repo. Branch is sentry/<short-id>.
+labels = ["sentry-patch"]
+
+# How the suite is run, and how one test file is run (the failing test is
+# run alone first). {file} is substituted.
+test_command = "mix test"
+one_test_command = "mix test {file}"
+
+# Where the run report is written (a gitignored directory).
+report_dir = ".prs"

@@ -61,3 +61,7 @@ _build/assay/
 /blimp_site/temper/temper.out/
 /blimp_site/temper/temper.keep/
 /blimp_site/site.sock
+
+# write-ticket / sentry-patch: real tracker and Sentry values (tokens are env vars, never files)
+.claude/skills/write-ticket/tracker.local.toml
+.claude/skills/sentry-patch/sentry.local.toml
