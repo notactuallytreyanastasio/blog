@@ -1,0 +1,140 @@
+{
+  "name": "Doctor Who: ask the graph (unlocked)",
+  "description": "Unlocks /who with WHO_CHAT_PASSWORD from the environment, browses the Tenth Doctor's stories, inspects Blink, searches the graph, and sends one question to the chat. The last step spends real DeepSeek credit and needs DEEPSEEK_API_KEY on the server; it is skipped by walk-all.sh for that reason.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the Doctor Who page",
+      "action": {
+        "type": "goto",
+        "url": "/who"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:form[phx-submit='unlock_page']"
+        }
+      ]
+    },
+    {
+      "do": "Type the password",
+      "action": {
+        "type": "fill",
+        "target": "placeholder:Password",
+        "value": "{{env.WHO_CHAT_PASSWORD}}"
+      }
+    },
+    {
+      "do": "Unlock the page",
+      "action": {
+        "type": "click",
+        "target": "role:button:Unlock"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:.who-header h1",
+          "contains": "Doctor Who"
+        },
+        {
+          "type": "count",
+          "target": "css:.who-doctor",
+          "equals": 17
+        },
+        {
+          "type": "text",
+          "target": "css:.who-meta",
+          "contains": "2731 nodes"
+        }
+      ]
+    },
+    {
+      "do": "Pick the Tenth Doctor",
+      "action": {
+        "type": "click",
+        "target": {
+          "css": ".who-doctor",
+          "hasText": "The Tenth Doctor"
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "text:stories filed under the Tenth Doctor"
+        },
+        {
+          "type": "visible",
+          "target": "text:Blink - Sally Sparrow, timey-wimey, Angels"
+        }
+      ]
+    },
+    {
+      "do": "Inspect Blink",
+      "action": {
+        "type": "click",
+        "target": "text:Blink - Sally Sparrow, timey-wimey, Angels"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:who-node-182"
+        },
+        {
+          "type": "text",
+          "target": "id:who-node-182",
+          "contains": "Tenth Doctor"
+        }
+      ]
+    },
+    {
+      "do": "Search the graph for Gallifrey",
+      "action": {
+        "type": "fill",
+        "target": "placeholder:Daleks, Rose, Gallifrey, Virgin NA…",
+        "value": "Gallifrey"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": {
+            "css": ".who-list button",
+            "hasText": "Gallifrey"
+          }
+        }
+      ]
+    },
+    {
+      "do": "Ask the chat who wrote Blink",
+      "action": {
+        "type": "fill",
+        "target": "id:who-chat-input",
+        "value": "Who wrote Blink, and which Doctor is it filed under?"
+      }
+    },
+    {
+      "do": "Send it and wait for the answer",
+      "action": {
+        "type": "click",
+        "target": "role:button:Send"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.who-msg.user"
+        },
+        {
+          "type": "visible",
+          "target": "css:.who-msg.assistant",
+          "timeoutMs": 120000
+        },
+        {
+          "type": "text",
+          "target": "css:.who-msg.assistant",
+          "contains": "Moffat"
+        }
+      ],
+      "timeoutMs": 120000
+    }
+  ]
+}

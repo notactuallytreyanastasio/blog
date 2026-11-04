@@ -65,3 +65,7 @@ _build/assay/
 # write-ticket / sentry-patch: real tracker and Sentry values (tokens are env vars, never files)
 .claude/skills/write-ticket/tracker.local.toml
 .claude/skills/sentry-patch/sentry.local.toml
+# Walkthrough runner: deps and per-run screenshots/reports
+/walkthrough/node_modules/
+/walkthrough/runs/
+/walkthrough/test-results/

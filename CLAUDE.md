@@ -15,7 +15,6 @@
 | `/document` | Generate comprehensive documentation for a file or directory |
 | `/build-test` | Build the project and run the test suite |
 | `/serve-ui` | Start the decision graph web viewer |
-| `/sync-graph` | Export decision graph to GitHub Pages |
 | `/decision-graph` | Build a decision graph from commit history |
 | `/sync` | Multi-user sync - pull events, rebuild, push |
 
@@ -52,6 +51,11 @@ AFTER it succeeds/fails -> Log the outcome
 CONNECT immediately -> Link every node to its parent
 AUDIT regularly -> Check for missing connections
 ```
+
+Through the MCP tools, create and link in one call: `add_node` with
+`parent_id` set to the node it belongs under. Never send `add_edge` in the
+same batch as the `add_node` whose id it needs: the id does not exist yet,
+and whatever stands in for it (a placeholder, a guess) is refused.
 
 ### Behavioral Triggers - MUST LOG WHEN:
 
@@ -181,7 +185,7 @@ deciduous add goal "Title" -c 90 -p "User's original request"
 deciduous add action "Title" -c 85
 deciduous link FROM TO -r "reason"  # DO THIS IMMEDIATELY!
 deciduous serve   # View live (auto-refreshes every 30s)
-deciduous sync    # Export for static hosting
+deciduous sync    # Reconcile .deciduous/graph.json with teammates
 
 # Metadata flags
 # -c, --confidence 0-100   Confidence level
@@ -207,24 +211,6 @@ deciduous link <goal_id> <action_id> -r "Implementation"
 ```
 
 The `--commit HEAD` flag captures the commit hash and links it to the node. The web viewer will show commit messages, authors, and dates.
-
-### Git History & Deployment
-
-```bash
-# Export graph AND git history for web viewer
-deciduous sync
-
-# This creates:
-# - docs/graph-data.json (decision graph)
-# - docs/git-history.json (commit info for linked nodes)
-```
-
-To deploy to GitHub Pages:
-1. `deciduous sync` to export
-2. Push to GitHub
-3. Settings > Pages > Deploy from branch > /docs folder
-
-Your graph will be live at `https://<user>.github.io/<repo>/`
 
 ### Branch-Based Grouping
 
@@ -273,18 +259,13 @@ git status                # Current state
 
 ### Multi-User Sync
 
-Sync decisions with teammates via event logs:
+The graph is shared through one file, `.deciduous/graph.json`, committed with the code. It is written automatically on every change.
 
 ```bash
-# Check sync status
-deciduous events status
-
-# Apply teammate events (after git pull)
-deciduous events rebuild
-
-# Compact old events periodically
-deciduous events checkpoint --clear-events
+deciduous sync            # after git pull: import teammates' records, export yours
+deciduous sync --check    # what is pending? (exit 1 if anything)
+git add .deciduous/graph.json  # before git push
 ```
 
-Events auto-emit on add/link/status commands. Git merges event files automatically.
+Local node ids differ per machine. To link to a teammate's node, use its change_id prefix (the CHANGE column in `deciduous nodes`): `deciduous link a1b2c3d4 <id> -r "..."`. Concurrent edits merge record by record through a git merge driver; if the file ever shows conflict markers, `deciduous sync` merges it.
 <!-- deciduous:end -->

@@ -12,6 +12,7 @@ defmodule BlogWeb.UserSocket do
   channel "live_draft:*", BlogWeb.LiveDraftChannel
   channel "smart_steps:*", BlogWeb.SmartStepsChannel
   channel "blink_comments:*", BlogWeb.BlinkCommentsChannel
+  channel "garden:*", BlogWeb.GardenChannel
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After

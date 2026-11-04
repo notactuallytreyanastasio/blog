@@ -1,0 +1,38 @@
+{
+  "name": "Leave a comment",
+  "description": "Opens a post by slug and posts a comment. This writes a row to whatever database the server is using; run it against a local dev server.",
+  "vars": {
+    "slug": "building-this-blog",
+    "name": "Walkthrough",
+    "comment": "Left by the walkthrough runner."
+  },
+  "steps": [
+    {
+      "do": "Open the post",
+      "action": { "type": "goto", "url": "/post/{{var.slug}}" },
+      "expect": [{ "type": "visible", "target": "id:post-content" }]
+    },
+    {
+      "do": "Scroll to the comment form",
+      "action": { "type": "scroll", "target": "id:author_name" },
+      "expect": [{ "type": "visible", "target": "id:content" }]
+    },
+    {
+      "do": "Fill in a name",
+      "action": { "type": "fill", "target": "id:author_name", "value": "{{var.name}}" },
+      "expect": [{ "type": "value", "target": "id:author_name", "equals": "{{var.name}}" }]
+    },
+    {
+      "do": "Write the comment",
+      "action": { "type": "fill", "target": "id:content", "value": "{{var.comment}}" }
+    },
+    {
+      "do": "Post it",
+      "action": { "type": "click", "target": "role:button:Post Comment" },
+      "expect": [
+        { "type": "text", "target": "css:.comments-list", "contains": "{{var.comment}}" },
+        { "type": "value", "target": "id:content", "equals": "" }
+      ]
+    }
+  ]
+}

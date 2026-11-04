@@ -1,0 +1,36 @@
+{
+  "name": "Lolly and Rooted",
+  "description": "The two chat-with-a-graph apps: Say It With Pictures and the RootedInGood Method. Their tab buttons only render once the chat is unlocked, so this checks the pages load and nothing else.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open Lolly",
+      "action": {
+        "type": "goto",
+        "url": "/lolly"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Say It With Pictures"
+        }
+      ]
+    },
+    {
+      "do": "Open Rooted in Good",
+      "action": {
+        "type": "goto",
+        "url": "/rooted_in_good"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "RootedInGood"
+        }
+      ]
+    }
+  ]
+}

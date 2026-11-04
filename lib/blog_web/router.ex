@@ -188,9 +188,20 @@ defmodule BlogWeb.Router do
     get "/chess", ChessController, :index
     get "/frontier", FrontierController, :index
     get "/tennis-potatoes", TennisPotatoesController, :index
+    get "/hotel-carbon", HotelCarbonController, :index
+    get "/hotel-carbon/studio", HotelCarbonController, :studio
+    get "/hotel-carbon/storylines", HotelCarbonController, :storylines
+    get "/hotel-carbon/map", HotelCarbonController, :map
+    get "/hotel-carbon/library", HotelCarbonController, :library
+    get "/hotel-carbon/ledger", HotelCarbonController, :ledger
+    get "/seth", SethController, :index
+    get "/seth/:version", SethController, :show
     live "/chess-lv", ChessLive, :index
     live "/directory", DirectoryLive, :index
     live "/ziggy", ZiggyLive, :index
+    live "/lolly", LollyLive, :index
+    live "/rooted_in_good", RootedLive, :index
+    live "/who", WhoLive, :index
 
     live "/admin/finder", FinderAdminLive, :index
     live "/admin/museum", MuseumAdminLive, :index

@@ -1,3 +1,14 @@
+---
+name: "source-command-sync-graph"
+description: "Migrated source command `sync-graph`"
+---
+
+# source-command-sync-graph
+
+Use this skill when the user asks to run the migrated source command `sync-graph`.
+
+## Command Template
+
 # Sync Decision Graph to GitHub Pages
 
 Export the current decision graph to docs/graph-data.json so it's deployed to GitHub Pages.

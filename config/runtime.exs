@@ -80,7 +80,10 @@ if config_env() == :prod do
     url: [host: host, port: 443],
     check_origin: [
       "https://#{host}",
-      "https://www.#{host}"
+      "https://www.#{host}",
+      # Pastel Garden Massacre co-op joins BlogWeb.GardenChannel from here.
+      # Literal, not derived from host: PHX_HOST is old.bobbby.online in prod.
+      "https://gaming.bobbby.online"
     ],
     http: [
       # Enable IPv6 and bind on all interfaces.
@@ -159,7 +162,37 @@ config :blog, :openai_model, System.get_env("OPENAI_MODEL", "gpt-5.1")
 config :blog, :openai_autocomplete_model, System.get_env("OPENAI_AUTOCOMPLETE_MODEL", "gpt-5.4-nano")
 # Chat is password-gated (it spends OpenAI credits per message) and stays
 # fully disabled — not "open with a weak default" — unless this is set.
-config :blog, :ziggy_chat_password, System.get_env("ZIGGY_CHAT_PASSWORD")
+# read_env, not System.get_env: docker-compose.yml exports every one of these
+# as `${NAME:-}`, so an unset variable arrives as "", and "" || fallback is ""
+# in Elixir. With System.get_env the Ziggy fallback below never fired and
+# /who reported "no password is configured" on a box that had one.
+config :blog, :ziggy_chat_password, read_env.("ZIGGY_CHAT_PASSWORD")
+# Same gate for the /lolly course graph; falls back to the Ziggy password so a
+# deploy that already has one gets both without new config.
+config :blog,
+       :lolly_chat_password,
+       read_env.("LOLLY_CHAT_PASSWORD") || read_env.("ZIGGY_CHAT_PASSWORD")
+config :blog,
+       :rooted_chat_password,
+       read_env.("ROOTED_CHAT_PASSWORD") || read_env.("ZIGGY_CHAT_PASSWORD")
+config :blog,
+       :who_chat_password,
+       read_env.("WHO_CHAT_PASSWORD") || read_env.("ZIGGY_CHAT_PASSWORD")
+
+# Blog.LLM: the one model client. DeepSeek by default; LLM_PROVIDER=openai
+# switches to the OpenAI key above. The three older chats (/ziggy, /lolly,
+# /rooted_in_good) still call OpenAI directly and ignore this.
+config :blog, :llm_provider, System.get_env("LLM_PROVIDER", "deepseek")
+config :blog, :llm_model, read_env.("LLM_MODEL")
+config :blog, :llm_fast_model, read_env.("LLM_FAST_MODEL")
+
+# Never in test. This file runs after config/test.exs, so a developer with
+# DEEPSEEK_API_KEY exported would otherwise have a suite that talks to the
+# paid API. Tests get no key, and the endpoint they would call is a dead
+# address anyway; see config/test.exs.
+if config_env() != :test do
+  config :blog, :deepseek_api_key, read_env.("DEEPSEEK_API_KEY")
+end
 
 # APNs push notifications for the blinks iOS app (all environments — absent
 # key disables pushes). Key ships as a file path or base64 of the .p8.

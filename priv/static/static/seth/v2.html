@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#F5F7F8">
+<title>SEE Right Through Consulting — Seth Eisenstein</title>
+<meta name="description" content="Seth Eisenstein embeds with senior B2B sales teams and makes the stack they already license — Sales Navigator, ZoomInfo, Apollo, engagement and conversation intelligence — actually get used, on live accounts, next to the reps.">
+<link rel="canonical" href="https://seerightthrough.co/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SEE Right Through Consulting">
+<meta property="og:title" content="The seats are paid for. Using them is the part nobody owns.">
+<meta property="og:description" content="I embed with senior B2B sellers and work their live accounts on the tools you already license, until the motion holds without me.">
+<meta property="og:url" content="https://seerightthrough.co/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="The seats are paid for. Using them is the part nobody owns.">
+<meta name="twitter:description" content="I embed with senior B2B sellers and work their live accounts on the tools you already license, until the motion holds without me.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23131A21'/%3E%3Crect x='6' y='20' width='20' height='3' fill='%23596570'/%3E%3Crect x='6' y='14.5' width='7' height='3' fill='%23596570'/%3E%3Crect x='6' y='9' width='20' height='3' fill='%2310B37A'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F5F7F8;
+  --panel:#FFFFFF;
+  --ink:#131A21;
+  --ink-2:#1B242C;
+  --body:#434E58;
+  --muted:#5F6B75;
+  --faint:#667079;
+  --rule:#DCE2E6;
+  --rule-hard:#C3CCD2;
+  --signal:#0A7D55;
+  --signal-bar:#10B37A;
+  --signal-tint:#E7F3EE;
+  --track:#E6EAED;
+  --sans:'Inter Tight',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --gut:2.25rem;
+  --nav:52px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+html{
+  -webkit-text-size-adjust:100%;
+  scroll-behavior:smooth;
+  scroll-padding-top:0;
+  scroll-snap-type:y mandatory;
+}
+/* Snap degrades wherever a page might not fit: short viewports, or when JS
+   measures a page taller than the viewport (data-snap="loose"). */
+@media (max-height:700px){html{scroll-snap-type:y proximity}}
+html[data-snap="loose"]{scroll-snap-type:y proximity}
+
+body{
+  background:var(--paper);
+  color:var(--body);
+  font-family:var(--sans);
+  font-size:1rem;
+  line-height:1.58;
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 var(--gut)}
+
+h1,h2,h3{color:var(--ink);font-weight:600;letter-spacing:-0.021em;line-height:1.12}
+h2{font-size:clamp(1.5rem,3.1vw,2.35rem)}
+h3{font-size:1.125rem;letter-spacing:-0.012em;line-height:1.3}
+p{max-width:68ch}
+a{color:inherit}
+
+.mono{font-family:var(--mono);font-feature-settings:'zero' 1}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:2px}
+.page--ink :focus-visible{outline-color:#fff}
+
+/* ---------- the feed: one full-viewport page per item ---------- */
+.page{
+  min-height:100vh;
+  min-height:100svh;
+  scroll-snap-align:start;
+  scroll-snap-stop:always;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:calc(var(--nav) + 1.25rem) 0 1.5rem;
+  border-top:1px solid var(--rule);
+  overflow:clip;
+  perspective:1200px;
+  position:relative;
+}
+.page:first-of-type{border-top:0}
+.page--ink{background:var(--ink);color:#C8D2DA;border-top-color:var(--ink)}
+.page--ink + .page{border-top-color:var(--ink)}
+@media (max-height:700px){.page{scroll-snap-stop:normal}}
+html[data-snap="loose"] .page{scroll-snap-stop:normal}
+
+/* Entrance: the incoming page arrives from above and settles.
+   Pages are visible by default; .js-anim is only set when JS + IntersectionObserver
+   are present and motion is allowed, so a dead script never blanks the page. */
+.js-anim .page-inner{
+  opacity:0;
+  transform:translateY(-8%) rotateX(-5deg);
+  transform-origin:50% 0;
+  transition:transform .3s cubic-bezier(.16,.84,.3,1),opacity .2s linear;
+}
+.js-anim .page.in .page-inner{opacity:1;transform:none}
+
+/* ---------- nav ---------- */
+.nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(245,247,248,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;height:var(--nav)}
+.mark{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--ink);font-weight:600;font-size:.94rem;letter-spacing:-0.01em;white-space:nowrap}
+.mark svg{display:block;flex:none}
+
+.btn{display:inline-block;background:var(--ink);color:#fff;text-decoration:none;font-weight:500;font-size:.95rem;padding:.78rem 1.3rem;border-radius:3px;border:1px solid var(--ink)}
+.btn:hover{background:#000;border-color:#000}
+.btn-sm{font-size:.83rem;padding:.42rem .85rem}
+.emaillink{color:var(--muted);text-decoration:underline;text-decoration-color:var(--rule-hard);text-underline-offset:3px}
+.emaillink:hover{color:var(--ink);text-decoration-color:var(--ink)}
+
+/* ---------- hero ---------- */
+.hero-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:clamp(1.5rem,5vw,4.5rem);align-items:end}
+h1{font-size:clamp(2.1rem,4.9vw,3.5rem);letter-spacing:-0.033em;line-height:1.05;max-width:17ch;font-weight:600}
+h1 .l2{color:var(--muted)}
+.deck{font-size:1.0625rem;color:var(--body);max-width:44ch}
+.deck b{color:var(--ink);font-weight:600}
+.actions{margin-top:1.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:.9rem 1.1rem}
+.actions .fallback{font-size:.875rem;color:var(--muted);white-space:nowrap}
+
+.cue{position:absolute;left:0;right:0;bottom:1.1rem;display:flex;justify-content:center;pointer-events:none}
+.cue span{display:block;width:11px;height:11px;border-right:2px solid var(--rule-hard);border-bottom:2px solid var(--rule-hard);transform:rotate(45deg);animation:nudge 1.9s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:rotate(45deg) translate(0,0);opacity:.55}50%{transform:rotate(45deg) translate(3px,3px);opacity:1}}
+
+/* ---------- seat utilization page ---------- */
+.page--data{max-height:100vh;max-height:100svh}
+.page--data .page-inner,.page--data .panel{display:flex;flex-direction:column;min-height:0}
+
+.panel{background:var(--panel);border:1px solid var(--rule-hard);border-radius:4px;overflow:hidden}
+.panel-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem 1.5rem;padding:.9rem 1.1rem;border-bottom:1px solid var(--rule);flex:none}
+.panel-title{font-size:clamp(.98rem,2.4vw,1.1rem);font-weight:600;color:var(--ink);letter-spacing:-0.012em;line-height:1.25}
+.panel-sub{font-size:.8125rem;color:var(--muted);margin-top:.15rem;max-width:52ch}
+
+.seg{border:1px solid var(--rule-hard);border-radius:3px;display:flex;background:#F0F3F5;padding:2px;position:relative}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{font-size:.8125rem;font-weight:500;color:var(--muted);padding:.3rem .7rem;border-radius:2px;cursor:pointer;white-space:nowrap;user-select:none}
+.seg input:checked + label{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule-hard)}
+.seg input:focus-visible + label{outline:2px solid var(--ink);outline-offset:2px}
+
+/* The table scrolls inside its own box, so the control above it and the totals
+   below it stay pinned and the page itself always fits the viewport. */
+.tablewrap{overflow:auto;flex:1 1 auto;min-height:0}
+table{width:100%;border-collapse:collapse;font-size:.875rem}
+caption{text-align:left;padding:0;font-size:0}
+th,td{text-align:left;padding:.42rem .7rem;vertical-align:middle;white-space:nowrap}
+th:first-child,td:first-child{padding-left:1.1rem}
+th:last-child,td:last-child{padding-right:1.1rem}
+thead th{font-size:.75rem;font-weight:600;color:var(--muted);padding-top:.5rem;padding-bottom:.4rem}
+.util thead th{position:sticky;top:0;z-index:2;background:#fff;box-shadow:inset 0 -1px 0 var(--rule)}
+tbody tr + tr td{border-top:1px solid #EDF0F2}
+.num{text-align:right}
+.rep{color:var(--ink);font-weight:500;line-height:1.25}
+.rep .seat{display:block;color:var(--muted);font-weight:400;font-size:.75rem;line-height:1.3}
+tbody tr:hover td{background:#FAFBFC}
+
+.cell{display:grid}
+.cell > span{grid-area:1/1;transition:opacity .3s ease,transform .3s ease}
+.num .cell{justify-items:end}
+.v-after{opacity:0;transform:translateY(5px)}
+/* Two separate rule blocks on purpose: a browser that cannot parse :has()
+   drops that whole rule, so the .is-after (JS) path must stand alone. */
+.util.is-after .v-before{opacity:0;transform:translateY(-5px)}
+.util:has(#st-after:checked) .v-before{opacity:0;transform:translateY(-5px)}
+.util.is-after .v-after{opacity:1;transform:none}
+.util:has(#st-after:checked) .v-after{opacity:1;transform:none}
+
+.bar{display:flex;align-items:center;gap:.5rem;min-width:118px}
+.track{position:relative;flex:1;height:6px;background:var(--track);border-radius:1px;overflow:hidden;min-width:54px}
+.track i{position:absolute;inset:0 auto 0 0;display:block;background:var(--signal-bar);width:calc(var(--u,0) * 1%);transition:width .55s cubic-bezier(.2,.7,.25,1)}
+.track.low i{background:#B8C2C9}
+.util.is-after .track i{width:calc(var(--ua,0) * 1%);background:var(--signal-bar)}
+.util:has(#st-after:checked) .track i{width:calc(var(--ua,0) * 1%);background:var(--signal-bar)}
+.pct{font-family:var(--mono);font-size:.78rem;color:var(--muted);width:4ch;text-align:right;flex:none}
+.util.is-after .pct{color:var(--ink)}
+.util:has(#st-after:checked) .pct{color:var(--ink)}
+
+td.money,td.dt{font-family:var(--mono);font-size:.8125rem}
+td.money{color:var(--ink)}
+.idle{color:var(--faint)}
+.live{color:var(--signal);font-weight:500}
+
+.panel-foot{flex:none;display:flex;flex-wrap:wrap;gap:.3rem 1.5rem;justify-content:space-between;padding:.7rem 1.1rem;border-top:1px solid var(--rule-hard);background:#FAFBFC;font-size:.8125rem;color:var(--muted)}
+.panel-foot .tally{color:var(--ink)}
+.verdict{color:var(--ink);flex-basis:100%}
+.verdict b{font-weight:600}
+
+/* ---------- gap / insight ---------- */
+.gap-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:clamp(1.5rem,5vw,4.5rem);align-items:start}
+.gap-grid h2{max-width:16ch;color:#fff}
+.gap-body p{color:#C8D2DA}
+.gap-body b{color:#fff;font-weight:600}
+.pull{margin-top:1.5rem;padding:1.05rem 1.25rem;background:var(--ink-2);border-left:3px solid var(--signal-bar);border-radius:0 3px 3px 0}
+.pull p{color:#fff;font-size:1.0625rem;line-height:1.5;max-width:52ch}
+
+/* ---------- record ---------- */
+.sec-head{max-width:66ch;margin-bottom:1.5rem}
+.sec-head h2{max-width:22ch}
+.sec-head .fit-line{margin-top:.9rem}
+
+.ledger{width:100%;border-collapse:collapse;font-size:.9375rem}
+.ledger caption{font-size:.8125rem;color:var(--muted);text-align:left;padding-bottom:.9rem;max-width:74ch;line-height:1.5}
+.ledger th{font-size:.75rem;font-weight:600;color:var(--muted);border-bottom:1px solid var(--rule-hard);padding:0 0 .5rem;text-align:left}
+.ledger th.num,.ledger td.num{text-align:right;padding-right:1.6rem;width:1%}
+.ledger td{padding:.72rem 0;border-top:1px solid var(--rule);color:var(--body);white-space:normal;vertical-align:baseline}
+.ledger td.num{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:1.0625rem;white-space:nowrap;letter-spacing:-0.01em}
+.ledger tbody tr:first-child td{border-top:0}
+
+/* ---------- voices ---------- */
+.quotes{display:grid;grid-template-columns:1fr 1fr;gap:2.25rem}
+blockquote p{font-size:clamp(1rem,2.4vw,1.1875rem);color:var(--ink);line-height:1.5;max-width:46ch}
+blockquote footer{margin-top:.85rem;font-size:.8125rem;color:var(--muted)}
+blockquote footer b{display:block;color:var(--ink);font-weight:600;font-size:.875rem}
+
+/* ---------- services ---------- */
+.svc{display:grid;grid-template-columns:minmax(0,15rem) minmax(0,1fr);gap:clamp(1.5rem,4vw,3.5rem);padding:1.1rem 0;border-top:1px solid var(--rule-hard)}
+.svc:last-of-type{border-bottom:1px solid var(--rule-hard)}
+.svc h3{margin-bottom:.35rem}
+.svc-format{font-size:.875rem;color:var(--muted)}
+.svc-body{max-width:44rem}
+.svc-body b{color:var(--ink);font-weight:600}
+.fit-line{font-size:1.0625rem;color:var(--ink);max-width:54ch}
+
+/* ---------- faq ---------- */
+.faq{border-top:1px solid var(--rule-hard)}
+.faq-row{display:grid;grid-template-columns:minmax(0,22rem) minmax(0,1fr);gap:.4rem 3.5rem;padding:1.15rem 0;border-bottom:1px solid var(--rule)}
+.faq-row dt{color:var(--ink);font-weight:600;font-size:1rem;line-height:1.35}
+.faq-row dd{color:var(--body);font-size:.9375rem}
+
+/* ---------- closing ---------- */
+.close-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:clamp(1.5rem,5vw,4.5rem);align-items:end}
+.page--close h2{color:#fff;max-width:15ch}
+.page--close .deck{color:#A9B5BF;max-width:42ch}
+.page--close .btn{background:#fff;color:var(--ink);border-color:#fff}
+.page--close .btn:hover{background:var(--signal-bar);border-color:var(--signal-bar);color:#08221A}
+.page--close .emaillink{color:#C8D2DA;text-decoration-color:#4A5862}
+.page--close .emaillink:hover{color:#fff;text-decoration-color:#fff}
+.page--close .fallback{color:#A9B5BF}
+.close-meta{margin-top:2rem;padding-top:1.15rem;border-top:1px solid #2B353E;font-size:.9375rem;color:#A9B5BF;display:flex;flex-wrap:wrap;gap:.35rem 2rem}
+.colophon{margin-top:.9rem;font-size:.8125rem;color:#A9B5BF;display:flex;flex-wrap:wrap;gap:.35rem 2rem}
+
+@media (max-width:980px){
+  .hero-grid,.gap-grid,.close-grid{grid-template-columns:1fr;align-items:start}
+  h1{max-width:20ch}
+  .quotes{grid-template-columns:1fr;gap:1.6rem}
+  .svc{grid-template-columns:1fr;gap:.5rem}
+  .faq-row{grid-template-columns:1fr;gap:.3rem}
+}
+
+@media (max-width:760px){
+  :root{--gut:1.25rem}
+  .panel-head{flex-direction:column;align-items:stretch}
+  .seg{align-self:flex-start}
+  .ledger td.num{padding-right:1rem;font-size:1rem}
+  .close-meta{margin-top:1.5rem}
+}
+
+/* Narrow: drop the annual column into the totals line so the table keeps its
+   shape instead of collapsing into a stack of blocks. */
+@media (max-width:640px){
+  th.c-annual,td.c-annual{display:none}
+  th,td{padding:.4rem .4rem}
+  th:first-child,td:first-child{padding-left:.7rem}
+  th:last-child,td:last-child{padding-right:.7rem}
+  table{font-size:.8125rem}
+  .rep .seat{font-size:.7rem}
+  td.dt{font-size:.75rem}
+  .bar{min-width:0;gap:.4rem}
+  .track{min-width:44px}
+  .pct{font-size:.72rem}
+  blockquote p{font-size:1rem}
+}
+
+/* Short viewports: tighten so a page still fits rather than relying on the
+   loosened snapping to rescue it. */
+@media (max-height:760px){
+  .page{padding:calc(var(--nav) + .9rem) 0 1.1rem}
+  .sec-head{margin-bottom:.85rem}
+  .svc{padding:.65rem 0}
+  .fit-line{font-size:1rem}
+  .faq-row{padding:.95rem 0}
+  .ledger td{padding:.6rem 0}
+  .pull{margin-top:1.1rem}
+  .close-meta{margin-top:1.3rem}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto;scroll-snap-type:none!important}
+  .page{scroll-snap-stop:normal;perspective:none}
+  .page-inner,.js-anim .page-inner{opacity:1!important;transform:none!important;transition:none!important}
+  .cell > span,.track i{transition:none!important}
+  .cue span{animation:none}
+}
+</style>
+<script>
+/* Set the animation flag before first paint, but only where the entrance can
+   actually run. Without it every page stays visible. */
+(function(){
+  try{
+    if('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      document.documentElement.className += ' js-anim';
+    }
+  }catch(e){}
+})();
+</script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="mark" href="#top">
+      <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="2" fill="#131A21"/><rect x="6" y="20" width="20" height="3" fill="#596570"/><rect x="6" y="14.5" width="7" height="3" fill="#596570"/><rect x="6" y="9" width="20" height="3" fill="#10B37A"/></svg>
+      SEE Right Through
+    </a>
+    <nav aria-label="Primary">
+      <!--email_off--><a class="btn btn-sm" href="mailto:seth@seerightthrough.co?subject=Book%20a%2030-minute%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat%27s%20going%20on%3A%20">Book a call</a><!--/email_off-->
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="page" id="promise">
+  <div class="wrap page-inner">
+    <div class="hero-grid">
+      <h1>The seats are paid for.<br><span class="l2">Using them is the part nobody owns.</span></h1>
+      <div>
+        <p class="deck">I work senior sellers' live accounts in the tools you already license. <b>Not training.</b></p>
+        <div class="actions">
+          <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=Book%20a%2030-minute%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat%27s%20going%20on%3A%20">Book a 30-minute conversation</a><!--/email_off-->
+          <span class="fallback">or <!--email_off--><a class="emaillink" href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off--></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="cue" aria-hidden="true"><span></span></div>
+</section>
+
+<section class="page page--data" id="utilization">
+  <div class="wrap page-inner">
+    <div class="panel util" id="util">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Seat utilization, 46-seat enterprise sales org</h2>
+          <p class="panel-sub">Composite roster. Logins are not use.</p>
+        </div>
+        <fieldset class="seg">
+          <legend class="sr-only">Utilization snapshot</legend>
+          <input type="radio" name="phase" id="st-before" checked>
+          <label for="st-before">At intake</label>
+          <input type="radio" name="phase" id="st-after">
+          <label for="st-after">After 90 days</label>
+        </fieldset>
+      </div>
+
+      <div class="tablewrap" tabindex="0" role="region" aria-label="Seat utilization table">
+        <table>
+          <caption>Seat utilization by rep, at intake and after 90 days</caption>
+          <thead>
+            <tr>
+              <th scope="col">Rep</th>
+              <th scope="col" class="num c-annual">Annual</th>
+              <th scope="col">Last real use</th>
+              <th scope="col">Utilization</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rep">Dana Whitcomb<span class="seat">Sales Navigator</span></td>
+              <td class="money num c-annual">$1,600</td>
+              <td class="dt"><span class="cell"><span class="v-before idle">Mar 4</span><span class="v-after live">Sep 11</span></span></td>
+              <td class="bar-cell">
+                <div class="bar" style="--u:4;--ua:78">
+                  <span class="track low"><i></i></span>
+                  <span class="pct"><span class="cell"><span class="v-before">4%</span><span class="v-after">78%</span></span></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rep">Ray Okonjo<span class="seat">ZoomInfo Copilot</span></td>
+              <td class="money num c-annual">$9,800</td>
+              <td class="dt"><span class="cell"><span class="v-before idle">never</span><span class="v-after live">Sep 12</span></span></td>
+              <td class="bar-cell">
+                <div class="bar" style="--u:0;--ua:64">
+                  <span class="track low"><i></i></span>
+                  <span class="pct"><span class="cell"><span class="v-before">0%</span><span class="v-after">64%</span></span></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rep">Priya Raghavan<span class="seat">Outreach</span></td>
+              <td class="money num c-annual">$1,900</td>
+              <td class="dt"><span class="cell"><span class="v-before idle">Jul 9</span><span class="v-after live">Sep 12</span></span></td>
+              <td class="bar-cell">
+                <div class="bar" style="--u:12;--ua:88">
+                  <span class="track low"><i></i></span>
+                  <span class="pct"><span class="cell"><span class="v-before">12%</span><span class="v-after">88%</span></span></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rep">Gil Marchetti<span class="seat">ZoomInfo Copilot</span></td>
+              <td class="money num c-annual">$9,800</td>
+              <td class="dt"><span class="cell"><span class="v-before idle">Feb 12</span><span class="v-after live">Sep 8</span></span></td>
+              <td class="bar-cell">
+                <div class="bar" style="--u:2;--ua:59">
+                  <span class="track low"><i></i></span>
+                  <span class="pct"><span class="cell"><span class="v-before">2%</span><span class="v-after">59%</span></span></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rep">Kara Lindqvist<span class="seat">Sales Navigator</span></td>
+              <td class="money num c-annual">$1,600</td>
+              <td class="dt"><span class="cell"><span class="v-before live">Sep 2</span><span class="v-after live">Sep 12</span></span></td>
+              <td class="bar-cell">
+                <div class="bar" style="--u:71;--ua:94">
+                  <span class="track"><i></i></span>
+                  <span class="pct"><span class="cell"><span class="v-before">71%</span><span class="v-after">94%</span></span></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rep">Dennis Pryor<span class="seat">Apollo</span></td>
+              <td class="money num c-annual">$1,188</td>
+              <td class="dt"><span class="cell"><span class="v-before idle">never</span><span class="v-after live">Sep 5</span></span></td>
+              <td class="bar-cell">
+                <div class="bar" style="--u:0;--ua:37">
+                  <span class="track low"><i></i></span>
+                  <span class="pct"><span class="cell"><span class="v-before">0%</span><span class="v-after">37%</span></span></span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-foot">
+        <span class="tally">6 of 46 seats, <span class="mono">$214,600</span> committed</span>
+        <span class="tally"><span class="cell"><span class="v-before">1 of 6 in real use, <span class="mono">$1,600</span> earning its keep</span><span class="v-after">6 of 6 in real use, <span class="mono">$25,888</span> earning its keep</span></span></span>
+        <span class="verdict"><span class="cell"><span class="v-before">It renews in February <b>either way.</b></span><span class="v-after">Same roster, same licenses. <b>Different quarter.</b></span></span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page page--ink" id="gap">
+  <div class="wrap page-inner">
+    <div class="gap-grid">
+      <h2>Every tool ships a CSM. None ships an owner.</h2>
+      <div class="gap-body">
+        <p>CSM tenure is short and ramp is long, so the seat turns over before anyone learns your business.</p>
+        <div class="pull">
+          <p>I am the owner that role never had, and I stay until it holds.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="record">
+  <div class="wrap page-inner">
+    <div class="sec-head">
+      <h2>The record</h2>
+    </div>
+    <table class="ledger">
+      <caption>Seth's own numbers, not client outcomes.</caption>
+      <thead>
+        <tr><th scope="col" class="num">Figure</th><th scope="col">What it is</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="num">$11,000,000+</td><td>Annual pipeline directed</td></tr>
+        <tr><td class="num">$6,500,000</td><td>Single enterprise account closed</td></tr>
+        <tr><td class="num">$900,000</td><td>Average opportunity, core ICP</td></tr>
+        <tr><td class="num">40+</td><td>Senior BD sessions run</td></tr>
+        <tr><td class="num">20 yrs</td><td>SaaS, rewards, HR tech; five at HALO</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="page" id="voices">
+  <div class="wrap page-inner">
+    <div class="quotes">
+      <blockquote>
+        <p>"Seth led our organization in adapting AI-driven automation to drive measurable business results."</p>
+        <footer><b>Matt Skiko</b>Director, Business Development</footer>
+      </blockquote>
+      <blockquote>
+        <p>"He knows how to connect [sales enablement, GTM and AI] to drive measurable business impact."</p>
+        <footer><b>Danielle Tuck</b>Director, Business Development</footer>
+      </blockquote>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="services">
+  <div class="wrap page-inner">
+    <div class="sec-head">
+      <h2>Three ways to buy it</h2>
+      <p class="fit-line">For sales leaders with veteran teams, RevOps owners defending the utilization line, and lean companies with no enablement function.</p>
+    </div>
+
+    <article class="svc" id="svc-ae">
+      <div>
+        <h3>Senior AE Engagements</h3>
+        <p class="svc-format">Embedded, one seller</p>
+      </div>
+      <div class="svc-body">
+        <p>Their real book, beside them: <b>Launch Kits</b>, <b>ABR briefs</b>, persona playbooks they will say out loud.</p>
+      </div>
+    </article>
+
+    <article class="svc" id="svc-gtm">
+      <div>
+        <h3>GTM Operating Partner</h3>
+        <p class="svc-format">Ongoing retainer</p>
+      </div>
+      <div class="svc-body">
+        <p><b>The senior operator who stays</b>, where a CSM rotates.</p>
+      </div>
+    </article>
+
+    <article class="svc" id="svc-sessions">
+      <div>
+        <h3>Working Sessions</h3>
+        <p class="svc-format">Clinic or cadence</p>
+      </div>
+      <div class="svc-body">
+        <p>The team in the room on their own accounts. <b>Work finished, not a deck to file.</b></p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="page" id="faq">
+  <div class="wrap page-inner">
+    <div class="sec-head">
+      <h2>Before you write</h2>
+    </div>
+    <dl class="faq">
+      <div class="faq-row">
+        <dt>What does a week look like?</dt>
+        <dd>Live account work: searches, lists, sequences and briefs built with your reps, not assigned as homework.</dd>
+      </div>
+      <div class="faq-row">
+        <dt>What does it cost?</dt>
+        <dd>Scoped per engagement after the first conversation. No rate card, and a number before you commit.</dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+</main>
+
+<footer class="page page--ink page--close" id="contact">
+  <div class="wrap page-inner">
+    <div class="close-grid">
+      <h2>If the report is the part you can’t defend, start there.</h2>
+      <div>
+        <p class="deck">Thirty minutes. Bring the report, or the rep you’re most frustrated about.</p>
+        <div class="actions">
+          <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=Book%20a%2030-minute%20conversation&amp;body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat%27s%20going%20on%3A%20">Book a 30-minute conversation</a><!--/email_off-->
+          <span class="fallback">or <!--email_off--><a class="emaillink" href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off--></span>
+        </div>
+      </div>
+    </div>
+    <div class="close-meta">
+      <span>Seth Eisenstein, New York City</span>
+      <a class="emaillink" href="https://www.linkedin.com/in/setheisenstein/" rel="noopener">LinkedIn</a>
+    </div>
+    <div class="colophon">
+      <span>&copy; 2026 SEE Right Through Consulting LLC</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var doc = document.documentElement;
+  var pages = document.querySelectorAll('.page');
+
+  /* Entrance only. No wheel, key or scrollTop handling anywhere on this page. */
+  if(doc.classList.contains('js-anim') && pages.length){
+    var io = new IntersectionObserver(function(entries){
+      for(var i=0;i<entries.length;i++){
+        if(entries[i].isIntersecting){
+          entries[i].target.classList.add('in');
+          io.unobserve(entries[i].target);
+        }
+      }
+    },{threshold:0.3});
+    for(var p=0;p<pages.length;p++){ io.observe(pages[p]); }
+    /* If the observer never fires, show everything rather than a blank page. */
+    setTimeout(function(){
+      if(!pages[0].classList.contains('in')){
+        for(var q=0;q<pages.length;q++){ pages[q].classList.add('in'); }
+      }
+    },1200);
+  }
+
+  /* Mandatory snapping is only safe while every page fits. Measure, and loosen
+     to proximity if one does not. */
+  var t;
+  function measure(){
+    var vh = window.innerHeight, loose = false;
+    for(var i=0;i<pages.length;i++){
+      if(pages[i].getBoundingClientRect().height > vh + 2){ loose = true; break; }
+    }
+    doc.setAttribute('data-snap', loose ? 'loose' : 'tight');
+  }
+  function schedule(){ clearTimeout(t); t = setTimeout(measure, 150); }
+  measure();
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  if(document.fonts && document.fonts.ready){ document.fonts.ready.then(measure).catch(function(){}); }
+
+  /* Before/after crossfade fallback for browsers without :has(). */
+  var util = document.getElementById('util');
+  if(!util) return;
+  var inputs = util.querySelectorAll('input[name="phase"]');
+  function sync(){
+    var after = document.getElementById('st-after');
+    util.classList.toggle('is-after', !!(after && after.checked));
+    schedule();
+  }
+  for(var i=0;i<inputs.length;i++){ inputs[i].addEventListener('change', sync); }
+  sync();
+})();
+</script>
+
+</body>
+</html>

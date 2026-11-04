@@ -1,0 +1,174 @@
+{
+  "name": "Site and media",
+  "description": "The pages about the site itself and the media browsers: the directory, the work log, the photo gallery, the camera browser, generative art, blinks, Smart Steps, Ziggy, Role Call and the privacy page.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the directory",
+      "action": {
+        "type": "goto",
+        "url": "/directory"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Everything running on one box"
+        },
+        {
+          "type": "visible",
+          "target": "id:routes"
+        }
+      ]
+    },
+    {
+      "do": "Open the work log",
+      "action": {
+        "type": "goto",
+        "url": "/work-log"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.wl-title"
+        }
+      ]
+    },
+    {
+      "do": "Open the gallery",
+      "action": {
+        "type": "goto",
+        "url": "/gallery"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:gal-desktop"
+        }
+      ]
+    },
+    {
+      "do": "Open the camera browser",
+      "action": {
+        "type": "goto",
+        "url": "/cameras"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:cam-page"
+        }
+      ]
+    },
+    {
+      "do": "Open generative art",
+      "action": {
+        "type": "goto",
+        "url": "/art"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:art-canvas"
+        }
+      ]
+    },
+    {
+      "do": "Open blinks",
+      "action": {
+        "type": "goto",
+        "url": "/blinks"
+      },
+      "expect": [
+        {
+          "type": "url",
+          "contains": "/blinks"
+        }
+      ]
+    },
+    {
+      "do": "Open the blinks reader",
+      "action": {
+        "type": "goto",
+        "url": "/blinks-reader"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:blinks-reader"
+        }
+      ]
+    },
+    {
+      "do": "Open Smart Steps",
+      "action": {
+        "type": "goto",
+        "url": "/smart-steps"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Real Scenarios"
+        }
+      ]
+    },
+    {
+      "do": "Go to the Smart Steps demo",
+      "action": {
+        "type": "goto",
+        "url": "/smart-steps/demo"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Demo Mode"
+        }
+      ]
+    },
+    {
+      "do": "Open Ziggy",
+      "action": {
+        "type": "goto",
+        "url": "/ziggy"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "The Ziggy Account"
+        }
+      ]
+    },
+    {
+      "do": "Open Role Call",
+      "action": {
+        "type": "goto",
+        "url": "/role-call"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Role Call"
+        }
+      ]
+    },
+    {
+      "do": "Open the privacy page",
+      "action": {
+        "type": "goto",
+        "url": "/privacy"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Privacy Policy"
+        }
+      ]
+    }
+  ]
+}

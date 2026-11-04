@@ -164,21 +164,14 @@ SESSION END -> Final audit
 
 ## Multi-User Sync
 
-If working in a team, sync decision graphs automatically via events:
+Teammates' decisions arrive in `.deciduous/graph.json`. After `git pull`, pull them into your database:
 
 ```bash
-# Check sync status
-deciduous events status
-
-# Apply teammate events (after git pull)
-deciduous events rebuild
-
-# Periodic maintenance (compact old events)
-deciduous events checkpoint --clear-events
+deciduous sync            # import their records, export yours
+deciduous sync --check    # just report what is pending
 ```
 
-Events are auto-emitted when you use `add`, `link`, `status`, etc.
-Git handles merging everyone's event files automatically.
+Every `add`, `link`, `status`, `delete` writes the file at once, so the only discipline needed is: `deciduous sync` after pull, commit `.deciduous/graph.json` before push. To link to a teammate's node use its change_id prefix (CHANGE column in `deciduous nodes`), not its local id.
 
 ## Why This Matters
 
@@ -186,4 +179,4 @@ Git handles merging everyone's event files automatically.
 - The graph survives - query it early, query it often
 - Retroactive logging misses details - log in the moment
 - The user sees the graph live - show your work
-- Patches share reasoning with teammates
+- `.deciduous/graph.json` shares reasoning with teammates through ordinary git

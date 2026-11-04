@@ -1,0 +1,92 @@
+{
+  "name": "Home desktop windows",
+  "description": "The Leica viewer on the home desktop: the large-file warning, the viewer window, zoom and fit. The website-pics icon only exists when the iCloud album has loaded, so it is not part of the tour.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the home page",
+      "action": {
+        "type": "goto",
+        "url": "/"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:.boot-hint",
+          "contains": "Click anywhere to skip"
+        }
+      ]
+    },
+    {
+      "do": "Skip the boot sequence",
+      "action": {
+        "type": "click",
+        "target": "css:.boot-hint"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.menu-bar"
+        }
+      ]
+    },
+    {
+      "do": "Double-click the Leica icon",
+      "action": {
+        "type": "click",
+        "target": "css:.desktop-icon-leica"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:leica-warning"
+        },
+        {
+          "type": "text",
+          "target": "id:leica-warning",
+          "contains": "Large File Warning"
+        }
+      ]
+    },
+    {
+      "do": "Accept the warning",
+      "action": {
+        "type": "click",
+        "target": "css:.leica-btn.primary"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:leica-viewer-window"
+        }
+      ]
+    },
+    {
+      "do": "Zoom in",
+      "action": {
+        "type": "click",
+        "target": "css:.leica-zoom-in"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:leica-viewer"
+        }
+      ]
+    },
+    {
+      "do": "Fit to window",
+      "action": {
+        "type": "click",
+        "target": "css:.leica-fit"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:leica-viewer"
+        }
+      ]
+    }
+  ]
+}

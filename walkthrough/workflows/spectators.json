@@ -1,0 +1,32 @@
+{
+  "name": "Spectators and small pages",
+  "description": "The god-mode views that watch other people's games, the mirror page, the terms page and the Nathan Fielder page. Read-only.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open Wordle god mode",
+      "action": { "type": "goto", "url": "/wordle_god" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Wordle God Mode" }]
+    },
+    {
+      "do": "Open Pong god mode",
+      "action": { "type": "goto", "url": "/pong/god" },
+      "expect": [{ "type": "url", "contains": "/pong/god" }]
+    },
+    {
+      "do": "Open the mirror",
+      "action": { "type": "goto", "url": "/mirror" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Mirror Mirror on the wall" }]
+    },
+    {
+      "do": "Open the terms",
+      "action": { "type": "goto", "url": "/terms" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Terms & Conditions" }]
+    },
+    {
+      "do": "Open the Nathan Fielder page",
+      "action": { "type": "goto", "url": "/nathan" },
+      "expect": [{ "type": "text", "target": "css:main h1", "contains": "Nathan Fielder" }]
+    }
+  ]
+}

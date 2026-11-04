@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#F1EBE0">
+<title>SEE Right Through — Seth Eisenstein, embedded GTM operator</title>
+<meta name="description" content="Seth Eisenstein embeds with senior B2B sales teams and makes the sales stack they already pay for actually get used — on live accounts, next to the reps, for longer than a vendor CSM will be there.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SEE Right Through — Seth Eisenstein">
+<meta property="og:description" content="Whoever owns how your stack works for your team has to still be there next year. An embedded GTM operator for senior B2B sales teams, working live accounts next to the reps.">
+<meta property="og:site_name" content="SEE Right Through Consulting">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SEE Right Through — Seth Eisenstein">
+<meta name="twitter:description" content="Whoever owns how your stack works for your team has to still be there next year.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231A1816'/%3E%3Crect x='6' y='8' width='7' height='2' fill='%239C3A1F'/%3E%3Crect x='6' y='15' width='13' height='2' fill='%239C3A1F'/%3E%3Crect x='6' y='22' width='20' height='2' fill='%239C3A1F'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --base:#E6DFD2;
+  --gut:clamp(1.15rem,4.5vw,4.5rem);
+  --measure:62ch;
+  --serif:'Newsreader',Georgia,'Times New Roman',serif;
+  --sans:'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --paper:#FBF7EF;
+  --paperink:#1A1816;
+  --papermuted:#565048;
+  --stamp:#9C3A1F;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:var(--base);color-scheme:light;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+
+body{
+  max-width:1600px;
+  margin-inline:auto;
+  background:var(--base);
+  font-family:var(--sans);
+  font-size:1.0425rem;
+  line-height:1.62;
+  font-weight:400;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+/* ── the arc ──────────────────────────────────────────────
+   One grid. Column 1 is the reading column and stays lean.
+   Column 2 is the field the work takes: empty at the top,
+   gaining a block each time the engagement produces one.
+   --reach is the frontier; column 2 begins exactly at 78%,
+   which is the frontier's position at the first Launch Kit.
+   The frontier never crosses a block: it climbs to the column
+   line, holds there while the work piles up beside it, then
+   floods the whole width once the motion is running. */
+.arc{
+  position:relative;
+  z-index:0;
+  --ovf:1.282051;      /* full width ÷ column 1 (100 ÷ 78) */
+  --ftop:1.5rem;
+  --fgap:3.4rem;
+  --step:5.4rem;
+  display:grid;
+  grid-template-columns:minmax(0,78fr) minmax(0,22fr);
+  grid-template-rows:repeat(10,auto);
+  align-items:start;
+}
+
+.stage{
+  position:relative;
+  grid-column:1;
+  color:var(--ink);
+  padding-block:var(--pad,clamp(3.5rem,7vw,7rem));
+}
+/* ground and frontier are painted full-bleed across both columns */
+.stage::before,.stage::after{
+  content:'';
+  position:absolute;
+  top:0;bottom:0;left:0;
+  width:calc(100% * var(--ovf));
+  pointer-events:none;
+}
+.stage::before{
+  background:linear-gradient(90deg,
+    var(--panel) 0 var(--reach),
+    var(--base) var(--reach) 100%);
+  z-index:0;
+}
+.stage::after{
+  background:linear-gradient(90deg,
+    transparent 0 calc(var(--reach) - 2px),
+    var(--edge) calc(var(--reach) - 2px) var(--reach),
+    transparent var(--reach) 100%);
+  transform-origin:top center;
+  z-index:1;
+}
+.stage--full::after{display:none}
+.arc>section:nth-of-type(1){grid-row:1}
+.arc>section:nth-of-type(2){grid-row:2}
+.arc>section:nth-of-type(3){grid-row:3}
+.arc>section:nth-of-type(4){grid-row:4}
+.arc>section:nth-of-type(5){grid-row:5}
+.arc>section:nth-of-type(6){grid-row:6}
+.arc>section:nth-of-type(7){grid-row:7}
+.arc>section:nth-of-type(8){grid-row:8}
+.arc>section:nth-of-type(9){grid-row:9}
+.arc>section:nth-of-type(10){grid-row:10}
+
+.inner{
+  position:relative;
+  z-index:2;
+  margin-left:var(--gut);
+  width:min(
+    calc(var(--reach) * var(--ovf) - var(--gut) - var(--gut)),
+    calc(100% - var(--gut) - var(--gut)));
+}
+
+/* the ladder: value darkens, the field widens, both monotonic */
+.s-a{--panel:#F7F3EB;--ink:#1A1816;--muted:#4A4540;--accent:#9C3A1F;--see:#9C3A1F;--edge:#D8CDB8;--rule:rgba(26,24,22,0.14);--reach:40%}
+.s-b{--panel:#F1EBE0;--ink:#1A1816;--muted:#4A4540;--accent:#9C3A1F;--see:#9C3A1F;--edge:#D0C3AC;--rule:rgba(26,24,22,0.16);--reach:48%}
+.s-c{--panel:#ECE4D5;--ink:#1A1816;--muted:#474039;--accent:#9C3A1F;--see:#94351A;--edge:#C6B79D;--rule:rgba(26,24,22,0.18);--reach:56%}
+.s-d{--panel:#E0D4BE;--ink:#171512;--muted:#433E39;--accent:#8E3419;--see:#8E3419;--edge:#B3A184;--rule:rgba(23,21,18,0.2);--reach:64%}
+.s-e{--panel:#CBBBA0;--ink:#141210;--muted:#3A352F;--accent:#7A2B13;--see:#6E250F;--edge:#9A8A6E;--rule:rgba(20,18,16,0.24);--reach:71%}
+.s-f{--panel:#3B352F;--ink:#F1EBE0;--muted:#C3B9A8;--accent:#E08A5A;--see:#E08A5A;--edge:#E08A5A;--rule:rgba(241,235,224,0.2);--reach:78%}
+.s-g{--panel:#2C2723;--ink:#F1EBE0;--muted:#BDB2A1;--accent:#E49061;--see:#E49061;--edge:#7A5B44;--rule:rgba(241,235,224,0.18);--reach:100%}
+.s-h{--panel:#23201C;--ink:#F3EDE3;--muted:#BAAF9E;--accent:#E89668;--see:#E89668;--edge:#23201C;--rule:rgba(243,237,227,0.17);--reach:100%}
+.s-i{--panel:#1A1816;--ink:#F4EEE4;--muted:#B8AD9C;--accent:#EC9C70;--see:#EC9C70;--edge:#1A1816;--rule:rgba(244,238,228,0.15);--reach:100%}
+.s-j{--panel:#141210;--ink:#F5EFE5;--muted:#B6AB9A;--accent:#EFA277;--see:#EFA277;--edge:#141210;--rule:rgba(245,239,229,0.15);--reach:100%}
+
+/* ── the field: what now exists ───────────────────────────
+   Each block is opaque paper, so its own ink/ground pair is
+   fixed no matter which rung of the ladder it is crossing.
+   Blocks stick in a pile: earlier ones hold their place and
+   keep their label showing as later ones land beneath. */
+.fieldhead{
+  grid-column:2;
+  grid-row:1/-1;
+  align-self:start;
+  position:sticky;
+  top:var(--ftop);
+  z-index:4;
+  margin:0 var(--gut) 0 0;
+  background:var(--paper);
+  border:1px solid rgba(11,17,19,.2);
+  padding:.4rem .8rem .46rem;
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:.75rem;
+}
+/* the only number on screen: a running count, not a list item */
+.fieldhead p{max-width:none}
+.fieldhead .lbl{font-size:.72rem;font-weight:500;line-height:1.4;color:var(--papermuted)}
+.fieldhead .cnt{font-family:var(--serif);font-size:.8rem;line-height:1;color:var(--papermuted);white-space:nowrap}
+.fieldhead .cnt b{
+  font-size:1.5rem;
+  font-weight:400;
+  line-height:1;
+  letter-spacing:-.022em;
+  color:var(--paperink);
+  margin-right:.16em;
+}
+
+/* White halo on the stacking blocks. Against the pale upper rungs it is
+   effectively invisible; as the ladder darkens toward the bottom it reads
+   as a soft glow, so the pile lifts off the dark ground instead of sitting
+   flat on it. One static shadow works at every rung because white only
+   shows where the ground is darker than it. */
+/* The brand doing double duty as a verb — Seth's device from the original
+   site: SEE lifts out of the line in the accent, italic, a shade lighter.
+   The hero also lifts its payoff phrase, exactly as the original h1s did. */
+.see{color:var(--see,#9C3A1F);font-style:italic;font-weight:400;padding-right:.085em}
+
+.cell, .fieldhead{
+  box-shadow:
+    0 1px 2px rgba(255,255,255,.12),
+    0 6px 20px rgba(255,255,255,.19),
+    0 18px 52px rgba(255,255,255,.13);
+}
+
+.cell{
+  grid-column:2;
+  grid-row:var(--r)/-1;
+  align-self:start;
+  position:sticky;
+  top:calc(var(--ftop) + var(--fgap) + (var(--i) - 1) * var(--step));
+  z-index:3;
+  margin:calc(var(--k) * var(--step)) var(--gut) 0 0;
+  background:var(--paper);
+  border:1px solid rgba(11,17,19,.2);
+  border-left:3px solid var(--stamp);
+  box-shadow:2px 2px 0 rgba(7,14,16,.14);
+  padding:.6rem .8rem .68rem;
+}
+.cell p{max-width:none}
+.cell .k{
+  font-size:.845rem;
+  font-weight:600;
+  letter-spacing:-.008em;
+  line-height:1.28;
+  color:var(--paperink);
+}
+.cell .v{font-size:.765rem;line-height:1.42;color:var(--papermuted);margin-top:.22rem}
+
+/* ── header ─────────────────────────────────────────────── */
+.masthead{
+  background:#F7F3EB;
+  border-bottom:1px solid rgba(26,24,22,.12);
+  padding:1.15rem var(--gut);
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:1rem 1.75rem;
+  flex-wrap:wrap;
+}
+.wordmark{
+  font-family:var(--serif);
+  font-size:1.2rem;
+  font-weight:500;
+  letter-spacing:-.008em;
+  color:#0E1517;
+  text-decoration:none;
+}
+.masthead nav{display:flex;gap:1.5rem;align-items:baseline;flex-wrap:wrap}
+.masthead nav a{
+  color:#263033;
+  font-size:.915rem;
+  text-decoration:none;
+  border-bottom:1px solid rgba(26,24,22,.25);
+  padding-bottom:1px;
+}
+.masthead nav a:hover{color:#9C3A1F;border-bottom-color:#9C3A1F}
+
+/* ── type ───────────────────────────────────────────────── */
+h1,h2,h3{font-family:var(--serif);font-weight:400;letter-spacing:-.018em;line-height:1.08}
+h1{font-size:clamp(2.1rem,4.35vw,3.85rem);line-height:1.04;max-width:20ch}
+h2{font-size:clamp(1.65rem,2.9vw,2.6rem);max-width:22ch;line-height:1.1}
+
+.stagename{
+  font-size:.875rem;
+  font-weight:500;
+  color:var(--muted);
+  margin-bottom:.55rem;
+  display:flex;
+  align-items:center;
+  gap:.7rem;
+}
+.stagename::after{
+  content:'';
+  height:1px;
+  flex:1;
+  max-width:5.5rem;
+  background:var(--rule);
+}
+
+p{max-width:var(--measure)}
+.lede{
+  font-size:clamp(1.06rem,1.32vw,1.22rem);
+  line-height:1.58;
+  color:var(--ink);
+  margin-top:1.6rem;
+}
+.body{color:var(--muted);margin-top:1.15rem}
+.body strong,.lede strong{color:var(--ink);font-weight:600}
+
+a{color:inherit}
+
+:focus-visible{outline:2px solid var(--accent,#9C3A1F);outline-offset:3px;border-radius:1px}
+.s-a :focus-visible,.masthead :focus-visible{outline-color:#9C3A1F}
+
+/* ── calls to action ────────────────────────────────────── */
+.act{margin-top:2.4rem;display:flex;flex-wrap:wrap;align-items:center;gap:.9rem 1.4rem}
+.btn{
+  display:inline-block;
+  font-family:var(--sans);
+  font-size:1rem;
+  font-weight:500;
+  letter-spacing:-.004em;
+  text-decoration:none;
+  padding:.92rem 1.5rem;
+  background:var(--ink);
+  color:var(--panel);
+  border:2px solid var(--ink);
+}
+.btn:hover{background:transparent;color:var(--ink)}
+.act small{font-size:.9rem;color:var(--muted);line-height:1.45}
+.act small a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule)}
+.act small a:hover{border-bottom-color:var(--ink)}
+
+/* ── proof ──────────────────────────────────────────────── */
+.record{
+  margin-top:2.2rem;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:0 clamp(1.5rem,3vw,3rem);
+  border-top:1px solid var(--rule);
+}
+.record div{
+  padding:1.35rem 1.4rem 1.5rem 0;
+  border-bottom:1px solid var(--rule);
+}
+.figure{
+  font-family:var(--serif);
+  font-size:clamp(2.1rem,3.4vw,2.9rem);
+  font-weight:300;
+  line-height:1;
+  letter-spacing:-.03em;
+  display:block;
+}
+.figure sub{font-size:.4em;font-weight:400;vertical-align:baseline;bottom:0;position:relative;letter-spacing:0;margin-left:.12em}
+.record p{font-size:.925rem;line-height:1.45;color:var(--muted);margin-top:.7rem;max-width:26ch}
+
+.single{
+  margin-top:2rem;
+  border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);
+  padding:1.3rem 0;
+  display:flex;
+  align-items:baseline;
+  gap:1.2rem;
+  flex-wrap:wrap;
+}
+.single p{font-size:.95rem;color:var(--muted);max-width:34ch;margin:0}
+
+/* ── quotes ─────────────────────────────────────────────── */
+blockquote{
+  margin-top:2.4rem;
+  border-top:1px solid var(--rule);
+  padding-top:1.4rem;
+  max-width:46ch;
+}
+blockquote p{
+  font-family:var(--serif);
+  font-size:clamp(1.12rem,1.55vw,1.36rem);
+  line-height:1.42;
+  letter-spacing:-.011em;
+  color:var(--ink);
+  max-width:none;
+}
+blockquote footer{
+  margin-top:1rem;
+  font-size:.885rem;
+  line-height:1.5;
+  color:var(--muted);
+}
+blockquote footer b{color:var(--ink);font-weight:600}
+
+/* ── questions ──────────────────────────────────────────── */
+.qs{margin-top:2.2rem;border-top:1px solid var(--rule);max-width:60rem}
+.q{border-bottom:1px solid var(--rule)}
+.q h3{padding:1.15rem 0 .1rem;font-size:1.03rem;font-weight:500;color:var(--ink)}
+
+
+
+.q p{padding:0 0 1.35rem;color:var(--muted);max-width:58ch}
+
+/* ── close ──────────────────────────────────────────────── */
+.colophon{
+  background:#070E10;
+  color:#9AADB2;
+  padding:2.2rem var(--gut) 2.6rem;
+  display:flex;
+  justify-content:space-between;
+  gap:.6rem 2rem;
+  flex-wrap:wrap;
+  font-size:.875rem;
+  border-top:1px solid rgba(239,244,245,.13);
+}
+
+/* ── motion: the frontier draws, the blocks land ──────────
+   JS only ever removes and restores; nothing is injected.
+   JS off or reduced motion: everything is already here. */
+.js-motion .stage::after{transform:scaleY(0);transition:transform 1.05s cubic-bezier(.16,1,.3,1)}
+.js-motion .stage.seen::after{transform:scaleY(1)}
+.js-motion .cell{opacity:0;transform:translateY(.6rem);transition:opacity .62s ease,transform .62s cubic-bezier(.16,1,.3,1)}
+.js-motion .cell.seen{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  .js-motion .stage::after{transform:none;transition:none}
+  .js-motion .cell{opacity:1;transform:none;transition:none}
+}
+
+/* ── short viewports: tighten the pile so it always fits ── */
+@media (min-width:1100px) and (max-height:700px){
+  .arc{--step:4.6rem;--ftop:.7rem;--fgap:2.6rem}
+  .fieldhead{padding:.3rem .7rem .36rem}
+  .fieldhead .cnt b{font-size:1.2rem}
+  .cell{padding:.46rem .7rem .54rem}
+  .cell .k{font-size:.82rem}
+  .cell .v{font-size:.73rem;line-height:1.38}
+}
+
+/* ── narrow: no right side, so each block lands inline ────
+   directly beneath the stage that produced it, and the count
+   rides along at the top of the screen. */
+@media (max-width:1099px){
+  .arc{display:block;--ovf:1}
+  .fieldhead{
+    position:sticky;
+    top:0;
+    margin:0;
+    border-width:0 0 1px;
+    padding:.32rem var(--gut) .38rem;
+    z-index:6;
+  }
+  .fieldhead .cnt b{font-size:1.2rem}
+  .stage{scroll-margin-top:3rem}
+  .cell{
+    position:static;
+    margin:0 var(--gut) 1.5rem;
+    padding:.78rem .95rem .86rem;
+    box-shadow:none;
+    border-left-width:4px;
+  }
+  .cell+.cell{margin-top:-1.5rem;border-top-color:rgba(11,17,19,.14)}
+  .cell .v{font-size:.85rem;margin-top:.25rem}
+  .cell .k{font-size:.92rem}
+  .s-a{--reach:72%}.s-b{--reach:76%}.s-c{--reach:80%}.s-d{--reach:85%}
+  .s-e{--reach:89%}.s-f{--reach:93%}.s-g{--reach:97%}
+  .s-h,.s-i,.s-j{--reach:100%}
+  h1{max-width:24ch}
+}
+@media (max-width:700px){
+  .s-a{--reach:88%}.s-b{--reach:90%}.s-c{--reach:92%}.s-d{--reach:94%}
+  .s-e{--reach:96%}.s-f{--reach:98%}
+  .s-g,.s-h,.s-i,.s-j{--reach:100%}
+  h1,h2{max-width:none}
+}
+@media (max-width:560px){
+  .record{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:600px){
+  body{font-size:1rem}
+  .record div{padding-right:1rem}
+  .masthead{padding-block:.9rem}
+  .masthead nav{gap:1.1rem}
+  .masthead nav a{font-size:.875rem}
+  .btn{width:100%;text-align:center}
+}
+</style>
+<script>(function(){var m=window.matchMedia;
+if('IntersectionObserver' in window && !(m && m('(prefers-reduced-motion: reduce)').matches))
+  document.documentElement.className+=' js-motion';})();</script>
+</head>
+<body>
+
+<header class="masthead">
+  <a class="wordmark" href="#top">SEE Right Through</a>
+  <nav aria-label="Sections">
+    <a href="#arc">Engagement</a>
+    <a href="#talk">Contact</a>
+    <a href="#questions">Questions</a>
+  </nav>
+</header>
+
+<main id="top">
+<div class="arc">
+
+<div class="fieldhead">
+  <p class="lbl">What now exists</p>
+  <p class="cnt"><b id="tally">6</b> of 6</p>
+</div>
+
+<!-- ═══ before it starts ═══════════════════════════════════ -->
+<section class="stage s-a" style="--pad:clamp(4rem,8vw,8rem)">
+  <div class="inner">
+    <p class="stagename">Before anything starts</p>
+    <h1><span class="see">SEE</span> your sales tools <span class="see">earn their keep.</span></h1>
+    <p class="lede">Your senior team pays for Sales Navigator, ZoomInfo and Apollo. Every seat shipped with a CSM: long ramp, short tenure, gone before they learn your business.</p>
+    <p class="body">I'm Seth Eisenstein, an embedded GTM operator. I stay.</p>
+    <div class="act">
+      <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=Starting%20a%20conversation&body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat's%20going%20on%3A%20">Start the first conversation</a><!--/email_off-->
+      <small><!--email_off--><a href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off--></small>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ what he walks in with ══════════════════════════════ -->
+<section class="stage s-b">
+  <div class="inner">
+    <p class="stagename">What I bring</p>
+    <h2><span class="see">SEE</span> the work.</h2>
+    <p class="body">Twenty years carrying a number.</p>
+    <div class="record">
+      <div><span class="figure">20<sub>yrs</sub></span><p>SaaS, rewards, HR tech</p></div>
+      <div><span class="figure">$11<sub>M+</sub></span><p>Annual active pipeline directed through outsourced SDRs</p></div>
+      <div><span class="figure">$900<sub>K</sub></span><p>Average opportunity</p></div>
+      <div><span class="figure">$6.5<sub>M</sub></span><p>One account, closed and grown</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ the week before ════════════════════════════════════ -->
+<section class="stage s-c" id="arc">
+  <div class="inner">
+    <p class="stagename">The week before</p>
+    <h2><span class="see">SEE</span> Right Through the noise.</h2>
+    <p class="lede">The knowledge of how your stack should actually work for your team has no owner.</p>
+    <p class="body">So senior reps default. Some chase the latest LinkedIn prompt and abandon it in a week. Others freeze and revert to what they know. <strong>Neither is a real plan.</strong></p>
+    <p class="body">That's where I come in. To install a working motion on the tools you already pay for, and stay long enough for it to stick.</p>
+    <p class="body">Intervals are illustrative; scope is set per engagement.</p>
+  </div>
+</section>
+
+<!-- ═══ who's on the other side ════════════════════════════ -->
+<section class="stage s-d">
+  <div class="inner">
+    <p class="stagename">Who calls</p>
+    <h2><span class="see">SEE</span> if this is for you.</h2>
+    <p class="lede">I work with senior reps and teams who want their next 5-10 years to be their best.</p>
+    <p class="body">Sales leaders with veteran teams. RevOps owners answering for the ROI. Lean companies with no enablement yet.</p>
+  </div>
+</section>
+
+<!-- ═══ the first sessions ═════════════════════════════════ -->
+<section class="stage s-e">
+  <div class="inner">
+    <p class="stagename">First sessions</p>
+    <h2><span class="see">SEE</span> the modern motion in your experienced team.</h2>
+    <p class="body">We open your book, not a deck. <strong>Working Sessions</strong>: your team, your stack, your accounts, live.</p>
+    <div class="single">
+      <span class="figure">40<sub>+</sub></span>
+      <p>Sessions facilitated</p>
+    </div>
+  </div>
+</section>
+<aside class="cell" data-i="1" style="--i:1;--k:0;--r:5">
+  <p class="k">Stack read</p>
+  <p class="v">A seat-by-seat count of what your team uses.</p>
+</aside>
+
+<!-- ═══ the first artifacts land ═══════════════════════════ -->
+<section class="stage s-f">
+  <div class="inner">
+    <p class="stagename">First Launch Kit</p>
+    <h2><span class="see">SEE</span> what I actually build.</h2>
+    <p class="body"><strong>Senior AE Engagements</strong>: embedded one to one on a seller's real book.</p>
+    <p class="body"><strong>Launch Kits</strong>: deeply researched entry plans to crack into target accounts. Buyer map, trigger events, and the angle worth leading with.</p>
+    <p class="body"><strong>ABR briefs</strong>: account business reviews built to grow the accounts you already have, not to check a QBR box.</p>
+    <p class="body"><strong>Persona playbooks</strong>: built around your actual buyers and your actual motion, in language your team will use out loud.</p>
+  </div>
+</section>
+<aside class="cell" data-i="2" style="--i:2;--k:0;--r:6">
+  <p class="k">Launch Kit</p>
+  <p class="v">A researched entry plan for one target account.</p>
+</aside>
+<aside class="cell" data-i="3" style="--i:3;--k:1;--r:6">
+  <p class="k">ABR brief</p>
+  <p class="v">A review built to grow an account you already have.</p>
+</aside>
+<aside class="cell" data-i="4" style="--i:4;--k:2;--r:6">
+  <p class="k">Persona playbook</p>
+  <p class="v">Talk tracks in language reps will say out loud.</p>
+</aside>
+
+<!-- ═══ a quarter in ═══════════════════════════════════════ -->
+<section class="stage s-g stage--full">
+  <div class="inner">
+    <p class="stagename">A quarter in</p>
+    <h2><span class="see">SEE</span> it stick.</h2>
+    <p class="body">Roughly where a vendor CSM finishes ramping.</p>
+    <blockquote>
+      <p>"Seth led our organization in adapting AI-driven automation to drive measurable business results."</p>
+      <footer><b>Matt Skiko</b><br>Director of Business Development</footer>
+    </blockquote>
+  </div>
+</section>
+<aside class="cell" data-i="5" style="--i:5;--k:0;--r:7">
+  <p class="k">Live workflow</p>
+  <p class="v">An automation your reps run on live deals.</p>
+</aside>
+
+<!-- ═══ the far end ════════════════════════════════════════ -->
+<section class="stage s-h stage--full">
+  <div class="inner">
+    <p class="stagename">The far end</p>
+    <h2><span class="see">SEE</span> your team own it.</h2>
+    <p class="body">Built into the daily motion until you own it. <strong>GTM Operating Partner</strong>: the memory a rotating seat can't hold.</p>
+    <blockquote>
+      <p>"He knows how to connect them to drive measurable business impact."</p>
+      <footer><b>Danielle Tuck</b><br>Director of Business Development</footer>
+    </blockquote>
+  </div>
+</section>
+<aside class="cell" data-i="6" style="--i:6;--k:0;--r:8">
+  <p class="k">The motion</p>
+  <p class="v">Your team owns it and keeps the collateral current.</p>
+</aside>
+
+<!-- ═══ close ══════════════════════════════════════════════ -->
+<section class="stage s-i stage--full" id="talk">
+  <div class="inner">
+    <p class="stagename">Where this starts</p>
+    <h2><span class="see">SEE</span> if something here lands.</h2>
+    <p class="body">Thirty minutes, no deck.</p>
+    <div class="act">
+      <!--email_off--><a class="btn" href="mailto:seth@seerightthrough.co?subject=Starting%20a%20conversation&body=Hi%20Seth%2C%0D%0A%0D%0AName%3A%20%0D%0ACompany%3A%20%0D%0AWhat's%20going%20on%3A%20">Start the first conversation</a><!--/email_off-->
+      <small><!--email_off--><a href="mailto:seth@seerightthrough.co">seth@seerightthrough.co</a><!--/email_off--><br><a href="https://www.linkedin.com/in/setheisenstein/" rel="noopener">LinkedIn</a></small>
+    </div>
+  </div>
+</section>
+<!-- ═══ questions ══════════════════════════════════════════ -->
+<section class="stage s-j stage--full" id="questions">
+  <div class="inner">
+    <p class="stagename">Questions</p>
+    <h2><span class="see">SEE</span> the fine print.</h2>
+    <div class="qs">
+      <div class="q">
+        <h3>What does it cost?</h3>
+        <p>Scoped after the first conversation. No rate card.</p>
+      </div>
+      <div class="q">
+        <h3>Does this replace our vendor CSMs?</h3>
+        <p>No. They own the roadmap; I'm here when their seat turns over.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</main>
+
+<footer class="colophon">
+  <span>SEE Right Through Consulting LLC</span>
+  <span>New York City</span>
+  <span>&copy; 2026</span>
+</footer>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  if (root.className.indexOf('js-motion') < 0) return;
+
+  var tally  = document.getElementById('tally');
+  var cells  = [].slice.call(document.querySelectorAll('.cell'));
+  var stages = [].slice.call(document.querySelectorAll('.stage'));
+  var anchors = [], ticking = false;
+
+  /* A stuck element reports its pinned position, not the place it belongs to,
+     so getBoundingClientRect() alone cannot tell us when a block is due.
+     Measure each anchor once with sticky switched off, then drive everything
+     from scroll position. That makes the build reversible: scrolling back up
+     un-reveals blocks and winds the tally down, instead of latching at 6. */
+  function measure(){
+    var saved = [];
+    for (var i = 0; i < cells.length; i++){
+      saved[i] = cells[i].style.position;
+      cells[i].style.position = 'static';
+    }
+    for (var i = 0; i < cells.length; i++){
+      anchors[i] = cells[i].getBoundingClientRect().top + window.pageYOffset;
+    }
+    for (var i = 0; i < cells.length; i++){
+      cells[i].style.position = saved[i];
+    }
+  }
+
+  function mark(el, on){
+    var has = (' ' + el.className + ' ').indexOf(' seen ') > -1;
+    if (on && !has) el.className += ' seen';
+    else if (!on && has) el.className = el.className.replace(/\s*\bseen\b/g, '');
+  }
+
+  function apply(){
+    ticking = false;
+    var line = window.pageYOffset + window.innerHeight * 0.9;
+    var n = 0;
+    for (var i = 0; i < cells.length; i++){
+      var on = line > anchors[i];
+      mark(cells[i], on);
+      if (on){ var k = +cells[i].getAttribute('data-i') || 0; if (k > n) n = k; }
+    }
+    for (var j = 0; j < stages.length; j++){
+      mark(stages[j], line > stages[j].getBoundingClientRect().top + window.pageYOffset);
+    }
+    if (tally && tally.firstChild) tally.firstChild.nodeValue = String(n);
+  }
+
+  function onScroll(){
+    if (!ticking){ ticking = true; requestAnimationFrame(apply); }
+  }
+
+  function remeasure(){ measure(); apply(); }
+
+  measure(); apply();
+  addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('resize', remeasure, { passive: true });
+  addEventListener('load', remeasure);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(remeasure);
+})();
+</script>
+
+</body>
+</html>

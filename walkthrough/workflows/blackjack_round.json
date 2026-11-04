@@ -1,0 +1,51 @@
+{
+  "name": "A round of Blackjack",
+  "description": "Joins the lobby as Walkthrough, starts a game, hits once, stands, deals a new round and returns to the lobby.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open Blackjack",
+      "action": { "type": "goto", "url": "/blackjack" },
+      "expect": [{ "type": "text", "target": "id:blackjack-game", "contains": "Game Lobby" }]
+    },
+    {
+      "do": "Set a player name",
+      "action": { "type": "fill", "target": "css:input[name=name]", "value": "Walkthrough" }
+    },
+    {
+      "do": "Save the name",
+      "action": { "type": "click", "target": "role:button:Update" },
+      "expect": [{ "type": "text", "target": "id:blackjack-game", "contains": "Walkthrough (You)" }]
+    },
+    {
+      "do": "Start a game",
+      "action": { "type": "click", "target": "role:button:Start New Game" },
+      "expect": [{ "type": "visible", "target": "role:button:Hit" }]
+    },
+    {
+      "do": "Hit",
+      "action": { "type": "click", "target": "role:button:Hit" },
+      "expect": [{ "type": "visible", "target": "id:blackjack-game" }]
+    },
+    {
+      "do": "Stand",
+      "action": { "type": "click", "target": "role:button:Stand" },
+      "expect": [{ "type": "visible", "target": "css:[phx-click='new_round']" }]
+    },
+    {
+      "do": "Deal a new round",
+      "action": { "type": "click", "target": "css:[phx-click='new_round']" },
+      "expect": [{ "type": "visible", "target": "role:button:Hit" }]
+    },
+    {
+      "do": "Stand again",
+      "action": { "type": "click", "target": "role:button:Stand" },
+      "expect": [{ "type": "visible", "target": "css:[phx-click='return_to_lobby']" }]
+    },
+    {
+      "do": "Return to the lobby",
+      "action": { "type": "click", "target": "css:[phx-click='return_to_lobby']" },
+      "expect": [{ "type": "text", "target": "id:blackjack-game", "contains": "Game Lobby" }]
+    }
+  ]
+}

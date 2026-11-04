@@ -40,6 +40,8 @@ import LeicaViewer from "./hooks/leica_viewer"
 import Swipe from "./hooks/swipe"
 import TemperArt from "./hooks/temper_art"
 import ZiggyApp from "./hooks/ziggy_app"
+import LollyApp from "./hooks/lolly_app"
+import RootedApp from "./hooks/rooted_app"
 import GalleryAmbient from "./hooks/gallery_ambient"
 import ZiggyChatInput from "./hooks/ziggy_chat_input"
 import ZiggyCopy from "./hooks/ziggy_copy"
@@ -847,6 +849,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
     Tooltip,
     TourSpotlight,
     ZiggyApp,
+    LollyApp,
+    RootedApp,
     ZiggyChatInput,
     ZiggyCopy,
     ChessGame: window.ChessGame,

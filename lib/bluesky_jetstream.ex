@@ -15,7 +15,10 @@ defmodule BlueskyJetstream do
       url,
       __MODULE__,
       %{reconnect_attempts: 0, message_count: 0},
-      opts ++ [name: __MODULE__, handle_initial_conn_failure: true]
+      # async: connect in the background. Without it start_link blocks the
+      # application supervisor (and so BlogWeb.Endpoint, which starts after
+      # this child) for as long as the Jetstream host is unreachable.
+      opts ++ [name: __MODULE__, handle_initial_conn_failure: true, async: true]
     )
   end
 

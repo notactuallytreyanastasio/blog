@@ -1,0 +1,140 @@
+{
+  "name": "Feeds",
+  "description": "The pages fed by outside streams: bookmarks, Hacker News, Reddit links, emoji skeets, Stumble and the Jetstream comparison. Content is whatever is live, so the checks are structural. (/allowed-chats is in known_broken.json until its mount crash is fixed.)",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open bookmarks",
+      "action": {
+        "type": "goto",
+        "url": "/bookmarks"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "My Bookmarks"
+        }
+      ]
+    },
+    {
+      "do": "Search bookmarks",
+      "action": {
+        "type": "fill",
+        "target": "placeholder:Search bookmarks...",
+        "value": "elixir"
+      },
+      "expect": [
+        {
+          "type": "value",
+          "target": "placeholder:Search bookmarks...",
+          "equals": "elixir"
+        }
+      ]
+    },
+    {
+      "do": "Open Hacker News",
+      "action": {
+        "type": "goto",
+        "url": "/hacker-news"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Top Hacker News Stories"
+        }
+      ]
+    },
+    {
+      "do": "Open Reddit links",
+      "action": {
+        "type": "goto",
+        "url": "/reddit-links"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.os-titlebar-title"
+        }
+      ]
+    },
+    {
+      "do": "Open emoji skeets",
+      "action": {
+        "type": "goto",
+        "url": "/emoji-skeets"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h2",
+          "contains": "Search Skeets"
+        }
+      ]
+    },
+    {
+      "do": "Search for elixir skeets",
+      "action": {
+        "type": "fill",
+        "target": "css:input[placeholder^='Enter search term']",
+        "value": "elixir"
+      }
+    },
+    {
+      "do": "Submit the search",
+      "action": {
+        "type": "press",
+        "key": "Enter",
+        "target": "css:input[placeholder^='Enter search term']"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h2",
+          "contains": "Search Skeets"
+        }
+      ]
+    },
+    {
+      "do": "Open Stumble",
+      "action": {
+        "type": "goto",
+        "url": "/stumble"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.mac-title"
+        }
+      ]
+    },
+    {
+      "do": "Shuffle",
+      "action": {
+        "type": "click",
+        "target": "css:button.mac-btn"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.mac-title"
+        }
+      ]
+    },
+    {
+      "do": "Open the Jetstream comparison",
+      "action": {
+        "type": "goto",
+        "url": "/jetstream_comparison"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Jetstream vs Relay Comparison"
+        }
+      ]
+    }
+  ]
+}

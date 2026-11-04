@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/bg/code/blog/.codex/hooks/require-action-node.sh'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/bg/code/blog/.codex/hooks/post-commit-reminder.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}

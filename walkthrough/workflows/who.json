@@ -1,0 +1,65 @@
+{
+  "name": "Doctor Who: ask the graph (gate)",
+  "description": "The /who page is gated at the page level and nothing of the graph is sent until it opens, so without the password this checks the gate and that nothing leaks. To watch the chat, run who_unlocked.json with WHO_CHAT_PASSWORD set.",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the Doctor Who page",
+      "action": {
+        "type": "goto",
+        "url": "/who"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:.who-gate-box h1",
+          "contains": "Doctor Who"
+        },
+        {
+          "type": "visible",
+          "target": "css:form[phx-submit='unlock_page']"
+        },
+        {
+          "type": "count",
+          "target": "css:.who-doctor",
+          "equals": 0
+        }
+      ]
+    },
+    {
+      "do": "A wrong password stays locked",
+      "action": {
+        "type": "fill",
+        "target": "placeholder:Password",
+        "value": "not-the-password"
+      },
+      "expect": [
+        {
+          "type": "value",
+          "target": "placeholder:Password",
+          "equals": "not-the-password"
+        }
+      ]
+    },
+    {
+      "do": "Submit it",
+      "action": {
+        "type": "click",
+        "target": "role:button:Unlock"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:.who-gate-box .err",
+          "contains": "Wrong password"
+        },
+        {
+          "type": "count",
+          "target": "css:.who-doctor",
+          "equals": 0
+        }
+      ]
+    }
+  ]
+}

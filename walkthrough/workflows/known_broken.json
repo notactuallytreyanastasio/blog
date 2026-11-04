@@ -1,0 +1,13 @@
+{
+  "name": "Known broken routes",
+  "description": "Routes that errored on 2026-10-14. Each step only checks the URL, so the step passes and the HTTP 500 is recorded in its notes; when a route is fixed, give it a real expectation and move it to the right tour. /mta-train, /lumon-celebration, /chaos-typing, /cairn and /python point at LiveView modules that no longer exist. /allowed-chats crashes in mount because the :allowed_chat_words ETS table is never created.",
+  "onFailure": "continue",
+  "steps": [
+    { "do": "MTA train", "action": { "type": "goto", "url": "/mta-train" }, "expect": [{ "type": "url", "contains": "/mta-train" }] },
+    { "do": "Lumon celebration", "action": { "type": "goto", "url": "/lumon-celebration" }, "expect": [{ "type": "url", "contains": "/lumon-celebration" }] },
+    { "do": "Chaos typing", "action": { "type": "goto", "url": "/chaos-typing" }, "expect": [{ "type": "url", "contains": "/chaos-typing" }] },
+    { "do": "Cairn", "action": { "type": "goto", "url": "/cairn" }, "expect": [{ "type": "url", "contains": "/cairn" }] },
+    { "do": "Python index", "action": { "type": "goto", "url": "/python" }, "expect": [{ "type": "url", "contains": "/python" }] },
+    { "do": "Allowed chats", "action": { "type": "goto", "url": "/allowed-chats" }, "expect": [{ "type": "url", "contains": "/allowed-chats" }] }
+  ]
+}

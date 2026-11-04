@@ -1,0 +1,500 @@
+{
+  "name": "A full game of Wordle",
+  "description": "Switches off hard mode (on by default, and it rejects any guess that ignores a discovered letter), types six common guesses on the on-screen keyboard, reaches game over and starts a new game. Whether a guess is right depends on the day's word.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open Wordle",
+      "action": {
+        "type": "goto",
+        "url": "/wordle"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Dismiss the hard-mode notice",
+      "action": {
+        "type": "click",
+        "target": "role:button:Got it!"
+      },
+      "expect": [
+        {
+          "type": "hidden",
+          "target": "role:button:Got it!"
+        }
+      ]
+    },
+    {
+      "do": "Turn hard mode off",
+      "action": {
+        "type": "click",
+        "target": "role:button:HARD MODE"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Type C",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "C",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type R",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "R",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type A",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "A",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type N",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "N",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type E",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "E",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit CRANE",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Type S",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "S",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type L",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "L",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type A",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "A",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type T",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "T",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type E",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "E",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit SLATE",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Type P",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "P",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type R",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "R",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type I",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "I",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type D",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "D",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type E",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "E",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit PRIDE",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Type M",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "M",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type O",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "O",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type U",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "U",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type N",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "N",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type T",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "T",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit MOUNT",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Type B",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "B",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type L",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "L",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type U",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "U",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type S",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "S",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type H",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "H",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit BLUSH",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Type G",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "G",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type H",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "H",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type O",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "O",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type S",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "S",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type T",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "T",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit GHOST",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "The game is over",
+      "expect": [
+        {
+          "type": "visible",
+          "target": "role:button:New Game"
+        }
+      ]
+    },
+    {
+      "do": "Start a new game",
+      "action": {
+        "type": "click",
+        "target": "role:button:New Game"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    }
+  ]
+}

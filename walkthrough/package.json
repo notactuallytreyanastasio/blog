@@ -1,0 +1,16 @@
+{
+  "name": "walkthrough",
+  "private": true,
+  "type": "module",
+  "description": "Drive the app through a workflow file in a visible browser, one step at a time, for a person to watch.",
+  "scripts": {
+    "walk": "playwright test",
+    "check": "tsc --noEmit",
+    "browser": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0"
+  }
+}

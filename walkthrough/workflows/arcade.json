@@ -1,0 +1,324 @@
+{
+  "name": "Arcade",
+  "description": "A few moves in each game: 2048, Wordle, Blackjack, the nine-board chess variant and Temper Snake. Blackjack creates a lobby game under the name Walkthrough.",
+  "onFailure": "continue",
+  "steps": [
+    {
+      "do": "Open 2048",
+      "action": {
+        "type": "goto",
+        "url": "/2048"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:twenty48-container"
+        }
+      ]
+    },
+    {
+      "do": "Dismiss the how-to and start",
+      "action": {
+        "type": "click",
+        "target": "role:button:START"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "role:button:New Game"
+        }
+      ]
+    },
+    {
+      "do": "Make four moves with the arrow keys",
+      "action": {
+        "type": "press",
+        "key": "ArrowLeft"
+      }
+    },
+    {
+      "do": "Up",
+      "action": {
+        "type": "press",
+        "key": "ArrowUp"
+      }
+    },
+    {
+      "do": "Right",
+      "action": {
+        "type": "press",
+        "key": "ArrowRight"
+      }
+    },
+    {
+      "do": "Down",
+      "action": {
+        "type": "press",
+        "key": "ArrowDown"
+      }
+    },
+    {
+      "do": "Switch to the 8x8 board",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "8",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:twenty48-container"
+        }
+      ]
+    },
+    {
+      "do": "Open Wordle",
+      "action": {
+        "type": "goto",
+        "url": "/wordle"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Dismiss the hard-mode notice",
+      "action": {
+        "type": "click",
+        "target": "role:button:Got it!"
+      },
+      "expect": [
+        {
+          "type": "hidden",
+          "target": "role:button:Got it!"
+        }
+      ]
+    },
+    {
+      "do": "Type C",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "C",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type R",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "R",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type A",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "A",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type N",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "N",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Type E",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "E",
+          "exact": true
+        }
+      }
+    },
+    {
+      "do": "Submit the guess",
+      "action": {
+        "type": "click",
+        "target": {
+          "role": "button",
+          "name": "ENTER",
+          "exact": true
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:game-board"
+        }
+      ]
+    },
+    {
+      "do": "Open Blackjack",
+      "action": {
+        "type": "goto",
+        "url": "/blackjack"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "id:blackjack-game",
+          "contains": "Game Lobby"
+        }
+      ]
+    },
+    {
+      "do": "Set a player name",
+      "action": {
+        "type": "fill",
+        "target": "css:input[name=name]",
+        "value": "Walkthrough"
+      }
+    },
+    {
+      "do": "Save the name",
+      "action": {
+        "type": "click",
+        "target": "role:button:Update"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "id:blackjack-game",
+          "contains": "Walkthrough (You)"
+        }
+      ]
+    },
+    {
+      "do": "Start a game",
+      "action": {
+        "type": "click",
+        "target": "role:button:Start New Game"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "role:button:Hit"
+        }
+      ]
+    },
+    {
+      "do": "Take a card",
+      "action": {
+        "type": "click",
+        "target": "role:button:Hit"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:blackjack-game"
+        }
+      ]
+    },
+    {
+      "do": "Open the chess variant",
+      "action": {
+        "type": "goto",
+        "url": "/chess-lv"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:chess-game"
+        }
+      ]
+    },
+    {
+      "do": "Close the rules",
+      "action": {
+        "type": "click",
+        "target": "role:button:play →"
+      },
+      "expect": [
+        {
+          "type": "hidden",
+          "target": "id:rules-modal"
+        }
+      ]
+    },
+    {
+      "do": "Start a new game",
+      "action": {
+        "type": "click",
+        "target": "role:button:NEW GAME"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:.sq"
+        }
+      ]
+    },
+    {
+      "do": "Select a square",
+      "action": {
+        "type": "click",
+        "target": {
+          "css": ".sq",
+          "nth": 100
+        }
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:chess-game"
+        }
+      ]
+    },
+    {
+      "do": "Open Temper Snake",
+      "action": {
+        "type": "goto",
+        "url": "/temper-snake"
+      },
+      "expect": [
+        {
+          "type": "text",
+          "target": "css:main h1",
+          "contains": "Snake, by way of Temper"
+        },
+        {
+          "type": "visible",
+          "target": "id:snake-app"
+        }
+      ]
+    },
+    {
+      "do": "Open Pong",
+      "action": {
+        "type": "goto",
+        "url": "/pong"
+      },
+      "expect": [
+        {
+          "type": "url",
+          "contains": "/pong"
+        }
+      ]
+    }
+  ]
+}

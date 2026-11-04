@@ -1,0 +1,98 @@
+{
+  "name": "Editor session",
+  "description": "Types markdown into the editor and checks the preview renders it, then evaluates an expression in the browser Python demo and checks its value. The demo shows the value of the last expression, not stdout: print(...) returns None and Pythonx.decode has no clause for it (recorded 2026-10-14).",
+  "onFailure": "continue",
+  "timeoutMs": 30000,
+  "steps": [
+    {
+      "do": "Open the markdown editor",
+      "action": {
+        "type": "goto",
+        "url": "/markdown-editor"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:markdown-editor"
+        }
+      ]
+    },
+    {
+      "do": "Type a heading",
+      "action": {
+        "type": "fill",
+        "target": "css:#markdown-editor textarea, textarea",
+        "value": "# Walkthrough heading\n\nSome *emphasis*."
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": {
+            "css": "main h1",
+            "hasText": "Walkthrough heading"
+          }
+        }
+      ]
+    },
+    {
+      "do": "Open the Python demo",
+      "action": {
+        "type": "goto",
+        "url": "/python-demo"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:code"
+        }
+      ]
+    },
+    {
+      "do": "Replace the sample with a sum",
+      "action": {
+        "type": "fill",
+        "target": "id:code",
+        "value": "40 + 2"
+      },
+      "expect": [
+        {
+          "type": "value",
+          "target": "id:code",
+          "equals": "40 + 2"
+        }
+      ]
+    },
+    {
+      "do": "Run it",
+      "action": {
+        "type": "click",
+        "target": "css:form button[type=submit]"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "css:pre.whitespace-pre-wrap"
+        },
+        {
+          "type": "text",
+          "target": "css:pre.whitespace-pre-wrap",
+          "contains": "42"
+        }
+      ],
+      "timeoutMs": 60000
+    },
+    {
+      "do": "Reset the editor",
+      "action": {
+        "type": "click",
+        "target": "css:[phx-click='reset']"
+      },
+      "expect": [
+        {
+          "type": "visible",
+          "target": "id:code"
+        }
+      ]
+    }
+  ]
+}

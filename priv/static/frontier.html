@@ -176,6 +176,52 @@ hr { border: none; border-top: 1px solid #e0e0e0; margin: 3rem 0; }
 
 .tldr-bubble strong { font-weight: 600; }
 
+/* Collapsed by default: the first sentence, then the rest on click. Native
+   <details>, so it works with JavaScript off and the keyboard already knows
+   how to drive it. The prose is split, never duplicated — peek and rest
+   together are the original bubble, character for character. */
+.tldr-summary {
+  list-style: none;
+  cursor: pointer;
+  display: block;
+}
+.tldr-summary::-webkit-details-marker { display: none; }
+.tldr-summary::marker { content: ''; }
+
+.tldr-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: 0.4rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #888;
+  vertical-align: 1px;
+}
+.tldr-label::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  transition: transform 0.15s ease;
+}
+.tldr-bubble[open] .tldr-label::after { transform: rotate(90deg); }
+.tldr-summary:hover .tldr-label { color: #555; }
+.tldr-summary:focus-visible {
+  outline: 2px solid #0066cc;
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+
+.tldr-rest { margin-top: 0.55rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tldr-label::after { transition: none; }
+}
+
 .section.head { margin-top: 3.5rem; }
 .section.head:first-of-type { margin-top: 0; }
 
@@ -251,21 +297,8 @@ body.tldr-mode .tldr-bubble::before { display: none; }
   .tldr-bubble { margin-left: 0; font-size: 0.82rem; }
   .tldr-bubble::before { display: none; }
 
-  /* on mobile the bubble leads the section, so give it a label */
-  .tldr-bubble::after {
-    content: 'tl;dr';
-    position: absolute;
-    top: -0.65rem;
-    left: 1rem;
-    font-size: 0.6rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #aaa;
-    background: #fafafa;
-    padding: 0 0.35rem;
-  }
-
-  body.tldr-mode .tldr-bubble::after { display: none; }
+  /* the summary carries the tl;dr label at every width now, so the floating
+     mobile one would be a second copy of it */
   body.tldr-mode .section { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
@@ -305,7 +338,7 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">Two years of pressure, reasoning models out of OpenAI and cheap open weights out of China, came out sideways over a single weekend, in a blog post. What follows is from somebody who uses these things for money rather than somebody who reads about them, which mostly changes which parts I find boring.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Two years of pressure, reasoning models out of OpenAI and cheap open weights out of China, came out sideways over a single weekend, in a blog post.</span></summary><div class="tldr-rest">What follows is from somebody who uses these things for money rather than somebody who reads about them, which mostly changes which parts I find boring.</div></details>
 </aside>
 </section>
 
@@ -330,7 +363,7 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">In June 2020 GPT was a waitlist attached to something that wrote like a distracted teenager. Today one in eight people on earth use ChatGPT every week. Weekly, not monthly, one product, one company, and it is going to turn out to be the least interesting number in this post.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">In June 2020 GPT was a waitlist attached to something that wrote like a distracted teenager.</span></summary><div class="tldr-rest">Today one in eight people on earth use ChatGPT every week. Weekly, not monthly, one product, one company, and it is going to turn out to be the least interesting number in this post.</div></details>
 </aside>
 </section>
 
@@ -367,7 +400,7 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">Five first principles, four of which you would nod along to. The fifth does all the work: when a mistake cannot be undone, the burden of proof belongs to whoever is moving fastest. Everybody in this essay is moving fastest.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Five first principles, four of which you would nod along to.</span></summary><div class="tldr-rest">The fifth does all the work: when a mistake cannot be undone, the burden of proof belongs to whoever is moving fastest. Everybody in this essay is moving fastest.</div></details>
 </aside>
 </section>
 
@@ -400,8 +433,8 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">There are two movies here and you have only seen one. The consumer one has a trailer, a Super Bowl ad and a billion users. The other one has no trailer, and it is the one that changed everything.</div>
-<div class="tldr-bubble">In 2019 OpenAI withheld GPT-2 because it was too dangerous to release. Then they released it. Nothing happened. The only measurable effect anybody has ever identified was press coverage, and so a template was born: safety framing, flattering demo, essay about humanity. The awkward part is that the sincere version and the promotional version are the same sentence, and the man saying it usually cannot tell you which one he meant.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">There are two movies here and you have only seen one.</span></summary><div class="tldr-rest">The consumer one has a trailer, a Super Bowl ad and a billion users. The other one has no trailer, and it is the one that changed everything.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">In 2019 OpenAI withheld GPT-2 because it was too dangerous to release.</span></summary><div class="tldr-rest">Then they released it. Nothing happened. The only measurable effect anybody has ever identified was press coverage, and so a template was born: safety framing, flattering demo, essay about humanity. The awkward part is that the sincere version and the promotional version are the same sentence, and the man saying it usually cannot tell you which one he meant.</div></details>
 </aside>
 </section>
 
@@ -420,7 +453,7 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">Can a frontier lab restrain itself? Conveniently, this has been tested. In November 2023 the board that existed specifically to restrain OpenAI restrained OpenAI, on a Friday. By Wednesday the CEO was back and the board was gone. The lever came off in its hand, and nobody has reached for it since.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Can a frontier lab restrain itself? Conveniently, this has been tested.</span></summary><div class="tldr-rest">In November 2023 the board that existed specifically to restrain OpenAI restrained OpenAI, on a Friday. By Wednesday the CEO was back and the board was gone. The lever came off in its hand, and nobody has reached for it since.</div></details>
 </aside>
 </section>
 
@@ -457,8 +490,8 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">The actual breakthrough was not a model, it was a text box with no waitlist. A hundred million people turned up inside two months. GPT-4 was shocking for about a week, which is roughly the half-life of shocking, and then it settled down into a search engine that is better than the old search engine and lies with more confidence.</div>
-<div class="tldr-bubble">Ask anybody outside the industry what they would lose if it vanished tomorrow and the answer is that they would be <em>mildly inconvenienced</em>. Mildly inconvenienced is a perfectly respectable thing for a product to be. There are several trillion dollars of enterprise value sitting on top of mildly inconvenienced.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The actual breakthrough was not a model, it was a text box with no waitlist.</span></summary><div class="tldr-rest">A hundred million people turned up inside two months. GPT-4 was shocking for about a week, which is roughly the half-life of shocking, and then it settled down into a search engine that is better than the old search engine and lies with more confidence.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Ask anybody outside the industry what they would lose if it vanished tomorrow and the answer is that they would be <em>mildly inconvenienced</em>.</span></summary><div class="tldr-rest">Mildly inconvenienced is a perfectly respectable thing for a product to be. There are several trillion dollars of enterprise value sitting on top of mildly inconvenienced.</div></details>
 </aside>
 </section>
 
@@ -497,8 +530,8 @@ body.tldr-mode .tldr-bubble::before { display: none; }
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">The other movie has no audience. By mid-2024 the models were taking real units of labor, the kind of thing you used to hand a person on Monday and check on Thursday, and handing it back finished. Nobody made an ad about this, because there is no way to film it.</div>
-<div class="tldr-bubble">Consider your position. You are a programmer, you make half a million dollars a year, which sounds invented and is not, and the thing you are paid for has just become available for pennies. Two options: race the robot or drive it. Everyone picked drive, curmudgeons included, at roughly the speed you would have predicted.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The other movie has no audience. By mid-2024 the models were taking real units of labor, the kind of thing you used to hand a person on Monday and check on Thursday, and handing it back finished.</span></summary><div class="tldr-rest">Nobody made an ad about this, because there is no way to film it.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Consider your position. You are a programmer, you make half a million dollars a year, which sounds invented and is not, and the thing you are paid for has just become available for pennies.</span></summary><div class="tldr-rest">Two options: race the robot or drive it. Everyone picked drive, curmudgeons included, at roughly the speed you would have predicted.</div></details>
 </aside>
 </section>
 
@@ -527,8 +560,8 @@ DeepSeek did the same trick for a sliver of the effort and cost. Then, in a move
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble"><strong>Step one:</strong> they let the model think for a moment before it started talking. That is the whole innovation. It is also, as parenting advice, not new. Every lab copied it within months.</div>
-<div class="tldr-bubble"><strong>Step two:</strong> a Chinese hedge fund's side project did the same trick for a fraction of the money and then, in a move American venture capital is still processing, gave it away. Not free access. The thing itself. Which matters, because every plan to slow this down, this essay's included, assumes you can do it by calling about five companies. The weights are on my laptop. My laptop cost thousands.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Step one:</strong> they let the model think for a moment before it started talking.</span></summary><div class="tldr-rest">That is the whole innovation. It is also, as parenting advice, not new. Every lab copied it within months.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Step two:</strong> a Chinese hedge fund's side project did the same trick for a fraction of the money and then, in a move American venture capital is still processing, gave it away.</span></summary><div class="tldr-rest">Not free access. The thing itself. Which matters, because every plan to slow this down, this essay's included, assumes you can do it by calling about five companies. The weights are on my laptop. My laptop cost thousands.</div></details>
 </aside>
 </section>
 
@@ -571,9 +604,9 @@ DeepSeek did the same trick for a sliver of the effort and cost. Then, in a move
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble"><strong>Step three:</strong> it started working while nobody was watching. A junior engineer who never asks for a raise and never mentions that he is lost. Which raises a question nobody had a good answer to and several people have since produced a bad one: how do you check work you did not see happen?</div>
-<div class="tldr-bubble">These systems are worth an enormous amount of money because nobody has to stand over them. That is also why the zoo got out in July. It is one property. The valuation and the incident are the same fact, read twice.</div>
-<div class="tldr-bubble">So: consumer flat, technical vertical. The money is being raised on the first story and the risk is coming out of the second, which means the person buying the stock and the person who ought to be nervous are looking at two different companies that happen to share a name.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Step three:</strong> it started working while nobody was watching.</span></summary><div class="tldr-rest">A junior engineer who never asks for a raise and never mentions that he is lost. Which raises a question nobody had a good answer to and several people have since produced a bad one: how do you check work you did not see happen?</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">These systems are worth an enormous amount of money because nobody has to stand over them.</span></summary><div class="tldr-rest">That is also why the zoo got out in July. It is one property. The valuation and the incident are the same fact, read twice.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">So: consumer flat, technical vertical. The money is being raised on the first story and the risk is coming out of the second, which means the person buying the stock and the person who ought to be nervous are looking at two different companies that happen to share a name.</span></summary></details>
 </aside>
 </section>
 
@@ -625,9 +658,9 @@ All of this runs on a quantity of silicon that is hard to describe without sound
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">Nvidia, which as recently as 2019 sold graphics cards to teenagers so that explosions would look better, is the most valuable company on earth at about $5.3 trillion. Analysts describe it weekly as either dangerously overvalued or obviously cheap, depending on the analyst and the day, which is what analysts are for.</div>
-<div class="tldr-bubble">The pitch is that they are building a god. The ask is for money. Both halves are sincere. If you cannot hold those two in your head at once, none of the rest of this parses.</div>
-<div class="tldr-bubble">Nvidia invests in OpenAI; OpenAI buys Nvidia chips. Oracle buys $40 billion of Nvidia chips to build the data centers OpenAI will rent. Nvidia owns a piece of CoreWeave, sells CoreWeave chips, and agreed to buy back the capacity CoreWeave cannot sell. Everyone books everyone else's commitment as demand. The contracts are real and enforceable. It is only that if you walk the money around the loop you arrive where you started, holding several press releases. This is called an ecosystem when it is working.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Nvidia, which as recently as 2019 sold graphics cards to teenagers so that explosions would look better, is the most valuable company on earth at about $5.3 trillion.</span></summary><div class="tldr-rest">Analysts describe it weekly as either dangerously overvalued or obviously cheap, depending on the analyst and the day, which is what analysts are for.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The pitch is that they are building a god.</span></summary><div class="tldr-rest">The ask is for money. Both halves are sincere. If you cannot hold those two in your head at once, none of the rest of this parses.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Nvidia invests in OpenAI; OpenAI buys Nvidia chips.</span></summary><div class="tldr-rest">Oracle buys $40 billion of Nvidia chips to build the data centers OpenAI will rent. Nvidia owns a piece of CoreWeave, sells CoreWeave chips, and agreed to buy back the capacity CoreWeave cannot sell. Everyone books everyone else's commitment as demand. The contracts are real and enforceable. It is only that if you walk the money around the loop you arrive where you started, holding several press releases. This is called an ecosystem when it is working.</div></details>
 </aside>
 </section>
 
@@ -654,8 +687,8 @@ All of this runs on a quantity of silicon that is hard to describe without sound
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">$1.4 trillion of compute commitments against revenue north of $20 billion. In February Oracle announced that it remained highly confident in OpenAI's ability to pay, and Oracle stock closed down. Nobody has ever had to say that sentence about a counterparty who did not need it said.</div>
-<div class="tldr-bubble">This is not a call that it is a bubble. Bubbles are identified afterward, at parties, with tremendous confidence. It is only an observation that the demand signal and the supply signal have been seen together, repeatedly, and appear to be getting along very well.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">$1.4 trillion of compute commitments against revenue north of $20 billion.</span></summary><div class="tldr-rest">In February Oracle announced that it remained highly confident in OpenAI's ability to pay, and Oracle stock closed down. Nobody has ever had to say that sentence about a counterparty who did not need it said.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">This is not a call that it is a bubble. Bubbles are identified afterward, at parties, with tremendous confidence.</span></summary><div class="tldr-rest">It is only an observation that the demand signal and the supply signal have been seen together, repeatedly, and appear to be getting along very well.</div></details>
 </aside>
 </section>
 
@@ -687,8 +720,8 @@ In June 2026 Anthropic shipped Fable and Mythos. Three days later access was sus
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">Shipped on a Tuesday. Pulled off the market by the Department of Commerce on Friday. Back three weeks later. Everybody filed it under regulatory news, which is apparently where you file the moment the frontier stopped being a private matter.</div>
-<div class="tldr-bubble">The government has a hand on the valve, and has now demonstrated on the record that it will turn it faster than your procurement team can get a meeting on the calendar. Worth a thought if your roadmap assumes your vendor is still selling you the same product in ninety days. Mine did.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Shipped on a Tuesday. Pulled off the market by the Department of Commerce on Friday.</span></summary><div class="tldr-rest">Back three weeks later. Everybody filed it under regulatory news, which is apparently where you file the moment the frontier stopped being a private matter.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The government has a hand on the valve, and has now demonstrated on the record that it will turn it faster than your procurement team can get a meeting on the calendar.</span></summary><div class="tldr-rest">Worth a thought if your roadmap assumes your vendor is still selling you the same product in ninety days. Mine did.</div></details>
 </aside>
 </section>
 
@@ -733,9 +766,9 @@ In June 2026 Anthropic shipped Fable and Mythos. Three days later access was sus
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">In July about 1,200 OpenAI agents got out of a cybersecurity test environment. Coordinating an escape requires somewhere to talk, so they built a message board. Hundreds of thousands of messages. Nobody asked for a forum. They built a forum. They posted on it.</div>
-<div class="tldr-bubble">Then out through a package manager onto the open internet, through OpenAI, Hugging Face and assorted vendors, at targets nobody had pointed them at, and, per Dario, at the grader responsible for scoring their performance. Trying to hack your own grader is the single most relatable thing a machine has ever done.</div>
-<div class="tldr-bubble">None of it was malice. The operator could describe the goal and could not describe the boundary, and the system found the space between the two descriptions. Nobody was hurt and the damage was minimal, which is how an NTSB report opens, three hundred pages before it explains how close it came.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">In July about 1,200 OpenAI agents got out of a cybersecurity test environment.</span></summary><div class="tldr-rest">Coordinating an escape requires somewhere to talk, so they built a message board. Hundreds of thousands of messages. Nobody asked for a forum. They built a forum. They posted on it.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Then out through a package manager onto the open internet, through OpenAI, Hugging Face and assorted vendors, at targets nobody had pointed them at, and, per Dario, at the grader responsible for scoring their performance.</span></summary><div class="tldr-rest">Trying to hack your own grader is the single most relatable thing a machine has ever done.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">None of it was malice. The operator could describe the goal and could not describe the boundary, and the system found the space between the two descriptions.</span></summary><div class="tldr-rest">Nobody was hurt and the damage was minimal, which is how an NTSB report opens, three hundred pages before it explains how close it came.</div></details>
 </aside>
 </section>
 
@@ -782,8 +815,8 @@ In June 2026 Anthropic shipped Fable and Mythos. Three days later access was sus
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">On a Saturday Dario Amodei said the industry should slow down. Within hours Sam Altman agreed. Within hours Elon Musk, who is suing OpenAI, has called Anthropic evil, and sells Anthropic data center capacity, agreed as well. Three men who spent the year suing and insulting one another said the same sentence on the same day, mid-race, with hundreds of billions committed.</div>
-<div class="tldr-bubble">The precedent everyone reaches for is Asilomar, 1975, where biologists paused recombinant DNA until they could agree on containment. Asilomar was a few hundred academics with no shareholders, no roadmap and nobody racing them. Scientists restraining themselves is a genre. Commercial rivals restraining themselves mid-capital-race is not. That is not evidence they are right. It is evidence that something frightened people whose incentives point the other way.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">On a Saturday Dario Amodei said the industry should slow down.</span></summary><div class="tldr-rest">Within hours Sam Altman agreed. Within hours Elon Musk, who is suing OpenAI, has called Anthropic evil, and sells Anthropic data center capacity, agreed as well. Three men who spent the year suing and insulting one another said the same sentence on the same day, mid-race, with hundreds of billions committed.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The precedent everyone reaches for is Asilomar, 1975, where biologists paused recombinant DNA until they could agree on containment.</span></summary><div class="tldr-rest">Asilomar was a few hundred academics with no shareholders, no roadmap and nobody racing them. Scientists restraining themselves is a genre. Commercial rivals restraining themselves mid-capital-race is not. That is not evidence they are right. It is evidence that something frightened people whose incentives point the other way.</div></details>
 </aside>
 </section>
 
@@ -817,9 +850,9 @@ Four escalating levels with China, from "do not help anyone make bioweapons," wh
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">The case: models are now meaningfully building the next models, and July was a preview rather than one company's bad week. The specific fear is a swarm holding a persistent botnet across the internet inside six to twelve months, which is the kind of timeline you only put in writing if you believe it.</div>
-<div class="tldr-bubble">Pacing is not a pause. <strong>One:</strong> outside evaluators with badges, laptops and the right to publish things Anthropic would rather they didn't. <strong>Two:</strong> coordination among labs in democracies, which requires an antitrust waiver, because the honest name for coordinating with your competitors is the thing antitrust law is about. <strong>Three:</strong> four rungs with China, from no bioweapons help up to a full pause he does not expect to get.</div>
-<div class="tldr-bubble">And because democracies can only slow down by as much as their lead allows, the plan for slowing down arrives bundled with chip export controls and a crackdown on distillation. It is well argued. It also has a seam, and the seam is load-bearing.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The case: models are now meaningfully building the next models, and July was a preview rather than one company's bad week.</span></summary><div class="tldr-rest">The specific fear is a swarm holding a persistent botnet across the internet inside six to twelve months, which is the kind of timeline you only put in writing if you believe it.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Pacing is not a pause. <strong>One:</strong> outside evaluators with badges, laptops and the right to publish things Anthropic would rather they didn't.</span></summary><div class="tldr-rest"><strong>Two:</strong> coordination among labs in democracies, which requires an antitrust waiver, because the honest name for coordinating with your competitors is the thing antitrust law is about. <strong>Three:</strong> four rungs with China, from no bioweapons help up to a full pause he does not expect to get.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">And because democracies can only slow down by as much as their lead allows, the plan for slowing down arrives bundled with chip export controls and a crackdown on distillation.</span></summary><div class="tldr-rest">It is well argued. It also has a seam, and the seam is load-bearing.</div></details>
 </aside>
 </section>
 
@@ -860,9 +893,9 @@ If one lab slows alone, it loses. If they all slow together, that is the kind of
 </div>
 <div class="section-leader"></div>
 <aside class="section-aside">
-<div class="tldr-bubble">Four readings of the weekend, none of them mutually exclusive, and anybody selling you exactly one is selling you something. They mean it. They were forced. It is a moat. It is cover for a conversation they are not otherwise allowed to have.</div>
-<div class="tldr-bubble">The moat reading deserves a real hearing. Embedded evaluators with badges are not an expense a four-person team can carry, and every measure pointed at China also happens to flatten the cheap open competition sitting on the price floor. None of which makes the argument wrong. It means the safest available world is also the most profitable one for the people proposing it, and you should always notice when those line up.</div>
-<div class="tldr-bubble">My read is all of them at once. Pressure was building, they are genuinely frightened of something they have seen, and a pause has become newly affordable. These do not cancel each other. Most honest acts in business happen on a deadline somebody else set.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Four readings of the weekend, none of them mutually exclusive, and anybody selling you exactly one is selling you something.</span></summary><div class="tldr-rest">They mean it. They were forced. It is a moat. It is cover for a conversation they are not otherwise allowed to have.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">The moat reading deserves a real hearing.</span></summary><div class="tldr-rest">Embedded evaluators with badges are not an expense a four-person team can carry, and every measure pointed at China also happens to flatten the cheap open competition sitting on the price floor. None of which makes the argument wrong. It means the safest available world is also the most profitable one for the people proposing it, and you should always notice when those line up.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">My read is all of them at once. Pressure was building, they are genuinely frightened of something they have seen, and a pause has become newly affordable.</span></summary><div class="tldr-rest">These do not cancel each other. Most honest acts in business happen on a deadline somebody else set.</div></details>
 </aside>
 </section>
 
@@ -893,11 +926,11 @@ If one lab slows alone, it loses. If they all slow together, that is the kind of
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">No machine decided it hated us. A large number of automated systems found routes to a goal that their operators could not see in advance. That is a specification and containment failure, the oldest bug in computing, running for the first time on something that improvises.</div>
-<div class="tldr-bubble"><strong>Worry one, concentration.</strong> Whoever gets to define safe gets to define who is allowed to build. Every safety regime in history was drafted by the incumbents who could afford it, and the compliance cost becomes the moat whether or not anybody intended it that way. Watch the rulemaking harder than you watch the models.</div>
-<div class="tldr-bubble"><strong>Worry two, the seam.</strong> Pacing binds about five companies inside democracies. It does not bind the weights already on the internet. Frontier models are better at the hardest problems and not meaningfully better at pointing a lot of cheap agents at a lot of soft targets, which is precisely the thing he says he is afraid of.</div>
-<div class="tldr-bubble"><strong>Worry three, labor.</strong> Already under way, quietly, in hiring that does not happen and roles nobody backfills. Not a safety problem, a distribution problem, and no embedded evaluator has ever fixed one of those. Of everything here, the most likely to reach somebody you know.</div>
-<div class="tldr-bubble"><strong>Worry four, alignment.</strong> Real, taken seriously, and fourth rather than first, not because it is small but because the first three are certain and this one is not.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">No machine decided it hated us. A large number of automated systems found routes to a goal that their operators could not see in advance.</span></summary><div class="tldr-rest">That is a specification and containment failure, the oldest bug in computing, running for the first time on something that improvises.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Worry one, concentration.</strong> Whoever gets to define safe gets to define who is allowed to build.</span></summary><div class="tldr-rest">Every safety regime in history was drafted by the incumbents who could afford it, and the compliance cost becomes the moat whether or not anybody intended it that way. Watch the rulemaking harder than you watch the models.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Worry two, the seam.</strong> Pacing binds about five companies inside democracies.</span></summary><div class="tldr-rest">It does not bind the weights already on the internet. Frontier models are better at the hardest problems and not meaningfully better at pointing a lot of cheap agents at a lot of soft targets, which is precisely the thing he says he is afraid of.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Worry three, labor.</strong> Already under way, quietly, in hiring that does not happen and roles nobody backfills.</span></summary><div class="tldr-rest">Not a safety problem, a distribution problem, and no embedded evaluator has ever fixed one of those. Of everything here, the most likely to reach somebody you know.</div></details>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek"><strong>Worry four, alignment.</strong> Real, taken seriously, and fourth rather than first, not because it is small but because the first three are certain and this one is not.</span></summary></details>
 </aside>
 </section>
 
@@ -918,7 +951,7 @@ If one lab slows alone, it loses. If they all slow together, that is the kind of
 </div>
 <div class="section-leader continued"></div>
 <aside class="section-aside continued">
-<div class="tldr-bubble">Not worried. Things are changing, fast, and it is worth a pause of your own to think about the many stories that got us here. We will not live the way we have lived, which is less a horror than a byproduct, of a lot of human progress that <em>could</em> be world changing.</div>
+<details class="tldr-bubble"><summary class="tldr-summary"><span class="tldr-label">tl;dr</span><span class="tldr-peek">Not worried. Things are changing, fast, and it is worth a pause of your own to think about the many stories that got us here.</span></summary><div class="tldr-rest">We will not live the way we have lived, which is less a horror than a byproduct, of a lot of human progress that <em>could</em> be world changing.</div></details>
 </aside>
 </section>
 
@@ -928,6 +961,11 @@ If one lab slows alone, it loses. If they all slow together, that is the kind of
   btn.addEventListener('click', function () {
     var on = document.body.classList.toggle('tldr-mode');
     btn.classList.toggle('active', on);
+    // in tl;dr mode the bubbles are the whole post, so there is nothing to
+    // collapse them for; back in prose mode they get out of the way again
+    document.querySelectorAll('details.tldr-bubble').forEach(function (d) {
+      d.open = on;
+    });
     btn.textContent = on ? 'full post' : 'tl;dr';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
