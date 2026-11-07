@@ -48,6 +48,11 @@ config :blog, :start_blinks_link_check, false
 
 # APNs pushes talk to Apple; keep the notifier out of tests.
 config :blog, :start_push_notifier, false
+config :blog, :start_apns_pools, false
+
+# The Bluesky firehoses are live websockets; keep them out of tests.
+config :blog, :start_bluesky_hoses, false
+config :blog, Blog.PokeAround.Supervisor, enabled: false
 config :blog, :start_camera_browser_poller, false
 config :blog, start_gallery: false
 

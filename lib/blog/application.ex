@@ -17,49 +17,66 @@ defmodule Blog.Application do
     create_ets_tables()
     ensure_skeet_store_initialized()
 
-    children = [
-      Blog.Repo,
-      BlogWeb.Telemetry,
-      Blog.HoseMonitor,
-      BlueskyHose,
-      BlueskyJetstream,
-      {Phoenix.PubSub, name: Blog.PubSub},
-      Blog.RateLimiter,
-      Blog.LiveDraft,
-      {Finch, name: Blog.Finch},
-      {Finch,
-       name: Blog.Push.Finch,
-       pools: %{
-         "https://api.push.apple.com" => [protocols: [:http2]],
-         "https://api.sandbox.push.apple.com" => [protocols: [:http2]]
-       }},
-      Blog.Push.APNS,
-      BlogWeb.Endpoint,
-      Blog.RedditBookmarkProcessor,
-      Blog.Wordle.WordStore,
-      Blog.Wordle.GameStore,
-      BlogWeb.Presence,
-      Blog.PokeAround.Supervisor,
-      {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
-      {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
-      Blog.Census.Cache,
-      {Task.Supervisor, name: Blog.TaskSupervisor},
-      {Task.Supervisor, name: Blog.Chess.TaskSupervisor},
-      {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
-      Blog.GifMaker.Processor,
-      Blog.GifMaker.Cleanup,
-      {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
-      Blog.CollageMaker.Processor,
-      Blog.CollageMaker.Cleanup
-    ]
+    children =
+      [Blog.Repo, BlogWeb.Telemetry, Blog.HoseMonitor] ++
+        bluesky_children() ++
+        [
+          {Phoenix.PubSub, name: Blog.PubSub},
+          Blog.RateLimiter,
+          Blog.LiveDraft,
+          {Finch, name: Blog.Finch},
+          {Finch, name: Blog.Push.Finch, pools: apns_pools()},
+          Blog.Push.APNS,
+          BlogWeb.Endpoint,
+          Blog.RedditBookmarkProcessor,
+          Blog.Wordle.WordStore,
+          Blog.Wordle.GameStore,
+          BlogWeb.Presence,
+          Blog.PokeAround.Supervisor,
+          {Registry, keys: :unique, name: Blog.SmartSteps.SessionRegistry},
+          {DynamicSupervisor, name: Blog.SmartSteps.SessionSupervisor, strategy: :one_for_one},
+          Blog.Census.Cache,
+          {Task.Supervisor, name: Blog.TaskSupervisor},
+          {Task.Supervisor, name: Blog.Chess.TaskSupervisor},
+          {Task.Supervisor, name: Blog.GifMaker.TaskSupervisor},
+          Blog.GifMaker.Processor,
+          Blog.GifMaker.Cleanup,
+          {Task.Supervisor, name: Blog.CollageMaker.TaskSupervisor},
+          Blog.CollageMaker.Processor,
+          Blog.CollageMaker.Cleanup
+        ]
 
     children =
       children ++
-        work_log_poller_children() ++ blinks_link_check_children() ++ push_notifier_children() ++
+        work_log_poller_children() ++
+        blinks_link_check_children() ++
+        push_notifier_children() ++
         camera_browser_children() ++ gallery_children()
 
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # Live firehoses; off in tests (config/test.exs). BlueskyHose connects inside
+  # start_link, so without the internet the whole app would hang here.
+  defp bluesky_children do
+    if Application.get_env(:blog, :start_bluesky_hoses, true) do
+      [BlueskyHose, BlueskyJetstream]
+    else
+      []
+    end
+  end
+
+  # HTTP/2 pools connect at startup, so tests would dial Apple (config/test.exs).
+  defp apns_pools do
+    if Application.get_env(:blog, :start_apns_pools, true) do
+      %{
+        "https://api.push.apple.com" => [protocols: [:http2]],
+        "https://api.sandbox.push.apple.com" => [protocols: [:http2]]
+      }
+    else
+      %{}
+    end
   end
 
   # The poller makes live GitHub API calls and writes to the database, so it
