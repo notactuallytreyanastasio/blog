@@ -23,6 +23,12 @@ export function glue_seed_limbs() {
 export function glue_load_best() {
   try { return Number(localStorage.getItem("spin.best") || 0) | 0; } catch (e) { return 0; }
 }
+// #stage=N starts every game at stage N (1 is the first), to look at the
+// later tables without earning them.
+export function glue_start_stage() {
+  const m = /stage=(\d+)/.exec(location.hash || "");
+  return m ? Math.max(0, Number(m[1]) - 1) : 0;
+}
 export function glue_save_best(n) {
   try { localStorage.setItem("spin.best", String(n)); } catch (e) { }
 }
@@ -318,6 +324,14 @@ export function glue_sound(name, x) {
     case "burn": if (x <= 10) tone(1500, 0.03, "square", 0.05); else tone(2200, 0.012, "sine", 0.025); break;
     case "bust": tone(392, 0.35, "sawtooth", 0.1); tone(370, 0.35, "sawtooth", 0.1, 0, 0.35); tone(349, 0.35, "sawtooth", 0.1, 0, 0.7); tone(330, 0.9, "sawtooth", 0.1, 300, 1.05); break;
     case "start": tone(1046, 0.06, "square", 0.08); tone(1568, 0.12, "square", 0.08, 0, 0.06); noise(0.08, 0.1, 0.02, 5000); break;
+    case "stage":
+      for (let i = 0; i < 6; i++) tone(SCALE[i] / 2, 0.12, "sawtooth", 0.06, 0, i * 0.08);
+      tone(SCALE[5], 0.6, "square", 0.07, SCALE[7], 0.5);
+      noise(0.4, 0.12, 0.45, 6000);
+      break;
+    case "buff":
+      for (let i = 0; i < 3 + x * 2; i++) tone(SCALE[(i * 2) % SCALE.length] * 2, 0.06, "triangle", 0.09, 0, i * 0.045);
+      break;
     case "thud": {
       const now = performance.now();
       if (now - lastThud < 45) break;
