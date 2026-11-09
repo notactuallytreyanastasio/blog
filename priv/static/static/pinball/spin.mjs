@@ -1,4 +1,4 @@
-import { march_deep_eq, march_float_round, march_float_to_string, march_int_and, march_int_div, march_int_div_euclid, march_int_div_floor, march_int_mod, march_int_mod_euclid, march_int_mod_floor, march_int_not, march_int_or, march_int_ovf, march_int_popcount, march_int_shl, march_int_shr, march_int_wrapping_add, march_int_wrapping_mul, march_int_wrapping_sub, march_int_xor, march_string_byte_length, march_string_concat3, march_string_concat_n, march_string_contains, march_string_pad_left, march_string_to_float, march_unix_time, march_unix_time_ms } from "./march_runtime.mjs";
+import { march_deep_eq, march_float_round, march_float_to_string, march_int_and, march_int_div, march_int_div_euclid, march_int_div_floor, march_int_mod, march_int_mod_euclid, march_int_mod_floor, march_int_not, march_int_or, march_int_ovf, march_int_popcount, march_int_shl, march_int_shr, march_int_wrapping_add, march_int_wrapping_mul, march_int_wrapping_sub, march_int_xor, march_string_byte_length, march_string_concat3, march_string_concat_n, march_string_contains, march_string_join, march_string_pad_left, march_string_to_float, march_unix_time, march_unix_time_ms } from "./march_runtime.mjs";
 
 import { glue_mark, glue_save_best, glue_start_stage, glue_load_best, glue_seed_limbs, glue_sound, glue_paint, glue_fit, glue_launch_button, glue_touch, glue_input, glue_listen, glue_request_frame, glue_cell_get, glue_cell_put } from "./spin_glue.mjs";
 import { march_dom_get_element_by_id as dom_get_element_by_id } from "./march_dom.mjs";
@@ -6662,12 +6662,12 @@ function Arcade$U64$mul(a, b) {
                                     }
                                   }
                                   {
-                                    let $t45825_i14559;
+                                    let $t45825_i14696;
                                     {
-                                      const $t45824_i14558 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                                      $t45825_i14559 = (($t45824_i14558 - 1) < 4611686018427387904 && ($t45824_i14558 - 1) >= -4611686018427387904 ? ($t45824_i14558 - 1) : march_int_ovf(($t45824_i14558 - 1), 1));
+                                      const $t45824_i14695 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                                      $t45825_i14696 = (($t45824_i14695 - 1) < 4611686018427387904 && ($t45824_i14695 - 1) >= -4611686018427387904 ? ($t45824_i14695 - 1) : march_int_ovf(($t45824_i14695 - 1), 1));
                                     }
-                                    $t45946 = (($t45930_i5265 | 0) === $t45930_i5265 && ($t45825_i14559 | 0) === $t45825_i14559 ? ($t45930_i5265 & $t45825_i14559) : march_int_and($t45930_i5265, $t45825_i14559));
+                                    $t45946 = (($t45930_i5265 | 0) === $t45930_i5265 && ($t45825_i14696 | 0) === $t45825_i14696 ? ($t45930_i5265 & $t45825_i14696) : march_int_and($t45930_i5265, $t45825_i14696));
                                   }
                                 }
                               }
@@ -6725,12 +6725,12 @@ function Arcade$U64$mul(a, b) {
                                     }
                                   }
                                   {
-                                    let $t45825_i14549;
+                                    let $t45825_i14686;
                                     {
-                                      const $t45824_i14548 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                                      $t45825_i14549 = (($t45824_i14548 - 1) < 4611686018427387904 && ($t45824_i14548 - 1) >= -4611686018427387904 ? ($t45824_i14548 - 1) : march_int_ovf(($t45824_i14548 - 1), 1));
+                                      const $t45824_i14685 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                                      $t45825_i14686 = (($t45824_i14685 - 1) < 4611686018427387904 && ($t45824_i14685 - 1) >= -4611686018427387904 ? ($t45824_i14685 - 1) : march_int_ovf(($t45824_i14685 - 1), 1));
                                     }
-                                    $t45950 = (($t45930_i5250 | 0) === $t45930_i5250 && ($t45825_i14549 | 0) === $t45825_i14549 ? ($t45930_i5250 & $t45825_i14549) : march_int_and($t45930_i5250, $t45825_i14549));
+                                    $t45950 = (($t45930_i5250 | 0) === $t45930_i5250 && ($t45825_i14686 | 0) === $t45825_i14686 ? ($t45930_i5250 & $t45825_i14686) : march_int_and($t45930_i5250, $t45825_i14686));
                                   }
                                 }
                               }
@@ -6771,22 +6771,22 @@ function Arcade$Rng$next(r) {
         {
           let $t45832_i5283;
           {
-            let $t45825_i14584;
+            let $t45825_i14721;
             {
-              const $t45824_i14583 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-              $t45825_i14584 = (($t45824_i14583 - 1) < 4611686018427387904 && ($t45824_i14583 - 1) >= -4611686018427387904 ? ($t45824_i14583 - 1) : march_int_ovf(($t45824_i14583 - 1), 1));
+              const $t45824_i14720 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+              $t45825_i14721 = (($t45824_i14720 - 1) < 4611686018427387904 && ($t45824_i14720 - 1) >= -4611686018427387904 ? ($t45824_i14720 - 1) : march_int_ovf(($t45824_i14720 - 1), 1));
             }
-            $t45832_i5283 = ((2654435769 | 0) === 2654435769 && ($t45825_i14584 | 0) === $t45825_i14584 ? (2654435769 & $t45825_i14584) : march_int_and(2654435769, $t45825_i14584));
+            $t45832_i5283 = ((2654435769 | 0) === 2654435769 && ($t45825_i14721 | 0) === $t45825_i14721 ? (2654435769 & $t45825_i14721) : march_int_and(2654435769, $t45825_i14721));
           }
           {
             let $t45833_i5284;
             {
-              let $t45825_i14581;
+              let $t45825_i14718;
               {
-                const $t45824_i14580 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                $t45825_i14581 = (($t45824_i14580 - 1) < 4611686018427387904 && ($t45824_i14580 - 1) >= -4611686018427387904 ? ($t45824_i14580 - 1) : march_int_ovf(($t45824_i14580 - 1), 1));
+                const $t45824_i14717 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                $t45825_i14718 = (($t45824_i14717 - 1) < 4611686018427387904 && ($t45824_i14717 - 1) >= -4611686018427387904 ? ($t45824_i14717 - 1) : march_int_ovf(($t45824_i14717 - 1), 1));
               }
-              $t45833_i5284 = ((2135587861 | 0) === 2135587861 && ($t45825_i14581 | 0) === $t45825_i14581 ? (2135587861 & $t45825_i14581) : march_int_and(2135587861, $t45825_i14581));
+              $t45833_i5284 = ((2135587861 | 0) === 2135587861 && ($t45825_i14718 | 0) === $t45825_i14718 ? (2135587861 & $t45825_i14718) : march_int_and(2135587861, $t45825_i14718));
             }
             $t45954 = ({ hi: $t45832_i5283, lo: $t45833_i5284 });
           }
@@ -6808,22 +6808,22 @@ function Arcade$Rng$next(r) {
           {
             let $t45832_i5279;
             {
-              let $t45825_i14578;
+              let $t45825_i14715;
               {
-                const $t45824_i14577 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                $t45825_i14578 = (($t45824_i14577 - 1) < 4611686018427387904 && ($t45824_i14577 - 1) >= -4611686018427387904 ? ($t45824_i14577 - 1) : march_int_ovf(($t45824_i14577 - 1), 1));
+                const $t45824_i14714 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                $t45825_i14715 = (($t45824_i14714 - 1) < 4611686018427387904 && ($t45824_i14714 - 1) >= -4611686018427387904 ? ($t45824_i14714 - 1) : march_int_ovf(($t45824_i14714 - 1), 1));
               }
-              $t45832_i5279 = ((3210233709 | 0) === 3210233709 && ($t45825_i14578 | 0) === $t45825_i14578 ? (3210233709 & $t45825_i14578) : march_int_and(3210233709, $t45825_i14578));
+              $t45832_i5279 = ((3210233709 | 0) === 3210233709 && ($t45825_i14715 | 0) === $t45825_i14715 ? (3210233709 & $t45825_i14715) : march_int_and(3210233709, $t45825_i14715));
             }
             {
               let $t45833_i5280;
               {
-                let $t45825_i14575;
+                let $t45825_i14712;
                 {
-                  const $t45824_i14574 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                  $t45825_i14575 = (($t45824_i14574 - 1) < 4611686018427387904 && ($t45824_i14574 - 1) >= -4611686018427387904 ? ($t45824_i14574 - 1) : march_int_ovf(($t45824_i14574 - 1), 1));
+                  const $t45824_i14711 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                  $t45825_i14712 = (($t45824_i14711 - 1) < 4611686018427387904 && ($t45824_i14711 - 1) >= -4611686018427387904 ? ($t45824_i14711 - 1) : march_int_ovf(($t45824_i14711 - 1), 1));
                 }
-                $t45833_i5280 = ((484763065 | 0) === 484763065 && ($t45825_i14575 | 0) === $t45825_i14575 ? (484763065 & $t45825_i14575) : march_int_and(484763065, $t45825_i14575));
+                $t45833_i5280 = ((484763065 | 0) === 484763065 && ($t45825_i14712 | 0) === $t45825_i14712 ? (484763065 & $t45825_i14712) : march_int_and(484763065, $t45825_i14712));
               }
               $t45957 = ({ hi: $t45832_i5279, lo: $t45833_i5280 });
             }
@@ -6845,22 +6845,22 @@ function Arcade$Rng$next(r) {
             {
               let $t45832_i5275;
               {
-                let $t45825_i14572;
+                let $t45825_i14709;
                 {
-                  const $t45824_i14571 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                  $t45825_i14572 = (($t45824_i14571 - 1) < 4611686018427387904 && ($t45824_i14571 - 1) >= -4611686018427387904 ? ($t45824_i14571 - 1) : march_int_ovf(($t45824_i14571 - 1), 1));
+                  const $t45824_i14708 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                  $t45825_i14709 = (($t45824_i14708 - 1) < 4611686018427387904 && ($t45824_i14708 - 1) >= -4611686018427387904 ? ($t45824_i14708 - 1) : march_int_ovf(($t45824_i14708 - 1), 1));
                 }
-                $t45832_i5275 = ((2496678331 | 0) === 2496678331 && ($t45825_i14572 | 0) === $t45825_i14572 ? (2496678331 & $t45825_i14572) : march_int_and(2496678331, $t45825_i14572));
+                $t45832_i5275 = ((2496678331 | 0) === 2496678331 && ($t45825_i14709 | 0) === $t45825_i14709 ? (2496678331 & $t45825_i14709) : march_int_and(2496678331, $t45825_i14709));
               }
               {
                 let $t45833_i5276;
                 {
-                  let $t45825_i14569;
+                  let $t45825_i14706;
                   {
-                    const $t45824_i14568 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                    $t45825_i14569 = (($t45824_i14568 - 1) < 4611686018427387904 && ($t45824_i14568 - 1) >= -4611686018427387904 ? ($t45824_i14568 - 1) : march_int_ovf(($t45824_i14568 - 1), 1));
+                    const $t45824_i14705 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                    $t45825_i14706 = (($t45824_i14705 - 1) < 4611686018427387904 && ($t45824_i14705 - 1) >= -4611686018427387904 ? ($t45824_i14705 - 1) : march_int_ovf(($t45824_i14705 - 1), 1));
                   }
-                  $t45833_i5276 = ((321982955 | 0) === 321982955 && ($t45825_i14569 | 0) === $t45825_i14569 ? (321982955 & $t45825_i14569) : march_int_and(321982955, $t45825_i14569));
+                  $t45833_i5276 = ((321982955 | 0) === 321982955 && ($t45825_i14706 | 0) === $t45825_i14706 ? (321982955 & $t45825_i14706) : march_int_and(321982955, $t45825_i14706));
                 }
                 $t45960 = ({ hi: $t45832_i5275, lo: $t45833_i5276 });
               }
@@ -6971,39 +6971,39 @@ function Arcade$Rng$next_int_below(r, n) {
         {
           let $t45992;
           {
-            const v_i13062 = v;
+            const v_i13191 = v;
             {
-              const $t45983_i13064 = (n <= 1048576);
-              if ($t45983_i13064 === true) {
+              const $t45983_i13193 = (n <= 1048576);
+              if ($t45983_i13193 === true) {
                 {
-                  let $t45988_i13069;
+                  let $t45988_i13198;
                   {
-                    let $t45986_i13067;
+                    let $t45986_i13196;
                     {
-                      let $t45985_i13066;
+                      let $t45985_i13195;
                       {
-                        const $t45984_i13065 = v.hi;
-                        $t45985_i13066 = ($t45984_i13065 % n);
+                        const $t45984_i13194 = v.hi;
+                        $t45985_i13195 = ($t45984_i13194 % n);
                       }
-                      $t45986_i13067 = (($t45985_i13066 * 4294967296) < 4611686018427387904 && ($t45985_i13066 * 4294967296) >= -4611686018427387904 ? ($t45985_i13066 * 4294967296) : march_int_ovf(($t45985_i13066 * 4294967296), 2));
+                      $t45986_i13196 = (($t45985_i13195 * 4294967296) < 4611686018427387904 && ($t45985_i13195 * 4294967296) >= -4611686018427387904 ? ($t45985_i13195 * 4294967296) : march_int_ovf(($t45985_i13195 * 4294967296), 2));
                     }
                     {
-                      const $t45987_i13068 = v.lo;
-                      $t45988_i13069 = (($t45986_i13067 + $t45987_i13068) < 4611686018427387904 && ($t45986_i13067 + $t45987_i13068) >= -4611686018427387904 ? ($t45986_i13067 + $t45987_i13068) : march_int_ovf(($t45986_i13067 + $t45987_i13068), 0));
+                      const $t45987_i13197 = v.lo;
+                      $t45988_i13198 = (($t45986_i13196 + $t45987_i13197) < 4611686018427387904 && ($t45986_i13196 + $t45987_i13197) >= -4611686018427387904 ? ($t45986_i13196 + $t45987_i13197) : march_int_ovf(($t45986_i13196 + $t45987_i13197), 0));
                     }
                   }
-                  $t45992 = ($t45988_i13069 % n);
+                  $t45992 = ($t45988_i13198 % n);
                 }
               } else {
                 {
-                  let $t45990_i13071;
+                  let $t45990_i13200;
                   {
-                    const $t45989_i13070 = v.hi;
-                    $t45990_i13071 = Arcade$Rng$divide_word(0, $t45989_i13070, 31, n);
+                    const $t45989_i13199 = v.hi;
+                    $t45990_i13200 = Arcade$Rng$divide_word(0, $t45989_i13199, 31, n);
                   }
                   {
-                    const $t45991_i13072 = v.lo;
-                    $t45992 = Arcade$Rng$divide_word($t45990_i13071, $t45991_i13072, 31, n);
+                    const $t45991_i13201 = v.lo;
+                    $t45992 = Arcade$Rng$divide_word($t45990_i13200, $t45991_i13201, 31, n);
                   }
                 }
               }
@@ -7170,51 +7170,51 @@ function Spin$Draw$rgba(r, g, b, a) {
         {
           let $t46161;
           {
-            let k_i14883;
+            let k_i15178;
             {
-              let $t46154_i14882;
+              let $t46154_i15177;
               {
-                let $t46153_i14881;
+                let $t46153_i15176;
                 {
-                  let $t45800_i5312_i14879;
+                  let $t45800_i5312_i15174;
                   {
-                    const $t45798_i14590_i14878 = (0. >= a);
-                    if ($t45798_i14590_i14878 === true) {
-                      $t45800_i5312_i14879 = 0.;
+                    const $t45798_i14727_i15173 = (0. >= a);
+                    if ($t45798_i14727_i15173 === true) {
+                      $t45800_i5312_i15174 = 0.;
                     } else {
-                      $t45800_i5312_i14879 = a;
+                      $t45800_i5312_i15174 = a;
                     }
                   }
                   {
-                    const $t45799_i14587_i14880 = (1. < $t45800_i5312_i14879);
-                    if ($t45799_i14587_i14880 === true) {
-                      $t46153_i14881 = 1.;
+                    const $t45799_i14724_i15175 = (1. < $t45800_i5312_i15174);
+                    if ($t45799_i14724_i15175 === true) {
+                      $t46153_i15176 = 1.;
                     } else {
-                      $t46153_i14881 = $t45800_i5312_i14879;
+                      $t46153_i15176 = $t45800_i5312_i15174;
                     }
                   }
                 }
-                $t46154_i14882 = ($t46153_i14881 * 1000.);
+                $t46154_i15177 = ($t46153_i15176 * 1000.);
               }
-              k_i14883 = march_float_round($t46154_i14882);
+              k_i15178 = march_float_round($t46154_i15177);
             }
             {
-              const $t46155_i14884 = (k_i14883 >= 1000);
-              if ($t46155_i14884 === true) {
+              const $t46155_i15179 = (k_i15178 >= 1000);
+              if ($t46155_i15179 === true) {
                 $t46161 = "1";
               } else {
                 {
-                  let $t46157_i14887;
+                  let $t46157_i15182;
                   {
-                    const $t46156_i14885 = String(k_i14883);
+                    const $t46156_i15180 = String(k_i15178);
                     {
-                      const $rc_2506_i14886 = march_string_pad_left($t46156_i14885, 3, "0");
-                      $t46157_i14887 = $rc_2506_i14886;
+                      const $rc_2506_i15181 = march_string_pad_left($t46156_i15180, 3, "0");
+                      $t46157_i15182 = $rc_2506_i15181;
                     }
                   }
                   {
-                    const $rc_2505_i14888 = ("0." + $t46157_i14887);
-                    $t46161 = $rc_2505_i14888;
+                    const $rc_2505_i15183 = ("0." + $t46157_i15182);
+                    $t46161 = $rc_2505_i15183;
                   }
                 }
               }
@@ -7625,28 +7625,28 @@ function Spin$Game$fade(m, dt) {
       {
         let dimmer;
         {
-          const xs_i13134 = $t46259;
+          const xs_i13263 = $t46259;
           {
-            const f_i13135 = $t46264;
-            switch (xs_i13134.$) {
+            const f_i13264 = $t46264;
+            switch (xs_i13263.$) {
               case "Nil": {
                 dimmer = { $: "Nil" };
                 break;
               }
               case "Cons": {
-                const $f1006_i13136 = xs_i13134._0;
-                const $f1007_i13137 = xs_i13134._1;
+                const $f1006_i13265 = xs_i13263._0;
+                const $f1007_i13266 = xs_i13263._1;
                 {
-                  const t_i13138 = $f1007_i13137;
+                  const t_i13267 = $f1007_i13266;
                   {
-                    const h_i13139 = $f1006_i13136;
+                    const h_i13268 = $f1006_i13265;
                     {
-                      let $t1004_i13140;
-                      $t1004_i13140 = f_i13135._0(f_i13135, h_i13139);
+                      let $t1004_i13269;
+                      $t1004_i13269 = f_i13264._0(f_i13264, h_i13268);
                       {
-                        const $trmc15_i13141 = { $: "Cons", _0: $t1004_i13140, _1: null };
-                        List$map$dps$List_T_Feature_Float$Fn_T_Feature_Float_T_Feature_Float$List_T_Feature_Float(t_i13138, f_i13135, $trmc15_i13141);
-                        dimmer = $trmc15_i13141;
+                        const $trmc15_i13270 = { $: "Cons", _0: $t1004_i13269, _1: null };
+                        List$map$dps$List_T_Feature_Float$Fn_T_Feature_Float_T_Feature_Float$List_T_Feature_Float(t_i13267, f_i13264, $trmc15_i13270);
+                        dimmer = $trmc15_i13270;
                       }
                     }
                   }
@@ -7683,28 +7683,28 @@ function Spin$Game$fade(m, dt) {
                     {
                       let $t46274;
                       {
-                        const xs_i13126 = $t46269;
+                        const xs_i13255 = $t46269;
                         {
-                          const f_i13127 = $t46273;
-                          switch (xs_i13126.$) {
+                          const f_i13256 = $t46273;
+                          switch (xs_i13255.$) {
                             case "Nil": {
                               $t46274 = { $: "Nil" };
                               break;
                             }
                             case "Cons": {
-                              const $f1006_i13128 = xs_i13126._0;
-                              const $f1007_i13129 = xs_i13126._1;
+                              const $f1006_i13257 = xs_i13255._0;
+                              const $f1007_i13258 = xs_i13255._1;
                               {
-                                const t_i13130 = $f1007_i13129;
+                                const t_i13259 = $f1007_i13258;
                                 {
-                                  const h_i13131 = $f1006_i13128;
+                                  const h_i13260 = $f1006_i13257;
                                   {
-                                    let $t1004_i13132;
-                                    $t1004_i13132 = f_i13127._0(f_i13127, h_i13131);
+                                    let $t1004_i13261;
+                                    $t1004_i13261 = f_i13256._0(f_i13256, h_i13260);
                                     {
-                                      const $trmc15_i13133 = { $: "Cons", _0: $t1004_i13132, _1: null };
-                                      List$map$dps$List_T_Buff_Float$Fn_T_Buff_Float_T_Buff_Float$List_T_Buff_Float(t_i13130, f_i13127, $trmc15_i13133);
-                                      $t46274 = $trmc15_i13133;
+                                      const $trmc15_i13262 = { $: "Cons", _0: $t1004_i13261, _1: null };
+                                      List$map$dps$List_T_Buff_Float$Fn_T_Buff_Float_T_Buff_Float$List_T_Buff_Float(t_i13259, f_i13256, $trmc15_i13262);
+                                      $t46274 = $trmc15_i13262;
                                     }
                                   }
                                 }
@@ -7729,28 +7729,28 @@ function Spin$Game$fade(m, dt) {
                               {
                                 let $t46281;
                                 {
-                                  const xs_i13118 = $t46278;
+                                  const xs_i13247 = $t46278;
                                   {
-                                    const f_i13119 = $t46280;
-                                    switch (xs_i13118.$) {
+                                    const f_i13248 = $t46280;
+                                    switch (xs_i13247.$) {
                                       case "Nil": {
                                         $t46281 = { $: "Nil" };
                                         break;
                                       }
                                       case "Cons": {
-                                        const $f1006_i13120 = xs_i13118._0;
-                                        const $f1007_i13121 = xs_i13118._1;
+                                        const $f1006_i13249 = xs_i13247._0;
+                                        const $f1007_i13250 = xs_i13247._1;
                                         {
-                                          const t_i13122 = $f1007_i13121;
+                                          const t_i13251 = $f1007_i13250;
                                           {
-                                            const h_i13123 = $f1006_i13120;
+                                            const h_i13252 = $f1006_i13249;
                                             {
-                                              let $t1004_i13124;
-                                              $t1004_i13124 = f_i13119._0(f_i13119, h_i13123);
+                                              let $t1004_i13253;
+                                              $t1004_i13253 = f_i13248._0(f_i13248, h_i13252);
                                               {
-                                                const $trmc15_i13125 = { $: "Cons", _0: $t1004_i13124, _1: null };
-                                                List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13122, f_i13119, $trmc15_i13125);
-                                                $t46281 = $trmc15_i13125;
+                                                const $trmc15_i13254 = { $: "Cons", _0: $t1004_i13253, _1: null };
+                                                List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13251, f_i13248, $trmc15_i13254);
+                                                $t46281 = $trmc15_i13254;
                                               }
                                             }
                                           }
@@ -7775,28 +7775,28 @@ function Spin$Game$fade(m, dt) {
                                         {
                                           let $t46297;
                                           {
-                                            const xs_i13110 = $t46285;
+                                            const xs_i13239 = $t46285;
                                             {
-                                              const f_i13111 = $t46296;
-                                              switch (xs_i13110.$) {
+                                              const f_i13240 = $t46296;
+                                              switch (xs_i13239.$) {
                                                 case "Nil": {
                                                   $t46297 = { $: "Nil" };
                                                   break;
                                                 }
                                                 case "Cons": {
-                                                  const $f1006_i13112 = xs_i13110._0;
-                                                  const $f1007_i13113 = xs_i13110._1;
+                                                  const $f1006_i13241 = xs_i13239._0;
+                                                  const $f1007_i13242 = xs_i13239._1;
                                                   {
-                                                    const t_i13114 = $f1007_i13113;
+                                                    const t_i13243 = $f1007_i13242;
                                                     {
-                                                      const h_i13115 = $f1006_i13112;
+                                                      const h_i13244 = $f1006_i13241;
                                                       {
-                                                        let $t1004_i13116;
-                                                        $t1004_i13116 = f_i13111._0(f_i13111, h_i13115);
+                                                        let $t1004_i13245;
+                                                        $t1004_i13245 = f_i13240._0(f_i13240, h_i13244);
                                                         {
-                                                          const $trmc15_i13117 = { $: "Cons", _0: $t1004_i13116, _1: null };
-                                                          List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String(t_i13114, f_i13111, $trmc15_i13117);
-                                                          $t46297 = $trmc15_i13117;
+                                                          const $trmc15_i13246 = { $: "Cons", _0: $t1004_i13245, _1: null };
+                                                          List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String(t_i13243, f_i13240, $trmc15_i13246);
+                                                          $t46297 = $trmc15_i13246;
                                                         }
                                                       }
                                                     }
@@ -8005,28 +8005,28 @@ function Spin$Game$burst(m, at, count, speed, colour) {
       {
         let fresh;
         {
-          const xs_i13149 = $t46330;
+          const xs_i13278 = $t46330;
           {
-            const f_i13150 = $t46357;
-            switch (xs_i13149.$) {
+            const f_i13279 = $t46357;
+            switch (xs_i13278.$) {
               case "Nil": {
                 fresh = { $: "Nil" };
                 break;
               }
               case "Cons": {
-                const $f1006_i13151 = xs_i13149._0;
-                const $f1007_i13152 = xs_i13149._1;
+                const $f1006_i13280 = xs_i13278._0;
+                const $f1007_i13281 = xs_i13278._1;
                 {
-                  const t_i13153 = $f1007_i13152;
+                  const t_i13282 = $f1007_i13281;
                   {
-                    const h_i13154 = $f1006_i13151;
+                    const h_i13283 = $f1006_i13280;
                     {
-                      let $t1004_i13155;
-                      $t1004_i13155 = f_i13150._0(f_i13150, h_i13154);
+                      let $t1004_i13284;
+                      $t1004_i13284 = f_i13279._0(f_i13279, h_i13283);
                       {
-                        const $trmc15_i13156 = { $: "Cons", _0: $t1004_i13155, _1: null };
-                        List$map$dps$List_Int$Fn_Int_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13153, f_i13150, $trmc15_i13156);
-                        fresh = $trmc15_i13156;
+                        const $trmc15_i13285 = { $: "Cons", _0: $t1004_i13284, _1: null };
+                        List$map$dps$List_Int$Fn_Int_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13282, f_i13279, $trmc15_i13285);
+                        fresh = $trmc15_i13285;
                       }
                     }
                   }
@@ -8045,25 +8045,25 @@ function Spin$Game$burst(m, at, count, speed, colour) {
           {
             let $t46359;
             {
-              const xs_i13142 = fresh;
+              const xs_i13271 = fresh;
               {
-                const ys_i13143 = $t46358;
-                switch (xs_i13142.$) {
+                const ys_i13272 = $t46358;
+                switch (xs_i13271.$) {
                   case "Nil": {
                     $t46359 = $t46358;
                     break;
                   }
                   case "Cons": {
-                    const $f998_i13144 = xs_i13142._0;
-                    const $f999_i13145 = xs_i13142._1;
+                    const $f998_i13273 = xs_i13271._0;
+                    const $f999_i13274 = xs_i13271._1;
                     {
-                      const t_i13146 = $f999_i13145;
+                      const t_i13275 = $f999_i13274;
                       {
-                        const h_i13147 = $f998_i13144;
+                        const h_i13276 = $f998_i13273;
                         {
-                          const $trmc11_i13148 = { $: "Cons", _0: h_i13147, _1: null };
-                          List$append$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13146, $t46358, $trmc11_i13148);
-                          $t46359 = $trmc11_i13148;
+                          const $trmc11_i13277 = { $: "Cons", _0: h_i13276, _1: null };
+                          List$append$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13275, $t46358, $trmc11_i13277);
+                          $t46359 = $trmc11_i13277;
                         }
                       }
                     }
@@ -8344,22 +8344,22 @@ function Spin$Game$reward(m, tier) {
                       {
                         const $t46417 = { $: "Cons", _0: $t46411, _1: $t46416 };
                         {
-                          let $p46044_i13161;
+                          let $p46044_i13290;
                           {
-                            let $t46042_i13160;
+                            let $t46042_i13289;
                             {  };
-                            $t46042_i13160 = List$length_onto$List_Buff$Int($t46417, 0);
-                            $p46044_i13161 = Arcade$Rng$next_int_below($t46410, $t46042_i13160);
+                            $t46042_i13289 = List$length_onto$List_Buff$Int($t46417, 0);
+                            $p46044_i13290 = Arcade$Rng$next_int_below($t46410, $t46042_i13289);
                           }
                           {
-                            const i_i13162 = $p46044_i13161._0;
+                            const i_i13291 = $p46044_i13290._0;
                             {
-                              const after_i13163 = $p46044_i13161._1;
+                              const after_i13292 = $p46044_i13290._1;
                               {
-                                const $t46043_i13164 = List$nth$List_Buff$Int($t46417, i_i13162);
+                                const $t46043_i13293 = List$nth$List_Buff$Int($t46417, i_i13291);
                                 {
-                                  const $rc_2879_i13165 = { _0: $t46043_i13164, _1: after_i13163 };
-                                  $p46421 = $rc_2879_i13165;
+                                  const $rc_2881_i13294 = { _0: $t46043_i13293, _1: after_i13292 };
+                                  $p46421 = $rc_2881_i13294;
                                 }
                               }
                             }
@@ -8755,22 +8755,22 @@ function Spin$Game$win(acc, n0, name) {
                             $t46483 = "#7dff7a";
                           }
                           {
-                            const m_i13173 = shown;
+                            const m_i13302 = shown;
                             {
-                              const $t46361_i13177 = ({ text: $t46481, pos: $t46482, life: 1.1, colour: $t46483 });
+                              const $t46361_i13306 = ({ text: $t46481, pos: $t46482, life: 1.1, colour: $t46483 });
                               {
-                                const $t46362_i13178 = shown.pops;
+                                const $t46362_i13307 = shown.pops;
                                 {
-                                  let $t46363_i13182;
+                                  let $t46363_i13311;
                                   {
-                                    const $t1237_i5356_i13181 = { $: "Nil" };
-                                    $t46363_i13182 = List$take_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$Int$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String($t46362_i13178, 5, $t1237_i5356_i13181);
+                                    const $t1237_i5356_i13310 = { $: "Nil" };
+                                    $t46363_i13311 = List$take_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$Int$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String($t46362_i13307, 5, $t1237_i5356_i13310);
                                   }
                                   {
-                                    const $t46364_i13183 = { $: "Cons", _0: $t46361_i13177, _1: $t46363_i13182 };
+                                    const $t46364_i13312 = { $: "Cons", _0: $t46361_i13306, _1: $t46363_i13311 };
                                     {
-                                      const $rc_2516_i13184 = ({ ...shown, pops: $t46364_i13183 });
-                                      popped = $rc_2516_i13184;
+                                      const $rc_2516_i13313 = ({ ...shown, pops: $t46364_i13312 });
+                                      popped = $rc_2516_i13313;
                                     }
                                   }
                                 }
@@ -8820,17 +8820,17 @@ function Spin$Game$win(acc, n0, name) {
                               $t46489 = { $: "CueWin", _0: n };
                             }
                             {
-                              const $p46544_i13168 = streaked;
+                              const $p46544_i13297 = streaked;
                               {
-                                const m_i13169 = streaked._0;
+                                const m_i13298 = streaked._0;
                                 {
-                                  const cues_i13170 = streaked._1;
+                                  const cues_i13299 = streaked._1;
                                   {
-                                    let $t46543_i13171;
-                                    $t46543_i13171 = { $: "Cons", _0: $t46489, _1: cues_i13170 };
+                                    let $t46543_i13300;
+                                    $t46543_i13300 = { $: "Cons", _0: $t46489, _1: cues_i13299 };
                                     {
-                                      const $rc_2571_i13172 = { _0: m_i13169, _1: $t46543_i13171 };
-                                      $t46490 = $rc_2571_i13172;
+                                      const $rc_2571_i13301 = { _0: m_i13298, _1: $t46543_i13300 };
+                                      $t46490 = $rc_2571_i13301;
                                     }
                                   }
                                 }
@@ -9515,29 +9515,29 @@ function Spin$Game$plunge(m, input, dt) {
               {
                 const $t46637 = m.pull;
                 {
-                  const m_i13186 = m;
+                  const m_i13315 = m;
                   {
-                    let speed_i13189;
+                    let speed_i13318;
                     {
-                      const $t46605_i13188 = (700. * $t46637);
-                      speed_i13189 = (1050. + $t46605_i13188);
+                      const $t46605_i13317 = (700. * $t46637);
+                      speed_i13318 = (1050. + $t46605_i13317);
                     }
                     {
-                      const $t46606_i13190 = m.balls;
+                      const $t46606_i13319 = m.balls;
                       {
-                        const $t46611_i13191 = { $: "$Clo_$lam0_Spin_Game_fire$0_Spin_Game_fire", _0: $lam0_Spin_Game_fire$apply$0_Spin_Game_fire, _1: speed_i13189 };
+                        const $t46611_i13320 = { $: "$Clo_$lam0_Spin_Game_fire$0_Spin_Game_fire", _0: $lam0_Spin_Game_fire$apply$0_Spin_Game_fire, _1: speed_i13318 };
                         {
-                          let launched_i13192;
-                          launched_i13192 = List$map$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float($t46606_i13190, $t46611_i13191);
+                          let launched_i13321;
+                          launched_i13321 = List$map$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float($t46606_i13319, $t46611_i13320);
                           {
-                            const $t46612_i13193 = ({ ...m, balls: launched_i13192, pull: 0. });
+                            const $t46612_i13322 = ({ ...m, balls: launched_i13321, pull: 0. });
                             {
-                              const $t46613_i13194 = { $: "CueLaunch" };
+                              const $t46613_i13323 = { $: "CueLaunch" };
                               {
-                                const $t46614_i13195 = { $: "Nil" };
+                                const $t46614_i13324 = { $: "Nil" };
                                 {
-                                  const $t46615_i13196 = { $: "Cons", _0: $t46613_i13194, _1: $t46614_i13195 };
-                                  return { _0: $t46612_i13193, _1: $t46615_i13196 };
+                                  const $t46615_i13325 = { $: "Cons", _0: $t46613_i13323, _1: $t46614_i13324 };
+                                  return { _0: $t46612_i13322, _1: $t46615_i13325 };
                                 }
                               }
                             }
@@ -9711,28 +9711,28 @@ function Spin$Game$step_balls($tco_a0, $tco_a1, $tco_a2, $tco_a3) {
                 {
                   let moved;
                   {
-                    const xs_i13220 = $t46672;
+                    const xs_i13349 = $t46672;
                     {
-                      const f_i13221 = $t46678;
-                      switch (xs_i13220.$) {
+                      const f_i13350 = $t46678;
+                      switch (xs_i13349.$) {
                         case "Nil": {
                           moved = { $: "Nil" };
                           break;
                         }
                         case "Cons": {
-                          const $f1006_i13222 = xs_i13220._0;
-                          const $f1007_i13223 = xs_i13220._1;
+                          const $f1006_i13351 = xs_i13349._0;
+                          const $f1007_i13352 = xs_i13349._1;
                           {
-                            const t_i13224 = $f1007_i13223;
+                            const t_i13353 = $f1007_i13352;
                             {
-                              const h_i13225 = $f1006_i13222;
+                              const h_i13354 = $f1006_i13351;
                               {
-                                let $t1004_i13226;
-                                $t1004_i13226 = f_i13221._0(f_i13221, h_i13225);
+                                let $t1004_i13355;
+                                $t1004_i13355 = f_i13350._0(f_i13350, h_i13354);
                                 {
-                                  const $trmc15_i13227 = { $: "Cons", _0: $t1004_i13226, _1: null };
-                                  List$map$dps$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit$List_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit(t_i13224, f_i13221, $trmc15_i13227);
-                                  moved = $trmc15_i13227;
+                                  const $trmc15_i13356 = { $: "Cons", _0: $t1004_i13355, _1: null };
+                                  List$map$dps$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit$List_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit(t_i13353, f_i13350, $trmc15_i13356);
+                                  moved = $trmc15_i13356;
                                 }
                               }
                             }
@@ -9751,28 +9751,28 @@ function Spin$Game$step_balls($tco_a0, $tco_a1, $tco_a2, $tco_a3) {
                     {
                       let balls;
                       {
-                        const xs_i13212 = moved;
+                        const xs_i13341 = moved;
                         {
-                          const f_i13213 = $t46681;
-                          switch (xs_i13212.$) {
+                          const f_i13342 = $t46681;
+                          switch (xs_i13341.$) {
                             case "Nil": {
                               balls = { $: "Nil" };
                               break;
                             }
                             case "Cons": {
-                              const $f1006_i13214 = xs_i13212._0;
-                              const $f1007_i13215 = xs_i13212._1;
+                              const $f1006_i13343 = xs_i13341._0;
+                              const $f1007_i13344 = xs_i13341._1;
                               {
-                                const t_i13216 = $f1007_i13215;
+                                const t_i13345 = $f1007_i13344;
                                 {
-                                  const h_i13217 = $f1006_i13214;
+                                  const h_i13346 = $f1006_i13343;
                                   {
-                                    let $t1004_i13218;
-                                    $t1004_i13218 = f_i13213._0(f_i13213, h_i13217);
+                                    let $t1004_i13347;
+                                    $t1004_i13347 = f_i13342._0(f_i13342, h_i13346);
                                     {
-                                      const $trmc15_i13219 = { $: "Cons", _0: $t1004_i13218, _1: null };
-                                      List$map$dps$List_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit$Fn_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13216, f_i13213, $trmc15_i13219);
-                                      balls = $trmc15_i13219;
+                                      const $trmc15_i13348 = { $: "Cons", _0: $t1004_i13347, _1: null };
+                                      List$map$dps$List_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit$Fn_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(t_i13345, f_i13342, $trmc15_i13348);
+                                      balls = $trmc15_i13348;
                                     }
                                   }
                                 }
@@ -9791,28 +9791,28 @@ function Spin$Game$step_balls($tco_a0, $tco_a1, $tco_a2, $tco_a3) {
                         {
                           let $t46685;
                           {
-                            const xs_i13204 = moved;
+                            const xs_i13333 = moved;
                             {
-                              const f_i13205 = $t46684;
-                              switch (xs_i13204.$) {
+                              const f_i13334 = $t46684;
+                              switch (xs_i13333.$) {
                                 case "Nil": {
                                   $t46685 = { $: "Nil" };
                                   break;
                                 }
                                 case "Cons": {
-                                  const $f1006_i13206 = xs_i13204._0;
-                                  const $f1007_i13207 = xs_i13204._1;
+                                  const $f1006_i13335 = xs_i13333._0;
+                                  const $f1007_i13336 = xs_i13333._1;
                                   {
-                                    const t_i13208 = $f1007_i13207;
+                                    const t_i13337 = $f1007_i13336;
                                     {
-                                      const h_i13209 = $f1006_i13206;
+                                      const h_i13338 = $f1006_i13335;
                                       {
-                                        let $t1004_i13210;
-                                        $t1004_i13210 = f_i13205._0(f_i13205, h_i13209);
+                                        let $t1004_i13339;
+                                        $t1004_i13339 = f_i13334._0(f_i13334, h_i13338);
                                         {
-                                          const $trmc15_i13211 = { $: "Cons", _0: $t1004_i13210, _1: null };
-                                          List$map$dps$List_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit$Fn_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit_List_Hit$List_List_Hit(t_i13208, f_i13205, $trmc15_i13211);
-                                          $t46685 = $trmc15_i13211;
+                                          const $trmc15_i13340 = { $: "Cons", _0: $t1004_i13339, _1: null };
+                                          List$map$dps$List_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit$Fn_T_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Hit_List_Hit$List_List_Hit(t_i13337, f_i13334, $trmc15_i13340);
+                                          $t46685 = $trmc15_i13340;
                                         }
                                       }
                                     }
@@ -9845,25 +9845,25 @@ function Spin$Game$step_balls($tco_a0, $tco_a1, $tco_a2, $tco_a3) {
                                 {
                                   let $t46687;
                                   {
-                                    const xs_i13197 = hits;
+                                    const xs_i13326 = hits;
                                     {
-                                      const ys_i13198 = new_hits;
-                                      switch (xs_i13197.$) {
+                                      const ys_i13327 = new_hits;
+                                      switch (xs_i13326.$) {
                                         case "Nil": {
                                           $t46687 = new_hits;
                                           break;
                                         }
                                         case "Cons": {
-                                          const $f998_i13199 = xs_i13197._0;
-                                          const $f999_i13200 = xs_i13197._1;
+                                          const $f998_i13328 = xs_i13326._0;
+                                          const $f999_i13329 = xs_i13326._1;
                                           {
-                                            const t_i13201 = $f999_i13200;
+                                            const t_i13330 = $f999_i13329;
                                             {
-                                              const h_i13202 = $f998_i13199;
+                                              const h_i13331 = $f998_i13328;
                                               {
-                                                const $trmc11_i13203 = { $: "Cons", _0: h_i13202, _1: null };
-                                                List$append$dps$List_Hit$List_Hit$List_Hit(t_i13201, new_hits, $trmc11_i13203);
-                                                $t46687 = $trmc11_i13203;
+                                                const $trmc11_i13332 = { $: "Cons", _0: h_i13331, _1: null };
+                                                List$append$dps$List_Hit$List_Hit$List_Hit(t_i13330, new_hits, $trmc11_i13332);
+                                                $t46687 = $trmc11_i13332;
                                               }
                                             }
                                           }
@@ -10271,8 +10271,8 @@ function Spin$Game$burn(m, dt) {
                 $t46168_i5421 = (2. * $t46167_i5420);
               }
               {
-                const $t45798_i14594 = ($t46168_i5421 >= 0.05);
-                if ($t45798_i14594 === true) {
+                const $t45798_i14731 = ($t46168_i5421 >= 0.05);
+                if ($t45798_i14731 === true) {
                   every = $t46168_i5421;
                 } else {
                   every = 0.05;
@@ -10720,16 +10720,16 @@ function Spin$Game$tick(m, input, dt0) {
     {
       let $t45800_i5435;
       {
-        const $t45798_i14601 = (0. >= dt0);
-        if ($t45798_i14601 === true) {
+        const $t45798_i14738 = (0. >= dt0);
+        if ($t45798_i14738 === true) {
           $t45800_i5435 = 0.;
         } else {
           $t45800_i5435 = dt0;
         }
       }
       {
-        const $t45799_i14598 = (0.05 < $t45800_i5435);
-        if ($t45799_i14598 === true) {
+        const $t45799_i14735 = (0.05 < $t45800_i5435);
+        if ($t45799_i14735 === true) {
           dt = 0.05;
         } else {
           dt = $t45800_i5435;
@@ -10924,16 +10924,16 @@ function Spin$Physics$turn_flipper(spec, f, pressed, h) {
               {
                 let $t45800_i5439;
                 {
-                  const $t45798_i14607 = ($t46878 >= gap);
-                  if ($t45798_i14607 === true) {
+                  const $t45798_i14744 = ($t46878 >= gap);
+                  if ($t45798_i14744 === true) {
                     $t45800_i5439 = $t46878;
                   } else {
                     $t45800_i5439 = gap;
                   }
                 }
                 {
-                  const $t45799_i14604 = (most < $t45800_i5439);
-                  if ($t45799_i14604 === true) {
+                  const $t45799_i14741 = (most < $t45800_i5439);
+                  if ($t45799_i14741 === true) {
                     moved = most;
                   } else {
                     moved = $t45800_i5439;
@@ -10988,16 +10988,16 @@ function Spin$Physics$closest(a, b, p) {
                 {
                   let $t45800_i5443;
                   {
-                    const $t45798_i14613 = (0. >= $t46885);
-                    if ($t45798_i14613 === true) {
+                    const $t45798_i14750 = (0. >= $t46885);
+                    if ($t45798_i14750 === true) {
                       $t45800_i5443 = 0.;
                     } else {
                       $t45800_i5443 = $t46885;
                     }
                   }
                   {
-                    const $t45799_i14610 = (1. < $t45800_i5443);
-                    if ($t45799_i14610 === true) {
+                    const $t45799_i14747 = (1. < $t45800_i5443);
+                    if ($t45799_i14747 === true) {
                       $t46886 = 1.;
                     } else {
                       $t46886 = $t45800_i5443;
@@ -11287,16 +11287,16 @@ function Spin$Physics$springy(w, e) {
     {
       let $t45800_i5447;
       {
-        const $t45798_i14619 = (0.05 >= $t46942);
-        if ($t45798_i14619 === true) {
+        const $t45798_i14756 = (0.05 >= $t46942);
+        if ($t45798_i14756 === true) {
           $t45800_i5447 = 0.05;
         } else {
           $t45800_i5447 = $t46942;
         }
       }
       {
-        const $t45799_i14616 = (0.92 < $t45800_i5447);
-        if ($t45799_i14616 === true) {
+        const $t45799_i14753 = (0.92 < $t45800_i5447);
+        if ($t45799_i14753 === true) {
           return 0.92;
         } else {
           return $t45800_i5447;
@@ -11706,28 +11706,28 @@ function Spin$Physics$against(w, r, before, acc, part) {
                                         }
                                       }
                                       {
-                                        const a_i13228 = $t47040;
+                                        const a_i13357 = $t47040;
                                         {
-                                          let l_i13229;
-                                          l_i13229 = Arcade$Vec2$length($t47040);
+                                          let l_i13358;
+                                          l_i13358 = Arcade$Vec2$length($t47040);
                                           {
-                                            const $t46084_i13230 = (l_i13229 === 0.);
-                                            if ($t46084_i13230 === true) {
+                                            const $t46084_i13359 = (l_i13358 === 0.);
+                                            if ($t46084_i13359 === true) {
                                               across = ({ x: 0., y: 0. });
                                             } else {
                                               {
-                                                let $t46086_i13232;
+                                                let $t46086_i13361;
                                                 {
-                                                  const $t46085_i13231 = $t47040.x;
-                                                  $t46086_i13232 = ($t46085_i13231 / l_i13229);
+                                                  const $t46085_i13360 = $t47040.x;
+                                                  $t46086_i13361 = ($t46085_i13360 / l_i13358);
                                                 }
                                                 {
-                                                  let $t46088_i13234;
+                                                  let $t46088_i13363;
                                                   {
-                                                    const $t46087_i13233 = $t47040.y;
-                                                    $t46088_i13234 = ($t46087_i13233 / l_i13229);
+                                                    const $t46087_i13362 = $t47040.y;
+                                                    $t46088_i13363 = ($t46087_i13362 / l_i13358);
                                                   }
-                                                  across = ({ x: $t46086_i13232, y: $t46088_i13234 });
+                                                  across = ({ x: $t46086_i13361, y: $t46088_i13363 });
                                                 }
                                               }
                                             }
@@ -12269,16 +12269,16 @@ function Spin$Physics$step_ball(t, s, clock, num, left, right, h, b) {
           $t47264 = Arcade$Vec2$scale(pushed, $t47263);
         }
         {
-          const v_i13235 = $t47264;
+          const v_i13364 = $t47264;
           {
-            let s_i13236;
-            s_i13236 = Arcade$Vec2$length($t47264);
+            let s_i13365;
+            s_i13365 = Arcade$Vec2$length($t47264);
             {
-              const $t47231_i13238 = (s_i13236 > 2400.);
-              if ($t47231_i13238 === true) {
+              const $t47231_i13367 = (s_i13365 > 2400.);
+              if ($t47231_i13367 === true) {
                 {
-                  const $t47233_i13240 = (2400. / s_i13236);
-                  vel = Arcade$Vec2$scale($t47264, $t47233_i13240);
+                  const $t47233_i13369 = (2400. / s_i13365);
+                  vel = Arcade$Vec2$scale($t47264, $t47233_i13369);
                 }
               } else {
                 vel = $t47264;
@@ -12644,39 +12644,39 @@ function Spin$Reels$set_reel(b, i, r) {
     {
       let $t47350;
       {
-        const xs_i13241 = $t47349;
+        const xs_i13370 = $t47349;
         {
-          let $t47341_i13247;
+          let $t47341_i13376;
           {
-            const $t1237_i6520_i13246 = { $: "Nil" };
-            $t47341_i13247 = List$take_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Int$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float($t47349, i, $t1237_i6520_i13246);
+            const $t1237_i6644_i13375 = { $: "Nil" };
+            $t47341_i13376 = List$take_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Int$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float($t47349, i, $t1237_i6644_i13375);
           }
           {
-            const $t47342_i13248 = ((i + 1) < 4611686018427387904 && (i + 1) >= -4611686018427387904 ? (i + 1) : march_int_ovf((i + 1), 0));
+            const $t47342_i13377 = ((i + 1) < 4611686018427387904 && (i + 1) >= -4611686018427387904 ? (i + 1) : march_int_ovf((i + 1), 0));
             {
-              const $t47343_i13249 = List$drop$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Int($t47349, $t47342_i13248);
+              const $t47343_i13378 = List$drop$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Int($t47349, $t47342_i13377);
               {
-                const $t47344_i13250 = { $: "Cons", _0: r, _1: $t47343_i13249 };
+                const $t47344_i13379 = { $: "Cons", _0: r, _1: $t47343_i13378 };
                 {
-                  const xs_i14813 = $t47341_i13247;
+                  const xs_i15100 = $t47341_i13376;
                   {
-                    const ys_i14814 = $t47344_i13250;
-                    switch (xs_i14813.$) {
+                    const ys_i15101 = $t47344_i13379;
+                    switch (xs_i15100.$) {
                       case "Nil": {
-                        $t47350 = $t47344_i13250;
+                        $t47350 = $t47344_i13379;
                         break;
                       }
                       case "Cons": {
-                        const $f998_i14815 = xs_i14813._0;
-                        const $f999_i14816 = xs_i14813._1;
+                        const $f998_i15102 = xs_i15100._0;
+                        const $f999_i15103 = xs_i15100._1;
                         {
-                          const t_i14817 = $f999_i14816;
+                          const t_i15104 = $f999_i15103;
                           {
-                            const h_i14818 = $f998_i14815;
+                            const h_i15105 = $f998_i15102;
                             {
-                              const $trmc11_i14819 = { $: "Cons", _0: h_i14818, _1: null };
-                              List$append$dps$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float(t_i14817, $t47344_i13250, $trmc11_i14819);
-                              $t47350 = $trmc11_i14819;
+                              const $trmc11_i15106 = { $: "Cons", _0: h_i15105, _1: null };
+                              List$append$dps$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float(t_i15104, $t47344_i13379, $trmc11_i15106);
+                              $t47350 = $trmc11_i15106;
                             }
                           }
                         }
@@ -12739,16 +12739,16 @@ function Spin$Reels$shown(r) {
           {
             let $t45800_i5481;
             {
-              const $t45798_i14625 = (0. >= $t47363);
-              if ($t45798_i14625 === true) {
+              const $t45798_i14762 = (0. >= $t47363);
+              if ($t45798_i14762 === true) {
                 $t45800_i5481 = 0.;
               } else {
                 $t45800_i5481 = $t47363;
               }
             }
             {
-              const $t45799_i14622 = (1. < $t45800_i5481);
-              if ($t45799_i14622 === true) {
+              const $t45799_i14759 = (1. < $t45800_i5481);
+              if ($t45799_i14759 === true) {
                 t = 1.;
               } else {
                 t = $t45800_i5481;
@@ -13055,55 +13055,55 @@ function Spin$Reels$load(b, s) {
         let $t47456;
         $t47456 = Spin$Reels$reel_at(b, i);
         {
-          const r_i13290 = $t47456;
+          const r_i13419 = $t47456;
           {
-            const s_i13291 = s;
+            const s_i13420 = s;
             {
-              let $t47442_i13292;
+              let $t47442_i13421;
               {
-                const r_i14843 = $t47456;
+                const r_i15130 = $t47456;
                 {
-                  const $t47414_i14844 = ((8 + 1) < 4611686018427387904 && (8 + 1) >= -4611686018427387904 ? (8 + 1) : march_int_ovf((8 + 1), 0));
+                  const $t47414_i15131 = ((8 + 1) < 4611686018427387904 && (8 + 1) >= -4611686018427387904 ? (8 + 1) : march_int_ovf((8 + 1), 0));
                   {
-                    let $t47415_i14848;
+                    let $t47415_i15135;
                     {
-                      const go_i5486_i14845 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 1 };
+                      const go_i5486_i15132 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 1 };
                       {
-                        const $t926_i5487_i14846 = (($t47414_i14844 - 1) < 4611686018427387904 && ($t47414_i14844 - 1) >= -4611686018427387904 ? ($t47414_i14844 - 1) : march_int_ovf(($t47414_i14844 - 1), 1));
+                        const $t926_i5487_i15133 = (($t47414_i15131 - 1) < 4611686018427387904 && ($t47414_i15131 - 1) >= -4611686018427387904 ? ($t47414_i15131 - 1) : march_int_ovf(($t47414_i15131 - 1), 1));
                         {
-                          const $t927_i5488_i14847 = { $: "Nil" };
-                          $t47415_i14848 = go$apply$0_List_range(go_i5486_i14845, $t926_i5487_i14846, $t927_i5488_i14847);
+                          const $t927_i5488_i15134 = { $: "Nil" };
+                          $t47415_i15135 = go$apply$0_List_range(go_i5486_i15132, $t926_i5487_i15133, $t927_i5488_i15134);
                         }
                       }
                     }
                     {
-                      let $t47419_i14849;
-                      $t47419_i14849 = { $: "$Clo_$lam0_Spin_Reels_target_stop$0_Spin_Reels_target_stop", _0: $lam0_Spin_Reels_target_stop$apply$0_Spin_Reels_target_stop, _1: $t47456 };
+                      let $t47419_i15136;
+                      $t47419_i15136 = { $: "$Clo_$lam0_Spin_Reels_target_stop$0_Spin_Reels_target_stop", _0: $lam0_Spin_Reels_target_stop$apply$0_Spin_Reels_target_stop, _1: $t47456 };
                       {
-                        let order_i14850;
+                        let order_i15137;
                         {
-                          const xs_i14889 = $t47415_i14848;
+                          const xs_i15184 = $t47415_i15135;
                           {
-                            const f_i14890 = $t47419_i14849;
-                            switch (xs_i14889.$) {
+                            const f_i15185 = $t47419_i15136;
+                            switch (xs_i15184.$) {
                               case "Nil": {
-                                order_i14850 = { $: "Nil" };
+                                order_i15137 = { $: "Nil" };
                                 break;
                               }
                               case "Cons": {
-                                const $f1006_i14891 = xs_i14889._0;
-                                const $f1007_i14892 = xs_i14889._1;
+                                const $f1006_i15186 = xs_i15184._0;
+                                const $f1007_i15187 = xs_i15184._1;
                                 {
-                                  const t_i14893 = $f1007_i14892;
+                                  const t_i15188 = $f1007_i15187;
                                   {
-                                    const h_i14894 = $f1006_i14891;
+                                    const h_i15189 = $f1006_i15186;
                                     {
-                                      let $t1004_i14895;
-                                      $t1004_i14895 = f_i14890._0(f_i14890, h_i14894);
+                                      let $t1004_i15190;
+                                      $t1004_i15190 = f_i15185._0(f_i15185, h_i15189);
                                       {
-                                        const $trmc15_i14896 = { $: "Cons", _0: $t1004_i14895, _1: null };
-                                        List$map$dps$List_Int$Fn_Int_Int$List_Int(t_i14893, f_i14890, $trmc15_i14896);
-                                        order_i14850 = $trmc15_i14896;
+                                        const $trmc15_i15191 = { $: "Cons", _0: $t1004_i15190, _1: null };
+                                        List$map$dps$List_Int$Fn_Int_Int$List_Int(t_i15188, f_i15185, $trmc15_i15191);
+                                        order_i15137 = $trmc15_i15191;
                                       }
                                     }
                                   }
@@ -13118,10 +13118,10 @@ function Spin$Reels$load(b, s) {
                           }
                         }
                         {
-                          const $t47423_i14851 = { $: "$Clo_$lam1_Spin_Reels_target_stop$1_Spin_Reels_target_stop", _0: $lam1_Spin_Reels_target_stop$apply$1_Spin_Reels_target_stop, _1: $t47456 };
+                          const $t47423_i15138 = { $: "$Clo_$lam1_Spin_Reels_target_stop$1_Spin_Reels_target_stop", _0: $lam1_Spin_Reels_target_stop$apply$1_Spin_Reels_target_stop, _1: $t47456 };
                           {
-                            const $rc_2662_i14852 = List$find$List_Int$Fn_Int_Bool(order_i14850, $t47423_i14851);
-                            $t47442_i13292 = $rc_2662_i14852;
+                            const $rc_2662_i15139 = List$find$List_Int$Fn_Int_Bool(order_i15137, $t47423_i15138);
+                            $t47442_i13421 = $rc_2662_i15139;
                           }
                         }
                       }
@@ -13129,49 +13129,49 @@ function Spin$Reels$load(b, s) {
                   }
                 }
               }
-              switch ($t47442_i13292.$) {
+              switch ($t47442_i13421.$) {
                 case "Some": {
-                  const $f47445_i13293 = $t47442_i13292._0;
+                  const $f47445_i13422 = $t47442_i13421._0;
                   {
-                    const j_i13294 = $f47445_i13293;
+                    const j_i13423 = $f47445_i13422;
                     {
-                      const $t47443_i13295 = $t47456.stops;
+                      const $t47443_i13424 = $t47456.stops;
                       {
-                        let $t47444_i13296;
+                        let $t47444_i13425;
                         {
-                          const xs_i14828 = $t47443_i13295;
+                          const xs_i15115 = $t47443_i13424;
                           {
-                            let $t47341_i14832;
+                            let $t47341_i15119;
                             {
-                              const $t1237_i6523_i14831 = { $: "Nil" };
-                              $t47341_i14832 = List$take_onto$List_Symbol$Int$List_Symbol($t47443_i13295, j_i13294, $t1237_i6523_i14831);
+                              const $t1237_i6647_i15118 = { $: "Nil" };
+                              $t47341_i15119 = List$take_onto$List_Symbol$Int$List_Symbol($t47443_i13424, j_i13423, $t1237_i6647_i15118);
                             }
                             {
-                              const $t47342_i14833 = ((j_i13294 + 1) < 4611686018427387904 && (j_i13294 + 1) >= -4611686018427387904 ? (j_i13294 + 1) : march_int_ovf((j_i13294 + 1), 0));
+                              const $t47342_i15120 = ((j_i13423 + 1) < 4611686018427387904 && (j_i13423 + 1) >= -4611686018427387904 ? (j_i13423 + 1) : march_int_ovf((j_i13423 + 1), 0));
                               {
-                                const $t47343_i14834 = List$drop$List_Symbol$Int($t47443_i13295, $t47342_i14833);
+                                const $t47343_i15121 = List$drop$List_Symbol$Int($t47443_i13424, $t47342_i15120);
                                 {
-                                  const $t47344_i14835 = { $: "Cons", _0: s, _1: $t47343_i14834 };
+                                  const $t47344_i15122 = { $: "Cons", _0: s, _1: $t47343_i15121 };
                                   {
-                                    const xs_i13569_i14836 = $t47341_i14832;
+                                    const xs_i13706_i15123 = $t47341_i15119;
                                     {
-                                      const ys_i13570_i14837 = $t47344_i14835;
-                                      switch (xs_i13569_i14836.$) {
+                                      const ys_i13707_i15124 = $t47344_i15122;
+                                      switch (xs_i13706_i15123.$) {
                                         case "Nil": {
-                                          $t47444_i13296 = $t47344_i14835;
+                                          $t47444_i13425 = $t47344_i15122;
                                           break;
                                         }
                                         case "Cons": {
-                                          const $f998_i13571_i14838 = xs_i13569_i14836._0;
-                                          const $f999_i13572_i14839 = xs_i13569_i14836._1;
+                                          const $f998_i13708_i15125 = xs_i13706_i15123._0;
+                                          const $f999_i13709_i15126 = xs_i13706_i15123._1;
                                           {
-                                            const t_i13573_i14840 = $f999_i13572_i14839;
+                                            const t_i13710_i15127 = $f999_i13709_i15126;
                                             {
-                                              const h_i13574_i14841 = $f998_i13571_i14838;
+                                              const h_i13711_i15128 = $f998_i13708_i15125;
                                               {
-                                                const $trmc11_i13575_i14842 = { $: "Cons", _0: h_i13574_i14841, _1: null };
-                                                List$append$dps$List_Symbol$List_Symbol$List_Symbol(t_i13573_i14840, $t47344_i14835, $trmc11_i13575_i14842);
-                                                $t47444_i13296 = $trmc11_i13575_i14842;
+                                                const $trmc11_i13712_i15129 = { $: "Cons", _0: h_i13711_i15128, _1: null };
+                                                List$append$dps$List_Symbol$List_Symbol$List_Symbol(t_i13710_i15127, $t47344_i15122, $trmc11_i13712_i15129);
+                                                $t47444_i13425 = $trmc11_i13712_i15129;
                                               }
                                             }
                                           }
@@ -13190,8 +13190,8 @@ function Spin$Reels$load(b, s) {
                           }
                         }
                         {
-                          const $rc_2664_i13297 = ({ ...$t47456, stops: $t47444_i13296, fresh: j_i13294, glow: 1. });
-                          w = $rc_2664_i13297;
+                          const $rc_2664_i13426 = ({ ...$t47456, stops: $t47444_i13425, fresh: j_i13423, glow: 1. });
+                          w = $rc_2664_i13426;
                         }
                       }
                     }
@@ -13273,38 +13273,38 @@ function Spin$Reels$load(b, s) {
                   let $t47469;
                   $t47469 = Spin$Reels$roll_to(w, s);
                   {
-                    const r_i13278 = w;
+                    const r_i13407 = w;
                     {
-                      let $t47447_i13281;
+                      let $t47447_i13410;
                       {
-                        const $t47446_i13280 = w.pos;
-                        $t47447_i13281 = $t47446_i13280;
+                        const $t47446_i13409 = w.pos;
+                        $t47447_i13410 = $t47446_i13409;
                       }
                       {
-                        const $t47448_i13282 = $t47469;
+                        const $t47448_i13411 = $t47469;
                         {
-                          let $t47451_i13285;
+                          let $t47451_i13414;
                           {
-                            let $t47450_i13284;
+                            let $t47450_i13413;
                             {
-                              const $t47449_i13283 = $t47469;
-                              $t47450_i13284 = (0.05 * $t47449_i13283);
+                              const $t47449_i13412 = $t47469;
+                              $t47450_i13413 = (0.05 * $t47449_i13412);
                             }
-                            $t47451_i13285 = (0.16 + $t47450_i13284);
+                            $t47451_i13414 = (0.16 + $t47450_i13413);
                           }
                           {
-                            let $t47454_i13288;
+                            let $t47454_i13417;
                             {
-                              let $t47453_i13287;
+                              let $t47453_i13416;
                               {
-                                const $t47452_i13286 = w.pos;
-                                $t47453_i13287 = (($t47452_i13286 + $t47469) < 4611686018427387904 && ($t47452_i13286 + $t47469) >= -4611686018427387904 ? ($t47452_i13286 + $t47469) : march_int_ovf(($t47452_i13286 + $t47469), 0));
+                                const $t47452_i13415 = w.pos;
+                                $t47453_i13416 = (($t47452_i13415 + $t47469) < 4611686018427387904 && ($t47452_i13415 + $t47469) >= -4611686018427387904 ? ($t47452_i13415 + $t47469) : march_int_ovf(($t47452_i13415 + $t47469), 0));
                               }
-                              $t47454_i13288 = Spin$Reels$wrap($t47453_i13287);
+                              $t47454_i13417 = Spin$Reels$wrap($t47453_i13416);
                             }
                             {
-                              const $rc_2665_i13289 = ({ ...w, from: $t47447_i13281, travel: $t47448_i13282, elapsed: 0., duration: $t47451_i13285, pos: $t47454_i13288 });
-                              $t47470 = $rc_2665_i13289;
+                              const $rc_2665_i13418 = ({ ...w, from: $t47447_i13410, travel: $t47448_i13411, elapsed: 0., duration: $t47451_i13414, pos: $t47454_i13417 });
+                              $t47470 = $rc_2665_i13418;
                             }
                           }
                         }
@@ -13325,13 +13325,13 @@ function Spin$Reels$load(b, s) {
                       {
                         const $t47471 = b.phase;
                         {
-                          const p_i13275 = $t47471;
-                          switch (p_i13275.$) {
+                          const p_i13404 = $t47471;
+                          switch (p_i13404.$) {
                             case "Building": {
-                              const $f47455_i13276 = p_i13275._0;
+                              const $f47455_i13405 = p_i13404._0;
                               {
-                                const j_i13277 = $f47455_i13276;
-                                $t47472 = j_i13277;
+                                const j_i13406 = $f47455_i13405;
+                                $t47472 = j_i13406;
                               }
                               break;
                             }
@@ -13665,22 +13665,22 @@ function Spin$Reels$settle(b) {
     {
       let $t47535;
       {
-        const b_i13298 = b;
+        const b_i13427 = b;
         {
-          let $t47353_i13299;
-          $t47353_i13299 = Spin$Reels$on_line(b, 0);
+          let $t47353_i13428;
+          $t47353_i13428 = Spin$Reels$on_line(b, 0);
           {
-            let $t47354_i13300;
-            $t47354_i13300 = Spin$Reels$on_line(b, 1);
+            let $t47354_i13429;
+            $t47354_i13429 = Spin$Reels$on_line(b, 1);
             {
-              const $t47355_i13301 = Spin$Reels$on_line(b, 2);
+              const $t47355_i13430 = Spin$Reels$on_line(b, 2);
               {
-                const $t47356_i13302 = { $: "Nil" };
+                const $t47356_i13431 = { $: "Nil" };
                 {
-                  const $t47357_i13303 = { $: "Cons", _0: $t47355_i13301, _1: $t47356_i13302 };
+                  const $t47357_i13432 = { $: "Cons", _0: $t47355_i13430, _1: $t47356_i13431 };
                   {
-                    const $t47358_i13304 = { $: "Cons", _0: $t47354_i13300, _1: $t47357_i13303 };
-                    $t47535 = { $: "Cons", _0: $t47353_i13299, _1: $t47358_i13304 };
+                    const $t47358_i13433 = { $: "Cons", _0: $t47354_i13429, _1: $t47357_i13432 };
+                    $t47535 = { $: "Cons", _0: $t47353_i13428, _1: $t47358_i13433 };
                   }
                 }
               }
@@ -13996,12 +13996,12 @@ function Spin$Reels$tick(b, rng, dt) {
                                         {
                                           let $t47583;
                                           {
-                                            const b_i13312 = turned;
+                                            const b_i13441 = turned;
                                             {
-                                              const $t47531_i13313 = turned.reels;
+                                              const $t47531_i13442 = turned.reels;
                                               {
-                                                const $t47534_i13314 = { $: "$Clo_$lam0_Spin_Reels_turning$0_Spin_Reels_turning", _0: $lam0_Spin_Reels_turning$apply$0_Spin_Reels_turning };
-                                                $t47583 = List$any$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Fn_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float_Bool($t47531_i13313, $t47534_i13314);
+                                                const $t47534_i13443 = { $: "$Clo_$lam0_Spin_Reels_turning$0_Spin_Reels_turning", _0: $lam0_Spin_Reels_turning$apply$0_Spin_Reels_turning };
+                                                $t47583 = List$any$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Fn_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float_Bool($t47531_i13442, $t47534_i13443);
                                               }
                                             }
                                           }
@@ -14100,25 +14100,25 @@ function Spin$Reels$tick(b, rng, dt) {
                                           {
                                             let $t47602;
                                             {
-                                              const xs_i13305 = landed;
+                                              const xs_i13434 = landed;
                                               {
-                                                const ys_i13306 = paid;
-                                                switch (xs_i13305.$) {
+                                                const ys_i13435 = paid;
+                                                switch (xs_i13434.$) {
                                                   case "Nil": {
                                                     $t47602 = paid;
                                                     break;
                                                   }
                                                   case "Cons": {
-                                                    const $f998_i13307 = xs_i13305._0;
-                                                    const $f999_i13308 = xs_i13305._1;
+                                                    const $f998_i13436 = xs_i13434._0;
+                                                    const $f999_i13437 = xs_i13434._1;
                                                     {
-                                                      const t_i13309 = $f999_i13308;
+                                                      const t_i13438 = $f999_i13437;
                                                       {
-                                                        const h_i13310 = $f998_i13307;
+                                                        const h_i13439 = $f998_i13436;
                                                         {
-                                                          const $trmc11_i13311 = { $: "Cons", _0: h_i13310, _1: null };
-                                                          List$append$dps$List_ReelEvent$List_ReelEvent$List_ReelEvent(t_i13309, paid, $trmc11_i13311);
-                                                          $t47602 = $trmc11_i13311;
+                                                          const $trmc11_i13440 = { $: "Cons", _0: h_i13439, _1: null };
+                                                          List$append$dps$List_ReelEvent$List_ReelEvent$List_ReelEvent(t_i13438, paid, $trmc11_i13440);
+                                                          $t47602 = $trmc11_i13440;
                                                         }
                                                       }
                                                     }
@@ -14484,40 +14484,40 @@ function Spin$Table$parts(n) {
     {
       let $t47685_i5651;
       {
-        const go_i14750 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 0 };
+        const go_i14887 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 0 };
         {
-          const $t926_i14751 = ((12 - 1) < 4611686018427387904 && (12 - 1) >= -4611686018427387904 ? (12 - 1) : march_int_ovf((12 - 1), 1));
+          const $t926_i14888 = ((12 - 1) < 4611686018427387904 && (12 - 1) >= -4611686018427387904 ? (12 - 1) : march_int_ovf((12 - 1), 1));
           {
-            const $t927_i14752 = { $: "Nil" };
-            $t47685_i5651 = go$apply$0_List_range(go_i14750, $t926_i14751, $t927_i14752);
+            const $t927_i14889 = { $: "Nil" };
+            $t47685_i5651 = go$apply$0_List_range(go_i14887, $t926_i14888, $t927_i14889);
           }
         }
       }
       {
         const $t47690_i5652 = { $: "$Clo_$lam0_Spin_Table_arch$0_Spin_Table_arch", _0: $lam0_Spin_Table_arch$apply$0_Spin_Table_arch, _1: n };
         {
-          const xs_i14853 = $t47685_i5651;
+          const xs_i15140 = $t47685_i5651;
           {
-            const f_i14854 = $t47690_i5652;
-            switch (xs_i14853.$) {
+            const f_i15141 = $t47690_i5652;
+            switch (xs_i15140.$) {
               case "Nil": {
                 $t47691 = { $: "Nil" };
                 break;
               }
               case "Cons": {
-                const $f1006_i14855 = xs_i14853._0;
-                const $f1007_i14856 = xs_i14853._1;
+                const $f1006_i15142 = xs_i15140._0;
+                const $f1007_i15143 = xs_i15140._1;
                 {
-                  const t_i14857 = $f1007_i14856;
+                  const t_i15144 = $f1007_i15143;
                   {
-                    const h_i14858 = $f1006_i14855;
+                    const h_i15145 = $f1006_i15142;
                     {
-                      let $t1004_i14859;
-                      $t1004_i14859 = f_i14854._0(f_i14854, h_i14858);
+                      let $t1004_i15146;
+                      $t1004_i15146 = f_i15141._0(f_i15141, h_i15145);
                       {
-                        const $trmc15_i14860 = { $: "Cons", _0: $t1004_i14859, _1: null };
-                        List$map$dps$List_Int$Fn_Int_Part$List_Part(t_i14857, f_i14854, $trmc15_i14860);
-                        $t47691 = $trmc15_i14860;
+                        const $trmc15_i15147 = { $: "Cons", _0: $t1004_i15146, _1: null };
+                        List$map$dps$List_Int$Fn_Int_Part$List_Part(t_i15144, f_i15141, $trmc15_i15147);
+                        $t47691 = $trmc15_i15147;
                       }
                     }
                   }
@@ -15229,25 +15229,25 @@ function Spin$Table$layout_at(n, stage) {
         {
           let $t47885;
           {
-            const xs_i13315 = $t47883;
+            const xs_i13444 = $t47883;
             {
-              const ys_i13316 = $t47884;
-              switch (xs_i13315.$) {
+              const ys_i13445 = $t47884;
+              switch (xs_i13444.$) {
                 case "Nil": {
                   $t47885 = $t47884;
                   break;
                 }
                 case "Cons": {
-                  const $f998_i13317 = xs_i13315._0;
-                  const $f999_i13318 = xs_i13315._1;
+                  const $f998_i13446 = xs_i13444._0;
+                  const $f999_i13447 = xs_i13444._1;
                   {
-                    const t_i13319 = $f999_i13318;
+                    const t_i13448 = $f999_i13447;
                     {
-                      const h_i13320 = $f998_i13317;
+                      const h_i13449 = $f998_i13446;
                       {
-                        const $trmc11_i13321 = { $: "Cons", _0: h_i13320, _1: null };
-                        List$append$dps$List_Part$List_Part$List_Part(t_i13319, $t47884, $trmc11_i13321);
-                        $t47885 = $trmc11_i13321;
+                        const $trmc11_i13450 = { $: "Cons", _0: h_i13449, _1: null };
+                        List$append$dps$List_Part$List_Part$List_Part(t_i13448, $t47884, $trmc11_i13450);
+                        $t47885 = $trmc11_i13450;
                       }
                     }
                   }
@@ -15582,12 +15582,12 @@ function Spin$View$symbol(n, s, cx, cy, k) {
               {
                 let $t47909_i5715;
                 {
-                  const go_i14773 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 0 };
+                  const go_i14910 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 0 };
                   {
-                    const $t926_i14774 = ((12 - 1) < 4611686018427387904 && (12 - 1) >= -4611686018427387904 ? (12 - 1) : march_int_ovf((12 - 1), 1));
+                    const $t926_i14911 = ((12 - 1) < 4611686018427387904 && (12 - 1) >= -4611686018427387904 ? (12 - 1) : march_int_ovf((12 - 1), 1));
                     {
-                      const $t927_i14775 = { $: "Nil" };
-                      $t47909_i5715 = go$apply$0_List_range(go_i14773, $t926_i14774, $t927_i14775);
+                      const $t927_i14912 = { $: "Nil" };
+                      $t47909_i5715 = go$apply$0_List_range(go_i14910, $t926_i14911, $t927_i14912);
                     }
                   }
                 }
@@ -16792,16 +16792,16 @@ function Spin$View$part_ops(m, p) {
                   {
                     const $t48280 = { $: "Sling" };
                     {
-                      const dim_i13324 = "#ff6b3d";
+                      const dim_i13453 = "#ff6b3d";
                       {
-                        const bright_i13325 = "#ffd36b";
+                        const bright_i13454 = "#ffd36b";
                         {
-                          let $t48246_i13327;
+                          let $t48246_i13456;
                           {
-                            const $t48245_i13326 = Spin$Game$light(m, $t48280);
-                            $t48246_i13327 = ($t48245_i13326 > 0.);
+                            const $t48245_i13455 = Spin$Game$light(m, $t48280);
+                            $t48246_i13456 = ($t48245_i13455 > 0.);
                           }
-                          if ($t48246_i13327 === true) {
+                          if ($t48246_i13456 === true) {
                             $t48282 = "#ffd36b";
                           } else {
                             $t48282 = "#ff6b3d";
@@ -17035,24 +17035,24 @@ function Spin$View$part_ops(m, p) {
                 {
                   let is_on;
                   {
-                    const m_i13328 = m;
+                    const m_i13457 = m;
                     {
-                      let $t48249_i13332;
+                      let $t48249_i13461;
                       {
-                        const $t48247_i13330 = m.bank;
+                        const $t48247_i13459 = m.bank;
                         {
-                          const $t48248_i13331 = $t48247_i13330.reels;
-                          $t48249_i13332 = List$nth_opt$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Int($t48248_i13331, i);
+                          const $t48248_i13460 = $t48247_i13459.reels;
+                          $t48249_i13461 = List$nth_opt$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$Int($t48248_i13460, i);
                         }
                       }
-                      switch ($t48249_i13332.$) {
+                      switch ($t48249_i13461.$) {
                         case "Some": {
-                          const $f48250_i13333 = $t48249_i13332._0;
+                          const $f48250_i13462 = $t48249_i13461._0;
                           {
-                            const r_i13334 = $f48250_i13333;
+                            const r_i13463 = $f48250_i13462;
                             {
-                              const $rc_2735_i13335 = r_i13334.held;
-                              is_on = $rc_2735_i13335;
+                              const $rc_2735_i13464 = r_i13463.held;
+                              is_on = $rc_2735_i13464;
                             }
                           }
                           break;
@@ -18291,14 +18291,14 @@ function Spin$View$marquee_ops(m) {
               {
                 const $t48790 = m.bank;
                 {
-                  const b_i13344 = $t48790;
+                  const b_i13473 = $t48790;
                   {
-                    const $t47486_i13345 = $t48790.phase;
+                    const $t47486_i13474 = $t48790.phase;
                     {
-                      const $t47487_i13346 = { $: "Idle" };
+                      const $t47487_i13475 = { $: "Idle" };
                       {
-                        const $rc_2668_i13347 = (!march_deep_eq($t47486_i13345, $t47487_i13346));
-                        spinning = $rc_2668_i13347;
+                        const $rc_2668_i13476 = (!march_deep_eq($t47486_i13474, $t47487_i13475));
+                        spinning = $rc_2668_i13476;
                       }
                     }
                   }
@@ -18402,28 +18402,28 @@ function Spin$View$marquee_ops(m) {
                                                     {
                                                       const $t48872 = { $: "$Clo_$lam4_Spin_View_marquee_ops$4_Spin_View_marquee_ops", _0: $lam4_Spin_View_marquee_ops$apply$4_Spin_View_marquee_ops, _1: m, _2: spinning };
                                                       {
-                                                        const xs_i13336 = $t48846;
+                                                        const xs_i13465 = $t48846;
                                                         {
-                                                          const f_i13337 = $t48872;
-                                                          switch (xs_i13336.$) {
+                                                          const f_i13466 = $t48872;
+                                                          switch (xs_i13465.$) {
                                                             case "Nil": {
                                                               return { $: "Nil" };
                                                               break;
                                                             }
                                                             case "Cons": {
-                                                              const $f1006_i13338 = xs_i13336._0;
-                                                              const $f1007_i13339 = xs_i13336._1;
+                                                              const $f1006_i13467 = xs_i13465._0;
+                                                              const $f1007_i13468 = xs_i13465._1;
                                                               {
-                                                                const t_i13340 = $f1007_i13339;
+                                                                const t_i13469 = $f1007_i13468;
                                                                 {
-                                                                  const h_i13341 = $f1006_i13338;
+                                                                  const h_i13470 = $f1006_i13467;
                                                                   {
-                                                                    let $t1004_i13342;
-                                                                    $t1004_i13342 = f_i13337._0(f_i13337, h_i13341);
+                                                                    let $t1004_i13471;
+                                                                    $t1004_i13471 = f_i13466._0(f_i13466, h_i13470);
                                                                     {
-                                                                      const $trmc15_i13343 = { $: "Cons", _0: $t1004_i13342, _1: null };
-                                                                      List$map$dps$List_T_Int_R_x_Float_y_Float$Fn_T_Int_R_x_Float_y_Float_Op$List_Op(t_i13340, f_i13337, $trmc15_i13343);
-                                                                      return $trmc15_i13343;
+                                                                      const $trmc15_i13472 = { $: "Cons", _0: $t1004_i13471, _1: null };
+                                                                      List$map$dps$List_T_Int_R_x_Float_y_Float$Fn_T_Int_R_x_Float_y_Float_Op$List_Op(t_i13469, f_i13466, $trmc15_i13472);
+                                                                      return $trmc15_i13472;
                                                                     }
                                                                   }
                                                                 }
@@ -18663,16 +18663,16 @@ function Spin$View$stage_ops(m) {
           {
             let $t45800_i6016;
             {
-              const $t45798_i14781 = (0. >= $t48938);
-              if ($t45798_i14781 === true) {
+              const $t45798_i14918 = (0. >= $t48938);
+              if ($t45798_i14918 === true) {
                 $t45800_i6016 = 0.;
               } else {
                 $t45800_i6016 = $t48938;
               }
             }
             {
-              const $t45799_i14778 = (1. < $t45800_i6016);
-              if ($t45799_i14778 === true) {
+              const $t45799_i14915 = (1. < $t45800_i6016);
+              if ($t45799_i14915 === true) {
                 f = 1.;
               } else {
                 f = $t45800_i6016;
@@ -18854,28 +18854,28 @@ function Spin$View$buff_ops(m) {
                   {
                     let rows;
                     {
-                      const xs_i13364 = $t48978;
+                      const xs_i13493 = $t48978;
                       {
-                        const f_i13365 = $t48995;
-                        switch (xs_i13364.$) {
+                        const f_i13494 = $t48995;
+                        switch (xs_i13493.$) {
                           case "Nil": {
                             rows = { $: "Nil" };
                             break;
                           }
                           case "Cons": {
-                            const $f1006_i13366 = xs_i13364._0;
-                            const $f1007_i13367 = xs_i13364._1;
+                            const $f1006_i13495 = xs_i13493._0;
+                            const $f1007_i13496 = xs_i13493._1;
                             {
-                              const t_i13368 = $f1007_i13367;
+                              const t_i13497 = $f1007_i13496;
                               {
-                                const h_i13369 = $f1006_i13366;
+                                const h_i13498 = $f1006_i13495;
                                 {
-                                  let $t1004_i13370;
-                                  $t1004_i13370 = f_i13365._0(f_i13365, h_i13369);
+                                  let $t1004_i13499;
+                                  $t1004_i13499 = f_i13494._0(f_i13494, h_i13498);
                                   {
-                                    const $trmc15_i13371 = { $: "Cons", _0: $t1004_i13370, _1: null };
-                                    List$map$dps$List_T_Int_T_Buff_Float$Fn_T_Int_T_Buff_Float_Op$List_Op(t_i13368, f_i13365, $trmc15_i13371);
-                                    rows = $trmc15_i13371;
+                                    const $trmc15_i13500 = { $: "Cons", _0: $t1004_i13499, _1: null };
+                                    List$map$dps$List_T_Int_T_Buff_Float$Fn_T_Int_T_Buff_Float_Op$List_Op(t_i13497, f_i13494, $trmc15_i13500);
+                                    rows = $trmc15_i13500;
                                   }
                                 }
                               }
@@ -19085,8 +19085,8 @@ function Spin$View$panel_ops(m) {
                   $t46168_i6099 = (2. * $t46167_i6098);
                 }
                 {
-                  const $t45798_i14790 = ($t46168_i6099 >= 0.05);
-                  if ($t45798_i14790 === true) {
+                  const $t45798_i14927 = ($t46168_i6099 >= 0.05);
+                  if ($t45798_i14927 === true) {
                     every = $t46168_i6099;
                   } else {
                     every = 0.05;
@@ -19106,16 +19106,16 @@ function Spin$View$panel_ops(m) {
               {
                 let $t45800_i6090;
                 {
-                  const $t45798_i14787 = (0. >= $t49029);
-                  if ($t45798_i14787 === true) {
+                  const $t45798_i14924 = (0. >= $t49029);
+                  if ($t45798_i14924 === true) {
                     $t45800_i6090 = 0.;
                   } else {
                     $t45800_i6090 = $t49029;
                   }
                 }
                 {
-                  const $t45799_i14784 = (1. < $t45800_i6090);
-                  if ($t45799_i14784 === true) {
+                  const $t45799_i14921 = (1. < $t45800_i6090);
+                  if ($t45799_i14921 === true) {
                     f = 1.;
                   } else {
                     f = $t45800_i6090;
@@ -19190,26 +19190,26 @@ function Spin$View$panel_ops(m) {
                               {
                                 let $t49048;
                                 {
-                                  let t_i13374;
+                                  let t_i13503;
                                   {
-                                    const $t49074_i13373 = (every * 10.);
-                                    t_i13374 = march_float_round($t49074_i13373);
+                                    const $t49074_i13502 = (every * 10.);
+                                    t_i13503 = march_float_round($t49074_i13502);
                                   }
                                   {
-                                    let $t49076_i13376;
+                                    let $t49076_i13505;
                                     {
-                                      const $t49075_i13375 = ((t_i13374 - t_i13374 % 10) / 10);
-                                      $t49076_i13376 = String($t49075_i13375);
+                                      const $t49075_i13504 = ((t_i13503 - t_i13503 % 10) / 10);
+                                      $t49076_i13505 = String($t49075_i13504);
                                     }
                                     {
-                                      let $t49078_i13378;
+                                      let $t49078_i13507;
                                       {
-                                        const $t49077_i13377 = (t_i13374 % 10);
-                                        $t49078_i13378 = String($t49077_i13377);
+                                        const $t49077_i13506 = (t_i13503 % 10);
+                                        $t49078_i13507 = String($t49077_i13506);
                                       }
                                       {
-                                        const $rc_2756_i13379 = march_string_concat3($t49076_i13376, ".", $t49078_i13378);
-                                        $t49048 = $rc_2756_i13379;
+                                        const $rc_2756_i13508 = march_string_concat3($t49076_i13505, ".", $t49078_i13507);
+                                        $t49048 = $rc_2756_i13508;
                                       }
                                     }
                                   }
@@ -19316,7 +19316,7 @@ function Spin$View$panel_ops(m) {
 }
 const Spin$View$panel_ops$clo = { _0: ($_, m) => Spin$View$panel_ops(m) };
 
-function Spin$View$screen_ops(m) {
+function Spin$View$screen_ops(m, touch) {
   {
     const $t49079 = m.mode;
     switch ($t49079.$) {
@@ -19325,6 +19325,10 @@ function Spin$View$screen_ops(m) {
         break;
       }
       case "Attract": {
+        return Spin$View$attract_ops(m, touch);
+        break;
+      }
+      case "Busted": {
         {
           let pulse;
           {
@@ -19344,58 +19348,977 @@ function Spin$View$screen_ops(m) {
             pulse = (0.55 + $t49083);
           }
           {
-            const $t49084 = { $: "Box", _0: 30., _1: 150., _2: 310., _3: 330., _4: "rgba(7,4,15,0.86)" };
+            const $t49084 = { $: "Box", _0: 40., _1: 230., _2: 290., _3: 190., _4: "rgba(7,4,15,0.9)" };
             {
-              const $t49085 = { $: "Label", _0: "SPIN", _1: 185., _2: 190., _3: 40., _4: "#ff3fa4" };
+              const $t49085 = { $: "Label", _0: "BUSTED", _1: 185., _2: 270., _3: 38., _4: "#ff3b4e" };
               {
-                const $t49086 = { $: "Label", _0: "SPIN", _1: 185., _2: 232., _3: 40., _4: "#5cf2ff" };
+                let $t49089;
                 {
-                  const $t49088 = { $: "Label", _0: "SPIN", _1: 185., _2: 274., _3: 40., _4: "#ffd36b" };
+                  let $t49088;
                   {
-                    const $t49089 = { $: "Label", _0: "pinball that plays a slot machine", _1: 185., _2: 306., _3: 10., _4: "#d8ccff" };
+                    let $t49087;
                     {
-                      const $t49090 = { $: "Label", _0: "TARGETS put their symbol on the line:", _1: 185., _2: 330., _3: 9., _4: "#ffffff" };
+                      const $t49086 = m.paid;
+                      $t49087 = String($t49086);
+                    }
+                    {
+                      const $rc_2758 = ("the reels paid " + $t49087);
+                      $t49088 = $rc_2758;
+                    }
+                  }
+                  $t49089 = { $: "Label", _0: $t49088, _1: 185., _2: 312., _3: 13., _4: "#ffffff" };
+                }
+                {
+                  let $t49094;
+                  {
+                    let $t49092;
+                    {
+                      let $t49091;
                       {
-                        const $t49091 = { $: "Label", _0: "hit three, left reel to right, to spell it", _1: 185., _2: 344., _3: 9., _4: "#ffffff" };
+                        const $t49090 = m.best;
+                        $t49091 = String($t49090);
+                      }
+                      {
+                        const $rc_2757 = ("best " + $t49091);
+                        $t49092 = $rc_2757;
+                      }
+                    }
+                    $t49094 = { $: "Label", _0: $t49092, _1: 185., _2: 334., _3: 11., _4: "#ffd36b" };
+                  }
+                  {
+                    let $t49100;
+                    {
+                      let $t49099;
+                      {
+                        let $t49098;
                         {
-                          const $t49092 = { $: "Label", _0: "the SPINNER spins all three", _1: 185., _2: 362., _3: 9., _4: "#5cf2ff" };
+                          let $t49097;
                           {
-                            const $t49093 = { $: "Label", _0: "BUMPERS nudge them after a miss", _1: 185., _2: 376., _3: 9., _4: "#ff8fcf" };
+                            let $t49096;
                             {
-                              const $t49094 = { $: "Label", _0: "TOP LANES hold a reel; all three: x2", _1: 185., _2: 390., _3: 9., _4: "#7dff7a" };
+                              const $t49095 = m.banner;
+                              $t49096 = $t49095.left;
+                            }
+                            $t49097 = ($t49096 < 999998.);
+                          }
+                          if ($t49097 === true) {
+                            $t49098 = pulse;
+                          } else {
+                            $t49098 = 0.2;
+                          }
+                        }
+                        $t49099 = Spin$Draw$rgba(255, 211, 107, $t49098);
+                      }
+                      $t49100 = { $: "Label", _0: "TAP OR PRESS SPACE", _1: 185., _2: 386., _3: 13., _4: $t49099 };
+                    }
+                    {
+                      const $t49101 = { $: "Nil" };
+                      {
+                        const $t49102 = { $: "Cons", _0: $t49100, _1: $t49101 };
+                        {
+                          const $t49103 = { $: "Cons", _0: $t49094, _1: $t49102 };
+                          {
+                            const $t49104 = { $: "Cons", _0: $t49089, _1: $t49103 };
+                            {
+                              const $t49105 = { $: "Cons", _0: $t49085, _1: $t49104 };
+                              return { $: "Cons", _0: $t49084, _1: $t49105 };
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        return (() => { throw new Error("non-exhaustive pattern match"); })();
+      }
+    }
+  }
+}
+const Spin$View$screen_ops$clo = { _0: ($_, m, touch) => Spin$View$screen_ops(m, touch) };
+
+function Spin$View$pay_row(m, x, y, syms) {
+  {
+    let $p49132;
+    $p49132 = Spin$Reels$pays(syms);
+    {
+      const pay = $p49132._0;
+      {
+        let $t49112;
+        {
+          const go_i6142 = { $: "$Clo_go$0_List_enumerate_List_Symbol", _0: go$apply$0_List_enumerate_List_Symbol };
+          {
+            const $t1365_i6143 = { $: "Nil" };
+            $t49112 = go$apply$0_List_enumerate_List_Symbol(go_i6142, syms, 0, $t1365_i6143);
+          }
+        }
+        {
+          const $t49124 = { $: "$Clo_$lam0_Spin_View_pay_row$0_Spin_View_pay_row", _0: $lam0_Spin_View_pay_row$apply$0_Spin_View_pay_row, _1: m, _2: x, _3: y };
+          {
+            let $t49125;
+            {
+              const xs_i13509 = $t49112;
+              {
+                const f_i13510 = $t49124;
+                switch (xs_i13509.$) {
+                  case "Nil": {
+                    $t49125 = { $: "Nil" };
+                    break;
+                  }
+                  case "Cons": {
+                    const $f1006_i13511 = xs_i13509._0;
+                    const $f1007_i13512 = xs_i13509._1;
+                    {
+                      const t_i13513 = $f1007_i13512;
+                      {
+                        const h_i13514 = $f1006_i13511;
+                        {
+                          let $t1004_i13515;
+                          $t1004_i13515 = f_i13510._0(f_i13510, h_i13514);
+                          {
+                            const $trmc15_i13516 = { $: "Cons", _0: $t1004_i13515, _1: null };
+                            List$map$dps$List_T_Int_Symbol$Fn_T_Int_Symbol_List_Op$List_List_Op(t_i13513, f_i13510, $trmc15_i13516);
+                            $t49125 = $trmc15_i13516;
+                          }
+                        }
+                      }
+                    }
+                    break;
+                  }
+                  default: {
+                    throw new Error("non-exhaustive pattern match");
+                    break;
+                  }
+                }
+              }
+            }
+            {
+              let icons;
+              {
+                const prepend_reversed_i6138 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                {
+                  const go_i6139 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6138 };
+                  {
+                    const $t1124_i6140 = { $: "Nil" };
+                    icons = go$apply$1_List_concat_List_List_Op(go_i6139, $t49125, $t1124_i6140);
+                  }
+                }
+              }
+              {
+                let $t49129;
+                {
+                  const $t49126 = String(pay);
+                  {
+                    const $t49127 = (x + 52.);
+                    $t49129 = { $: "Label", _0: $t49126, _1: $t49127, _2: y, _3: 11., _4: "#ffd36b" };
+                  }
+                }
+                {
+                  const $t49130 = { $: "Nil" };
+                  {
+                    const $t49131 = { $: "Cons", _0: $t49129, _1: $t49130 };
+                    return List$append$List_Op$List_Op(icons, $t49131);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+const Spin$View$pay_row$clo = { _0: ($_, m, x, y, syms) => Spin$View$pay_row(m, x, y, syms) };
+
+function Spin$View$attract_ops(m, touch) {
+  {
+    let pulse;
+    {
+      let $t49136;
+      {
+        let $t49135;
+        {
+          let $t49134;
+          {
+            const $t49133 = m.clock;
+            $t49134 = ($t49133 * 3.);
+          }
+          $t49135 = Math.sin($t49134);
+        }
+        $t49136 = (0.45 * $t49135);
+      }
+      pulse = (0.55 + $t49136);
+    }
+    {
+      let controls;
+      if (touch === true) {
+        {
+          const $t49137 = { $: "Label", _0: "tap the LEFT or RIGHT half to flip", _1: 185., _2: 641., _3: 9.5, _4: "#e8e0ff" };
+          {
+            const $t49138 = { $: "Label", _0: "hold LAUNCH (bottom right) and let go to fire", _1: 185., _2: 654., _3: 9.5, _4: "#e8e0ff" };
+            {
+              const $t49139 = { $: "Nil" };
+              {
+                const $t49140 = { $: "Cons", _0: $t49138, _1: $t49139 };
+                controls = { $: "Cons", _0: $t49137, _1: $t49140 };
+              }
+            }
+          }
+        }
+      } else {
+        {
+          const $t49141 = { $: "Label", _0: "Z / ← left flipper    M / → right flipper", _1: 185., _2: 641., _3: 9.5, _4: "#e8e0ff" };
+          {
+            const $t49142 = { $: "Label", _0: "hold SPACE and let go to launch", _1: 185., _2: 654., _3: 9.5, _4: "#e8e0ff" };
+            {
+              const $t49143 = { $: "Nil" };
+              {
+                const $t49144 = { $: "Cons", _0: $t49142, _1: $t49143 };
+                controls = { $: "Cons", _0: $t49141, _1: $t49144 };
+              }
+            }
+          }
+        }
+      }
+      {
+        const $t49145 = { $: "Box", _0: 24., _1: 30., _2: 322., _3: 700., _4: "rgba(7,4,15,0.93)" };
+        {
+          const $t49146 = { $: "Nil" };
+          {
+            const $t49147 = { $: "Cons", _0: $t49145, _1: $t49146 };
+            {
+              const $t49148 = { $: "Label", _0: "SPIN", _1: 105., _2: 58., _3: 30., _4: "#ff3fa4" };
+              {
+                const $t49149 = { $: "Label", _0: "SPIN", _1: 185., _2: 58., _3: 30., _4: "#5cf2ff" };
+                {
+                  const $t49151 = { $: "Label", _0: "SPIN", _1: 265., _2: 58., _3: 30., _4: "#ffd36b" };
+                  {
+                    const $t49152 = { $: "Nil" };
+                    {
+                      const $t49153 = { $: "Cons", _0: $t49151, _1: $t49152 };
+                      {
+                        const $t49154 = { $: "Cons", _0: $t49149, _1: $t49153 };
+                        {
+                          const $t49155 = { $: "Cons", _0: $t49148, _1: $t49154 };
+                          {
+                            const $t49156 = { $: "Label", _0: "pinball that plays a slot machine", _1: 185., _2: 84., _3: 10., _4: "#d8ccff" };
+                            {
+                              const $t49157 = { $: "Nil" };
                               {
-                                const $t49095 = { $: "Label", _0: "the meter eats credits. only the reels pay.", _1: 185., _2: 412., _3: 9., _4: "#ff8a3d" };
+                                const $t49158 = { $: "Cons", _0: $t49156, _1: $t49157 };
                                 {
-                                  let $t49097;
+                                  let $t49159;
                                   {
-                                    const $t49096 = Spin$Draw$rgba(255, 211, 107, pulse);
-                                    $t49097 = { $: "Label", _0: "TAP OR PRESS SPACE", _1: 185., _2: 446., _3: 14., _4: $t49096 };
+                                    let $t49108_i6269;
+                                    {
+                                      const $t49106_i6267 = (106. - 7.);
+                                      {
+                                        const $t49107_i6268 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                        $t49108_i6269 = { $: "Box", _0: 36., _1: $t49106_i6267, _2: 298., _3: 14., _4: $t49107_i6268 };
+                                      }
+                                    }
+                                    {
+                                      const $t49109_i6270 = { $: "Label", _0: "STAY ALIVE", _1: 185., _2: 106., _3: 10., _4: "#ff8a3d" };
+                                      {
+                                        const $t49110_i6271 = { $: "Nil" };
+                                        {
+                                          const $t49111_i6272 = { $: "Cons", _0: $t49109_i6270, _1: $t49110_i6271 };
+                                          $t49159 = { $: "Cons", _0: $t49108_i6269, _1: $t49111_i6272 };
+                                        }
+                                      }
+                                    }
                                   }
                                   {
-                                    const $t49098 = { $: "Nil" };
+                                    const $t49160 = { $: "Label", _0: "the METER eats your credits while a ball is in play", _1: 185., _2: 123., _3: 9.5, _4: "#e8e0ff" };
                                     {
-                                      const $t49099 = { $: "Cons", _0: $t49097, _1: $t49098 };
+                                      const $t49161 = { $: "Label", _0: "a drain costs 6. at 0 credits you are BUSTED", _1: 185., _2: 136., _3: 9.5, _4: "#e8e0ff" };
                                       {
-                                        const $t49100 = { $: "Cons", _0: $t49095, _1: $t49099 };
+                                        const $t49162 = { $: "Label", _0: "only the reels pay — and the more they pay,", _1: 185., _2: 149., _3: 9.5, _4: "#e8e0ff" };
                                         {
-                                          const $t49101 = { $: "Cons", _0: $t49094, _1: $t49100 };
+                                          const $t49163 = { $: "Label", _0: "the hungrier the meter gets", _1: 185., _2: 162., _3: 9.5, _4: "#e8e0ff" };
                                           {
-                                            const $t49102 = { $: "Cons", _0: $t49093, _1: $t49101 };
+                                            const $t49164 = { $: "Nil" };
                                             {
-                                              const $t49103 = { $: "Cons", _0: $t49092, _1: $t49102 };
+                                              const $t49165 = { $: "Cons", _0: $t49163, _1: $t49164 };
                                               {
-                                                const $t49104 = { $: "Cons", _0: $t49091, _1: $t49103 };
+                                                const $t49166 = { $: "Cons", _0: $t49162, _1: $t49165 };
                                                 {
-                                                  const $t49105 = { $: "Cons", _0: $t49090, _1: $t49104 };
+                                                  const $t49167 = { $: "Cons", _0: $t49161, _1: $t49166 };
                                                   {
-                                                    const $t49106 = { $: "Cons", _0: $t49089, _1: $t49105 };
+                                                    const $t49168 = { $: "Cons", _0: $t49160, _1: $t49167 };
                                                     {
-                                                      const $t49107 = { $: "Cons", _0: $t49088, _1: $t49106 };
+                                                      let $t49169;
                                                       {
-                                                        const $t49108 = { $: "Cons", _0: $t49086, _1: $t49107 };
+                                                        let $t49108_i6252;
                                                         {
-                                                          const $t49109 = { $: "Cons", _0: $t49085, _1: $t49108 };
-                                                          return { $: "Cons", _0: $t49084, _1: $t49109 };
+                                                          const $t49106_i6250 = (184. - 7.);
+                                                          {
+                                                            const $t49107_i6251 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                            $t49108_i6252 = { $: "Box", _0: 36., _1: $t49106_i6250, _2: 298., _3: 14., _4: $t49107_i6251 };
+                                                          }
+                                                        }
+                                                        {
+                                                          const $t49109_i6253 = { $: "Label", _0: "SPELL A LINE", _1: 185., _2: 184., _3: 10., _4: "#7dff7a" };
+                                                          {
+                                                            const $t49110_i6254 = { $: "Nil" };
+                                                            {
+                                                              const $t49111_i6255 = { $: "Cons", _0: $t49109_i6253, _1: $t49110_i6254 };
+                                                              $t49169 = { $: "Cons", _0: $t49108_i6252, _1: $t49111_i6255 };
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                      {
+                                                        const $t49170 = { $: "Label", _0: "each TARGET writes its symbol on the armed reel", _1: 185., _2: 201., _3: 9.5, _4: "#e8e0ff" };
+                                                        {
+                                                          const $t49171 = { $: "Label", _0: "and rolls it onto the payline (watch the LOAD arrow)", _1: 185., _2: 214., _3: 9.5, _4: "#e8e0ff" };
+                                                          {
+                                                            const $t49172 = { $: "Label", _0: "hit three, left reel to right: the line pays", _1: 185., _2: 227., _3: 9.5, _4: "#e8e0ff" };
+                                                            {
+                                                              const $t49173 = { $: "Nil" };
+                                                              {
+                                                                const $t49174 = { $: "Cons", _0: $t49172, _1: $t49173 };
+                                                                {
+                                                                  const $t49175 = { $: "Cons", _0: $t49171, _1: $t49174 };
+                                                                  {
+                                                                    const $t49176 = { $: "Cons", _0: $t49170, _1: $t49175 };
+                                                                    {
+                                                                      const $t49177 = { $: "Seven" };
+                                                                      {
+                                                                        const $t49178 = { $: "Seven" };
+                                                                        {
+                                                                          const $t49179 = { $: "Seven" };
+                                                                          {
+                                                                            const $t49180 = { $: "Nil" };
+                                                                            {
+                                                                              const $t49181 = { $: "Cons", _0: $t49179, _1: $t49180 };
+                                                                              {
+                                                                                const $t49182 = { $: "Cons", _0: $t49178, _1: $t49181 };
+                                                                                {
+                                                                                  const $t49183 = { $: "Cons", _0: $t49177, _1: $t49182 };
+                                                                                  {
+                                                                                    let $t49184;
+                                                                                    $t49184 = Spin$View$pay_row(m, 62., 250., $t49183);
+                                                                                    {
+                                                                                      const $t49185 = { $: "Bars" };
+                                                                                      {
+                                                                                        const $t49186 = { $: "Bars" };
+                                                                                        {
+                                                                                          const $t49187 = { $: "Bars" };
+                                                                                          {
+                                                                                            const $t49188 = { $: "Nil" };
+                                                                                            {
+                                                                                              const $t49189 = { $: "Cons", _0: $t49187, _1: $t49188 };
+                                                                                              {
+                                                                                                const $t49190 = { $: "Cons", _0: $t49186, _1: $t49189 };
+                                                                                                {
+                                                                                                  const $t49191 = { $: "Cons", _0: $t49185, _1: $t49190 };
+                                                                                                  {
+                                                                                                    let $t49192;
+                                                                                                    $t49192 = Spin$View$pay_row(m, 62., 268., $t49191);
+                                                                                                    {
+                                                                                                      const $t49193 = { $: "Bell" };
+                                                                                                      {
+                                                                                                        const $t49194 = { $: "Bell" };
+                                                                                                        {
+                                                                                                          const $t49195 = { $: "Bell" };
+                                                                                                          {
+                                                                                                            const $t49196 = { $: "Nil" };
+                                                                                                            {
+                                                                                                              const $t49197 = { $: "Cons", _0: $t49195, _1: $t49196 };
+                                                                                                              {
+                                                                                                                const $t49198 = { $: "Cons", _0: $t49194, _1: $t49197 };
+                                                                                                                {
+                                                                                                                  const $t49199 = { $: "Cons", _0: $t49193, _1: $t49198 };
+                                                                                                                  {
+                                                                                                                    let $t49200;
+                                                                                                                    $t49200 = Spin$View$pay_row(m, 62., 286., $t49199);
+                                                                                                                    {
+                                                                                                                      const $t49201 = { $: "Lemon" };
+                                                                                                                      {
+                                                                                                                        const $t49202 = { $: "Lemon" };
+                                                                                                                        {
+                                                                                                                          const $t49203 = { $: "Lemon" };
+                                                                                                                          {
+                                                                                                                            const $t49204 = { $: "Nil" };
+                                                                                                                            {
+                                                                                                                              const $t49205 = { $: "Cons", _0: $t49203, _1: $t49204 };
+                                                                                                                              {
+                                                                                                                                const $t49206 = { $: "Cons", _0: $t49202, _1: $t49205 };
+                                                                                                                                {
+                                                                                                                                  const $t49207 = { $: "Cons", _0: $t49201, _1: $t49206 };
+                                                                                                                                  {
+                                                                                                                                    let $t49208;
+                                                                                                                                    $t49208 = Spin$View$pay_row(m, 62., 304., $t49207);
+                                                                                                                                    {
+                                                                                                                                      const $t49209 = { $: "Cherry" };
+                                                                                                                                      {
+                                                                                                                                        const $t49210 = { $: "Cherry" };
+                                                                                                                                        {
+                                                                                                                                          const $t49211 = { $: "Cherry" };
+                                                                                                                                          {
+                                                                                                                                            const $t49212 = { $: "Nil" };
+                                                                                                                                            {
+                                                                                                                                              const $t49213 = { $: "Cons", _0: $t49211, _1: $t49212 };
+                                                                                                                                              {
+                                                                                                                                                const $t49214 = { $: "Cons", _0: $t49210, _1: $t49213 };
+                                                                                                                                                {
+                                                                                                                                                  const $t49215 = { $: "Cons", _0: $t49209, _1: $t49214 };
+                                                                                                                                                  {
+                                                                                                                                                    let $t49216;
+                                                                                                                                                    $t49216 = Spin$View$pay_row(m, 212., 250., $t49215);
+                                                                                                                                                    {
+                                                                                                                                                      const $t49217 = { $: "Cherry" };
+                                                                                                                                                      {
+                                                                                                                                                        const $t49218 = { $: "Cherry" };
+                                                                                                                                                        {
+                                                                                                                                                          const $t49219 = { $: "Blank" };
+                                                                                                                                                          {
+                                                                                                                                                            const $t49220 = { $: "Nil" };
+                                                                                                                                                            {
+                                                                                                                                                              const $t49221 = { $: "Cons", _0: $t49219, _1: $t49220 };
+                                                                                                                                                              {
+                                                                                                                                                                const $t49222 = { $: "Cons", _0: $t49218, _1: $t49221 };
+                                                                                                                                                                {
+                                                                                                                                                                  const $t49223 = { $: "Cons", _0: $t49217, _1: $t49222 };
+                                                                                                                                                                  {
+                                                                                                                                                                    let $t49224;
+                                                                                                                                                                    $t49224 = Spin$View$pay_row(m, 212., 268., $t49223);
+                                                                                                                                                                    {
+                                                                                                                                                                      const $t49225 = { $: "Lemon" };
+                                                                                                                                                                      {
+                                                                                                                                                                        const $t49226 = { $: "Bell" };
+                                                                                                                                                                        {
+                                                                                                                                                                          const $t49227 = { $: "Bars" };
+                                                                                                                                                                          {
+                                                                                                                                                                            const $t49228 = { $: "Nil" };
+                                                                                                                                                                            {
+                                                                                                                                                                              const $t49229 = { $: "Cons", _0: $t49227, _1: $t49228 };
+                                                                                                                                                                              {
+                                                                                                                                                                                const $t49230 = { $: "Cons", _0: $t49226, _1: $t49229 };
+                                                                                                                                                                                {
+                                                                                                                                                                                  const $t49231 = { $: "Cons", _0: $t49225, _1: $t49230 };
+                                                                                                                                                                                  {
+                                                                                                                                                                                    let $t49232;
+                                                                                                                                                                                    $t49232 = Spin$View$pay_row(m, 212., 286., $t49231);
+                                                                                                                                                                                    {
+                                                                                                                                                                                      const $t49233 = { $: "Cherry" };
+                                                                                                                                                                                      {
+                                                                                                                                                                                        const $t49234 = { $: "Blank" };
+                                                                                                                                                                                        {
+                                                                                                                                                                                          const $t49235 = { $: "Blank" };
+                                                                                                                                                                                          {
+                                                                                                                                                                                            const $t49236 = { $: "Nil" };
+                                                                                                                                                                                            {
+                                                                                                                                                                                              const $t49237 = { $: "Cons", _0: $t49235, _1: $t49236 };
+                                                                                                                                                                                              {
+                                                                                                                                                                                                const $t49238 = { $: "Cons", _0: $t49234, _1: $t49237 };
+                                                                                                                                                                                                {
+                                                                                                                                                                                                  const $t49239 = { $: "Cons", _0: $t49233, _1: $t49238 };
+                                                                                                                                                                                                  {
+                                                                                                                                                                                                    let $t49240;
+                                                                                                                                                                                                    $t49240 = Spin$View$pay_row(m, 212., 304., $t49239);
+                                                                                                                                                                                                    {
+                                                                                                                                                                                                      const $t49241 = { $: "Label", _0: "777 also starts MULTIBALL", _1: 185., _2: 322., _3: 8.5, _4: "#ff8fcf" };
+                                                                                                                                                                                                      {
+                                                                                                                                                                                                        const $t49242 = { $: "Nil" };
+                                                                                                                                                                                                        {
+                                                                                                                                                                                                          const $t49243 = { $: "Cons", _0: $t49241, _1: $t49242 };
+                                                                                                                                                                                                          {
+                                                                                                                                                                                                            let $t49244;
+                                                                                                                                                                                                            {
+                                                                                                                                                                                                              let $t49108_i6232;
+                                                                                                                                                                                                              {
+                                                                                                                                                                                                                const $t49106_i6230 = (344. - 7.);
+                                                                                                                                                                                                                {
+                                                                                                                                                                                                                  const $t49107_i6231 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                                                                                                                                                                                  $t49108_i6232 = { $: "Box", _0: 36., _1: $t49106_i6230, _2: 298., _3: 14., _4: $t49107_i6231 };
+                                                                                                                                                                                                                }
+                                                                                                                                                                                                              }
+                                                                                                                                                                                                              {
+                                                                                                                                                                                                                const $t49109_i6233 = { $: "Label", _0: "THE TABLE", _1: 185., _2: 344., _3: 10., _4: "#5cf2ff" };
+                                                                                                                                                                                                                {
+                                                                                                                                                                                                                  const $t49110_i6234 = { $: "Nil" };
+                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                    const $t49111_i6235 = { $: "Cons", _0: $t49109_i6233, _1: $t49110_i6234 };
+                                                                                                                                                                                                                    $t49244 = { $: "Cons", _0: $t49108_i6232, _1: $t49111_i6235 };
+                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                }
+                                                                                                                                                                                                              }
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                            {
+                                                                                                                                                                                                              const $t49245 = { $: "Label", _0: "SPINNER (left orbit): banks a spin of all three reels", _1: 185., _2: 361., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                              {
+                                                                                                                                                                                                                const $t49246 = { $: "Label", _0: "BUMPERS: nudge a reel one stop after a losing spin", _1: 185., _2: 374., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                {
+                                                                                                                                                                                                                  const $t49247 = { $: "Label", _0: "TOP LANES 1 2 3: hold that reel; all three = x2 spin", _1: 185., _2: 387., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                    const $t49248 = { $: "Nil" };
+                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                      const $t49249 = { $: "Cons", _0: $t49247, _1: $t49248 };
+                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                        const $t49250 = { $: "Cons", _0: $t49246, _1: $t49249 };
+                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                          const $t49251 = { $: "Cons", _0: $t49245, _1: $t49250 };
+                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                            let $t49253;
+                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                              let $t49108_i6217;
+                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                const $t49106_i6215 = (409. - 7.);
+                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                  const $t49107_i6216 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                                                                                                                                                                                                  $t49108_i6217 = { $: "Box", _0: 36., _1: $t49106_i6215, _2: 298., _3: 14., _4: $t49107_i6216 };
+                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                const $t49109_i6218 = { $: "Label", _0: "STAGES", _1: 185., _2: 409., _3: 10., _4: "#ffd36b" };
+                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                  const $t49110_i6219 = { $: "Nil" };
+                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                    const $t49111_i6220 = { $: "Cons", _0: $t49109_i6218, _1: $t49110_i6219 };
+                                                                                                                                                                                                                                    $t49253 = { $: "Cons", _0: $t49108_i6217, _1: $t49111_i6220 };
+                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                              const $t49254 = { $: "Label", _0: "every payout milestone changes the BALL and the TABLE:", _1: 185., _2: 426., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                const $t49255 = { $: "Label", _0: "rubber, moon, lead, gale, magnet — plus new posts,", _1: 185., _2: 439., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                  const $t49256 = { $: "Label", _0: "a gliding bumper and a second spinner", _1: 185., _2: 452., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                    const $t49257 = { $: "Nil" };
+                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                      const $t49258 = { $: "Cons", _0: $t49256, _1: $t49257 };
+                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                        const $t49259 = { $: "Cons", _0: $t49255, _1: $t49258 };
+                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                          const $t49260 = { $: "Cons", _0: $t49254, _1: $t49259 };
+                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                            let $t49261;
+                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                              let $t49108_i6202;
+                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                const $t49106_i6200 = (474. - 7.);
+                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                  const $t49107_i6201 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                                                                                                                                                                                                                  $t49108_i6202 = { $: "Box", _0: 36., _1: $t49106_i6200, _2: 298., _3: 14., _4: $t49107_i6201 };
+                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                const $t49109_i6203 = { $: "Label", _0: "STREAKS", _1: 185., _2: 474., _3: 10., _4: "#ff3fa4" };
+                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                  const $t49110_i6204 = { $: "Nil" };
+                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                    const $t49111_i6205 = { $: "Cons", _0: $t49109_i6203, _1: $t49110_i6204 };
+                                                                                                                                                                                                                                                    $t49261 = { $: "Cons", _0: $t49108_i6202, _1: $t49111_i6205 };
+                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                              const $t49262 = { $: "Label", _0: "land 3+ paying lines, each within 12 s of the last:", _1: 185., _2: 491., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                const $t49263 = { $: "Label", _0: "3rd: ball save, meter freeze or slow-mo", _1: 185., _2: 504., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                  const $t49264 = { $: "Label", _0: "4th: double pay or an extra ball · 5th: both", _1: 185., _2: 517., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                    const $t49265 = { $: "Nil" };
+                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                      const $t49266 = { $: "Cons", _0: $t49264, _1: $t49265 };
+                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                        const $t49267 = { $: "Cons", _0: $t49263, _1: $t49266 };
+                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                          const $t49268 = { $: "Cons", _0: $t49262, _1: $t49267 };
+                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                            let $t49271;
+                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                              let $t49270;
+                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                const $t49269 = m.best;
+                                                                                                                                                                                                                                                                $t49270 = String($t49269);
+                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                const $rc_2760 = ("BEST " + $t49270);
+                                                                                                                                                                                                                                                                $t49271 = $rc_2760;
+                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                              let $t49272;
+                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                let $t49108_i6187;
+                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                  const $t49106_i6185 = (539. - 7.);
+                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                    const $t49107_i6186 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                                                                                                                                                                                                                                    $t49108_i6187 = { $: "Box", _0: 36., _1: $t49106_i6185, _2: 298., _3: 14., _4: $t49107_i6186 };
+                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                  const $t49109_i6188 = { $: "Label", _0: $t49271, _1: 185., _2: 539., _3: 10., _4: "#b9a6ff" };
+                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                    const $t49110_i6189 = { $: "Nil" };
+                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                      const $t49111_i6190 = { $: "Cons", _0: $t49109_i6188, _1: $t49110_i6189 };
+                                                                                                                                                                                                                                                                      $t49272 = { $: "Cons", _0: $t49108_i6187, _1: $t49111_i6190 };
+                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                const $t49273 = { $: "Label", _0: "your best total payout, kept on this device", _1: 185., _2: 556., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                  const $t49274 = { $: "Nil" };
+                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                    const $t49275 = { $: "Cons", _0: $t49273, _1: $t49274 };
+                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                      let $t49277;
+                                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                                        let $t49108_i6176;
+                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                          const $t49106_i6174 = (578. - 7.);
+                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                            const $t49107_i6175 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                                                                                                                                                                                                                                            $t49108_i6176 = { $: "Box", _0: 36., _1: $t49106_i6174, _2: 298., _3: 14., _4: $t49107_i6175 };
+                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                          const $t49109_i6177 = { $: "Label", _0: "STAGE LADDER", _1: 185., _2: 578., _3: 10., _4: "#ffd36b" };
+                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                            const $t49110_i6178 = { $: "Nil" };
+                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                              const $t49111_i6179 = { $: "Cons", _0: $t49109_i6177, _1: $t49110_i6178 };
+                                                                                                                                                                                                                                                                              $t49277 = { $: "Cons", _0: $t49108_i6176, _1: $t49111_i6179 };
+                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                                        let $t49287;
+                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                          let $t49286;
+                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                            let $t49278;
+                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                              const go_i6168 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 1 };
+                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                const $t926_i6169 = ((6 - 1) < 4611686018427387904 && (6 - 1) >= -4611686018427387904 ? (6 - 1) : march_int_ovf((6 - 1), 1));
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  const $t927_i6170 = { $: "Nil" };
+                                                                                                                                                                                                                                                                                  $t49278 = go$apply$0_List_range(go_i6168, $t926_i6169, $t927_i6170);
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                              const $t49284 = { $: "$Clo_$lam0_Spin_View_attract_ops$0_Spin_View_attract_ops", _0: $lam0_Spin_View_attract_ops$apply$0_Spin_View_attract_ops };
+                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                let $t49285;
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  const xs_i15148 = $t49278;
+                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                    const f_i15149 = $t49284;
+                                                                                                                                                                                                                                                                                    switch (xs_i15148.$) {
+                                                                                                                                                                                                                                                                                      case "Nil": {
+                                                                                                                                                                                                                                                                                        $t49285 = { $: "Nil" };
+                                                                                                                                                                                                                                                                                        break;
+                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                      case "Cons": {
+                                                                                                                                                                                                                                                                                        const $f1006_i15150 = xs_i15148._0;
+                                                                                                                                                                                                                                                                                        const $f1007_i15151 = xs_i15148._1;
+                                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                                          const t_i15152 = $f1007_i15151;
+                                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                                            const h_i15153 = $f1006_i15150;
+                                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                                              let $t1004_i15154;
+                                                                                                                                                                                                                                                                                              $t1004_i15154 = f_i15149._0(f_i15149, h_i15153);
+                                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                                const $trmc15_i15155 = { $: "Cons", _0: $t1004_i15154, _1: null };
+                                                                                                                                                                                                                                                                                                List$map$dps$List_Int$Fn_Int_String$List_String(t_i15152, f_i15149, $trmc15_i15155);
+                                                                                                                                                                                                                                                                                                $t49285 = $trmc15_i15155;
+                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                        break;
+                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                      default: {
+                                                                                                                                                                                                                                                                                        throw new Error("non-exhaustive pattern match");
+                                                                                                                                                                                                                                                                                        break;
+                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  const $rc_2759 = march_string_join($t49285, " · ");
+                                                                                                                                                                                                                                                                                  $t49286 = $rc_2759;
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                          $t49287 = { $: "Label", _0: $t49286, _1: 185., _2: 595., _3: 9.5, _4: "#e8e0ff" };
+                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                          const $t49288 = { $: "Nil" };
+                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                            const $t49289 = { $: "Cons", _0: $t49287, _1: $t49288 };
+                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                              let $t49290;
+                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                let $t49108_i6158;
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  const $t49106_i6156 = (622. - 7.);
+                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                    const $t49107_i6157 = Spin$Draw$rgba(255, 255, 255, 0.06);
+                                                                                                                                                                                                                                                                                    $t49108_i6158 = { $: "Box", _0: 36., _1: $t49106_i6156, _2: 298., _3: 14., _4: $t49107_i6157 };
+                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  const $t49109_i6159 = { $: "Label", _0: "CONTROLS", _1: 185., _2: 622., _3: 10., _4: "#ffffff" };
+                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                    const $t49110_i6160 = { $: "Nil" };
+                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                      const $t49111_i6161 = { $: "Cons", _0: $t49109_i6159, _1: $t49110_i6160 };
+                                                                                                                                                                                                                                                                                      $t49290 = { $: "Cons", _0: $t49108_i6158, _1: $t49111_i6161 };
+                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                let $t49293;
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  let $t49291;
+                                                                                                                                                                                                                                                                                  if (touch === true) {
+                                                                                                                                                                                                                                                                                    $t49291 = "TAP TO PLAY";
+                                                                                                                                                                                                                                                                                  } else {
+                                                                                                                                                                                                                                                                                    $t49291 = "PRESS SPACE TO PLAY";
+                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                    const $t49292 = Spin$Draw$rgba(255, 211, 107, pulse);
+                                                                                                                                                                                                                                                                                    $t49293 = { $: "Label", _0: $t49291, _1: 185., _2: 692., _3: 16., _4: $t49292 };
+                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                  const $t49294 = { $: "Nil" };
+                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                    const $t49295 = { $: "Cons", _0: $t49293, _1: $t49294 };
+                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                      const $t49296 = { $: "Nil" };
+                                                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                                                        const $t49297 = { $: "Cons", _0: $t49295, _1: $t49296 };
+                                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                                          const $t49298 = { $: "Cons", _0: controls, _1: $t49297 };
+                                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                                            const $t49299 = { $: "Cons", _0: $t49290, _1: $t49298 };
+                                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                                              const $t49300 = { $: "Cons", _0: $t49289, _1: $t49299 };
+                                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                                const $t49301 = { $: "Cons", _0: $t49277, _1: $t49300 };
+                                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                                  const $t49302 = { $: "Cons", _0: $t49275, _1: $t49301 };
+                                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                                    const $t49303 = { $: "Cons", _0: $t49272, _1: $t49302 };
+                                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                                      const $t49304 = { $: "Cons", _0: $t49268, _1: $t49303 };
+                                                                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                                                                        const $t49305 = { $: "Cons", _0: $t49261, _1: $t49304 };
+                                                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                                                          const $t49306 = { $: "Cons", _0: $t49260, _1: $t49305 };
+                                                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                                                            const $t49307 = { $: "Cons", _0: $t49253, _1: $t49306 };
+                                                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                                                              const $t49308 = { $: "Cons", _0: $t49251, _1: $t49307 };
+                                                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                                                const $t49309 = { $: "Cons", _0: $t49244, _1: $t49308 };
+                                                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                                                  const $t49310 = { $: "Cons", _0: $t49243, _1: $t49309 };
+                                                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                                                    const $t49311 = { $: "Cons", _0: $t49240, _1: $t49310 };
+                                                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                                                      const $t49312 = { $: "Cons", _0: $t49232, _1: $t49311 };
+                                                                                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                                                                                        const $t49313 = { $: "Cons", _0: $t49224, _1: $t49312 };
+                                                                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                                                                          const $t49314 = { $: "Cons", _0: $t49216, _1: $t49313 };
+                                                                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                                                                            const $t49315 = { $: "Cons", _0: $t49208, _1: $t49314 };
+                                                                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                                                                              const $t49316 = { $: "Cons", _0: $t49200, _1: $t49315 };
+                                                                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                                                                const $t49317 = { $: "Cons", _0: $t49192, _1: $t49316 };
+                                                                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                                                                  const $t49318 = { $: "Cons", _0: $t49184, _1: $t49317 };
+                                                                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                                                                    const $t49319 = { $: "Cons", _0: $t49176, _1: $t49318 };
+                                                                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                                                                      const $t49320 = { $: "Cons", _0: $t49169, _1: $t49319 };
+                                                                                                                                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                                                                                                                                        const $t49321 = { $: "Cons", _0: $t49168, _1: $t49320 };
+                                                                                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                                                                                          const $t49322 = { $: "Cons", _0: $t49159, _1: $t49321 };
+                                                                                                                                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                                                                                                                                            const $t49323 = { $: "Cons", _0: $t49158, _1: $t49322 };
+                                                                                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                                                                                              const $t49324 = { $: "Cons", _0: $t49155, _1: $t49323 };
+                                                                                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                                                                                const $t49325 = { $: "Cons", _0: $t49147, _1: $t49324 };
+                                                                                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                                                                                  const prepend_reversed_i6145 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                                                                                                                                                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                                                                                                                                                    const go_i6146 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6145 };
+                                                                                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                                                                                      const $t1124_i6147 = { $: "Nil" };
+                                                                                                                                                                                                                                                                                                                                                      return go$apply$1_List_concat_List_List_Op(go_i6146, $t49325, $t1124_i6147);
+                                                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                }
+                                                                                                                                                                                                              }
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                          }
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                  }
+                                                                                                                                                                                                }
+                                                                                                                                                                                              }
+                                                                                                                                                                                            }
+                                                                                                                                                                                          }
+                                                                                                                                                                                        }
+                                                                                                                                                                                      }
+                                                                                                                                                                                    }
+                                                                                                                                                                                  }
+                                                                                                                                                                                }
+                                                                                                                                                                              }
+                                                                                                                                                                            }
+                                                                                                                                                                          }
+                                                                                                                                                                        }
+                                                                                                                                                                      }
+                                                                                                                                                                    }
+                                                                                                                                                                  }
+                                                                                                                                                                }
+                                                                                                                                                              }
+                                                                                                                                                            }
+                                                                                                                                                          }
+                                                                                                                                                        }
+                                                                                                                                                      }
+                                                                                                                                                    }
+                                                                                                                                                  }
+                                                                                                                                                }
+                                                                                                                                              }
+                                                                                                                                            }
+                                                                                                                                          }
+                                                                                                                                        }
+                                                                                                                                      }
+                                                                                                                                    }
+                                                                                                                                  }
+                                                                                                                                }
+                                                                                                                              }
+                                                                                                                            }
+                                                                                                                          }
+                                                                                                                        }
+                                                                                                                      }
+                                                                                                                    }
+                                                                                                                  }
+                                                                                                                }
+                                                                                                              }
+                                                                                                            }
+                                                                                                          }
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
                                                         }
                                                       }
                                                     }
@@ -19421,215 +20344,104 @@ function Spin$View$screen_ops(m) {
             }
           }
         }
-        break;
-      }
-      case "Busted": {
-        {
-          let pulse;
-          {
-            let $t49113;
-            {
-              let $t49112;
-              {
-                let $t49111;
-                {
-                  const $t49110 = m.clock;
-                  $t49111 = ($t49110 * 3.);
-                }
-                $t49112 = Math.sin($t49111);
-              }
-              $t49113 = (0.45 * $t49112);
-            }
-            pulse = (0.55 + $t49113);
-          }
-          {
-            const $t49114 = { $: "Box", _0: 40., _1: 230., _2: 290., _3: 190., _4: "rgba(7,4,15,0.9)" };
-            {
-              const $t49115 = { $: "Label", _0: "BUSTED", _1: 185., _2: 270., _3: 38., _4: "#ff3b4e" };
-              {
-                let $t49119;
-                {
-                  let $t49118;
-                  {
-                    let $t49117;
-                    {
-                      const $t49116 = m.paid;
-                      $t49117 = String($t49116);
-                    }
-                    {
-                      const $rc_2758 = ("the reels paid " + $t49117);
-                      $t49118 = $rc_2758;
-                    }
-                  }
-                  $t49119 = { $: "Label", _0: $t49118, _1: 185., _2: 312., _3: 13., _4: "#ffffff" };
-                }
-                {
-                  let $t49124;
-                  {
-                    let $t49122;
-                    {
-                      let $t49121;
-                      {
-                        const $t49120 = m.best;
-                        $t49121 = String($t49120);
-                      }
-                      {
-                        const $rc_2757 = ("best " + $t49121);
-                        $t49122 = $rc_2757;
-                      }
-                    }
-                    $t49124 = { $: "Label", _0: $t49122, _1: 185., _2: 334., _3: 11., _4: "#ffd36b" };
-                  }
-                  {
-                    let $t49130;
-                    {
-                      let $t49129;
-                      {
-                        let $t49128;
-                        {
-                          let $t49127;
-                          {
-                            let $t49126;
-                            {
-                              const $t49125 = m.banner;
-                              $t49126 = $t49125.left;
-                            }
-                            $t49127 = ($t49126 < 999998.);
-                          }
-                          if ($t49127 === true) {
-                            $t49128 = pulse;
-                          } else {
-                            $t49128 = 0.2;
-                          }
-                        }
-                        $t49129 = Spin$Draw$rgba(255, 211, 107, $t49128);
-                      }
-                      $t49130 = { $: "Label", _0: "TAP OR PRESS SPACE", _1: 185., _2: 386., _3: 13., _4: $t49129 };
-                    }
-                    {
-                      const $t49131 = { $: "Nil" };
-                      {
-                        const $t49132 = { $: "Cons", _0: $t49130, _1: $t49131 };
-                        {
-                          const $t49133 = { $: "Cons", _0: $t49124, _1: $t49132 };
-                          {
-                            const $t49134 = { $: "Cons", _0: $t49119, _1: $t49133 };
-                            {
-                              const $t49135 = { $: "Cons", _0: $t49115, _1: $t49134 };
-                              return { $: "Cons", _0: $t49114, _1: $t49135 };
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        break;
-      }
-      default: {
-        return (() => { throw new Error("non-exhaustive pattern match"); })();
       }
     }
   }
 }
-const Spin$View$screen_ops$clo = { _0: ($_, m) => Spin$View$screen_ops(m) };
+const Spin$View$attract_ops$clo = { _0: ($_, m, touch) => Spin$View$attract_ops(m, touch) };
 
 function Spin$View$frame(m, touch) {
   {
-    const $t49141 = { $: "Clear", _0: "#07040f" };
+    const $t49331 = { $: "Clear", _0: "#07040f" };
     {
-      const $t49142 = { $: "Nil" };
+      const $t49332 = { $: "Nil" };
       {
-        const $t49143 = { $: "Cons", _0: $t49141, _1: $t49142 };
+        const $t49333 = { $: "Cons", _0: $t49331, _1: $t49332 };
         {
-          let $t49144;
-          $t49144 = Spin$View$field_ops(m);
+          let $t49334;
+          $t49334 = Spin$View$field_ops(m);
           {
-            let $t49145;
-            $t49145 = Spin$View$flash_ops(m);
+            let $t49335;
+            $t49335 = Spin$View$flash_ops(m);
             {
-              let $t49146;
+              let $t49336;
               {
-                let hot_i6207;
+                let hot_i6331;
                 {
-                  const $t48763_i6206 = m.win_glow;
-                  hot_i6207 = ($t48763_i6206 > 0.);
+                  const $t48763_i6330 = m.win_glow;
+                  hot_i6331 = ($t48763_i6330 > 0.);
                 }
                 {
-                  let speed_i6208;
-                  if (hot_i6207 === true) {
-                    speed_i6208 = 14.;
+                  let speed_i6332;
+                  if (hot_i6331 === true) {
+                    speed_i6332 = 14.;
                   } else {
-                    speed_i6208 = 3.;
+                    speed_i6332 = 3.;
                   }
                   {
-                    let head_i6210;
+                    let head_i6334;
                     {
-                      const $t48764_i6209 = m.clock;
-                      head_i6210 = ($t48764_i6209 * speed_i6208);
+                      const $t48764_i6333 = m.clock;
+                      head_i6334 = ($t48764_i6333 * speed_i6332);
                     }
                     {
-                      let $t48765_i6211;
+                      let $t48765_i6335;
                       {
-                        const go_i14804 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 0 };
+                        const go_i15091 = { $: "$Clo_go$0_List_range", _0: go$apply$0_List_range, _1: 0 };
                         {
-                          const $t926_i14805 = ((25 - 1) < 4611686018427387904 && (25 - 1) >= -4611686018427387904 ? (25 - 1) : march_int_ovf((25 - 1), 1));
+                          const $t926_i15092 = ((25 - 1) < 4611686018427387904 && (25 - 1) >= -4611686018427387904 ? (25 - 1) : march_int_ovf((25 - 1), 1));
                           {
-                            const $t927_i14806 = { $: "Nil" };
-                            $t48765_i6211 = go$apply$0_List_range(go_i14804, $t926_i14805, $t927_i14806);
+                            const $t927_i15093 = { $: "Nil" };
+                            $t48765_i6335 = go$apply$0_List_range(go_i15091, $t926_i15092, $t927_i15093);
                           }
                         }
                       }
                       {
-                        const $t48788_i6212 = { $: "$Clo_$lam0_Spin_View_chase_ops$0_Spin_View_chase_ops", _0: $lam0_Spin_View_chase_ops$apply$0_Spin_View_chase_ops, _1: head_i6210, _2: hot_i6207, _3: m };
-                        $t49146 = List$map$List_Int$Fn_Int_Op($t48765_i6211, $t48788_i6212);
+                        const $t48788_i6336 = { $: "$Clo_$lam0_Spin_View_chase_ops$0_Spin_View_chase_ops", _0: $lam0_Spin_View_chase_ops$apply$0_Spin_View_chase_ops, _1: head_i6334, _2: hot_i6331, _3: m };
+                        $t49336 = List$map$List_Int$Fn_Int_Op($t48765_i6335, $t48788_i6336);
                       }
                     }
                   }
                 }
               }
               {
-                let $t49147;
-                $t49147 = Spin$View$machine_ops(m);
+                let $t49337;
+                $t49337 = Spin$View$machine_ops(m);
                 {
-                  let $t49148;
-                  $t49148 = Spin$View$marquee_ops(m);
+                  let $t49338;
+                  $t49338 = Spin$View$marquee_ops(m);
                   {
-                    const $t49149 = m.table;
+                    const $t49339 = m.table;
                     {
-                      const $t49150 = $t49149.parts;
+                      const $t49340 = $t49339.parts;
                       {
-                        let $t49152;
-                        $t49152 = { $: "$Clo_$lam0_Spin_View_frame$0_Spin_View_frame", _0: $lam0_Spin_View_frame$apply$0_Spin_View_frame, _1: m };
+                        let $t49342;
+                        $t49342 = { $: "$Clo_$lam0_Spin_View_frame$0_Spin_View_frame", _0: $lam0_Spin_View_frame$apply$0_Spin_View_frame, _1: m };
                         {
-                          let $t49153;
+                          let $t49343;
                           {
-                            const xs_i13404 = $t49150;
+                            const xs_i13541 = $t49340;
                             {
-                              const f_i13405 = $t49152;
-                              switch (xs_i13404.$) {
+                              const f_i13542 = $t49342;
+                              switch (xs_i13541.$) {
                                 case "Nil": {
-                                  $t49153 = { $: "Nil" };
+                                  $t49343 = { $: "Nil" };
                                   break;
                                 }
                                 case "Cons": {
-                                  const $f1006_i13406 = xs_i13404._0;
-                                  const $f1007_i13407 = xs_i13404._1;
+                                  const $f1006_i13543 = xs_i13541._0;
+                                  const $f1007_i13544 = xs_i13541._1;
                                   {
-                                    const t_i13408 = $f1007_i13407;
+                                    const t_i13545 = $f1007_i13544;
                                     {
-                                      const h_i13409 = $f1006_i13406;
+                                      const h_i13546 = $f1006_i13543;
                                       {
-                                        let $t1004_i13410;
-                                        $t1004_i13410 = f_i13405._0(f_i13405, h_i13409);
+                                        let $t1004_i13547;
+                                        $t1004_i13547 = f_i13542._0(f_i13542, h_i13546);
                                         {
-                                          const $trmc15_i13411 = { $: "Cons", _0: $t1004_i13410, _1: null };
-                                          List$map$dps$List_Part$Fn_Part_List_Op$List_List_Op(t_i13408, f_i13405, $trmc15_i13411);
-                                          $t49153 = $trmc15_i13411;
+                                          const $trmc15_i13548 = { $: "Cons", _0: $t1004_i13547, _1: null };
+                                          List$map$dps$List_Part$Fn_Part_List_Op$List_List_Op(t_i13545, f_i13542, $trmc15_i13548);
+                                          $t49343 = $trmc15_i13548;
                                         }
                                       }
                                     }
@@ -19644,73 +20456,73 @@ function Spin$View$frame(m, touch) {
                             }
                           }
                           {
-                            let $t49154;
+                            let $t49344;
                             {
-                              const prepend_reversed_i6202 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                              const prepend_reversed_i6326 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
                               {
-                                const go_i6203 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6202 };
+                                const go_i6327 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6326 };
                                 {
-                                  const $t1124_i6204 = { $: "Nil" };
-                                  $t49154 = go$apply$1_List_concat_List_List_Op(go_i6203, $t49153, $t1124_i6204);
+                                  const $t1124_i6328 = { $: "Nil" };
+                                  $t49344 = go$apply$1_List_concat_List_List_Op(go_i6327, $t49343, $t1124_i6328);
                                 }
                               }
                             }
                             {
-                              let $t49155;
-                              $t49155 = Spin$View$plunger_ops(m, touch);
+                              let $t49345;
+                              $t49345 = Spin$View$plunger_ops(m, touch);
                               {
-                                let $t49157;
+                                let $t49347;
                                 {
-                                  const $t49156 = m.table;
-                                  $t49157 = $t49156.left;
+                                  const $t49346 = m.table;
+                                  $t49347 = $t49346.left;
                                 }
                                 {
-                                  const $t49158 = m.left;
+                                  const $t49348 = m.left;
                                   {
-                                    const $t49159 = Spin$View$flipper_ops($t49157, $t49158);
+                                    const $t49349 = Spin$View$flipper_ops($t49347, $t49348);
                                     {
-                                      let $t49161;
+                                      let $t49351;
                                       {
-                                        const $t49160 = m.table;
-                                        $t49161 = $t49160.right;
+                                        const $t49350 = m.table;
+                                        $t49351 = $t49350.right;
                                       }
                                       {
-                                        const $t49162 = m.right;
+                                        const $t49352 = m.right;
                                         {
-                                          const $t49163 = Spin$View$flipper_ops($t49161, $t49162);
+                                          const $t49353 = Spin$View$flipper_ops($t49351, $t49352);
                                           {
-                                            let $t49164;
+                                            let $t49354;
                                             {
-                                              const m_i13396 = m;
+                                              const m_i13533 = m;
                                               {
-                                                const $t48896_i13397 = m.sparks;
+                                                const $t48896_i13534 = m.sparks;
                                                 {
-                                                  const $t48910_i13398 = { $: "$Clo_$lam0_Spin_View_spark_ops$0_Spin_View_spark_ops", _0: $lam0_Spin_View_spark_ops$apply$0_Spin_View_spark_ops };
+                                                  const $t48910_i13535 = { $: "$Clo_$lam0_Spin_View_spark_ops$0_Spin_View_spark_ops", _0: $lam0_Spin_View_spark_ops$apply$0_Spin_View_spark_ops };
                                                   {
-                                                    let $t48911_i13399;
+                                                    let $t48911_i13536;
                                                     {
-                                                      const xs_i14869 = $t48896_i13397;
+                                                      const xs_i15164 = $t48896_i13534;
                                                       {
-                                                        const f_i14870 = $t48910_i13398;
-                                                        switch (xs_i14869.$) {
+                                                        const f_i15165 = $t48910_i13535;
+                                                        switch (xs_i15164.$) {
                                                           case "Nil": {
-                                                            $t48911_i13399 = { $: "Nil" };
+                                                            $t48911_i13536 = { $: "Nil" };
                                                             break;
                                                           }
                                                           case "Cons": {
-                                                            const $f1006_i14871 = xs_i14869._0;
-                                                            const $f1007_i14872 = xs_i14869._1;
+                                                            const $f1006_i15166 = xs_i15164._0;
+                                                            const $f1007_i15167 = xs_i15164._1;
                                                             {
-                                                              const t_i14873 = $f1007_i14872;
+                                                              const t_i15168 = $f1007_i15167;
                                                               {
-                                                                const h_i14874 = $f1006_i14871;
+                                                                const h_i15169 = $f1006_i15166;
                                                                 {
-                                                                  let $t1004_i14875;
-                                                                  $t1004_i14875 = f_i14870._0(f_i14870, h_i14874);
+                                                                  let $t1004_i15170;
+                                                                  $t1004_i15170 = f_i15165._0(f_i15165, h_i15169);
                                                                   {
-                                                                    const $trmc15_i14876 = { $: "Cons", _0: $t1004_i14875, _1: null };
-                                                                    List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Op$List_List_Op(t_i14873, f_i14870, $trmc15_i14876);
-                                                                    $t48911_i13399 = $trmc15_i14876;
+                                                                    const $trmc15_i15171 = { $: "Cons", _0: $t1004_i15170, _1: null };
+                                                                    List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Op$List_List_Op(t_i15168, f_i15165, $trmc15_i15171);
+                                                                    $t48911_i13536 = $trmc15_i15171;
                                                                   }
                                                                 }
                                                               }
@@ -19725,12 +20537,12 @@ function Spin$View$frame(m, touch) {
                                                       }
                                                     }
                                                     {
-                                                      const prepend_reversed_i5991_i13401 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                                                      const prepend_reversed_i5991_i13538 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
                                                       {
-                                                        const go_i5992_i13402 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i5991_i13401 };
+                                                        const go_i5992_i13539 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i5991_i13538 };
                                                         {
-                                                          const $t1124_i5993_i13403 = { $: "Nil" };
-                                                          $t49164 = go$apply$1_List_concat_List_List_Op(go_i5992_i13402, $t48911_i13399, $t1124_i5993_i13403);
+                                                          const $t1124_i5993_i13540 = { $: "Nil" };
+                                                          $t49354 = go$apply$1_List_concat_List_List_Op(go_i5992_i13539, $t48911_i13536, $t1124_i5993_i13540);
                                                         }
                                                       }
                                                     }
@@ -19739,38 +20551,38 @@ function Spin$View$frame(m, touch) {
                                               }
                                             }
                                             {
-                                              let $t49165;
+                                              let $t49355;
                                               {
-                                                const m_i13388 = m;
+                                                const m_i13525 = m;
                                                 {
-                                                  const $t48912_i13389 = m.pops;
+                                                  const $t48912_i13526 = m.pops;
                                                   {
-                                                    const $t48927_i13390 = { $: "$Clo_$lam0_Spin_View_pop_ops$0_Spin_View_pop_ops", _0: $lam0_Spin_View_pop_ops$apply$0_Spin_View_pop_ops };
+                                                    const $t48927_i13527 = { $: "$Clo_$lam0_Spin_View_pop_ops$0_Spin_View_pop_ops", _0: $lam0_Spin_View_pop_ops$apply$0_Spin_View_pop_ops };
                                                     {
-                                                      let $t48928_i13391;
+                                                      let $t48928_i13528;
                                                       {
-                                                        const xs_i14861 = $t48912_i13389;
+                                                        const xs_i15156 = $t48912_i13526;
                                                         {
-                                                          const f_i14862 = $t48927_i13390;
-                                                          switch (xs_i14861.$) {
+                                                          const f_i15157 = $t48927_i13527;
+                                                          switch (xs_i15156.$) {
                                                             case "Nil": {
-                                                              $t48928_i13391 = { $: "Nil" };
+                                                              $t48928_i13528 = { $: "Nil" };
                                                               break;
                                                             }
                                                             case "Cons": {
-                                                              const $f1006_i14863 = xs_i14861._0;
-                                                              const $f1007_i14864 = xs_i14861._1;
+                                                              const $f1006_i15158 = xs_i15156._0;
+                                                              const $f1007_i15159 = xs_i15156._1;
                                                               {
-                                                                const t_i14865 = $f1007_i14864;
+                                                                const t_i15160 = $f1007_i15159;
                                                                 {
-                                                                  const h_i14866 = $f1006_i14863;
+                                                                  const h_i15161 = $f1006_i15158;
                                                                   {
-                                                                    let $t1004_i14867;
-                                                                    $t1004_i14867 = f_i14862._0(f_i14862, h_i14866);
+                                                                    let $t1004_i15162;
+                                                                    $t1004_i15162 = f_i15157._0(f_i15157, h_i15161);
                                                                     {
-                                                                      const $trmc15_i14868 = { $: "Cons", _0: $t1004_i14867, _1: null };
-                                                                      List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String_List_Op$List_List_Op(t_i14865, f_i14862, $trmc15_i14868);
-                                                                      $t48928_i13391 = $trmc15_i14868;
+                                                                      const $trmc15_i15163 = { $: "Cons", _0: $t1004_i15162, _1: null };
+                                                                      List$map$dps$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$Fn_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String_List_Op$List_List_Op(t_i15160, f_i15157, $trmc15_i15163);
+                                                                      $t48928_i13528 = $trmc15_i15163;
                                                                     }
                                                                   }
                                                                 }
@@ -19785,12 +20597,12 @@ function Spin$View$frame(m, touch) {
                                                         }
                                                       }
                                                       {
-                                                        const prepend_reversed_i5995_i13393 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                                                        const prepend_reversed_i5995_i13530 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
                                                         {
-                                                          const go_i5996_i13394 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i5995_i13393 };
+                                                          const go_i5996_i13531 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i5995_i13530 };
                                                           {
-                                                            const $t1124_i5997_i13395 = { $: "Nil" };
-                                                            $t49165 = go$apply$1_List_concat_List_List_Op(go_i5996_i13394, $t48928_i13391, $t1124_i5997_i13395);
+                                                            const $t1124_i5997_i13532 = { $: "Nil" };
+                                                            $t49355 = go$apply$1_List_concat_List_List_Op(go_i5996_i13531, $t48928_i13528, $t1124_i5997_i13532);
                                                           }
                                                         }
                                                       }
@@ -19799,44 +20611,44 @@ function Spin$View$frame(m, touch) {
                                                 }
                                               }
                                               {
-                                                const $t49166 = { $: "Fade", _0: 1. };
+                                                const $t49356 = { $: "Fade", _0: 1. };
                                                 {
-                                                  const $t49167 = { $: "Nil" };
+                                                  const $t49357 = { $: "Nil" };
                                                   {
-                                                    const $t49168 = { $: "Cons", _0: $t49166, _1: $t49167 };
+                                                    const $t49358 = { $: "Cons", _0: $t49356, _1: $t49357 };
                                                     {
-                                                      let $t49169;
-                                                      $t49169 = Spin$View$banner_ops(m);
+                                                      let $t49359;
+                                                      $t49359 = Spin$View$banner_ops(m);
                                                       {
-                                                        const $t49170 = m.balls;
+                                                        const $t49360 = m.balls;
                                                         {
-                                                          let $t49172;
-                                                          $t49172 = { $: "$Clo_$lam1_Spin_View_frame$1_Spin_View_frame", _0: $lam1_Spin_View_frame$apply$1_Spin_View_frame, _1: m };
+                                                          let $t49362;
+                                                          $t49362 = { $: "$Clo_$lam1_Spin_View_frame$1_Spin_View_frame", _0: $lam1_Spin_View_frame$apply$1_Spin_View_frame, _1: m };
                                                           {
-                                                            let $t49173;
+                                                            let $t49363;
                                                             {
-                                                              const xs_i13380 = $t49170;
+                                                              const xs_i13517 = $t49360;
                                                               {
-                                                                const f_i13381 = $t49172;
-                                                                switch (xs_i13380.$) {
+                                                                const f_i13518 = $t49362;
+                                                                switch (xs_i13517.$) {
                                                                   case "Nil": {
-                                                                    $t49173 = { $: "Nil" };
+                                                                    $t49363 = { $: "Nil" };
                                                                     break;
                                                                   }
                                                                   case "Cons": {
-                                                                    const $f1006_i13382 = xs_i13380._0;
-                                                                    const $f1007_i13383 = xs_i13380._1;
+                                                                    const $f1006_i13519 = xs_i13517._0;
+                                                                    const $f1007_i13520 = xs_i13517._1;
                                                                     {
-                                                                      const t_i13384 = $f1007_i13383;
+                                                                      const t_i13521 = $f1007_i13520;
                                                                       {
-                                                                        const h_i13385 = $f1006_i13382;
+                                                                        const h_i13522 = $f1006_i13519;
                                                                         {
-                                                                          let $t1004_i13386;
-                                                                          $t1004_i13386 = f_i13381._0(f_i13381, h_i13385);
+                                                                          let $t1004_i13523;
+                                                                          $t1004_i13523 = f_i13518._0(f_i13518, h_i13522);
                                                                           {
-                                                                            const $trmc15_i13387 = { $: "Cons", _0: $t1004_i13386, _1: null };
-                                                                            List$map$dps$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Op$List_List_Op(t_i13384, f_i13381, $trmc15_i13387);
-                                                                            $t49173 = $trmc15_i13387;
+                                                                            const $trmc15_i13524 = { $: "Cons", _0: $t1004_i13523, _1: null };
+                                                                            List$map$dps$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Op$List_List_Op(t_i13521, f_i13518, $trmc15_i13524);
+                                                                            $t49363 = $trmc15_i13524;
                                                                           }
                                                                         }
                                                                       }
@@ -19851,115 +20663,115 @@ function Spin$View$frame(m, touch) {
                                                               }
                                                             }
                                                             {
-                                                              let $t49174;
+                                                              let $t49364;
                                                               {
-                                                                const prepend_reversed_i6198 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                                                                const prepend_reversed_i6322 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
                                                                 {
-                                                                  const go_i6199 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6198 };
+                                                                  const go_i6323 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6322 };
                                                                   {
-                                                                    const $t1124_i6200 = { $: "Nil" };
-                                                                    $t49174 = go$apply$1_List_concat_List_List_Op(go_i6199, $t49173, $t1124_i6200);
+                                                                    const $t1124_i6324 = { $: "Nil" };
+                                                                    $t49364 = go$apply$1_List_concat_List_List_Op(go_i6323, $t49363, $t1124_i6324);
                                                                   }
                                                                 }
                                                               }
                                                               {
-                                                                let $t49177;
+                                                                let $t49367;
                                                                 {
-                                                                  const $t49175 = m.mode;
+                                                                  const $t49365 = m.mode;
                                                                   {
-                                                                    const $t49176 = { $: "Playing" };
+                                                                    const $t49366 = { $: "Playing" };
                                                                     {
-                                                                      const $rc_2759 = march_deep_eq($t49175, $t49176);
-                                                                      $t49177 = $rc_2759;
+                                                                      const $rc_2761 = march_deep_eq($t49365, $t49366);
+                                                                      $t49367 = $rc_2761;
                                                                     }
                                                                   }
                                                                 }
                                                                 {
-                                                                  let $t49180;
-                                                                  if ($t49177 === true) {
+                                                                  let $t49370;
+                                                                  if ($t49367 === true) {
                                                                     {
-                                                                      let $t49178;
-                                                                      $t49178 = Spin$View$stage_ops(m);
+                                                                      let $t49368;
+                                                                      $t49368 = Spin$View$stage_ops(m);
                                                                       {
-                                                                        let $t49179;
-                                                                        $t49179 = Spin$View$buff_ops(m);
-                                                                        $t49180 = List$append$List_Op$List_Op($t49178, $t49179);
+                                                                        let $t49369;
+                                                                        $t49369 = Spin$View$buff_ops(m);
+                                                                        $t49370 = List$append$List_Op$List_Op($t49368, $t49369);
                                                                       }
                                                                     }
                                                                   } else {
-                                                                    $t49180 = { $: "Nil" };
+                                                                    $t49370 = { $: "Nil" };
                                                                   }
                                                                   {
-                                                                    let $t49181;
-                                                                    $t49181 = Spin$View$panel_ops(m);
+                                                                    let $t49371;
+                                                                    $t49371 = Spin$View$panel_ops(m);
                                                                     {
-                                                                      let $t49182;
+                                                                      let $t49372;
                                                                       if (touch === true) {
                                                                         {
-                                                                          const $t49136_i6193 = { $: "Label", _0: "tap left · tap right to flip", _1: 140., _2: 752., _3: 9., _4: "rgba(185,166,255,0.55)" };
+                                                                          const $t49326_i6317 = { $: "Label", _0: "tap left · tap right to flip", _1: 140., _2: 752., _3: 9., _4: "rgba(185,166,255,0.55)" };
                                                                           {
-                                                                            const $t49137_i6194 = { $: "Nil" };
-                                                                            $t49182 = { $: "Cons", _0: $t49136_i6193, _1: $t49137_i6194 };
+                                                                            const $t49327_i6318 = { $: "Nil" };
+                                                                            $t49372 = { $: "Cons", _0: $t49326_i6317, _1: $t49327_i6318 };
                                                                           }
                                                                         }
                                                                       } else {
                                                                         {
-                                                                          const $t49138_i6195 = { $: "Label", _0: "Z / ←  left    right  → / M    SPACE launch", _1: 185., _2: 752., _3: 7.5, _4: "rgba(185,166,255,0.45)" };
+                                                                          const $t49328_i6319 = { $: "Label", _0: "Z / ←  left    right  → / M    SPACE launch", _1: 185., _2: 752., _3: 7.5, _4: "rgba(185,166,255,0.45)" };
                                                                           {
-                                                                            const $t49139_i6196 = { $: "Nil" };
-                                                                            $t49182 = { $: "Cons", _0: $t49138_i6195, _1: $t49139_i6196 };
+                                                                            const $t49329_i6320 = { $: "Nil" };
+                                                                            $t49372 = { $: "Cons", _0: $t49328_i6319, _1: $t49329_i6320 };
                                                                           }
                                                                         }
                                                                       }
                                                                       {
-                                                                        const $t49183 = Spin$View$screen_ops(m);
+                                                                        const $t49373 = Spin$View$screen_ops(m, touch);
                                                                         {
-                                                                          const $t49184 = { $: "Nil" };
+                                                                          const $t49374 = { $: "Nil" };
                                                                           {
-                                                                            const $t49185 = { $: "Cons", _0: $t49183, _1: $t49184 };
+                                                                            const $t49375 = { $: "Cons", _0: $t49373, _1: $t49374 };
                                                                             {
-                                                                              const $t49186 = { $: "Cons", _0: $t49182, _1: $t49185 };
+                                                                              const $t49376 = { $: "Cons", _0: $t49372, _1: $t49375 };
                                                                               {
-                                                                                const $t49187 = { $: "Cons", _0: $t49181, _1: $t49186 };
+                                                                                const $t49377 = { $: "Cons", _0: $t49371, _1: $t49376 };
                                                                                 {
-                                                                                  const $t49188 = { $: "Cons", _0: $t49180, _1: $t49187 };
+                                                                                  const $t49378 = { $: "Cons", _0: $t49370, _1: $t49377 };
                                                                                   {
-                                                                                    const $t49189 = { $: "Cons", _0: $t49174, _1: $t49188 };
+                                                                                    const $t49379 = { $: "Cons", _0: $t49364, _1: $t49378 };
                                                                                     {
-                                                                                      const $t49190 = { $: "Cons", _0: $t49169, _1: $t49189 };
+                                                                                      const $t49380 = { $: "Cons", _0: $t49359, _1: $t49379 };
                                                                                       {
-                                                                                        const $t49191 = { $: "Cons", _0: $t49168, _1: $t49190 };
+                                                                                        const $t49381 = { $: "Cons", _0: $t49358, _1: $t49380 };
                                                                                         {
-                                                                                          const $t49192 = { $: "Cons", _0: $t49165, _1: $t49191 };
+                                                                                          const $t49382 = { $: "Cons", _0: $t49355, _1: $t49381 };
                                                                                           {
-                                                                                            const $t49193 = { $: "Cons", _0: $t49164, _1: $t49192 };
+                                                                                            const $t49383 = { $: "Cons", _0: $t49354, _1: $t49382 };
                                                                                             {
-                                                                                              const $t49194 = { $: "Cons", _0: $t49163, _1: $t49193 };
+                                                                                              const $t49384 = { $: "Cons", _0: $t49353, _1: $t49383 };
                                                                                               {
-                                                                                                const $t49195 = { $: "Cons", _0: $t49159, _1: $t49194 };
+                                                                                                const $t49385 = { $: "Cons", _0: $t49349, _1: $t49384 };
                                                                                                 {
-                                                                                                  const $t49196 = { $: "Cons", _0: $t49155, _1: $t49195 };
+                                                                                                  const $t49386 = { $: "Cons", _0: $t49345, _1: $t49385 };
                                                                                                   {
-                                                                                                    const $t49197 = { $: "Cons", _0: $t49154, _1: $t49196 };
+                                                                                                    const $t49387 = { $: "Cons", _0: $t49344, _1: $t49386 };
                                                                                                     {
-                                                                                                      const $t49198 = { $: "Cons", _0: $t49148, _1: $t49197 };
+                                                                                                      const $t49388 = { $: "Cons", _0: $t49338, _1: $t49387 };
                                                                                                       {
-                                                                                                        const $t49199 = { $: "Cons", _0: $t49147, _1: $t49198 };
+                                                                                                        const $t49389 = { $: "Cons", _0: $t49337, _1: $t49388 };
                                                                                                         {
-                                                                                                          const $t49200 = { $: "Cons", _0: $t49146, _1: $t49199 };
+                                                                                                          const $t49390 = { $: "Cons", _0: $t49336, _1: $t49389 };
                                                                                                           {
-                                                                                                            const $t49201 = { $: "Cons", _0: $t49145, _1: $t49200 };
+                                                                                                            const $t49391 = { $: "Cons", _0: $t49335, _1: $t49390 };
                                                                                                             {
-                                                                                                              const $t49202 = { $: "Cons", _0: $t49144, _1: $t49201 };
+                                                                                                              const $t49392 = { $: "Cons", _0: $t49334, _1: $t49391 };
                                                                                                               {
-                                                                                                                const $t49203 = { $: "Cons", _0: $t49143, _1: $t49202 };
+                                                                                                                const $t49393 = { $: "Cons", _0: $t49333, _1: $t49392 };
                                                                                                                 {
-                                                                                                                  const prepend_reversed_i6189 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
+                                                                                                                  const prepend_reversed_i6313 = { $: "$Clo_prepend_reversed$0_List_concat_List_List_Op", _0: prepend_reversed$apply$0_List_concat_List_List_Op };
                                                                                                                   {
-                                                                                                                    const go_i6190 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6189 };
+                                                                                                                    const go_i6314 = { $: "$Clo_go$1_List_concat_List_List_Op", _0: go$apply$1_List_concat_List_List_Op, _1: prepend_reversed_i6313 };
                                                                                                                     {
-                                                                                                                      const $t1124_i6191 = { $: "Nil" };
-                                                                                                                      return go$apply$1_List_concat_List_List_Op(go_i6190, $t49203, $t1124_i6191);
+                                                                                                                      const $t1124_i6315 = { $: "Nil" };
+                                                                                                                      return go$apply$1_List_concat_List_List_Op(go_i6314, $t49393, $t1124_i6315);
                                                                                                                     }
                                                                                                                   }
                                                                                                                 }
@@ -20036,12 +20848,12 @@ function sound(c) {
       break;
     }
     case "CueLoad": {
-      const $f49209 = c._0;
+      const $f49399 = c._0;
       {
-        const n = $f49209;
+        const n = $f49399;
         {
-          const $t49204 = n;
-          return { _0: "load", _1: $t49204 };
+          const $t49394 = n;
+          return { _0: "load", _1: $t49394 };
         }
       }
       break;
@@ -20055,12 +20867,12 @@ function sound(c) {
       break;
     }
     case "CueReelStop": {
-      const $f49210 = c._0;
+      const $f49400 = c._0;
       {
-        const i = $f49210;
+        const i = $f49400;
         {
-          const $t49205 = i;
-          return { _0: "reelstop", _1: $t49205 };
+          const $t49395 = i;
+          return { _0: "reelstop", _1: $t49395 };
         }
       }
       break;
@@ -20070,12 +20882,12 @@ function sound(c) {
       break;
     }
     case "CueWin": {
-      const $f49211 = c._0;
+      const $f49401 = c._0;
       {
-        const n = $f49211;
+        const n = $f49401;
         {
-          const $t49206 = n;
-          return { _0: "win", _1: $t49206 };
+          const $t49396 = n;
+          return { _0: "win", _1: $t49396 };
         }
       }
       break;
@@ -20105,12 +20917,12 @@ function sound(c) {
       break;
     }
     case "CueBurn": {
-      const $f49212 = c._0;
+      const $f49402 = c._0;
       {
-        const n = $f49212;
+        const n = $f49402;
         {
-          const $t49207 = n;
-          return { _0: "burn", _1: $t49207 };
+          const $t49397 = n;
+          return { _0: "burn", _1: $t49397 };
         }
       }
       break;
@@ -20124,15 +20936,15 @@ function sound(c) {
       break;
     }
     case "CueThud": {
-      const $f49213 = c._0;
+      const $f49403 = c._0;
       {
-        const speed = $f49213;
+        const speed = $f49403;
         return { _0: "thud", _1: speed };
       }
       break;
     }
     case "CueStore": {
-      const $f49214 = c._0;
+      const $f49404 = c._0;
       return { _0: "", _1: 0. };
       break;
     }
@@ -20141,12 +20953,12 @@ function sound(c) {
       break;
     }
     case "CueBuff": {
-      const $f49215 = c._0;
+      const $f49405 = c._0;
       {
-        const tier = $f49215;
+        const tier = $f49405;
         {
-          const $t49208 = tier;
-          return { _0: "buff", _1: $t49208 };
+          const $t49398 = tier;
+          return { _0: "buff", _1: $t49398 };
         }
       }
       break;
@@ -20161,20 +20973,20 @@ const sound$clo = { _0: ($_, c) => sound(c) };
 function perform(c) {
   switch (c.$) {
     case "CueStore": {
-      const $f49217 = c._0;
+      const $f49407 = c._0;
       {
-        const best = $f49217;
+        const best = $f49407;
         return glue_save_best$clo._0(glue_save_best$clo, best);
       }
       break;
     }
     default: {
       {
-        const $p49216 = sound(c);
+        const $p49406 = sound(c);
         {
-          const name = $p49216._0;
+          const name = $p49406._0;
           {
-            const x = $p49216._1;
+            const x = $p49406._1;
             return glue_sound$clo._0(glue_sound$clo, name, x);
           }
         }
@@ -20188,20 +21000,20 @@ function mark(m, flips) {
   {
     let $eff;
     {
-      let $t49223;
+      let $t49413;
       {
-        const $t49222 = m.mode;
-        switch ($t49222.$) {
+        const $t49412 = m.mode;
+        switch ($t49412.$) {
           case "Attract": {
-            $t49223 = "attract";
+            $t49413 = "attract";
             break;
           }
           case "Playing": {
-            $t49223 = "playing";
+            $t49413 = "playing";
             break;
           }
           case "Busted": {
-            $t49223 = "busted";
+            $t49413 = "busted";
             break;
           }
           default: {
@@ -20211,7 +21023,40 @@ function mark(m, flips) {
         }
       }
       {
-        const $rc_2766 = glue_mark$clo._0(glue_mark$clo, "data-mode", $t49223);
+        const $rc_2768 = glue_mark$clo._0(glue_mark$clo, "data-mode", $t49413);
+        $eff = $rc_2768;
+      }
+    }
+  }
+  {
+    let $eff;
+    {
+      let $t49415;
+      {
+        const $t49414 = m.credits;
+        $t49415 = String($t49414);
+      }
+      {
+        const $rc_2767 = glue_mark$clo._0(glue_mark$clo, "data-credits", $t49415);
+        $eff = $rc_2767;
+      }
+    }
+  }
+  {
+    let $eff;
+    {
+      let $t49418;
+      {
+        let $t49417;
+        {
+          const $t49416 = m.balls;
+          {  };
+          $t49417 = List$length_onto$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Int($t49416, 0);
+        }
+        $t49418 = String($t49417);
+      }
+      {
+        const $rc_2766 = glue_mark$clo._0(glue_mark$clo, "data-balls", $t49418);
         $eff = $rc_2766;
       }
     }
@@ -20219,13 +21064,17 @@ function mark(m, flips) {
   {
     let $eff;
     {
-      let $t49225;
+      let $t49421;
       {
-        const $t49224 = m.credits;
-        $t49225 = String($t49224);
+        let $t49420;
+        {
+          const $t49419 = m.bank;
+          $t49420 = $t49419.banked;
+        }
+        $t49421 = String($t49420);
       }
       {
-        const $rc_2765 = glue_mark$clo._0(glue_mark$clo, "data-credits", $t49225);
+        const $rc_2765 = glue_mark$clo._0(glue_mark$clo, "data-banked", $t49421);
         $eff = $rc_2765;
       }
     }
@@ -20233,18 +21082,13 @@ function mark(m, flips) {
   {
     let $eff;
     {
-      let $t49228;
+      let $t49423;
       {
-        let $t49227;
-        {
-          const $t49226 = m.balls;
-          {  };
-          $t49227 = List$length_onto$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Int($t49226, 0);
-        }
-        $t49228 = String($t49227);
+        const $t49422 = m.paid;
+        $t49423 = String($t49422);
       }
       {
-        const $rc_2764 = glue_mark$clo._0(glue_mark$clo, "data-balls", $t49228);
+        const $rc_2764 = glue_mark$clo._0(glue_mark$clo, "data-paid", $t49423);
         $eff = $rc_2764;
       }
     }
@@ -20252,58 +21096,26 @@ function mark(m, flips) {
   {
     let $eff;
     {
-      let $t49231;
+      let $t49425;
       {
-        let $t49230;
-        {
-          const $t49229 = m.bank;
-          $t49230 = $t49229.banked;
+        const $t49424 = Spin$Game$waiting(m);
+        if ($t49424 === true) {
+          $t49425 = "1";
+        } else {
+          $t49425 = "0";
         }
-        $t49231 = String($t49230);
       }
       {
-        const $rc_2763 = glue_mark$clo._0(glue_mark$clo, "data-banked", $t49231);
+        const $rc_2763 = glue_mark$clo._0(glue_mark$clo, "data-waiting", $t49425);
         $eff = $rc_2763;
       }
     }
   }
   {
-    let $eff;
+    const $t49426 = String(flips);
     {
-      let $t49233;
-      {
-        const $t49232 = m.paid;
-        $t49233 = String($t49232);
-      }
-      {
-        const $rc_2762 = glue_mark$clo._0(glue_mark$clo, "data-paid", $t49233);
-        $eff = $rc_2762;
-      }
-    }
-  }
-  {
-    let $eff;
-    {
-      let $t49235;
-      {
-        const $t49234 = Spin$Game$waiting(m);
-        if ($t49234 === true) {
-          $t49235 = "1";
-        } else {
-          $t49235 = "0";
-        }
-      }
-      {
-        const $rc_2761 = glue_mark$clo._0(glue_mark$clo, "data-waiting", $t49235);
-        $eff = $rc_2761;
-      }
-    }
-  }
-  {
-    const $t49236 = String(flips);
-    {
-      const $rc_2760 = glue_mark$clo._0(glue_mark$clo, "data-flips", $t49236);
-      return $rc_2760;
+      const $rc_2762 = glue_mark$clo._0(glue_mark$clo, "data-flips", $t49426);
+      return $rc_2762;
     }
   }
 }
@@ -20315,15 +21127,15 @@ function frame(t) {
     {
       let dt;
       {
-        let $t49238;
+        let $t49428;
         {
-          const $t49237 = s.last_t;
-          $t49238 = ($t49237 > 0.);
+          const $t49427 = s.last_t;
+          $t49428 = ($t49427 > 0.);
         }
-        if ($t49238 === true) {
+        if ($t49428 === true) {
           {
-            const $t49239 = s.last_t;
-            dt = (t - $t49239);
+            const $t49429 = s.last_t;
+            dt = (t - $t49429);
           }
         } else {
           dt = 0.;
@@ -20332,134 +21144,134 @@ function frame(t) {
       {
         let $eff;
         {
-          let $t49246;
+          let $t49436;
           {
-            let $t49241;
+            let $t49431;
             {
-              const $t49240 = s.model;
-              $t49241 = Spin$Game$waiting($t49240);
+              const $t49430 = s.model;
+              $t49431 = Spin$Game$waiting($t49430);
             }
             {
-              let $t49245;
+              let $t49435;
               {
-                let $t49243;
+                let $t49433;
                 {
-                  const $t49242 = s.model;
-                  $t49243 = $t49242.mode;
+                  const $t49432 = s.model;
+                  $t49433 = $t49432.mode;
                 }
                 {
-                  const $t49244 = { $: "Playing" };
+                  const $t49434 = { $: "Playing" };
                   {
-                    const $rc_2770 = march_deep_eq($t49243, $t49244);
-                    $t49245 = $rc_2770;
+                    const $rc_2772 = march_deep_eq($t49433, $t49434);
+                    $t49435 = $rc_2772;
                   }
                 }
               }
-              $t49246 = ($t49241 && $t49245);
+              $t49436 = ($t49431 && $t49435);
             }
           }
-          $eff = glue_launch_button$clo._0(glue_launch_button$clo, 306., 724., 30., $t49246);
+          $eff = glue_launch_button$clo._0(glue_launch_button$clo, 306., 724., 30., $t49436);
         }
       }
       {
-        const $p49263 = glue_input();
+        const $p49453 = glue_input();
         {
-          const l = $p49263._0;
+          const l = $p49453._0;
           {
-            const r = $p49263._1;
+            const r = $p49453._1;
             {
-              const launch = $p49263._2;
+              const launch = $p49453._2;
               {
-                const start = $p49263._3;
+                const start = $p49453._3;
                 {
-                  let $p49262;
+                  let $p49452;
                   {
-                    const $t49247 = s.model;
+                    const $t49437 = s.model;
                     {
-                      const $t49248 = ({ left: l, right: r, launch: launch, start: start });
-                      $p49262 = Spin$Game$tick($t49247, $t49248, dt);
+                      const $t49438 = ({ left: l, right: r, launch: launch, start: start });
+                      $p49452 = Spin$Game$tick($t49437, $t49438, dt);
                     }
                   }
                   {
-                    const m = $p49262._0;
+                    const m = $p49452._0;
                     {
-                      const cues = $p49262._1;
+                      const cues = $p49452._1;
                       {
                         let flips;
                         {
-                          const $t49249 = s.flips;
+                          const $t49439 = s.flips;
                           {
-                            let $t49253;
+                            let $t49443;
                             {
-                              const $t49251 = { $: "$Clo_$lam0_frame$0_frame", _0: $lam0_frame$apply$0_frame };
+                              const $t49441 = { $: "$Clo_$lam0_frame$0_frame", _0: $lam0_frame$apply$0_frame };
                               {
-                                let $t49252;
-                                $t49252 = List$filter$List_Cue$Fn_Cue_Bool(cues, $t49251);
+                                let $t49442;
+                                $t49442 = List$filter$List_Cue$Fn_Cue_Bool(cues, $t49441);
                                 {
-                                  let $rc_2769;
+                                  let $rc_2771;
                                   {  };
-                                  $rc_2769 = List$length_onto$List_Cue$Int($t49252, 0);
-                                  $t49253 = $rc_2769;
+                                  $rc_2771 = List$length_onto$List_Cue$Int($t49442, 0);
+                                  $t49443 = $rc_2771;
                                 }
                               }
                             }
-                            flips = (($t49249 + $t49253) < 4611686018427387904 && ($t49249 + $t49253) >= -4611686018427387904 ? ($t49249 + $t49253) : march_int_ovf(($t49249 + $t49253), 0));
+                            flips = (($t49439 + $t49443) < 4611686018427387904 && ($t49439 + $t49443) >= -4611686018427387904 ? ($t49439 + $t49443) : march_int_ovf(($t49439 + $t49443), 0));
                           }
                         }
                         {
                           let $eff;
                           {
-                            let $t49254;
-                            $t49254 = ({ ...s, model: m, last_t: t, flips: flips });
+                            let $t49444;
+                            $t49444 = ({ ...s, model: m, last_t: t, flips: flips });
                             {
-                              const $rc_2768 = glue_cell_put$clo._0(glue_cell_put$clo, $t49254);
-                              $eff = $rc_2768;
+                              const $rc_2770 = glue_cell_put$clo._0(glue_cell_put$clo, $t49444);
+                              $eff = $rc_2770;
                             }
                           }
                         }
                         {
                           let $eff;
                           {
-                            const f_i6216 = perform$clo;
+                            const f_i6340 = perform$clo;
                             {
-                              const go_i6217 = { $: "$Clo_go$0_List_each_List_Cue_Fn_Cue_T_", _0: go$apply$0_List_each_List_Cue_Fn_Cue_T_, _1: f_i6216 };
-                              $eff = go$apply$0_List_each_List_Cue_Fn_Cue_T_(go_i6217, cues);
+                              const go_i6341 = { $: "$Clo_go$0_List_each_List_Cue_Fn_Cue_T_", _0: go$apply$0_List_each_List_Cue_Fn_Cue_T_, _1: f_i6340 };
+                              $eff = go$apply$0_List_each_List_Cue_Fn_Cue_T_(go_i6341, cues);
                             }
                           }
                         }
                         {
-                          let $p49261;
+                          let $p49451;
                           {
-                            const $t47908_i6214 = (-96.);
-                            $p49261 = { _0: 0., _1: $t47908_i6214, _2: 400., _3: 866. };
+                            const $t47908_i6338 = (-96.);
+                            $p49451 = { _0: 0., _1: $t47908_i6338, _2: 400., _3: 866. };
                           }
                           {
-                            const x = $p49261._0;
+                            const x = $p49451._0;
                             {
-                              const y = $p49261._1;
+                              const y = $p49451._1;
                               {
-                                const w = $p49261._2;
+                                const w = $p49451._2;
                                 {
-                                  const h = $p49261._3;
+                                  const h = $p49451._3;
                                   {
                                     let $eff;
                                     {
-                                      const $t49255 = s.canvas;
-                                      $eff = glue_fit$clo._0(glue_fit$clo, $t49255, x, y, w, h);
+                                      const $t49445 = s.canvas;
+                                      $eff = glue_fit$clo._0(glue_fit$clo, $t49445, x, y, w, h);
                                     }
                                   }
                                   {
                                     let $eff;
                                     {
-                                      const $t49256 = s.ctx;
+                                      const $t49446 = s.ctx;
                                       {
-                                        const $t49257 = glue_touch();
+                                        const $t49447 = glue_touch();
                                         {
-                                          let $t49258;
-                                          $t49258 = Spin$View$frame(m, $t49257);
+                                          let $t49448;
+                                          $t49448 = Spin$View$frame(m, $t49447);
                                           {
-                                            const $rc_2767 = glue_paint$clo._0(glue_paint$clo, $t49256, $t49258);
-                                            $eff = $rc_2767;
+                                            const $rc_2769 = glue_paint$clo._0(glue_paint$clo, $t49446, $t49448);
+                                            $eff = $rc_2769;
                                           }
                                         }
                                       }
@@ -20470,8 +21282,8 @@ function frame(t) {
                                     $eff = mark(m, flips);
                                   }
                                   {
-                                    const $t49260 = { $: "$Clo_$lam1_frame$1_frame", _0: $lam1_frame$apply$1_frame };
-                                    return glue_request_frame$clo._0(glue_request_frame$clo, $t49260);
+                                    const $t49450 = { $: "$Clo_$lam1_frame$1_frame", _0: $lam1_frame$apply$1_frame };
+                                    return glue_request_frame$clo._0(glue_request_frame$clo, $t49450);
                                   }
                                 }
                               }
@@ -20496,19 +21308,19 @@ function launch() {
   {
     let canvas;
     {
-      let $t49265;
+      let $t49455;
       {
-        const id_i13422 = "table";
+        const id_i13559 = "table";
         {
-          const $rc_2410_i13423 = dom_get_element_by_id$clo._0(dom_get_element_by_id$clo, "table");
-          $t49265 = $rc_2410_i13423;
+          const $rc_2410_i13560 = dom_get_element_by_id$clo._0(dom_get_element_by_id$clo, "table");
+          $t49455 = $rc_2410_i13560;
         }
       }
-      switch ($t49265.$) {
+      switch ($t49455.$) {
         case "Some": {
-          const $f49266 = $t49265._0;
+          const $f49456 = $t49455._0;
           {
-            const node = $f49266;
+            const node = $f49456;
             canvas = node;
           }
           break;
@@ -20527,19 +21339,19 @@ function launch() {
     {
       let ctx;
       {
-        let $t49267;
+        let $t49457;
         {
-          const node_i13420 = canvas;
+          const node_i13557 = canvas;
           {
-            const $rc_2456_i13421 = canvas_get_context$clo._0(canvas_get_context$clo, canvas);
-            $t49267 = $rc_2456_i13421;
+            const $rc_2456_i13558 = canvas_get_context$clo._0(canvas_get_context$clo, canvas);
+            $t49457 = $rc_2456_i13558;
           }
         }
-        switch ($t49267.$) {
+        switch ($t49457.$) {
           case "Some": {
-            const $f49268 = $t49267._0;
+            const $f49458 = $t49457._0;
             {
-              const c = $f49268;
+              const c = $f49458;
               ctx = c;
             }
             break;
@@ -20556,62 +21368,62 @@ function launch() {
         }
       }
       {
-        const $p49276 = glue_seed_limbs();
+        const $p49466 = glue_seed_limbs();
         {
-          const hi = $p49276._0;
+          const hi = $p49466._0;
           {
-            const lo = $p49276._1;
+            const lo = $p49466._1;
             {
               let model;
               {
-                let $t49271;
+                let $t49461;
                 {
-                  let $t49269;
+                  let $t49459;
                   {
-                    let $t45832_i6221;
+                    let $t45832_i6345;
                     {
-                      let $t45825_i14812;
+                      let $t45825_i15099;
                       {
-                        const $t45824_i14811 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                        $t45825_i14812 = (($t45824_i14811 - 1) < 4611686018427387904 && ($t45824_i14811 - 1) >= -4611686018427387904 ? ($t45824_i14811 - 1) : march_int_ovf(($t45824_i14811 - 1), 1));
+                        const $t45824_i15098 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                        $t45825_i15099 = (($t45824_i15098 - 1) < 4611686018427387904 && ($t45824_i15098 - 1) >= -4611686018427387904 ? ($t45824_i15098 - 1) : march_int_ovf(($t45824_i15098 - 1), 1));
                       }
-                      $t45832_i6221 = ((hi | 0) === hi && ($t45825_i14812 | 0) === $t45825_i14812 ? (hi & $t45825_i14812) : march_int_and(hi, $t45825_i14812));
+                      $t45832_i6345 = ((hi | 0) === hi && ($t45825_i15099 | 0) === $t45825_i15099 ? (hi & $t45825_i15099) : march_int_and(hi, $t45825_i15099));
                     }
                     {
-                      let $t45833_i6222;
+                      let $t45833_i6346;
                       {
-                        let $t45825_i14809;
+                        let $t45825_i15096;
                         {
-                          const $t45824_i14808 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
-                          $t45825_i14809 = (($t45824_i14808 - 1) < 4611686018427387904 && ($t45824_i14808 - 1) >= -4611686018427387904 ? ($t45824_i14808 - 1) : march_int_ovf(($t45824_i14808 - 1), 1));
+                          const $t45824_i15095 = ((65536 * 65536) < 4611686018427387904 && (65536 * 65536) >= -4611686018427387904 ? (65536 * 65536) : march_int_ovf((65536 * 65536), 2));
+                          $t45825_i15096 = (($t45824_i15095 - 1) < 4611686018427387904 && ($t45824_i15095 - 1) >= -4611686018427387904 ? ($t45824_i15095 - 1) : march_int_ovf(($t45824_i15095 - 1), 1));
                         }
-                        $t45833_i6222 = ((lo | 0) === lo && ($t45825_i14809 | 0) === $t45825_i14809 ? (lo & $t45825_i14809) : march_int_and(lo, $t45825_i14809));
+                        $t45833_i6346 = ((lo | 0) === lo && ($t45825_i15096 | 0) === $t45825_i15096 ? (lo & $t45825_i15096) : march_int_and(lo, $t45825_i15096));
                       }
-                      $t49269 = ({ hi: $t45832_i6221, lo: $t45833_i6222 });
+                      $t49459 = ({ hi: $t45832_i6345, lo: $t45833_i6346 });
                     }
                   }
                   {
-                    const $t49270 = glue_load_best();
-                    $t49271 = Spin$Game$boot($t49269, $t49270);
+                    const $t49460 = glue_load_best();
+                    $t49461 = Spin$Game$boot($t49459, $t49460);
                   }
                 }
                 {
-                  const $t49272 = glue_start_stage();
+                  const $t49462 = glue_start_stage();
                   {
-                    const m_i13413 = $t49271;
+                    const m_i13550 = $t49461;
                     {
-                      let $t46188_i13418;
+                      let $t46188_i13555;
                       {
-                        const $t2474_i5327_i13417 = (0 > $t49272);
-                        if ($t2474_i5327_i13417 === true) {
-                          $t46188_i13418 = 0;
+                        const $t2474_i5327_i13554 = (0 > $t49462);
+                        if ($t2474_i5327_i13554 === true) {
+                          $t46188_i13555 = 0;
                         } else {
-                          $t46188_i13418 = $t49272;
+                          $t46188_i13555 = $t49462;
                         }
                       }
                       {
-                        const $rc_2508_i13419 = ({ ...$t49271, start_stage: $t46188_i13418 });
-                        model = $rc_2508_i13419;
+                        const $rc_2508_i13556 = ({ ...$t49461, start_stage: $t46188_i13555 });
+                        model = $rc_2508_i13556;
                       }
                     }
                   }
@@ -20620,24 +21432,24 @@ function launch() {
               {
                 let $eff;
                 {
-                  let $t49273;
-                  $t49273 = ({ model: model, ctx: ctx, canvas: canvas, last_t: 0., flips: 0 });
+                  let $t49463;
+                  $t49463 = ({ model: model, ctx: ctx, canvas: canvas, last_t: 0., flips: 0 });
                   {
-                    const $rc_2772 = glue_cell_put$clo._0(glue_cell_put$clo, $t49273);
-                    $eff = $rc_2772;
+                    const $rc_2774 = glue_cell_put$clo._0(glue_cell_put$clo, $t49463);
+                    $eff = $rc_2774;
                   }
                 }
               }
               {
                 let $eff;
                 {
-                  const $rc_2771 = glue_listen$clo._0(glue_listen$clo, canvas);
-                  $eff = $rc_2771;
+                  const $rc_2773 = glue_listen$clo._0(glue_listen$clo, canvas);
+                  $eff = $rc_2773;
                 }
               }
               {
-                const $t49275 = { $: "$Clo_$lam0_launch$0_launch", _0: $lam0_launch$apply$0_launch };
-                return glue_request_frame$clo._0(glue_request_frame$clo, $t49275);
+                const $t49465 = { $: "$Clo_$lam0_launch$0_launch", _0: $lam0_launch$apply$0_launch };
+                return glue_request_frame$clo._0(glue_request_frame$clo, $t49465);
               }
             }
           }
@@ -21789,6 +22601,56 @@ function List$filter$List_Cue$Fn_Cue_Bool($tco_a0, $tco_a1) {
 }
 const List$filter$List_Cue$Fn_Cue_Bool$clo = { _0: ($_, xs, pred) => List$filter$List_Cue$Fn_Cue_Bool(xs, pred) };
 
+function List$map$dps$List_Int$Fn_Int_String$List_String($tco_a0, $tco_a1, $tco_a2) {
+  __tco: for (;;) {
+    const xs = $tco_a0;
+    const f = $tco_a1;
+    const $dst = $tco_a2;
+    switch (xs.$) {
+      case "Nil": {
+        {
+          const $trmc13 = { $: "Nil" };
+          return ($dst._1 = $trmc13, undefined);
+        }
+        break;
+      }
+      case "Cons": {
+        const $f1006 = xs._0;
+        const $f1007 = xs._1;
+        {
+          const t = $f1007;
+          {
+            const h = $f1006;
+            {
+              let $t1004;
+              $t1004 = f._0(f, h);
+              {
+                const $trmc14 = { $: "Cons", _0: $t1004, _1: null };
+                ($dst._1 = $trmc14, undefined);
+                {
+                  $tco_a0 = t;
+                  $tco_a1 = f;
+                  $tco_a2 = $trmc14;
+                  continue __tco;
+                }
+              }
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        {
+          const $trmc12 = (() => { throw new Error("non-exhaustive pattern match"); })();
+          return ($dst._1 = $trmc12, undefined);
+        }
+      }
+    }
+    return undefined;
+  }
+}
+const List$map$dps$List_Int$Fn_Int_String$List_String$clo = { _0: ($_, xs, f, $dst) => List$map$dps$List_Int$Fn_Int_String$List_String(xs, f, $dst) };
+
 function List$length_onto$List_Float$Int($tco_a0, $tco_a1) {
   __tco: for (;;) {
     const lst = $tco_a0;
@@ -22377,15 +23239,15 @@ function List$take_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_ve
       const $t1238 = (k <= 0);
       if ($t1238 === true) {
         {
-          const $t989_i8041 = { $: "Nil" };
-          return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(acc, $t989_i8041);
+          const $t989_i8165 = { $: "Nil" };
+          return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(acc, $t989_i8165);
         }
       } else {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i8039 = { $: "Nil" };
-              return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(acc, $t989_i8039);
+              const $t989_i8163 = { $: "Nil" };
+              return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float(acc, $t989_i8163);
             }
             break;
           }
@@ -22525,15 +23387,15 @@ function List$take_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_te
       const $t1238 = (k <= 0);
       if ($t1238 === true) {
         {
-          const $t989_i8045 = { $: "Nil" };
-          return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String(acc, $t989_i8045);
+          const $t989_i8169 = { $: "Nil" };
+          return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String(acc, $t989_i8169);
         }
       } else {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i8043 = { $: "Nil" };
-              return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String(acc, $t989_i8043);
+              const $t989_i8167 = { $: "Nil" };
+              return List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_text_String(acc, $t989_i8167);
             }
             break;
           }
@@ -23749,6 +24611,56 @@ function List$map$dps$List_T_Int_T_Buff_Float$Fn_T_Int_T_Buff_Float_Op$List_Op($
 }
 const List$map$dps$List_T_Int_T_Buff_Float$Fn_T_Int_T_Buff_Float_Op$List_Op$clo = { _0: ($_, xs, f, $dst) => List$map$dps$List_T_Int_T_Buff_Float$Fn_T_Int_T_Buff_Float_Op$List_Op(xs, f, $dst) };
 
+function List$map$dps$List_T_Int_Symbol$Fn_T_Int_Symbol_List_Op$List_List_Op($tco_a0, $tco_a1, $tco_a2) {
+  __tco: for (;;) {
+    const xs = $tco_a0;
+    const f = $tco_a1;
+    const $dst = $tco_a2;
+    switch (xs.$) {
+      case "Nil": {
+        {
+          const $trmc13 = { $: "Nil" };
+          return ($dst._1 = $trmc13, undefined);
+        }
+        break;
+      }
+      case "Cons": {
+        const $f1006 = xs._0;
+        const $f1007 = xs._1;
+        {
+          const t = $f1007;
+          {
+            const h = $f1006;
+            {
+              let $t1004;
+              $t1004 = f._0(f, h);
+              {
+                const $trmc14 = { $: "Cons", _0: $t1004, _1: null };
+                ($dst._1 = $trmc14, undefined);
+                {
+                  $tco_a0 = t;
+                  $tco_a1 = f;
+                  $tco_a2 = $trmc14;
+                  continue __tco;
+                }
+              }
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        {
+          const $trmc12 = (() => { throw new Error("non-exhaustive pattern match"); })();
+          return ($dst._1 = $trmc12, undefined);
+        }
+      }
+    }
+    return undefined;
+  }
+}
+const List$map$dps$List_T_Int_Symbol$Fn_T_Int_Symbol_List_Op$List_List_Op$clo = { _0: ($_, xs, f, $dst) => List$map$dps$List_T_Int_Symbol$Fn_T_Int_Symbol_List_Op$List_List_Op(xs, f, $dst) };
+
 function List$map$dps$List_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$Fn_R_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float_List_Op$List_List_Op($tco_a0, $tco_a1, $tco_a2) {
   __tco: for (;;) {
     const xs = $tco_a0;
@@ -24102,15 +25014,15 @@ function List$take_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float
       const $t1238 = (k <= 0);
       if ($t1238 === true) {
         {
-          const $t989_i8111 = { $: "Nil" };
-          return List$reverse_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float(acc, $t989_i8111);
+          const $t989_i8235 = { $: "Nil" };
+          return List$reverse_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float(acc, $t989_i8235);
         }
       } else {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i8109 = { $: "Nil" };
-              return List$reverse_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float(acc, $t989_i8109);
+              const $t989_i8233 = { $: "Nil" };
+              return List$reverse_onto$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float$List_R_duration_Float_elapsed_Float_fresh_Int_from_Float_glow_Float_held_Bool_pos_Int_stops_List_Symbol_travel_Float(acc, $t989_i8233);
             }
             break;
           }
@@ -24200,15 +25112,15 @@ function List$take_onto$List_Symbol$Int$List_Symbol($tco_a0, $tco_a1, $tco_a2) {
       const $t1238 = (k <= 0);
       if ($t1238 === true) {
         {
-          const $t989_i8115 = { $: "Nil" };
-          return List$reverse_onto$List_Symbol$List_Symbol(acc, $t989_i8115);
+          const $t989_i8239 = { $: "Nil" };
+          return List$reverse_onto$List_Symbol$List_Symbol(acc, $t989_i8239);
         }
       } else {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i8113 = { $: "Nil" };
-              return List$reverse_onto$List_Symbol$List_Symbol(acc, $t989_i8113);
+              const $t989_i8237 = { $: "Nil" };
+              return List$reverse_onto$List_Symbol$List_Symbol(acc, $t989_i8237);
             }
             break;
           }
@@ -24468,6 +25380,43 @@ function List$reverse_onto$List_T_Int_T_Buff_Float$List_T_Int_T_Buff_Float($tco_
 }
 const List$reverse_onto$List_T_Int_T_Buff_Float$List_T_Int_T_Buff_Float$clo = { _0: ($_, lst, acc) => List$reverse_onto$List_T_Int_T_Buff_Float$List_T_Int_T_Buff_Float(lst, acc) };
 
+function List$reverse_onto$List_T_Int_Symbol$List_T_Int_Symbol($tco_a0, $tco_a1) {
+  __tco: for (;;) {
+    const lst = $tco_a0;
+    const acc = $tco_a1;
+    switch (lst.$) {
+      case "Nil": {
+        return acc;
+        break;
+      }
+      case "Cons": {
+        const $f991 = lst._0;
+        const $f992 = lst._1;
+        {
+          const t = $f992;
+          {
+            const h = $f991;
+            {
+              const $t990 = { $: "Cons", _0: h, _1: acc };
+              {
+                $tco_a0 = t;
+                $tco_a1 = $t990;
+                continue __tco;
+              }
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        return (() => { throw new Error("non-exhaustive pattern match"); })();
+      }
+    }
+    return undefined;
+  }
+}
+const List$reverse_onto$List_T_Int_Symbol$List_T_Int_Symbol$clo = { _0: ($_, lst, acc) => List$reverse_onto$List_T_Int_Symbol$List_T_Int_Symbol(lst, acc) };
+
 function List$reverse_onto$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float$List_R_colour_String_life_Float_pos_R_x_Float_y_Float_vel_R_x_Float_y_Float($tco_a0, $tco_a1) {
   __tco: for (;;) {
     const lst = $tco_a0;
@@ -24678,8 +25627,8 @@ function $lam0_Spin_Game_buff_left$apply$0_Spin_Game_buff_left($clo, acc, x) {
             const $t46227 = march_deep_eq(g, b);
             if ($t46227 === true) {
               {
-                const $t45798_i8969 = (t >= acc);
-                if ($t45798_i8969 === true) {
+                const $t45798_i9093 = (t >= acc);
+                if ($t45798_i9093 === true) {
                   return t;
                 } else {
                   return acc;
@@ -24713,8 +25662,8 @@ const $lam0_Spin_Game_streak$apply$0_Spin_Game_streak$clo = { _0: ($_, $clo, t) 
 
 function $lam1_Spin_Game_streak$apply$1_Spin_Game_streak($clo, acc, t) {
   {
-    const $t45798_i8972 = (t >= acc);
-    if ($t45798_i8972 === true) {
+    const $t45798_i9096 = (t >= acc);
+    if ($t45798_i9096 === true) {
       return t;
     } else {
       return acc;
@@ -24736,8 +25685,8 @@ function $lam0_Spin_Game_light$apply$0_Spin_Game_light($clo, acc, l) {
             const $t46248 = march_deep_eq(g, f);
             if ($t46248 === true) {
               {
-                const $t45798_i8975 = (t >= acc);
-                if ($t45798_i8975 === true) {
+                const $t45798_i9099 = (t >= acc);
+                if ($t45798_i9099 === true) {
                   return t;
                 } else {
                   return acc;
@@ -24762,8 +25711,8 @@ function $lam0_Spin_Game_lit$apply$0_Spin_Game_lit($clo, l) {
       {
         const g = l._0;
         {
-          const $rc_3495 = (!march_deep_eq(g, f));
-          return $rc_3495;
+          const $rc_3497 = (!march_deep_eq(g, f));
+          return $rc_3497;
         }
       }
     }
@@ -24787,8 +25736,8 @@ function $lam0_Spin_Game_fade$apply$0_Spin_Game_fade($clo, l) {
               $t46262 = (t - $t46261);
             }
             {
-              const $rc_3497 = { _0: g, _1: $t46262 };
-              return $rc_3497;
+              const $rc_3499 = { _0: g, _1: $t46262 };
+              return $rc_3499;
             }
           }
         }
@@ -24800,10 +25749,10 @@ const $lam0_Spin_Game_fade$apply$0_Spin_Game_fade$clo = { _0: ($_, $clo, l) => $
 
 function $lam1_Spin_Game_fade$apply$1_Spin_Game_fade($clo, l) {
   {
-    const $p46258_i14447 = l;
+    const $p46258_i14584 = l;
     {
-      const t_i14448 = l._1;
-      return (t_i14448 > 0.);
+      const t_i14585 = l._1;
+      return (t_i14585 > 0.);
     }
   }
 }
@@ -24821,8 +25770,8 @@ function $lam2_Spin_Game_fade$apply$2_Spin_Game_fade($clo, x) {
           {
             const $t46271 = (t - dt);
             {
-              const $rc_3499 = { _0: g, _1: $t46271 };
-              return $rc_3499;
+              const $rc_3501 = { _0: g, _1: $t46271 };
+              return $rc_3501;
             }
           }
         }
@@ -24893,8 +25842,8 @@ function $lam6_Spin_Game_fade$apply$6_Spin_Game_fade($clo, p) {
           $t46295 = ($t46294 - dt);
         }
         {
-          const $rc_3500 = ({ ...p, pos: $t46293, life: $t46295 });
-          return $rc_3500;
+          const $rc_3502 = ({ ...p, pos: $t46293, life: $t46295 });
+          return $rc_3502;
         }
       }
     }
@@ -25037,8 +25986,8 @@ function $lam0_Spin_Game_give$apply$0_Spin_Game_give($clo, x) {
       {
         const g = x._0;
         {
-          const $rc_3502 = (!march_deep_eq(g, b));
-          return $rc_3502;
+          const $rc_3504 = (!march_deep_eq(g, b));
+          return $rc_3504;
         }
       }
     }
@@ -25075,8 +26024,8 @@ function $lam0_Spin_Game_fire$apply$0_Spin_Game_fire($clo, b) {
             $t46610 = ({ x: 0., y: $t46609 });
           }
           {
-            const $rc_3503 = ({ ...b, vel: $t46610 });
-            return $rc_3503;
+            const $rc_3505 = ({ ...b, vel: $t46610 });
+            return $rc_3505;
           }
         }
       } else {
@@ -25202,8 +26151,8 @@ function $lam0_Spin_Game_search$apply$0_Spin_Game_search($clo, b) {
           $t46763 = ({ x: $t46762, y: 420. });
         }
         {
-          const $rc_3508 = ({ ...b, vel: $t46763 });
-          return $rc_3508;
+          const $rc_3510 = ({ ...b, vel: $t46763 });
+          return $rc_3510;
         }
       }
     }
@@ -25248,8 +26197,8 @@ function $lam0_Spin_Reels_count$apply$0_Spin_Reels_count($clo, x) {
   {
     const s = $clo._1;
     {
-      const $rc_3509 = march_deep_eq(x, s);
-      return $rc_3509;
+      const $rc_3511 = march_deep_eq(x, s);
+      return $rc_3511;
     }
   }
 }
@@ -25292,8 +26241,8 @@ function $lam1_Spin_Reels_target_stop$apply$1_Spin_Reels_target_stop($clo, i) {
       {
         const $t47422 = { $: "Blank" };
         {
-          const $rc_3510 = march_deep_eq($t47421, $t47422);
-          return $rc_3510;
+          const $rc_3512 = march_deep_eq($t47421, $t47422);
+          return $rc_3512;
         }
       }
     }
@@ -25317,8 +26266,8 @@ function $lam0_Spin_Reels_roll_to$apply$0_Spin_Reels_roll_to($clo, k) {
           $t47429 = Spin$Reels$stop(r, $t47428);
         }
         {
-          const $rc_3511 = march_deep_eq($t47429, s);
-          return $rc_3511;
+          const $rc_3513 = march_deep_eq($t47429, s);
+          return $rc_3513;
         }
       }
     }
@@ -25344,8 +26293,8 @@ function $lam1_Spin_Reels_roll_to$apply$1_Spin_Reels_roll_to($clo, k) {
             $t47435 = Spin$Reels$stop(r, $t47434);
           }
           {
-            const $rc_3512 = Spin$Reels$rank($t47435);
-            $t47436 = $rc_3512;
+            const $rc_3514 = Spin$Reels$rank($t47435);
+            $t47436 = $rc_3514;
           }
         }
         {
@@ -25368,8 +26317,8 @@ const $lam0_Spin_Reels_turning$apply$0_Spin_Reels_turning$clo = { _0: ($_, $clo,
 
 function $lam0_Spin_Reels_hold$apply$0_Spin_Reels_hold($clo, x) {
   {
-    const $rc_3513 = x.held;
-    return $rc_3513;
+    const $rc_3515 = x.held;
+    return $rc_3515;
   }
 }
 const $lam0_Spin_Reels_hold$apply$0_Spin_Reels_hold$clo = { _0: ($_, $clo, x) => $lam0_Spin_Reels_hold$apply$0_Spin_Reels_hold($clo, x) };
@@ -25532,9 +26481,9 @@ function $lam0_Spin_View_reel_ops$apply$0_Spin_View_reel_ops($clo, k) {
                             {
                               let $t48084;
                               {
-                                let $rc_3514;
-                                $rc_3514 = Spin$View$symbol($t48082, s, $t48083, y, 1.);
-                                $t48084 = $rc_3514;
+                                let $rc_3516;
+                                $rc_3516 = Spin$View$symbol($t48082, s, $t48083, y, 1.);
+                                $t48084 = $rc_3516;
                               }
                               return List$append$List_Op$List_Op(halo, $t48084);
                             }
@@ -26171,8 +27120,8 @@ function $lam0_Spin_View_spark_ops$apply$0_Spin_View_spark_ops($clo, s) {
           $t48899 = ($t48898 * 3.);
         }
         {
-          const $t45799_i9036 = ($t48899 < 1.);
-          if ($t45799_i9036 === true) {
+          const $t45799_i9160 = ($t48899 < 1.);
+          if ($t45799_i9160 === true) {
             $t48900 = $t48899;
           } else {
             $t48900 = 1.;
@@ -26225,8 +27174,8 @@ function $lam0_Spin_View_pop_ops$apply$0_Spin_View_pop_ops($clo, p) {
           $t48915 = ($t48914 * 2.);
         }
         {
-          const $t45799_i9044 = ($t48915 < 1.);
-          if ($t45799_i9044 === true) {
+          const $t45799_i9168 = ($t48915 < 1.);
+          if ($t45799_i9168 === true) {
             $t48916 = $t48915;
           } else {
             $t48916 = 1.;
@@ -26330,8 +27279,8 @@ function $lam0_Spin_View_buff_ops$apply$0_Spin_View_buff_ops($clo, x) {
                             $t48990 = String($t48989);
                           }
                           {
-                            const $rc_3515 = march_string_concat3($t48987, " ", $t48990);
-                            $t48991 = $rc_3515;
+                            const $rc_3517 = march_string_concat3($t48987, " ", $t48990);
+                            $t48991 = $rc_3517;
                           }
                         }
                       }
@@ -26350,6 +27299,107 @@ function $lam0_Spin_View_buff_ops$apply$0_Spin_View_buff_ops($clo, x) {
   }
 }
 const $lam0_Spin_View_buff_ops$apply$0_Spin_View_buff_ops$clo = { _0: ($_, $clo, x) => $lam0_Spin_View_buff_ops$apply$0_Spin_View_buff_ops($clo, x) };
+
+function $lam0_Spin_View_pay_row$apply$0_Spin_View_pay_row($clo, e) {
+  {
+    const m = $clo._1;
+    {
+      const x = $clo._2;
+      {
+        const y = $clo._3;
+        {
+          const $p49123 = e;
+          {
+            const i = e._0;
+            {
+              const sym = e._1;
+              {
+                let cx;
+                {
+                  let $t49115;
+                  {
+                    const $t49114 = i;
+                    $t49115 = (15. * $t49114);
+                  }
+                  cx = (x + $t49115);
+                }
+                {
+                  let $t49118;
+                  {
+                    const $t49116 = (cx - 7.);
+                    {
+                      const $t49117 = (y - 7.);
+                      $t49118 = { $: "Box", _0: $t49116, _1: $t49117, _2: 14., _3: 14., _4: "#f6f0e2" };
+                    }
+                  }
+                  {
+                    const $t49119 = { $: "Nil" };
+                    {
+                      const $t49120 = { $: "Cons", _0: $t49118, _1: $t49119 };
+                      {
+                        const $t49121 = m.num;
+                        {
+                          let $t49122;
+                          $t49122 = Spin$View$symbol($t49121, sym, cx, y, 0.4);
+                          return List$append$List_Op$List_Op($t49120, $t49122);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+const $lam0_Spin_View_pay_row$apply$0_Spin_View_pay_row$clo = { _0: ($_, $clo, e) => $lam0_Spin_View_pay_row$apply$0_Spin_View_pay_row($clo, e) };
+
+function $lam0_Spin_View_attract_ops$apply$0_Spin_View_attract_ops($clo, i) {
+  {
+    let $t49281;
+    {
+      const $t49280 = ((i + 1) < 4611686018427387904 && (i + 1) >= -4611686018427387904 ? (i + 1) : march_int_ovf((i + 1), 0));
+      $t49281 = String($t49280);
+    }
+    {
+      let $t49283;
+      {
+        let $t49282;
+        if (i === 0) {
+          $t49282 = 0;
+        } else if (i === 1) {
+          $t49282 = 30;
+        } else if (i === 2) {
+          $t49282 = 75;
+        } else if (i === 3) {
+          $t49282 = 140;
+        } else if (i === 4) {
+          $t49282 = 230;
+        } else if (i === 5) {
+          $t49282 = 350;
+        } else {
+          {
+            let $t47657_i9182;
+            {
+              const $t47656_i9181 = ((i - 5) < 4611686018427387904 && (i - 5) >= -4611686018427387904 ? (i - 5) : march_int_ovf((i - 5), 1));
+              $t47657_i9182 = ((150 * $t47656_i9181) < 4611686018427387904 && (150 * $t47656_i9181) >= -4611686018427387904 ? (150 * $t47656_i9181) : march_int_ovf((150 * $t47656_i9181), 2));
+            }
+            $t49282 = ((350 + $t47657_i9182) < 4611686018427387904 && (350 + $t47657_i9182) >= -4611686018427387904 ? (350 + $t47657_i9182) : march_int_ovf((350 + $t47657_i9182), 0));
+          }
+        }
+        $t49283 = String($t49282);
+      }
+      {
+        const $rc_3518 = march_string_concat3($t49281, " at ", $t49283);
+        return $rc_3518;
+      }
+    }
+  }
+}
+const $lam0_Spin_View_attract_ops$apply$0_Spin_View_attract_ops$clo = { _0: ($_, $clo, i) => $lam0_Spin_View_attract_ops$apply$0_Spin_View_attract_ops($clo, i) };
 
 function $lam0_Spin_View_frame$apply$0_Spin_View_frame($clo, p) {
   {
@@ -26445,8 +27495,8 @@ function go$apply$1_List_concat_List_List_Hit($tco_a0, $tco_a1, $tco_a2) {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i9189 = { $: "Nil" };
-              return List$reverse_onto$List_Hit$List_Hit(acc, $t989_i9189);
+              const $t989_i9316 = { $: "Nil" };
+              return List$reverse_onto$List_Hit$List_Hit(acc, $t989_i9316);
             }
             break;
           }
@@ -26537,8 +27587,8 @@ function go$apply$1_List_concat_List_List_Cue($tco_a0, $tco_a1, $tco_a2) {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i9191 = { $: "Nil" };
-              return List$reverse_onto$List_Cue$List_Cue(acc, $t989_i9191);
+              const $t989_i9318 = { $: "Nil" };
+              return List$reverse_onto$List_Cue$List_Cue(acc, $t989_i9318);
             }
             break;
           }
@@ -26629,8 +27679,8 @@ function go$apply$1_List_concat_List_List_ReelEvent($tco_a0, $tco_a1, $tco_a2) {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i9193 = { $: "Nil" };
-              return List$reverse_onto$List_ReelEvent$List_ReelEvent(acc, $t989_i9193);
+              const $t989_i9320 = { $: "Nil" };
+              return List$reverse_onto$List_ReelEvent$List_ReelEvent(acc, $t989_i9320);
             }
             break;
           }
@@ -26721,8 +27771,8 @@ function go$apply$1_List_concat_List_List_Part($tco_a0, $tco_a1, $tco_a2) {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i9195 = { $: "Nil" };
-              return List$reverse_onto$List_Part$List_Part(acc, $t989_i9195);
+              const $t989_i9322 = { $: "Nil" };
+              return List$reverse_onto$List_Part$List_Part(acc, $t989_i9322);
             }
             break;
           }
@@ -26813,8 +27863,8 @@ function go$apply$1_List_concat_List_List_Op($tco_a0, $tco_a1, $tco_a2) {
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i9197 = { $: "Nil" };
-              return List$reverse_onto$List_Op$List_Op(acc, $t989_i9197);
+              const $t989_i9324 = { $: "Nil" };
+              return List$reverse_onto$List_Op$List_Op(acc, $t989_i9324);
             }
             break;
           }
@@ -26861,8 +27911,8 @@ function go$apply$0_List_enumerate_List_R_x_Float_y_Float($tco_a0, $tco_a1, $tco
       switch (lst.$) {
         case "Nil": {
           {
-            const $t989_i9199 = { $: "Nil" };
-            return List$reverse_onto$List_T_Int_R_x_Float_y_Float$List_T_Int_R_x_Float_y_Float(acc, $t989_i9199);
+            const $t989_i9326 = { $: "Nil" };
+            return List$reverse_onto$List_T_Int_R_x_Float_y_Float$List_T_Int_R_x_Float_y_Float(acc, $t989_i9326);
           }
           break;
         }
@@ -26958,8 +28008,8 @@ function go$apply$1_List_concat_List_List_R_x_Float_y_Float($tco_a0, $tco_a1, $t
         switch (lst.$) {
           case "Nil": {
             {
-              const $t989_i9201 = { $: "Nil" };
-              return List$reverse_onto$List_R_x_Float_y_Float$List_R_x_Float_y_Float(acc, $t989_i9201);
+              const $t989_i9328 = { $: "Nil" };
+              return List$reverse_onto$List_R_x_Float_y_Float$List_R_x_Float_y_Float(acc, $t989_i9328);
             }
             break;
           }
@@ -27006,8 +28056,8 @@ function go$apply$0_List_enumerate_List_T_Buff_Float($tco_a0, $tco_a1, $tco_a2, 
       switch (lst.$) {
         case "Nil": {
           {
-            const $t989_i9203 = { $: "Nil" };
-            return List$reverse_onto$List_T_Int_T_Buff_Float$List_T_Int_T_Buff_Float(acc, $t989_i9203);
+            const $t989_i9330 = { $: "Nil" };
+            return List$reverse_onto$List_T_Int_T_Buff_Float$List_T_Int_T_Buff_Float(acc, $t989_i9330);
           }
           break;
         }
@@ -27047,6 +28097,59 @@ function go$apply$0_List_enumerate_List_T_Buff_Float($tco_a0, $tco_a1, $tco_a2, 
   }
 }
 const go$apply$0_List_enumerate_List_T_Buff_Float$clo = { _0: ($_, $clo, lst, i, acc) => go$apply$0_List_enumerate_List_T_Buff_Float($clo, lst, i, acc) };
+
+function go$apply$0_List_enumerate_List_Symbol($tco_a0, $tco_a1, $tco_a2, $tco_a3) {
+  __tco: for (;;) {
+    const $clo = $tco_a0;
+    const lst = $tco_a1;
+    const i = $tco_a2;
+    const acc = $tco_a3;
+    {
+      const go = $clo;
+      switch (lst.$) {
+        case "Nil": {
+          {
+            const $t989_i9332 = { $: "Nil" };
+            return List$reverse_onto$List_T_Int_Symbol$List_T_Int_Symbol(acc, $t989_i9332);
+          }
+          break;
+        }
+        case "Cons": {
+          const $f1359 = lst._0;
+          const $f1360 = lst._1;
+          {
+            const t = $f1360;
+            {
+              const h = $f1359;
+              {
+                const $t1356 = ((i + 1) < 4611686018427387904 && (i + 1) >= -4611686018427387904 ? (i + 1) : march_int_ovf((i + 1), 0));
+                {
+                  const $t1357 = { _0: i, _1: h };
+                  {
+                    const $t1358 = { $: "Cons", _0: $t1357, _1: acc };
+                    {
+                      $tco_a0 = $clo;
+                      $tco_a1 = t;
+                      $tco_a2 = $t1356;
+                      $tco_a3 = $t1358;
+                      continue __tco;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          break;
+        }
+        default: {
+          return (() => { throw new Error("non-exhaustive pattern match"); })();
+        }
+      }
+    }
+    return undefined;
+  }
+}
+const go$apply$0_List_enumerate_List_Symbol$clo = { _0: ($_, $clo, lst, i, acc) => go$apply$0_List_enumerate_List_Symbol($clo, lst, i, acc) };
 
 function go$apply$0_List_each_List_Cue_Fn_Cue_T_($tco_a0, $tco_a1) {
   __tco: for (;;) {
