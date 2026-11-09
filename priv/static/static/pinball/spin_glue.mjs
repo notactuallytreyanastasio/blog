@@ -34,70 +34,119 @@ export function glue_mark(name, value) {
 
 // ---- Buttons ----
 // Keys: Z, Left or left Shift for the left flipper; M, /, Right or right Shift
-// for the right; Space, Down or Enter to launch and to start. Touch: a finger
-// on the left half holds the left flipper, on the right half the right one
-// (which also pulls the plunger when a ball waits on it). Any touch starts.
+// for the right; Space, Down or Enter is the plunger (hold to pull, let go)
+// and starts a game.
+// Touch: tap the left half for the left flipper, the right half for the
+// right one. While a ball waits, the LAUNCH button (Spin.View.launch_button)
+// is the plunger: hold it to pull, let go to fire. Any tap starts a game.
 const keys = new Set();
-const fingers = new Map();
-let canvasRef = null;
+const fingers = new Map();   // pointerId -> "L" | "R" | "P" (plunger)
+// A tap is often shorter than a frame. Each press holds its flipper for at
+// least this long, so the game always sees it and the flipper goes all the
+// way up instead of twitching.
+const MIN_FLIP_MS = 110;
+const until = { L: 0, R: 0 };
+let touchMode = false;
+// The launch button in world units, and whether it takes touches now (only
+// while a ball waits: otherwise a thumb there is flipping, not launching).
+let button = { x: 0, y: 0, r: 0, live: false };
+
+export function glue_launch_button(x, y, r, live) { button = { x, y, r, live }; }
 
 const LEFT = new Set(["KeyZ", "ArrowLeft", "ShiftLeft", "KeyA"]);
 const RIGHT = new Set(["KeyM", "Slash", "ArrowRight", "ShiftRight", "KeyL"]);
 const LAUNCH = new Set(["Space", "ArrowDown", "Enter"]);
 
 export function glue_listen(canvas) {
-  canvasRef = canvas;
+  touchMode = window.matchMedia ? window.matchMedia("(pointer: coarse)").matches : false;
   window.addEventListener("keydown", (e) => {
     if (LEFT.has(e.code) || RIGHT.has(e.code) || LAUNCH.has(e.code)) e.preventDefault();
+    if (e.repeat) return;
     keys.add(e.code);
+    const now = performance.now();
+    if (LEFT.has(e.code)) until.L = now + MIN_FLIP_MS;
+    if (RIGHT.has(e.code)) until.R = now + MIN_FLIP_MS;
+    touchMode = false;
     wake();
   });
   window.addEventListener("keyup", (e) => { keys.delete(e.code); });
   window.addEventListener("blur", () => { keys.clear(); fingers.clear(); });
   const where = (e) => {
     const r = canvas.getBoundingClientRect();
-    return (e.clientX - r.left) < r.width / 2 ? "L" : "R";
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    if (button.live) {
+      // world point under the finger; a fat-finger margin of half a radius
+      const wx = (sx - view.ox) / view.s, wy = (sy - view.oy) / view.s;
+      if (Math.hypot(wx - button.x, wy - button.y) < button.r * 1.5) return "P";
+    }
+    return sx < r.width / 2 ? "L" : "R";
   };
   canvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
-    fingers.set(e.pointerId, where(e));
+    const side = where(e);
+    fingers.set(e.pointerId, side);
+    if (side !== "P") until[side] = performance.now() + MIN_FLIP_MS;
+    if (e.pointerType !== "mouse") touchMode = true;
     wake();
   });
-  const lift = (e) => { fingers.delete(e.pointerId); };
+  const lift = (e) => { fingers.delete(e.pointerId); wake(); };
   canvas.addEventListener("pointerup", lift);
   canvas.addEventListener("pointercancel", lift);
-  canvas.addEventListener("lostpointercapture", lift);
+  canvas.addEventListener("lostpointercapture", (e) => { fingers.delete(e.pointerId); });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  // iOS only lets audio start inside a touchend or click.
+  window.addEventListener("touchend", wake, { passive: true });
+  window.addEventListener("click", wake);
 }
 
 const any = (set) => { for (const k of keys) if (set.has(k)) return true; return false; };
 const finger = (side) => { for (const v of fingers.values()) if (v === side) return true; return false; };
 
+// (left, right, launch, start)
 export function glue_input() {
+  const now = performance.now();
   return {
-    _0: any(LEFT) || finger("L"),
-    _1: any(RIGHT) || finger("R"),
-    _2: any(LAUNCH),
+    _0: any(LEFT) || finger("L") || now < until.L,
+    _1: any(RIGHT) || finger("R") || now < until.R,
+    _2: any(LAUNCH) || finger("P"),
     _3: any(LAUNCH) || fingers.size > 0,
   };
 }
 
+export function glue_touch() { return touchMode; }
+
 // ---- The screen ----
-// The canvas fills the window at device pixels; the world box (x, y, w, h)
-// is scaled to fit and centred. Every op after Clear is in world units.
+// The canvas fills the window at device pixels (at most 2x: a 3x phone
+// canvas costs fill rate and looks no different). The world box (x, y, w, h)
+// is scaled to fit inside the safe area, away from notches and the home bar,
+// and centred there. Every op after Clear is in world units.
 let view = { s: 1, ox: 0, oy: 0, dpr: 1, w: 1, h: 1 };
+let probe = null;
+
+function insets() {
+  if (!probe) {
+    probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;" +
+      "padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)";
+    document.body.appendChild(probe);
+  }
+  const c = getComputedStyle(probe);
+  return { t: parseFloat(c.paddingTop) || 0, r: parseFloat(c.paddingRight) || 0, b: parseFloat(c.paddingBottom) || 0, l: parseFloat(c.paddingLeft) || 0 };
+}
 
 export function glue_fit(canvas, x, y, w, h) {
   const cw = window.innerWidth, ch = window.innerHeight;
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
   const bw = Math.max(1, Math.round(cw * dpr)), bh = Math.max(1, Math.round(ch * dpr));
   if (canvas.width !== bw) canvas.width = bw;
   if (canvas.height !== bh) canvas.height = bh;
   canvas.style.width = cw + "px";
   canvas.style.height = ch + "px";
-  const s = Math.min(cw / w, ch / h);
-  view = { s, ox: (cw - w * s) / 2 - x * s, oy: (ch - h * s) / 2 - y * s, dpr, w: bw, h: bh };
+  const i = insets();
+  const aw = Math.max(1, cw - i.l - i.r), ah = Math.max(1, ch - i.t - i.b);
+  const s = Math.min(aw / w, ah / h);
+  view = { s, ox: i.l + (aw - w * s) / 2 - x * s, oy: i.t + (ah - h * s) / 2 - y * s, dpr, w: bw, h: bh };
 }
 
 function world(ctx) {
@@ -174,6 +223,24 @@ export function glue_paint(ctx, ops) {
         throw new Error("spin_glue: unknown draw op " + JSON.stringify(op.$));
     }
   });
+  ctx.restore();
+  sideways(ctx);
+}
+
+// A phone held sideways gets a table half the size. Say so in the margin,
+// where nothing is drawn, rather than rotating or squeezing the table.
+function sideways(ctx) {
+  const cw = window.innerWidth, ch = window.innerHeight;
+  if (!touchMode || cw <= ch * 1.2) return;
+  const margin = view.ox + 0 * view.s;
+  if (margin < 120) return;
+  ctx.save();
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,211,107,0.85)";
+  ctx.font = "900 18px Nunito, system-ui, sans-serif";
+  ctx.fillText("turn your phone", margin / 2, ch / 2 - 12);
+  ctx.fillText("upright", margin / 2, ch / 2 + 12);
   ctx.restore();
 }
 
