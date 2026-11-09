@@ -8,6 +8,15 @@ defmodule BlogWeb.PinballControllerTest do
 
     assert html_response(conn, 200) =~ ~s(<canvas id="table"></canvas>)
     assert conn.resp_body =~ ~s(src="/static/pinball/spin.mjs")
+    assert conn.resp_body =~ ~s(property="og:image" content="https://bobbby.online/static/pinball/og.png")
+  end
+
+  test "the share card the page names is on disk", %{conn: conn} do
+    assert File.exists?(Path.join(@dir, "og.png"))
+    conn = get(conn, "/static/pinball/og.png")
+    assert conn.status == 200
+    assert [type] = get_resp_header(conn, "content-type")
+    assert type =~ "image/png"
   end
 
   # spin.mjs imports its siblings by relative path; a missing one is a blank

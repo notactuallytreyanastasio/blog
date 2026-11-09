@@ -8358,8 +8358,8 @@ function Spin$Game$reward(m, tier) {
                               {
                                 const $t46043_i13293 = List$nth$List_Buff$Int($t46417, i_i13291);
                                 {
-                                  const $rc_2881_i13294 = { _0: $t46043_i13293, _1: after_i13292 };
-                                  $p46421 = $rc_2881_i13294;
+                                  const $rc_2883_i13294 = { _0: $t46043_i13293, _1: after_i13292 };
+                                  $p46421 = $rc_2883_i13294;
                                 }
                               }
                             }
@@ -21023,8 +21023,8 @@ function mark(m, flips) {
         }
       }
       {
-        const $rc_2768 = glue_mark$clo._0(glue_mark$clo, "data-mode", $t49413);
-        $eff = $rc_2768;
+        const $rc_2770 = glue_mark$clo._0(glue_mark$clo, "data-mode", $t49413);
+        $eff = $rc_2770;
       }
     }
   }
@@ -21037,8 +21037,8 @@ function mark(m, flips) {
         $t49415 = String($t49414);
       }
       {
-        const $rc_2767 = glue_mark$clo._0(glue_mark$clo, "data-credits", $t49415);
-        $eff = $rc_2767;
+        const $rc_2769 = glue_mark$clo._0(glue_mark$clo, "data-credits", $t49415);
+        $eff = $rc_2769;
       }
     }
   }
@@ -21056,8 +21056,8 @@ function mark(m, flips) {
         $t49418 = String($t49417);
       }
       {
-        const $rc_2766 = glue_mark$clo._0(glue_mark$clo, "data-balls", $t49418);
-        $eff = $rc_2766;
+        const $rc_2768 = glue_mark$clo._0(glue_mark$clo, "data-balls", $t49418);
+        $eff = $rc_2768;
       }
     }
   }
@@ -21074,8 +21074,8 @@ function mark(m, flips) {
         $t49421 = String($t49420);
       }
       {
-        const $rc_2765 = glue_mark$clo._0(glue_mark$clo, "data-banked", $t49421);
-        $eff = $rc_2765;
+        const $rc_2767 = glue_mark$clo._0(glue_mark$clo, "data-banked", $t49421);
+        $eff = $rc_2767;
       }
     }
   }
@@ -21088,8 +21088,8 @@ function mark(m, flips) {
         $t49423 = String($t49422);
       }
       {
-        const $rc_2764 = glue_mark$clo._0(glue_mark$clo, "data-paid", $t49423);
-        $eff = $rc_2764;
+        const $rc_2766 = glue_mark$clo._0(glue_mark$clo, "data-paid", $t49423);
+        $eff = $rc_2766;
       }
     }
   }
@@ -21098,7 +21098,8 @@ function mark(m, flips) {
     {
       let $t49425;
       {
-        const $t49424 = Spin$Game$waiting(m);
+        let $t49424;
+        $t49424 = Spin$Game$waiting(m);
         if ($t49424 === true) {
           $t49425 = "1";
         } else {
@@ -21106,15 +21107,101 @@ function mark(m, flips) {
         }
       }
       {
-        const $rc_2763 = glue_mark$clo._0(glue_mark$clo, "data-waiting", $t49425);
+        const $rc_2765 = glue_mark$clo._0(glue_mark$clo, "data-waiting", $t49425);
+        $eff = $rc_2765;
+      }
+    }
+  }
+  {
+    let $eff;
+    {
+      const $t49426 = String(flips);
+      {
+        const $rc_2764 = glue_mark$clo._0(glue_mark$clo, "data-flips", $t49426);
+        $eff = $rc_2764;
+      }
+    }
+  }
+  {
+    let $eff;
+    {
+      let $t49437;
+      {
+        const $t49427 = m.balls;
+        switch ($t49427.$) {
+          case "Cons": {
+            const $f49431 = $t49427._0;
+            const $f49432 = $t49427._1;
+            {
+              const b = $f49431;
+              {
+                let $t49430;
+                {
+                  let $t49429;
+                  {
+                    const $t49428 = b.pos;
+                    $t49429 = $t49428.y;
+                  }
+                  $t49430 = Math.floor($t49429);
+                }
+                $t49437 = String($t49430);
+              }
+            }
+            break;
+          }
+          case "Nil": {
+            $t49437 = "";
+            break;
+          }
+          default: {
+            throw new Error("non-exhaustive pattern match");
+            break;
+          }
+        }
+      }
+      {
+        const $rc_2763 = glue_mark$clo._0(glue_mark$clo, "data-ball-y", $t49437);
         $eff = $rc_2763;
       }
     }
   }
   {
-    const $t49426 = String(flips);
+    let $t49448;
     {
-      const $rc_2762 = glue_mark$clo._0(glue_mark$clo, "data-flips", $t49426);
+      const $t49438 = m.balls;
+      switch ($t49438.$) {
+        case "Cons": {
+          const $f49442 = $t49438._0;
+          const $f49443 = $t49438._1;
+          {
+            const b = $f49442;
+            {
+              let $t49441;
+              {
+                let $t49440;
+                {
+                  const $t49439 = b.pos;
+                  $t49440 = $t49439.x;
+                }
+                $t49441 = Math.floor($t49440);
+              }
+              $t49448 = String($t49441);
+            }
+          }
+          break;
+        }
+        case "Nil": {
+          $t49448 = "";
+          break;
+        }
+        default: {
+          throw new Error("non-exhaustive pattern match");
+          break;
+        }
+      }
+    }
+    {
+      const $rc_2762 = glue_mark$clo._0(glue_mark$clo, "data-ball-x", $t49448);
       return $rc_2762;
     }
   }
@@ -21127,15 +21214,15 @@ function frame(t) {
     {
       let dt;
       {
-        let $t49428;
+        let $t49450;
         {
-          const $t49427 = s.last_t;
-          $t49428 = ($t49427 > 0.);
+          const $t49449 = s.last_t;
+          $t49450 = ($t49449 > 0.);
         }
-        if ($t49428 === true) {
+        if ($t49450 === true) {
           {
-            const $t49429 = s.last_t;
-            dt = (t - $t49429);
+            const $t49451 = s.last_t;
+            dt = (t - $t49451);
           }
         } else {
           dt = 0.;
@@ -21144,88 +21231,88 @@ function frame(t) {
       {
         let $eff;
         {
-          let $t49436;
+          let $t49458;
           {
-            let $t49431;
+            let $t49453;
             {
-              const $t49430 = s.model;
-              $t49431 = Spin$Game$waiting($t49430);
+              const $t49452 = s.model;
+              $t49453 = Spin$Game$waiting($t49452);
             }
             {
-              let $t49435;
+              let $t49457;
               {
-                let $t49433;
+                let $t49455;
                 {
-                  const $t49432 = s.model;
-                  $t49433 = $t49432.mode;
+                  const $t49454 = s.model;
+                  $t49455 = $t49454.mode;
                 }
                 {
-                  const $t49434 = { $: "Playing" };
+                  const $t49456 = { $: "Playing" };
                   {
-                    const $rc_2772 = march_deep_eq($t49433, $t49434);
-                    $t49435 = $rc_2772;
+                    const $rc_2774 = march_deep_eq($t49455, $t49456);
+                    $t49457 = $rc_2774;
                   }
                 }
               }
-              $t49436 = ($t49431 && $t49435);
+              $t49458 = ($t49453 && $t49457);
             }
           }
-          $eff = glue_launch_button$clo._0(glue_launch_button$clo, 306., 724., 30., $t49436);
+          $eff = glue_launch_button$clo._0(glue_launch_button$clo, 306., 724., 30., $t49458);
         }
       }
       {
-        const $p49453 = glue_input();
+        const $p49475 = glue_input();
         {
-          const l = $p49453._0;
+          const l = $p49475._0;
           {
-            const r = $p49453._1;
+            const r = $p49475._1;
             {
-              const launch = $p49453._2;
+              const launch = $p49475._2;
               {
-                const start = $p49453._3;
+                const start = $p49475._3;
                 {
-                  let $p49452;
+                  let $p49474;
                   {
-                    const $t49437 = s.model;
+                    const $t49459 = s.model;
                     {
-                      const $t49438 = ({ left: l, right: r, launch: launch, start: start });
-                      $p49452 = Spin$Game$tick($t49437, $t49438, dt);
+                      const $t49460 = ({ left: l, right: r, launch: launch, start: start });
+                      $p49474 = Spin$Game$tick($t49459, $t49460, dt);
                     }
                   }
                   {
-                    const m = $p49452._0;
+                    const m = $p49474._0;
                     {
-                      const cues = $p49452._1;
+                      const cues = $p49474._1;
                       {
                         let flips;
                         {
-                          const $t49439 = s.flips;
+                          const $t49461 = s.flips;
                           {
-                            let $t49443;
+                            let $t49465;
                             {
-                              const $t49441 = { $: "$Clo_$lam0_frame$0_frame", _0: $lam0_frame$apply$0_frame };
+                              const $t49463 = { $: "$Clo_$lam0_frame$0_frame", _0: $lam0_frame$apply$0_frame };
                               {
-                                let $t49442;
-                                $t49442 = List$filter$List_Cue$Fn_Cue_Bool(cues, $t49441);
+                                let $t49464;
+                                $t49464 = List$filter$List_Cue$Fn_Cue_Bool(cues, $t49463);
                                 {
-                                  let $rc_2771;
+                                  let $rc_2773;
                                   {  };
-                                  $rc_2771 = List$length_onto$List_Cue$Int($t49442, 0);
-                                  $t49443 = $rc_2771;
+                                  $rc_2773 = List$length_onto$List_Cue$Int($t49464, 0);
+                                  $t49465 = $rc_2773;
                                 }
                               }
                             }
-                            flips = (($t49439 + $t49443) < 4611686018427387904 && ($t49439 + $t49443) >= -4611686018427387904 ? ($t49439 + $t49443) : march_int_ovf(($t49439 + $t49443), 0));
+                            flips = (($t49461 + $t49465) < 4611686018427387904 && ($t49461 + $t49465) >= -4611686018427387904 ? ($t49461 + $t49465) : march_int_ovf(($t49461 + $t49465), 0));
                           }
                         }
                         {
                           let $eff;
                           {
-                            let $t49444;
-                            $t49444 = ({ ...s, model: m, last_t: t, flips: flips });
+                            let $t49466;
+                            $t49466 = ({ ...s, model: m, last_t: t, flips: flips });
                             {
-                              const $rc_2770 = glue_cell_put$clo._0(glue_cell_put$clo, $t49444);
-                              $eff = $rc_2770;
+                              const $rc_2772 = glue_cell_put$clo._0(glue_cell_put$clo, $t49466);
+                              $eff = $rc_2772;
                             }
                           }
                         }
@@ -21240,38 +21327,38 @@ function frame(t) {
                           }
                         }
                         {
-                          let $p49451;
+                          let $p49473;
                           {
                             const $t47908_i6338 = (-96.);
-                            $p49451 = { _0: 0., _1: $t47908_i6338, _2: 400., _3: 866. };
+                            $p49473 = { _0: 0., _1: $t47908_i6338, _2: 400., _3: 866. };
                           }
                           {
-                            const x = $p49451._0;
+                            const x = $p49473._0;
                             {
-                              const y = $p49451._1;
+                              const y = $p49473._1;
                               {
-                                const w = $p49451._2;
+                                const w = $p49473._2;
                                 {
-                                  const h = $p49451._3;
+                                  const h = $p49473._3;
                                   {
                                     let $eff;
                                     {
-                                      const $t49445 = s.canvas;
-                                      $eff = glue_fit$clo._0(glue_fit$clo, $t49445, x, y, w, h);
+                                      const $t49467 = s.canvas;
+                                      $eff = glue_fit$clo._0(glue_fit$clo, $t49467, x, y, w, h);
                                     }
                                   }
                                   {
                                     let $eff;
                                     {
-                                      const $t49446 = s.ctx;
+                                      const $t49468 = s.ctx;
                                       {
-                                        const $t49447 = glue_touch();
+                                        const $t49469 = glue_touch();
                                         {
-                                          let $t49448;
-                                          $t49448 = Spin$View$frame(m, $t49447);
+                                          let $t49470;
+                                          $t49470 = Spin$View$frame(m, $t49469);
                                           {
-                                            const $rc_2769 = glue_paint$clo._0(glue_paint$clo, $t49446, $t49448);
-                                            $eff = $rc_2769;
+                                            const $rc_2771 = glue_paint$clo._0(glue_paint$clo, $t49468, $t49470);
+                                            $eff = $rc_2771;
                                           }
                                         }
                                       }
@@ -21282,8 +21369,8 @@ function frame(t) {
                                     $eff = mark(m, flips);
                                   }
                                   {
-                                    const $t49450 = { $: "$Clo_$lam1_frame$1_frame", _0: $lam1_frame$apply$1_frame };
-                                    return glue_request_frame$clo._0(glue_request_frame$clo, $t49450);
+                                    const $t49472 = { $: "$Clo_$lam1_frame$1_frame", _0: $lam1_frame$apply$1_frame };
+                                    return glue_request_frame$clo._0(glue_request_frame$clo, $t49472);
                                   }
                                 }
                               }
@@ -21308,19 +21395,19 @@ function launch() {
   {
     let canvas;
     {
-      let $t49455;
+      let $t49477;
       {
         const id_i13559 = "table";
         {
           const $rc_2410_i13560 = dom_get_element_by_id$clo._0(dom_get_element_by_id$clo, "table");
-          $t49455 = $rc_2410_i13560;
+          $t49477 = $rc_2410_i13560;
         }
       }
-      switch ($t49455.$) {
+      switch ($t49477.$) {
         case "Some": {
-          const $f49456 = $t49455._0;
+          const $f49478 = $t49477._0;
           {
-            const node = $f49456;
+            const node = $f49478;
             canvas = node;
           }
           break;
@@ -21339,19 +21426,19 @@ function launch() {
     {
       let ctx;
       {
-        let $t49457;
+        let $t49479;
         {
           const node_i13557 = canvas;
           {
             const $rc_2456_i13558 = canvas_get_context$clo._0(canvas_get_context$clo, canvas);
-            $t49457 = $rc_2456_i13558;
+            $t49479 = $rc_2456_i13558;
           }
         }
-        switch ($t49457.$) {
+        switch ($t49479.$) {
           case "Some": {
-            const $f49458 = $t49457._0;
+            const $f49480 = $t49479._0;
             {
-              const c = $f49458;
+              const c = $f49480;
               ctx = c;
             }
             break;
@@ -21368,17 +21455,17 @@ function launch() {
         }
       }
       {
-        const $p49466 = glue_seed_limbs();
+        const $p49488 = glue_seed_limbs();
         {
-          const hi = $p49466._0;
+          const hi = $p49488._0;
           {
-            const lo = $p49466._1;
+            const lo = $p49488._1;
             {
               let model;
               {
-                let $t49461;
+                let $t49483;
                 {
-                  let $t49459;
+                  let $t49481;
                   {
                     let $t45832_i6345;
                     {
@@ -21399,30 +21486,30 @@ function launch() {
                         }
                         $t45833_i6346 = ((lo | 0) === lo && ($t45825_i15096 | 0) === $t45825_i15096 ? (lo & $t45825_i15096) : march_int_and(lo, $t45825_i15096));
                       }
-                      $t49459 = ({ hi: $t45832_i6345, lo: $t45833_i6346 });
+                      $t49481 = ({ hi: $t45832_i6345, lo: $t45833_i6346 });
                     }
                   }
                   {
-                    const $t49460 = glue_load_best();
-                    $t49461 = Spin$Game$boot($t49459, $t49460);
+                    const $t49482 = glue_load_best();
+                    $t49483 = Spin$Game$boot($t49481, $t49482);
                   }
                 }
                 {
-                  const $t49462 = glue_start_stage();
+                  const $t49484 = glue_start_stage();
                   {
-                    const m_i13550 = $t49461;
+                    const m_i13550 = $t49483;
                     {
                       let $t46188_i13555;
                       {
-                        const $t2474_i5327_i13554 = (0 > $t49462);
+                        const $t2474_i5327_i13554 = (0 > $t49484);
                         if ($t2474_i5327_i13554 === true) {
                           $t46188_i13555 = 0;
                         } else {
-                          $t46188_i13555 = $t49462;
+                          $t46188_i13555 = $t49484;
                         }
                       }
                       {
-                        const $rc_2508_i13556 = ({ ...$t49461, start_stage: $t46188_i13555 });
+                        const $rc_2508_i13556 = ({ ...$t49483, start_stage: $t46188_i13555 });
                         model = $rc_2508_i13556;
                       }
                     }
@@ -21432,24 +21519,24 @@ function launch() {
               {
                 let $eff;
                 {
-                  let $t49463;
-                  $t49463 = ({ model: model, ctx: ctx, canvas: canvas, last_t: 0., flips: 0 });
+                  let $t49485;
+                  $t49485 = ({ model: model, ctx: ctx, canvas: canvas, last_t: 0., flips: 0 });
                   {
-                    const $rc_2774 = glue_cell_put$clo._0(glue_cell_put$clo, $t49463);
-                    $eff = $rc_2774;
+                    const $rc_2776 = glue_cell_put$clo._0(glue_cell_put$clo, $t49485);
+                    $eff = $rc_2776;
                   }
                 }
               }
               {
                 let $eff;
                 {
-                  const $rc_2773 = glue_listen$clo._0(glue_listen$clo, canvas);
-                  $eff = $rc_2773;
+                  const $rc_2775 = glue_listen$clo._0(glue_listen$clo, canvas);
+                  $eff = $rc_2775;
                 }
               }
               {
-                const $t49465 = { $: "$Clo_$lam0_launch$0_launch", _0: $lam0_launch$apply$0_launch };
-                return glue_request_frame$clo._0(glue_request_frame$clo, $t49465);
+                const $t49487 = { $: "$Clo_$lam0_launch$0_launch", _0: $lam0_launch$apply$0_launch };
+                return glue_request_frame$clo._0(glue_request_frame$clo, $t49487);
               }
             }
           }
@@ -25711,8 +25798,8 @@ function $lam0_Spin_Game_lit$apply$0_Spin_Game_lit($clo, l) {
       {
         const g = l._0;
         {
-          const $rc_3497 = (!march_deep_eq(g, f));
-          return $rc_3497;
+          const $rc_3499 = (!march_deep_eq(g, f));
+          return $rc_3499;
         }
       }
     }
@@ -25736,8 +25823,8 @@ function $lam0_Spin_Game_fade$apply$0_Spin_Game_fade($clo, l) {
               $t46262 = (t - $t46261);
             }
             {
-              const $rc_3499 = { _0: g, _1: $t46262 };
-              return $rc_3499;
+              const $rc_3501 = { _0: g, _1: $t46262 };
+              return $rc_3501;
             }
           }
         }
@@ -25770,8 +25857,8 @@ function $lam2_Spin_Game_fade$apply$2_Spin_Game_fade($clo, x) {
           {
             const $t46271 = (t - dt);
             {
-              const $rc_3501 = { _0: g, _1: $t46271 };
-              return $rc_3501;
+              const $rc_3503 = { _0: g, _1: $t46271 };
+              return $rc_3503;
             }
           }
         }
@@ -25842,8 +25929,8 @@ function $lam6_Spin_Game_fade$apply$6_Spin_Game_fade($clo, p) {
           $t46295 = ($t46294 - dt);
         }
         {
-          const $rc_3502 = ({ ...p, pos: $t46293, life: $t46295 });
-          return $rc_3502;
+          const $rc_3504 = ({ ...p, pos: $t46293, life: $t46295 });
+          return $rc_3504;
         }
       }
     }
@@ -25986,8 +26073,8 @@ function $lam0_Spin_Game_give$apply$0_Spin_Game_give($clo, x) {
       {
         const g = x._0;
         {
-          const $rc_3504 = (!march_deep_eq(g, b));
-          return $rc_3504;
+          const $rc_3506 = (!march_deep_eq(g, b));
+          return $rc_3506;
         }
       }
     }
@@ -26024,8 +26111,8 @@ function $lam0_Spin_Game_fire$apply$0_Spin_Game_fire($clo, b) {
             $t46610 = ({ x: 0., y: $t46609 });
           }
           {
-            const $rc_3505 = ({ ...b, vel: $t46610 });
-            return $rc_3505;
+            const $rc_3507 = ({ ...b, vel: $t46610 });
+            return $rc_3507;
           }
         }
       } else {
@@ -26151,8 +26238,8 @@ function $lam0_Spin_Game_search$apply$0_Spin_Game_search($clo, b) {
           $t46763 = ({ x: $t46762, y: 420. });
         }
         {
-          const $rc_3510 = ({ ...b, vel: $t46763 });
-          return $rc_3510;
+          const $rc_3512 = ({ ...b, vel: $t46763 });
+          return $rc_3512;
         }
       }
     }
@@ -26197,8 +26284,8 @@ function $lam0_Spin_Reels_count$apply$0_Spin_Reels_count($clo, x) {
   {
     const s = $clo._1;
     {
-      const $rc_3511 = march_deep_eq(x, s);
-      return $rc_3511;
+      const $rc_3513 = march_deep_eq(x, s);
+      return $rc_3513;
     }
   }
 }
@@ -26241,8 +26328,8 @@ function $lam1_Spin_Reels_target_stop$apply$1_Spin_Reels_target_stop($clo, i) {
       {
         const $t47422 = { $: "Blank" };
         {
-          const $rc_3512 = march_deep_eq($t47421, $t47422);
-          return $rc_3512;
+          const $rc_3514 = march_deep_eq($t47421, $t47422);
+          return $rc_3514;
         }
       }
     }
@@ -26266,8 +26353,8 @@ function $lam0_Spin_Reels_roll_to$apply$0_Spin_Reels_roll_to($clo, k) {
           $t47429 = Spin$Reels$stop(r, $t47428);
         }
         {
-          const $rc_3513 = march_deep_eq($t47429, s);
-          return $rc_3513;
+          const $rc_3515 = march_deep_eq($t47429, s);
+          return $rc_3515;
         }
       }
     }
@@ -26293,8 +26380,8 @@ function $lam1_Spin_Reels_roll_to$apply$1_Spin_Reels_roll_to($clo, k) {
             $t47435 = Spin$Reels$stop(r, $t47434);
           }
           {
-            const $rc_3514 = Spin$Reels$rank($t47435);
-            $t47436 = $rc_3514;
+            const $rc_3516 = Spin$Reels$rank($t47435);
+            $t47436 = $rc_3516;
           }
         }
         {
@@ -26317,8 +26404,8 @@ const $lam0_Spin_Reels_turning$apply$0_Spin_Reels_turning$clo = { _0: ($_, $clo,
 
 function $lam0_Spin_Reels_hold$apply$0_Spin_Reels_hold($clo, x) {
   {
-    const $rc_3515 = x.held;
-    return $rc_3515;
+    const $rc_3517 = x.held;
+    return $rc_3517;
   }
 }
 const $lam0_Spin_Reels_hold$apply$0_Spin_Reels_hold$clo = { _0: ($_, $clo, x) => $lam0_Spin_Reels_hold$apply$0_Spin_Reels_hold($clo, x) };
@@ -26481,9 +26568,9 @@ function $lam0_Spin_View_reel_ops$apply$0_Spin_View_reel_ops($clo, k) {
                             {
                               let $t48084;
                               {
-                                let $rc_3516;
-                                $rc_3516 = Spin$View$symbol($t48082, s, $t48083, y, 1.);
-                                $t48084 = $rc_3516;
+                                let $rc_3518;
+                                $rc_3518 = Spin$View$symbol($t48082, s, $t48083, y, 1.);
+                                $t48084 = $rc_3518;
                               }
                               return List$append$List_Op$List_Op(halo, $t48084);
                             }
@@ -27279,8 +27366,8 @@ function $lam0_Spin_View_buff_ops$apply$0_Spin_View_buff_ops($clo, x) {
                             $t48990 = String($t48989);
                           }
                           {
-                            const $rc_3517 = march_string_concat3($t48987, " ", $t48990);
-                            $t48991 = $rc_3517;
+                            const $rc_3519 = march_string_concat3($t48987, " ", $t48990);
+                            $t48991 = $rc_3519;
                           }
                         }
                       }
@@ -27393,8 +27480,8 @@ function $lam0_Spin_View_attract_ops$apply$0_Spin_View_attract_ops($clo, i) {
         $t49283 = String($t49282);
       }
       {
-        const $rc_3518 = march_string_concat3($t49281, " at ", $t49283);
-        return $rc_3518;
+        const $rc_3520 = march_string_concat3($t49281, " at ", $t49283);
+        return $rc_3520;
       }
     }
   }
