@@ -21,7 +21,7 @@ export function glue_seed_limbs() {
 }
 
 export function glue_load_best() {
-  try { return Number(localStorage.getItem("spin.best") || 0) | 0; } catch (e) { return 0; }
+  try { return Number(localStorage.getItem("spin.best_cash") || 0) | 0; } catch (e) { return 0; }
 }
 // #stage=N starts every game at stage N (1 is the first), to look at the
 // later tables without earning them.
@@ -30,42 +30,55 @@ export function glue_start_stage() {
   return m ? Math.max(0, Number(m[1]) - 1) : 0;
 }
 export function glue_save_best(n) {
-  try { localStorage.setItem("spin.best", String(n)); } catch (e) { }
+  try { localStorage.setItem("spin.best_cash", String(n)); } catch (e) { }
 }
 
 export function glue_mark(name, value) {
   const el = document.documentElement;
-  if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+  if (el.getAttribute(name) !== value) {
+    el.setAttribute(name, value);
+    if (name === "data-mode") modeChanged(value);
+  }
 }
 
 // ---- Buttons ----
 // Keys: Z, Left or left Shift for the left flipper; M, /, Right or right Shift
 // for the right; Space, Down or Enter is the plunger (hold to pull, let go)
-// and starts a game.
+// and starts a game; with no ball waiting it shakes the machine. C held is
+// CASH OUT; 1, 3 and 5 pick the line mode between games.
 // Touch: tap the left half for the left flipper, the right half for the
-// right one. While a ball waits, the LAUNCH button (Spin.View.launch_button)
-// is the plunger: hold it to pull, let go to fire. Any tap starts a game.
+// right one. The LAUNCH button (Spin.View.launch_button) is the plunger
+// while a ball waits and SHAKE otherwise. Spin.View.buttons lists the rest
+// (CASH OUT, the line chips) each frame. A tap anywhere else starts a game.
 const keys = new Set();
-const fingers = new Map();   // pointerId -> "L" | "R" | "P" (plunger)
+const fingers = new Map();   // pointerId -> "L" | "R" | "P" | button id (number)
 // A tap is often shorter than a frame. Each press holds its flipper for at
 // least this long, so the game always sees it and the flipper goes all the
 // way up instead of twitching.
 const MIN_FLIP_MS = 110;
 const until = { L: 0, R: 0 };
 let touchMode = false;
-// The launch button in world units, and whether it takes touches now (only
-// while a ball waits: otherwise a thumb there is flipping, not launching).
-let button = { x: 0, y: 0, r: 0, live: false };
+let launchBtn = { x: 0, y: 0, r: 0, live: false, margin: 1 };
+let buttons = [];
 
-export function glue_launch_button(x, y, r, live) { button = { x, y, r, live }; }
+export function glue_launch_button(x, y, r, live, margin) { launchBtn = { x, y, r, live, margin }; }
+export function glue_buttons(list) {
+  const out = [];
+  each(list, (t) => out.push({ id: t._0, x: t._1, y: t._2, w: t._3, h: t._4 }));
+  buttons = out;
+}
 
 const LEFT = new Set(["KeyZ", "ArrowLeft", "ShiftLeft", "KeyA"]);
 const RIGHT = new Set(["KeyM", "Slash", "ArrowRight", "ShiftRight", "KeyL"]);
 const LAUNCH = new Set(["Space", "ArrowDown", "Enter"]);
+const PICKS = { Digit1: 1, Digit3: 3, Digit5: 5, Numpad1: 1, Numpad3: 3, Numpad5: 5 };
 
+let canvasRef = null;
 export function glue_listen(canvas) {
+  canvasRef = canvas;
   touchMode = window.matchMedia ? window.matchMedia("(pointer: coarse)").matches : false;
   window.addEventListener("keydown", (e) => {
+    if (overlayOpen()) return;
     if (LEFT.has(e.code) || RIGHT.has(e.code) || LAUNCH.has(e.code)) e.preventDefault();
     if (e.repeat) return;
     keys.add(e.code);
@@ -80,11 +93,12 @@ export function glue_listen(canvas) {
   const where = (e) => {
     const r = canvas.getBoundingClientRect();
     const sx = e.clientX - r.left, sy = e.clientY - r.top;
-    if (button.live) {
-      // world point under the finger; a fat-finger margin of half a radius
-      const wx = (sx - view.ox) / view.s, wy = (sy - view.oy) / view.s;
-      if (Math.hypot(wx - button.x, wy - button.y) < button.r * 1.5) return "P";
+    // world point under the finger
+    const wx = (sx - view.ox) / view.s, wy = (sy - view.oy) / view.s;
+    for (const b of buttons) {
+      if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) return b.id;
     }
+    if (launchBtn.live && Math.hypot(wx - launchBtn.x, wy - launchBtn.y) < launchBtn.r * launchBtn.margin) return "P";
     return sx < r.width / 2 ? "L" : "R";
   };
   canvas.addEventListener("pointerdown", (e) => {
@@ -92,7 +106,7 @@ export function glue_listen(canvas) {
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
     const side = where(e);
     fingers.set(e.pointerId, side);
-    if (side !== "P") until[side] = performance.now() + MIN_FLIP_MS;
+    if (side === "L" || side === "R") until[side] = performance.now() + MIN_FLIP_MS;
     if (e.pointerType !== "mouse") touchMode = true;
     wake();
   });
@@ -109,14 +123,21 @@ export function glue_listen(canvas) {
 const any = (set) => { for (const k of keys) if (set.has(k)) return true; return false; };
 const finger = (side) => { for (const v of fingers.values()) if (v === side) return true; return false; };
 
-// (left, right, launch, start)
+// (left, right, launch, start, cash, pick)
 export function glue_input() {
   const now = performance.now();
+  let pick = 0;
+  for (const k of keys) if (PICKS[k]) pick = PICKS[k];
+  for (const v of fingers.values()) if (v === 1 || v === 3 || v === 5) pick = v;
+  let starting = false;
+  for (const v of fingers.values()) if (v === "L" || v === "R" || v === "P") starting = true;
   return {
     _0: any(LEFT) || finger("L") || now < until.L,
     _1: any(RIGHT) || finger("R") || now < until.R,
     _2: any(LAUNCH) || finger("P"),
-    _3: any(LAUNCH) || fingers.size > 0,
+    _3: any(LAUNCH) || starting,
+    _4: keys.has("KeyC") || finger(9),
+    _5: pick,
   };
 }
 
@@ -155,9 +176,10 @@ export function glue_fit(canvas, x, y, w, h) {
   view = { s, ox: i.l + (aw - w * s) / 2 - x * s, oy: i.t + (ah - h * s) / 2 - y * s, dpr, w: bw, h: bh };
 }
 
+let shift = { x: 0, y: 0 };
 function world(ctx) {
   const k = view.s * view.dpr;
-  ctx.setTransform(k, 0, 0, k, view.ox * view.dpr, view.oy * view.dpr);
+  ctx.setTransform(k, 0, 0, k, (view.ox + shift.x * view.s) * view.dpr, (view.oy + shift.y * view.s) * view.dpr);
 }
 
 function each(list, f) {
@@ -165,6 +187,7 @@ function each(list, f) {
 }
 
 export function glue_paint(ctx, ops) {
+  shift = { x: 0, y: 0 };
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -221,6 +244,10 @@ export function glue_paint(ctx, ops) {
         break;
       case "Unclip":
         ctx.restore();
+        break;
+      case "Shift":
+        shift = { x: op._0, y: op._1 };
+        world(ctx);
         break;
       case "Fade":
         ctx.globalAlpha = Math.min(1, Math.max(0, op._0));
@@ -332,6 +359,10 @@ export function glue_sound(name, x) {
     case "buff":
       for (let i = 0; i < 3 + x * 2; i++) tone(SCALE[(i * 2) % SCALE.length] * 2, 0.06, "triangle", 0.09, 0, i * 0.045);
       break;
+    case "shake": noise(0.18, 0.3, 0, 400); tone(70, 0.2, "sine", 0.2, 45); break;
+    case "tilt": tone(220, 0.25, "square", 0.12); tone(220, 0.25, "square", 0.12, 0, 0.35); tone(110, 0.8, "sawtooth", 0.1, 0, 0.7); break;
+    case "cashout": for (let i = 0; i < 16; i++) tone(1200 + (i % 4) * 300, 0.05, "square", 0.05, 0, i * 0.05); noise(0.6, 0.08, 0, 7000); break;
+    case "pick": tone(660 + x * 60, 0.07, "triangle", 0.12); break;
     case "thud": {
       const now = performance.now();
       if (now - lastThud < 45) break;
@@ -341,4 +372,199 @@ export function glue_sound(name, x) {
     }
     default: break;
   }
+}
+
+// ---- Wallet, badges, leaderboard ----
+// Cashed-out credits go into a wallet on this device (localStorage). They
+// buy badges, which show next to the best cash-out on the panel and next to
+// the player's initials on the leaderboard. Nothing here is checked by a
+// server: the wallet, the badges and the score posted are what this browser
+// says. The leaderboard API caps and rate-limits, and that is all.
+const BADGES = [
+  { id: "cherry", glyph: "🍒", name: "Cherry", price: 25 },
+  { id: "lemon", glyph: "🍋", name: "Lemon", price: 60 },
+  { id: "bell", glyph: "🔔", name: "Bell", price: 120 },
+  { id: "bar", glyph: "🎰", name: "Bar", price: 250 },
+  { id: "seven", glyph: "7️⃣", name: "Lucky 7", price: 500 },
+  { id: "star", glyph: "⭐", name: "Star", price: 900 },
+  { id: "crown", glyph: "👑", name: "Crown", price: 1600 },
+  { id: "diamond", glyph: "💎", name: "Diamond", price: 3000 },
+];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } },
+};
+const wallet = () => Number(store.get("spin.wallet", 0)) | 0;
+const owned = () => { const o = store.get("spin.badges", []); return Array.isArray(o) ? o : []; };
+const glyphs = (ids) => BADGES.filter((b) => ids.includes(b.id)).map((b) => b.glyph).join("");
+let badgeText = null;
+
+export function glue_badges() {
+  if (badgeText === null) badgeText = glyphs(owned());
+  return badgeText;
+}
+
+let pending = null;   // { score, stage, lines } waiting to be posted
+export function glue_cashed(n, stage, lines) {
+  store.set("spin.wallet", wallet() + n);
+  pending = { score: n, stage, lines };
+  setTimeout(() => openOverlay(), 900);
+}
+
+let overlay = null;
+// Open only while shown: before its first opening the element's inline
+// display is "", and reading that as open swallowed every key.
+const overlayOpen = () => overlay !== null && overlay.style.display === "flex";
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function css() {
+  if (document.getElementById("spin-ui-css")) return;
+  const st = document.createElement("style");
+  st.id = "spin-ui-css";
+  st.textContent = `
+  #spin-ui { position: fixed; inset: 0; display: none; align-items: flex-start; justify-content: center; overflow-y: auto;
+    background: rgba(7,4,15,0.82); z-index: 10; font-family: Nunito, system-ui, sans-serif; font-weight: 800; color: #efe8ff;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); box-sizing: border-box; }
+  #spin-ui .card { width: 100%; max-width: 420px; background: #1a0c30; border: 3px solid #ffd36b; border-radius: 18px; padding: 18px; box-sizing: border-box; }
+  #spin-ui h2 { margin: 0 0 4px; font-weight: 900; font-size: 26px; color: #7dff7a; }
+  #spin-ui h3 { margin: 18px 0 8px; font-weight: 900; font-size: 15px; color: #ffd36b; letter-spacing: 1px; }
+  #spin-ui .muted { color: #a898d0; font-size: 13px; }
+  #spin-ui .row { display: flex; gap: 8px; align-items: center; }
+  #spin-ui input { width: 92px; font: inherit; font-weight: 900; font-size: 22px; letter-spacing: 6px; text-transform: uppercase; text-align: center;
+    background: #0b0614; color: #ffd36b; border: 2px solid #5a4a80; border-radius: 10px; padding: 6px; }
+  #spin-ui button { font: inherit; font-weight: 900; font-size: 15px; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer;
+    background: #ff3fa4; color: #fff; }
+  #spin-ui button:disabled { background: #3a2350; color: #8a7ab0; cursor: default; }
+  #spin-ui .shop { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  #spin-ui .badge { background: #0b0614; border: 2px solid #3a2350; border-radius: 12px; padding: 8px 4px; text-align: center; }
+  #spin-ui .badge .g { font-size: 26px; line-height: 1.2; }
+  #spin-ui .badge .n { font-size: 11px; color: #d8ccff; }
+  #spin-ui .badge button { margin-top: 6px; padding: 5px 8px; font-size: 12px; background: #5cf2ff; color: #07040f; }
+  #spin-ui .badge.have { border-color: #7dff7a; }
+  #spin-ui ol { margin: 0; padding: 0; list-style: none; }
+  #spin-ui li { display: flex; gap: 8px; padding: 6px 4px; border-bottom: 1px solid #2b1645; font-size: 15px; }
+  #spin-ui li .rk { width: 26px; color: #8a7ab0; } #spin-ui li .who { flex: 1; } #spin-ui li .sc { color: #7dff7a; }
+  #spin-ui li.me { background: rgba(255,211,107,0.12); }
+  #spin-ui .err { color: #ff3b4e; font-size: 13px; }
+  #spin-open { position: fixed; left: 0; top: 0; transform: translate(-50%, -50%); z-index: 5; display: none; white-space: nowrap;
+    font: 900 13px Nunito, system-ui, sans-serif; background: #1f1035; color: #ffd36b; border: 2px solid #ffd36b; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  `;
+  document.head.appendChild(st);
+}
+
+function ensureOverlay() {
+  if (overlay) return overlay;
+  css();
+  overlay = document.createElement("div");
+  overlay.id = "spin-ui";
+  overlay.addEventListener("pointerdown", (e) => e.stopPropagation());
+  document.body.appendChild(overlay);
+  const open = document.createElement("button");
+  open.id = "spin-open";
+  open.textContent = "🏆 SCORES & SHOP";
+  open.addEventListener("click", (e) => { e.stopPropagation(); openOverlay(); });
+  document.body.appendChild(open);
+  return overlay;
+}
+
+let board = { state: "loading", rows: [], error: "", mine: null };
+
+async function loadBoard() {
+  board = { ...board, state: "loading" };
+  render();
+  try {
+    const r = await fetch("/api/pinball/scores", { headers: { accept: "application/json" } });
+    if (!r.ok) throw new Error("the leaderboard answered " + r.status);
+    const j = await r.json();
+    board = { ...board, state: "ok", rows: j.scores || [] };
+  } catch (e) {
+    board = { ...board, state: "error", error: String(e.message || e) };
+  }
+  render();
+}
+
+async function post() {
+  const input = overlay.querySelector("#spin-initials");
+  const initials = (input.value || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+  if (initials.length !== 3) { board = { ...board, error: "three letters, A to Z" }; render(); return; }
+  store.set("spin.initials", initials);
+  const body = { initials, score: pending.score, stage: pending.stage, lines: pending.lines, badges: owned() };
+  try {
+    const r = await fetch("/api/pinball/scores", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ("the leaderboard answered " + r.status));
+    board = { state: "ok", rows: j.scores || board.rows, error: "", mine: j.id || null };
+    pending = null;
+  } catch (e) {
+    board = { ...board, error: String(e.message || e) };
+  }
+  render();
+}
+
+function buy(id) {
+  const b = BADGES.find((x) => x.id === id);
+  if (!b || owned().includes(id) || wallet() < b.price) return;
+  store.set("spin.wallet", wallet() - b.price);
+  store.set("spin.badges", [...owned(), id]);
+  badgeText = glyphs(owned());
+  render();
+}
+
+function render() {
+  if (!overlay) return;
+  const have = owned();
+  const head = pending
+    ? `<h2>CASHED OUT ${pending.score}</h2><div class="muted">banked to your wallet · stage ${pending.stage} · ${pending.lines} line${pending.lines === 1 ? "" : "s"}</div>
+       <h3>PUT IT ON THE BOARD</h3>
+       <div class="row"><input id="spin-initials" maxlength="3" autocomplete="off" autocapitalize="characters" value="${esc(store.get("spin.initials", ""))}" placeholder="AAA">
+       <button id="spin-post">POST ${pending.score}</button></div>`
+    : `<h2 style="color:#ffd36b">SCORES &amp; SHOP</h2><div class="muted">cash out a game to post a score and fill your wallet</div>`;
+  const shop = BADGES.map((b) => {
+    const mine = have.includes(b.id);
+    return `<div class="badge${mine ? " have" : ""}"><div class="g">${b.glyph}</div><div class="n">${esc(b.name)}</div>
+      ${mine ? `<div class="n" style="color:#7dff7a">OWNED</div>` : `<button data-buy="${b.id}" ${wallet() < b.price ? "disabled" : ""}>${b.price}</button>`}</div>`;
+  }).join("");
+  const rows = board.state === "loading" ? `<div class="muted">loading…</div>`
+    : board.state === "error" ? `<div class="err">leaderboard unavailable: ${esc(board.error)}</div>`
+    : board.rows.length === 0 ? `<div class="muted">no scores yet. be the first.</div>`
+    : `<ol>${board.rows.map((r, i) => `<li class="${r.id === board.mine ? "me" : ""}"><span class="rk">${i + 1}</span><span class="who">${esc(r.initials)} ${glyphs(r.badges || [])}</span><span class="muted">st ${r.stage} · ${r.lines}L</span><span class="sc">${r.score}</span></li>`).join("")}</ol>`;
+  overlay.innerHTML = `<div class="card">${head}
+    ${board.error && board.state !== "error" ? `<div class="err">${esc(board.error)}</div>` : ""}
+    <h3>WALLET · ${wallet()} CREDITS</h3><div class="shop">${shop}</div>
+    <h3>TOP 10 CASH-OUTS</h3>${rows}
+    <div class="row" style="margin-top:18px; justify-content:flex-end"><button id="spin-close" style="background:#ffd36b;color:#07040f">BACK TO THE TABLE</button></div></div>`;
+  const p = overlay.querySelector("#spin-post"); if (p) p.addEventListener("click", post);
+  overlay.querySelector("#spin-close").addEventListener("click", closeOverlay);
+  overlay.querySelectorAll("[data-buy]").forEach((el) => el.addEventListener("click", () => buy(el.getAttribute("data-buy"))));
+}
+
+function openOverlay() {
+  ensureOverlay();
+  keys.clear(); fingers.clear();
+  overlay.style.display = "flex";
+  render();
+  loadBoard();
+}
+
+function closeOverlay() {
+  if (overlay) overlay.style.display = "none";
+  keys.clear(); fingers.clear();
+}
+
+// The scores button shows between games, where Spin.View.scores_at puts
+// it (table units, mapped through the same fit as the canvas).
+export function glue_scores_at(show, x, y) {
+  ensureOverlay();
+  const b = document.getElementById("spin-open");
+  const want = show ? "block" : "none";
+  if (b.style.display !== want) b.style.display = want;
+  if (show) {
+    const r = canvasRef ? canvasRef.getBoundingClientRect() : { left: 0, top: 0 };
+    b.style.left = (r.left + view.ox + x * view.s) + "px";
+    b.style.top = (r.top + view.oy + y * view.s) + "px";
+  }
+}
+
+function modeChanged(mode) {
+  if (mode === "playing") closeOverlay();
 }

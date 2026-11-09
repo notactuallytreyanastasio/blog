@@ -302,6 +302,9 @@ defmodule BlogWeb.Router do
     get "/collage-maker/:collage_id/download", CollageMakerController, :download
 
     post "/blinks", BlinkController, :create
+
+    get "/pinball/scores", PinballScoreController, :index
+    post "/pinball/scores", PinballScoreController, :create
     get "/blinks", BlinkController, :index
     get "/blinks/tags", BlinkController, :tags
     get "/blinks/random", BlinkController, :random
