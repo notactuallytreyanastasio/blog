@@ -16,6 +16,12 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
+# The factory (obs_factor): serve this app's report on :9568 inside the
+# compose network, and write one JSON object per log line.
+config :blog, factory_report: true
+
+config :logger, :default_handler, formatter: {FactoryReport.JSONFormatter, %{}}
+
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.
 
