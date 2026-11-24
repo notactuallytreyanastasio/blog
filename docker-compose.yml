@@ -74,6 +74,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      FACTORY_REPORT_ACTIONS_TOKEN: ${OBS_FACTOR_ACTIONS_TOKEN}
       DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/blinks_backend_prod
       SECRET_KEY_BASE: ${BLINKS_SECRET_KEY_BASE}
       PHX_HOST: links.bobbby.online
@@ -88,6 +89,8 @@ services:
     build:
       context: /opt/marginalia
     restart: always
+    deploy:
+      replicas: 5
     depends_on:
       db:
         condition: service_healthy
@@ -96,7 +99,18 @@ services:
       SECRET_KEY_BASE: ${MARGINALIA_SECRET_KEY_BASE}
       PHX_HOST: marginalia.bobbby.online
       PORT: "4000"
-      POOL_SIZE: "10"
+      # Five replicas share Postgres, which was at 93 of 100 (3 of them
+      # reserved for superusers) with three: 2 each is 10, plus the two
+      # leadership-lock connections (Marginalia.Singleton) is 12, two fewer
+      # than three replicas at 4 each. Load is ~0.2 req/s.
+      POOL_SIZE: "2"
+      # A cluster: DNSCluster resolves the service name to every replica and
+      # connects marginalia@<ip> to each (rel/env.sh.eex names the nodes).
+      DNS_CLUSTER_QUERY: marginalia
+      # Turns factory_report's observer actions on, behind this bearer token
+      # (obs-factor sends it as OBSERVER_ACTIONS_TOKEN). Unset: 403.
+      FACTORY_REPORT_ACTIONS_TOKEN: ${OBS_FACTOR_ACTIONS_TOKEN}
+      RELEASE_COOKIE: ${MARGINALIA_RELEASE_COOKIE}
       # Marginalia defaults to DeepSeek and reads DEEPSEEK_API_KEY. Without
       # this line the container had only the OpenAI key, so every read failed
       # on a provider whose key was sitting unused in .env.
@@ -158,6 +172,27 @@ services:
       POOL_SIZE: "10"
     # Not exposed to host - Caddy proxies to port 4000 via Docker network
 
+  # skyfeed — Bluesky maps + feed construction (bsky_exploration/skyfeed; its deploy.sh
+  # rsyncs the source to /opt/skyfeed and a data snapshot to /opt/skyfeed-data). No
+  # database: it reads the map/profile snapshot mounted at /data and keeps exactly one
+  # Jetstream websocket open. Saved feeds are written to /data/feeds, list jobs to /data/lists.
+  skyfeed:
+    build:
+      context: /opt/skyfeed
+    restart: always
+    environment:
+      SECRET_KEY_BASE: ${SKYFEED_SECRET_KEY_BASE}
+      PHX_HOST: bskymapfeeds.bobbby.online
+      PORT: "4000"
+      SKYFEED_DATA_DIR: /data
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # bot account that owns the Bluesky lists made from map selections (app password)
+      LIST_BOT_HANDLE: ${SKYFEED_LIST_BOT_HANDLE:-}
+      LIST_BOT_APP_PASSWORD: ${SKYFEED_LIST_BOT_APP_PASSWORD:-}
+    volumes:
+      - /opt/skyfeed-data:/data
+    # Not exposed to host - Caddy proxies to port 4000 via Docker network
+
   # Shared decision graph. One Postgres database behind an MCP endpoint, one
   # workspace per project, serving every graph on the laptop. Caddy proxies
   # bobbby.online/deciduous-mcp/* here. See /opt/deciduous-mcp/DEPLOY.md.
@@ -194,6 +229,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      FACTORY_REPORT_ACTIONS_TOKEN: ${OBS_FACTOR_ACTIONS_TOKEN}
       DATABASE_URL: ecto://blog:${DB_PASSWORD}@db/nathan_for_us_prod
       SECRET_KEY_BASE: ${NATHAN_SECRET_KEY_BASE}
       PHX_HOST: gifmaker.bobbby.online
@@ -292,7 +328,7 @@ services:
       - /opt/lumines-server:/app:ro
 
   caddy:
-    image: caddy:2
+    image: caddy:2.10.2
     restart: always
     ports:
       - "80:80"
@@ -302,6 +338,9 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      # The JSON access log the factory tails (the `(access)` snippet in the
+      # Caddyfile): no client addresses, headers or query strings, 150 MiB at most.
+      - caddy_logs:/var/log/caddy
       - /opt/deciduous-site:/srv/deciduous:ro
       - /opt/phstats:/srv/phstats:ro
       - /opt/donny:/srv/donny:ro
@@ -312,6 +351,7 @@ services:
       - /opt/downloader:/srv/downloader:ro  # Framecut Grabber landing page (nathan_for_us site/, via deploy.sh)
       - /opt/lumines:/srv/lumines:ro  # LUMINES HD static build (lumines_hd repo dist/, via its scripts/deploy.sh)
       - /opt/gaming:/srv/gaming:ro  # Pastel Garden Massacre (whats_going_through_your_mind repo, via its scripts/deploy.sh)
+      - /opt/padmac:/srv/padmac:ro  # PadMac landing page (padmac repo site/, via its site/deploy.sh)
 
   # The blog, served by a server written in Blimp: blimp_site/ in the blog
   # repo, shipped to /opt/blimp-blog by blimp_site/deploy.sh. Caddy sends it
@@ -358,8 +398,97 @@ services:
       S3_BUCKET: ${S3_BUCKET:-bobbby-media}
     # Not exposed to host - Caddy proxies to port 4100 via Docker network
 
+  # obs_factor — the live factory view of this stack (factory.bobbby.online).
+  # Own source tree at /opt/obs_factor (rsynced by obs_factor's deploy.sh).
+  # It reads, and only reads: Docker through docker-proxy, Caddy's :9180
+  # metrics, one Postgres connection as the obs_factor role, the host's
+  # /proc (a container's own /proc/{stat,meminfo,loadavg} are the host
+  # kernel's, so nothing is mounted for it), statfs on an empty directory,
+  # and the static sites' directories, read-only.
+  obs-factor:
+    build:
+      context: /opt/obs_factor
+    restart: always
+    mem_limit: 512m
+    depends_on:
+      db:
+        condition: service_healthy
+      docker-proxy:
+        condition: service_started
+    environment:
+      PHX_HOST: factory.bobbby.online
+      PORT: "4000"
+      SECRET_KEY_BASE: ${OBS_FACTOR_SECRET_KEY_BASE}
+      OBS_FACTOR_PASSWORD: ${OBS_FACTOR_PASSWORD}
+      DOCKER_URL: http://docker-proxy:2375
+      CADDY_METRICS_URL: http://caddy:9180/metrics
+      # Hex password (openssl rand -hex 24): it sits in a URL unescaped.
+      PG_URL: postgres://obs_factor:${OBS_FACTOR_DB_PASSWORD}@db/postgres
+      HOST_PROC: /proc
+      HOST_DISK_PATH: /hostfs
+      SITES_DIR: /sites
+      TOPOLOGY: /app/topology/prod.exs
+      ACCESS_LOG: /caddy-logs/access.log
+      # Mission objectives: a role and database of their own, writable
+      # (deploy/objectives-db.sql), unlike PG_URL's read-only monitor.
+      OBJECTIVES_PG_URL: postgres://obs_factor_app:${OBS_FACTOR_OBJECTIVES_DB_PASSWORD}@db/obs_factor
+      # Sent with observer actions (gc, kill, restart); the apps hold the
+      # same value as FACTORY_REPORT_ACTIONS_TOKEN.
+      OBSERVER_ACTIONS_TOKEN: ${OBS_FACTOR_ACTIONS_TOKEN}
+    volumes:
+      # statfs() needs a path on the host's root filesystem and nothing else.
+      # An empty directory, created by Docker (as root) on first `up`. NOT
+      # /opt/blog (its .env holds every secret) and NOT /: a container's own
+      # "/" is overlayfs and statfs reports the Docker data filesystem,
+      # which is only the root filesystem if /var/lib/docker is on it.
+      - /var/lib/obs_factor/statfs:/hostfs:ro
+      - caddy_logs:/caddy-logs:ro
+      # The static sites, read-only, one directory each, named as Caddy
+      # mounts them under /srv. Every byte here is already public (Caddy's
+      # file_server serves it), except that /opt/arena is mounted only at
+      # its play/ subdirectory, which is all Caddy serves of it.
+      - /opt/deciduous-site:/sites/deciduous:ro
+      - /opt/phstats:/sites/phstats:ro
+      - /opt/donny:/sites/donny:ro
+      - /opt/blimp:/sites/blimp:ro
+      - /opt/arena/play:/sites/arena:ro
+      - /opt/soldat-landing:/sites/soldat-landing:ro
+      - /opt/slides:/sites/slides:ro
+      - /opt/downloader:/sites/downloader:ro
+      - /opt/lumines:/sites/lumines:ro
+      - /opt/gaming:/sites/gaming:ro
+      - /opt/padmac:/sites/padmac:ro
+    networks: [default, obs]
+    # Not exposed to host - Caddy proxies factory.bobbby.online to port 4000
+
+  # The observer's only door to the Docker Engine API: GET container list,
+  # inspect and stats; 403 for everything else (deploy/docker-proxy/Caddyfile,
+  # proven request by request in the README). The socket's :ro does not
+  # make the API read-only - connect() works on a read-only bind of a
+  # socket - so the allowlist is the boundary.
+  #
+  # On the "obs" network ONLY. Inspect returns every container's
+  # Config.Env, i.e. every secret in .env; on the default network any app
+  # (a public relay, say) could read them all. Only obs-factor joins "obs".
+  docker-proxy:
+    image: caddy:2.10.2
+    restart: always
+    mem_limit: 64m
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/obs_factor/deploy/docker-proxy:/etc/caddy:ro
+    networks: [obs]
+    # Not exposed to host, and not on the default network
+
 volumes:
   marginalia_drafts:
   pgdata:
   caddy_data:
   caddy_config:
+  caddy_logs:
+
+networks:
+  # obs_factor: internal (no route out of the box); only obs-factor and docker-proxy join it.
+  obs:
+    internal: true

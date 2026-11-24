@@ -81,6 +81,12 @@ if config_env() == :prod do
     check_origin: [
       "https://#{host}",
       "https://www.#{host}",
+      # Caddy sends some bobbby.online paths to this app (/blinks/review and
+      # its /live/websocket, /hotel-carbon, /tennis-potatoes), so their
+      # sockets arrive with this origin while PHX_HOST is old.bobbby.online.
+      # Without it every such socket was refused ("Could not check origin").
+      "https://bobbby.online",
+      "https://www.bobbby.online",
       # Pastel Garden Massacre co-op joins BlogWeb.GardenChannel from here.
       # Literal, not derived from host: PHX_HOST is old.bobbby.online in prod.
       "https://gaming.bobbby.online"

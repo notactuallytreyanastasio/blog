@@ -189,6 +189,7 @@ defmodule BlogWeb.Router do
     get "/frontier", FrontierController, :index
     get "/tennis-potatoes", TennisPotatoesController, :index
     get "/pinball", PinballController, :index
+    get "/skee", SkeeController, :index
     get "/hotel-carbon", HotelCarbonController, :index
     get "/hotel-carbon/studio", HotelCarbonController, :studio
     get "/hotel-carbon/storylines", HotelCarbonController, :storylines
