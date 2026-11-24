@@ -35,8 +35,7 @@ defmodule FactoryReport.LiveViews do
     started = System.monotonic_time()
 
     if dict_key?() do
-      all = :erlang.processes()
-      pids = Enum.take(all, @walk_limit)
+      pids = first_pids(@walk_limit)
       counts = count(pids)
       sorted = counts |> Enum.sort_by(fn {view, n} -> {-n, view} end)
       {shown, cut} = Enum.split(sorted, @max_views)
@@ -46,7 +45,7 @@ defmodule FactoryReport.LiveViews do
         "views" =>
           Enum.map(shown, fn {view, n} -> %{"view" => Streams.text(inspect(view)), "alive" => n} end),
         "views_cut" => length(cut),
-        "processes" => length(all),
+        "processes" => :erlang.system_info(:process_count),
         "walked" => length(pids),
         "walk_limit" => @walk_limit,
         "took_ms" => took_ms(started)
@@ -63,6 +62,27 @@ defmodule FactoryReport.LiveViews do
         "unavailable" =>
           "needs OTP 26.2 or later to read one process dictionary key; this VM is OTP #{System.otp_release()}"
       }
+    end
+  end
+
+  # The first `n` pids. On OTP 28 the process iterator yields them one at a
+  # time, so a node with a million processes is not copied into a list
+  # every 5 s to keep 20,000 of it; before 28, :erlang.processes/0 is the
+  # only way, and the list is built and cut.
+  @doc false
+  def first_pids(n) do
+    if function_exported?(:erlang, :processes_iterator, 0),
+      do: take_iter(:erlang.processes_iterator(), n, []),
+      else: Enum.take(:erlang.processes(), n)
+  end
+
+  defp take_iter(_iter, 0, acc), do: Enum.reverse(acc)
+
+  defp take_iter(iter, n, acc) do
+    # credo:disable-for-next-line
+    case apply(:erlang, :processes_next, [iter]) do
+      {pid, next} -> take_iter(next, n - 1, [pid | acc])
+      :none -> Enum.reverse(acc)
     end
   end
 
