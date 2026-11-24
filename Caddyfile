@@ -6,9 +6,48 @@
 		# client, so the leftmost entry is whatever the client typed.
 		trusted_proxies_strict
 	}
+	# obs_factor: one request series per host (caddy_http_requests_total{host=...}).
+	# Without per_host every site's requests land in one series.
+	metrics {
+		per_host
+	}
+}
+
+# The access log the factory tails (obs_factor: deploy/Caddyfile.access).
+(access) {
+	log_append ua {header.User-Agent}
+	log_append country {header.Cf-Ipcountry}
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 2
+			mode 0644
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "\?.*" ""
+				request>headers delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				request>tls delete
+				resp_headers delete
+				user_id delete
+			}
+		}
+	}
+}
+
+# obs_factor: Prometheus metrics for the observer, plain HTTP on :9180.
+# Reachable only on the compose network: docker-compose.yml publishes
+# 80 and 443 for caddy, not 9180.
+http://:9180 {
+	metrics
 }
 
 bobbby.online, www.bobbby.online {
+	import access
 	encode gzip zstd
 
 	header {
@@ -330,6 +369,7 @@ bobbby.online, www.bobbby.online {
 }
 
 old.bobbby.online {
+	import access
 	# The Phoenix app, which bobbby.online no longer proxies: every page and
 	# route Blimp does not serve, and bobbby.online sends each such URL here
 	# with a 308 (method and body kept).
@@ -340,13 +380,24 @@ old.bobbby.online {
 		alt-svc "clear"
 	}
 
-	reverse_proxy app:4000 {
-		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	# The game at /skee is served from here, and its casino host posts to the
+	# same origin: the same relay route as on bobbby.online.
+	handle_path /skee-host/* {
+		reverse_proxy skee-relay:8788 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	handle {
+		reverse_proxy app:4000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
 	}
 }
 
 links.bobbby.online {
+	import access
 	encode gzip zstd
 
 	header {
@@ -361,6 +412,7 @@ links.bobbby.online {
 }
 
 marginalia.bobbby.online {
+	import access
 	encode gzip zstd
 
 	header {
@@ -375,6 +427,7 @@ marginalia.bobbby.online {
 }
 
 tyler.bobbby.online {
+	import access
 	encode gzip zstd
 
 	header {
@@ -391,6 +444,7 @@ tyler.bobbby.online {
 
 # bobbbys.link is the landing page (host-routed inside the blinks app)
 bobbbys.link, www.bobbbys.link {
+	import access
 	encode gzip zstd
 
 	header {
@@ -401,6 +455,7 @@ bobbbys.link, www.bobbbys.link {
 }
 
 gifmaker.bobbby.online {
+	import access
 	reverse_proxy nathan:4001 {
 		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
 		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
@@ -415,6 +470,7 @@ gifmaker.bobbby.online {
 }
 
 deciduous.dev, www.deciduous.dev {
+	import access
 	root * /srv/deciduous
 	file_server
 
@@ -426,6 +482,7 @@ deciduous.dev, www.deciduous.dev {
 }
 
 soldat.bobbby.online {
+	import access
 	root * /srv/soldat-landing
 	file_server
 
@@ -439,6 +496,7 @@ soldat.bobbby.online {
 # Framecut Grabber download + setup page (nathan_for_us repo, site/, published
 # to /opt/downloader by blog's deploy.sh).
 downloader.bobbby.online {
+	import access
 	root * /srv/downloader
 	file_server
 
@@ -450,6 +508,7 @@ downloader.bobbby.online {
 }
 
 donny.bobbby.online {
+	import access
 	root * /srv/donny
 	file_server
 
@@ -461,6 +520,7 @@ donny.bobbby.online {
 }
 
 blimp.bobbby.online {
+	import access
 	root * /srv/blimp
 	file_server
 
@@ -474,6 +534,7 @@ blimp.bobbby.online {
 # Pastel Garden Massacre, a three.js hack-and-slash with no build step: ES modules
 # served as-is (whats_going_through_your_mind repo, via its scripts/deploy.sh).
 gaming.bobbby.online {
+	import access
 	root * /srv/gaming
 	file_server
 
@@ -488,6 +549,7 @@ gaming.bobbby.online {
 }
 
 slides.bobbby.online {
+	import access
 	encode gzip zstd
 
 	# Phone-remote WebSocket relay (the slides repo's server/relay.mjs, running
@@ -526,6 +588,7 @@ slides.bobbby.online {
 # container and gets the /ws WebSocket upgrade, handled BEFORE the file
 # server. Deployed by lumines_hd/scripts/deploy.sh.
 lumines.bobbby.online {
+	import access
 	encode gzip zstd
 
 	header {
@@ -561,6 +624,7 @@ lumines.bobbby.online {
 }
 
 phishjamexplorer.com, www.phishjamexplorer.com {
+	import access
 	root * /srv/phstats
 	file_server
 
@@ -577,6 +641,7 @@ phishjamexplorer.com, www.phishjamexplorer.com {
 # Dave — the classroom music viewer (Noteflight import, synced per-instrument
 # views). WebSocket support for Phoenix Channels rides the same upgrade.
 dave.bobbby.online {
+	import access
 	encode gzip zstd
 
 	header {
@@ -587,5 +652,55 @@ dave.bobbby.online {
 	reverse_proxy dave:4000 {
 		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
 		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+}
+
+# skyfeed — Bluesky maps + feed construction (the skyfeed service in docker-compose.yml)
+bskymapfeeds.bobbby.online {
+	import access
+	encode gzip zstd
+
+	header {
+		X-Forwarded-Proto {scheme}
+		alt-svc "clear"
+	}
+
+	reverse_proxy skyfeed:4000 {
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+}
+
+# PadMac, the Remote Mac landing page: one static index.html from the padmac
+# repo's site/, shipped to /opt/padmac by that repo's site/deploy.sh.
+padmac.bobbby.online {
+	import access
+	root * /srv/padmac
+	file_server
+
+	encode gzip zstd
+
+	header {
+		Cache-Control "public, max-age=300"
+	}
+}
+
+# obs_factor, the live factory view of this stack (the obs-factor service in
+# docker-compose.yml, source at /opt/obs_factor). Password-protected by the
+# app itself. /api/stream is server-sent events.
+factory.bobbby.online {
+	import access
+	encode gzip zstd
+
+	header {
+		X-Forwarded-Proto {scheme}
+		alt-svc "clear"
+	}
+
+	reverse_proxy obs-factor:4000 {
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		# SSE: write each event as the app writes it.
+		flush_interval -1
 	}
 }

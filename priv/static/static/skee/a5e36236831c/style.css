@@ -1,0 +1,400 @@
+/* The page: one full-window canvas with the HUD layered over it. The HUD
+   layer lets touches through to the canvas except on its own controls, as
+   SwiftUI's HUDView does over the throw pad. */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#alley {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: block;
+  touch-action: none;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: "Avenir Next", Nunito, system-ui, sans-serif;
+  font-weight: 800;
+}
+
+#hud button, #hud [data-tap] {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+/* The stub HUD's bar of live intents (shell/hud.march), until the real HUD lands. */
+#hud[data-buttons] {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  gap: 6px;
+  padding: max(8px, env(safe-area-inset-top)) 8px 8px;
+  box-sizing: border-box;
+}
+
+#hud .dev-tap {
+  font: 800 13px/1 "Avenir Next", Nunito, system-ui, sans-serif;
+  padding: 8px 10px;
+  border: 2px solid #1a1a1a;
+  border-radius: 10px;
+  background: rgba(255, 214, 64, 0.92);
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+/* ===================================================================
+   HUD (the HUD piece: lib/skee/hud_view.march, shell/hud.march).
+   SkeeHUD's SwiftUI look in CSS. Colours and sizes that vary are inline,
+   from Skee.HudView; these are the fixed shapes. Ink: Toon.ink #3A2346.
+   =================================================================== */
+#hud {
+  --ink: #3a2346;
+  --cream: #fff8ec;
+  --butter: #ffd84d;
+  --lilac: #9b83f2;
+  --violet: #6f55d6;
+  --ink55: rgba(58, 35, 70, 0.55);
+  font-family: ui-rounded, "SF Pro Rounded", Nunito, "Arial Rounded MT Bold", system-ui, sans-serif;
+  font-weight: 900;
+  color: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+#hud .hud-pane, #hud #hud-art { position: absolute; inset: 0; pointer-events: none; }
+#hud .hud-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+#hud svg { overflow: visible; display: block; }
+#hud .hb { pointer-events: auto; cursor: pointer; touch-action: manipulation; }
+#hud .hb:active { filter: brightness(0.92); }
+
+/* CelText: eight ink copies of the type around it, dropped by 0.6 of the
+   outline width (--w = max(1.5, size * 0.08)). */
+#hud .cel {
+  display: inline-block;
+  white-space: nowrap;
+  line-height: 1.15;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    var(--w) calc(var(--w) * 0.6) 0 var(--ink),
+    calc(var(--w) * 0.7071) calc(var(--w) * 1.3071) 0 var(--ink),
+    0 calc(var(--w) * 1.6) 0 var(--ink),
+    calc(var(--w) * -0.7071) calc(var(--w) * 1.3071) 0 var(--ink),
+    calc(var(--w) * -1) calc(var(--w) * 0.6) 0 var(--ink),
+    calc(var(--w) * -0.7071) calc(var(--w) * -0.1071) 0 var(--ink),
+    0 calc(var(--w) * -0.4) 0 var(--ink),
+    calc(var(--w) * 0.7071) calc(var(--w) * -0.1071) 0 var(--ink);
+}
+#hud .rt { line-height: 1.25; }
+
+/* Pill: fill, a 3pt ink border inside, a 4pt ink drop. SwiftUI pads 12 by 6
+   and draws the border inside that, so the padding here is 3 less. */
+#hud .pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+}
+
+#hud .at { position: absolute; transform: translate(-50%, -50%); width: max-content; }
+#hud .vs { display: flex; flex-direction: column; align-items: center; }
+#hud .vs.left { align-items: flex-start; }
+#hud .vs.tight { gap: 0; }
+#hud .vs.tight > .cel { margin: -1px 0; }
+#hud .hs { display: flex; align-items: center; }
+#hud .hs.base { align-items: baseline; }
+#hud .grow { flex: 1 1 0; min-height: 0; }
+#hud .pre .cel { white-space: pre; }
+
+/* ---- The title ---- */
+#hud .screen-fill { position: absolute; inset: 0; }
+#hud .title-card {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  pointer-events: none;
+}
+#hud .title-skee { transform: rotate(-6deg); }
+#hud .title-skee > .cel { margin: -5px 0; }
+#hud .blurb { max-width: 320px; text-align: center; }
+#hud .blurb .cel { white-space: normal; }
+#hud .room {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3px 5px; border-radius: 10px; border: 2px solid transparent;
+}
+#hud .shelf {
+  display: flex; gap: 2px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(58, 35, 70, 0.45);
+}
+
+/* ---- The game ---- */
+#hud .top {
+  position: absolute; left: 0; right: 0; top: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+#hud .top-bar {
+  width: 100%; box-sizing: border-box; padding: 0 12px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+#hud .boss-blurb { padding: 0 20px; text-align: center; }
+#hud .boss-blurb .cel { white-space: normal; }
+#hud .track { position: relative; width: 150px; height: 10px; border-radius: 5px; background: var(--ink); }
+#hud .track-fill { position: absolute; left: 2px; top: 2px; height: 6px; border-radius: 3px; }
+#hud .targets { display: flex; gap: 3px; border: 3px solid var(--ink); border-radius: 8px; }
+#hud .target {
+  width: 27px; height: 27px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--cream); border: 2px solid var(--ink); border-radius: 6px;
+}
+#hud .reel {
+  width: 44px; height: 44px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid var(--ink); border-radius: 10px; box-shadow: 0 3px 0 var(--ink);
+}
+#hud .heat { width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--ink); }
+#hud .hint {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 12px; border-radius: 999px; background: rgba(58, 35, 70, 0.6);
+}
+#hud .meter { width: 8px; border-radius: 4px; background: rgba(58, 35, 70, 0.35); }
+#hud .tick { box-sizing: border-box; border-radius: 999px; border: 1.5px solid var(--ink); }
+#hud .fill-svg { position: absolute; left: 0; top: 0; }
+#hud .hot { position: relative; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; }
+#hud .hot-ring {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  box-sizing: border-box; border: 5px solid var(--butter); border-radius: 50%;
+}
+
+/* Charms, power-ups and the ball rack. */
+#hud .token {
+  width: 46px; height: 46px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 0 var(--ink);
+}
+#hud .tile { border-radius: 12px; }
+#hud .disc { border-radius: 50%; }
+#hud .flat { box-shadow: none; }
+#hud .power .disc { width: 44px; height: 44px; }
+#hud .charm, #hud .power { position: relative; }
+#hud .sell { position: absolute; right: -96px; top: 50%; transform: translateY(-50%); width: max-content; }
+#hud .armed { position: absolute; left: 50%; top: -14px; transform: translateX(-50%); }
+#hud .rack { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0 8px; box-sizing: border-box; }
+#hud .rack-row { display: flex; gap: 5px; width: 100%; }
+#hud .rack-cell { flex: 1 1 0; min-width: 0; }
+#hud .rack-ball {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 2px 0; border-radius: 12px; box-sizing: border-box;
+}
+#hud .ball-dot { width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 2.5px solid var(--ink); }
+
+/* MachineView. */
+#hud .machine {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px; background: var(--violet);
+  border: 4px solid var(--butter); border-radius: 22px; box-shadow: 0 5px 0 var(--ink);
+  pointer-events: auto;
+}
+#hud .jackpots { position: relative; display: flex; gap: 4px; width: 264px; }
+#hud .jackpot {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
+  padding: 3px 0; border-radius: 8px; background: var(--ink55);
+}
+#hud .max-bet { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); width: max-content; }
+#hud .window { position: relative; width: 210px; height: 210px; background: var(--cream); border-radius: 10px; }
+#hud .reels { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; }
+#hud .pull-reel { position: absolute; top: 0; width: 70px; height: 210px; }
+#hud .reel-cell {
+  position: absolute; left: 0; width: 70px; height: 70px;
+  display: flex; align-items: center; justify-content: center;
+}
+#hud .reel-art { position: relative; width: 58px; height: 58px; }
+#hud .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+#hud .overlay.wild { align-items: flex-end; bottom: -4px; }
+#hud .reel-coin {
+  width: 58px; height: 58px; box-sizing: border-box; border-radius: 50%; border: 3px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+}
+#hud .coin-words > .cel { margin: -1px 0; }
+#hud .tease { position: absolute; inset: 0; background: rgba(255, 216, 77, 0.35); }
+#hud .tease-ring {
+  position: absolute; left: 140px; top: 0; width: 70px; height: 210px;
+  box-sizing: border-box; border: 4px solid var(--butter); border-radius: 10px;
+}
+#hud .divider { position: absolute; top: 0; width: 2px; height: 210px; background: rgba(58, 35, 70, 0.35); }
+#hud .line-tick { width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--ink); }
+#hud .wins { position: absolute; left: 0; top: 0; }
+#hud .window-edge { position: absolute; inset: 0; box-sizing: border-box; border: 4px solid var(--ink); border-radius: 10px; }
+#hud .lever { position: relative; width: 44px; height: 200px; }
+#hud .lever-track { position: absolute; left: 17px; top: 0; width: 10px; height: 100%; border-radius: 5px; background: rgba(58, 35, 70, 0.6); }
+#hud .knob { position: relative; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; border: 3px solid var(--ink); }
+/* A drag handle (the knob): it takes its own pointer, and the page must not pan. */
+#hud [data-drag] { pointer-events: auto; touch-action: none; cursor: grab; }
+#hud .knob-shine { position: absolute; left: 7px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.6); }
+#hud .bet {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 1px 5px; border-radius: 10px; border: 3px solid transparent;
+}
+
+/* Tally, banners and the game over card. */
+#hud .tally-num { min-width: 84px; display: flex; justify-content: center; }
+#hud .vs.over { gap: 10px; padding: 10px; }
+#hud .over-buttons { margin-top: 6px; }
+#hud .over-card { pointer-events: auto; }
+
+/* CounterView: the bottom half, the board left in view above. */
+#hud .counter { position: absolute; left: 0; right: 0; padding: 18px 10px 14px; box-sizing: border-box; }
+#hud .counter-panel {
+  height: 100%; box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  background: var(--lilac); border: 4px solid var(--ink); border-radius: 28px; box-shadow: 0 5px 0 var(--ink);
+  pointer-events: auto;
+}
+#hud .counter-head { display: flex; justify-content: space-between; align-items: center; }
+/* On a phone browser the toolbars leave less than the iPhone's 844 pt, and
+   half the height can't hold four offers and the buttons. The counter keeps
+   the bottom half as its minimum and grows upward to fit its content, so
+   REROLL and NEXT ROUND are always on screen. */
+#hud .offers { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 104px; gap: 10px; }
+#hud .offers > * { height: 100%; min-height: 0; }
+#hud .offer {
+  height: 100%; min-height: 0; box-sizing: border-box; display: flex; gap: 8px; padding: 7px;
+  border-radius: 16px; box-shadow: 0 4px 0 var(--ink); overflow: hidden;
+}
+#hud .counter {
+  top: auto !important; bottom: 0; height: auto !important; min-height: 50%; max-height: 100%;
+  display: flex; flex-direction: column;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+#hud .counter-panel { flex: 1 1 auto; height: auto; overflow-y: auto; }
+#hud .counter-panel > * { flex: none; }
+#hud .counter-panel > .grow { flex: 1 1 0; }
+@media (max-height: 760px) {
+  #hud .counter { padding-top: 8px; }
+  #hud .counter-panel { gap: 6px; padding: 10px; }
+  #hud .offers { gap: 8px; }
+}
+#hud .offer-icon { flex: none; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; }
+#hud .offer-words { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+/* The clamp counts line boxes in the blurb's own font: its size and leading
+   live here, not only on the span, or the 16px strut makes each line ~22px
+   and the third line (Swift's lineLimit(3)) is cut off. */
+#hud .offer-blurb { font-size: 11px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+#hud .sold { flex: 1 1 0; display: flex; align-items: center; justify-content: center; }
+#hud .counter-buttons { display: flex; gap: 12px; }
+#hud .counter-buttons > .hb { flex: 1 1 0; }
+#hud .counter-buttons .pill { width: 100%; box-sizing: border-box; }
+
+/* CoachView: only its buttons take touches, so a flick under it throws. */
+#hud .coach-place { position: absolute; }
+#hud .coach {
+  display: flex; flex-direction: column; gap: 6px; padding: 9px;
+  background: rgba(111, 85, 214, 0.94); border: 3px solid var(--butter);
+  border-radius: 16px; box-shadow: 0 4px 0 var(--ink);
+}
+#hud .coach-head { display: flex; justify-content: space-between; align-items: center; }
+#hud .skip { padding: 4px 10px; border-radius: 999px; background: rgba(58, 35, 70, 0.5); }
+#hud .coach-got { display: flex; justify-content: center; }
+
+/* Overlays that take every touch. */
+#hud .hud-block { position: absolute; inset: 0; pointer-events: auto; }
+#hud .dim { background: rgba(0, 0, 0, 0.3); }
+#hud .shade { background: rgba(58, 35, 70, 0.55); display: flex; align-items: center; justify-content: center; }
+#hud .prompt {
+  display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px;
+  background: var(--violet); border: 4px solid var(--butter); border-radius: 22px;
+}
+#hud .screen { background-color: var(--violet); }
+/* StripeBackdrop: 18pt lilac stripes at 35%, 48pt apart across, rising left to right. */
+#hud .stripes {
+  background-image: repeating-linear-gradient(135deg, rgba(155, 131, 242, 0.35) 0 18px, transparent 18px 33.94px);
+}
+#hud .shop, #hud .guide, #hud .arrival, #hud .host {
+  position: absolute; inset: 0; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; align-items: center;
+}
+#hud .shop { gap: 10px; padding-top: 28px; }
+#hud .prizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding: 0 12px; box-sizing: border-box; }
+#hud .prize {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 3px;
+  border: 3px solid; border-radius: 14px; box-shadow: 0 3px 0 var(--ink);
+}
+#hud .prize-name { max-width: 100%; overflow: hidden; }
+#hud .bottom-button { padding-bottom: max(24px, env(safe-area-inset-bottom)); display: flex; justify-content: center; }
+#hud .guide { gap: 10px; padding: 30px 14px 20px; }
+#hud .topics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+#hud .topic {
+  min-height: 44px; box-sizing: border-box; padding: 4px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  background: var(--ink55); border: 2px solid var(--ink); border-radius: 12px;
+}
+#hud .reader-title { text-align: center; }
+#hud .reader-title .cel { white-space: normal; }
+#hud .page {
+  flex: 1 1 0; min-height: 0; width: 100%; box-sizing: border-box; padding: 16px; overflow: auto;
+  background: rgba(58, 35, 70, 0.45); border-radius: 14px;
+}
+#hud .page .rt, #hud .sal .rt { line-height: 1.2; }
+#hud .arrival { gap: 18px; padding: 60px 18px 16px; align-items: stretch; }
+#hud .welcome { transform: rotate(-3deg); }
+#hud .welcome > .cel { margin: -4px 0; }
+#hud .sal {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 15px;
+  background: var(--lilac); border: 3px solid var(--ink); border-radius: 18px;
+}
+/* HostView: header, offer card, transcript (newest at the bottom, the
+   oldest lines slide off the top), then the controls or the ending. */
+#hud .host { gap: 10px; padding: 26px 14px max(20px, env(safe-area-inset-bottom)); align-items: stretch; overflow: hidden; }
+#hud .host-head { align-items: center; }
+#hud .host-offer {
+  gap: 4px; padding: 10px; border-radius: 14px; background: rgba(58, 35, 70, 0.5);
+}
+#hud .host-term { gap: 0; }
+#hud .host-term > .cel { margin: -1px 0; }
+#hud .host-dot { width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--ink); }
+#hud .host-transcript {
+  flex: 1 1 0; min-height: 0; overflow: hidden; padding: 10px;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+  border-radius: 14px; background: rgba(58, 35, 70, 0.35);
+}
+#hud .bubble-row { display: flex; padding-right: 40px; flex-shrink: 0; }
+#hud .bubble-row.mine { justify-content: flex-end; padding-right: 0; padding-left: 40px; }
+#hud .bubble { padding: 8px 12px; border: 2px solid var(--ink); border-radius: 14px; overflow-wrap: anywhere; }
+#hud .bubble.stage .rt { font-style: italic; }
+#hud .host-thinking { flex-shrink: 0; }
+#hud .host-failure {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 8px 10px; border: 2px dashed var(--butter); border-radius: 12px; background: rgba(58, 35, 70, 0.6);
+}
+#hud .host-failure > .hb { align-self: center; margin-top: 4px; }
+#hud .host-controls { align-items: stretch; }
+#hud .host-controls > .hs { justify-content: center; }
+#hud .nudge { padding: 6px 8px; border-radius: 999px; background: rgba(58, 35, 70, 0.55); white-space: nowrap; }
+#hud .host-say > .host-field { flex: 1 1 0; min-width: 0; }
+#hud .host-field {
+  pointer-events: auto; box-sizing: border-box; padding: 10px; font: inherit; font-size: 16px; font-weight: 600;
+  color: var(--ink); background: var(--cream); border: 2px solid var(--ink); border-radius: 12px; outline: none;
+}
+#hud .host-field:disabled { opacity: 0.5; }
+#hud .host-ending { align-items: center; }
+#hud .host-ending .cel { white-space: normal; text-align: center; }
+/* consentCard */
+#hud .host-ask { background: rgba(58, 35, 70, 0.7); display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+#hud .host-ask-card {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px;
+  background: var(--violet); border: 3px solid var(--ink); border-radius: 18px;
+}
+#hud .host-ask-card .rt { align-self: stretch; line-height: 1.2; }
