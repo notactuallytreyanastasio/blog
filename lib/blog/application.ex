@@ -54,7 +54,7 @@ defmodule Blog.Application do
         camera_browser_children() ++ gallery_children()
 
     opts = [strategy: :one_for_one, name: Blog.Supervisor]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(children ++ factory_report(), opts)
   end
 
   # Live firehoses; off in tests (config/test.exs). BlueskyHose connects inside
@@ -158,6 +158,24 @@ defmodule Blog.Application do
         # Ignore any errors during initialization
         _ -> :ok
       end
+    end
+  end
+
+  # The report the factory (obs_factor) reads: the BEAM, every connected
+  # LiveView, and counted streams, on an internal port (9568, the default).
+  # On in production only (config/prod.exs), so dev and test never bind it.
+  defp factory_report do
+    if Application.get_env(:blog, :factory_report, false) do
+      [
+        # observer: true: the observer reads /observer here without a report
+        # token (factory_report refuses tokenless reads otherwise); the port
+        # is reachable only on the compose network. Its actions (gc, kill,
+        # restart) stay off unless FACTORY_REPORT_ACTIONS_TOKEN is set, which
+        # factory_report reads from the environment itself.
+        {FactoryReport, app: :blog, repos: [Blog.Repo], observer: true}
+      ]
+    else
+      []
     end
   end
 

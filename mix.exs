@@ -44,6 +44,9 @@ defmodule Blog.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      # What this app reports about its own inside to the factory (obs_factor).
+      # Vendored by obs_factor/packages/factory_report/install.sh.
+      {:factory_report, path: "vendor/factory_report"},
       {:phoenix, "~> 1.7.10"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
